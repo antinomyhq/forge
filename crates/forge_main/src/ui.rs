@@ -2059,7 +2059,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .is_ok();
         if !is_provider_configured {
             let provider_option = self.select_provider().await?;
-            
+
             // If a provider was selected, save it as the default
             if let Some(provider) = provider_option {
                 self.api.set_default_provider(provider.id).await?;

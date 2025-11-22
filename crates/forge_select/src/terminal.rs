@@ -1,4 +1,7 @@
-use std::io::{self, Write};
+use std::io::{self, stdout};
+
+use crossterm::event::{DisableBracketedPaste, EnableBracketedPaste};
+use crossterm::{execute, Command};
 
 /// Terminal control utilities for managing terminal modes
 pub struct TerminalControl;
@@ -6,79 +9,54 @@ pub struct TerminalControl;
 impl TerminalControl {
     /// Disable bracketed paste mode
     ///
-    /// Sends the escape sequence `\e[?2004l` to disable bracketed paste mode.
-    /// This prevents terminals from wrapping pasted content with `~0` and `~1`
-    /// markers.
+    /// Prevents terminals from wrapping pasted content with special markers.
     ///
     /// # Errors
     ///
-    /// Returns an error if writing to stdout fails or if flushing fails
+    /// Returns an error if the terminal command fails to execute
     pub fn disable_bracketed_paste() -> io::Result<()> {
-        let mut stdout = io::stdout();
-        write!(stdout, "\x1b[?2004l")?;
-        stdout.flush()
+        execute!(stdout(), DisableBracketedPaste)
     }
 
     /// Enable bracketed paste mode
     ///
-    /// Sends the escape sequence `\e[?2004h` to enable bracketed paste mode.
-    /// This allows terminals to distinguish between typed and pasted content.
+    /// Allows terminals to distinguish between typed and pasted content.
     ///
     /// # Errors
     ///
-    /// Returns an error if writing to stdout fails or if flushing fails
+    /// Returns an error if the terminal command fails to execute
     pub fn enable_bracketed_paste() -> io::Result<()> {
-        let mut stdout = io::stdout();
-        write!(stdout, "\x1b[?2004h")?;
-        stdout.flush()
+        execute!(stdout(), EnableBracketedPaste)
     }
 
     /// Disable application cursor keys mode
     ///
-    /// Sends the escape sequence `\e[?1l` to disable application cursor keys
-    /// mode. This ensures arrow keys send standard sequences instead of
+    /// Ensures arrow keys send standard sequences instead of
     /// application-specific ones.
     ///
     /// # Errors
     ///
-    /// Returns an error if writing to stdout fails or if flushing fails
+    /// Returns an error if the terminal command fails to execute
     pub fn disable_application_cursor_keys() -> io::Result<()> {
-        let mut stdout = io::stdout();
-        write!(stdout, "\x1b[?1l")?;
-        stdout.flush()
+        execute!(stdout(), DisableApplicationCursorKeys)
     }
 
     /// Enable application cursor keys mode
     ///
-    /// Sends the escape sequence `\e[?1h` to enable application cursor keys
-    /// mode. This makes arrow keys send application-specific sequences.
+    /// Makes arrow keys send application-specific sequences.
     ///
     /// # Errors
     ///
-    /// Returns an error if writing to stdout fails or if flushing fails
+    /// Returns an error if the terminal command fails to execute
     pub fn enable_application_cursor_keys() -> io::Result<()> {
-        let mut stdout = io::stdout();
-        write!(stdout, "\x1b[?1h")?;
-        stdout.flush()
+        execute!(stdout(), EnableApplicationCursorKeys)
     }
 }
 
 /// RAII guard that disables bracketed paste mode and re-enables it on drop
 ///
-/// This is useful for ensuring bracketed paste mode is properly restored
-/// even if an error occurs during execution.
-///
-/// # Examples
-///
-/// ```rust,ignore
-/// use forge_select::BracketedPasteGuard;
-///
-/// {
-///     let _guard = BracketedPasteGuard::new()?;
-///     // Bracketed paste is now disabled
-///     // ... do work that needs bracketed paste disabled ...
-/// } // Bracketed paste is automatically re-enabled here
-/// ```
+/// This ensures bracketed paste mode is properly restored even if an error
+/// occurs during execution.
 pub struct BracketedPasteGuard {
     _private: (),
 }
@@ -105,20 +83,8 @@ impl Drop for BracketedPasteGuard {
 /// RAII guard that disables application cursor keys mode and re-enables it on
 /// drop
 ///
-/// This is useful for ensuring application cursor keys mode is properly
-/// restored even if an error occurs during execution.
-///
-/// # Examples
-///
-/// ```rust,ignore
-/// use forge_select::ApplicationCursorKeysGuard;
-///
-/// {
-///     let _guard = ApplicationCursorKeysGuard::new()?;
-///     // Application cursor keys are now disabled
-///     // ... do work that needs standard arrow key sequences ...
-/// } // Application cursor keys are automatically re-enabled here
-/// ```
+/// This ensures application cursor keys mode is properly restored even if an
+/// error occurs during execution.
 pub struct ApplicationCursorKeysGuard {
     _private: (),
 }
@@ -142,4 +108,24 @@ impl Drop for ApplicationCursorKeysGuard {
     }
 }
 
+/// Custom crossterm command to disable application cursor keys mode
+///
+/// Sends the DECCKM escape sequence to disable application cursor keys.
+struct DisableApplicationCursorKeys;
 
+impl Command for DisableApplicationCursorKeys {
+    fn write_ansi(&self, f: &mut impl std::fmt::Write) -> std::fmt::Result {
+        write!(f, "\x1b[?1l")
+    }
+}
+
+/// Custom crossterm command to enable application cursor keys mode
+///
+/// Sends the DECCKM escape sequence to enable application cursor keys.
+struct EnableApplicationCursorKeys;
+
+impl Command for EnableApplicationCursorKeys {
+    fn write_ansi(&self, f: &mut impl std::fmt::Write) -> std::fmt::Result {
+        write!(f, "\x1b[?1h")
+    }
+}
