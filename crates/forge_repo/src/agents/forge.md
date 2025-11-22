@@ -101,7 +101,6 @@ Important:
 <description>
 {{this.prompt}}
 </description>
-<location>{{this.path}}</location>
 </skill>
 {{/each}}
 </available-skills>
