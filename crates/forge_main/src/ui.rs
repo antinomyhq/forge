@@ -1437,8 +1437,12 @@ impl<A: forge_api::API + 'static, F: Fn() -> A> UI<A, F> {
 
                 // Create ChatRequest with processed template content
                 let conversation_id = self.init_conversation().await?;
-                let operating_agent = self.api.get_active_agent().await.unwrap_or_default();
-                let event = Event::new(format!("{operating_agent}"));
+                let event = if let Some(processed_template) = _processed_template {
+                    Event::new(processed_template)
+                } else {
+                    let operating_agent = self.api.get_active_agent().await.unwrap_or_default();
+                    Event::new(format!("{operating_agent}"))
+                };
                 let chat = ChatRequest::new(event, conversation_id);
 
                 // Send to LLM for processing
@@ -1465,8 +1469,12 @@ impl<A: forge_api::API + 'static, F: Fn() -> A> UI<A, F> {
 
                 // Create ChatRequest with processed content
                 let conversation_id = self.init_conversation().await?;
-                let operating_agent = self.api.get_active_agent().await.unwrap_or_default();
-                let event = Event::new(format!("{operating_agent}"));
+                let event = if let Some(processed_content) = _processed_content {
+                    Event::new(processed_content)
+                } else {
+                    let operating_agent = self.api.get_active_agent().await.unwrap_or_default();
+                    Event::new(format!("{operating_agent}"))
+                };
                 let chat = ChatRequest::new(event, conversation_id);
 
                 // Send to LLM instead of direct execution
