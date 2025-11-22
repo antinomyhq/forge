@@ -106,10 +106,10 @@ pub fn replace_commands_in_content(
             // Generate XML structure for empty output using default shell
             format_inline_shell_result_simple(
                 &result.command,
-                "", // empty stdout
-                "", // empty stderr
+                "",
+                "",
                 result.exit_code,
-                "/usr/bin/zsh", // default shell
+                "/usr/bin/zsh"
             )
         } else {
             result.stdout.clone()
@@ -121,27 +121,10 @@ pub fn replace_commands_in_content(
     updated_content
 }
 
-/// Trait for executing inline shell commands with security checks and caching
-///
-/// This trait provides the primary interface for executing shell commands that
-/// are embedded within text content. All implementations must perform security
-/// analysis and respect the restricted mode flag.
+/// Trait for executing inline shell commands with security checks
 #[async_trait::async_trait]
 pub trait InlineShellExecutor: Send + Sync {
-    /// Execute a list of inline shell commands with security validation
-    ///
-    /// # Arguments
-    /// * `commands` - Vector of parsed inline shell commands to execute
-    /// * `working_dir` - Directory where commands should be executed
-    /// * `restricted` - If true, only safe commands are allowed
-    ///
-    /// # Returns
-    /// * `Ok(Vec<CommandResult>)` - Results for each command in order
-    /// * `Err(InlineShellError)` - If security validation or execution fails
-    ///
-    /// # Errors
-    /// Returns `InlineShellError::SecurityViolation` if dangerous commands are
-    /// blocked in restricted mode, or other execution errors.
+    /// Execute inline shell commands with security validation
     async fn execute_commands(
         &self,
         commands: Vec<forge_domain::inline_shell::InlineShellCommand>,
@@ -150,12 +133,7 @@ pub trait InlineShellExecutor: Send + Sync {
     ) -> Result<Vec<forge_domain::CommandResult>, forge_domain::inline_shell::InlineShellError>;
 }
 
-/// Concrete implementation of InlineShellExecutor with caching
-///
-/// This executor provides secure shell command execution with the following
-/// features:
-/// - Security validation using configurable patterns
-/// - Support for both restricted and unrestricted modes
+/// Concrete implementation of InlineShellExecutor
 pub struct ConcreteInlineShellExecutor {
     command_infra: std::sync::Arc<dyn crate::infra::CommandInfra>,
     environment: forge_domain::Environment,
@@ -210,7 +188,7 @@ impl InlineShellExecutor for ConcreteInlineShellExecutor {
             let is_blocked = if let Some(security_service) = &self.security_service {
                 security_service
                     .is_command_blocked(&cmd.command, restricted)
-                    .unwrap_or(false) // Fallback to false if service fails
+                    .unwrap_or(false)
             } else {
                 // Legacy behavior - use domain function directly
                 let security_result =
@@ -230,7 +208,7 @@ impl InlineShellExecutor for ConcreteInlineShellExecutor {
                 let xml_output = format_inline_shell_result(
                     &cmd.command,
                     truncated_output,
-                    1, // exit_code
+                    1,
                     &self.environment.shell,
                 );
 
@@ -250,8 +228,8 @@ impl InlineShellExecutor for ConcreteInlineShellExecutor {
                 self.command_infra.execute_command(
                     cmd.command.clone(),
                     working_dir.to_path_buf(),
-                    false, // Not silent
-                    None,  // No additional environment variables for now
+                    false,
+                    None
                 ),
             )
             .await;
@@ -308,7 +286,7 @@ impl InlineShellExecutor for ConcreteInlineShellExecutor {
                     let xml_output = format_inline_shell_result(
                         &cmd.command,
                         truncated_output,
-                        1, // exit_code
+                        1,
                         &self.environment.shell,
                     );
 
@@ -336,7 +314,7 @@ impl InlineShellExecutor for ConcreteInlineShellExecutor {
                     let xml_output = format_inline_shell_result(
                         &cmd.command,
                         truncated_output,
-                        124, // exit_code (timeout)
+                        124,
                         &self.environment.shell,
                     );
 
@@ -345,7 +323,7 @@ impl InlineShellExecutor for ConcreteInlineShellExecutor {
                         command: cmd.command.clone(),
                         stdout: xml_output,
                         stderr: String::new(),
-                        exit_code: 124, // Standard timeout exit code
+                        exit_code: 124
                     }
                 }
             };
@@ -464,7 +442,7 @@ mod tests {
         }];
 
         let results = executor
-            .execute_commands(commands, std::path::Path::new("/test"), false) // restricted = false (unrestricted mode)
+            .execute_commands(commands, std::path::Path::new("/test"), false)
             .await
             .unwrap();
 
@@ -501,7 +479,7 @@ mod tests {
         ];
 
         let results = executor
-            .execute_commands(commands, std::path::Path::new("/test"), false) // restricted = false (unrestricted mode)
+            .execute_commands(commands, std::path::Path::new("/test"), false)
             .await
             .unwrap();
 
@@ -527,15 +505,15 @@ mod tests {
         }];
 
         let results = executor
-            .execute_commands(commands, std::path::Path::new("/test"), false) // restricted = false (unrestricted mode)
+            .execute_commands(commands, std::path::Path::new("/test"), false)
             .await
             .unwrap();
 
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].command, "false");
-        assert!(results[0].stdout.contains("Error:")); // MockCommandInfra gives "Error: " for failed commands
-        assert!(results[0].stdout.contains("<inline_shell_output")); // Look for opening tag without closing >
-        assert_eq!(results[0].exit_code, 1); // Should preserve actual exit code
+        assert!(results[0].stdout.contains("Error:"));
+        assert!(results[0].stdout.contains("<inline_shell_output"));
+        assert_eq!(results[0].exit_code, 1);
     }
 
     #[tokio::test]
@@ -553,7 +531,7 @@ mod tests {
         }];
 
         let results = executor
-            .execute_commands(commands, std::path::Path::new("/test"), true) // restricted = true (restricted mode)
+            .execute_commands(commands, std::path::Path::new("/test"), true)
             .await
             .unwrap();
 
@@ -561,7 +539,7 @@ mod tests {
         assert_eq!(results[0].command, "rm -rf /");
         assert!(results[0].stderr.contains("blocked in restricted mode"));
         assert!(results[0].stderr.contains("<inline_shell_output"));
-        assert_eq!(results[0].exit_code, 1); // Should preserve actual exit code
+        assert_eq!(results[0].exit_code, 1);
     }
 
     #[test]
@@ -602,7 +580,7 @@ mod tests {
         }];
 
         let results = executor
-            .execute_commands(commands, std::path::Path::new("/test"), true) // restricted = true
+            .execute_commands(commands, std::path::Path::new("/test"), true)
             .await
             .unwrap();
 
@@ -610,7 +588,7 @@ mod tests {
         assert_eq!(results[0].command, "rm -rf /");
         assert!(results[0].stderr.contains("blocked in restricted mode"));
         assert!(results[0].stderr.contains("<inline_shell_output"));
-        assert_eq!(results[0].exit_code, 1); // Should preserve actual exit code
+        assert_eq!(results[0].exit_code, 1);
     }
 
     #[tokio::test]
@@ -631,7 +609,7 @@ mod tests {
         }];
 
         let results = executor
-            .execute_commands(commands, std::path::Path::new("/test"), false) // restricted = false (unrestricted)
+            .execute_commands(commands, std::path::Path::new("/test"), false)
             .await
             .unwrap();
 
