@@ -57,16 +57,17 @@ impl SecurityValidationService {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use forge_domain::inline_shell::SecuritySeverity;
+
+    use super::*;
 
     #[test]
     fn test_is_command_blocked_restricted_mode() {
         let service = SecurityValidationService::new();
-        
+
         // Safe command should not be blocked
         assert!(!service.is_command_blocked("echo hello", true).unwrap());
-        
+
         // Dangerous command should be blocked
         assert!(service.is_command_blocked("rm -rf /", true).unwrap());
     }
@@ -74,7 +75,7 @@ mod tests {
     #[test]
     fn test_is_command_blocked_unrestricted_mode() {
         let service = SecurityValidationService::new();
-        
+
         // All commands should be allowed in unrestricted mode
         assert!(!service.is_command_blocked("echo hello", false).unwrap());
         assert!(!service.is_command_blocked("rm -rf /", false).unwrap());
@@ -84,7 +85,7 @@ mod tests {
     fn test_analyze_command() {
         let service = SecurityValidationService::new();
         let result = service.analyze_command("rm -rf /").unwrap();
-        
+
         assert!(result.is_dangerous);
         assert_eq!(result.severity, SecuritySeverity::Critical);
         assert!(result.reason.contains("filesystem"));
@@ -95,21 +96,21 @@ mod tests {
         let service = SecurityValidationService::new();
         let content = "Safe text ![echo hello] dangerous ![rm -rf /] end";
         let results = service.analyze_content(content).unwrap();
-        
+
         assert_eq!(results.len(), 2);
         assert!(!results[0].is_dangerous); // echo hello
-        assert!(results[1].is_dangerous);  // rm -rf /
+        assert!(results[1].is_dangerous); // rm -rf /
     }
 
     #[test]
     fn test_get_block_reason() {
         let service = SecurityValidationService::new();
-        
+
         // Dangerous command reason
         let reason = service.get_block_reason("rm -rf /").unwrap();
         assert!(reason.contains("blocked"));
         assert!(reason.contains("Critical"));
-        
+
         // Safe command reason
         let reason = service.get_block_reason("echo hello").unwrap();
         assert_eq!(reason, "Command is not blocked");

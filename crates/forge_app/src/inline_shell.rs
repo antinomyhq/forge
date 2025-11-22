@@ -213,7 +213,8 @@ impl InlineShellExecutor for ConcreteInlineShellExecutor {
                     .unwrap_or(false) // Fallback to false if service fails
             } else {
                 // Legacy behavior - use domain function directly
-                let security_result = forge_domain::inline_shell::check_command_security(&cmd.command);
+                let security_result =
+                    forge_domain::inline_shell::check_command_security(&cmd.command);
                 restricted && security_result.is_dangerous
             };
 

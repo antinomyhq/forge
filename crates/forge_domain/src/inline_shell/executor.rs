@@ -81,12 +81,18 @@ mod tests {
     #[test]
     fn test_replacement_text_failure_with_stderr() {
         let result = fixture_command_result(r"![ls]", "ls", "", "No such file", 2);
-        assert_eq!(result.replacement_text(), "[Error: Command failed: No such file]");
+        assert_eq!(
+            result.replacement_text(),
+            "[Error: Command failed: No such file]"
+        );
     }
 
     #[test]
     fn test_replacement_text_failure_no_stderr() {
         let result = fixture_command_result(r"![false]", "false", "", "", 1);
-        assert_eq!(result.replacement_text(), "[Error: Command failed with exit code 1]");
+        assert_eq!(
+            result.replacement_text(),
+            "[Error: Command failed with exit code 1]"
+        );
     }
 }

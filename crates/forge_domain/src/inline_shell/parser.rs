@@ -1,4 +1,5 @@
 use anyhow::Result;
+
 use crate::inline_shell::InlineShellError;
 
 /// Represents a detected inline shell command with its position information
@@ -34,7 +35,7 @@ pub fn parse_inline_commands(content: &str) -> Result<ParsedContent, InlineShell
             // Found potential command start
             let mut bracket_count = 1;
             let mut j = i + 2;
-            
+
             while j < chars.len() && bracket_count > 0 {
                 match chars[j] {
                     '[' => bracket_count += 1,
@@ -48,19 +49,23 @@ pub fn parse_inline_commands(content: &str) -> Result<ParsedContent, InlineShell
                 // Found complete command
                 let command_start = i + 2;
                 let command_end = j - 1;
-                
+
                 if command_start < command_end {
                     let command: String = chars[command_start..command_end].iter().collect();
                     let command = command.trim();
-                    
+
                     if !command.is_empty() {
                         let full_match: String = chars[i..j].iter().collect();
-                        let end_pos = if j < chars.len() && chars[j] == ' ' { j + 1 } else { j };
+                        let end_pos = if j < chars.len() && chars[j] == ' ' {
+                            j + 1
+                        } else {
+                            j
+                        };
                         commands.push(InlineShellCommand {
                             full_match,
                             command: command.to_string(),
-                            start_pos: i + 1,  // Skip '!' 
-                            end_pos,             // Include trailing space if exists
+                            start_pos: i + 1, // Skip '!'
+                            end_pos,          // Include trailing space if exists
                         });
                     }
                 }

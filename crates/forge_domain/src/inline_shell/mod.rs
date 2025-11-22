@@ -141,7 +141,7 @@ fn get_security_patterns() -> &'static Vec<SecurityPattern> {
 /// Checks if a command is dangerous based on security patterns
 pub fn check_command_security(command: &str) -> SecurityCheckResult {
     let patterns = get_security_patterns();
-    
+
     for pattern in patterns {
         if pattern.regex.is_match(command) {
             return SecurityCheckResult {
@@ -164,7 +164,7 @@ pub fn check_command_security(command: &str) -> SecurityCheckResult {
 /// Analyzes content for dangerous inline shell commands
 pub fn analyze_content_security(content: &str) -> Vec<SecurityCheckResult> {
     use crate::inline_shell::parser::parse_inline_commands;
-    
+
     let parsed_content = match parse_inline_commands(content) {
         Ok(parsed) => parsed,
         Err(_) => return Vec::new(),
@@ -209,6 +209,6 @@ mod tests {
         let results = analyze_content_security(content);
         assert_eq!(results.len(), 2);
         assert!(!results[0].is_dangerous); // echo hello
-        assert!(results[1].is_dangerous);  // rm -rf /
+        assert!(results[1].is_dangerous); // rm -rf /
     }
 }
