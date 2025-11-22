@@ -13,7 +13,7 @@ pub struct Skill {
     pub path: String,
 
     /// Content/prompt loaded from the markdown file
-    pub prompt: String,
+    pub command: String,
 }
 
 impl Skill {
@@ -29,7 +29,7 @@ impl Skill {
         path: impl Into<String>,
         prompt: impl Into<String>,
     ) -> Self {
-        Self { name: name.into(), path: path.into(), prompt: prompt.into() }
+        Self { name: name.into(), path: path.into(), command: prompt.into() }
     }
 }
 
@@ -48,7 +48,7 @@ mod tests {
         let actual = (
             fixture.name.clone(),
             fixture.path.clone(),
-            fixture.prompt.clone(),
+            fixture.command.clone(),
         );
 
         // Assert
@@ -66,7 +66,7 @@ mod tests {
         let fixture = Skill::new("test", "/path", "prompt")
             .name("updated_name")
             .path("/updated/path")
-            .prompt("updated prompt");
+            .command("updated prompt");
 
         // Act
         let actual = fixture;
@@ -75,6 +75,6 @@ mod tests {
         let expected = Skill::new("updated_name", "/updated/path", "updated prompt");
         assert_eq!(actual.name, expected.name);
         assert_eq!(actual.path, expected.path);
-        assert_eq!(actual.prompt, expected.prompt);
+        assert_eq!(actual.command, expected.command);
     }
 }

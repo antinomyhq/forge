@@ -34,6 +34,15 @@ impl<I> ForgeSkillRepository<I> {
     pub fn new(infra: Arc<I>) -> Self {
         Self { infra }
     }
+
+    /// Loads built-in skills that are embedded in the application
+    fn load_builtin_skills(&self) -> Vec<Skill> {
+        vec![Skill::new(
+            "skill-creation",
+            "builtin://skills/skill-creation.md",
+            include_str!("skills/skill-creation.md"),
+        )]
+    }
 }
 
 #[async_trait::async_trait]
@@ -48,6 +57,10 @@ impl<I: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra> SkillRepository
         let mut skills = Vec::new();
         let env = self.infra.get_environment();
 
+        // Load built-in skills
+        let builtin_skills = self.load_builtin_skills();
+        skills.extend(builtin_skills);
+
         // Load global skills
         if let Some(home) = &env.home {
             let global_dir = home.join(".forge/skills");
@@ -60,7 +73,7 @@ impl<I: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra> SkillRepository
         let cwd_skills = self.load_skills_from_dir(&cwd_dir).await?;
         skills.extend(cwd_skills);
 
-        // Resolve conflicts by keeping the last occurrence (CWD > Global)
+        // Resolve conflicts by keeping the last occurrence (CWD > Global > Built-in)
         Ok(resolve_skill_conflicts(skills))
     }
 }
@@ -157,7 +170,23 @@ mod tests {
         assert_eq!(actual.len(), 2);
         assert_eq!(actual[0].name, "skill1");
         assert_eq!(actual[0].path, "/cwd/skill1.md");
-        assert_eq!(actual[0].prompt, "cwd prompt");
+        assert_eq!(actual[0].command, "cwd prompt");
         assert_eq!(actual[1].name, "skill2");
+    }
+
+    #[test]
+    fn test_load_builtin_skills() {
+        // Fixture
+        let repo = ForgeSkillRepository { infra: Arc::new(()) };
+
+        // Act
+        let actual = repo.load_builtin_skills();
+
+        // Assert
+        assert_eq!(actual.len(), 1);
+        assert_eq!(actual[0].name, "skill-creation");
+        assert_eq!(actual[0].path, "builtin://skills/skill-creation.md");
+        assert!(actual[0].command.contains("Skill Creator"));
+        assert!(actual[0].command.contains("creating effective skills"));
     }
 }
