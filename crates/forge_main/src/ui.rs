@@ -2312,11 +2312,16 @@ impl<A: forge_api::API + 'static, F: Fn() -> A> UI<A, F> {
         let conversation_id = self.init_conversation().await?;
 
         // Process inline shell commands
-        let _processed_content = self.process_inline_shell_commands(content).await?;
+        let processed_content = self.process_inline_shell_commands(content).await?;
 
         // Create a ChatRequest with the appropriate event type
-        let operating_agent = self.api.get_active_agent().await.unwrap_or_default();
-        let event = Event::new(format!("{operating_agent}"));
+        let event = if let Some(content) = processed_content {
+            Event::new(content)
+        } else {
+            // If no content was provided, create an event with the operating agent name
+            let operating_agent = self.api.get_active_agent().await.unwrap_or_default();
+            Event::new(format!("{operating_agent}"))
+        };
 
         // Create the chat request with the event
         let chat = ChatRequest::new(event, conversation_id);
@@ -2472,6 +2477,9 @@ impl<A: forge_api::API + 'static, F: Fn() -> A> UI<A, F> {
         if should_continue.unwrap_or(false) {
             self.spinner.start(None)?;
             Box::pin(self.on_message(None)).await?;
+        } else {
+            // Ensure spinner is stopped even when user says "No"
+            self.spinner.stop(None)?;
         }
 
         Ok(())

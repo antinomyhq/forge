@@ -100,8 +100,8 @@ pub fn replace_commands_in_content(
 
     // Process results in reverse order to maintain position correctness
     for result in results.iter().rev() {
-        // Always use XML format from stdout - if stdout already contains XML, use it directly
-        // Otherwise, generate XML structure for empty output
+        // Always use XML format from stdout - if stdout already contains XML, use it
+        // directly Otherwise, generate XML structure for empty output
         let replacement = if result.stdout.trim().is_empty() {
             // Generate XML structure for empty output using default shell
             format_inline_shell_result_simple(
