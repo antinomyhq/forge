@@ -23,9 +23,9 @@ use serde::Deserialize;
 ///
 /// ## Directory Resolution
 /// - **Built-in skills**: Embedded in application binary
-/// - **Global skills**: `{HOME}/.forge/skills/*.md`
-/// - **CWD skills**: `./.forge/skills/*.md` (relative to current working
-///   directory)
+/// - **Global skills**: `{HOME}/.forge/skills/<skill-name>/SKILL.md`
+/// - **CWD skills**: `./.forge/skills/<skill-name>/SKILL.md` (relative to
+///   current working directory)
 ///
 /// Missing directories are handled gracefully and don't prevent loading from
 /// other sources.
@@ -41,7 +41,7 @@ impl<I> ForgeSkillRepository<I> {
     /// Loads built-in skills that are embedded in the application
     fn load_builtin_skills(&self) -> Vec<Skill> {
         let builtin_skills = vec![(
-            "forge://skills/skill-creation.md",
+            "builtin://skills/skill-creation/SKILL.md",
             include_str!("skills/skill-creation.md"),
         )];
 
@@ -92,10 +92,10 @@ impl<I: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra> ForgeSkillRepos
             return Ok(vec![]);
         }
 
-        // Read all .md files in the directory
+        // Read all SKILL.md files from subdirectories
         let files = self
             .infra
-            .read_directory_files(dir, Some("*.md"))
+            .read_directory_files(dir, Some("*/SKILL.md"))
             .await
             .with_context(|| format!("Failed to read skills from: {}", dir.display()))?;
 
@@ -103,15 +103,17 @@ impl<I: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra> ForgeSkillRepos
             .into_iter()
             .filter_map(|(path, content)| {
                 let path_str = path.display().to_string();
-                let filename = path
-                    .file_stem()
+                // Get the directory name (skill name) from the path
+                let skill_name = path
+                    .parent()
+                    .and_then(|p| p.file_name())
                     .and_then(|s| s.to_str())
                     .unwrap_or("unknown")
                     .to_string();
 
-                // Try to extract skill from front matter, otherwise create with filename
+                // Try to extract skill from front matter, otherwise create with directory name
                 extract_skill(&path_str, &content)
-                    .or_else(|| Some(Skill::new(filename, path_str, content, String::new())))
+                    .or_else(|| Some(Skill::new(skill_name, path_str, content, String::new())))
             })
             .collect();
 
