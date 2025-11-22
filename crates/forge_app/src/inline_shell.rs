@@ -109,7 +109,7 @@ pub fn replace_commands_in_content(
                 "",
                 "",
                 result.exit_code,
-                "/usr/bin/zsh"
+                "/usr/bin/zsh",
             )
         } else {
             result.stdout.clone()
@@ -229,7 +229,7 @@ impl InlineShellExecutor for ConcreteInlineShellExecutor {
                     cmd.command.clone(),
                     working_dir.to_path_buf(),
                     false,
-                    None
+                    None,
                 ),
             )
             .await;
@@ -323,7 +323,7 @@ impl InlineShellExecutor for ConcreteInlineShellExecutor {
                         command: cmd.command.clone(),
                         stdout: xml_output,
                         stderr: String::new(),
-                        exit_code: 124
+                        exit_code: 124,
                     }
                 }
             };
