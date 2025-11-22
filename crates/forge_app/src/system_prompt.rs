@@ -176,8 +176,18 @@ mod tests {
         let env = create_test_environment();
         let agent = create_test_agent();
         let skills = vec![
-            Skill::new("code_review", "/skills/code_review.md", "Review code"),
-            Skill::new("testing", "/skills/testing.md", "Write tests"),
+            Skill::new(
+                "code_review",
+                "/skills/code_review.md",
+                "Review code",
+                "Code review skill",
+            ),
+            Skill::new(
+                "testing",
+                "/skills/testing.md",
+                "Write tests",
+                "Testing skill",
+            ),
         ];
 
         let system_prompt = SystemPrompt::new(services, env, agent).skills(skills.clone());

@@ -1057,16 +1057,18 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// Lists available skills
     async fn on_show_skills(&mut self, porcelain: bool) -> anyhow::Result<()> {
         let skills = self.api.get_skills().await?;
-        let mut info = Info::new().add_title("SKILLS");
+        let mut info = Info::new();
 
         for skill in skills {
             info = info
-                .add_title(skill.name.clone())
-                .add_key_value("path", skill.path.clone());
+                .add_title(skill.name.clone().to_case(Case::Sentence).to_uppercase())
+                .add_key_value("name", skill.name)
+                .add_key_value("path", skill.path)
+                .add_key_value("description", skill.description);
         }
 
         if porcelain {
-            let porcelain = Porcelain::from(&info).skip(2);
+            let porcelain = Porcelain::from(&info).skip(1);
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;

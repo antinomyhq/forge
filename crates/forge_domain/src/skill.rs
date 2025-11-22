@@ -14,6 +14,9 @@ pub struct Skill {
 
     /// Content/prompt loaded from the markdown file
     pub command: String,
+
+    /// Description of the skill
+    pub description: String,
 }
 
 impl Skill {
@@ -24,12 +27,19 @@ impl Skill {
     /// * `name` - The name identifier for the skill
     /// * `path` - The file system path to the skill markdown file
     /// * `prompt` - The skill prompt content
+    /// * `description` - A brief description of the skill
     pub fn new(
         name: impl Into<String>,
         path: impl Into<String>,
         prompt: impl Into<String>,
+        description: impl Into<String>,
     ) -> Self {
-        Self { name: name.into(), path: path.into(), command: prompt.into() }
+        Self {
+            name: name.into(),
+            path: path.into(),
+            command: prompt.into(),
+            description: description.into(),
+        }
     }
 }
 
@@ -42,13 +52,19 @@ mod tests {
     #[test]
     fn test_skill_creation() {
         // Fixture
-        let fixture = Skill::new("code_review", "/skills/code_review.md", "Review this code");
+        let fixture = Skill::new(
+            "code_review",
+            "/skills/code_review.md",
+            "Review this code",
+            "A skill for reviewing code quality",
+        );
 
         // Act
         let actual = (
             fixture.name.clone(),
             fixture.path.clone(),
             fixture.command.clone(),
+            fixture.description.clone(),
         );
 
         // Assert
@@ -56,6 +72,7 @@ mod tests {
             "code_review".to_string(),
             "/skills/code_review.md".to_string(),
             "Review this code".to_string(),
+            "A skill for reviewing code quality".to_string(),
         );
         assert_eq!(actual, expected);
     }
@@ -63,18 +80,22 @@ mod tests {
     #[test]
     fn test_skill_with_setters() {
         // Fixture
-        let fixture = Skill::new("test", "/path", "prompt")
+        let fixture = Skill::new("test", "/path", "prompt", "desc")
             .name("updated_name")
             .path("/updated/path")
-            .command("updated prompt");
+            .command("updated prompt")
+            .description("updated description");
 
         // Act
         let actual = fixture;
 
         // Assert
-        let expected = Skill::new("updated_name", "/updated/path", "updated prompt");
-        assert_eq!(actual.name, expected.name);
-        assert_eq!(actual.path, expected.path);
-        assert_eq!(actual.command, expected.command);
+        let expected = Skill::new(
+            "updated_name",
+            "/updated/path",
+            "updated prompt",
+            "updated description",
+        );
+        assert_eq!(actual, expected);
     }
 }
