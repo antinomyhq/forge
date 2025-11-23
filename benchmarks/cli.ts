@@ -8,10 +8,10 @@ import chalk from "chalk";
 import ora from "ora";
 import Table from "cli-table3";
 import pLimit from "p-limit";
-import Handlebars from "handlebars";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 import type { Task } from "./model.js";
+import { getContextsFromSources, generateCommand } from "./command-generator.js";
 
 // ESM compatibility for __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -118,8 +118,6 @@ async function main() {
   }
 
   // Load data from sources and create cross product
-  let data: Record<string, string>[] = [];
-  
   const sourcesData: Record<string, string>[][] = [];
   
   for (const source of task.sources) {
@@ -148,20 +146,8 @@ async function main() {
     process.exit(1);
   }
   
-  // Cross product implementation
-  data = sourcesData.reduce((acc, sourceData) => {
-    if (acc.length === 0) {
-      return sourceData;
-    }
-    
-    const result: Record<string, string>[] = [];
-    for (const accItem of acc) {
-      for (const sourceItem of sourceData) {
-        result.push({ ...accItem, ...sourceItem });
-      }
-    }
-    return result;
-  }, [] as Record<string, string>[]);
+  // Get contexts from sources using pure function
+  const data = getContextsFromSources(sourcesData);
   
   console.log(
     chalk.blue.bold(
@@ -194,9 +180,8 @@ async function main() {
   // Create promises for all tasks
   const taskPromises = data.map((row, i) => {
     return limit(async () => {
-      // Compile and render command template with Handlebars
-      const template = Handlebars.compile(task.run.command);
-      const command = template(row ?? {});
+      // Generate command using pure function
+      const command = generateCommand(task.run.command, row);
       
       const spinner = ora(chalk.gray(`[${i + 1}/${data.length}] ${command}`)).start();
       spinners.set(i, spinner);
