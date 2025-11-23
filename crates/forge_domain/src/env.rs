@@ -70,6 +70,14 @@ pub struct Environment {
     /// Maximum number of conversations to show in list.
     /// Controlled by FORGE_MAX_CONVERSATIONS environment variable.
     pub max_conversations: usize,
+    /// Title display format configuration.
+    /// Controlled by FORGE_TITLE_FORMAT environment variable.
+    /// Placeholders: {timestamp}, {input}, {output}, {total}, {cached},
+    /// {cache_pct}, {cost}, {title}, {subtitle}
+    /// Examples: "[{timestamp} {input}/{total}] {title}", "{title} - {cost}"
+    /// Default: "[{timestamp} {input}/{total} {cost} {cache_pct}] {title}
+    /// {subtitle}"
+    pub title_format: String,
 }
 
 impl Environment {
@@ -218,6 +226,8 @@ fn test_command_path() {
         custom_history_path: None,
         max_conversations: 100,
         max_image_size: 262144,
+        title_format: "[{timestamp} {input}/{total} {cost} {cache_pct}] {title} {subtitle}"
+            .to_string(),
     };
 
     let actual = fixture.command_path();
@@ -252,6 +262,8 @@ fn test_command_cwd_path() {
         custom_history_path: None,
         max_conversations: 100,
         max_image_size: 262144,
+        title_format: "[{timestamp} {input}/{total} {cost} {cache_pct}] {title} {subtitle}"
+            .to_string(),
     };
 
     let actual = fixture.command_cwd_path();
@@ -286,6 +298,8 @@ fn test_command_cwd_path_independent_from_command_path() {
         custom_history_path: None,
         max_conversations: 100,
         max_image_size: 262144,
+        title_format: "[{timestamp} {input}/{total} {cost} {cache_pct}] {title} {subtitle}"
+            .to_string(),
     };
 
     let command_path = fixture.command_path();
