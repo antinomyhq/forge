@@ -17,9 +17,9 @@
 
 name: ci
 env:
-  RUSTFLAGS: -Dwarnings
+  RUSTFLAGS: '-Dwarnings'
   OPENROUTER_API_KEY: ${{secrets.OPENROUTER_API_KEY}}
-on:
+'on':
   pull_request:
     types:
     - opened
@@ -74,6 +74,9 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+    outputs:
+      crate_release_name: ${{ steps.set_output.outputs.crate_release_name }}
+      crate_release_id: ${{ steps.set_output.outputs.crate_release_id }}
     steps:
     - name: Checkout Code
       uses: actions/checkout@v5
@@ -87,22 +90,19 @@ jobs:
     - id: set_output
       name: Export Outputs
       run: echo "crate_release_id=${{ steps.create_release.outputs.id }}" >> $GITHUB_OUTPUT && echo "crate_release_name=${{ steps.create_release.outputs.tag_name }}" >> $GITHUB_OUTPUT
-    outputs:
-      crate_release_name: ${{ steps.set_output.outputs.crate_release_name }}
-      crate_release_id: ${{ steps.set_output.outputs.crate_release_id }}
   draft_release_pr:
     if: 'github.event_name == ''pull_request'' && contains(github.event.pull_request.labels.*.name, ''ci: build all targets'')'
     name: Draft Release for PR
     runs-on: ubuntu-latest
+    outputs:
+      crate_release_name: ${{ steps.set_output.outputs.crate_release_name }}
+      crate_release_id: ${{ steps.set_output.outputs.crate_release_id }}
     steps:
     - name: Checkout Code
       uses: actions/checkout@v5
     - id: set_output
       name: Set Release Version
       run: echo "crate_release_name=pr-build-${{ github.event.number }}" >> $GITHUB_OUTPUT && echo "crate_release_id=pr-build-${{ github.event.number }}" >> $GITHUB_OUTPUT
-    outputs:
-      crate_release_name: ${{ steps.set_output.outputs.crate_release_name }}
-      crate_release_id: ${{ steps.set_output.outputs.crate_release_id }}
   build_release:
     needs:
     - draft_release
@@ -178,9 +178,9 @@ jobs:
       uses: ClementTsang/cargo-action@v0.0.7
       with:
         command: build --release
-        args: --target ${{ matrix.target }}
+        args: '--target ${{ matrix.target }}'
         use-cross: ${{ matrix.cross }}
-        cross-version: 0.2.5
+        cross-version: '0.2.5'
       env:
         RUSTFLAGS: ${{ env.RUSTFLAGS }}
         POSTHOG_API_SECRET: ${{secrets.POSTHOG_API_SECRET}}
@@ -268,9 +268,9 @@ jobs:
       uses: ClementTsang/cargo-action@v0.0.7
       with:
         command: build --release
-        args: --target ${{ matrix.target }}
+        args: '--target ${{ matrix.target }}'
         use-cross: ${{ matrix.cross }}
-        cross-version: 0.2.5
+        cross-version: '0.2.5'
       env:
         RUSTFLAGS: ${{ env.RUSTFLAGS }}
         POSTHOG_API_SECRET: ${{secrets.POSTHOG_API_SECRET}}
