@@ -69,7 +69,9 @@ export function generateCommand(
   commandTemplate: string,
   context: Record<string, string>
 ): string {
-  const template = Handlebars.compile(commandTemplate);
+  const template = Handlebars.compile(commandTemplate, {
+    strict: true,
+  });
   return template(context);
 }
 
@@ -81,7 +83,9 @@ function generateCommands(
   sourcesData: Record<string, string>[][]
 ): string[] {
   const crossProduct = createCrossProduct(sourcesData);
-  return crossProduct.map((context) => generateCommand(commandTemplate, context));
+  return crossProduct.map((context) =>
+    generateCommand(commandTemplate, context)
+  );
 }
 
 /**
