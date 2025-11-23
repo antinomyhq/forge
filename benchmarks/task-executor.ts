@@ -48,6 +48,9 @@ export async function executeTask(
   logStream.write(`${"=".repeat(80)}\n\n`);
 
   try {
+    // Track timeout state outside the promise
+    let timedOut = false;
+    
     // Execute command and stream output to log file
     const output = await new Promise<string>((resolve, reject) => {
       const child = spawn(command, {
@@ -59,7 +62,6 @@ export async function executeTask(
       let stdout = "";
       let stderr = "";
       let timeoutId: NodeJS.Timeout | null = null;
-      let timedOut = false;
 
       // Set up timeout if configured
       if (timeout) {
@@ -70,7 +72,8 @@ export async function executeTask(
           logStream.write(`Killing process...\n`);
           logStream.end();
           child.kill("SIGKILL");
-          reject(new Error(`Task timed out after ${timeout}s`));
+          // Resolve with captured output so far
+          resolve(stdout + stderr);
         }, timeout * 1000);
       }
 
@@ -91,7 +94,7 @@ export async function executeTask(
       child.on("close", (code) => {
         if (timeoutId) clearTimeout(timeoutId);
 
-        // Don't log if already timed out
+        // Don't log or resolve if already timed out
         if (timedOut) return;
 
         logStream.write(`\n${"=".repeat(80)}\n`);
@@ -125,19 +128,18 @@ export async function executeTask(
       command,
       duration,
       output,
-      isTimeout: false,
+      isTimeout: timedOut,
     };
   } catch (error) {
     const duration = Date.now() - startTime;
     const errorMessage = error instanceof Error ? error.message : "Command failed";
-    const isTimeout = errorMessage.includes("timed out");
 
     return {
       index,
       command,
       duration,
       error: errorMessage,
-      isTimeout,
+      isTimeout: false,
     };
   }
 }

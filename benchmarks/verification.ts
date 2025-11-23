@@ -51,3 +51,56 @@ export function allValidationsPassed(results: ValidationResult[]): boolean {
 export function countPassed(results: ValidationResult[]): number {
   return results.filter((result) => result.passed).length;
 }
+
+
+export type ProcessValidationsResult = {
+  validationResults: ValidationResult[];
+  status: "passed" | "validation_failed";
+};
+
+/**
+ * Processes validations and returns results with status
+ */
+export function processValidations(
+  output: string | undefined,
+  validations: Array<Validation> | undefined,
+  logger: {
+    info: (data: any, message: string) => void;
+  },
+  taskIndex: number,
+  duration: number
+): ProcessValidationsResult {
+  // Run validations if configured and output is available
+  const validationResults =
+    validations && validations.length > 0 && output
+      ? runValidations(output, validations)
+      : [];
+
+  const allPassed = allValidationsPassed(validationResults);
+  const status = allPassed ? "passed" : "validation_failed";
+
+  // Log validation results if any were run
+  if (validationResults.length > 0) {
+    const passedCount = countPassed(validationResults);
+    const totalCount = validationResults.length;
+
+    logger.info(
+      {
+        taskIndex,
+        status,
+        duration,
+        validations: validationResults.map((r) => ({
+          name: r.name,
+          passed: r.passed,
+          message: r.message,
+        })),
+        summary: `${passedCount}/${totalCount} validations passed`,
+      },
+      allPassed
+        ? "Validations completed successfully"
+        : "Validations completed with failures"
+    );
+  }
+
+  return { validationResults, status };
+}

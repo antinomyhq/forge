@@ -24,8 +24,7 @@ import {
 import { parseCliArgs } from "./parse.js";
 import { executeTask, type TaskExecutionResult } from "./task-executor.js";
 import {
-  runValidations,
-  allValidationsPassed,
+  processValidations,
   type ValidationResult,
 } from "./verification.js";
 
@@ -176,7 +175,7 @@ async function main() {
         task.run.timeout
       );
 
-      // If execution failed or timed out, log and return early
+      // If execution failed or timed out, still run validations if output is available
       if (executionResult.error) {
         logger.warn(
           {
@@ -189,6 +188,15 @@ async function main() {
           executionResult.isTimeout ? "Task timed out" : "Task failed"
         );
 
+        // Run validations on available output even if task failed/timed out
+        const { validationResults } = processValidations(
+          executionResult.output,
+          task.validations,
+          logger,
+          executionResult.index,
+          executionResult.duration
+        );
+
         return {
           index: executionResult.index,
           status: executionResult.isTimeout
@@ -196,7 +204,7 @@ async function main() {
             : TaskStatus.Failed,
           command: executionResult.command,
           duration: executionResult.duration,
-          validationResults: [],
+          validationResults,
         };
       }
 
@@ -210,42 +218,17 @@ async function main() {
       );
 
       // Run validations on the output
-      const validationResults =
-        task.validations && task.validations.length > 0
-          ? runValidations(executionResult.output!, task.validations)
-          : [];
-
-      const allPassed = allValidationsPassed(validationResults);
-      const status = allPassed
-        ? TaskStatus.Passed
-        : TaskStatus.ValidationFailed;
-
-      // Log validation results
-      if (validationResults.length > 0) {
-        const passedCount = validationResults.filter((r) => r.passed).length;
-        const totalCount = validationResults.length;
-
-        logger.info(
-          {
-            taskIndex: executionResult.index,
-            status,
-            duration: executionResult.duration,
-            validations: validationResults.map((r) => ({
-              name: r.name,
-              passed: r.passed,
-              message: r.message,
-            })),
-            summary: `${passedCount}/${totalCount} validations passed`,
-          },
-          allPassed
-            ? "Validations completed successfully"
-            : "Validations completed with failures"
-        );
-      }
+      const { validationResults, status: validationStatus } = processValidations(
+        executionResult.output,
+        task.validations,
+        logger,
+        executionResult.index,
+        executionResult.duration
+      );
 
       return {
         index: executionResult.index,
-        status,
+        status: validationStatus === "passed" ? TaskStatus.Passed : TaskStatus.ValidationFailed,
         command: executionResult.command,
         duration: executionResult.duration,
         validationResults,
@@ -271,6 +254,34 @@ async function main() {
     (r) => r.status === TaskStatus.Failed
   ).length;
   const totalDuration = results.reduce((sum, r) => sum + r.duration, 0);
+
+  // Calculate validation statistics
+  const totalValidations = results.reduce(
+    (sum, r) => sum + r.validationResults.length,
+    0
+  );
+  const passedValidations = results.reduce(
+    (sum, r) => sum + r.validationResults.filter((v) => v.passed).length,
+    0
+  );
+
+  // Print summary
+  logger.info(
+    {
+      total: results.length,
+      passed: successCount,
+      validationFailed: warningCount,
+      timeout: timeoutCount,
+      failed: failCount,
+      totalDuration,
+      validations: {
+        total: totalValidations,
+        passed: passedValidations,
+        failed: totalValidations - passedValidations,
+      },
+    },
+    "Evaluation completed"
+  );
 
   // Exit with error code if any task failed (excluding timeouts and validation failures)
   if (failCount > 0) {
