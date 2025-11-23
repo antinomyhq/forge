@@ -7,16 +7,18 @@ import chalk from "chalk";
 import ora from "ora";
 import Table from "cli-table3";
 import boxen from "boxen";
+import pLimit from "p-limit";
+import Handlebars from "handlebars";
 
 type Task = {
   before_run: Array<string>;
-  run: { command: string };
+  run: { command: string; parallelism?: number };
   source: Source;
 };
 
 type Source = { csv: string } | { cmd: string };
 
-function main() {
+async function main() {
   // Get eval name from command line arguments
   const evalName = process.argv[2];
   
@@ -94,32 +96,55 @@ function main() {
   // Create results table
   const results: { index: number; status: string; command: string; duration: number }[] = [];
 
+  // Get parallelism setting (default to 1 for sequential execution)
+  const parallelism = task.run.parallelism ?? 1;
+  const limit = pLimit(parallelism);
+
   // Execute run command for each data row
-  console.log(chalk.magenta.bold("🚀 Executing tasks...\n"));
-  
-  for (let i = 0; i < data.length; i++) {
-    const row = data[i];
-    let command = task.run.command;
-    
-    // Replace placeholders with values from CSV row
-    for (const [key, value] of Object.entries(row ?? {})) {
-      command = command.replace(new RegExp(`\\{${key}\\}`, "g"), value);
-    }
-    
-    const spinner = ora(chalk.gray(`[${i + 1}/${data.length}] ${command}`)).start();
-    const startTime = Date.now();
-    
-    try {
-      execSync(command, { stdio: "pipe", cwd: path.dirname(evalDir) });
-      const duration = Date.now() - startTime;
-      spinner.succeed(chalk.green(`[${i + 1}/${data.length}] ${command} ${chalk.gray(`(${duration}ms)`)}`));
-      results.push({ index: i + 1, status: "✓", command, duration });
-    } catch (error) {
-      const duration = Date.now() - startTime;
-      spinner.fail(chalk.red(`[${i + 1}/${data.length}] ${command} ${chalk.gray(`(${duration}ms)`)}`));
-      results.push({ index: i + 1, status: "✗", command, duration });
-    }
-  }
+  console.log(
+    chalk.magenta.bold(
+      `🚀 Executing tasks (parallelism: ${parallelism})...\n`
+    )
+  );
+
+  // Create spinner map for tracking individual task progress
+  const spinners = new Map<number, ReturnType<typeof ora>>();
+
+  // Create promises for all tasks
+  const taskPromises = data.map((row, i) => {
+    return limit(async () => {
+      // Compile and render command template with Handlebars
+      const template = Handlebars.compile(task.run.command);
+      const command = template(row ?? {});
+      
+      const spinner = ora(chalk.gray(`[${i + 1}/${data.length}] ${command}`)).start();
+      spinners.set(i, spinner);
+      const startTime = Date.now();
+      
+      try {
+        execSync(command, { stdio: "pipe", cwd: path.dirname(evalDir) });
+        const duration = Date.now() - startTime;
+        spinner.succeed(
+          chalk.green(
+            `[${i + 1}/${data.length}] ${command} ${chalk.gray(`(${duration}ms)`)}`
+          )
+        );
+        return { index: i + 1, status: "✓" as const, command, duration };
+      } catch (error) {
+        const duration = Date.now() - startTime;
+        spinner.fail(
+          chalk.red(
+            `[${i + 1}/${data.length}] ${command} ${chalk.gray(`(${duration}ms)`)}`
+          )
+        );
+        return { index: i + 1, status: "✗" as const, command, duration };
+      }
+    });
+  });
+
+  // Wait for all tasks to complete
+  const taskResults = await Promise.all(taskPromises);
+  results.push(...taskResults);
 
   // Display summary table
   const successCount = results.filter((r) => r.status === "✓").length;
@@ -132,7 +157,8 @@ function main() {
         chalk.green(`✓ Passed: ${successCount}\n`) +
         chalk.red(`✗ Failed: ${failCount}\n`) +
         chalk.blue(`⏱  Total Time: ${totalDuration}ms\n`) +
-        chalk.gray(`📋 Total Tasks: ${results.length}`),
+        chalk.gray(`📋 Total Tasks: ${results.length}\n`) +
+        chalk.magenta(`⚡ Parallelism: ${parallelism}`),
       {
         padding: 1,
         margin: { top: 1, bottom: 1, left: 0, right: 0 },

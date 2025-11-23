@@ -1,6 +1,7 @@
 before_run:
   - cargo build
 run:
-  command: target/debug/forge -p {prompt}
+  command: target/debug/forge -p {{prompt}}
+  parallelism: 10
 source:
   csv: create_skill_tasks.csv
