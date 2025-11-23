@@ -4,7 +4,7 @@ expression: to_value(actual)
 ---
 <skill_details>
 <command
-  path="/home/user/.forge/skills/test-skill"
+  location="/home/user/.forge/skills/test-skill"
 ><![CDATA[This is a test skill command with instructions]]>
 </command>
 <resource>/home/user/.forge/skills/test-skill/resource1.txt</resource>
