@@ -12,7 +12,7 @@ use forge_api::{
     ChatResponse, CodeRequest, Conversation, ConversationId, DeviceCodeRequest, Event,
     InterruptionReason, Model, ModelId, Provider, ProviderId, TextMessage, UserPrompt, Workflow,
 };
-use forge_app::utils::truncate_key;
+use forge_app::utils::{format_display_path, truncate_key};
 use forge_app::{CommitResult, ToolResolver};
 use forge_display::MarkdownFormat;
 use forge_domain::{
@@ -1058,12 +1058,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn on_show_skills(&mut self, porcelain: bool) -> anyhow::Result<()> {
         let skills = self.api.get_skills().await?;
         let mut info = Info::new();
+        let env = self.api.environment();
 
         for skill in skills {
             info = info
                 .add_title(skill.name.clone().to_case(Case::Sentence).to_uppercase())
                 .add_key_value("name", skill.name)
-                .add_key_value("path", skill.path)
+                .add_key_value("path", format_display_path(&skill.path, &env.cwd))
                 .add_key_value("description", skill.description);
         }
 

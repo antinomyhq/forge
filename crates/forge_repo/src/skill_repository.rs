@@ -2,8 +2,9 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use forge_app::domain::Skill;
-use forge_app::{DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra};
+use forge_app::{DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra};
 use forge_domain::SkillRepository;
+use futures::future::join_all;
 use gray_matter::engine::YAML;
 use gray_matter::Matter;
 use serde::Deserialize;
@@ -53,7 +54,7 @@ impl<I> ForgeSkillRepository<I> {
 }
 
 #[async_trait::async_trait]
-impl<I: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra> SkillRepository
+impl<I: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra + FileReaderInfra> SkillRepository
     for ForgeSkillRepository<I>
 {
     /// Loads all available skills from the skills directory
@@ -85,36 +86,83 @@ impl<I: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra> SkillRepository
     }
 }
 
-impl<I: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra> ForgeSkillRepository<I> {
-    /// Loads skills from a specific directory
+impl<I: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra + FileReaderInfra>
+    ForgeSkillRepository<I>
+{
+    /// Loads skills from a specific directory by listing subdirectories first,
+    /// then reading SKILL.md from each subdirectory if it exists
     async fn load_skills_from_dir(&self, dir: &std::path::Path) -> anyhow::Result<Vec<Skill>> {
         if !self.infra.exists(dir).await? {
             return Ok(vec![]);
         }
 
-        // Read all SKILL.md files from subdirectories
-        let files = self
+        // List all entries in the directory
+        let entries = self
             .infra
-            .read_directory_files(dir, Some("*/SKILL.md"))
+            .list_directory_entries(dir)
             .await
-            .with_context(|| format!("Failed to read skills from: {}", dir.display()))?;
+            .with_context(|| format!("Failed to list directory: {}", dir.display()))?;
 
-        let skills: Vec<Skill> = files
+        // Filter for directories only
+        let subdirs: Vec<_> = entries
             .into_iter()
-            .filter_map(|(path, content)| {
-                let path_str = path.display().to_string();
-                // Get the directory name (skill name) from the path
-                let skill_name = path
-                    .parent()
-                    .and_then(|p| p.file_name())
-                    .and_then(|s| s.to_str())
-                    .unwrap_or("unknown")
-                    .to_string();
+            .filter_map(|(path, is_dir)| if is_dir { Some(path) } else { None })
+            .collect();
 
-                // Try to extract skill from front matter, otherwise create with directory name
-                extract_skill(&path_str, &content)
-                    .or_else(|| Some(Skill::new(skill_name, path_str, content, String::new())))
-            })
+        // Read SKILL.md from each subdirectory in parallel
+        let futures = subdirs.into_iter().map(|subdir| {
+            let infra = Arc::clone(&self.infra);
+            async move {
+                let skill_path = subdir.join("SKILL.md");
+
+                // Check if SKILL.md exists in this subdirectory
+                if infra.exists(&skill_path).await? {
+                    // Read the file content
+                    match infra.read_utf8(&skill_path).await {
+                        Ok(content) => {
+                            let path_str = skill_path.display().to_string();
+                            let skill_name = subdir
+                                .file_name()
+                                .and_then(|s| s.to_str())
+                                .unwrap_or("unknown")
+                                .to_string();
+
+                            // Try to extract skill from front matter, otherwise create with
+                            // directory name
+                            if let Some(skill) = extract_skill(&path_str, &content) {
+                                Ok(Some(skill))
+                            } else {
+                                // Fallback: create skill with directory name if front matter is
+                                // missing
+                                Ok(Some(Skill::new(
+                                    skill_name,
+                                    path_str,
+                                    content,
+                                    String::new(),
+                                )))
+                            }
+                        }
+                        Err(e) => {
+                            // Log warning but continue processing other skills
+                            tracing::warn!(
+                                "Failed to read skill file {}: {}",
+                                skill_path.display(),
+                                e
+                            );
+                            Ok(None)
+                        }
+                    }
+                } else {
+                    Ok(None)
+                }
+            }
+        });
+
+        // Execute all futures in parallel and collect results
+        let results = join_all(futures).await;
+        let skills: Vec<Skill> = results
+            .into_iter()
+            .filter_map(|result: anyhow::Result<Option<Skill>>| result.ok().flatten())
             .collect();
 
         Ok(skills)
@@ -146,7 +194,7 @@ struct SkillMetadata {
 fn extract_skill(path: &str, content: &str) -> Option<Skill> {
     let matter = Matter::<YAML>::new();
     let result = matter.parse::<SkillMetadata>(content);
-    let path = path.to_owned();
+    let path = path.into();
     result.ok().and_then(|parsed| {
         let command = parsed.content;
         parsed
@@ -221,7 +269,7 @@ mod tests {
         // Assert
         assert_eq!(actual.len(), 2);
         assert_eq!(actual[0].name, "skill1");
-        assert_eq!(actual[0].path, "/cwd/skill1.md");
+        assert_eq!(actual[0].path, std::path::Path::new("/cwd/skill1.md"));
         assert_eq!(actual[0].command, "cwd prompt");
         assert_eq!(actual[1].name, "skill2");
     }
@@ -237,7 +285,10 @@ mod tests {
         // Assert
         assert_eq!(actual.len(), 1);
         assert_eq!(actual[0].name, "skill-creator");
-        assert_eq!(actual[0].path, "builtin://skills/skill-creation.md");
+        assert_eq!(
+            actual[0].path,
+            std::path::Path::new("builtin://skills/skill-creation/SKILL.md")
+        );
         assert_eq!(
             actual[0].description,
             "Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends your capabilities with specialized knowledge, workflows, or tool integrations."
