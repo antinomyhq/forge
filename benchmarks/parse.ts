@@ -4,7 +4,6 @@ import path from "path";
 
 export type CliArgs = {
   evalName: string;
-  dryRun: boolean;
   evalDir: string;
   taskFile: string;
 };
@@ -20,17 +19,11 @@ export async function parseCliArgs(dirname: string): Promise<CliArgs> {
       describe: "Name of the evaluation to run",
       type: "string",
     })
-    .option("dry-run", {
-      describe: "Validate YAML configuration without executing commands",
-      type: "boolean",
-      default: false,
-    })
     .help()
     .alias("h", "help")
     .parseAsync();
 
   const evalName = argv["eval-name"];
-  const dryRun = argv["dry-run"] ?? false;
 
   // Ensure evalName is provided
   if (!evalName) {
@@ -53,7 +46,6 @@ export async function parseCliArgs(dirname: string): Promise<CliArgs> {
 
   return {
     evalName,
-    dryRun,
     evalDir,
     taskFile,
   };

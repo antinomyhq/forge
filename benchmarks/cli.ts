@@ -83,7 +83,7 @@ async function main() {
     process.exit(1);
   }
 
-  const { evalName, dryRun, evalDir, taskFile } = args;
+  const { evalName, evalDir, taskFile } = args;
 
   // Check if eval directory and task file exist
   if (!fs.existsSync(evalDir)) {
@@ -99,22 +99,6 @@ async function main() {
   // Read and parse task.yml
   const taskContent = fs.readFileSync(taskFile, "utf-8");
   const task: Task = parseYaml(taskContent);
-
-  // If dry-run mode, validate YAML and exit
-  if (dryRun) {
-    // Validate that sources exist
-    for (const source of task.sources) {
-      if ("csv" in source) {
-        const csvPath = path.join(evalDir, source.csv);
-        if (!fs.existsSync(csvPath)) {
-          logger.error({ csvPath }, "CSV file not found");
-          process.exit(1);
-        }
-      }
-    }
-
-    process.exit(0);
-  }
 
   // Display header
   const displayName = path.relative(__dirname, evalDir) || evalName;
@@ -207,7 +191,9 @@ async function main() {
 
         return {
           index: executionResult.index,
-          status: executionResult.isTimeout ? TaskStatus.Timeout : TaskStatus.Failed,
+          status: executionResult.isTimeout
+            ? TaskStatus.Timeout
+            : TaskStatus.Failed,
           command: executionResult.command,
           duration: executionResult.duration,
           validationResults: [],
@@ -230,7 +216,9 @@ async function main() {
           : [];
 
       const allPassed = allValidationsPassed(validationResults);
-      const status = allPassed ? TaskStatus.Passed : TaskStatus.ValidationFailed;
+      const status = allPassed
+        ? TaskStatus.Passed
+        : TaskStatus.ValidationFailed;
 
       // Log validation results
       if (validationResults.length > 0) {
@@ -270,12 +258,18 @@ async function main() {
   results.push(...taskResults);
 
   // Calculate summary statistics
-  const successCount = results.filter((r) => r.status === TaskStatus.Passed).length;
+  const successCount = results.filter(
+    (r) => r.status === TaskStatus.Passed
+  ).length;
   const warningCount = results.filter(
     (r) => r.status === TaskStatus.ValidationFailed
   ).length;
-  const timeoutCount = results.filter((r) => r.status === TaskStatus.Timeout).length;
-  const failCount = results.filter((r) => r.status === TaskStatus.Failed).length;
+  const timeoutCount = results.filter(
+    (r) => r.status === TaskStatus.Timeout
+  ).length;
+  const failCount = results.filter(
+    (r) => r.status === TaskStatus.Failed
+  ).length;
   const totalDuration = results.reduce((sum, r) => sum + r.duration, 0);
 
   // Exit with error code if any task failed (excluding timeouts and validation failures)
