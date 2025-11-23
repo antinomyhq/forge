@@ -112,50 +112,57 @@ mod tests {
 
     use super::*;
 
-    // Include language samples
-    const RUST_VALID: &str = include_str!("lang/rust/valid.rs");
-    const RUST_INVALID: &str = include_str!("lang/rust/invalid.rs");
-    const JAVASCRIPT_VALID: &str = include_str!("lang/javascript/valid.js");
-    const JAVASCRIPT_INVALID: &str = include_str!("lang/javascript/invalid.js");
-    const PYTHON_VALID: &str = include_str!("lang/python/valid.py");
-    const PYTHON_INVALID: &str = include_str!("lang/python/invalid.py");
+    #[tokio::test]
+    async fn test_rust_valid() {
+        let content = forge_test_kit::fixture!("/src/tool_services/syn/lang/rust/valid.rs").await;
 
-    #[test]
-    fn test_rust_valid() {
         let path = PathBuf::from("test.rs");
-        assert!(validate(&path, RUST_VALID).is_none());
+        assert!(validate(&path, &content).is_none());
     }
 
-    #[test]
-    fn test_rust_invalid() {
+    #[tokio::test]
+    async fn test_rust_invalid() {
+        let content = forge_test_kit::fixture!("/src/tool_services/syn/lang/rust/invalid.rs").await;
+
         let path = PathBuf::from("test.rs");
-        let result = validate(&path, RUST_INVALID);
+        let result = validate(&path, &content);
         assert!(matches!(result, Some(Error::Parse { .. })));
     }
 
-    #[test]
-    fn test_javascript_valid() {
+    #[tokio::test]
+    async fn test_javascript_valid() {
+        let content =
+            forge_test_kit::fixture!("/src/tool_services/syn/lang/javascript/valid.js").await;
+
         let path = PathBuf::from("test.js");
-        assert!(validate(&path, JAVASCRIPT_VALID).is_none());
+        assert!(validate(&path, &content).is_none());
     }
 
-    #[test]
-    fn test_javascript_invalid() {
+    #[tokio::test]
+    async fn test_javascript_invalid() {
+        let content =
+            forge_test_kit::fixture!("/src/tool_services/syn/lang/javascript/invalid.js").await;
+
         let path = PathBuf::from("test.js");
-        let result = validate(&path, JAVASCRIPT_INVALID);
+        let result = validate(&path, &content);
         assert!(matches!(result, Some(Error::Parse { .. })));
     }
 
-    #[test]
-    fn test_python_valid() {
+    #[tokio::test]
+    async fn test_python_valid() {
+        let content = forge_test_kit::fixture!("/src/tool_services/syn/lang/python/valid.py").await;
+
         let path = PathBuf::from("test.py");
-        assert!(validate(&path, PYTHON_VALID).is_none());
+        assert!(validate(&path, &content).is_none());
     }
 
-    #[test]
-    fn test_python_invalid() {
+    #[tokio::test]
+    async fn test_python_invalid() {
+        let content =
+            forge_test_kit::fixture!("/src/tool_services/syn/lang/python/invalid.py").await;
+
         let path = PathBuf::from("test.py");
-        let result = validate(&path, PYTHON_INVALID);
+        let result = validate(&path, &content);
         assert!(matches!(result, Some(Error::Parse { .. })));
     }
 
