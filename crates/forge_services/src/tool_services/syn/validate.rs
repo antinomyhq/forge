@@ -2,6 +2,7 @@ use std::path::Path;
 
 use thiserror::Error;
 use tree_sitter::{Language, LanguageError, Parser};
+use tree_sitter_sequel;
 
 /// Represents possible errors that can occur during syntax validation
 #[derive(Debug, Error, PartialEq)]
@@ -84,8 +85,9 @@ pub fn extension(ext: &str) -> Option<Language> {
         "sh" | "bash" | "zsh" | "fish" => Some(tree_sitter_bash::LANGUAGE.into()),
         "html" | "htm" | "xhtml" => Some(tree_sitter_html::LANGUAGE.into()),
         "json" => Some(tree_sitter_json::LANGUAGE.into()),
-        // "sql" => Some(tree_sitter_sql::language().into()), // Fixed: Use language() function
-        // "md" | "markdown" => Some(tree_sitter_markdown::language().into()), // Fixed: Use language() function
+        "sql" => Some(tree_sitter_sequel::LANGUAGE.into()),
+        // "md" | "markdown" => Some(tree_sitter_markdown::language().into()), // Fixed: Use
+        // language() function
         "ps1" | "psm1" | "psd1" => Some(tree_sitter_powershell::LANGUAGE.into()),
 
         _ => None,
@@ -469,8 +471,10 @@ mod tests {
         assert!(extension("toml").is_none()); // TODO: Fix API
         assert!(extension("php").is_none()); // TODO: Fix API
         assert!(extension("dart").is_none()); // TODO: Fix API
-        assert!(extension("sql").is_none()); // TODO: Fix API
         assert!(extension("md").is_none()); // TODO: Fix API
+        
+        // SQL now works with tree-sitter-sequel
+        assert!(extension("sql").is_some());
     }
 
     fn test_unsupported_extension() {
@@ -502,119 +506,94 @@ mod tests {
     }
 }
 
-    #[tokio::test]
-    async fn test_powershell_invalid() {
-        let source = forge_test_kit::fixture!(
-            "/src/tool_services/syn/lang/powershell/invalid.ps1"
-        ).await;
-        let result = validate("test.ps1", &source);
-        assert!(result.is_some());
-    }
+#[tokio::test]
+async fn test_powershell_invalid() {
+    let source =
+        forge_test_kit::fixture!("/src/tool_services/syn/lang/powershell/invalid.ps1").await;
+    let result = validate("test.ps1", &source);
+    assert!(result.is_some());
+}
 
-    #[tokio::test]
-    async fn test_php_valid() {
-        let source = forge_test_kit::fixture!(
-            "/src/tool_services/syn/lang/php/valid.php"
-        ).await;
-        let result = validate("test.php", &source);
-        assert!(result.is_none());
-    }
+#[tokio::test]
+async fn test_php_valid() {
+    let source = forge_test_kit::fixture!("/src/tool_services/syn/lang/php/valid.php").await;
+    let result = validate("test.php", &source);
+    assert!(result.is_none());
+}
 
-    #[tokio::test]
-    async fn test_php_invalid() {
-        let source = forge_test_kit::fixture!(
-            "/src/tool_services/syn/lang/php/invalid.php"
-        ).await;
-        let result = validate("test.php", &source);
-        assert!(result.is_some());
-    }
+#[tokio::test]
+async fn test_php_invalid() {
+    let source = forge_test_kit::fixture!("/src/tool_services/syn/lang/php/invalid.php").await;
+    let result = validate("test.php", &source);
+    assert!(result.is_some());
+}
 
-    #[tokio::test]
-    async fn test_dart_valid() {
-        let source = forge_test_kit::fixture!(
-            "/src/tool_services/syn/lang/dart/valid.dart"
-        ).await;
-        let result = validate("test.dart", &source);
-        assert!(result.is_none());
-    }
+#[tokio::test]
+async fn test_dart_valid() {
+    let source = forge_test_kit::fixture!("/src/tool_services/syn/lang/dart/valid.dart").await;
+    let result = validate("test.dart", &source);
+    assert!(result.is_none());
+}
 
-    #[tokio::test]
-    async fn test_dart_invalid() {
-        let source = forge_test_kit::fixture!(
-            "/src/tool_services/syn/lang/dart/invalid.dart"
-        ).await;
-        let result = validate("test.dart", &source);
-        assert!(result.is_some());
-    }
+#[tokio::test]
+async fn test_dart_invalid() {
+    let source = forge_test_kit::fixture!("/src/tool_services/syn/lang/dart/invalid.dart").await;
+    let result = validate("test.dart", &source);
+    assert!(result.is_some());
+}
 
-    #[tokio::test]
-    async fn test_toml_valid() {
-        let source = forge_test_kit::fixture!(
-            "/src/tool_services/syn/lang/toml/valid.toml"
-        ).await;
-        let result = validate("test.toml", &source);
-        assert!(result.is_none());
-    }
+#[tokio::test]
+async fn test_toml_valid() {
+    let source = forge_test_kit::fixture!("/src/tool_services/syn/lang/toml/valid.toml").await;
+    let result = validate("test.toml", &source);
+    assert!(result.is_none());
+}
 
-    #[tokio::test]
-    async fn test_toml_invalid() {
-        let source = forge_test_kit::fixture!(
-            "/src/tool_services/syn/lang/toml/invalid.toml"
-        ).await;
-        let result = validate("test.toml", &source);
-        assert!(result.is_some());
-    }
+#[tokio::test]
+async fn test_toml_invalid() {
+    let source = forge_test_kit::fixture!("/src/tool_services/syn/lang/toml/invalid.toml").await;
+    let result = validate("test.toml", &source);
+    assert!(result.is_some());
+}
 
-    #[tokio::test]
-    async fn test_sql_valid() {
-        let source = forge_test_kit::fixture!(
-            "/src/tool_services/syn/lang/sql/valid.sql"
-        ).await;
-        let result = validate("test.sql", &source);
-        assert!(result.is_none());
-    }
+#[tokio::test]
+async fn test_sql_valid() {
+    let source = forge_test_kit::fixture!("/src/tool_services/syn/lang/sql/valid.sql").await;
+    let result = validate("test.sql", &source);
+    assert!(result.is_none());
+}
 
-    #[tokio::test]
-    async fn test_sql_invalid() {
-        let source = forge_test_kit::fixture!(
-            "/src/tool_services/syn/lang/sql/invalid.sql"
-        ).await;
-        let result = validate("test.sql", &source);
-        assert!(result.is_some());
-    }
+#[tokio::test]
+async fn test_sql_invalid() {
+    let source = forge_test_kit::fixture!("/src/tool_services/syn/lang/sql/invalid.sql").await;
+    let result = validate("test.sql", &source);
+    assert!(result.is_some());
+}
 
-    #[tokio::test]
-    async fn test_ruby_valid() {
-        let source = forge_test_kit::fixture!(
-            "/src/tool_services/syn/lang/ruby/valid.rb"
-        ).await;
-        let result = validate("test.rb", &source);
-        assert!(result.is_none());
-    }
+#[tokio::test]
+async fn test_ruby_valid() {
+    let source = forge_test_kit::fixture!("/src/tool_services/syn/lang/ruby/valid.rb").await;
+    let result = validate("test.rb", &source);
+    assert!(result.is_none());
+}
 
-    #[tokio::test]
-    async fn test_ruby_invalid() {
-        let source = forge_test_kit::fixture!(
-            "/src/tool_services/syn/lang/ruby/invalid.rb"
-        ).await;
-        let result = validate("test.rb", &source);
-        assert!(result.is_some());
-    }
+#[tokio::test]
+async fn test_ruby_invalid() {
+    let source = forge_test_kit::fixture!("/src/tool_services/syn/lang/ruby/invalid.rb").await;
+    let result = validate("test.rb", &source);
+    assert!(result.is_some());
+}
 
-    #[tokio::test]
-    async fn test_markdown_valid() {
-        let source = forge_test_kit::fixture!(
-            "/src/tool_services/syn/lang/markdown/valid.md"
-        ).await;
-        let result = validate("test.md", &source);
-        assert!(result.is_none());
-    }
+#[tokio::test]
+async fn test_markdown_valid() {
+    let source = forge_test_kit::fixture!("/src/tool_services/syn/lang/markdown/valid.md").await;
+    let result = validate("test.md", &source);
+    assert!(result.is_none());
+}
 
-    #[tokio::test]
-    async fn test_markdown_invalid() {
-        let source = forge_test_kit::fixture!(
-            "/src/tool_services/syn/lang/markdown/invalid.md"
-        ).await;
-        let result = validate("test.md", &source);
-        assert!(result.is_some());
-    }
+#[tokio::test]
+async fn test_markdown_invalid() {
+    let source = forge_test_kit::fixture!("/src/tool_services/syn/lang/markdown/invalid.md").await;
+    let result = validate("test.md", &source);
+    assert!(result.is_some());
+}

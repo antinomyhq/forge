@@ -98,6 +98,6 @@ CREATE TRIGGER update_comments_updated_at
     FOR EACH ROW
     EXECUTE FUNCTION update_updated_at_column();
 
--- Invalid SQL: Missing closing quote and semicolon
+-- Invalid SQL: Missing semicolon and malformed INSERT syntax
 INSERT INTO users (username, email, password_hash, first_name, last_name, age)
-VALUES ('john_doe', 'john@example.com', 'hashed_password', 'John', 'Doe', 25
+VALUES INVALID SYNTAX HERE MISSING COMMA AND QUOTES ('john_doe', 'john@example.com')
