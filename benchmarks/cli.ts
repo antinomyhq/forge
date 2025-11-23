@@ -11,25 +11,11 @@ import pLimit from "p-limit";
 import Handlebars from "handlebars";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
+import type { Task } from "./model.js";
 
 // ESM compatibility for __dirname
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-type Task = {
-  before_run: Array<string>;
-  run: { command: string; parallelism?: number };
-  validations?: Array<Validation>;
-  sources: Array<Source>;
-};
-
-type Validation = {
-  name: string;
-  type: "matches_regex";
-  regex: string;
-};
-
-type Source = { csv: string } | { cmd: string };
 
 async function main() {
   // Parse command line arguments
@@ -51,6 +37,12 @@ async function main() {
 
   const evalName = argv["eval-name"];
   const dryRun = argv["dry-run"];
+
+  // Ensure evalName is provided
+  if (!evalName) {
+    console.error(chalk.red.bold("✗ Error: eval-name is required"));
+    process.exit(1);
+  }
 
   // Support both directory path and direct task.yml path
   let evalDir: string;
@@ -230,6 +222,21 @@ async function main() {
           
           let stdout = "";
           let stderr = "";
+          let timeoutId: NodeJS.Timeout | null = null;
+          let timedOut = false;
+          
+          // Set up timeout if configured
+          if (task.run.timeout) {
+            timeoutId = setTimeout(() => {
+              timedOut = true;
+              logStream.write(`\n${"=".repeat(80)}\n`);
+              logStream.write(`Timeout: ${task.run.timeout}ms exceeded\n`);
+              logStream.write(`Killing process...\n`);
+              logStream.end();
+              child.kill("SIGKILL");
+              reject(new Error(`Task timed out after ${task.run.timeout}ms`));
+            }, task.run.timeout);
+          }
           
           // Stream stdout to both log file and capture for validation
           child.stdout?.on("data", (data) => {
@@ -246,6 +253,11 @@ async function main() {
           });
           
           child.on("close", (code) => {
+            if (timeoutId) clearTimeout(timeoutId);
+            
+            // Don't log if already timed out
+            if (timedOut) return;
+            
             logStream.write(`\n${"=".repeat(80)}\n`);
             logStream.write(`Finished: ${new Date().toISOString()}\n`);
             logStream.write(`Exit Code: ${code}\n`);
@@ -259,6 +271,11 @@ async function main() {
           });
           
           child.on("error", (err) => {
+            if (timeoutId) clearTimeout(timeoutId);
+            
+            // Don't log if already timed out
+            if (timedOut) return;
+            
             logStream.write(`\nError: ${err.message}\n`);
             logStream.end();
             reject(err);
@@ -316,9 +333,12 @@ async function main() {
         };
       } catch (error) {
         const duration = Date.now() - startTime;
+        const errorMessage = error instanceof Error ? error.message : "Command failed";
+        const isTimeout = errorMessage.includes("timed out");
+        
         spinner.fail(
           chalk.red(
-            `[${i + 1}/${data.length}] ${command} ${chalk.gray(`(${duration}ms)`)} - Command failed`
+            `[${i + 1}/${data.length}] ${command} ${chalk.gray(`(${duration}ms)`)} - ${isTimeout ? "⏱️  Timeout" : "Command failed"}`
           )
         );
         return { 

@@ -3,6 +3,7 @@ before_run:
 run:
   command: ../../target/debug/forge -p '{{skill}}'
   parallelism: 10
+  timeout: 30
 validations:
   - name: "Check success message"
     type: matches_regex
