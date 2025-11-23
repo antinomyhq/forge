@@ -1069,7 +1069,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
 
         if porcelain {
-            let porcelain = Porcelain::from(&info).skip(1);
+            let porcelain = Porcelain::from(&info).skip(1).drop_col(3);
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;

@@ -42,7 +42,7 @@ impl<I> ForgeSkillRepository<I> {
     /// Loads built-in skills that are embedded in the application
     fn load_builtin_skills(&self) -> Vec<Skill> {
         let builtin_skills = vec![(
-            "builtin://skills/skill-creation/SKILL.md",
+            "forge://skills/skill-creation/SKILL.md",
             include_str!("skills/skill-creation.md"),
         )];
 
