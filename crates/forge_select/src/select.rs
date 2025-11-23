@@ -1,16 +1,7 @@
 use anyhow::Result;
-use console::{strip_ansi_codes, style};
-use dialoguer::theme::ColorfulTheme;
-use dialoguer::{Confirm, FuzzySelect, Input, MultiSelect};
+use console::strip_ansi_codes;
 
-/// Check if a dialoguer error is an interrupted error (CTRL+C)
-fn is_interrupted_error(err: &dialoguer::Error) -> bool {
-    match err {
-        dialoguer::Error::IO(error) => error.kind() == std::io::ErrorKind::Interrupted,
-    }
-}
-
-/// Centralized dialoguer select functionality with consistent error handling
+/// Centralized cliclack select functionality with consistent error handling
 pub struct ForgeSelect;
 
 /// Builder for select prompts with fuzzy search
@@ -32,15 +23,6 @@ pub struct SelectBuilderOwned<T> {
 }
 
 impl ForgeSelect {
-    /// Create a consistent theme for all select operations without prompt
-    /// suffix arrow
-    fn default_theme() -> ColorfulTheme {
-        ColorfulTheme {
-            prompt_suffix: style("".to_string()),
-            ..ColorfulTheme::default()
-        }
-    }
-
     /// Entry point for select operations with fuzzy search
     pub fn select<T>(message: impl Into<String>, options: Vec<T>) -> SelectBuilder<T> {
         SelectBuilder {
@@ -117,7 +99,7 @@ impl<T: 'static> SelectBuilder<T> {
     /// # Returns
     ///
     /// - `Ok(Some(T))` - User selected an option
-    /// - `Ok(None)` - No options available or user cancelled (CTRL+C)
+    /// - `Ok(None)` - No options available or user cancelled (ESC)
     ///
     /// # Errors
     ///
@@ -129,28 +111,24 @@ impl<T: 'static> SelectBuilder<T> {
     {
         // Handle confirm case (bool options)
         if std::any::TypeId::of::<T>() == std::any::TypeId::of::<bool>() {
-            let theme = ForgeSelect::default_theme();
-            let mut confirm = Confirm::with_theme(&theme).with_prompt(&self.message);
+            let mut confirm = cliclack::confirm(&self.message);
 
             if let Some(default) = self.default {
-                confirm = confirm.default(default);
+                confirm = confirm.initial_value(default);
             }
 
-            let result = match confirm.interact_opt() {
-                Ok(value) => value,
-                Err(e) if is_interrupted_error(&e) => return Ok(None),
-                Err(e) => return Err(e.into()),
+            let result = match confirm.interact() {
+                Ok(value) => Some(value),
+                Err(_) => return Ok(None), // User cancelled (ESC)
             };
             // Safe cast since we checked the type
             return Ok(result.map(|b| unsafe { std::mem::transmute_copy(&b) }));
         }
 
-        // FuzzySelect for regular options
+        // Select for regular options
         if self.options.is_empty() {
             return Ok(None);
         }
-
-        let theme = ForgeSelect::default_theme();
 
         // Strip ANSI codes from display strings for better fuzzy search experience
         let display_options: Vec<String> = self
@@ -159,25 +137,25 @@ impl<T: 'static> SelectBuilder<T> {
             .map(|item| strip_ansi_codes(&item.to_string()).to_string())
             .collect();
 
-        let mut select = FuzzySelect::with_theme(&theme)
-            .with_prompt(&self.message)
-            .items(&display_options);
+        let mut select = cliclack::select(&self.message).filter_mode();
 
+        // Add all items
+        for (idx, display) in display_options.iter().enumerate() {
+            select = select.item(idx, display, "");
+        }
+
+        // Set initial value if starting cursor is provided
         if let Some(cursor) = self.starting_cursor {
-            select = select.default(cursor);
-        } else {
-            select = select.default(0);
+            if cursor < self.options.len() {
+                select = select.initial_value(cursor);
+            }
         }
 
-        if let Some(text) = self.initial_text {
-            select = select.with_initial_text(text);
-        }
-
-        let idx_opt = match select.interact_opt() {
-            Ok(value) => value,
-            Err(e) if is_interrupted_error(&e) => return Ok(None),
-            Err(e) => return Err(e.into()),
+        let idx_opt = match select.interact() {
+            Ok(idx) => Some(idx),
+            Err(_) => return Ok(None), // User cancelled (ESC)
         };
+
         Ok(idx_opt.and_then(|idx| self.options.get(idx).cloned()))
     }
 }
@@ -200,7 +178,7 @@ impl<T> SelectBuilderOwned<T> {
     /// # Returns
     ///
     /// - `Ok(Some(T))` - User selected an option
-    /// - `Ok(None)` - No options available or user cancelled (CTRL+C)
+    /// - `Ok(None)` - No options available or user cancelled (ESC)
     ///
     /// # Errors
     ///
@@ -214,8 +192,6 @@ impl<T> SelectBuilderOwned<T> {
             return Ok(None);
         }
 
-        let theme = ForgeSelect::default_theme();
-
         // Strip ANSI codes from display strings for better fuzzy search experience
         let display_options: Vec<String> = self
             .options
@@ -223,25 +199,25 @@ impl<T> SelectBuilderOwned<T> {
             .map(|item| strip_ansi_codes(&item.to_string()).to_string())
             .collect();
 
-        let mut select = FuzzySelect::with_theme(&theme)
-            .with_prompt(&self.message)
-            .items(&display_options);
+        let mut select = cliclack::select(&self.message).filter_mode();
 
+        // Add all items
+        for (idx, display) in display_options.iter().enumerate() {
+            select = select.item(idx, display, "");
+        }
+
+        // Set initial value if starting cursor is provided
         if let Some(cursor) = self.starting_cursor {
-            select = select.default(cursor);
-        } else {
-            select = select.default(0);
+            if cursor < self.options.len() {
+                select = select.initial_value(cursor);
+            }
         }
 
-        if let Some(text) = self.initial_text {
-            select = select.with_initial_text(text);
-        }
-
-        let idx_opt = match select.interact_opt() {
-            Ok(value) => value,
-            Err(e) if is_interrupted_error(&e) => return Ok(None),
-            Err(e) => return Err(e.into()),
+        let idx_opt = match select.interact() {
+            Ok(idx) => Some(idx),
+            Err(_) => return Ok(None), // User cancelled (ESC)
         };
+
         Ok(idx_opt.and_then(|idx| self.options.into_iter().nth(idx)))
     }
 }
@@ -271,26 +247,39 @@ impl InputBuilder {
     /// # Returns
     ///
     /// - `Ok(Some(String))` - User provided input
-    /// - `Ok(None)` - User cancelled (CTRL+C)
+    /// - `Ok(None)` - User cancelled (ESC)
     ///
     /// # Errors
     ///
     /// Returns an error if the terminal interaction fails for reasons other
     /// than user cancellation
     pub fn prompt(self) -> Result<Option<String>> {
-        let theme = ForgeSelect::default_theme();
-        let mut input = Input::with_theme(&theme)
-            .with_prompt(&self.message)
-            .allow_empty(self.allow_empty);
+        let mut input = cliclack::input(&self.message);
 
-        if let Some(default) = self.default {
-            input = input.default(default);
+        if let Some(default) = &self.default {
+            input = input.placeholder(default);
         }
 
-        match input.interact_text() {
-            Ok(value) => Ok(Some(value)),
-            Err(e) if is_interrupted_error(&e) => Ok(None),
-            Err(e) => Err(e.into()),
+        if !self.allow_empty {
+            input = input.validate(|value: &String| {
+                if value.is_empty() {
+                    Err("Input cannot be empty")
+                } else {
+                    Ok(())
+                }
+            });
+        }
+
+        match input.interact::<String>() {
+            Ok(value) => {
+                // If value is empty and we have a default, use the default
+                if value.is_empty() && self.default.is_some() {
+                    Ok(self.default)
+                } else {
+                    Ok(Some(value))
+                }
+            }
+            Err(_) => Ok(None), // User cancelled (ESC)
         }
     }
 }
@@ -307,7 +296,7 @@ impl<T> MultiSelectBuilder<T> {
     /// # Returns
     ///
     /// - `Ok(Some(Vec<T>))` - User selected one or more options
-    /// - `Ok(None)` - No options available or user cancelled (CTRL+C)
+    /// - `Ok(None)` - No options available or user cancelled (ESC)
     ///
     /// # Errors
     ///
@@ -321,15 +310,16 @@ impl<T> MultiSelectBuilder<T> {
             return Ok(None);
         }
 
-        let theme = ForgeSelect::default_theme();
-        let multi_select = MultiSelect::with_theme(&theme)
-            .with_prompt(&self.message)
-            .items(&self.options);
+        let mut multi_select = cliclack::multiselect(&self.message).filter_mode();
 
-        let indices_opt = match multi_select.interact_opt() {
-            Ok(value) => value,
-            Err(e) if is_interrupted_error(&e) => return Ok(None),
-            Err(e) => return Err(e.into()),
+        // Add all items
+        for (idx, option) in self.options.iter().enumerate() {
+            multi_select = multi_select.item(idx, option.to_string(), "");
+        }
+
+        let indices_opt = match multi_select.interact() {
+            Ok(indices) => Some(indices),
+            Err(_) => return Ok(None), // User cancelled (ESC)
         };
 
         Ok(indices_opt.map(|indices| {

@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 anyhow.workspace = true
 console.workspace = true
-dialoguer.workspace = true
+cliclack.workspace = true
 
 [dev-dependencies]
 pretty_assertions.workspace = true
