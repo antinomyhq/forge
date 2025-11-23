@@ -1105,19 +1105,51 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    /// Displays all MCP servers
+    /// Displays all MCP servers with their available tools
     async fn on_show_mcp_servers(&mut self, porcelain: bool) -> anyhow::Result<()> {
+        self.spinner.start(Some("Loading MCP servers"))?;
         let mcp_servers = self.api.read_mcp_config(None).await?;
+        let all_tools = self.api.get_tools().await?;
 
         let mut info = Info::new();
 
         for (name, server) in mcp_servers.mcp_servers {
+            let label = match server {
+                forge_domain::McpServerConfig::Stdio(_) => "Command",
+                forge_domain::McpServerConfig::Http(_) => "URL",
+            };
+
             info = info
                 .add_title(name.to_uppercase())
-                .add_key_value("Command", server.to_string());
+                .add_key_value("Type", server.server_type())
+                .add_key_value(label, server.to_string());
 
             if server.is_disabled() {
-                info = info.add_key_value("Status", "disabled")
+                info = info.add_key_value("Status", "disabled");
+            }
+
+            // Add tools for this MCP server
+            if let Some(tools) = all_tools.mcp.get_servers().get(&name)
+                && !tools.is_empty()
+            {
+                info = info.add_key_value("Tools", tools.len().to_string());
+                for tool in tools {
+                    info = info.add_value(tool.name.to_string());
+                }
+            }
+        }
+
+        // Show failed MCP servers
+        if !all_tools.mcp.get_failures().is_empty() {
+            info = info.add_title("FAILED");
+            for (server_name, error) in all_tools.mcp.get_failures().iter() {
+                // Truncate error message for readability
+                let truncated_error = if error.len() > 80 {
+                    format!("{}...", &error[..77])
+                } else {
+                    error.clone()
+                };
+                info = info.add_value(format!("[✗] {server_name} - {truncated_error}"));
             }
         }
 

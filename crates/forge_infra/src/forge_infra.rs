@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::ExitStatus;
 use std::sync::Arc;
@@ -89,6 +90,10 @@ impl EnvironmentInfra for ForgeInfra {
 
     fn get_env_var(&self, key: &str) -> Option<String> {
         self.environment_service.get_env_var(key)
+    }
+
+    fn get_env_vars(&self) -> BTreeMap<String, String> {
+        self.environment_service.get_env_vars()
     }
 }
 
@@ -212,8 +217,12 @@ impl UserInfra for ForgeInfra {
 impl McpServerInfra for ForgeInfra {
     type Client = ForgeMcpClient;
 
-    async fn connect(&self, config: McpServerConfig) -> anyhow::Result<Self::Client> {
-        self.mcp_server.connect(config).await
+    async fn connect(
+        &self,
+        config: McpServerConfig,
+        env_vars: &BTreeMap<String, String>,
+    ) -> anyhow::Result<Self::Client> {
+        self.mcp_server.connect(config, env_vars).await
     }
 }
 
