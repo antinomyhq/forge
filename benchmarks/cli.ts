@@ -38,22 +38,31 @@ const __dirname = path.dirname(__filename);
  * - Human-readable CLI output by default
  * - Set LOG_JSON=1 for machine-readable JSON output (for piping to jq, log aggregators, etc.)
  */
-const logger = pino({
-  level: process.env.LOG_LEVEL || "info",
-  transport: {
-    target: "pino-pretty",
-    options: {
-      colorize: true,
-      translateTime: "HH:MM:ss",
-      ignore: "pid,hostname",
-      messageFormat: "{msg}",
-    },
-  },
-  formatters: {
-    level: (label) => ({ level: label }),
-  },
-  timestamp: pino.stdTimeFunctions.isoTime,
-});
+const logger =
+  process.env.LOG_JSON === "1"
+    ? pino({
+        level: process.env.LOG_LEVEL || "info",
+        formatters: {
+          level: (label) => ({ level: label }),
+        },
+        timestamp: pino.stdTimeFunctions.isoTime,
+      })
+    : pino({
+        level: process.env.LOG_LEVEL || "info",
+        transport: {
+          target: "pino-pretty",
+          options: {
+            colorize: true,
+            translateTime: "HH:MM:ss",
+            ignore: "pid,hostname",
+            messageFormat: "{msg}",
+          },
+        },
+        formatters: {
+          level: (label) => ({ level: label }),
+        },
+        timestamp: pino.stdTimeFunctions.isoTime,
+      });
 
 /**
  * Formats a date with local timezone information
@@ -100,8 +109,6 @@ async function main() {
 
   // If dry-run mode, validate YAML and exit
   if (dryRun) {
-    logger.info({ taskFile }, "Dry-run mode: validating configuration");
-
     // Validate that sources exist
     for (const source of task.sources) {
       if ("csv" in source) {
@@ -110,45 +117,25 @@ async function main() {
           logger.error({ csvPath }, "CSV file not found");
           process.exit(1);
         }
-        logger.info({ csvPath }, "CSV file validated");
       }
     }
-
-    logger.info(
-      {
-        sources: task.sources.length,
-        validations: task.validations?.length ?? 0,
-        parallelism: task.run.parallelism ?? 1,
-        timeout: task.run.timeout,
-      },
-      "Configuration validation passed"
-    );
 
     process.exit(0);
   }
 
   // Display header
   const displayName = path.relative(__dirname, evalDir) || evalName;
-  logger.info({ evalName: displayName }, "Starting evaluation");
 
   // Create debug directory with timestamp
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
   const debugDir = path.join(evalDir, "debug", timestamp);
   fs.mkdirSync(debugDir, { recursive: true });
 
-  logger.info(
-    { debugDir: path.relative(process.cwd(), debugDir) },
-    "Debug directory created"
-  );
-
   // Execute before_run commands
   if (task.before_run && task.before_run.length > 0) {
-    logger.info({ count: task.before_run.length }, "Executing setup commands");
     for (const cmd of task.before_run) {
-      logger.info({ command: cmd }, "Running setup command");
       try {
         execSync(cmd, { stdio: "pipe", cwd: path.dirname(evalDir) });
-        logger.info({ command: cmd }, "Setup command completed");
       } catch (error) {
         logger.error({ command: cmd }, "Setup command failed");
         process.exit(1);
@@ -188,14 +175,6 @@ async function main() {
   // Get contexts from sources using pure function
   const data = getContextsFromSources(sourcesData);
 
-  logger.info(
-    {
-      taskCount: data.length,
-      sourceCount: task.sources.length,
-    },
-    "Tasks loaded"
-  );
-
   const results: {
     index: number;
     status: string;
@@ -210,24 +189,20 @@ async function main() {
   const timeout = task.run.timeout;
 
   // Execute run command for each data row
-  logger.info({ parallelism, timeout }, "Executing tasks");
-
   // Create promises for all tasks
   const taskPromises = data.map((row, i) => {
     return limit(async () => {
       // Generate command using pure function
       const command = generateCommand(task.run.command, row);
 
-      const startTime = Date.now();
-
       logger.info(
         {
-          taskIndex: i + 1,
-          totalTasks: data.length,
           command,
         },
-        "Task started"
+        "Executing task"
       );
+
+      const startTime = Date.now();
 
       // Create log file for this task
       const logFile = path.join(debugDir, `task_run_${i + 1}.log`);
@@ -257,12 +232,12 @@ async function main() {
             timeoutId = setTimeout(() => {
               timedOut = true;
               logStream.write(`\n${"=".repeat(80)}\n`);
-              logStream.write(`Timeout: ${task.run.timeout}ms exceeded\n`);
+              logStream.write(`Timeout: ${task.run.timeout}s exceeded\n`);
               logStream.write(`Killing process...\n`);
               logStream.end();
               child.kill("SIGKILL");
-              reject(new Error(`Task timed out after ${task.run.timeout}ms`));
-            }, task.run.timeout);
+              reject(new Error(`Task timed out after ${task.run.timeout}s`));
+            }, task.run.timeout * 1000);
           }
 
           // Stream stdout to both log file and capture for validation
@@ -322,21 +297,6 @@ async function main() {
         // Determine overall status
         const status = allPassed ? "passed" : "validation_failed";
 
-        // Log task completion
-        logger.info(
-          {
-            taskIndex: i + 1,
-            totalTasks: data.length,
-            command,
-            duration,
-            status,
-            validationsPassed: allPassed,
-            validationsCount: validationResults.length,
-            validationsPassedCount: countPassed(validationResults),
-          },
-          "Task completed"
-        );
-
         return {
           index: i + 1,
           status,
@@ -384,20 +344,6 @@ async function main() {
   ).length;
   const failCount = results.filter((r) => r.status === "failed").length;
   const totalDuration = results.reduce((sum, r) => sum + r.duration, 0);
-
-  // Log summary
-  logger.info(
-    {
-      totalTasks: results.length,
-      passed: successCount,
-      validationFailed: warningCount,
-      failed: failCount,
-      totalDuration,
-      parallelism,
-      validationRules: task.validations?.length ?? 0,
-    },
-    "Evaluation completed"
-  );
 
   // Exit with error code if any task failed
   if (failCount > 0) {
