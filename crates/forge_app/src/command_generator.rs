@@ -57,7 +57,7 @@ where
 
         // Send message to LLM
         let stream = self.services.chat(&model, ctx, provider).await?;
-        let message = stream.into_full(false).await?;
+        let message = stream.into_full(false, None).await?;
 
         // Extract the command from the <shell_command> tag
         let command = extract_tag_content(&message.content, "shell_command").ok_or_else(|| {

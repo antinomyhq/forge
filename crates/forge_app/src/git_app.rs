@@ -273,7 +273,7 @@ where
 
         // Send message to LLM
         let stream = self.services.chat(&model, context, provider).await?;
-        let message = stream.into_full(false).await?;
+        let message = stream.into_full(false, None).await?;
 
         // Extract the command from the <shell_command> tag
         let commit_message = forge_domain::extract_tag_content(&message.content, "commit_message")
