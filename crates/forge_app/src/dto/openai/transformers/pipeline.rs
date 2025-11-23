@@ -72,7 +72,7 @@ mod tests {
     use url::Url;
 
     use super::*;
-    use crate::domain::{Models, ProviderResponse};
+    use crate::domain::{ModelSource, ProviderResponse};
 
     // Test helper functions
     fn make_credential(provider_id: ProviderId, key: &str) -> Option<forge_domain::AuthCredential> {
@@ -88,96 +88,120 @@ mod tests {
     fn forge(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::Forge,
-            response: ProviderResponse::OpenAI,
+            provider_type: Default::default(),
+            response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://antinomy.ai/api/v1/chat/completions").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::Forge, key),
-            models: Models::Url(Url::parse("https://antinomy.ai/api/v1/models").unwrap()),
+            models: Some(ModelSource::Url(
+                Url::parse("https://antinomy.ai/api/v1/models").unwrap(),
+            )),
         }
     }
 
     fn zai(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::Zai,
-            response: ProviderResponse::OpenAI,
+            provider_type: Default::default(),
+            response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.z.ai/api/paas/v4/chat/completions").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::Zai, key),
-            models: Models::Url(Url::parse("https://api.z.ai/api/paas/v4/models").unwrap()),
+            models: Some(ModelSource::Url(
+                Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
+            )),
         }
     }
 
     fn zai_coding(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::ZaiCoding,
-            response: ProviderResponse::OpenAI,
+            provider_type: Default::default(),
+            response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.z.ai/api/coding/paas/v4/chat/completions").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::ZaiCoding, key),
-            models: Models::Url(Url::parse("https://api.z.ai/api/paas/v4/models").unwrap()),
+            models: Some(ModelSource::Url(
+                Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
+            )),
         }
     }
 
     fn openai(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::OpenAI,
-            response: ProviderResponse::OpenAI,
+            provider_type: Default::default(),
+            response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::OpenAI, key),
-            models: Models::Url(Url::parse("https://api.openai.com/v1/models").unwrap()),
+            models: Some(ModelSource::Url(
+                Url::parse("https://api.openai.com/v1/models").unwrap(),
+            )),
         }
     }
 
     fn xai(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::Xai,
-            response: ProviderResponse::OpenAI,
+            provider_type: Default::default(),
+            response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.x.ai/v1/chat/completions").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::Xai, key),
-            models: Models::Url(Url::parse("https://api.x.ai/v1/models").unwrap()),
+            models: Some(ModelSource::Url(
+                Url::parse("https://api.x.ai/v1/models").unwrap(),
+            )),
         }
     }
 
     fn requesty(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::Requesty,
-            response: ProviderResponse::OpenAI,
+            provider_type: Default::default(),
+            response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.requesty.ai/v1/chat/completions").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::Requesty, key),
-            models: Models::Url(Url::parse("https://api.requesty.ai/v1/models").unwrap()),
+            models: Some(ModelSource::Url(
+                Url::parse("https://api.requesty.ai/v1/models").unwrap(),
+            )),
         }
     }
 
     fn open_router(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::OpenRouter,
-            response: ProviderResponse::OpenAI,
+            provider_type: Default::default(),
+            response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://openrouter.ai/api/v1/chat/completions").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::OpenRouter, key),
-            models: Models::Url(Url::parse("https://openrouter.ai/api/v1/models").unwrap()),
+            models: Some(ModelSource::Url(
+                Url::parse("https://openrouter.ai/api/v1/models").unwrap(),
+            )),
         }
     }
 
     fn anthropic(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::Anthropic,
-            response: ProviderResponse::Anthropic,
+            provider_type: Default::default(),
+            response: Some(ProviderResponse::Anthropic),
             url: Url::parse("https://api.anthropic.com/v1/messages").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::Anthropic, key),
-            models: Models::Url(Url::parse("https://api.anthropic.com/v1/models").unwrap()),
+            models: Some(ModelSource::Url(
+                Url::parse("https://api.anthropic.com/v1/models").unwrap(),
+            )),
         }
     }
 

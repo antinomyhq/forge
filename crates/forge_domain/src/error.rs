@@ -88,6 +88,13 @@ pub enum Error {
 
     #[error("Failed to create VertexAI provider: {message}")]
     VertexAiConfiguration { message: String },
+
+    // Indexing errors
+    #[error("No indexing authentication found. Please run `forge index sync` first.")]
+    AuthTokenNotFound,
+
+    #[error("Workspace not found. Run `forge index sync .` first.")]
+    WorkspaceNotFound,
 }
 
 pub type Result<A> = std::result::Result<A, Error>;

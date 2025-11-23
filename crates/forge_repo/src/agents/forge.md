@@ -16,6 +16,7 @@ tools:
   - sage
   - mcp_*
   - read_image
+  - codebase_search
 user_prompt: |-
   <{{event.name}}>{{event.value}}</{{event.name}}>
   <system_date>{{current_date}}</system_date>

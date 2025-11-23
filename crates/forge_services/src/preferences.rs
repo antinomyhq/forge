@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use forge_app::AppConfigService;
 use forge_domain::{
-    AppConfig, AppConfigRepository, ModelId, Provider, ProviderId, ProviderRepository,
+    AppConfig, AppConfigRepository, ModelId, Provider, ProviderId, ProviderRepository, ProviderType,
 };
 use url::Url;
 
@@ -31,13 +31,23 @@ impl<F: ProviderRepository + AppConfigRepository> ForgeAppConfigService<F> {
     }
 
     /// Gets the first available provider from the provider registry.
+    ///
+    /// Filters out context engine providers since they are not suitable for
+    /// chat/completion.
     async fn get_first_available_provider(&self) -> anyhow::Result<Provider<Url>> {
         self.infra
             .get_all_providers()
             .await?
             .into_iter()
             .find_map(|p| match p {
-                forge_domain::AnyProvider::Url(provider) => Some(provider),
+                forge_domain::AnyProvider::Url(provider) => {
+                    // Only return LLM providers, not context engine
+                    if provider.provider_type == ProviderType::Llm {
+                        Some(provider)
+                    } else {
+                        None
+                    }
+                }
                 forge_domain::AnyProvider::Template(_) => None,
             })
             .ok_or_else(|| forge_app::Error::NoActiveProvider.into())
@@ -96,7 +106,7 @@ mod tests {
     use std::sync::Mutex;
 
     use forge_domain::{
-        AnyProvider, AppConfig, MigrationResult, Model, Models, Provider, ProviderId,
+        AnyProvider, AppConfig, MigrationResult, Model, ModelSource, Provider, ProviderId,
         ProviderResponse,
     };
     use pretty_assertions::assert_eq;
@@ -117,7 +127,8 @@ mod tests {
                 providers: vec![
                     Provider {
                         id: ProviderId::OpenAI,
-                        response: ProviderResponse::OpenAI,
+                        provider_type: Default::default(),
+                        response: Some(ProviderResponse::OpenAI),
                         url: Url::parse("https://api.openai.com").unwrap(),
                         credential: Some(forge_domain::AuthCredential {
                             id: ProviderId::OpenAI,
@@ -128,7 +139,7 @@ mod tests {
                         }),
                         auth_methods: vec![forge_domain::AuthMethod::ApiKey],
                         url_params: vec![],
-                        models: Models::Hardcoded(vec![Model {
+                        models: Some(ModelSource::Hardcoded(vec![Model {
                             id: "gpt-4".to_string().into(),
                             name: Some("GPT-4".to_string()),
                             description: None,
@@ -136,11 +147,12 @@ mod tests {
                             tools_supported: Some(true),
                             supports_parallel_tool_calls: Some(true),
                             supports_reasoning: Some(false),
-                        }]),
+                        }])),
                     },
                     Provider {
                         id: ProviderId::Anthropic,
-                        response: ProviderResponse::Anthropic,
+                        provider_type: Default::default(),
+                        response: Some(ProviderResponse::Anthropic),
                         url: Url::parse("https://api.anthropic.com").unwrap(),
                         auth_methods: vec![forge_domain::AuthMethod::ApiKey],
                         url_params: vec![],
@@ -151,7 +163,7 @@ mod tests {
                             ),
                             url_params: HashMap::new(),
                         }),
-                        models: Models::Hardcoded(vec![Model {
+                        models: Some(ModelSource::Hardcoded(vec![Model {
                             id: "claude-3".to_string().into(),
                             name: Some("Claude 3".to_string()),
                             description: None,
@@ -159,7 +171,7 @@ mod tests {
                             tools_supported: Some(true),
                             supports_parallel_tool_calls: Some(true),
                             supports_reasoning: Some(true),
-                        }]),
+                        }])),
                     },
                 ],
             }

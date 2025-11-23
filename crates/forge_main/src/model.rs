@@ -357,6 +357,7 @@ impl ForgeCommandManager {
                 let max_diff_size = parameters.iter().find_map(|&p| p.parse::<usize>().ok());
                 Ok(SlashCommand::Commit { max_diff_size })
             }
+            "/index" => Ok(SlashCommand::Index),
             text => {
                 let parts = text.split_ascii_whitespace().collect::<Vec<&str>>();
 
@@ -504,6 +505,10 @@ pub enum SlashCommand {
         usage = "Generate AI commit message and commit changes. Format: /commit <max-diff|preview>"
     ))]
     Commit { max_diff_size: Option<usize> },
+
+    /// Index the current workspace for semantic code search
+    #[strum(props(usage = "Index the current workspace for semantic search"))]
+    Index,
 }
 
 impl SlashCommand {
@@ -534,6 +539,7 @@ impl SlashCommand {
             SlashCommand::Retry => "retry",
             SlashCommand::Conversations => "conversation",
             SlashCommand::AgentSwitch(agent_id) => agent_id,
+            SlashCommand::Index => "index",
         }
     }
 
@@ -546,7 +552,7 @@ impl SlashCommand {
 #[cfg(test)]
 mod tests {
     use console::strip_ansi_codes;
-    use forge_api::{ModelId, Models, ProviderId, ProviderResponse};
+    use forge_api::{ModelId, ModelSource, ProviderId, ProviderResponse};
     use forge_domain::{AnyProvider, Provider};
     use pretty_assertions::assert_eq;
     use url::Url;
@@ -1016,12 +1022,15 @@ mod tests {
     fn test_cli_provider_display_minimal() {
         let fixture = AnyProvider::Url(Provider {
             id: ProviderId::OpenAI,
-            response: ProviderResponse::OpenAI,
+            provider_type: forge_domain::ProviderType::Llm,
+            response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: None,
-            models: Models::Url(Url::parse("https://api.openai.com/v1/models").unwrap()),
+            models: Some(ModelSource::Url(
+                Url::parse("https://api.openai.com/v1/models").unwrap(),
+            )),
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
@@ -1033,12 +1042,15 @@ mod tests {
     fn test_cli_provider_display_with_subdomain() {
         let fixture = AnyProvider::Url(Provider {
             id: ProviderId::OpenRouter,
-            response: ProviderResponse::OpenAI,
+            provider_type: forge_domain::ProviderType::Llm,
+            response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://openrouter.ai/api/v1/chat/completions").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: None,
-            models: Models::Url(Url::parse("https://openrouter.ai/api/v1/models").unwrap()),
+            models: Some(ModelSource::Url(
+                Url::parse("https://openrouter.ai/api/v1/models").unwrap(),
+            )),
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
@@ -1050,12 +1062,15 @@ mod tests {
     fn test_cli_provider_display_no_domain() {
         let fixture = AnyProvider::Url(Provider {
             id: ProviderId::Forge,
-            response: ProviderResponse::OpenAI,
+            provider_type: forge_domain::ProviderType::Llm,
+            response: Some(ProviderResponse::OpenAI),
             url: Url::parse("http://localhost:8080/chat/completions").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: None,
-            models: Models::Url(Url::parse("http://localhost:8080/models").unwrap()),
+            models: Some(ModelSource::Url(
+                Url::parse("http://localhost:8080/models").unwrap(),
+            )),
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
@@ -1067,12 +1082,15 @@ mod tests {
     fn test_cli_provider_display_template() {
         let fixture = AnyProvider::Template(Provider {
             id: ProviderId::Anthropic,
-            response: ProviderResponse::Anthropic,
+            provider_type: Default::default(),
+            response: Some(ProviderResponse::Anthropic),
             url: Template::new("https://api.anthropic.com/v1/messages"),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: None,
-            models: Models::Url(Template::new("https://api.anthropic.com/v1/models")),
+            models: Some(ModelSource::Url(Template::new(
+                "https://api.anthropic.com/v1/models",
+            ))),
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
@@ -1084,12 +1102,15 @@ mod tests {
     fn test_cli_provider_display_ip_address() {
         let fixture = AnyProvider::Url(Provider {
             id: ProviderId::Forge,
-            response: ProviderResponse::OpenAI,
+            provider_type: forge_domain::ProviderType::Llm,
+            response: Some(ProviderResponse::OpenAI),
             url: Url::parse("http://192.168.1.1:8080/chat/completions").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: None,
-            models: Models::Url(Url::parse("http://192.168.1.1:8080/models").unwrap()),
+            models: Some(ModelSource::Url(
+                Url::parse("http://192.168.1.1:8080/models").unwrap(),
+            )),
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
