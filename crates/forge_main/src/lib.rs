@@ -18,6 +18,9 @@ mod ui;
 
 mod update;
 
+#[cfg(test)]
+mod ui_inline_shell_tests;
+
 pub use cli::{Cli, TopLevelCommand};
 use lazy_static::lazy_static;
 pub use sandbox::Sandbox;

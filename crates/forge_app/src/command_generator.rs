@@ -3,6 +3,7 @@ use std::sync::Arc;
 use anyhow::Result;
 use forge_domain::{extract_tag_content, *};
 
+use crate::services::{PromptProcessor, SecurityContext};
 use crate::{
     AppConfigService, EnvironmentService, FileDiscoveryService, ProviderService, TemplateEngine,
     Walker,
@@ -11,6 +12,7 @@ use crate::{
 /// CommandGenerator handles shell command generation from natural language
 pub struct CommandGenerator<S> {
     services: Arc<S>,
+    prompt_processor: Arc<dyn PromptProcessor>,
 }
 
 impl<S> CommandGenerator<S>
@@ -18,8 +20,8 @@ where
     S: EnvironmentService + FileDiscoveryService + ProviderService + AppConfigService,
 {
     /// Creates a new CommandGenerator instance with the provided services.
-    pub fn new(services: Arc<S>) -> Self {
-        Self { services }
+    pub fn new(services: Arc<S>, prompt_processor: Arc<dyn PromptProcessor>) -> Self {
+        Self { services, prompt_processor }
     }
 
     /// Generates a shell command from a natural language prompt
@@ -52,8 +54,16 @@ where
         // Build user prompt with task and recent commands
         let user_content = format!("<task>{}</task>", prompt.as_str());
 
+        // Process inline commands in user content with CommandGeneration security
+        // context
+        let security_context = SecurityContext::command_generation(env.cwd.clone());
+        let processed_user_content = self
+            .prompt_processor
+            .process_inline_commands(&user_content, &security_context)
+            .await?;
+
         // Create context with system and user prompts
-        let ctx = self.create_context(rendered_system_prompt, user_content, &model);
+        let ctx = self.create_context(rendered_system_prompt, processed_user_content, &model);
 
         // Send message to LLM
         let stream = self.services.chat(&model, ctx, provider).await?;
@@ -215,7 +225,10 @@ mod tests {
             "<shell_command>ls -la</shell_command>",
             vec![("file1.txt", false), ("file2.rs", false)],
         );
-        let generator = CommandGenerator::new(fixture.clone());
+        let generator = CommandGenerator::new(
+            fixture.clone(),
+            Arc::new(crate::services::MockPromptProcessor::new()),
+        );
 
         let actual = generator
             .generate(UserPrompt::from("list all files".to_string()))
@@ -230,7 +243,10 @@ mod tests {
     #[tokio::test]
     async fn test_generate_with_no_files() {
         let fixture = MockServices::new("<shell_command>pwd</shell_command>", vec![]);
-        let generator = CommandGenerator::new(fixture.clone());
+        let generator = CommandGenerator::new(
+            fixture.clone(),
+            Arc::new(crate::services::MockPromptProcessor::new()),
+        );
 
         let actual = generator
             .generate(UserPrompt::from("show current directory".to_string()))
@@ -245,7 +261,10 @@ mod tests {
     #[tokio::test]
     async fn test_generate_fails_when_missing_tag() {
         let fixture = MockServices::new("No command tag here", vec![]);
-        let generator = CommandGenerator::new(fixture);
+        let generator = CommandGenerator::new(
+            fixture,
+            Arc::new(crate::services::MockPromptProcessor::new()),
+        );
 
         let actual = generator
             .generate(UserPrompt::from("do something".to_string()))

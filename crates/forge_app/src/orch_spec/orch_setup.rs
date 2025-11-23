@@ -84,6 +84,9 @@ impl Default for TestContext {
                 custom_history_path: None,
                 max_conversations: 100,
                 max_image_size: 262144,
+                inline_max_commands: 10,
+                inline_command_timeout: 30,
+                inline_max_output_length: 10_000,
             },
             title: Some("test-conversation".into()),
             agent: Agent::new(

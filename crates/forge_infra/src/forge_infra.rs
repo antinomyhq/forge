@@ -4,10 +4,11 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use forge_app::{
-    CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra,
-    FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, StrategyFactory,
-    UserInfra, WalkerInfra,
+    DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra, FileReaderInfra,
+    FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, StrategyFactory, UserInfra,
+    WalkerInfra,
 };
+use forge_domain::inline_shell::ports::CommandExecutor;
 use forge_domain::{
     AuthMethod, CommandOutput, Environment, FileInfo as FileInfoData, McpServerConfig, ProviderId,
     URLParam,
@@ -159,8 +160,9 @@ impl FileDirectoryInfra for ForgeInfra {
     }
 }
 
+/// Implementation of forge_app CommandInfra for backward compatibility
 #[async_trait::async_trait]
-impl CommandInfra for ForgeInfra {
+impl forge_app::CommandInfra for ForgeInfra {
     async fn execute_command(
         &self,
         command: String,

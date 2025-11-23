@@ -7,8 +7,8 @@ use forge_app::dto::ToolsOverview;
 use forge_app::{
     AgentProviderResolver, AgentRegistry, AppConfigService, AuthService, CommandInfra,
     CommandLoaderService, ConversationService, EnvironmentInfra, EnvironmentService,
-    FileDiscoveryService, ForgeApp, GitApp, McpConfigManager, McpService, ProviderAuthService,
-    ProviderService, Services, User, UserUsage, Walker, WorkflowService,
+    FileDiscoveryService, ForgeApp, GitApp, McpConfigManager, McpService, PolicyService,
+    ProviderAuthService, ProviderService, Services, User, UserUsage, Walker, WorkflowService,
 };
 use forge_domain::{Agent, InitAuth, LoginInfo, *};
 use forge_infra::ForgeInfra;
@@ -27,6 +27,11 @@ pub struct ForgeAPI<S, F> {
 impl<A, F> ForgeAPI<A, F> {
     pub fn new(services: Arc<A>, infra: Arc<F>) -> Self {
         Self { services, infra }
+    }
+
+    /// Get access to the services
+    pub fn services(&self) -> &A {
+        &self.services
     }
 
     /// Creates a ForgeApp instance with the current services
@@ -82,12 +87,10 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         preview: bool,
         max_diff_size: Option<usize>,
         diff: Option<String>,
-        additional_context: Option<String>,
+        _additional_context: Option<String>,
     ) -> Result<forge_app::CommitResult> {
-        let git_app = GitApp::new(self.services.clone());
-        let result = git_app
-            .commit_message(max_diff_size, diff, additional_context)
-            .await?;
+        let git_app = GitApp::new(self.services.clone(), self.services.prompt_processor());
+        let result = git_app.commit_message(max_diff_size, diff).await?;
 
         if preview {
             Ok(result)
@@ -138,6 +141,13 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
 
     fn environment(&self) -> Environment {
         self.services.get_environment().clone()
+    }
+
+    async fn check_operation_permission(
+        &self,
+        operation: &forge_domain::PermissionOperation,
+    ) -> anyhow::Result<forge_app::PolicyDecision> {
+        self.services.check_operation_permission(operation).await
     }
 
     async fn read_workflow(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
@@ -296,7 +306,8 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
 
     async fn generate_command(&self, prompt: UserPrompt) -> Result<String> {
         use forge_app::CommandGenerator;
-        let generator = CommandGenerator::new(self.services.clone());
+        let generator =
+            CommandGenerator::new(self.services.clone(), self.services.prompt_processor());
         generator.generate(prompt).await
     }
 
