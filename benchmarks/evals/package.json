@@ -1,0 +1,23 @@
+{
+  "name": "forge-code-evals",
+  "private": true,
+  "version": "1.0.0",
+  "description": "",
+  "license": "ISC",
+  "author": "Tushar Mathur <tusharmath@gmail.com>",
+  "type": "module",
+  "scripts": {
+    "eval": "tsx cli.ts"
+  },
+  "dependencies": {
+    "@types/node": "^24.10.1",
+    "boxen": "^8.0.1",
+    "chalk": "^5.6.2",
+    "cli-table3": "^0.6.5",
+    "csv-parse": "^6.1.0",
+    "ora": "^9.0.0",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3",
+    "yaml": "^2.8.1"
+  }
+}
