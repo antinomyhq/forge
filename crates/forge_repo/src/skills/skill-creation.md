@@ -206,8 +206,7 @@ Skill creation involves these steps:
 2. Plan reusable skill contents (scripts, references, assets)
 3. Initialize the skill
 4. Edit the skill (implement resources and write SKILL.md)
-5. Package the skill
-6. Iterate based on real usage
+5. Iterate based on real usage
 
 Follow these steps in order, skipping only if there is a clear reason why they are not applicable.
 
@@ -258,7 +257,7 @@ At this point, it is time to actually create the skill.
 
 Skip this step only if the skill being developed already exists, and iteration or packaging is needed. In this case, continue to the next step.
 
-When creating a new skill from scratch, create the skill directory structure in `.forge/<skill-name>/` from the current working directory. The structure should include:
+When creating a new skill from scratch, create the skill directory structure in `.forge/skills/<skill-name>/` from the current working directory. The structure should include:
 
 - `SKILL.md` with YAML frontmatter (name, description) and markdown body
 - `scripts/` directory for executable code (e.g., `process.sh`, `validate.sh`)
@@ -268,8 +267,8 @@ When creating a new skill from scratch, create the skill directory structure in 
 Example initialization:
 
 ```bash
-mkdir -p .forge/pdf-editor/{scripts,references,assets}
-cat > .forge/pdf-editor/SKILL.md << 'EOF'
+mkdir -p .forge/skills/pdf-editor/{scripts,references,assets}
+cat > .forge/skills/pdf-editor/SKILL.md << 'EOF'
 ---
 name: pdf-editor
 description: TODO - Describe what this skill does and when to use it
@@ -280,13 +279,13 @@ description: TODO - Describe what this skill does and when to use it
 TODO - Add skill instructions here
 EOF
 
-cat > .forge/pdf-editor/scripts/rotate.sh << 'EOF'
+cat > .forge/skills/pdf-editor/scripts/rotate.sh << 'EOF'
 #!/bin/bash
 # Rotate PDF using pdftk
 pdftk "$1" cat 1-endright output "$2"
 EOF
 
-chmod +x .forge/pdf-editor/scripts/rotate.sh
+chmod +x .forge/skills/pdf-editor/scripts/rotate.sh
 ```
 
 After initialization, customize the generated files as needed.
@@ -332,49 +331,7 @@ Do not include any other fields in YAML frontmatter.
 
 Write instructions for using the skill and its bundled resources.
 
-### Step 5: Packaging a Skill
-
-Once development of the skill is complete, it must be packaged into a distributable .skill file that gets shared with the user. Package the skill directory into a zip archive with a .skill extension:
-
-```bash
-cd .forge
-zip -r pdf-editor.skill pdf-editor/
-```
-
-Or package with validation:
-
-```bash
-#!/bin/bash
-# validate_and_package.sh
-SKILL_DIR=".forge/$1"
-OUTPUT="${2:-.forge}"
-
-# Validate YAML frontmatter
-if ! grep -q "^---$" "$SKILL_DIR/SKILL.md"; then
-    echo "Error: Missing YAML frontmatter"
-    exit 1
-fi
-
-# Check required fields
-if ! grep -q "^name:" "$SKILL_DIR/SKILL.md"; then
-    echo "Error: Missing 'name' field"
-    exit 1
-fi
-
-if ! grep -q "^description:" "$SKILL_DIR/SKILL.md"; then
-    echo "Error: Missing 'description' field"
-    exit 1
-fi
-
-# Package the skill
-cd .forge
-zip -r "$OUTPUT/$1.skill" "$1/"
-echo "Created: $OUTPUT/$1.skill"
-```
-
-The .skill file includes all files and maintains the proper directory structure for distribution.
-
-### Step 6: Iterate
+### Step 5: Iterate
 
 After testing the skill, users may request improvements. Often this happens right after using the skill, with fresh context of how the skill performed.
 
