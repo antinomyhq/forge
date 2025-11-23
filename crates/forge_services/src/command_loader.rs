@@ -142,9 +142,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_parse_basic_command() {
-        let content = include_str!("fixtures/commands/basic.md");
+        let content = forge_test_kit::fixture!("src/fixtures/commands/basic.md").await;
 
-        let actual = parse_command_file(content).unwrap();
+        let actual = parse_command_file(&content).unwrap();
 
         assert_eq!(actual.name.as_str(), "test-basic");
         assert_eq!(actual.description.as_str(), "A basic test command");
@@ -156,9 +156,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_parse_command_with_multiline_prompt() {
-        let content = include_str!("fixtures/commands/multiline.md");
+        let content = forge_test_kit::fixture!("src/fixtures/commands/multiline.md").await;
 
-        let actual = parse_command_file(content).unwrap();
+        let actual = parse_command_file(&content).unwrap();
 
         assert_eq!(actual.name.as_str(), "test-multiline");
         assert_eq!(actual.description.as_str(), "Command with multiline prompt");
@@ -168,9 +168,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_parse_invalid_frontmatter() {
-        let content = include_str!("fixtures/commands/invalid.md");
+        let content = forge_test_kit::fixture!("src/fixtures/commands/invalid.md").await;
 
-        let result = parse_command_file(content);
+        let result = parse_command_file(&content);
         assert!(result.is_err());
     }
 
@@ -178,12 +178,13 @@ mod tests {
     async fn test_parse_builtin_commands() {
         // Test that all built-in commands parse correctly
         let builtin_commands = [
-            ("fixme", include_str!("../../../.forge/commands/fixme.md")),
-            ("check", include_str!("../../../.forge/commands/check.md")),
+            ("fixme", "../../.forge/commands/fixme.md"),
+            ("check", "../../.forge/commands/check.md"),
         ];
 
-        for (name, content) in builtin_commands {
-            let command = parse_command_file(content)
+        for (name, path) in builtin_commands {
+            let content = forge_test_kit::fixture!(path).await;
+            let command = parse_command_file(&content)
                 .with_context(|| format!("Failed to parse built-in command: {}", name))
                 .unwrap();
 
