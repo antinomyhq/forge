@@ -103,12 +103,14 @@ tree-sitter-swift = "0.7.1"
 tree-sitter-kotlin-ng = "1.1.0"
 tree-sitter-dart = "0.0.4"
 tree-sitter-yaml = "0.7.2"
-tree-sitter-toml = "0.20.0"
+# tree-sitter-toml = "0.20.0" # Replaced with devgen-tree-sitter-toml
+devgen-tree-sitter-toml = "0.21.0"
 tree-sitter-bash = "0.25.0"
 tree-sitter-html = "0.23.2"
 tree-sitter-json = "0.24.8"
 tree-sitter-sequel = "0.3.11"
-tree-sitter-markdown = "0.7.1"
+# tree-sitter-markdown = "0.7.1" # Replaced with tree-sitter-md
+tree-sitter-md = "0.5.1"
 tree-sitter-powershell = "0.25.9"
 url = { version = "2.5.4", features = ["serde"] }
 backon = "1.5.2"

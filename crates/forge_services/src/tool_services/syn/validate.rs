@@ -3,6 +3,9 @@ use std::path::Path;
 use thiserror::Error;
 use tree_sitter::{Language, LanguageError, Parser};
 use tree_sitter_sequel;
+use tree_sitter_php;
+use tree_sitter_dart;
+use tree_sitter_md;
 
 /// Represents possible errors that can occur during syntax validation
 #[derive(Debug, Error, PartialEq)]
@@ -76,18 +79,17 @@ pub fn extension(ext: &str) -> Option<Language> {
         // Phase 1 - New languages
         "cs" | "csx" => Some(tree_sitter_c_sharp::LANGUAGE.into()),
         "c" | "h" => Some(tree_sitter_c::LANGUAGE.into()),
-        // "php" => Some(tree_sitter_php::language().into()), // Fixed: Use language() function
+        "php" => Some(tree_sitter_php::LANGUAGE_PHP.into()), // Fixed: Use LANGUAGE_PHP constant
         "swift" => Some(tree_sitter_swift::LANGUAGE.into()),
         "kt" | "kts" => Some(tree_sitter_kotlin_ng::LANGUAGE.into()),
-        // "dart" => Some(tree_sitter_dart::language().into()), // Fixed: Use language() function
+        "dart" => Some(tree_sitter_dart::language().into()), // Correct: Uses language() function
         "yml" | "yaml" => Some(tree_sitter_yaml::LANGUAGE.into()),
-        // "toml" => Some(tree_sitter_toml::language().into()), // Fixed: Use language() function
+        // "toml" => Some(devgen_tree_sitter_toml::language().into()), // TODO: Fix conflicts with tree-sitter
         "sh" | "bash" | "zsh" | "fish" => Some(tree_sitter_bash::LANGUAGE.into()),
         "html" | "htm" | "xhtml" => Some(tree_sitter_html::LANGUAGE.into()),
         "json" => Some(tree_sitter_json::LANGUAGE.into()),
         "sql" => Some(tree_sitter_sequel::LANGUAGE.into()),
-        // "md" | "markdown" => Some(tree_sitter_markdown::language().into()), // Fixed: Use
-        // language() function
+        "md" | "markdown" => Some(tree_sitter_md::LANGUAGE.into()), // Fixed: Use tree-sitter-md with LANGUAGE constant
         "ps1" | "psm1" | "psd1" => Some(tree_sitter_powershell::LANGUAGE.into()),
 
         _ => None,
@@ -468,10 +470,8 @@ mod tests {
         assert!(extension("txt").is_none());
 
         // Test languages with API issues (should return None for now)
-        assert!(extension("toml").is_none()); // TODO: Fix API
-        assert!(extension("php").is_none()); // TODO: Fix API
-        assert!(extension("dart").is_none()); // TODO: Fix API
-        assert!(extension("md").is_none()); // TODO: Fix API
+        assert!(extension("toml").is_none()); // TODO: Fix API - devgen-tree-sitter-toml conflicts with tree-sitter
+        assert!(extension("md").is_some()); // Fixed: Now works with tree-sitter-md
         
         // SQL now works with tree-sitter-sequel
         assert!(extension("sql").is_some());
