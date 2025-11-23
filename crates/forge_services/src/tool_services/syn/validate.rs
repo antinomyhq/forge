@@ -2,9 +2,7 @@ use std::path::Path;
 
 use thiserror::Error;
 use tree_sitter::{Language, LanguageError, Parser};
-use tree_sitter_dart::language;
 use tree_sitter_md::LANGUAGE as MD_LANGUAGE;
-use tree_sitter_php::LANGUAGE_PHP as PHP_LANGUAGE;
 use tree_sitter_sequel::LANGUAGE as SQL_LANGUAGE;
 use tree_sitter_toml_ng::LANGUAGE as TOML_LANGUAGE;
 
@@ -91,8 +89,8 @@ pub fn extension(ext: &str) -> Option<Language> {
         "html" | "htm" | "xhtml" => Some(tree_sitter_html::LANGUAGE.into()),
         "json" => Some(tree_sitter_json::LANGUAGE.into()),
         "sql" => Some(SQL_LANGUAGE.into()),
-        "md" | "markdown" => Some(MD_LANGUAGE.into()), /* Fixed: Use tree-sitter-md
-                                                                      * with LANGUAGE constant */
+        "md" | "markdown" => Some(MD_LANGUAGE.into()), /* Fixed: Use tree-sitter-md */
+        // with LANGUAGE constant
         "ps1" | "psm1" | "psd1" => Some(tree_sitter_powershell::LANGUAGE.into()),
 
         _ => None,
@@ -473,7 +471,7 @@ mod tests {
         assert!(extension("txt").is_none());
 
         // Test languages with API issues (all now resolved!)
-// TOML now works with tree-sitter-toml-ng!
+        // TOML now works with tree-sitter-toml-ng!
         assert!(extension("toml").is_some());
         assert!(extension("md").is_some()); // Fixed: Now works with tree-sitter-md
 
