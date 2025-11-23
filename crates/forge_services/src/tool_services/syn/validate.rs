@@ -477,11 +477,7 @@ mod tests {
         assert!(extension("sql").is_some());
     }
 
-    fn test_unsupported_extension() {
-        let content = "Some random content";
-        let path = PathBuf::from("test.txt");
-        assert!(validate(&path, content).is_none());
-    }
+
 
     #[test]
     fn test_no_extension() {
