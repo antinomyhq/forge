@@ -13,7 +13,7 @@ import * as path from "path";
 import { fileURLToPath } from "url";
 import { parse as parseYaml } from "yaml";
 import { parse as parseCsv } from "csv-parse/sync";
-import { spawn, execSync } from "child_process";
+import { execSync } from "child_process";
 import pLimit from "p-limit";
 import pino from "pino";
 import { TaskStatus, type Task } from "./model.js";
@@ -21,13 +21,8 @@ import {
   getContextsFromSources,
   generateCommand,
 } from "./command-generator.js";
-import {
-  runValidations,
-  allValidationsPassed,
-  countPassed,
-  type ValidationResult,
-} from "./validator.js";
 import { parseCliArgs } from "./parse.js";
+import { executeTask, type TaskResult } from "./task-executor.js";
 
 // ESM compatibility for __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -63,21 +58,6 @@ const logger =
         },
         timestamp: pino.stdTimeFunctions.isoTime,
       });
-
-/**
- * Formats a date with local timezone information
- */
-function formatTimestamp(date: Date): string {
-  const offset = -date.getTimezoneOffset();
-  const sign = offset >= 0 ? "+" : "-";
-  const hours = Math.floor(Math.abs(offset) / 60)
-    .toString()
-    .padStart(2, "0");
-  const minutes = (Math.abs(offset) % 60).toString().padStart(2, "0");
-  const timezone = `${sign}${hours}:${minutes}`;
-
-  return `${date.toISOString().replace("Z", "")}${timezone}`;
-}
 
 async function main() {
   // Parse command line arguments
@@ -175,18 +155,11 @@ async function main() {
   // Get contexts from sources using pure function
   const data = getContextsFromSources(sourcesData);
 
-  const results: {
-    index: number;
-    status: TaskStatus;
-    command: string;
-    duration: number;
-    validationResults?: ValidationResult[];
-  }[] = [];
+  const results: TaskResult[] = [];
 
   // Get parallelism setting (default to 1 for sequential execution)
   const parallelism = task.run.parallelism ?? 1;
   const limit = pLimit(parallelism);
-  const timeout = task.run.timeout;
 
   // Execute run command for each data row
   // Create promises for all tasks
@@ -195,141 +168,15 @@ async function main() {
       // Generate command using pure function
       const command = generateCommand(task.run.command, row);
 
-      logger.info(
-        {
-          command,
-        },
-        "Executing task"
+      return executeTask(
+        command,
+        i + 1,
+        debugDir,
+        evalDir,
+        task.run.timeout,
+        task.validations,
+        logger
       );
-
-      const startTime = Date.now();
-
-      // Create log file for this task
-      const logFile = path.join(debugDir, `task_run_${i + 1}.log`);
-      const logStream = fs.createWriteStream(logFile);
-
-      // Write command at the top of the log file
-      logStream.write(`Command: ${command}\n`);
-      logStream.write(`Started: ${formatTimestamp(new Date())}\n`);
-      logStream.write(`${"=".repeat(80)}\n\n`);
-
-      try {
-        // Execute command and stream output to log file
-        const output = await new Promise<string>((resolve, reject) => {
-          const child = spawn(command, {
-            shell: true,
-            cwd: path.dirname(evalDir),
-            stdio: ["ignore", "pipe", "pipe"],
-          });
-
-          let stdout = "";
-          let stderr = "";
-          let timeoutId: NodeJS.Timeout | null = null;
-          let timedOut = false;
-
-          // Set up timeout if configured
-          if (task.run.timeout) {
-            timeoutId = setTimeout(() => {
-              timedOut = true;
-              logStream.write(`\n${"=".repeat(80)}\n`);
-              logStream.write(`Timeout: ${task.run.timeout}s exceeded\n`);
-              logStream.write(`Killing process...\n`);
-              logStream.end();
-              child.kill("SIGKILL");
-              reject(new Error(`Task timed out after ${task.run.timeout}s`));
-            }, task.run.timeout * 1000);
-          }
-
-          // Stream stdout to both log file and capture for validation
-          child.stdout?.on("data", (data) => {
-            const text = data.toString();
-            stdout += text;
-            logStream.write(text);
-          });
-
-          // Stream stderr to both log file and capture for validation
-          child.stderr?.on("data", (data) => {
-            const text = data.toString();
-            stderr += text;
-            logStream.write(text);
-          });
-
-          child.on("close", (code) => {
-            if (timeoutId) clearTimeout(timeoutId);
-
-            // Don't log if already timed out
-            if (timedOut) return;
-
-            logStream.write(`\n${"=".repeat(80)}\n`);
-            logStream.write(`Finished: ${formatTimestamp(new Date())}\n`);
-            logStream.write(`Exit Code: ${code}\n`);
-            logStream.end();
-
-            if (code === 0) {
-              resolve(stdout + stderr);
-            } else {
-              reject(new Error(`Command failed with exit code ${code}`));
-            }
-          });
-
-          child.on("error", (err) => {
-            if (timeoutId) clearTimeout(timeoutId);
-
-            // Don't log if already timed out
-            if (timedOut) return;
-
-            logStream.write(`\nError: ${err.message}\n`);
-            logStream.end();
-            reject(err);
-          });
-        });
-
-        const duration = Date.now() - startTime;
-
-        // Perform all validations if configured
-        const validationResults =
-          task.validations && task.validations.length > 0
-            ? runValidations(output, task.validations)
-            : [];
-
-        const allPassed = allValidationsPassed(validationResults);
-
-        // Determine overall status
-        const status = allPassed ? TaskStatus.Passed : TaskStatus.ValidationFailed;
-
-        return {
-          index: i + 1,
-          status,
-          command,
-          duration,
-          validationResults,
-        };
-      } catch (error) {
-        const duration = Date.now() - startTime;
-        const errorMessage =
-          error instanceof Error ? error.message : "Command failed";
-        const isTimeout = errorMessage.includes("timed out");
-
-        logger.error(
-          {
-            taskIndex: i + 1,
-            totalTasks: data.length,
-            command,
-            duration,
-            error: errorMessage,
-            isTimeout,
-          },
-          isTimeout ? "Task timed out" : "Task failed"
-        );
-
-        return {
-          index: i + 1,
-          status: isTimeout ? TaskStatus.Timeout : TaskStatus.Failed,
-          command,
-          duration,
-          validationResults: [],
-        };
-      }
     });
   });
 
