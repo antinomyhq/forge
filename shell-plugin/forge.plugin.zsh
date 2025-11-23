@@ -484,34 +484,7 @@ function _forge_action_tools() {
 }
 
 # Action handler: Generate shell command from natural language
-# Usage: :? <description>
-function _forge_action_suggest() {
-    local description="$1"
-    
-    if [[ -z "$description" ]]; then
-        echo "\033[31m✗\033[0m Please provide a command description"
-        _forge_reset
-        return 0
-    fi
-    
-    echo
-    # Generate the command
-    local generated_command
-    generated_command=$(FORCE_COLOR=true CLICOLOR_FORCE=1 _forge_exec suggest "$description")
-    
-    if [[ -n "$generated_command" ]]; then
-        # Replace the buffer with the generated command
-        BUFFER="$generated_command"
-        CURSOR=${#BUFFER}
-        zle reset-prompt
-    else
-        echo "\033[31m✗\033[0m Failed to generate command"
-        _forge_reset
-    fi
-}
-
-# Action handler: Generate shell command from natural language
-# Usage: :? <description>
+# Usage: :s <description> | :suggest <description>
 function _forge_action_suggest() {
     local description="$1"
     
