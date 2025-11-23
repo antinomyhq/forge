@@ -12,3 +12,11 @@ export type Validation = {
 };
 
 export type Source = { csv: string } | { cmd: string };
+
+
+export enum TaskStatus {
+  Passed = "passed",
+  ValidationFailed = "validation_failed",
+  Timeout = "timeout",
+  Failed = "failed",
+}

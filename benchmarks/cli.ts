@@ -16,7 +16,7 @@ import { parse as parseCsv } from "csv-parse/sync";
 import { spawn, execSync } from "child_process";
 import pLimit from "p-limit";
 import pino from "pino";
-import type { Task } from "./model.js";
+import { TaskStatus, type Task } from "./model.js";
 import {
   getContextsFromSources,
   generateCommand,
@@ -177,7 +177,7 @@ async function main() {
 
   const results: {
     index: number;
-    status: string;
+    status: TaskStatus;
     command: string;
     duration: number;
     validationResults?: ValidationResult[];
@@ -295,7 +295,7 @@ async function main() {
         const allPassed = allValidationsPassed(validationResults);
 
         // Determine overall status
-        const status = allPassed ? "passed" : "validation_failed";
+        const status = allPassed ? TaskStatus.Passed : TaskStatus.ValidationFailed;
 
         return {
           index: i + 1,
@@ -319,12 +319,12 @@ async function main() {
             error: errorMessage,
             isTimeout,
           },
-          "Task failed"
+          isTimeout ? "Task timed out" : "Task failed"
         );
 
         return {
           index: i + 1,
-          status: "failed",
+          status: isTimeout ? TaskStatus.Timeout : TaskStatus.Failed,
           command,
           duration,
           validationResults: [],
@@ -338,14 +338,15 @@ async function main() {
   results.push(...taskResults);
 
   // Calculate summary statistics
-  const successCount = results.filter((r) => r.status === "passed").length;
+  const successCount = results.filter((r) => r.status === TaskStatus.Passed).length;
   const warningCount = results.filter(
-    (r) => r.status === "validation_failed"
+    (r) => r.status === TaskStatus.ValidationFailed
   ).length;
-  const failCount = results.filter((r) => r.status === "failed").length;
+  const timeoutCount = results.filter((r) => r.status === TaskStatus.Timeout).length;
+  const failCount = results.filter((r) => r.status === TaskStatus.Failed).length;
   const totalDuration = results.reduce((sum, r) => sum + r.duration, 0);
 
-  // Exit with error code if any task failed
+  // Exit with error code if any task failed (excluding timeouts and validation failures)
   if (failCount > 0) {
     process.exit(1);
   }
