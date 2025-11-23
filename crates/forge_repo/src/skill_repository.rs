@@ -267,11 +267,8 @@ mod tests {
     use super::*;
 
     fn fixture_skill_repo() -> (ForgeSkillRepository<ForgeInfra>, std::path::PathBuf) {
-        let fixture_path = format!(
-            "{}/src/fixtures/skills_with_resources",
-            env!("CARGO_MANIFEST_DIR")
-        );
-        let skill_dir = std::path::Path::new(&fixture_path).to_path_buf();
+        let skill_dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src/fixtures/skills_with_resources");
         let infra = Arc::new(ForgeInfra::new(false, std::env::current_dir().unwrap()));
         let repo = ForgeSkillRepository::new(infra);
         (repo, skill_dir)
@@ -336,14 +333,15 @@ mod tests {
         assert!(execute_plan.command.contains("Execute Plan"));
     }
 
-    #[test]
-    fn test_extract_skill_with_valid_metadata() {
+    #[tokio::test]
+    async fn test_extract_skill_with_valid_metadata() {
         // Fixture
         let path = "fixtures/skills/with_name_and_description.md";
-        let content = include_str!("fixtures/skills/with_name_and_description.md");
+        let content =
+            forge_test_kit::fixture!("/src/fixtures/skills/with_name_and_description.md").await;
 
         // Act
-        let actual = extract_skill(path, content);
+        let actual = extract_skill(path, &content);
 
         // Assert
         let expected = Some(
@@ -357,13 +355,13 @@ mod tests {
         assert_eq!(actual, expected);
     }
 
-    #[test]
-    fn test_extract_skill_with_incomplete_metadata() {
+    #[tokio::test]
+    async fn test_extract_skill_with_incomplete_metadata() {
         // Fixture
-        let content = include_str!("fixtures/skills/with_name_only.md");
+        let content = forge_test_kit::fixture!("/src/fixtures/skills/with_name_only.md").await;
 
         // Act
-        let actual = extract_skill("test.md", content);
+        let actual = extract_skill("test.md", &content);
 
         // Assert - Returns None because metadata is incomplete
         assert_eq!(actual, None);
