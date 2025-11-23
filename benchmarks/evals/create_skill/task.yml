@@ -3,5 +3,9 @@ before_run:
 run:
   command: target/debug/forge -p {{prompt}}
   parallelism: 10
-source:
-  csv: create_skill_tasks.csv
+validations:
+  - name: "Check success message"
+    type: matches_regex
+    regex: "Skill created successfully"
+sources:
+  - csv: create_skill_tasks.csv

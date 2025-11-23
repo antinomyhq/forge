@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { parse as parseYaml } from "yaml";
 import { parse as parseCsv } from "csv-parse/sync";
-import { execSync } from "child_process";
+import { spawn, execSync } from "child_process";
 import chalk from "chalk";
 import ora from "ora";
 import Table from "cli-table3";
@@ -13,7 +13,14 @@ import Handlebars from "handlebars";
 type Task = {
   before_run: Array<string>;
   run: { command: string; parallelism?: number };
-  source: Source;
+  validations?: Array<Validation>;
+  sources: Array<Source>;
+};
+
+type Validation = {
+  name: string;
+  type: "matches_regex";
+  regex: string;
 };
 
 type Source = { csv: string } | { cmd: string };
@@ -56,6 +63,13 @@ async function main() {
     })
   );
 
+  // Create debug directory with timestamp
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const debugDir = path.join(evalDir, "debug", timestamp);
+  fs.mkdirSync(debugDir, { recursive: true });
+  
+  console.log(chalk.gray(`📁 Debug logs: ${path.relative(process.cwd(), debugDir)}\n`));
+
   // Execute before_run commands
   if (task.before_run && task.before_run.length > 0) {
     console.log(chalk.yellow.bold("\n📦 Executing setup commands...\n"));
@@ -71,30 +85,65 @@ async function main() {
     }
   }
 
-  // Load data from source
+  // Load data from sources and create cross product
   let data: Record<string, string>[] = [];
   
-  if ("csv" in task.source) {
-    const csvPath = path.join(evalDir, task.source.csv);
-    if (!fs.existsSync(csvPath)) {
-      console.error(chalk.red.bold(`✗ Error: CSV file not found: ${csvPath}`));
+  const sourcesData: Record<string, string>[][] = [];
+  
+  for (const source of task.sources) {
+    if ("csv" in source) {
+      const csvPath = path.join(evalDir, source.csv);
+      if (!fs.existsSync(csvPath)) {
+        console.error(chalk.red.bold(`✗ Error: CSV file not found: ${csvPath}`));
+        process.exit(1);
+      }
+      
+      const csvContent = fs.readFileSync(csvPath, "utf-8");
+      const csvData: Record<string, string>[] = parseCsv(csvContent, {
+        columns: true,
+        skip_empty_lines: true,
+      });
+      sourcesData.push(csvData);
+    } else if ("cmd" in source) {
+      console.error(chalk.red.bold("✗ cmd source type not yet implemented"));
       process.exit(1);
     }
-    
-    const csvContent = fs.readFileSync(csvPath, "utf-8");
-    data = parseCsv(csvContent, {
-      columns: true,
-      skip_empty_lines: true,
-    });
-    
-    console.log(chalk.blue.bold(`\n📊 Loaded ${data.length} tasks from ${task.source.csv}\n`));
-  } else if ("cmd" in task.source) {
-    console.error(chalk.red.bold("✗ cmd source type not yet implemented"));
+  }
+  
+  // Create cross product of all sources
+  if (sourcesData.length === 0) {
+    console.error(chalk.red.bold("✗ Error: No sources configured"));
     process.exit(1);
   }
+  
+  // Cross product implementation
+  data = sourcesData.reduce((acc, sourceData) => {
+    if (acc.length === 0) {
+      return sourceData;
+    }
+    
+    const result: Record<string, string>[] = [];
+    for (const accItem of acc) {
+      for (const sourceItem of sourceData) {
+        result.push({ ...accItem, ...sourceItem });
+      }
+    }
+    return result;
+  }, [] as Record<string, string>[]);
+  
+  console.log(
+    chalk.blue.bold(
+      `\n📊 Loaded ${data.length} tasks from ${task.sources.length} source(s) (cross product)\n`
+    )
+  );
 
-  // Create results table
-  const results: { index: number; status: string; command: string; duration: number }[] = [];
+  const results: { 
+    index: number; 
+    status: string; 
+    command: string; 
+    duration: number;
+    validationResults?: Array<{ name: string; passed: boolean; message: string }>;
+  }[] = [];
 
   // Get parallelism setting (default to 1 for sequential execution)
   const parallelism = task.run.parallelism ?? 1;
@@ -121,23 +170,124 @@ async function main() {
       spinners.set(i, spinner);
       const startTime = Date.now();
       
+      // Create log file for this task
+      const logFile = path.join(debugDir, `task_run_${i + 1}.log`);
+      const logStream = fs.createWriteStream(logFile);
+      
+      // Write command at the top of the log file
+      logStream.write(`Command: ${command}\n`);
+      logStream.write(`Started: ${new Date().toISOString()}\n`);
+      logStream.write(`${"=".repeat(80)}\n\n`);
+      
       try {
-        execSync(command, { stdio: "pipe", cwd: path.dirname(evalDir) });
+        // Execute command and stream output to log file
+        const output = await new Promise<string>((resolve, reject) => {
+          const child = spawn(command, {
+            shell: true,
+            cwd: path.dirname(evalDir),
+            stdio: ["ignore", "pipe", "pipe"]
+          });
+          
+          let stdout = "";
+          let stderr = "";
+          
+          // Stream stdout to both log file and capture for validation
+          child.stdout?.on("data", (data) => {
+            const text = data.toString();
+            stdout += text;
+            logStream.write(text);
+          });
+          
+          // Stream stderr to both log file and capture for validation
+          child.stderr?.on("data", (data) => {
+            const text = data.toString();
+            stderr += text;
+            logStream.write(text);
+          });
+          
+          child.on("close", (code) => {
+            logStream.write(`\n${"=".repeat(80)}\n`);
+            logStream.write(`Finished: ${new Date().toISOString()}\n`);
+            logStream.write(`Exit Code: ${code}\n`);
+            logStream.end();
+            
+            if (code === 0) {
+              resolve(stdout + stderr);
+            } else {
+              reject(new Error(`Command failed with exit code ${code}`));
+            }
+          });
+          
+          child.on("error", (err) => {
+            logStream.write(`\nError: ${err.message}\n`);
+            logStream.end();
+            reject(err);
+          });
+        });
+        
         const duration = Date.now() - startTime;
+        
+        // Perform all validations if configured
+        const validationResults: Array<{ name: string; passed: boolean; message: string }> = [];
+        let allValidationsPassed = true;
+        
+        if (task.validations && task.validations.length > 0) {
+          for (const validation of task.validations) {
+            if (validation.type === "matches_regex") {
+              const regex = new RegExp(validation.regex);
+              const passed = regex.test(output);
+              allValidationsPassed = allValidationsPassed && passed;
+              
+              validationResults.push({
+                name: validation.name,
+                passed,
+                message: passed 
+                  ? `Matched: ${validation.regex}`
+                  : `Did not match: ${validation.regex}`
+              });
+            }
+          }
+        }
+        
+        // Determine overall status
+        const status = allValidationsPassed ? "✓" : "⚠";
+        const color = allValidationsPassed ? chalk.green : chalk.yellow;
+        
+        // Build validation summary for display
+        let validationSummary = "";
+        if (validationResults.length > 0) {
+          const passedCount = validationResults.filter(v => v.passed).length;
+          const totalCount = validationResults.length;
+          validationSummary = ` ${chalk.gray(`[Validations: ${passedCount}/${totalCount}]`)}`;
+        }
+        
         spinner.succeed(
-          chalk.green(
-            `[${i + 1}/${data.length}] ${command} ${chalk.gray(`(${duration}ms)`)}`
+          color(
+            `[${i + 1}/${data.length}] ${command} ${chalk.gray(`(${duration}ms)`)}${validationSummary}`
           )
         );
-        return { index: i + 1, status: "✓" as const, command, duration };
+        
+        return { 
+          index: i + 1, 
+          status, 
+          command, 
+          duration,
+          validationResults
+        };
       } catch (error) {
         const duration = Date.now() - startTime;
         spinner.fail(
           chalk.red(
-            `[${i + 1}/${data.length}] ${command} ${chalk.gray(`(${duration}ms)`)}`
+            `[${i + 1}/${data.length}] ${command} ${chalk.gray(`(${duration}ms)`)} - Command failed`
           )
         );
-        return { index: i + 1, status: "✗" as const, command, duration };
+        return { 
+          index: i + 1, 
+          status: "✗", 
+          command, 
+          duration,
+          validationResults: []
+        };
       }
     });
   });
@@ -148,22 +298,49 @@ async function main() {
 
   // Display summary table
   const successCount = results.filter((r) => r.status === "✓").length;
+  const warningCount = results.filter((r) => r.status === "⚠").length;
   const failCount = results.filter((r) => r.status === "✗").length;
   const totalDuration = results.reduce((sum, r) => sum + r.duration, 0);
 
+  const summaryParts = [
+    chalk.bold("Summary\n"),
+  ];
+  
+  if (successCount > 0) {
+    summaryParts.push(chalk.green(`✓ Passed: ${successCount}\n`));
+  }
+  
+  if (warningCount > 0) {
+    summaryParts.push(chalk.yellow(`⚠ Validation Failed: ${warningCount}\n`));
+  }
+  
+  if (failCount > 0) {
+    summaryParts.push(chalk.red(`✗ Failed: ${failCount}\n`));
+  }
+  
+  summaryParts.push(
+    chalk.blue(`⏱  Total Time: ${totalDuration}ms\n`),
+    chalk.gray(`📋 Total Tasks: ${results.length}\n`),
+    chalk.magenta(`⚡ Parallelism: ${parallelism}`)
+  );
+  
+  if (task.validations && task.validations.length > 0) {
+    summaryParts.push(
+      `\n${chalk.cyan(`🔍 Validations: ${task.validations.length}`)}`
+    );
+  }
+
   console.log(
     boxen(
-      chalk.bold("Summary\n\n") +
-        chalk.green(`✓ Passed: ${successCount}\n`) +
-        chalk.red(`✗ Failed: ${failCount}\n`) +
-        chalk.blue(`⏱  Total Time: ${totalDuration}ms\n`) +
-        chalk.gray(`📋 Total Tasks: ${results.length}\n`) +
-        chalk.magenta(`⚡ Parallelism: ${parallelism}`),
+      summaryParts.join(""),
       {
         padding: 1,
         margin: { top: 1, bottom: 1, left: 0, right: 0 },
         borderStyle: "round",
-        borderColor: successCount === results.length ? "green" : failCount === results.length ? "red" : "yellow",
+        borderColor: 
+          failCount > 0 ? "red" : 
+          warningCount > 0 ? "yellow" : 
+          "green",
       }
     )
   );
