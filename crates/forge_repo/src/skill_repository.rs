@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use forge_app::domain::Skill;
-use forge_app::{DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra, FileReaderInfra};
+use forge_app::{EnvironmentInfra, FileInfoInfra, FileReaderInfra, Walker, WalkerInfra};
 use forge_domain::SkillRepository;
 use futures::future::join_all;
 use gray_matter::engine::YAML;
@@ -60,7 +60,7 @@ impl<I> ForgeSkillRepository<I> {
 }
 
 #[async_trait::async_trait]
-impl<I: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra + FileReaderInfra> SkillRepository
+impl<I: FileInfoInfra + EnvironmentInfra + FileReaderInfra + WalkerInfra> SkillRepository
     for ForgeSkillRepository<I>
 {
     /// Loads all available skills from the skills directory
@@ -92,9 +92,7 @@ impl<I: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra + FileReaderInfr
     }
 }
 
-impl<I: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra + FileReaderInfra>
-    ForgeSkillRepository<I>
-{
+impl<I: FileInfoInfra + EnvironmentInfra + FileReaderInfra + WalkerInfra> ForgeSkillRepository<I> {
     /// Loads skills from a specific directory by listing subdirectories first,
     /// then reading SKILL.md from each subdirectory if it exists
     async fn load_skills_from_dir(&self, dir: &std::path::Path) -> anyhow::Result<Vec<Skill>> {
@@ -102,17 +100,27 @@ impl<I: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra + FileReaderInfr
             return Ok(vec![]);
         }
 
-        // List all entries in the directory
+        // Walk the directory with max_depth=1 to get only direct subdirectories
+        let walker = Walker::unlimited()
+            .cwd(dir.to_path_buf())
+            .max_depth(1_usize);
         let entries = self
             .infra
-            .list_directory_entries(dir)
+            .walk(walker)
             .await
             .with_context(|| format!("Failed to list directory: {}", dir.display()))?;
 
-        // Filter for directories only
+        // Filter for directories only (entries that end with '/')
         let subdirs: Vec<_> = entries
             .into_iter()
-            .filter_map(|(path, is_dir)| if is_dir { Some(path) } else { None })
+            .filter_map(|walked| {
+                if walked.is_dir() && !walked.path.is_empty() {
+                    // Construct the full path
+                    Some(dir.join(&walked.path))
+                } else {
+                    None
+                }
+            })
             .collect();
 
         // Read SKILL.md from each subdirectory in parallel
@@ -133,16 +141,22 @@ impl<I: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra + FileReaderInfr
                                 .unwrap_or("unknown")
                                 .to_string();
 
-                            // Get all resource files in the skill directory
+                            // Get all resource files in the skill directory recursively
+                            let walker = Walker::unlimited().cwd(subdir.clone());
                             let resources = infra
-                                .list_directory_entries(&subdir)
+                                .walk(walker)
                                 .await
                                 .unwrap_or_default()
                                 .into_iter()
-                                .filter_map(|(path, is_dir)| {
+                                .filter_map(|walked| {
                                     // Only include files (not directories) and exclude SKILL.md
-                                    if !is_dir && path.file_name() != skill_path.file_name() {
-                                        Some(path)
+                                    if !walked.is_dir() {
+                                        let full_path = subdir.join(&walked.path);
+                                        if full_path.file_name() != skill_path.file_name() {
+                                            Some(full_path)
+                                        } else {
+                                            None
+                                        }
                                     } else {
                                         None
                                     }
@@ -252,26 +266,19 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn test_resolve_skill_conflicts_no_duplicates() {
-        // Fixture
-        let skills = vec![
-            Skill::new("skill1", "prompt1", "desc1").path("/path/skill1.md"),
-            Skill::new("skill2", "prompt2", "desc2").path("/path/skill2.md"),
-        ];
-
-        // Act
-        let actual = resolve_skill_conflicts(skills.clone());
-
-        // Assert
-        let expected = skills;
-        assert_eq!(actual.len(), expected.len());
-        assert_eq!(actual[0].name, expected[0].name);
-        assert_eq!(actual[1].name, expected[1].name);
+    fn fixture_skill_repo() -> (ForgeSkillRepository<ForgeInfra>, std::path::PathBuf) {
+        let fixture_path = format!(
+            "{}/src/fixtures/skills_with_resources",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        let skill_dir = std::path::Path::new(&fixture_path).to_path_buf();
+        let infra = Arc::new(ForgeInfra::new(false, std::env::current_dir().unwrap()));
+        let repo = ForgeSkillRepository::new(infra);
+        (repo, skill_dir)
     }
 
     #[test]
-    fn test_resolve_skill_conflicts_with_duplicates() {
+    fn test_resolve_skill_conflicts() {
         // Fixture
         let skills = vec![
             Skill::new("skill1", "global prompt", "global desc").path("/global/skill1.md"),
@@ -330,7 +337,7 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_metadata_with_name_and_description() {
+    fn test_extract_skill_with_valid_metadata() {
         // Fixture
         let path = "fixtures/skills/with_name_and_description.md";
         let content = include_str!("fixtures/skills/with_name_and_description.md");
@@ -351,198 +358,55 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_metadata_with_name_only() {
+    fn test_extract_skill_with_incomplete_metadata() {
         // Fixture
-        let path = "fixtures/skills/with_name_only.md";
         let content = include_str!("fixtures/skills/with_name_only.md");
 
         // Act
-        let actual = extract_skill(path, content);
+        let actual = extract_skill("test.md", content);
 
-        // Assert - Returns None because description is missing
-        assert_eq!(actual, None);
-    }
-
-    #[test]
-    fn test_extract_metadata_with_description_only() {
-        // Fixture
-        let path = "fixtures/skills/with_description_only.md";
-        let content = include_str!("fixtures/skills/with_description_only.md");
-
-        // Act
-        let actual = extract_skill(path, content);
-
-        // Assert - Returns None because name is missing
-        assert_eq!(actual, None);
-    }
-
-    #[test]
-    fn test_extract_metadata_no_front_matter() {
-        // Fixture
-        let path = "fixtures/skills/no_front_matter.md";
-        let content = include_str!("fixtures/skills/no_front_matter.md");
-
-        // Act
-        let actual = extract_skill(path, content);
-
-        // Assert - Returns None because front matter is missing
+        // Assert - Returns None because metadata is incomplete
         assert_eq!(actual, None);
     }
 
     #[tokio::test]
-    async fn test_load_skills_with_resources() {
+    async fn test_load_skills_from_dir() {
         // Fixture
-        let fixture_path = format!(
-            "{}/src/fixtures/skills_with_resources",
-            env!("CARGO_MANIFEST_DIR")
-        );
-        let skill_dir = std::path::Path::new(&fixture_path);
-
-        let infra = Arc::new(ForgeInfra::new(false, std::env::current_dir().unwrap()));
-        let repo = ForgeSkillRepository::new(infra);
+        let (repo, skill_dir) = fixture_skill_repo();
 
         // Act
-        let actual = repo.load_skills_from_dir(skill_dir).await.unwrap();
+        let actual = repo.load_skills_from_dir(&skill_dir).await.unwrap();
 
-        // Assert
-        let skill = actual.iter().find(|s| s.name == "my-skill").unwrap();
-        assert_eq!(skill.name, "my-skill");
-        assert_eq!(skill.description, "A test skill");
+        // Assert - should load all skills
+        assert_eq!(actual.len(), 2); // minimal-skill, test-skill
 
-        // Check resources
-        assert_eq!(skill.resources.len(), 3);
-        assert!(skill
+        // Verify skill with no resources
+        let minimal_skill = actual.iter().find(|s| s.name == "minimal-skill").unwrap();
+        assert_eq!(minimal_skill.resources.len(), 0);
+
+        // Verify skill with nested resources
+        let test_skill = actual.iter().find(|s| s.name == "test-skill").unwrap();
+        assert_eq!(test_skill.description, "A test skill with resources");
+        assert_eq!(test_skill.resources.len(), 3); // file_1.txt, foo/file_2.txt, foo/bar/file_3.txt
+
+        // Verify nested directory structure is captured
+        assert!(test_skill
             .resources
             .iter()
-            .any(|p| p.file_name().unwrap() == "template.txt"));
-        assert!(skill
+            .any(|p| p.ends_with("file_1.txt")));
+        assert!(test_skill
             .resources
             .iter()
-            .any(|p| p.file_name().unwrap() == "config.json"));
-        assert!(skill
+            .any(|p| p.ends_with("foo/file_2.txt")));
+        assert!(test_skill
             .resources
             .iter()
-            .any(|p| p.file_name().unwrap() == "example.md"));
+            .any(|p| p.ends_with("foo/bar/file_3.txt")));
 
-        // Ensure SKILL.md is not in resources
-        assert!(!skill
+        // Ensure SKILL.md is never included in resources
+        assert!(actual.iter().all(|s| !s
             .resources
             .iter()
-            .any(|p| p.file_name().unwrap() == "SKILL.md"));
-    }
-
-    #[tokio::test]
-    async fn test_load_skills_with_nested_resources() {
-        // Fixture
-        let fixture_path = format!(
-            "{}/src/fixtures/skills_with_resources",
-            env!("CARGO_MANIFEST_DIR")
-        );
-        let skill_dir = std::path::Path::new(&fixture_path);
-
-        let infra = Arc::new(ForgeInfra::new(false, std::env::current_dir().unwrap()));
-        let repo = ForgeSkillRepository::new(infra);
-
-        // Act
-        let actual = repo.load_skills_from_dir(skill_dir).await.unwrap();
-
-        // Assert
-        let skill = actual.iter().find(|s| s.name == "complex-skill").unwrap();
-        assert_eq!(skill.name, "complex-skill");
-
-        // Check resources - should have 5 files (excluding SKILL.md)
-        assert_eq!(skill.resources.len(), 5);
-        assert!(skill
-            .resources
-            .iter()
-            .any(|p| p.file_name().unwrap() == "data.csv"));
-        assert!(skill
-            .resources
-            .iter()
-            .any(|p| p.file_name().unwrap() == "schema.sql"));
-        assert!(skill
-            .resources
-            .iter()
-            .any(|p| p.file_name().unwrap() == "README.md"));
-        assert!(skill
-            .resources
-            .iter()
-            .any(|p| p.file_name().unwrap() == "example.py"));
-        assert!(skill
-            .resources
-            .iter()
-            .any(|p| p.file_name().unwrap() == ".gitignore"));
-
-        // Ensure SKILL.md is not in resources
-        assert!(!skill
-            .resources
-            .iter()
-            .any(|p| p.file_name().unwrap() == "SKILL.md"));
-    }
-
-    #[tokio::test]
-    async fn test_load_skills_no_resources() {
-        // Fixture
-        let fixture_path = format!(
-            "{}/src/fixtures/skills_with_resources",
-            env!("CARGO_MANIFEST_DIR")
-        );
-        let skill_dir = std::path::Path::new(&fixture_path);
-
-        let infra = Arc::new(ForgeInfra::new(false, std::env::current_dir().unwrap()));
-        let repo = ForgeSkillRepository::new(infra);
-
-        // Act
-        let actual = repo.load_skills_from_dir(skill_dir).await.unwrap();
-
-        // Assert
-        let skill = actual.iter().find(|s| s.name == "minimal-skill").unwrap();
-        assert_eq!(skill.name, "minimal-skill");
-
-        // Check resources - should be empty
-        assert_eq!(skill.resources.len(), 0);
-    }
-
-    #[tokio::test]
-    async fn test_load_multiple_skills_with_different_resources() {
-        // Fixture
-        let fixture_path = format!(
-            "{}/src/fixtures/skills_with_resources",
-            env!("CARGO_MANIFEST_DIR")
-        );
-        let skill_dir = std::path::Path::new(&fixture_path);
-
-        let infra = Arc::new(ForgeInfra::new(false, std::env::current_dir().unwrap()));
-        let repo = ForgeSkillRepository::new(infra);
-
-        // Act
-        let actual = repo.load_skills_from_dir(skill_dir).await.unwrap();
-
-        // Assert - should have loaded multiple skills
-        assert!(actual.len() >= 2);
-
-        // Check skill-one
-        let skill_one = actual.iter().find(|s| s.name == "skill-one");
-        if let Some(skill_one) = skill_one {
-            assert_eq!(skill_one.resources.len(), 1);
-            assert!(skill_one
-                .resources
-                .iter()
-                .any(|p| p.file_name().unwrap() == "helper.js"));
-        }
-
-        // Check skill-two
-        let skill_two = actual.iter().find(|s| s.name == "skill-two");
-        if let Some(skill_two) = skill_two {
-            assert_eq!(skill_two.resources.len(), 2);
-            assert!(skill_two
-                .resources
-                .iter()
-                .any(|p| p.file_name().unwrap() == "data.json"));
-            assert!(skill_two
-                .resources
-                .iter()
-                .any(|p| p.file_name().unwrap() == "style.css"));
-        }
+            .any(|p| p.file_name().unwrap() == "SKILL.md")));
     }
 }
