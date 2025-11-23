@@ -12,6 +12,7 @@ import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 import type { Task } from "./model.js";
 import { getContextsFromSources, generateCommand } from "./command-generator.js";
+import { runValidations, allValidationsPassed, countPassed, type ValidationResult } from "./validator.js";
 
 // ESM compatibility for __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -160,7 +161,7 @@ async function main() {
     status: string; 
     command: string; 
     duration: number;
-    validationResults?: Array<{ name: string; passed: boolean; message: string }>;
+    validationResults?: ValidationResult[];
   }[] = [];
 
   // Get parallelism setting (default to 1 for sequential execution)
@@ -270,35 +271,20 @@ async function main() {
         const duration = Date.now() - startTime;
         
         // Perform all validations if configured
-        const validationResults: Array<{ name: string; passed: boolean; message: string }> = [];
-        let allValidationsPassed = true;
+        const validationResults = task.validations && task.validations.length > 0
+          ? runValidations(output, task.validations)
+          : [];
         
-        if (task.validations && task.validations.length > 0) {
-          for (const validation of task.validations) {
-            if (validation.type === "matches_regex") {
-              const regex = new RegExp(validation.regex);
-              const passed = regex.test(output);
-              allValidationsPassed = allValidationsPassed && passed;
-              
-              validationResults.push({
-                name: validation.name,
-                passed,
-                message: passed 
-                  ? `Matched: ${validation.regex}`
-                  : `Did not match: ${validation.regex}`
-              });
-            }
-          }
-        }
+        const allPassed = allValidationsPassed(validationResults);
         
         // Determine overall status
-        const status = allValidationsPassed ? "✓" : "⚠";
-        const color = allValidationsPassed ? chalk.green : chalk.yellow;
+        const status = allPassed ? "✓" : "⚠";
+        const color = allPassed ? chalk.green : chalk.yellow;
         
         // Build validation summary for display
         let validationSummary = "";
         if (validationResults.length > 0) {
-          const passedCount = validationResults.filter(v => v.passed).length;
+          const passedCount = countPassed(validationResults);
           const totalCount = validationResults.length;
           validationSummary = ` ${chalk.gray(`[Validations: ${passedCount}/${totalCount}]`)}`;
         }
