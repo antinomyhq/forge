@@ -133,15 +133,33 @@ impl<I: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra + FileReaderInfr
                                 .unwrap_or("unknown")
                                 .to_string();
 
+                            // Get all resource files in the skill directory
+                            let resources = infra
+                                .list_directory_entries(&subdir)
+                                .await
+                                .unwrap_or_default()
+                                .into_iter()
+                                .filter_map(|(path, is_dir)| {
+                                    // Only include files (not directories) and exclude SKILL.md
+                                    if !is_dir && path.file_name() != skill_path.file_name() {
+                                        Some(path)
+                                    } else {
+                                        None
+                                    }
+                                })
+                                .collect::<Vec<_>>();
+
                             // Try to extract skill from front matter, otherwise create with
                             // directory name
                             if let Some(skill) = extract_skill(&path_str, &content) {
-                                Ok(Some(skill))
+                                Ok(Some(skill.resources(resources)))
                             } else {
                                 // Fallback: create skill with directory name if front matter is
                                 // missing
                                 Ok(Some(
-                                    Skill::new(skill_name, content, String::new()).path(path_str),
+                                    Skill::new(skill_name, content, String::new())
+                                        .path(path_str)
+                                        .resources(resources),
                                 ))
                             }
                         }
@@ -229,6 +247,7 @@ fn resolve_skill_conflicts(skills: Vec<Skill>) -> Vec<Skill> {
 
 #[cfg(test)]
 mod tests {
+    use forge_infra::ForgeInfra;
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -368,5 +387,162 @@ mod tests {
 
         // Assert - Returns None because front matter is missing
         assert_eq!(actual, None);
+    }
+
+    #[tokio::test]
+    async fn test_load_skills_with_resources() {
+        // Fixture
+        let fixture_path = format!(
+            "{}/src/fixtures/skills_with_resources",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        let skill_dir = std::path::Path::new(&fixture_path);
+
+        let infra = Arc::new(ForgeInfra::new(false, std::env::current_dir().unwrap()));
+        let repo = ForgeSkillRepository::new(infra);
+
+        // Act
+        let actual = repo.load_skills_from_dir(skill_dir).await.unwrap();
+
+        // Assert
+        let skill = actual.iter().find(|s| s.name == "my-skill").unwrap();
+        assert_eq!(skill.name, "my-skill");
+        assert_eq!(skill.description, "A test skill");
+
+        // Check resources
+        assert_eq!(skill.resources.len(), 3);
+        assert!(skill
+            .resources
+            .iter()
+            .any(|p| p.file_name().unwrap() == "template.txt"));
+        assert!(skill
+            .resources
+            .iter()
+            .any(|p| p.file_name().unwrap() == "config.json"));
+        assert!(skill
+            .resources
+            .iter()
+            .any(|p| p.file_name().unwrap() == "example.md"));
+
+        // Ensure SKILL.md is not in resources
+        assert!(!skill
+            .resources
+            .iter()
+            .any(|p| p.file_name().unwrap() == "SKILL.md"));
+    }
+
+    #[tokio::test]
+    async fn test_load_skills_with_nested_resources() {
+        // Fixture
+        let fixture_path = format!(
+            "{}/src/fixtures/skills_with_resources",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        let skill_dir = std::path::Path::new(&fixture_path);
+
+        let infra = Arc::new(ForgeInfra::new(false, std::env::current_dir().unwrap()));
+        let repo = ForgeSkillRepository::new(infra);
+
+        // Act
+        let actual = repo.load_skills_from_dir(skill_dir).await.unwrap();
+
+        // Assert
+        let skill = actual.iter().find(|s| s.name == "complex-skill").unwrap();
+        assert_eq!(skill.name, "complex-skill");
+
+        // Check resources - should have 5 files (excluding SKILL.md)
+        assert_eq!(skill.resources.len(), 5);
+        assert!(skill
+            .resources
+            .iter()
+            .any(|p| p.file_name().unwrap() == "data.csv"));
+        assert!(skill
+            .resources
+            .iter()
+            .any(|p| p.file_name().unwrap() == "schema.sql"));
+        assert!(skill
+            .resources
+            .iter()
+            .any(|p| p.file_name().unwrap() == "README.md"));
+        assert!(skill
+            .resources
+            .iter()
+            .any(|p| p.file_name().unwrap() == "example.py"));
+        assert!(skill
+            .resources
+            .iter()
+            .any(|p| p.file_name().unwrap() == ".gitignore"));
+
+        // Ensure SKILL.md is not in resources
+        assert!(!skill
+            .resources
+            .iter()
+            .any(|p| p.file_name().unwrap() == "SKILL.md"));
+    }
+
+    #[tokio::test]
+    async fn test_load_skills_no_resources() {
+        // Fixture
+        let fixture_path = format!(
+            "{}/src/fixtures/skills_with_resources",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        let skill_dir = std::path::Path::new(&fixture_path);
+
+        let infra = Arc::new(ForgeInfra::new(false, std::env::current_dir().unwrap()));
+        let repo = ForgeSkillRepository::new(infra);
+
+        // Act
+        let actual = repo.load_skills_from_dir(skill_dir).await.unwrap();
+
+        // Assert
+        let skill = actual.iter().find(|s| s.name == "minimal-skill").unwrap();
+        assert_eq!(skill.name, "minimal-skill");
+
+        // Check resources - should be empty
+        assert_eq!(skill.resources.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_load_multiple_skills_with_different_resources() {
+        // Fixture
+        let fixture_path = format!(
+            "{}/src/fixtures/skills_with_resources",
+            env!("CARGO_MANIFEST_DIR")
+        );
+        let skill_dir = std::path::Path::new(&fixture_path);
+
+        let infra = Arc::new(ForgeInfra::new(false, std::env::current_dir().unwrap()));
+        let repo = ForgeSkillRepository::new(infra);
+
+        // Act
+        let actual = repo.load_skills_from_dir(skill_dir).await.unwrap();
+
+        // Assert - should have loaded multiple skills
+        assert!(actual.len() >= 2);
+
+        // Check skill-one
+        let skill_one = actual.iter().find(|s| s.name == "skill-one");
+        if let Some(skill_one) = skill_one {
+            assert_eq!(skill_one.resources.len(), 1);
+            assert!(skill_one
+                .resources
+                .iter()
+                .any(|p| p.file_name().unwrap() == "helper.js"));
+        }
+
+        // Check skill-two
+        let skill_two = actual.iter().find(|s| s.name == "skill-two");
+        if let Some(skill_two) = skill_two {
+            assert_eq!(skill_two.resources.len(), 2);
+            assert!(skill_two
+                .resources
+                .iter()
+                .any(|p| p.file_name().unwrap() == "data.json"));
+            assert!(skill_two
+                .resources
+                .iter()
+                .any(|p| p.file_name().unwrap() == "style.css"));
+        }
     }
 }

@@ -9,13 +9,14 @@ How skills work:
    - Example: Call skill tool with `{"name": "mock-calculator"}`
    - No additional arguments needed
 
-2. **Response**: The tool returns the skill's full instructions wrapped in `<command><![CDATA[...]]></command>`
+2. **Response**: The tool returns the skill's details wrapped in `<skill_details>` containing:
 
-   - This contains the complete SKILL.md file content
+   - `<command path="..."><![CDATA[...]]></command>` - The complete SKILL.md file content with the skill's path
+   - `<resource>` tags - List of additional resource files available in the skill directory
    - Includes usage guidelines, instructions, and any domain-specific knowledge
 
 3. **Action**: Read and follow the instructions provided in the skill content
-   - The skill instructions will tell you exactly what to do
+   - The skill instructions will tell you exactly what to do and how to use the resources
    - Some skills provide workflows, others provide reference information
    - Apply the skill's guidance to complete the user's task
 
