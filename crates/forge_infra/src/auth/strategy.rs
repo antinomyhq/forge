@@ -659,7 +659,7 @@ impl StrategyFactory for ForgeAuthStrategyFactory {
                 required_params,
             ))),
             forge_domain::AuthMethod::OAuthCode(config) => {
-                if let ProviderId::ClaudeCode = provider_id {
+                if provider_id == ProviderId::CLAUDE_CODE {
                     return Ok(AnyAuthStrategy::OAuthCodeAnthropic(OAuthCodeStrategy::new(
                         AnthropicHttpProvider,
                         provider_id,
@@ -667,7 +667,7 @@ impl StrategyFactory for ForgeAuthStrategyFactory {
                     )));
                 }
 
-                if let ProviderId::GithubCopilot = provider_id {
+                if provider_id == ProviderId::GITHUB_COPILOT {
                     return Ok(AnyAuthStrategy::OAuthCodeGithub(OAuthCodeStrategy::new(
                         GithubHttpProvider,
                         provider_id,
@@ -706,7 +706,7 @@ mod tests {
     fn test_create_auth_strategy_api_key() {
         let factory = ForgeAuthStrategyFactory::new();
         let strategy = factory.create_auth_strategy(
-            ProviderId::OpenAI,
+            ProviderId::OPENAI,
             forge_domain::AuthMethod::ApiKey,
             vec![],
         );
@@ -729,7 +729,7 @@ mod tests {
 
         let factory = ForgeAuthStrategyFactory::new();
         let strategy = factory.create_auth_strategy(
-            ProviderId::OpenAI,
+            ProviderId::OPENAI,
             forge_domain::AuthMethod::OAuthCode(config),
             vec![],
         );
@@ -752,7 +752,7 @@ mod tests {
 
         let factory = ForgeAuthStrategyFactory::new();
         let strategy = factory.create_auth_strategy(
-            ProviderId::OpenAI,
+            ProviderId::OPENAI,
             forge_domain::AuthMethod::OAuthDevice(config),
             vec![],
         );
@@ -775,7 +775,7 @@ mod tests {
 
         let factory = ForgeAuthStrategyFactory::new();
         let strategy = factory.create_auth_strategy(
-            ProviderId::GithubCopilot,
+            ProviderId::GITHUB_COPILOT,
             forge_domain::AuthMethod::OAuthDevice(config),
             vec![],
         );

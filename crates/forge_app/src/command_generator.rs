@@ -159,14 +159,14 @@ mod tests {
 
         async fn get_provider(&self, _id: ProviderId) -> Result<Provider<Url>> {
             Ok(Provider {
-                id: ProviderId::OpenAI,
+                id: ProviderId::OPENAI,
                 response: ProviderResponse::OpenAI,
                 url: Url::parse("https://api.test.com").unwrap(),
                 models: Models::Url(Url::parse("https://api.test.com/models").unwrap()),
                 auth_methods: vec![AuthMethod::ApiKey],
                 url_params: vec![],
                 credential: Some(AuthCredential {
-                    id: ProviderId::OpenAI,
+                    id: ProviderId::OPENAI,
                     auth_details: AuthDetails::ApiKey("test-key".to_string().into()),
                     url_params: Default::default(),
                 }),
@@ -193,7 +193,7 @@ mod tests {
     #[async_trait::async_trait]
     impl AppConfigService for MockServices {
         async fn get_default_provider(&self) -> Result<Provider<Url>> {
-            self.get_provider(ProviderId::OpenAI).await
+            self.get_provider(ProviderId::OPENAI).await
         }
 
         async fn set_default_provider(&self, _provider_id: ProviderId) -> Result<()> {
