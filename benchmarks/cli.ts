@@ -4,9 +4,6 @@ import { fileURLToPath } from "url";
 import { parse as parseYaml } from "yaml";
 import { parse as parseCsv } from "csv-parse/sync";
 import { spawn, execSync } from "child_process";
-import chalk from "chalk";
-import ora from "ora";
-import Table from "cli-table3";
 import pLimit from "p-limit";
 import type { Task } from "./model.js";
 import { getContextsFromSources, generateCommand } from "./command-generator.js";
@@ -30,6 +27,19 @@ function formatTimestamp(date: Date): string {
   return `${date.toISOString().replace('Z', '')}${timezone}`;
 }
 
+/**
+ * Structured logging helper
+ */
+function log(level: string, message: string, data?: Record<string, unknown>): void {
+  const entry = {
+    timestamp: formatTimestamp(new Date()),
+    level,
+    message,
+    ...data,
+  };
+  console.log(JSON.stringify(entry));
+}
+
 async function main() {
   // Parse command line arguments
   let args;
@@ -37,7 +47,7 @@ async function main() {
     args = await parseCliArgs(__dirname);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
-    console.error(chalk.red.bold(`✗ Error: ${message}`));
+    log("error", "Failed to parse CLI arguments", { error: message });
     process.exit(1);
   }
 
@@ -45,12 +55,12 @@ async function main() {
 
   // Check if eval directory and task file exist
   if (!fs.existsSync(evalDir)) {
-    console.error(chalk.red.bold(`✗ Error: Eval directory not found: ${evalDir}`));
+    log("error", "Eval directory not found", { evalDir });
     process.exit(1);
   }
 
   if (!fs.existsSync(taskFile)) {
-    console.error(chalk.red.bold(`✗ Error: task.yml not found in: ${evalDir}`));
+    log("error", "task.yml not found", { evalDir });
     process.exit(1);
   }
 
@@ -65,7 +75,7 @@ async function main() {
       if ("csv" in source) {
         const csvPath = path.join(evalDir, source.csv);
         if (!fs.existsSync(csvPath)) {
-          console.error(chalk.red.bold(`✗ Error: CSV file not found: ${csvPath}`));
+          log("error", "CSV file not found", { csvPath });
           process.exit(1);
         }
       }
@@ -76,27 +86,25 @@ async function main() {
 
   // Display header
   const displayName = path.relative(__dirname, evalDir) || evalName;
-  console.log();
-  console.log(chalk.cyan.bold(`Running Eval: ${displayName}`));
-  console.log();
+  log("info", "Starting evaluation", { evalName: displayName });
 
   // Create debug directory with timestamp
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
   const debugDir = path.join(evalDir, "debug", timestamp);
   fs.mkdirSync(debugDir, { recursive: true });
   
-  console.log(chalk.gray(`📁 Debug logs: ${path.relative(process.cwd(), debugDir)}\n`));
+  log("info", "Debug directory created", { debugDir: path.relative(process.cwd(), debugDir) });
 
   // Execute before_run commands
   if (task.before_run && task.before_run.length > 0) {
-    console.log(chalk.yellow.bold("\n📦 Executing setup commands...\n"));
+    log("info", "Executing setup commands", { count: task.before_run.length });
     for (const cmd of task.before_run) {
-      const spinner = ora(chalk.gray(cmd)).start();
+      log("info", "Running setup command", { command: cmd });
       try {
         execSync(cmd, { stdio: "pipe", cwd: path.dirname(evalDir) });
-        spinner.succeed(chalk.green(`Completed: ${cmd}`));
+        log("info", "Setup command completed", { command: cmd });
       } catch (error) {
-        spinner.fail(chalk.red(`Failed: ${cmd}`));
+        log("error", "Setup command failed", { command: cmd });
         process.exit(1);
       }
     }
@@ -109,7 +117,7 @@ async function main() {
     if ("csv" in source) {
       const csvPath = path.join(evalDir, source.csv);
       if (!fs.existsSync(csvPath)) {
-        console.error(chalk.red.bold(`✗ Error: CSV file not found: ${csvPath}`));
+        log("error", "CSV file not found", { csvPath });
         process.exit(1);
       }
       
@@ -120,25 +128,24 @@ async function main() {
       });
       sourcesData.push(csvData);
     } else if ("cmd" in source) {
-      console.error(chalk.red.bold("✗ cmd source type not yet implemented"));
+      log("error", "cmd source type not yet implemented");
       process.exit(1);
     }
   }
   
   // Create cross product of all sources
   if (sourcesData.length === 0) {
-    console.error(chalk.red.bold("✗ Error: No sources configured"));
+    log("error", "No sources configured");
     process.exit(1);
   }
   
   // Get contexts from sources using pure function
   const data = getContextsFromSources(sourcesData);
   
-  console.log(
-    chalk.blue.bold(
-      `\n📊 Loaded ${data.length} tasks from ${task.sources.length} source(s) (cross product)\n`
-    )
-  );
+  log("info", "Tasks loaded", { 
+    taskCount: data.length, 
+    sourceCount: task.sources.length 
+  });
 
   const results: { 
     index: number; 
@@ -151,16 +158,10 @@ async function main() {
   // Get parallelism setting (default to 1 for sequential execution)
   const parallelism = task.run.parallelism ?? 1;
   const limit = pLimit(parallelism);
+  const timeout = task.run.timeout;
 
   // Execute run command for each data row
-  console.log(
-    chalk.magenta.bold(
-      `🚀 Executing tasks (parallelism: ${parallelism})...\n`
-    )
-  );
-
-  // Create spinner map for tracking individual task progress
-  const spinners = new Map<number, ReturnType<typeof ora>>();
+  log("info", "Executing tasks", { parallelism, timeout });
 
   // Create promises for all tasks
   const taskPromises = data.map((row, i) => {
@@ -168,9 +169,13 @@ async function main() {
       // Generate command using pure function
       const command = generateCommand(task.run.command, row);
       
-      const spinner = ora(chalk.gray(`[${i + 1}/${data.length}] ${command}`)).start();
-      spinners.set(i, spinner);
       const startTime = Date.now();
+      
+      log("info", "Task started", { 
+        taskIndex: i + 1, 
+        totalTasks: data.length, 
+        command 
+      });
       
       // Create log file for this task
       const logFile = path.join(debugDir, `task_run_${i + 1}.log`);
@@ -262,22 +267,19 @@ async function main() {
         const allPassed = allValidationsPassed(validationResults);
         
         // Determine overall status
-        const status = allPassed ? "✓" : "⚠";
-        const color = allPassed ? chalk.green : chalk.yellow;
+        const status = allPassed ? "passed" : "validation_failed";
         
-        // Build validation summary for display
-        let validationSummary = "";
-        if (validationResults.length > 0) {
-          const passedCount = countPassed(validationResults);
-          const totalCount = validationResults.length;
-          validationSummary = ` ${chalk.gray(`[Validations: ${passedCount}/${totalCount}]`)}`;
-        }
-        
-        spinner.succeed(
-          color(
-            `[${i + 1}/${data.length}] ${command} ${chalk.gray(`(${duration}ms)`)}${validationSummary}`
-          )
-        );
+        // Log task completion
+        log("info", "Task completed", {
+          taskIndex: i + 1,
+          totalTasks: data.length,
+          command,
+          duration,
+          status,
+          validationsPassed: allPassed,
+          validationsCount: validationResults.length,
+          validationsPassedCount: countPassed(validationResults),
+        });
         
         return { 
           index: i + 1, 
@@ -291,14 +293,18 @@ async function main() {
         const errorMessage = error instanceof Error ? error.message : "Command failed";
         const isTimeout = errorMessage.includes("timed out");
         
-        spinner.fail(
-          chalk.red(
-            `[${i + 1}/${data.length}] ${command} ${chalk.gray(`(${duration}ms)`)} - ${isTimeout ? "⏱️  Timeout" : "Command failed"}`
-          )
-        );
+        log("error", "Task failed", {
+          taskIndex: i + 1,
+          totalTasks: data.length,
+          command,
+          duration,
+          error: errorMessage,
+          isTimeout,
+        });
+        
         return { 
           index: i + 1, 
-          status: "✗", 
+          status: "failed", 
           command, 
           duration,
           validationResults: []
@@ -311,43 +317,22 @@ async function main() {
   const taskResults = await Promise.all(taskPromises);
   results.push(...taskResults);
 
-  // Display summary table
-  const successCount = results.filter((r) => r.status === "✓").length;
-  const warningCount = results.filter((r) => r.status === "⚠").length;
-  const failCount = results.filter((r) => r.status === "✗").length;
+  // Calculate summary statistics
+  const successCount = results.filter((r) => r.status === "passed").length;
+  const warningCount = results.filter((r) => r.status === "validation_failed").length;
+  const failCount = results.filter((r) => r.status === "failed").length;
   const totalDuration = results.reduce((sum, r) => sum + r.duration, 0);
 
-  const summaryParts = [
-    chalk.bold("Summary\n"),
-  ];
-  
-  if (successCount > 0) {
-    summaryParts.push(chalk.green(`✓ Passed: ${successCount}\n`));
-  }
-  
-  if (warningCount > 0) {
-    summaryParts.push(chalk.yellow(`⚠ Validation Failed: ${warningCount}\n`));
-  }
-  
-  if (failCount > 0) {
-    summaryParts.push(chalk.red(`✗ Failed: ${failCount}\n`));
-  }
-  
-  summaryParts.push(
-    chalk.blue(`⏱  Total Time: ${totalDuration}ms\n`),
-    chalk.gray(`📋 Total Tasks: ${results.length}\n`),
-    chalk.magenta(`⚡ Parallelism: ${parallelism}`)
-  );
-  
-  if (task.validations && task.validations.length > 0) {
-    summaryParts.push(
-      `\n${chalk.cyan(`🔍 Validations: ${task.validations.length}`)}`
-    );
-  }
-
-  console.log();
-  console.log(summaryParts.join(""));
-  console.log();
+  // Log summary
+  log("info", "Evaluation completed", {
+    totalTasks: results.length,
+    passed: successCount,
+    validationFailed: warningCount,
+    failed: failCount,
+    totalDuration,
+    parallelism,
+    validationRules: task.validations?.length ?? 0,
+  });
 
   // Exit with error code if any task failed
   if (failCount > 0) {
