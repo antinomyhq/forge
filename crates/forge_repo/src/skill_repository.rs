@@ -43,12 +43,12 @@ impl<I> ForgeSkillRepository<I> {
     fn load_builtin_skills(&self) -> Vec<Skill> {
         let builtin_skills = vec![
             (
-                "forge://skills/skill-creation/SKILL.md",
-                include_str!("skills/skill-creation.md"),
+                "forge://skills/skill-creator/SKILL.md",
+                include_str!("skills/skill-creator/SKILL.md"),
             ),
             (
                 "forge://skills/plan-executor/SKILL.md",
-                include_str!("skills/plan-executor.md"),
+                include_str!("skills/plan-executor/SKILL.md"),
             ),
         ];
 
@@ -142,7 +142,7 @@ impl<I: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra + FileReaderInfr
                                 // missing
                                 Ok(Some(Skill::new(
                                     skill_name,
-                                    path_str,
+                                    Some(path_str),
                                     content,
                                     String::new(),
                                 )))
@@ -200,13 +200,13 @@ struct SkillMetadata {
 fn extract_skill(path: &str, content: &str) -> Option<Skill> {
     let matter = Matter::<YAML>::new();
     let result = matter.parse::<SkillMetadata>(content);
-    let path = path.into();
+    let path = Some(path.into());
     result.ok().and_then(|parsed| {
         let command = parsed.content;
         parsed
             .data
             .and_then(|data| data.name.zip(data.description))
-            .map(|(name, description)| Skill { name, path, command, description })
+            .map(|(name, description)| Skill { name, path: path.clone(), command, description })
     })
 }
 
@@ -241,8 +241,8 @@ mod tests {
     fn test_resolve_skill_conflicts_no_duplicates() {
         // Fixture
         let skills = vec![
-            Skill::new("skill1", "/path/skill1.md", "prompt1", "desc1"),
-            Skill::new("skill2", "/path/skill2.md", "prompt2", "desc2"),
+            Skill::new("skill1", Some("/path/skill1.md"), "prompt1", "desc1"),
+            Skill::new("skill2", Some("/path/skill2.md"), "prompt2", "desc2"),
         ];
 
         // Act
@@ -261,12 +261,12 @@ mod tests {
         let skills = vec![
             Skill::new(
                 "skill1",
-                "/global/skill1.md",
+                Some("/global/skill1.md"),
                 "global prompt",
                 "global desc",
             ),
-            Skill::new("skill2", "/global/skill2.md", "prompt2", "desc2"),
-            Skill::new("skill1", "/cwd/skill1.md", "cwd prompt", "cwd desc"),
+            Skill::new("skill2", Some("/global/skill2.md"), "prompt2", "desc2"),
+            Skill::new("skill1", Some("/cwd/skill1.md"), "cwd prompt", "cwd desc"),
         ];
 
         // Act
@@ -275,7 +275,10 @@ mod tests {
         // Assert
         assert_eq!(actual.len(), 2);
         assert_eq!(actual[0].name, "skill1");
-        assert_eq!(actual[0].path, std::path::Path::new("/cwd/skill1.md"));
+        assert_eq!(
+            actual[0].path,
+            Some(std::path::Path::new("/cwd/skill1.md").to_path_buf())
+        );
         assert_eq!(actual[0].command, "cwd prompt");
         assert_eq!(actual[1].name, "skill2");
     }
@@ -295,7 +298,7 @@ mod tests {
         let skill_creator = actual.iter().find(|s| s.name == "skill-creator").unwrap();
         assert_eq!(
             skill_creator.path,
-            std::path::Path::new("forge://skills/skill-creation/SKILL.md")
+            Some(std::path::Path::new("forge://skills/skill-creator/SKILL.md").to_path_buf())
         );
         assert_eq!(
             skill_creator.description,
@@ -308,7 +311,7 @@ mod tests {
         let plan_executor = actual.iter().find(|s| s.name == "plan-executor").unwrap();
         assert_eq!(
             plan_executor.path,
-            std::path::Path::new("forge://skills/plan-executor/SKILL.md")
+            Some(std::path::Path::new("forge://skills/plan-executor/SKILL.md").to_path_buf())
         );
         assert!(plan_executor
             .description
@@ -328,7 +331,7 @@ mod tests {
         // Assert
         let expected = Some(Skill::new(
             "pdf-handler",
-            path,
+            Some(path),
             "# PDF Handler\n\nContent here...",
             "This is a skill for handling PDF files",
         ));
