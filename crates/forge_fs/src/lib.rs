@@ -15,10 +15,12 @@ mod is_binary;
 mod meta;
 mod read;
 mod read_range;
+mod streaming;
 mod write;
 
 pub use crate::binary_detection::is_binary;
 pub use crate::error::Error;
+pub use crate::read_range::DEFAULT_MAX_LINES;
 
 /// ForgeFS provides a standardized interface for file system operations
 /// with consistent error handling.
