@@ -8,11 +8,10 @@ import chalk from "chalk";
 import ora from "ora";
 import Table from "cli-table3";
 import pLimit from "p-limit";
-import yargs from "yargs";
-import { hideBin } from "yargs/helpers";
 import type { Task } from "./model.js";
 import { getContextsFromSources, generateCommand } from "./command-generator.js";
 import { runValidations, allValidationsPassed, countPassed, type ValidationResult } from "./validator.js";
+import { parseCliArgs } from "./parse.js";
 
 // ESM compatibility for __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -20,44 +19,16 @@ const __dirname = path.dirname(__filename);
 
 async function main() {
   // Parse command line arguments
-  const argv = await yargs(hideBin(process.argv))
-    .usage("Usage: $0 <eval-name> [options]")
-    .command("$0 <eval-name>", "Run an evaluation")
-    .positional("eval-name", {
-      describe: "Name of the evaluation to run",
-      type: "string",
-    })
-    .option("dry-run", {
-      describe: "Validate YAML configuration without executing commands",
-      type: "boolean",
-      default: false,
-    })
-    .help()
-    .alias("h", "help")
-    .parseAsync();
-
-  const evalName = argv["eval-name"];
-  const dryRun = argv["dry-run"];
-
-  // Ensure evalName is provided
-  if (!evalName) {
-    console.error(chalk.red.bold("✗ Error: eval-name is required"));
+  let args;
+  try {
+    args = await parseCliArgs(__dirname);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    console.error(chalk.red.bold(`✗ Error: ${message}`));
     process.exit(1);
   }
 
-  // Support both directory path and direct task.yml path
-  let evalDir: string;
-  let taskFile: string;
-
-  if (evalName.endsWith("task.yml") || evalName.endsWith(".yml") || evalName.endsWith(".yaml")) {
-    // Direct path to task file
-    taskFile = path.isAbsolute(evalName) ? evalName : path.join(__dirname, evalName);
-    evalDir = path.dirname(taskFile);
-  } else {
-    // Directory path (original behavior)
-    evalDir = path.join(__dirname, evalName);
-    taskFile = path.join(evalDir, "task.yml");
-  }
+  const { evalName, dryRun, evalDir, taskFile } = args;
 
   // Check if eval directory and task file exist
   if (!fs.existsSync(evalDir)) {
