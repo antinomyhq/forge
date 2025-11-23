@@ -487,21 +487,22 @@ impl ToolOperation {
                 forge_domain::ToolOutput::text(elm)
             }
             ToolOperation::Skill { input: _, output } => {
-                let mut elm = Element::new("skill");
+                let mut elm = Element::new("skill_details");
 
-                // Insert Command
-                let mut elm_cmd = Element::new("command");
-                if let Some(path) = output.path {
-                    elm_cmd = elm_cmd.append(Element::new("path").text(path.display().to_string()));
-                }
-                elm = elm.append(elm_cmd.cdata(output.command));
+                elm = elm.append({
+                    let mut elm = Element::new("command");
+                    if let Some(path) = output.path {
+                        elm = elm.attr("location", path.display().to_string());
+                    }
+
+                    elm.cdata(output.command)
+                });
 
                 // Insert Resources
                 if !output.resources.is_empty() {
-                    elm =
-                        elm.append(output.resources.iter().map(|resource| {
-                            Element::new("file").text(resource.display().to_string())
-                        }));
+                    elm = elm.append(output.resources.iter().map(|resource| {
+                        Element::new("resource").text(resource.display().to_string())
+                    }));
                 }
 
                 forge_domain::ToolOutput::text(elm)
@@ -1571,6 +1572,34 @@ mod tests {
 
         let actual = fixture.into_tool_output(
             ToolKind::Followup,
+            TempContentFiles::default(),
+            &env,
+            &mut Metrics::default(),
+        );
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_skill_operation() {
+        let fixture = ToolOperation::Skill {
+            input: forge_domain::SkillFetch { name: "test-skill".to_string() },
+            output: forge_domain::Skill::new(
+                "test-skill",
+                "This is a test skill command with instructions",
+                "A test skill for demonstration",
+            )
+            .path("/home/user/.forge/skills/test-skill")
+            .resources(vec![
+                PathBuf::from("/home/user/.forge/skills/test-skill/resource1.txt"),
+                PathBuf::from("/home/user/.forge/skills/test-skill/resource2.md"),
+            ]),
+        };
+
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(
+            ToolKind::Skill,
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
