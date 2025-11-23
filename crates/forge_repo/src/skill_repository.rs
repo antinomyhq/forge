@@ -41,10 +41,16 @@ impl<I> ForgeSkillRepository<I> {
 
     /// Loads built-in skills that are embedded in the application
     fn load_builtin_skills(&self) -> Vec<Skill> {
-        let builtin_skills = vec![(
-            "forge://skills/skill-creation/SKILL.md",
-            include_str!("skills/skill-creation.md"),
-        )];
+        let builtin_skills = vec![
+            (
+                "forge://skills/skill-creation/SKILL.md",
+                include_str!("skills/skill-creation.md"),
+            ),
+            (
+                "forge://skills/plan-executor/SKILL.md",
+                include_str!("skills/plan-executor.md"),
+            ),
+        ];
 
         builtin_skills
             .into_iter()
@@ -283,18 +289,31 @@ mod tests {
         let actual = repo.load_builtin_skills();
 
         // Assert
-        assert_eq!(actual.len(), 1);
-        assert_eq!(actual[0].name, "skill-creator");
+        assert_eq!(actual.len(), 2);
+
+        // Check skill-creator
+        let skill_creator = actual.iter().find(|s| s.name == "skill-creator").unwrap();
         assert_eq!(
-            actual[0].path,
-            std::path::Path::new("builtin://skills/skill-creation/SKILL.md")
+            skill_creator.path,
+            std::path::Path::new("forge://skills/skill-creation/SKILL.md")
         );
         assert_eq!(
-            actual[0].description,
+            skill_creator.description,
             "Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends your capabilities with specialized knowledge, workflows, or tool integrations."
         );
-        assert!(actual[0].command.contains("Skill Creator"));
-        assert!(actual[0].command.contains("creating effective skills"));
+        assert!(skill_creator.command.contains("Skill Creator"));
+        assert!(skill_creator.command.contains("creating effective skills"));
+
+        // Check plan-executor
+        let plan_executor = actual.iter().find(|s| s.name == "plan-executor").unwrap();
+        assert_eq!(
+            plan_executor.path,
+            std::path::Path::new("forge://skills/plan-executor/SKILL.md")
+        );
+        assert!(plan_executor
+            .description
+            .contains("Execute structured task plans"));
+        assert!(plan_executor.command.contains("Plan Executor"));
     }
 
     #[test]
