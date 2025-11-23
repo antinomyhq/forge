@@ -92,7 +92,7 @@ impl FormatContent for ToolCatalog {
             ToolCatalog::Plan(_) => None,
             ToolCatalog::Skill(input) => Some(
                 TitleFormat::debug("Skill")
-                    .sub_title(&input.name.to_lowercase())
+                    .sub_title(input.name.to_lowercase())
                     .into(),
             ),
         }

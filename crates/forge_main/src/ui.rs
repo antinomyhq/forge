@@ -968,6 +968,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 "tools",
                 "List all available tools with their descriptions and schema [alias: t]",
             ),
+            ("skill", "List all available skills"),
             ("commit", "Generate AI commit message and commit changes."),
             (
                 "suggest",
