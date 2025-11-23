@@ -22,7 +22,20 @@ import {
   generateCommand,
 } from "./command-generator.js";
 import { parseCliArgs } from "./parse.js";
-import { executeTask, type TaskResult } from "./task-executor.js";
+import { executeTask, type TaskExecutionResult } from "./task-executor.js";
+import {
+  runValidations,
+  allValidationsPassed,
+  type ValidationResult,
+} from "./verification.js";
+
+export type TaskResult = {
+  index: number;
+  status: TaskStatus;
+  command: string;
+  duration: number;
+  validationResults: ValidationResult[];
+};
 
 // ESM compatibility for __dirname
 const __filename = fileURLToPath(import.meta.url);
@@ -168,15 +181,87 @@ async function main() {
       // Generate command using pure function
       const command = generateCommand(task.run.command, row);
 
-      return executeTask(
+      logger.info({ command, taskIndex: i + 1 }, "Executing task");
+
+      // Execute the task
+      const executionResult = await executeTask(
         command,
         i + 1,
         debugDir,
         evalDir,
-        task.run.timeout,
-        task.validations,
-        logger
+        task.run.timeout
       );
+
+      // If execution failed or timed out, log and return early
+      if (executionResult.error) {
+        logger.warn(
+          {
+            taskIndex: executionResult.index,
+            command: executionResult.command,
+            duration: executionResult.duration,
+            error: executionResult.error,
+            isTimeout: executionResult.isTimeout,
+          },
+          executionResult.isTimeout ? "Task timed out" : "Task failed"
+        );
+
+        return {
+          index: executionResult.index,
+          status: executionResult.isTimeout ? TaskStatus.Timeout : TaskStatus.Failed,
+          command: executionResult.command,
+          duration: executionResult.duration,
+          validationResults: [],
+        };
+      }
+
+      // Task completed successfully, log execution result
+      logger.info(
+        {
+          taskIndex: executionResult.index,
+          duration: executionResult.duration,
+        },
+        "Task completed successfully"
+      );
+
+      // Run validations on the output
+      const validationResults =
+        task.validations && task.validations.length > 0
+          ? runValidations(executionResult.output!, task.validations)
+          : [];
+
+      const allPassed = allValidationsPassed(validationResults);
+      const status = allPassed ? TaskStatus.Passed : TaskStatus.ValidationFailed;
+
+      // Log validation results
+      if (validationResults.length > 0) {
+        const passedCount = validationResults.filter((r) => r.passed).length;
+        const totalCount = validationResults.length;
+
+        logger.info(
+          {
+            taskIndex: executionResult.index,
+            status,
+            duration: executionResult.duration,
+            validations: validationResults.map((r) => ({
+              name: r.name,
+              passed: r.passed,
+              message: r.message,
+            })),
+            summary: `${passedCount}/${totalCount} validations passed`,
+          },
+          allPassed
+            ? "Validations completed successfully"
+            : "Validations completed with failures"
+        );
+      }
+
+      return {
+        index: executionResult.index,
+        status,
+        command: executionResult.command,
+        duration: executionResult.duration,
+        validationResults,
+      };
     });
   });
 

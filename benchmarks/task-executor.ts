@@ -1,20 +1,14 @@
 import * as fs from "fs";
 import * as path from "path";
 import { spawn } from "child_process";
-import type { Logger } from "pino";
-import { TaskStatus, type Task, type Validation } from "./model.js";
-import {
-  runValidations,
-  allValidationsPassed,
-  type ValidationResult,
-} from "./verification.js";
 
-export type TaskResult = {
+export type TaskExecutionResult = {
   index: number;
-  status: TaskStatus;
   command: string;
   duration: number;
-  validationResults: ValidationResult[];
+  output?: string;
+  error?: string;
+  isTimeout: boolean;
 };
 
 /**
@@ -40,12 +34,8 @@ export async function executeTask(
   index: number,
   debugDir: string,
   evalDir: string,
-  timeout: number | undefined,
-  validations: Array<Validation> | undefined,
-  logger: Logger
-): Promise<TaskResult> {
-  logger.info({ command }, "Executing task");
-
+  timeout: number | undefined
+): Promise<TaskExecutionResult> {
   const startTime = Date.now();
 
   // Create log file for this task
@@ -130,45 +120,24 @@ export async function executeTask(
 
     const duration = Date.now() - startTime;
 
-    // Perform all validations if configured
-    const validationResults =
-      validations && validations.length > 0
-        ? runValidations(output, validations)
-        : [];
-
-    const allPassed = allValidationsPassed(validationResults);
-
-    // Determine overall status
-    const status = allPassed ? TaskStatus.Passed : TaskStatus.ValidationFailed;
-
     return {
       index,
-      status,
       command,
       duration,
-      validationResults,
+      output,
+      isTimeout: false,
     };
   } catch (error) {
     const duration = Date.now() - startTime;
-    const cause = error instanceof Error ? error.message : "Command failed";
-    const isTimeout = cause.includes("timed out");
-
-    logger.warn(
-      {
-        command,
-        duration,
-        cause,
-        isTimeout,
-      },
-      isTimeout ? "Task timed out" : "Task failed"
-    );
+    const errorMessage = error instanceof Error ? error.message : "Command failed";
+    const isTimeout = errorMessage.includes("timed out");
 
     return {
       index,
-      status: isTimeout ? TaskStatus.Timeout : TaskStatus.Failed,
       command,
       duration,
-      validationResults: [],
+      error: errorMessage,
+      isTimeout,
     };
   }
 }
