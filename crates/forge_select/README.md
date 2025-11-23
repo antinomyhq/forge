@@ -12,6 +12,7 @@ This crate provides a unified interface for terminal user interactions across th
 - **Confirm prompts**: Yes/no questions
 - **Input prompts**: Text input from user
 - **Multi-select prompts**: Choose multiple options from a list
+- **Terminal control**: Manage bracketed paste mode and cursor key modes
 - **Consistent theming**: All prompts use a unified color scheme
 - **Error handling**: Graceful handling of user interruptions
 
@@ -57,6 +58,58 @@ use forge_select::ForgeSelect;
 let options = vec!["Red", "Green", "Blue"];
 let selected = ForgeSelect::multi_select("Choose colors:", options)
     .prompt()?;
+```
+
+### Terminal Control
+
+#### Bracketed Paste Mode
+
+Bracketed paste mode causes terminals to wrap pasted content with special markers (`~0` and `~1`). You can disable this when needed:
+
+```rust
+use forge_select::TerminalControl;
+
+// Manual control
+TerminalControl::disable_bracketed_paste()?;
+// ... do work ...
+TerminalControl::enable_bracketed_paste()?;
+```
+
+Or use the RAII guard (recommended) for automatic cleanup:
+
+```rust
+use forge_select::BracketedPasteGuard;
+
+{
+    let _guard = BracketedPasteGuard::new()?;
+    // Bracketed paste is disabled here
+    // ... do work ...
+} // Automatically re-enabled when guard drops
+```
+
+#### Application Cursor Keys Mode
+
+Control how arrow keys behave in the terminal:
+
+```rust
+use forge_select::TerminalControl;
+
+// Manual control
+TerminalControl::disable_application_cursor_keys()?;
+// ... do work ...
+TerminalControl::enable_application_cursor_keys()?;
+```
+
+Or use the RAII guard (recommended) for automatic cleanup:
+
+```rust
+use forge_select::ApplicationCursorKeysGuard;
+
+{
+    let _guard = ApplicationCursorKeysGuard::new()?;
+    // Application cursor keys are disabled here
+    // ... do work ...
+} // Automatically re-enabled when guard drops
 ```
 
 ## Design

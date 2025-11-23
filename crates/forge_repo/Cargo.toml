@@ -23,6 +23,7 @@ strum.workspace = true
 reqwest-eventsource.workspace = true
 handlebars.workspace = true
 merge.workspace = true
+dashmap.workspace = true
 chrono = { version = "0.4", features = ["serde"] }
 diesel = { version = "2.2.12", features = ["sqlite", "r2d2", "chrono"] }
 diesel_migrations = "2.2.0"

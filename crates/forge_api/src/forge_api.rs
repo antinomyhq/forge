@@ -227,10 +227,8 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
     }
 
     async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
-        // Invalidate cache for agents
-        let result = self.services.set_default_provider(provider_id).await;
-        self.services.reload_agents().await?;
-        result
+        // Agent cache is automatically invalidated when provider config changes
+        self.services.set_default_provider(provider_id).await
     }
 
     async fn user_info(&self) -> Result<Option<User>> {
@@ -275,12 +273,19 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
         agent_provider_resolver.get_model(None).await.ok()
     }
+
+    async fn get_provider_default_model(
+        &self,
+        provider_id: &ProviderId,
+    ) -> anyhow::Result<ModelId> {
+        self.services.get_default_model(provider_id).await
+    }
     async fn set_default_model(
         &self,
-        agent_id: Option<AgentId>,
         model_id: ModelId,
+        provider_id: ProviderId,
     ) -> anyhow::Result<()> {
-        self.app().set_default_model(agent_id, model_id).await
+        self.services.set_default_model(model_id, provider_id).await
     }
 
     async fn get_login_info(&self) -> Result<Option<LoginInfo>> {

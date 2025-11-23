@@ -284,15 +284,4 @@ impl<S: Services> ForgeApp<S> {
     pub async fn write_workflow(&self, path: Option<&Path>, workflow: &Workflow) -> Result<()> {
         self.services.write_workflow(path, workflow).await
     }
-
-    pub async fn set_default_model(
-        &self,
-        agent_id: Option<AgentId>,
-        model: ModelId,
-    ) -> anyhow::Result<()> {
-        let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
-        agent_provider_resolver
-            .set_default_model(agent_id, model)
-            .await
-    }
 }

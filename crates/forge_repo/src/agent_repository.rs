@@ -1,10 +1,12 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use dashmap::DashMap;
 use forge_app::domain::{AgentDefinition, Template};
 use forge_app::{AgentRepository, DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra};
 use gray_matter::engine::YAML;
 use gray_matter::Matter;
+use tokio::sync::RwLock;
 
 /// Infrastructure implementation for loading agent definitions from multiple
 /// sources:
@@ -28,13 +30,29 @@ use gray_matter::Matter;
 ///
 /// Missing directories are handled gracefully and don't prevent loading from
 /// other sources.
+///
+/// ## Caching
+/// This repository implements internal caching of loaded agents for
+/// performance. The cache is automatically invalidated when the repository
+/// detects changes (e.g., through file system monitoring or explicit
+/// invalidation).
 pub struct ForgeAgentRepository<I> {
     infra: Arc<I>,
+    /// In-memory cache of agent definitions
+    /// Lazily loaded on first access and invalidated on changes
+    cache: RwLock<Option<DashMap<String, AgentDefinition>>>,
 }
 
 impl<I> ForgeAgentRepository<I> {
+    /// Creates a new ForgeAgentRepository with the given infrastructure
     pub fn new(infra: Arc<I>) -> Self {
-        Self { infra }
+        Self { infra, cache: RwLock::new(None) }
+    }
+
+    /// Invalidates the internal cache, forcing agents to be reloaded on next
+    /// access. This should be called when agent definitions change on disk.
+    pub async fn invalidate_cache(&self) {
+        *self.cache.write().await = None;
     }
 }
 
@@ -43,13 +61,48 @@ impl<I: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra> AgentRepository
     for ForgeAgentRepository<I>
 {
     /// Load all agent definitions from all available sources with conflict
-    /// resolution.
+    /// resolution. Uses internal caching for performance.
     async fn get_agents(&self) -> anyhow::Result<Vec<forge_app::domain::AgentDefinition>> {
-        self.load_agents().await
+        let cache = self.ensure_cache_loaded().await?;
+        Ok(cache.iter().map(|entry| entry.value().clone()).collect())
     }
 }
 
 impl<I: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra> ForgeAgentRepository<I> {
+    /// Lazily initializes and returns the agent cache.
+    /// Loads agents from all sources on first call, subsequent calls return
+    /// cached value.
+    async fn ensure_cache_loaded(&self) -> anyhow::Result<DashMap<String, AgentDefinition>> {
+        // Check if already loaded
+        {
+            let cache_read = self.cache.read().await;
+            if let Some(cache) = cache_read.as_ref() {
+                return Ok(cache.clone());
+            }
+        }
+
+        // Not loaded yet, acquire write lock and load
+        let mut cache_write = self.cache.write().await;
+
+        // Double-check in case another task loaded while we were waiting for write
+        // lock
+        if let Some(cache) = cache_write.as_ref() {
+            return Ok(cache.clone());
+        }
+
+        // Load agents and build cache
+        let agents = self.load_agents().await?;
+        let cache_map = DashMap::new();
+
+        for agent in agents {
+            cache_map.insert(agent.id.to_string(), agent);
+        }
+
+        // Store and return
+        *cache_write = Some(cache_map.clone());
+        Ok(cache_map)
+    }
+
     /// Load all agent definitions from all available sources
     async fn load_agents(&self) -> anyhow::Result<Vec<AgentDefinition>> {
         // Load built-in agents

@@ -100,6 +100,31 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
     }
 
+    /// Sets the default provider and ensures a default model is configured.
+    /// If the provider doesn't have a default model, prompts the user to select
+    /// one.
+    async fn set_provider_with_model_check(&mut self, provider_id: ProviderId) -> Result<()> {
+        self.api.set_default_provider(provider_id).await?;
+
+        // Check if the provider has a default model configured
+        if self
+            .api
+            .get_provider_default_model(&provider_id)
+            .await
+            .is_err()
+        {
+            self.writeln_title(TitleFormat::info("Please select a model for the provider"))?;
+            let model = self
+                .select_model()
+                .await?
+                .ok_or(anyhow::anyhow!("Model selection is required to continue"))?;
+            let provider_id = self.api.get_default_provider().await?.id;
+            self.api.set_default_model(model, provider_id).await?;
+        }
+
+        Ok(())
+    }
+
     /// Filters providers to return only configured ones
     fn get_configured_providers(&self, providers: Vec<AnyProvider>) -> Vec<CliProvider> {
         use crate::model::CliProvider;
@@ -1665,7 +1690,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         .prompt()?;
 
         if should_set_active.unwrap_or(false) {
-            self.api.set_default_provider(provider_id).await?;
+            self.set_provider_with_model_check(provider_id).await?;
             self.writeln_title(TitleFormat::action(format!("Provider set {provider_id}")))?;
         }
         Ok(())
@@ -1868,11 +1893,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             None => return Ok(()),
         };
 
-        let active_agent = self.api.get_active_agent().await;
+        let provider_id = self.api.get_default_provider().await?.id;
 
         // Update the operating model via API
         self.api
-            .set_default_model(active_agent, model.clone())
+            .set_default_model(model.clone(), provider_id)
             .await?;
 
         // Update the UI state with the new model
@@ -1893,8 +1918,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             None => return Ok(()),
         };
 
-        // Set the provider via API
-        self.api.set_default_provider(provider.id).await?;
+        // Set the provider via API and check for default model
+        self.set_provider_with_model_check(provider.id).await?;
 
         self.writeln_title(TitleFormat::action(format!(
             "Switched to provider: {}",
@@ -2028,18 +2053,33 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         let _ = self.handle_migrate_credentials().await;
 
+        let is_provider_configured = self
+            .get_provider(self.api.get_active_agent().await)
+            .await
+            .is_ok();
+        if !is_provider_configured {
+            let provider_option = self.select_provider().await?;
+
+            // If a provider was selected, save it as the default
+            if let Some(provider) = provider_option {
+                self.api.set_default_provider(provider.id).await?;
+            }
+        }
         // Ensure we have a model selected before proceeding with initialization
         if self
             .get_agent_model(self.api.get_active_agent().await)
             .await
             .is_none()
         {
-            let active_agent = self.api.get_active_agent().await;
+            let provider_id = match self.api.get_active_agent().await {
+                Some(id) => self.api.get_agent_provider(id).await?.id,
+                None => self.api.get_default_provider().await?.id,
+            };
             let model = self
                 .select_model()
                 .await?
                 .ok_or(anyhow::anyhow!("Model selection is required to continue"))?;
-            self.api.set_default_model(active_agent, model).await?;
+            self.api.set_default_model(model, provider_id).await?;
         }
 
         // Create base workflow and trigger updates if this is the first initialization
@@ -2421,14 +2461,17 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         match args.field {
             ConfigField::Provider => {
                 let provider_id = self.validate_provider(&args.value).await?;
-                self.api.set_default_provider(provider_id).await?;
+                self.set_provider_with_model_check(provider_id).await?;
                 self.writeln_title(TitleFormat::action("Provider set").sub_title(&args.value))?;
             }
             ConfigField::Model => {
                 let model_id = self.validate_model(&args.value).await?;
-                let active_agent = self.api.get_active_agent().await;
+                let provider_id = match self.api.get_active_agent().await {
+                    Some(id) => self.api.get_agent_provider(id).await?.id,
+                    None => self.api.get_default_provider().await?.id,
+                };
                 self.api
-                    .set_default_model(active_agent, model_id.clone())
+                    .set_default_model(model_id.clone(), provider_id)
                     .await?;
                 self.writeln_title(
                     TitleFormat::action(model_id.as_str()).sub_title("is now the default model"),
