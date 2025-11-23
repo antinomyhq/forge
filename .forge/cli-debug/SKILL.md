@@ -138,14 +138,14 @@ cargo build
 ### Debug Prompt Optimization
 
 ```bash
-# 1. Dump conversation to analyze prompts (outputs JSON by default)
-./target/debug/forge conversation dump <id> > prompts.json
+# 1. Dump conversation to analyze prompts (creates timestamped JSON)
+./target/debug/forge conversation dump <id>
 
 # 2. Review the conversation structure
-cat prompts.json | jq '.messages[] | {role, content}'
+cat 2025-11-23_12-28-52-dump.json | jq '.messages[] | {role, content}'
 
 # 3. Export as HTML for easier reading
-./target/debug/forge conversation dump --html <id> > conversation.html
+./target/debug/forge conversation dump --html <id>
 
 # 4. Test modified prompts
 ./target/debug/forge -p "your optimized prompt here"
@@ -176,20 +176,23 @@ cargo build
 ./target/debug/forge --help  # Always check docs first
 ./target/debug/forge -p "your test task"
 
-# Dump and use conversation
-./target/debug/forge conversation dump <id> > conv.json
-./target/debug/forge --conversation conv.json
+# Dump conversation (creates timestamped file)
+./target/debug/forge conversation dump <id>
+# Output: 2025-11-23_12-28-52-dump.json
 
 # Export as HTML for review
-./target/debug/forge conversation dump --html <id> > conv.html
+./target/debug/forge conversation dump --html <id>
+# Output: 2025-11-23_12-28-52-dump.html
+
+# Use dumped conversation
+./target/debug/forge --conversation 2025-11-23_12-28-52-dump.json
 
 # Clone and test bug
 ./target/debug/forge conversation clone <source-id>
 ./target/debug/forge --conversation-id <cloned-id> -p "reproduce bug"
 
-# Debug prompts with jq
-./target/debug/forge conversation dump <id> > debug.json
-cat debug.json | jq '.messages[] | {role, content}'
+# Debug prompts with jq (use actual filename)
+cat 2025-11-23_12-28-52-dump.json | jq '.messages[] | {role, content}'
 
 # Test with verbose output
 ./target/debug/forge --verbose -p "test task"
@@ -201,7 +204,8 @@ cat debug.json | jq '.messages[] | {role, content}'
 - **Use `-p` for testing**: Don't test interactively, use prompts
 - **Clone conversations**: Never modify original bug conversations
 - **Never commit**: This is for debugging only
-- **HTML exports**: Use `--html` flag with dump for human-readable conversation views
+- **Dump creates files**: `dump` automatically creates timestamped files (no `>` needed)
+- **HTML exports**: Use `--html` flag for human-readable conversation views
 - **Use relative paths**: Binary is at `./target/debug/forge` from project root
 - **Check exit codes**: Use `echo $?` to verify exit codes
 - **Watch for warnings**: Build warnings often indicate issues
