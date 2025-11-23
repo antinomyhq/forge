@@ -7,7 +7,7 @@ import {
   runValidations,
   allValidationsPassed,
   type ValidationResult,
-} from "./validator.js";
+} from "./verification.js";
 
 export type TaskResult = {
   index: number;
@@ -150,16 +150,14 @@ export async function executeTask(
     };
   } catch (error) {
     const duration = Date.now() - startTime;
-    const errorMessage =
-      error instanceof Error ? error.message : "Command failed";
-    const isTimeout = errorMessage.includes("timed out");
+    const cause = error instanceof Error ? error.message : "Command failed";
+    const isTimeout = cause.includes("timed out");
 
     logger.warn(
       {
-        taskIndex: index,
         command,
         duration,
-        error: errorMessage,
+        cause,
         isTimeout,
       },
       isTimeout ? "Task timed out" : "Task failed"
