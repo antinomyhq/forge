@@ -20,6 +20,8 @@ Use the following summary frames as the authoritative reference for all coding s
 **Delete:** `{{tool_call.tool.file_remove.path}}`
 {{else if tool_call.tool.search}}
 **Search:** `{{tool_call.tool.search.pattern}}`
+{{else if tool_call.tool.skill}}
+**Skill:** `{{tool_call.tool.skill.name}}`
 {{else if tool_call.tool.shell}}
 **Execute:** 
 ```

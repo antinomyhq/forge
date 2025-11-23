@@ -213,6 +213,10 @@ pub enum ListCommand {
     /// List custom commands.
     #[command(alias = "cmds")]
     Cmd,
+
+    /// List available skills.
+    #[command(alias = "skills")]
+    Skill,
 }
 
 /// Command group for generating shell extensions.
@@ -1047,6 +1051,37 @@ mod tests {
                 .map(|s| s.to_string())
                 .collect::<Vec<String>>(),
         );
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_list_skill_command() {
+        let fixture = Cli::parse_from(["forge", "list", "skill"]);
+        let is_skill_list = match fixture.subcommands {
+            Some(TopLevelCommand::List(list)) => matches!(list.command, ListCommand::Skill),
+            _ => false,
+        };
+        assert_eq!(is_skill_list, true);
+    }
+
+    #[test]
+    fn test_list_skills_alias_command() {
+        let fixture = Cli::parse_from(["forge", "list", "skills"]);
+        let is_skill_list = match fixture.subcommands {
+            Some(TopLevelCommand::List(list)) => matches!(list.command, ListCommand::Skill),
+            _ => false,
+        };
+        assert_eq!(is_skill_list, true);
+    }
+
+    #[test]
+    fn test_list_skill_with_porcelain() {
+        let fixture = Cli::parse_from(["forge", "list", "skill", "--porcelain"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::List(list)) => list.porcelain,
+            _ => false,
+        };
+        let expected = true;
         assert_eq!(actual, expected);
     }
 }

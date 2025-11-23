@@ -1,7 +1,7 @@
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 
-use crate::Environment;
+use crate::{Environment, Skill};
 
 #[derive(Debug, Setters, Clone, Serialize, Deserialize)]
 #[setters(strip_option)]
@@ -30,4 +30,8 @@ pub struct SystemContext {
     /// Indicates whether the agent supports parallel tool calls.
     #[serde(default)]
     pub supports_parallel_tool_calls: bool,
+
+    /// List of available skills
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub skills: Vec<Skill>,
 }

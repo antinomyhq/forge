@@ -6,7 +6,8 @@ use forge_app::{
     McpServerInfra, Services, StrategyFactory, UserInfra, WalkerInfra,
 };
 use forge_domain::{
-    AppConfigRepository, ConversationRepository, ProviderRepository, SnapshotRepository,
+    AppConfigRepository, ConversationRepository, ProviderRepository, SkillRepository,
+    SnapshotRepository,
 };
 
 use crate::ForgeProviderAuthService;
@@ -25,7 +26,7 @@ use crate::provider::ForgeProviderService;
 use crate::template::ForgeTemplateService;
 use crate::tool_services::{
     ForgeFetch, ForgeFollowup, ForgeFsCreate, ForgeFsPatch, ForgeFsRead, ForgeFsRemove,
-    ForgeFsSearch, ForgeFsUndo, ForgeImageRead, ForgePlanCreate, ForgeShell,
+    ForgeFsSearch, ForgeFsUndo, ForgeImageRead, ForgePlanCreate, ForgeShell, ForgeSkillFetch,
 };
 use crate::workflow::ForgeWorkflowService;
 
@@ -50,7 +51,8 @@ pub struct ForgeServices<
         + AppConfigRepository
         + KVStore
         + ProviderRepository
-        + AgentRepository,
+        + AgentRepository
+        + SkillRepository,
 > {
     chat_service: Arc<ForgeProviderService<F>>,
     config_service: Arc<ForgeAppConfigService<F>>,
@@ -79,6 +81,7 @@ pub struct ForgeServices<
     command_loader_service: Arc<ForgeCommandLoaderService<F>>,
     policy_service: ForgePolicyService<F>,
     provider_auth_service: ForgeProviderAuthService<F>,
+    skill_service: Arc<ForgeSkillFetch<F>>,
 }
 
 impl<
@@ -97,7 +100,8 @@ impl<
         + AppConfigRepository
         + ProviderRepository
         + KVStore
-        + AgentRepository,
+        + AgentRepository
+        + SkillRepository,
 > ForgeServices<F>
 {
     pub fn new(infra: Arc<F>) -> Self {
@@ -129,6 +133,7 @@ impl<
         let command_loader_service = Arc::new(ForgeCommandLoaderService::new(infra.clone()));
         let policy_service = ForgePolicyService::new(infra.clone());
         let provider_auth_service = ForgeProviderAuthService::new(infra.clone());
+        let skill_service = Arc::new(ForgeSkillFetch::new(infra.clone()));
 
         Self {
             conversation_service,
@@ -158,6 +163,7 @@ impl<
             command_loader_service,
             policy_service,
             provider_auth_service,
+            skill_service,
         }
     }
 }
@@ -182,6 +188,7 @@ impl<
         + KVStore
         + ProviderRepository
         + AgentRepository
+        + SkillRepository
         + StrategyFactory
         + Clone
         + 'static,
@@ -218,6 +225,7 @@ impl<
     type AgentRegistry = ForgeAgentRegistryService<F>;
     type CommandLoaderService = ForgeCommandLoaderService<F>;
     type PolicyService = ForgePolicyService<F>;
+    type SkillFetchService = ForgeSkillFetch<F>;
 
     fn provider_service(&self) -> &Self::ProviderService {
         &self.chat_service
@@ -319,5 +327,8 @@ impl<
     }
     fn image_read_service(&self) -> &Self::ImageReadService {
         &self.image_read_service
+    }
+    fn skill_fetch_service(&self) -> &Self::SkillFetchService {
+        &self.skill_service
     }
 }

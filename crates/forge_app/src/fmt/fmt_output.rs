@@ -38,6 +38,7 @@ impl FormatContent for ToolOperation {
                 ));
                 title.into()
             }),
+            ToolOperation::Skill { input: _, output: _ } => None,
         }
     }
 }

@@ -432,6 +432,24 @@ pub trait PolicyService: Send + Sync {
     ) -> anyhow::Result<PolicyDecision>;
 }
 
+/// Skill fetch service
+#[async_trait::async_trait]
+pub trait SkillFetchService: Send + Sync {
+    /// Fetches a skill by name
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the skill is not found or cannot be loaded
+    async fn fetch_skill(&self, skill_name: String) -> anyhow::Result<forge_domain::Skill>;
+
+    /// Lists all available skills
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if skills cannot be loaded
+    async fn list_skills(&self) -> anyhow::Result<Vec<forge_domain::Skill>>;
+}
+
 /// Provider authentication service
 #[async_trait::async_trait]
 pub trait ProviderAuthService: Send + Sync {
@@ -484,6 +502,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type CommandLoaderService: CommandLoaderService;
     type PolicyService: PolicyService;
     type ProviderAuthService: ProviderAuthService;
+    type SkillFetchService: SkillFetchService;
 
     fn provider_service(&self) -> &Self::ProviderService;
     fn config_service(&self) -> &Self::AppConfigService;
@@ -512,6 +531,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn command_loader_service(&self) -> &Self::CommandLoaderService;
     fn policy_service(&self) -> &Self::PolicyService;
     fn provider_auth_service(&self) -> &Self::ProviderAuthService;
+    fn skill_fetch_service(&self) -> &Self::SkillFetchService;
 }
 
 #[async_trait::async_trait]
@@ -925,6 +945,17 @@ impl<I: Services> AppConfigService for I {
         self.config_service()
             .set_default_model(model, provider_id)
             .await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> SkillFetchService for I {
+    async fn fetch_skill(&self, skill_name: String) -> anyhow::Result<forge_domain::Skill> {
+        self.skill_fetch_service().fetch_skill(skill_name).await
+    }
+
+    async fn list_skills(&self) -> anyhow::Result<Vec<forge_domain::Skill>> {
+        self.skill_fetch_service().list_skills().await
     }
 }
 
