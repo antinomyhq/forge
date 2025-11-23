@@ -11,14 +11,7 @@ Execute structured task plans with automatic status tracking and progress update
 
 When a plan is provided, **all tasks in the plan must be completed**. Before starting execution, recite:
 
-> "I will execute this plan to completion. All tasks will be addressed and marked as DONE."
-
-## When to Use
-
-Use this skill when:
-- User provides a plan file path matching `plans/{current-date}-{task-name}-{version}.md`
-- User explicitly asks you to execute a plan file
-- A plan file needs to be worked through step by step with status updates
+> "I will execute this plan to completion. All the 20 tasks will be addressed and marked as DONE."
 
 ## Execution Steps
 
