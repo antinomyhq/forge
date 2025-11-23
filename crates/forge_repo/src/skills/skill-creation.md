@@ -71,10 +71,10 @@ Every SKILL.md consists of:
 
 ##### Scripts (`scripts/`)
 
-Executable code (Python/Bash/etc.) for tasks that require deterministic reliability or are repeatedly rewritten.
+Executable code for tasks that require deterministic reliability or are repeatedly rewritten.
 
 - **When to include**: When the same code is being rewritten repeatedly or deterministic reliability is needed
-- **Example**: `scripts/rotate_pdf.py` for PDF rotation tasks
+- **Example**: `scripts/rotate_pdf.sh` for PDF rotation tasks
 - **Benefits**: Token efficient, deterministic, may be executed without loading into context
 - **Note**: Scripts may still need to be read by you for patching or environment-specific adjustments
 
@@ -204,9 +204,9 @@ Skill creation involves these steps:
 
 1. Understand the skill with concrete examples
 2. Plan reusable skill contents (scripts, references, assets)
-3. Initialize the skill (run init_skill.py)
+3. Initialize the skill
 4. Edit the skill (implement resources and write SKILL.md)
-5. Package the skill (run package_skill.py)
+5. Package the skill
 6. Iterate based on real usage
 
 Follow these steps in order, skipping only if there is a clear reason why they are not applicable.
@@ -238,7 +238,7 @@ To turn concrete examples into an effective skill, analyze each example by:
 Example: When building a `pdf-editor` skill to handle queries like "Help me rotate this PDF," the analysis shows:
 
 1. Rotating a PDF requires re-writing the same code each time
-2. A `scripts/rotate_pdf.py` script would be helpful to store in the skill
+2. A `scripts/rotate_pdf.sh` script would be helpful to store in the skill
 
 Example: When designing a `frontend-webapp-builder` skill for queries like "Build me a todo app" or "Build me a dashboard to track my steps," the analysis shows:
 
@@ -258,22 +258,38 @@ At this point, it is time to actually create the skill.
 
 Skip this step only if the skill being developed already exists, and iteration or packaging is needed. In this case, continue to the next step.
 
-When creating a new skill from scratch, always run the `init_skill.py` script. The script conveniently generates a new template skill directory that automatically includes everything a skill requires, making the skill creation process much more efficient and reliable.
+When creating a new skill from scratch, create the skill directory structure in `.forge/<skill-name>/` from the current working directory. The structure should include:
 
-Usage:
+- `SKILL.md` with YAML frontmatter (name, description) and markdown body
+- `scripts/` directory for executable code (e.g., `process.sh`, `validate.sh`)
+- `references/` directory for documentation loaded as needed
+- `assets/` directory for files used in output
+
+Example initialization:
 
 ```bash
-scripts/init_skill.py <skill-name> --path <output-directory>
+mkdir -p .forge/pdf-editor/{scripts,references,assets}
+cat > .forge/pdf-editor/SKILL.md << 'EOF'
+---
+name: pdf-editor
+description: TODO - Describe what this skill does and when to use it
+---
+
+# PDF Editor
+
+TODO - Add skill instructions here
+EOF
+
+cat > .forge/pdf-editor/scripts/rotate.sh << 'EOF'
+#!/bin/bash
+# Rotate PDF using pdftk
+pdftk "$1" cat 1-endright output "$2"
+EOF
+
+chmod +x .forge/pdf-editor/scripts/rotate.sh
 ```
 
-The script:
-
-- Creates the skill directory at the specified path
-- Generates a SKILL.md template with proper frontmatter and TODO placeholders
-- Creates example resource directories: `scripts/`, `references/`, and `assets/`
-- Adds example files in each directory that can be customized or deleted
-
-After initialization, customize or remove the generated SKILL.md and example files as needed.
+After initialization, customize the generated files as needed.
 
 ### Step 4: Edit the Skill
 
@@ -294,7 +310,7 @@ To begin implementation, start with the reusable resources identified above: `sc
 
 Added scripts must be tested by actually running them to ensure there are no bugs and that the output matches what is expected. If there are many similar scripts, only a representative sample needs to be tested to ensure confidence that they all work while balancing time to completion.
 
-Any example files and directories not needed for the skill should be deleted. The initialization script creates example files in `scripts/`, `references/`, and `assets/` to demonstrate structure, but most skills won't need all of them.
+Any example files and directories not needed for the skill should be deleted.
 
 #### Update SKILL.md
 
@@ -318,30 +334,45 @@ Write instructions for using the skill and its bundled resources.
 
 ### Step 5: Packaging a Skill
 
-Once development of the skill is complete, it must be packaged into a distributable .skill file that gets shared with the user. The packaging process automatically validates the skill first to ensure it meets all requirements:
+Once development of the skill is complete, it must be packaged into a distributable .skill file that gets shared with the user. Package the skill directory into a zip archive with a .skill extension:
 
 ```bash
-scripts/package_skill.py <path/to/skill-folder>
+cd .forge
+zip -r pdf-editor.skill pdf-editor/
 ```
 
-Optional output directory specification:
+Or package with validation:
 
 ```bash
-scripts/package_skill.py <path/to/skill-folder> ./dist
+#!/bin/bash
+# validate_and_package.sh
+SKILL_DIR=".forge/$1"
+OUTPUT="${2:-.forge}"
+
+# Validate YAML frontmatter
+if ! grep -q "^---$" "$SKILL_DIR/SKILL.md"; then
+    echo "Error: Missing YAML frontmatter"
+    exit 1
+fi
+
+# Check required fields
+if ! grep -q "^name:" "$SKILL_DIR/SKILL.md"; then
+    echo "Error: Missing 'name' field"
+    exit 1
+fi
+
+if ! grep -q "^description:" "$SKILL_DIR/SKILL.md"; then
+    echo "Error: Missing 'description' field"
+    exit 1
+fi
+
+# Package the skill
+cd .forge
+zip -r "$OUTPUT/$1.skill" "$1/"
+echo "Created: $OUTPUT/$1.skill"
 ```
 
-The packaging script will:
-
-1. **Validate** the skill automatically, checking:
-
-   - YAML frontmatter format and required fields
-   - Skill naming conventions and directory structure
-   - Description completeness and quality
-   - File organization and resource references
-
-2. **Package** the skill if validation passes, creating a .skill file named after the skill (e.g., `my-skill.skill`) that includes all files and maintains the proper directory structure for distribution. The .skill file is a zip file with a .skill extension.
-
-If validation fails, the script will report the errors and exit without creating a package. Fix any validation errors and run the packaging command again.
+The .skill file includes all files and maintains the proper directory structure for distribution.
 
 ### Step 6: Iterate
 
