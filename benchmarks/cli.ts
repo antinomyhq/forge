@@ -1,14 +1,20 @@
 import * as fs from "fs";
 import * as path from "path";
+import { fileURLToPath } from "url";
 import { parse as parseYaml } from "yaml";
 import { parse as parseCsv } from "csv-parse/sync";
 import { spawn, execSync } from "child_process";
 import chalk from "chalk";
 import ora from "ora";
 import Table from "cli-table3";
-import boxen from "boxen";
 import pLimit from "p-limit";
 import Handlebars from "handlebars";
+import yargs from "yargs";
+import { hideBin } from "yargs/helpers";
+
+// ESM compatibility for __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 type Task = {
   before_run: Array<string>;
@@ -26,17 +32,39 @@ type Validation = {
 type Source = { csv: string } | { cmd: string };
 
 async function main() {
-  // Get eval name from command line arguments
-  const evalName = process.argv[2];
-  
-  if (!evalName) {
-    console.error(chalk.red.bold("✗ Error: Please provide an eval name"));
-    console.error(chalk.gray("Usage: npm run eval -- <eval-name>"));
-    process.exit(1);
-  }
+  // Parse command line arguments
+  const argv = await yargs(hideBin(process.argv))
+    .usage("Usage: $0 <eval-name> [options]")
+    .command("$0 <eval-name>", "Run an evaluation")
+    .positional("eval-name", {
+      describe: "Name of the evaluation to run",
+      type: "string",
+    })
+    .option("dry-run", {
+      describe: "Validate YAML configuration without executing commands",
+      type: "boolean",
+      default: false,
+    })
+    .help()
+    .alias("h", "help")
+    .parseAsync();
 
-  const evalDir = path.join(__dirname, evalName);
-  const taskFile = path.join(evalDir, "task.yml");
+  const evalName = argv["eval-name"];
+  const dryRun = argv["dry-run"];
+
+  // Support both directory path and direct task.yml path
+  let evalDir: string;
+  let taskFile: string;
+
+  if (evalName.endsWith("task.yml") || evalName.endsWith(".yml") || evalName.endsWith(".yaml")) {
+    // Direct path to task file
+    taskFile = path.isAbsolute(evalName) ? evalName : path.join(__dirname, evalName);
+    evalDir = path.dirname(taskFile);
+  } else {
+    // Directory path (original behavior)
+    evalDir = path.join(__dirname, evalName);
+    taskFile = path.join(evalDir, "task.yml");
+  }
 
   // Check if eval directory and task file exist
   if (!fs.existsSync(evalDir)) {
@@ -53,15 +81,27 @@ async function main() {
   const taskContent = fs.readFileSync(taskFile, "utf-8");
   const task: Task = parseYaml(taskContent);
 
+  // If dry-run mode, validate YAML and exit silently
+  if (dryRun) {
+    // Validate that sources exist
+    for (const source of task.sources) {
+      if ("csv" in source) {
+        const csvPath = path.join(evalDir, source.csv);
+        if (!fs.existsSync(csvPath)) {
+          console.error(chalk.red.bold(`✗ Error: CSV file not found: ${csvPath}`));
+          process.exit(1);
+        }
+      }
+    }
+    // YAML is valid, exit silently with success
+    process.exit(0);
+  }
+
   // Display header
-  console.log(
-    boxen(chalk.cyan.bold(`Running Eval: ${evalName}`), {
-      padding: 1,
-      margin: 1,
-      borderStyle: "round",
-      borderColor: "cyan",
-    })
-  );
+  const displayName = path.relative(__dirname, evalDir) || evalName;
+  console.log();
+  console.log(chalk.cyan.bold(`Running Eval: ${displayName}`));
+  console.log();
 
   // Create debug directory with timestamp
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
@@ -330,20 +370,9 @@ async function main() {
     );
   }
 
-  console.log(
-    boxen(
-      summaryParts.join(""),
-      {
-        padding: 1,
-        margin: { top: 1, bottom: 1, left: 0, right: 0 },
-        borderStyle: "round",
-        borderColor: 
-          failCount > 0 ? "red" : 
-          warningCount > 0 ? "yellow" : 
-          "green",
-      }
-    )
-  );
+  console.log();
+  console.log(summaryParts.join(""));
+  console.log();
 
   // Exit with error code if any task failed
   if (failCount > 0) {

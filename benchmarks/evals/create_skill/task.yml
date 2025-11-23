@@ -1,7 +1,7 @@
 before_run:
   - cargo build
 run:
-  command: target/debug/forge -p {{prompt}}
+  command: ../../target/debug/forge -p '{{skill}}'
   parallelism: 10
 validations:
   - name: "Check success message"
