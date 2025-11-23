@@ -1,5 +1,5 @@
 ---
-name: skill-creator
+name: create-skill
 description: Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends your capabilities with specialized knowledge, workflows, or tool integrations.
 ---
 

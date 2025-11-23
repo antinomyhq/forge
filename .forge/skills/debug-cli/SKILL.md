@@ -1,5 +1,5 @@
 ---
-name: cli-debug
+name: debug-cli
 description: Debug and verify CLI application changes by building and testing the forge binary. Use when modifying the CLI codebase to ensure changes work correctly, verify command behavior, reproduce bugs from conversations. Essential for testing new features, debugging issues, and validating fixes.
 ---
 
