@@ -47,8 +47,8 @@ impl<I> ForgeSkillRepository<I> {
                 include_str!("skills/skill-creator/SKILL.md"),
             ),
             (
-                "forge://skills/plan-executor/SKILL.md",
-                include_str!("skills/plan-executor/SKILL.md"),
+                "forge://skills/execute-plan/SKILL.md",
+                include_str!("skills/execute-plan/SKILL.md"),
             ),
         ];
 
@@ -298,16 +298,16 @@ mod tests {
         assert!(skill_creator.command.contains("Skill Creator"));
         assert!(skill_creator.command.contains("creating effective skills"));
 
-        // Check plan-executor
-        let plan_executor = actual.iter().find(|s| s.name == "plan-executor").unwrap();
+        // Check execute-plan
+        let execute_plan = actual.iter().find(|s| s.name == "execute-plan").unwrap();
         assert_eq!(
-            plan_executor.path,
-            Some(std::path::Path::new("forge://skills/plan-executor/SKILL.md").to_path_buf())
+            execute_plan.path,
+            Some(std::path::Path::new("forge://skills/execute-plan/SKILL.md").to_path_buf())
         );
-        assert!(plan_executor
+        assert!(execute_plan
             .description
             .contains("Execute structured task plans"));
-        assert!(plan_executor.command.contains("Plan Executor"));
+        assert!(execute_plan.command.contains("Execute Plan"));
     }
 
     #[test]

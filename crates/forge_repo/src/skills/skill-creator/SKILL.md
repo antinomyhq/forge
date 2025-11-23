@@ -216,9 +216,9 @@ Skip this step only when the skill's usage patterns are already clearly understo
 
 To create an effective skill, clearly understand concrete examples of how the skill will be used. This understanding can come from either direct user examples or generated examples that are validated with user feedback.
 
-For example, when building an image-editor skill, relevant questions include:
+For example, when building an edit-image skill, relevant questions include:
 
-- "What functionality should the image-editor skill support? Editing, rotating, anything else?"
+- "What functionality should the edit-image skill support? Editing, rotating, anything else?"
 - "Can you give some examples of how this skill would be used?"
 - "I can imagine users asking for things like 'Remove the red-eye from this image' or 'Rotate this image'. Are there other ways you imagine this skill being used?"
 - "What would a user say that should trigger this skill?"
@@ -234,17 +234,17 @@ To turn concrete examples into an effective skill, analyze each example by:
 1. Considering how to execute on the example from scratch
 2. Identifying what scripts, references, and assets would be helpful when executing these workflows repeatedly
 
-Example: When building a `pdf-editor` skill to handle queries like "Help me rotate this PDF," the analysis shows:
+Example: When building an `edit-pdf` skill to handle queries like "Help me rotate this PDF," the analysis shows:
 
 1. Rotating a PDF requires re-writing the same code each time
 2. A `scripts/rotate_pdf.sh` script would be helpful to store in the skill
 
-Example: When designing a `frontend-webapp-builder` skill for queries like "Build me a todo app" or "Build me a dashboard to track my steps," the analysis shows:
+Example: When designing a `build-frontend-webapp` skill for queries like "Build me a todo app" or "Build me a dashboard to track my steps," the analysis shows:
 
 1. Writing a frontend webapp requires the same boilerplate HTML/React each time
 2. An `assets/hello-world/` template containing the boilerplate HTML/React project files would be helpful to store in the skill
 
-Example: When building a `big-query` skill to handle queries like "How many users have logged in today?" the analysis shows:
+Example: When building a `query-bigquery` skill to handle queries like "How many users have logged in today?" the analysis shows:
 
 1. Querying BigQuery requires re-discovering the table schemas and relationships each time
 2. A `references/schema.md` file documenting the table schemas would be helpful to store in the skill
@@ -257,6 +257,15 @@ At this point, it is time to actually create the skill.
 
 Skip this step only if the skill being developed already exists, and iteration or packaging is needed. In this case, continue to the next step.
 
+#### Skill Naming Convention
+
+**Always use verb-based names** for skills to clearly communicate what action the skill performs:
+
+- ✅ Good: `execute-plan`, `create-report`, `analyze-logs`, `deploy-app`
+- ❌ Bad: `plan-executor`, `report-creator`, `log-analyzer`, `app-deployer`
+
+Verb-first naming makes it immediately clear what the skill does and follows the imperative/infinitive form used throughout the skill instructions.
+
 When creating a new skill from scratch, create the skill directory structure in `.forge/skills/<skill-name>/` from the current working directory. The structure should include:
 
 - `SKILL.md` with YAML frontmatter (name, description) and markdown body
@@ -267,25 +276,25 @@ When creating a new skill from scratch, create the skill directory structure in 
 Example initialization:
 
 ```bash
-mkdir -p .forge/skills/pdf-editor/{scripts,references,assets}
-cat > .forge/skills/pdf-editor/SKILL.md << 'EOF'
+mkdir -p .forge/skills/edit-pdf/{scripts,references,assets}
+cat > .forge/skills/edit-pdf/SKILL.md << 'EOF'
 ---
-name: pdf-editor
+name: edit-pdf
 description: TODO - Describe what this skill does and when to use it
 ---
 
-# PDF Editor
+# Edit PDF
 
 TODO - Add skill instructions here
 EOF
 
-cat > .forge/skills/pdf-editor/scripts/rotate.sh << 'EOF'
+cat > .forge/skills/edit-pdf/scripts/rotate.sh << 'EOF'
 #!/bin/bash
 # Rotate PDF using pdftk
 pdftk "$1" cat 1-endright output "$2"
 EOF
 
-chmod +x .forge/skills/pdf-editor/scripts/rotate.sh
+chmod +x .forge/skills/edit-pdf/scripts/rotate.sh
 ```
 
 After initialization, customize the generated files as needed.

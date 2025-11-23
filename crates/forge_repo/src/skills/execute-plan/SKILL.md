@@ -1,9 +1,9 @@
 ---
-name: plan-executor
+name: execute-plan
 description: Execute structured task plans with status tracking. Use when the user provides a plan file path in the format `plans/{current-date}-{task-name}-{version}.md` or explicitly asks you to execute a plan file.
 ---
 
-# Plan Executor
+# Execute Plan
 
 Execute structured task plans with automatic status tracking and progress updates.
 
