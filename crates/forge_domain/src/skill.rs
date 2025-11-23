@@ -12,7 +12,7 @@ pub struct Skill {
     pub name: String,
 
     /// File path to the skill markdown file
-    pub path: PathBuf,
+    pub path: Option<PathBuf>,
 
     /// Content/prompt loaded from the markdown file
     pub command: String,
@@ -27,18 +27,16 @@ impl Skill {
     /// # Arguments
     ///
     /// * `name` - The name identifier for the skill
-    /// * `path` - The file system path to the skill markdown file
     /// * `prompt` - The skill prompt content
     /// * `description` - A brief description of the skill
     pub fn new(
         name: impl Into<String>,
-        path: impl Into<PathBuf>,
         prompt: impl Into<String>,
         description: impl Into<String>,
     ) -> Self {
         Self {
             name: name.into(),
-            path: path.into(),
+            path: None,
             command: prompt.into(),
             description: description.into(),
         }
@@ -56,10 +54,10 @@ mod tests {
         // Fixture
         let fixture = Skill::new(
             "code_review",
-            "/skills/code_review.md",
             "Review this code",
             "A skill for reviewing code quality",
-        );
+        )
+        .path("/skills/code_review.md");
 
         // Act
         let actual = (
@@ -72,7 +70,7 @@ mod tests {
         // Assert
         let expected = (
             "code_review".to_string(),
-            "/skills/code_review.md".into(),
+            Some("/skills/code_review.md".into()),
             "Review this code".to_string(),
             "A skill for reviewing code quality".to_string(),
         );
@@ -82,7 +80,8 @@ mod tests {
     #[test]
     fn test_skill_with_setters() {
         // Fixture
-        let fixture = Skill::new("test", "/path", "prompt", "desc")
+        let fixture = Skill::new("test", "prompt", "desc")
+            .path("/path")
             .name("updated_name")
             .path("/updated/path")
             .command("updated prompt")
@@ -92,12 +91,8 @@ mod tests {
         let actual = fixture;
 
         // Assert
-        let expected = Skill::new(
-            "updated_name",
-            "/updated/path",
-            "updated prompt",
-            "updated description",
-        );
+        let expected = Skill::new("updated_name", "updated prompt", "updated description")
+            .path("/updated/path");
         assert_eq!(actual, expected);
     }
 }

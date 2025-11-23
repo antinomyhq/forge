@@ -138,12 +138,10 @@ mod tests {
     #[async_trait::async_trait]
     impl SkillFetchService for MockSkillFetchService {
         async fn fetch_skill(&self, _skill_name: String) -> anyhow::Result<forge_domain::Skill> {
-            Ok(forge_domain::Skill::new(
-                "test_skill",
-                "/skills/test.md",
-                "Test skill",
-                "Test skill description",
-            ))
+            Ok(
+                forge_domain::Skill::new("test_skill", "Test skill", "Test skill description")
+                    .path("/skills/test.md"),
+            )
         }
 
         async fn list_skills(&self) -> anyhow::Result<Vec<forge_domain::Skill>> {

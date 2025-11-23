@@ -1064,9 +1064,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         for skill in skills {
             info = info
                 .add_title(skill.name.clone().to_case(Case::Sentence).to_uppercase())
-                .add_key_value("name", skill.name)
-                .add_key_value("path", format_display_path(&skill.path, &env.cwd))
-                .add_key_value("description", skill.description);
+                .add_key_value("name", skill.name);
+
+            if let Some(path) = skill.path {
+                info = info.add_key_value("path", format_display_path(&path, &env.cwd));
+            }
+
+            info = info.add_key_value("description", skill.description);
         }
 
         if porcelain {

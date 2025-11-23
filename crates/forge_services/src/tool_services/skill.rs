@@ -67,18 +67,9 @@ mod tests {
     async fn test_fetch_skill_found() {
         // Fixture
         let skills = vec![
-            Skill::new(
-                "pdf",
-                "/skills/pdf.md",
-                "Handle PDF files",
-                "PDF handling skill",
-            ),
-            Skill::new(
-                "xlsx",
-                "/skills/xlsx.md",
-                "Handle Excel files",
-                "Excel handling skill",
-            ),
+            Skill::new("pdf", "Handle PDF files", "PDF handling skill").path("/skills/pdf.md"),
+            Skill::new("xlsx", "Handle Excel files", "Excel handling skill")
+                .path("/skills/xlsx.md"),
         ];
         let repo = MockSkillRepository { skills: skills.clone() };
         let fetch_service = ForgeSkillFetch::new(Arc::new(repo));
@@ -88,24 +79,17 @@ mod tests {
 
         // Assert
         assert!(actual.is_ok());
-        let expected = Skill::new(
-            "pdf",
-            "/skills/pdf.md",
-            "Handle PDF files",
-            "PDF handling skill",
-        );
+        let expected =
+            Skill::new("pdf", "Handle PDF files", "PDF handling skill").path("/skills/pdf.md");
         assert_eq!(actual.unwrap(), expected);
     }
 
     #[tokio::test]
     async fn test_fetch_skill_not_found() {
         // Fixture
-        let skills = vec![Skill::new(
-            "pdf",
-            "/skills/pdf.md",
-            "Handle PDF files",
-            "PDF handling skill",
-        )];
+        let skills = vec![
+            Skill::new("pdf", "Handle PDF files", "PDF handling skill").path("/skills/pdf.md"),
+        ];
         let repo = MockSkillRepository { skills };
         let fetch_service = ForgeSkillFetch::new(Arc::new(repo));
 
@@ -122,18 +106,9 @@ mod tests {
     async fn test_list_skills() {
         // Fixture
         let expected = vec![
-            Skill::new(
-                "pdf",
-                "/skills/pdf.md",
-                "Handle PDF files",
-                "PDF handling skill",
-            ),
-            Skill::new(
-                "xlsx",
-                "/skills/xlsx.md",
-                "Handle Excel files",
-                "Excel handling skill",
-            ),
+            Skill::new("pdf", "Handle PDF files", "PDF handling skill").path("/skills/pdf.md"),
+            Skill::new("xlsx", "Handle Excel files", "Excel handling skill")
+                .path("/skills/xlsx.md"),
         ];
         let repo = MockSkillRepository { skills: expected.clone() };
         let fetch_service = ForgeSkillFetch::new(Arc::new(repo));

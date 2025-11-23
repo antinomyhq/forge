@@ -140,12 +140,9 @@ impl<I: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra + FileReaderInfr
                             } else {
                                 // Fallback: create skill with directory name if front matter is
                                 // missing
-                                Ok(Some(Skill::new(
-                                    skill_name,
-                                    Some(path_str),
-                                    content,
-                                    String::new(),
-                                )))
+                                Ok(Some(
+                                    Skill::new(skill_name, content, String::new()).path(path_str),
+                                ))
                             }
                         }
                         Err(e) => {
@@ -200,13 +197,12 @@ struct SkillMetadata {
 fn extract_skill(path: &str, content: &str) -> Option<Skill> {
     let matter = Matter::<YAML>::new();
     let result = matter.parse::<SkillMetadata>(content);
-    let path = Some(path.into());
     result.ok().and_then(|parsed| {
         let command = parsed.content;
         parsed
             .data
             .and_then(|data| data.name.zip(data.description))
-            .map(|(name, description)| Skill { name, path: path.clone(), command, description })
+            .map(|(name, description)| Skill::new(name, command, description).path(path))
     })
 }
 
@@ -241,8 +237,8 @@ mod tests {
     fn test_resolve_skill_conflicts_no_duplicates() {
         // Fixture
         let skills = vec![
-            Skill::new("skill1", Some("/path/skill1.md"), "prompt1", "desc1"),
-            Skill::new("skill2", Some("/path/skill2.md"), "prompt2", "desc2"),
+            Skill::new("skill1", "prompt1", "desc1").path("/path/skill1.md"),
+            Skill::new("skill2", "prompt2", "desc2").path("/path/skill2.md"),
         ];
 
         // Act
@@ -259,14 +255,9 @@ mod tests {
     fn test_resolve_skill_conflicts_with_duplicates() {
         // Fixture
         let skills = vec![
-            Skill::new(
-                "skill1",
-                Some("/global/skill1.md"),
-                "global prompt",
-                "global desc",
-            ),
-            Skill::new("skill2", Some("/global/skill2.md"), "prompt2", "desc2"),
-            Skill::new("skill1", Some("/cwd/skill1.md"), "cwd prompt", "cwd desc"),
+            Skill::new("skill1", "global prompt", "global desc").path("/global/skill1.md"),
+            Skill::new("skill2", "prompt2", "desc2").path("/global/skill2.md"),
+            Skill::new("skill1", "cwd prompt", "cwd desc").path("/cwd/skill1.md"),
         ];
 
         // Act
@@ -329,12 +320,14 @@ mod tests {
         let actual = extract_skill(path, content);
 
         // Assert
-        let expected = Some(Skill::new(
-            "pdf-handler",
-            Some(path),
-            "# PDF Handler\n\nContent here...",
-            "This is a skill for handling PDF files",
-        ));
+        let expected = Some(
+            Skill::new(
+                "pdf-handler",
+                "# PDF Handler\n\nContent here...",
+                "This is a skill for handling PDF files",
+            )
+            .path(path),
+        );
         assert_eq!(actual, expected);
     }
 
