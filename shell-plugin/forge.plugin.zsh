@@ -63,14 +63,7 @@ function _forge_exec() {
     # Ensure FORGE_ACTIVE_AGENT always has a value, default to "forge"
     local agent_id="${_FORGE_ACTIVE_AGENT:-forge}"
     
-    # Disable application cursor keys mode - ensures arrow keys work in dialoguer
-    # Without this, arrow keys send wrong sequences and print A/B characters
-    printf '\e[?1l'
-    
     eval "$_FORGE_BIN --agent $(printf '%q' "$agent_id") $(printf '%q ' "$@")"
-    
-    # Re-enable application cursor keys mode
-    printf '\e[?1h'
 }
 
 # Helper function to clear buffer and reset prompt
