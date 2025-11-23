@@ -49,7 +49,7 @@ tree-sitter-swift.workspace = true
 tree-sitter-kotlin-ng.workspace = true
 tree-sitter-dart.workspace = true
 tree-sitter-yaml.workspace = true
-# devgen-tree-sitter-toml = { version = "0.21.0" } # Alternative for tree-sitter-toml (conflicts)
+tree-sitter-toml-ng.workspace = true
 tree-sitter-bash.workspace = true
 tree-sitter-html.workspace = true
 tree-sitter-json.workspace = true

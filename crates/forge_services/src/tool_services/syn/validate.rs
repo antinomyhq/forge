@@ -3,9 +3,10 @@ use std::path::Path;
 use thiserror::Error;
 use tree_sitter::{Language, LanguageError, Parser};
 use tree_sitter_dart::language;
-use tree_sitter_md::LANGUAGE;
-use tree_sitter_php::LANGUAGE_PHP;
-use tree_sitter_sequel::LANGUAGE;
+use tree_sitter_md::LANGUAGE as MD_LANGUAGE;
+use tree_sitter_php::LANGUAGE_PHP as PHP_LANGUAGE;
+use tree_sitter_sequel::LANGUAGE as SQL_LANGUAGE;
+use tree_sitter_toml_ng::LANGUAGE as TOML_LANGUAGE;
 
 /// Represents possible errors that can occur during syntax validation
 #[derive(Debug, Error, PartialEq)]
@@ -84,13 +85,13 @@ pub fn extension(ext: &str) -> Option<Language> {
         "kt" | "kts" => Some(tree_sitter_kotlin_ng::LANGUAGE.into()),
         "dart" => Some(tree_sitter_dart::language()), // Correct: Uses language() function
         "yml" | "yaml" => Some(tree_sitter_yaml::LANGUAGE.into()),
-        // "toml" => Some(devgen_tree_sitter_toml::language().into()), // TODO: Fix conflicts with
+        "toml" => Some(TOML_LANGUAGE.into()), // Fixed: Use tree-sitter-toml-ng
         // tree-sitter
         "sh" | "bash" | "zsh" | "fish" => Some(tree_sitter_bash::LANGUAGE.into()),
         "html" | "htm" | "xhtml" => Some(tree_sitter_html::LANGUAGE.into()),
         "json" => Some(tree_sitter_json::LANGUAGE.into()),
-        "sql" => Some(tree_sitter_sequel::LANGUAGE.into()),
-        "md" | "markdown" => Some(tree_sitter_md::LANGUAGE.into()), /* Fixed: Use tree-sitter-md
+        "sql" => Some(SQL_LANGUAGE.into()),
+        "md" | "markdown" => Some(MD_LANGUAGE.into()), /* Fixed: Use tree-sitter-md
                                                                       * with LANGUAGE constant */
         "ps1" | "psm1" | "psd1" => Some(tree_sitter_powershell::LANGUAGE.into()),
 
@@ -471,8 +472,9 @@ mod tests {
         assert!(extension("unknown").is_none());
         assert!(extension("txt").is_none());
 
-        // Test languages with API issues (should return None for now)
-        assert!(extension("toml").is_none()); // TODO: Fix API - devgen-tree-sitter-toml conflicts with tree-sitter
+        // Test languages with API issues (all now resolved!)
+// TOML now works with tree-sitter-toml-ng!
+        assert!(extension("toml").is_some());
         assert!(extension("md").is_some()); // Fixed: Now works with tree-sitter-md
 
         // SQL now works with tree-sitter-sequel
