@@ -19,6 +19,9 @@ pub struct Skill {
 
     /// Description of the skill
     pub description: String,
+
+    /// List of resource files in the skill directory
+    pub resources: Vec<PathBuf>,
 }
 
 impl Skill {
@@ -39,6 +42,7 @@ impl Skill {
             path: None,
             command: prompt.into(),
             description: description.into(),
+            resources: Vec::new(),
         }
     }
 }

@@ -487,7 +487,22 @@ impl ToolOperation {
                 forge_domain::ToolOutput::text(elm)
             }
             ToolOperation::Skill { input: _, output } => {
-                let elm = Element::new("command").cdata(output.command);
+                let mut elm = Element::new("skill");
+
+                // Insert Command
+                let mut elm_cmd = Element::new("command");
+                if let Some(path) = output.path {
+                    elm_cmd = elm_cmd.append(Element::new("path").text(path.display().to_string()));
+                }
+                elm = elm.append(elm_cmd.cdata(output.command));
+
+                // Insert Resources
+                if !output.resources.is_empty() {
+                    elm =
+                        elm.append(output.resources.iter().map(|resource| {
+                            Element::new("file").text(resource.display().to_string())
+                        }));
+                }
 
                 forge_domain::ToolOutput::text(elm)
             }
