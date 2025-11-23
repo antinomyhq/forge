@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use derive_setters::Setters;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -10,7 +12,7 @@ pub struct Skill {
     pub name: String,
 
     /// File path to the skill markdown file
-    pub path: String,
+    pub path: PathBuf,
 
     /// Content/prompt loaded from the markdown file
     pub command: String,
@@ -30,7 +32,7 @@ impl Skill {
     /// * `description` - A brief description of the skill
     pub fn new(
         name: impl Into<String>,
-        path: impl Into<String>,
+        path: impl Into<PathBuf>,
         prompt: impl Into<String>,
         description: impl Into<String>,
     ) -> Self {
@@ -70,7 +72,7 @@ mod tests {
         // Assert
         let expected = (
             "code_review".to_string(),
-            "/skills/code_review.md".to_string(),
+            "/skills/code_review.md".into(),
             "Review this code".to_string(),
             "A skill for reviewing code quality".to_string(),
         );

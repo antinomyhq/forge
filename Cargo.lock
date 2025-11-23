@@ -1425,6 +1425,7 @@ dependencies = [
  "forge_fs",
  "forge_infra",
  "forge_snaps",
+ "futures",
  "gray_matter",
  "handlebars",
  "merge 0.2.0",
