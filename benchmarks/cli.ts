@@ -17,6 +17,19 @@ import { parseCliArgs } from "./parse.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+/**
+ * Formats a date with local timezone information
+ */
+function formatTimestamp(date: Date): string {
+  const offset = -date.getTimezoneOffset();
+  const sign = offset >= 0 ? '+' : '-';
+  const hours = Math.floor(Math.abs(offset) / 60).toString().padStart(2, '0');
+  const minutes = (Math.abs(offset) % 60).toString().padStart(2, '0');
+  const timezone = `${sign}${hours}:${minutes}`;
+  
+  return `${date.toISOString().replace('Z', '')}${timezone}`;
+}
+
 async function main() {
   // Parse command line arguments
   let args;
@@ -165,7 +178,7 @@ async function main() {
       
       // Write command at the top of the log file
       logStream.write(`Command: ${command}\n`);
-      logStream.write(`Started: ${new Date().toISOString()}\n`);
+      logStream.write(`Started: ${formatTimestamp(new Date())}\n`);
       logStream.write(`${"=".repeat(80)}\n\n`);
       
       try {
@@ -216,7 +229,7 @@ async function main() {
             if (timedOut) return;
             
             logStream.write(`\n${"=".repeat(80)}\n`);
-            logStream.write(`Finished: ${new Date().toISOString()}\n`);
+            logStream.write(`Finished: ${formatTimestamp(new Date())}\n`);
             logStream.write(`Exit Code: ${code}\n`);
             logStream.end();
             

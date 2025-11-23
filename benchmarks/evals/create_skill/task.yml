@@ -7,6 +7,6 @@ run:
 validations:
   - name: "Check success message"
     type: matches_regex
-    regex: "Skill created successfully"
+    regex: \[[0-9:]*\] Skill create-skill
 sources:
   - csv: create_skill_tasks.csv
