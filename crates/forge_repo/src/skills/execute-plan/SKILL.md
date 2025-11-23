@@ -1,5 +1,5 @@
 ---
-name: execute-plan
+name: create-skill
 description: Execute structured task plans with status tracking. Use when the user provides a plan file path in the format `plans/{current-date}-{task-name}-{version}.md` or explicitly asks you to execute a plan file.
 ---
 

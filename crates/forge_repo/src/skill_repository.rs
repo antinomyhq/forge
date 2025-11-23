@@ -43,8 +43,8 @@ impl<I> ForgeSkillRepository<I> {
     fn load_builtin_skills(&self) -> Vec<Skill> {
         let builtin_skills = vec![
             (
-                "forge://skills/skill-creator/SKILL.md",
-                include_str!("skills/skill-creator/SKILL.md"),
+                "forge://skills/create-skill/SKILL.md",
+                include_str!("skills/create-skill/SKILL.md"),
             ),
             (
                 "forge://skills/execute-plan/SKILL.md",
