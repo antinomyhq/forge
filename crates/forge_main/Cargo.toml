@@ -53,6 +53,7 @@ num-format.workspace = true
 atty = "0.2"
 url.workspace = true
 indexmap.workspace = true
+arboard = "3.4"
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt", "time", "test-util"] }
