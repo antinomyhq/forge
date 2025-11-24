@@ -1451,6 +1451,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "console 0.16.1",
+ "crossterm 0.28.1",
  "dialoguer",
  "pretty_assertions",
 ]
