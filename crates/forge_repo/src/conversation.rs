@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::{env, fs};
 
 use chrono::{DateTime, NaiveDateTime, Utc};
 use derive_more::From;
@@ -187,7 +188,7 @@ impl ConversationRepository for ConversationRepositoryImpl {
         let mut connection = self.pool.get_connection()?;
 
         let wid = self.wid;
-        let record = ConversationRecord::new(conversation, wid);
+        let record = ConversationRecord::new(conversation.clone(), wid);
         diesel::insert_into(conversations::table)
             .values(&record)
             .on_conflict(conversations::conversation_id)
@@ -199,6 +200,13 @@ impl ConversationRepository for ConversationRepositoryImpl {
                 conversations::metrics.eq(&record.metrics),
             ))
             .execute(&mut connection)?;
+
+        // Sync to file if environment variable is set
+        if let Ok(sync_file) = env::var("FORGE_SYNC_CONVERSATION_FILE") {
+            let json = serde_json::to_string_pretty(&conversation)?;
+            fs::write(&sync_file, json)?;
+        }
+
         Ok(())
     }
 
@@ -268,6 +276,7 @@ impl ConversationRepository for ConversationRepositoryImpl {
 mod tests {
     use forge_domain::ContextMessage;
     use pretty_assertions::assert_eq;
+    use serial_test::serial;
 
     use super::*;
     use crate::database::DatabasePool;
@@ -804,5 +813,65 @@ mod tests {
         assert!(json.contains("\"lines_added\":10"));
         assert!(json.contains("\"lines_removed\":5"));
         assert!(json.contains("\"content_hash\":\"abc123\""));
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_sync_conversation_to_file_when_env_set() -> anyhow::Result<()> {
+        let conversation_id = ConversationId::generate();
+        let fixture = Conversation::new(conversation_id.clone())
+            .title(Some("Synced Conversation".to_string()));
+        let repo = repository()?;
+
+        // Create a unique temporary file path for this test
+        let temp_file = std::env::temp_dir().join(format!("test_sync_{}.json", conversation_id));
+        let temp_file_str = temp_file.to_str().unwrap();
+
+        // Clean up any existing file from previous runs
+        let _ = fs::remove_file(&temp_file);
+
+        // Set the environment variable
+        env::set_var("FORGE_SYNC_CONVERSATION_FILE", temp_file_str);
+
+        // Upsert the conversation
+        repo.upsert_conversation(fixture.clone()).await?;
+
+        // Verify the file was created
+        assert!(temp_file.exists());
+
+        // Read and verify the file contents contain expected data
+        let file_contents = fs::read_to_string(&temp_file)?;
+        let actual: serde_json::Value = serde_json::from_str(&file_contents)?;
+
+        // Verify the JSON contains the expected fields
+        assert!(actual["id"].as_str().is_some());
+        assert_eq!(actual["title"].as_str(), Some("Synced Conversation"));
+
+        // Cleanup
+        fs::remove_file(&temp_file)?;
+        env::remove_var("FORGE_SYNC_CONVERSATION_FILE");
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_no_sync_when_env_not_set() -> anyhow::Result<()> {
+        let fixture = Conversation::new(ConversationId::generate())
+            .title(Some("Not Synced Conversation".to_string()));
+        let repo = repository()?;
+
+        // Ensure the environment variable is not set
+        env::remove_var("FORGE_SYNC_CONVERSATION_FILE");
+
+        // Upsert the conversation should succeed without creating any file
+        repo.upsert_conversation(fixture.clone()).await?;
+
+        // Verify the conversation was saved to the database
+        let actual = repo.get_conversation(&fixture.id).await?;
+        assert!(actual.is_some());
+        assert_eq!(actual.unwrap().id, fixture.id);
+
+        Ok(())
     }
 }
