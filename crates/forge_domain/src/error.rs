@@ -88,6 +88,9 @@ pub enum Error {
 
     #[error("Failed to create VertexAI provider: {message}")]
     VertexAiConfiguration { message: String },
+
+    #[error("No default provider set.")]
+    NoDefaultProvider,
 }
 
 pub type Result<A> = std::result::Result<A, Error>;

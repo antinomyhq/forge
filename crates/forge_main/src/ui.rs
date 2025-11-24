@@ -640,42 +640,49 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     ) -> anyhow::Result<()> {
         use crate::model::CliProvider;
 
-        // If provider_id is specified, find and login to that specific provider
-        if let Some(id) = provider_id {
-            let provider = self.api.get_provider(id).await?;
-            self.configure_provider(provider.id(), provider.auth_methods().to_vec())
-                .await?;
-            return Ok(());
-        }
+        // Get the provider to login to
+        let any_provider = if let Some(id) = provider_id {
+            // Specific provider requested
+            self.api.get_provider(id).await?
+        } else {
+            // Fetch all providers for selection
+            let providers = self
+                .api
+                .get_providers()
+                .await?
+                .into_iter()
+                .map(CliProvider)
+                .collect::<Vec<_>>();
 
-        // Fetch all providers for selection
-        let providers = self
-            .api
-            .get_providers()
+            // Sort the providers by their display names
+            let mut sorted_providers = providers;
+            sorted_providers.sort_by_key(|a| a.to_string());
+
+            // Use the centralized select module
+            match ForgeSelect::select("Select a provider to login:", sorted_providers)
+                .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
+                .prompt()?
+            {
+                Some(provider) => provider.0,
+                None => {
+                    self.writeln_title(TitleFormat::info("Cancelled"))?;
+                    return Ok(());
+                }
+            }
+        };
+
+        // For login, always configure (even if already configured) to allow
+        // re-authentication
+        let provider = match self
+            .configure_provider(any_provider.id(), any_provider.auth_methods().to_vec())
             .await?
-            .into_iter()
-            .map(CliProvider)
-            .collect::<Vec<_>>();
-
-        // Sort the providers by their display names
-        let mut sorted_providers = providers;
-        sorted_providers.sort_by_key(|a| a.to_string());
-
-        // Use the centralized select module
-        match ForgeSelect::select("Select a provider to login:", sorted_providers)
-            .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
-            .prompt()?
         {
-            Some(provider) => {
-                self.configure_provider(provider.0.id(), provider.0.auth_methods().to_vec())
-                    .await?;
-            }
-            None => {
-                self.writeln_title(TitleFormat::info("Cancelled"))?;
-            }
-        }
+            Some(provider) => provider,
+            None => return Ok(()),
+        };
 
-        Ok(())
+        // Set as default and handle model selection
+        self.finalize_provider_activation(provider).await
     }
 
     async fn handle_provider_logout(
@@ -1552,8 +1559,13 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     #[async_recursion::async_recursion]
     async fn select_model(&mut self) -> Result<Option<ModelId>> {
         // Check if provider is set otherwise first ask to select a provider
-        if !self.api.get_default_provider().await.is_ok() {
+        if self.api.get_default_provider().await.is_err() {
             self.on_provider_selection().await?;
+
+            // Check if a model was already selected during provider activation
+            if let Some(model) = self.api.get_default_model().await {
+                return Ok(Some(model));
+            }
         }
 
         // Fetch available models
@@ -1822,11 +1834,11 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         &mut self,
         provider_id: ProviderId,
         auth_methods: Vec<AuthMethod>,
-    ) -> Result<bool> {
+    ) -> Result<Option<Provider<Url>>> {
         // Select auth method (or use the only one available)
         let auth_method = match self.select_auth_method(provider_id, &auth_methods).await? {
             Some(method) => method,
-            None => return Ok(false), // User cancelled
+            None => return Ok(None), // User cancelled
         };
 
         self.spinner.start(Some("Initiating authentication..."))?;
@@ -1850,7 +1862,15 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
         }
 
-        self.display_credential_success(provider_id).await
+        let should_set_active = self.display_credential_success(provider_id).await?;
+
+        if !should_set_active {
+            return Ok(None);
+        }
+
+        // Fetch and return the configured provider
+        let provider = self.api.get_provider(&provider_id).await?;
+        Ok(provider.into_configured())
     }
 
     /// Selects a provider, optionally configuring it if not already configured.
@@ -1921,27 +1941,36 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             None => return Ok(()),
         };
 
-        // Trigger authentication for the selected provider
+        self.activate_provider(any_provider).await
+    }
 
-        if !any_provider.is_configured() {
-            let can_set_default_provider = self
+    /// Activates a provider by configuring it if needed, setting it as default,
+    /// and ensuring a compatible model is selected.
+    async fn activate_provider(&mut self, any_provider: AnyProvider) -> Result<()> {
+        // Trigger authentication for the selected provider only if not configured
+        let provider = if !any_provider.is_configured() {
+            match self
                 .configure_provider(any_provider.id(), any_provider.auth_methods().to_vec())
-                .await?;
-
-            if !can_set_default_provider {
-                return Ok(());
+                .await?
+            {
+                Some(provider) => provider,
+                None => return Ok(()),
             }
-        }
-
-        // Refetch the provider after the auth completion
-        // FIXME: Ideally the configured provider should be returned by the `configure_provider` function.
-        let provider = self.api.get_provider(&any_provider.id()).await?;
-
-        let provider = match provider.into_configured() {
-            Some(provider) => provider,
-            None => return Ok(()),
+        } else {
+            // Provider is already configured, convert it
+            match any_provider.into_configured() {
+                Some(provider) => provider,
+                None => return Ok(()),
+            }
         };
 
+        // Set as default and handle model selection
+        self.finalize_provider_activation(provider).await
+    }
+
+    /// Finalizes provider activation by setting it as default and ensuring
+    /// a compatible model is selected.
+    async fn finalize_provider_activation(&mut self, provider: Provider<Url>) -> Result<()> {
         // Set the provider via API
         self.api.set_default_provider(provider.id).await?;
 
@@ -1962,6 +1991,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.on_model_selection().await?;
             }
         } else {
+            // No model set, select one now
             self.on_model_selection().await?;
         }
 
@@ -2083,11 +2113,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .await
             .is_none()
         {
-            let model = self
-                .select_model()
-                .await?
-                .ok_or(anyhow::anyhow!("Model selection is required to continue"))?;
-            self.api.set_default_model(model).await?;
+            self.on_model_selection().await?;
         }
 
         // Create base workflow and trigger updates if this is the first initialization
@@ -2468,9 +2494,19 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Set the specified field
         match args.field {
             ConfigField::Provider => {
-                let provider_id = self.validate_provider(&args.value).await?;
-                self.api.set_default_provider(provider_id).await?;
-                self.writeln_title(TitleFormat::action("Provider set").sub_title(&args.value))?;
+                // Parse and validate provider ID
+                let provider_id = ProviderId::from_str(&args.value).with_context(|| {
+                    format!(
+                        "Invalid provider: '{}'. Valid providers are: {}",
+                        args.value,
+                        get_valid_provider_names().join(", ")
+                    )
+                })?;
+
+                // Get the provider
+                let provider = self.api.get_provider(&provider_id).await?;
+                // Activate the provider (will configure if needed and set as default)
+                self.activate_provider(provider).await?;
             }
             ConfigField::Model => {
                 let model_id = self.validate_model(&args.value).await?;
@@ -2538,44 +2574,6 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 "Model '{}' not found. Available models: {}",
                 model_str,
                 suggestion
-            ))
-        }
-    }
-
-    /// Validate provider exists and has API key
-    async fn validate_provider(&mut self, provider_str: &str) -> Result<ProviderId> {
-        // Parse provider ID from string
-        let provider_id = ProviderId::from_str(provider_str).with_context(|| {
-            format!(
-                "Invalid provider: '{}'. Valid providers are: {}",
-                provider_str,
-                get_valid_provider_names().join(", ")
-            )
-        })?;
-
-        // Check if provider is configured
-        let providers = self.api.get_providers().await?;
-        let provider_entry = providers
-            .iter()
-            .find(|p| p.id() == provider_id)
-            .ok_or_else(|| forge_domain::Error::provider_not_available(provider_id))?;
-
-        // If already configured, return immediately
-        if provider_entry.is_configured() {
-            return Ok(provider_id);
-        }
-
-        // Configure the provider
-        let auth_methods = provider_entry.auth_methods().to_vec();
-        self.configure_provider(provider_id, auth_methods).await?;
-
-        // Verify configuration succeeded
-        if self.api.get_provider(&provider_id).await?.is_configured() {
-            Ok(provider_id)
-        } else {
-            Err(anyhow::anyhow!(
-                "Failed to configure provider {}",
-                provider_id
             ))
         }
     }

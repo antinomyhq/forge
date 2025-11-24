@@ -356,8 +356,7 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + AppConf
             .get_app_config()
             .await?
             .provider
-            // FIXME: Use domain error
-            .ok_or(anyhow::anyhow!("No default provider set"))?;
+            .ok_or(Error::NoDefaultProvider)?;
 
         self.services.provider_service().get_provider(id).await
     }
