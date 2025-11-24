@@ -7,7 +7,7 @@ use forge_domain::{
 };
 use tracing::debug;
 
-use crate::TemplateService;
+use crate::{PromptContext, PromptProcessor, SecurityContext, TemplateService};
 
 #[derive(Setters)]
 pub struct SystemPrompt<S> {
@@ -18,10 +18,16 @@ pub struct SystemPrompt<S> {
     files: Vec<String>,
     models: Vec<Model>,
     custom_instructions: Vec<String>,
+    prompt_processor: Arc<dyn PromptProcessor + Send + Sync>,
 }
 
 impl<S: TemplateService> SystemPrompt<S> {
-    pub fn new(services: Arc<S>, environment: Environment, agent: Agent) -> Self {
+    pub fn new(
+        services: Arc<S>,
+        environment: Environment,
+        agent: Agent,
+        prompt_processor: Arc<dyn PromptProcessor + Send + Sync>,
+    ) -> Self {
         Self {
             services,
             environment,
@@ -30,6 +36,7 @@ impl<S: TemplateService> SystemPrompt<S> {
             tool_definitions: Vec::default(),
             files: Vec::default(),
             custom_instructions: Vec::default(),
+            prompt_processor,
         }
     }
 
@@ -70,9 +77,31 @@ impl<S: TemplateService> SystemPrompt<S> {
                 supports_parallel_tool_calls,
             };
 
+            // Process inline shell commands using the new PromptProcessor
+            // Use less restrictive security context for agent system prompts to allow
+            // common commands
+            let security_context = SecurityContext::new(
+                PromptContext::System,
+                self.environment.cwd.clone(),
+                false, // Not restricted - allow all commands for system prompt processing
+                None,  // No allowed commands list (allow all)
+            );
+            let processed_template = self
+                .prompt_processor
+                .process_inline_commands(&system_prompt.template, &security_context)
+                .await
+                .unwrap_or_else(|e| {
+                    debug!(
+                        "Failed to process inline shell commands in system prompt: {}",
+                        e
+                    );
+                    // Fallback to original template on error
+                    system_prompt.template.clone()
+                });
+
             let static_block = self
                 .services
-                .render_template(Template::new(&system_prompt.template), &())
+                .render_template(Template::new(&processed_template), &())
                 .await?;
             let non_static_block = self
                 .services
