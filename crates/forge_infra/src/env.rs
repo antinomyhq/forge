@@ -88,6 +88,9 @@ impl ForgeEnvironmentInfra {
             max_conversations: parse_env::<usize>("FORGE_MAX_CONVERSATIONS").unwrap_or(100),
             override_model,
             override_provider,
+            max_workspace_depth: parse_env::<usize>("FORGE_MAX_WORKSPACE_DEPTH")
+                .map(|depth| if depth == 0 { None } else { Some(depth) })
+                .unwrap_or(Some(10)), // Default to 10 levels
         }
     }
 

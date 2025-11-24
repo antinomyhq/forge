@@ -89,6 +89,7 @@ impl From<&Environment> for Info {
             .add_title("ENVIRONMENT")
             .add_key_value("Version", VERSION)
             .add_key_value("Working Directory", format_path_for_display(env, &env.cwd))
+            .add_key_value("Workspace Root", format_path_for_display(env, &env.workspace_root()))
             .add_key_value("Shell", &env.shell)
             .add_key_value("Git Branch", branch_info)
             .add_title("PATHS");

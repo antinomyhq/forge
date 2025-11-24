@@ -157,8 +157,19 @@ Forge is designed for developers who want to enhance their workflow with AI assi
 - **Multi-provider support** - Use OpenAI, Anthropic, or other LLM providers
 - **Secure by design** - Your code stays on your machine
 - **Open-source** - Transparent, extensible, and community-driven
+- **Workspace-aware** - Automatically isolates history and context per project
 
 Forge helps you code faster, solve complex problems, and learn new technologies without leaving your terminal.
+
+## Workspace-Based History
+
+Forge automatically detects your project workspace and isolates conversation history per project. This ensures that each project maintains its own context and conversation history, preventing cross-contamination between different workspaces.
+
+**Key benefits:**
+- **Project isolation** - Each workspace gets its own `.forge_history` file
+- **Smart detection** - Automatically finds workspace root using markers like `.git`, `forge.yaml`, `.forge`, or `forge/.config.json`
+- **Consistent IDs** - All directories within the same workspace share the same workspace ID
+- **Configurable** - Customize workspace markers and search depth via environment variables
 
 ## Command-Line Options
 
@@ -516,9 +527,37 @@ FORGE_HISTORY_FILE=/path/to/history    # Custom path for Forge history file (def
 FORGE_BANNER="Your custom banner text" # Custom banner text to display on startup (default: Forge ASCII art)
 FORGE_SHOW_TASK_STATS=true             # Show task stats such as file changes, token usage etc. after completion (default: true)
 FORGE_MAX_CONVERSATIONS=100            # Maximum number of conversations to show in list (default: 100)
+FORGE_MAX_WORKSPACE_DEPTH=10           # Maximum directories to traverse when finding workspace root (default: 10)
+FORGE_WORKSPACE_MARKERS=".git,forge.yaml,.forge,forge/.config.json"  # Workspace markers (default: .git,forge.yaml,.forge,forge/.config.json)
 SHELL=/bin/zsh                         # Shell to use for command execution (Unix/Linux/macOS)
 COMSPEC=cmd.exe                        # Command processor to use (Windows)
 ```
+
+</details>
+
+<details>
+<summary><strong>Workspace Configuration</strong></summary>
+
+Configure workspace detection and history isolation:
+
+```bash
+# .env
+FORGE_MAX_WORKSPACE_DEPTH=10           # Maximum directories to traverse when finding workspace root (default: 10)
+FORGE_WORKSPACE_MARKERS=".git,forge.yaml,.forge,forge/.config.json"  # Comma-separated workspace markers
+FORGE_HISTORY_FILE=/path/to/history    # Custom history path override (takes priority over workspace-based history)
+```
+
+**How it works:**
+- Forge automatically detects your workspace root by traversing up from current directory looking for markers
+- Each workspace gets its own isolated history file (`{workspace_root}/.forge_history`)
+- All directories within the same workspace share the same workspace ID
+- Custom history path (`FORGE_HISTORY_FILE`) still takes priority when set
+
+**Default workspace markers (in priority order):**
+1. `.git` - Git repository (directory or worktree file)
+2. `forge.yaml` - Forge configuration file
+3. `.forge` - Forge directory  
+4. `forge/.config.json` - Forge config file in forge directory
 
 </details>
 
