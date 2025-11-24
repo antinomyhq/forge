@@ -60,14 +60,13 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
     }
 
     async fn get_models(&self) -> Result<Vec<Model>> {
-        Ok(self
-            .services
-            .models(
-                self.get_default_provider()
-                    .await
-                    .context("Failed to fetch models")?,
-            )
-            .await?)
+        let provider = self
+            .get_default_provider()
+            .await
+            .context("Failed to fetch default provider")?
+            .ok_or_else(|| anyhow::anyhow!("No default provider configured"))?;
+
+        Ok(self.services.models(provider).await?)
     }
     async fn get_agents(&self) -> Result<Vec<Agent>> {
         self.services.get_agents().await
@@ -223,18 +222,34 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
 
     async fn get_agent_provider(&self, agent_id: AgentId) -> anyhow::Result<Provider<Url>> {
         let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
-        agent_provider_resolver.get_provider(Some(agent_id)).await
+        agent_provider_resolver
+            .get_provider(Some(agent_id))
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("No provider configured for agent"))
     }
 
     async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
         // Invalidate cache for agents
         let result = self.services.set_default_provider(provider_id).await;
-        self.services.reload_agents().await?;
+
+        // Only reload agents if both provider and model are available
+        if let Some(agent_id) = self.get_active_agent().await {
+            let has_provider = self.get_agent_provider(agent_id.clone()).await.is_ok();
+            let has_model = self.get_agent_model(agent_id).await.is_some();
+
+            if has_provider && has_model {
+                self.services.reload_agents().await?;
+            }
+        }
+
         result
     }
 
     async fn user_info(&self) -> Result<Option<User>> {
-        let provider = self.get_default_provider().await?;
+        let Some(provider) = self.get_default_provider().await? else {
+            return Ok(None);
+        };
+
         if let Some(api_key) = provider.api_key() {
             let user_info = self.services.user_info(api_key.as_str()).await?;
             return Ok(Some(user_info));
@@ -243,7 +258,10 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
     }
 
     async fn user_usage(&self) -> Result<Option<UserUsage>> {
-        let provider = self.get_default_provider().await?;
+        let Some(provider) = self.get_default_provider().await? else {
+            return Ok(None);
+        };
+
         if let Some(api_key) = provider
             .credential
             .as_ref()
@@ -268,12 +286,16 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
 
     async fn get_agent_model(&self, agent_id: AgentId) -> Option<ModelId> {
         let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
-        agent_provider_resolver.get_model(Some(agent_id)).await.ok()
+        agent_provider_resolver
+            .get_model(Some(agent_id))
+            .await
+            .ok()
+            .flatten()
     }
 
     async fn get_default_model(&self) -> Option<ModelId> {
         let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
-        agent_provider_resolver.get_model(None).await.ok()
+        agent_provider_resolver.get_model(None).await.ok().flatten()
     }
     async fn set_default_model(
         &self,
@@ -331,7 +353,7 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         Ok(self.services.migrate_env_credentials().await?)
     }
 
-    async fn get_default_provider(&self) -> Result<Provider<Url>> {
+    async fn get_default_provider(&self) -> Result<Option<Provider<Url>>> {
         let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
         agent_provider_resolver.get_provider(None).await
     }

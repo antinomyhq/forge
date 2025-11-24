@@ -251,6 +251,9 @@ where
             agent_provider_resolver.get_model(agent_id)
         )?;
 
+        let provider = provider.ok_or_else(|| anyhow::anyhow!("No provider configured"))?;
+        let model = model.ok_or_else(|| anyhow::anyhow!("No model configured"))?;
+
         // Build git diff content with optional truncation notice
         // Build user message using Element
         let mut user_message = Element::new("user_message")

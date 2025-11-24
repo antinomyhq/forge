@@ -103,7 +103,8 @@ impl<S: Services> ForgeApp<S> {
 
         let agent_provider = agent_provider_resolver
             .get_provider(Some(agent.id.clone()))
-            .await?;
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("No provider configured for agent"))?;
         let models = services.models(agent_provider).await?;
 
         // Get system and mcp tool definitions and resolve them for the agent

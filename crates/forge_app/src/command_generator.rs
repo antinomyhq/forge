@@ -46,8 +46,16 @@ where
         )?;
 
         // Get required services and data
-        let provider = self.services.get_default_provider().await?;
-        let model = self.services.get_default_model(&provider.id).await?;
+        let provider = self
+            .services
+            .get_default_provider()
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("No default provider configured"))?;
+        let model = self
+            .services
+            .get_default_model(&provider.id)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("No default model configured for provider"))?;
 
         // Build user prompt with task and recent commands
         let user_content = format!("<task>{}</task>", prompt.as_str());
@@ -192,16 +200,16 @@ mod tests {
 
     #[async_trait::async_trait]
     impl AppConfigService for MockServices {
-        async fn get_default_provider(&self) -> Result<Provider<Url>> {
-            self.get_provider(ProviderId::OpenAI).await
+        async fn get_default_provider(&self) -> Result<Option<Provider<Url>>> {
+            Ok(Some(self.get_provider(ProviderId::OpenAI).await?))
         }
 
         async fn set_default_provider(&self, _provider_id: ProviderId) -> Result<()> {
             Ok(())
         }
 
-        async fn get_default_model(&self, _provider_id: &ProviderId) -> Result<ModelId> {
-            Ok(ModelId::new("test-model"))
+        async fn get_default_model(&self, _provider_id: &ProviderId) -> Result<Option<ModelId>> {
+            Ok(Some(ModelId::new("test-model")))
         }
 
         async fn set_default_model(&self, _model: ModelId, _provider_id: ProviderId) -> Result<()> {

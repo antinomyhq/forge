@@ -45,7 +45,9 @@ impl<T: Services> AgentService for T {
         let provider = if let Some(provider_id) = provider_id {
             self.get_provider(provider_id).await?
         } else {
-            self.get_default_provider().await?
+            self.get_default_provider()
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("No default provider configured"))?
         };
 
         self.chat(id, context, provider).await

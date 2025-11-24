@@ -127,8 +127,9 @@ pub trait API: Sync + Send {
     /// Retrieves the provider configuration for the specified agent
     async fn get_agent_provider(&self, agent_id: AgentId) -> anyhow::Result<Provider<Url>>;
 
-    /// Retrieves the provider configuration for the default agent
-    async fn get_default_provider(&self) -> anyhow::Result<Provider<Url>>;
+    /// Retrieves the provider configuration for the default agent if
+    /// configured. Returns None if no default provider is set.
+    async fn get_default_provider(&self) -> anyhow::Result<Option<Provider<Url>>>;
 
     /// Sets the default provider for all the agents
     async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()>;

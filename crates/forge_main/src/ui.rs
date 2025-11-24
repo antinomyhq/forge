@@ -87,7 +87,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     async fn get_provider(&self, agent_id: Option<AgentId>) -> Result<Provider<Url>> {
         match agent_id {
             Some(agent_id) => self.api.get_agent_provider(agent_id).await,
-            None => self.api.get_default_provider().await,
+            None => self
+                .api
+                .get_default_provider()
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("No default provider configured")),
         }
     }
 
@@ -1154,7 +1158,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let agent_provider = self.get_provider(agent.clone()).await.ok();
 
         // Fetch default provider (could be different from the set provider)
-        let default_provider = self.api.get_default_provider().await.ok();
+        let default_provider = self.api.get_default_provider().await.ok().flatten();
 
         // Add agent information
         info = info.add_title("AGENT");
@@ -1510,13 +1514,21 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// Returns Some(ModelId) if a model was selected, or None if selection was
     /// canceled
     async fn select_model(&mut self) -> Result<Option<ModelId>> {
-        // Fetch available models
-        let mut models = self
-            .get_models()
-            .await?
-            .into_iter()
-            .map(CliModel)
-            .collect::<Vec<_>>();
+        // Fetch available models, if no provider is configured, prompt for one first
+        let mut models = match self.get_models().await {
+            Ok(models) => models,
+            Err(e) if e.to_string().contains("No default provider configured") => {
+                // No provider configured, prompt user to select one
+                self.select_provider().await?;
+
+                // Retry getting models after provider is set
+                self.get_models().await?
+            }
+            Err(e) => return Err(e),
+        }
+        .into_iter()
+        .map(CliModel)
+        .collect::<Vec<_>>();
 
         // Sort the models by their names in ascending order
         models.sort_by(|a, b| a.0.name.cmp(&b.0.name));
@@ -1813,7 +1825,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     /// Selects a provider, optionally configuring it if not already configured.
-    async fn select_provider(&mut self) -> Result<Option<Provider<Url>>> {
+    /// If the provider is configured via this method, it is automatically set
+    /// as the default.
+    async fn select_provider(&mut self) -> Result<()> {
         // Fetch and sort available providers
         let mut providers = self
             .api
@@ -1843,18 +1857,25 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
             .prompt()?
         else {
-            return Ok(None);
+            return Err(anyhow::anyhow!(
+                "Provider selection is required to continue"
+            ));
         };
 
-        // If already configured, extract and return Provider<Url>
+        // If already configured, just set it as default and return
         if provider.0.is_configured() {
-            return Ok(provider.0.into_configured());
+            if let Some(configured) = provider.0.into_configured() {
+                self.api.set_default_provider(configured.id).await?;
+            }
+            return Ok(());
         }
 
         self.configure_provider(provider.0.id(), provider.0.auth_methods().to_vec())
             .await?;
 
-        Ok(None)
+        // Provider is already set as default in configure_provider ->
+        // display_credential_success Just return Ok to indicate success
+        Ok(())
     }
 
     // Helper method to handle model selection and update the conversation
@@ -1884,22 +1905,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     }
 
     async fn on_provider_selection(&mut self) -> Result<()> {
-        // Select a provider
-        let provider_option = self.select_provider().await?;
+        // Select and set a provider (this will prompt user and set as default)
+        self.select_provider().await?;
 
-        // If no provider was selected (user canceled), return early
-        let provider = match provider_option {
-            Some(provider) => provider,
-            None => return Ok(()),
-        };
-
-        // Set the provider via API
-        self.api.set_default_provider(provider.id).await?;
-
-        self.writeln_title(TitleFormat::action(format!(
-            "Switched to provider: {}",
-            CliProvider(AnyProvider::Url(provider.clone()))
-        )))?;
+        self.writeln_title(TitleFormat::action(
+            "Provider updated successfully".to_string(),
+        ))?;
 
         // Check if the current model is available for the new provider
         let current_model = self
@@ -2029,12 +2040,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let _ = self.handle_migrate_credentials().await;
 
         // Ensure we have a model selected before proceeding with initialization
-        if self
-            .get_agent_model(self.api.get_active_agent().await)
-            .await
-            .is_none()
-        {
-            let active_agent = self.api.get_active_agent().await;
+        // If no provider is configured, select_model will handle prompting for one
+        let active_agent = self.api.get_active_agent().await;
+        if self.get_agent_model(active_agent.clone()).await.is_none() {
             let model = self
                 .select_model()
                 .await?
@@ -2462,6 +2470,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     .get_default_provider()
                     .await
                     .ok()
+                    .flatten()
                     .map(|p| p.id.to_string());
                 match provider {
                     Some(v) => self.writeln(v.to_string())?,
