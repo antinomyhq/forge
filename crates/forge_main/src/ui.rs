@@ -1822,30 +1822,17 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         match status {
             ConfigStatus::Complete => Ok(()),
             ConfigStatus::MissingBoth | ConfigStatus::MissingProvider => {
-                // First-run message if both are missing
-                if matches!(status, ConfigStatus::MissingBoth) {
-                    self.writeln_title(TitleFormat::info(
-                        "Welcome! Let's configure your AI provider and model.",
-                    ))?;
-                }
-
                 // Prompt for provider selection
-                self.writeln_title(TitleFormat::info("Please select your AI provider"))?;
                 self.on_provider_selection().await?;
 
                 // After provider is selected, check if model needs to be configured
                 let (_, status_after_provider) = self.api.is_configuration_complete().await?;
                 if matches!(status_after_provider, ConfigStatus::MissingModel) {
-                    self.writeln_title(TitleFormat::info("Please select your model"))?;
                     self.on_model_selection().await?;
                 }
                 Ok(())
             }
             ConfigStatus::MissingModel => {
-                // Only model is missing
-                self.writeln_title(TitleFormat::info(
-                    "Configuration required. Please select your model.",
-                ))?;
                 self.on_model_selection().await
             }
         }
@@ -1980,7 +1967,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         let (_, status) = self.api.is_configuration_complete().await?;
         if matches!(status, forge_app::ConfigStatus::MissingModel) {
             // Prompt user to select a model for the new provider
-            self.writeln_title(TitleFormat::info("Please select a model for this provider"))?;
             self.on_model_selection().await?;
         }
 
