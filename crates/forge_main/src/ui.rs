@@ -1808,6 +1808,49 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
     }
 
+    /// Ensure that the application configuration is complete (provider and
+    /// model are set). If not, prompt the user to configure them.
+    async fn ensure_configuration(&mut self) -> Result<()> {
+        // Check configuration status
+        let (is_complete, status) = self.api.is_configuration_complete().await?;
+
+        if is_complete {
+            return Ok(());
+        }
+
+        use forge_app::ConfigStatus;
+        match status {
+            ConfigStatus::Complete => Ok(()),
+            ConfigStatus::MissingBoth | ConfigStatus::MissingProvider => {
+                // First-run message if both are missing
+                if matches!(status, ConfigStatus::MissingBoth) {
+                    self.writeln_title(TitleFormat::info(
+                        "Welcome! Let's configure your AI provider and model.",
+                    ))?;
+                }
+
+                // Prompt for provider selection
+                self.writeln_title(TitleFormat::info("Please select your AI provider"))?;
+                self.on_provider_selection().await?;
+
+                // After provider is selected, check if model needs to be configured
+                let (_, status_after_provider) = self.api.is_configuration_complete().await?;
+                if matches!(status_after_provider, ConfigStatus::MissingModel) {
+                    self.writeln_title(TitleFormat::info("Please select your model"))?;
+                    self.on_model_selection().await?;
+                }
+                Ok(())
+            }
+            ConfigStatus::MissingModel => {
+                // Only model is missing
+                self.writeln_title(TitleFormat::info(
+                    "Configuration required. Please select your model.",
+                ))?;
+                self.on_model_selection().await
+            }
+        }
+    }
+
     /// Handle authentication flow for an unavailable provider
     async fn configure_provider(
         &mut self,
@@ -1933,19 +1976,12 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             CliProvider(AnyProvider::Url(provider.clone()))
         )))?;
 
-        // Check if the current model is available for the new provider
-        let current_model = self
-            .get_agent_model(self.api.get_active_agent().await)
-            .await;
-        if let Some(current_model) = current_model {
-            let models = self.get_models().await?;
-            let model_available = models.iter().any(|m| m.id == current_model);
-
-            if !model_available {
-                // Prompt user to select a new model
-                self.writeln_title(TitleFormat::info("Please select a new model"))?;
-                self.on_model_selection().await?;
-            }
+        // Check if model is configured for this provider
+        let (_, status) = self.api.is_configuration_complete().await?;
+        if matches!(status, forge_app::ConfigStatus::MissingModel) {
+            // Prompt user to select a model for the new provider
+            self.writeln_title(TitleFormat::info("Please select a model for this provider"))?;
+            self.on_model_selection().await?;
         }
 
         Ok(())
@@ -2060,19 +2096,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         let _ = self.handle_migrate_credentials().await;
 
-        // Ensure we have a model selected before proceeding with initialization
-        if self
-            .get_agent_model(self.api.get_active_agent().await)
-            .await
-            .is_none()
-        {
-            let active_agent = self.api.get_active_agent().await;
-            let model = self
-                .select_model()
-                .await?
-                .ok_or(anyhow::anyhow!("Model selection is required to continue"))?;
-            self.api.set_default_model(active_agent, model).await?;
-        }
+        // Ensure provider and model are configured before proceeding
+        self.ensure_configuration().await?;
 
         // Create base workflow and trigger updates if this is the first initialization
         let mut base_workflow = Workflow::default();

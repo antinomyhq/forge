@@ -24,16 +24,21 @@ where
     /// agent is provided. Automatically refreshes OAuth credentials if they're
     /// about to expire.
     pub async fn get_provider(&self, agent_id: Option<AgentId>) -> Result<Provider<url::Url>> {
-        let provider = if let Some(agent_id) = agent_id {
+        let provider = if let Some(agent_id) = agent_id.clone() {
             // Load all agent definitions and find the one we need
-
             if let Some(agent) = self.0.get_agent(&agent_id).await? {
                 // If the agent definition has a provider, use it; otherwise use default
                 self.0.get_provider(agent.provider).await?
             } else {
-                // TODO: Needs review, should we throw an err here?
-                // we can throw crate::Error::AgentNotFound
-                self.0.get_default_provider().await?
+                // If agent not found, it might be because configuration is incomplete
+                // Try to get the default provider instead
+                match self.0.get_default_provider().await {
+                    Ok(provider) => provider,
+                    Err(_) => {
+                        // Only return AgentNotFound if we can't get a provider either
+                        return Err(crate::Error::AgentNotFound(agent_id).into());
+                    }
+                }
             }
         } else {
             self.0.get_default_provider().await?
@@ -75,14 +80,16 @@ where
     /// Gets the model for the specified agent, or the default model if no agent
     /// is provided
     pub async fn get_model(&self, agent_id: Option<AgentId>) -> Result<ModelId> {
-        if let Some(agent_id) = agent_id {
+        if let Some(agent_id) = agent_id.clone() {
             if let Some(agent) = self.0.get_agent(&agent_id).await? {
                 Ok(agent.model)
             } else {
-                // TODO: Needs review, should we throw an err here?
-                // we can throw crate::Error::AgentNotFound
-                let provider_id = self.get_provider(Some(agent_id)).await?.id;
-                self.0.get_default_model(&provider_id).await
+                // If agent not found, try to get default model for default provider
+                // This handles the case during initial configuration
+                match self.get_provider(None).await {
+                    Ok(provider) => self.0.get_default_model(&provider.id).await,
+                    Err(_) => Err(crate::Error::AgentNotFound(agent_id).into()),
+                }
             }
         } else {
             let provider_id = self.get_provider(None).await?.id;
@@ -93,15 +100,21 @@ where
     /// Sets the model for the agent's provider
     pub async fn set_default_model(&self, agent_id: Option<AgentId>, model: ModelId) -> Result<()> {
         // Invalidate cache for agents
-        let result = if let Some(agent_id) = agent_id {
+        let result = if let Some(agent_id) = agent_id.clone() {
             if let Some(agent) = self.0.get_agent(&agent_id).await? {
                 let provider_id = agent.provider;
                 self.0.set_default_model(model, provider_id).await
             } else {
-                // TODO: Needs review, should we throw an err here?
-                // we can throw crate::Error::AgentNotFound
-                let provider_id = self.get_provider(None).await?.id;
-                self.0.set_default_model(model, provider_id).await
+                // If agent not found, it might be because configuration is incomplete
+                // In that case, fall back to using the default provider
+                // This handles the case where we're setting up configuration for the first time
+                match self.0.get_default_provider().await {
+                    Ok(provider) => self.0.set_default_model(model, provider.id).await,
+                    Err(_) => {
+                        // Only return AgentNotFound if we can't get a provider either
+                        return Err(crate::Error::AgentNotFound(agent_id).into());
+                    }
+                }
             }
         } else {
             let provider_id = self.get_provider(None).await?.id;

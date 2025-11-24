@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use dashmap::DashMap;
-use forge_app::AgentRepository;
 use forge_app::domain::AgentId;
+use forge_app::{AgentRepository, ConfigStatus};
 use forge_domain::{Agent, AppConfigRepository, ProviderRepository};
 use tokio::sync::RwLock;
 
@@ -34,6 +34,17 @@ impl<R> ForgeAgentRegistryService<R> {
 }
 
 impl<R: AgentRepository + AppConfigRepository + ProviderRepository> ForgeAgentRegistryService<R> {
+    /// Check if configuration is complete before attempting to load agents
+    async fn is_configuration_ready(&self) -> bool {
+        // Check if we have provider and model configured
+        if let Ok(app_config) = self.repository.get_app_config().await
+            && let Some(provider_id) = app_config.provider
+        {
+            return app_config.model.contains_key(&provider_id);
+        }
+        false
+    }
+
     /// Lazily initializes and returns the agents map
     /// Loads agents from repository on first call, subsequent calls return
     /// cached value
@@ -70,20 +81,20 @@ impl<R: AgentRepository + AppConfigRepository + ProviderRepository> ForgeAgentRe
 
         // Get default provider and model from app config
         let app_config = self.repository.get_app_config().await?;
-        let default_provider_id = app_config
-            .provider
-            .ok_or_else(|| anyhow::anyhow!("No default provider configured"))?;
+
+        // Check if configuration is complete
+        let default_provider_id =
+            app_config
+                .provider
+                .ok_or(forge_app::Error::ConfigurationRequired(
+                    ConfigStatus::MissingProvider,
+                ))?;
+
         let default_provider = self.repository.get_provider(default_provider_id).await?;
-        let default_model = app_config
-            .model
-            .get(&default_provider.id)
-            .cloned()
-            .ok_or_else(|| {
-                anyhow::anyhow!(
-                    "No default model configured for provider {}",
-                    default_provider.id
-                )
-            })?;
+
+        let default_model = app_config.model.get(&default_provider.id).cloned().ok_or(
+            forge_app::Error::ConfigurationRequired(ConfigStatus::MissingModel),
+        )?;
 
         // Create the agents map
         let agents_map = DashMap::new();
@@ -114,11 +125,24 @@ impl<R: AgentRepository + AppConfigRepository + ProviderRepository> forge_app::A
     }
 
     async fn get_agents(&self) -> anyhow::Result<Vec<Agent>> {
+        // Check if configuration is ready before loading agents
+        if !self.is_configuration_ready().await {
+            // Return empty list if configuration is not ready
+            // This allows the system to start without crashing
+            return Ok(Vec::new());
+        }
+
         let agents = self.ensure_agents_loaded().await?;
         Ok(agents.iter().map(|entry| entry.value().clone()).collect())
     }
 
     async fn get_agent(&self, agent_id: &AgentId) -> anyhow::Result<Option<Agent>> {
+        // Check if configuration is ready before loading agents
+        if !self.is_configuration_ready().await {
+            // Return None if configuration is not ready
+            return Ok(None);
+        }
+
         let agents = self.ensure_agents_loaded().await?;
         Ok(agents.get(agent_id.as_str()).map(|v| v.value().clone()))
     }
@@ -126,7 +150,10 @@ impl<R: AgentRepository + AppConfigRepository + ProviderRepository> forge_app::A
     async fn reload_agents(&self) -> anyhow::Result<()> {
         *self.agents.write().await = None;
 
-        self.ensure_agents_loaded().await?;
+        // Only reload if configuration is complete, otherwise just clear the cache
+        if self.is_configuration_ready().await {
+            self.ensure_agents_loaded().await?;
+        }
         Ok(())
     }
 }

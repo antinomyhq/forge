@@ -133,6 +133,9 @@ pub trait API: Sync + Send {
     /// Sets the default provider for all the agents
     async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()>;
 
+    /// Checks if the configuration is complete (provider and model are set)
+    async fn is_configuration_complete(&self) -> anyhow::Result<(bool, forge_app::ConfigStatus)>;
+
     /// Retrieves information about the currently authenticated user
     async fn user_info(&self) -> anyhow::Result<Option<User>>;
 

@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use forge_app::AppConfigService;
+use forge_app::{AppConfigService, ConfigStatus};
 use forge_domain::{
     AppConfig, AppConfigRepository, ModelId, Provider, ProviderId, ProviderRepository,
 };
@@ -48,6 +48,26 @@ impl<F: ProviderRepository + AppConfigRepository> ForgeAppConfigService<F> {
 impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
     for ForgeAppConfigService<F>
 {
+    async fn is_configuration_complete(&self) -> anyhow::Result<(bool, ConfigStatus)> {
+        let app_config = self.infra.get_app_config().await?;
+
+        let status = match (app_config.provider, app_config.model.is_empty()) {
+            (None, true) => ConfigStatus::MissingBoth,
+            (None, false) => ConfigStatus::MissingProvider,
+            (Some(provider_id), _) => {
+                // Check if model is configured for this provider
+                if !app_config.model.contains_key(&provider_id) {
+                    ConfigStatus::MissingModel
+                } else {
+                    ConfigStatus::Complete
+                }
+            }
+        };
+
+        let is_complete = matches!(status, ConfigStatus::Complete);
+        Ok((is_complete, status))
+    }
+
     async fn get_default_provider(&self) -> anyhow::Result<Provider<Url>> {
         let app_config = self.infra.get_app_config().await?;
         if let Some(provider_id) = app_config.provider
@@ -341,6 +361,33 @@ mod tests {
         expected.insert(ProviderId::Anthropic, "claude-3".to_string().into());
 
         assert_eq!(actual, expected);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_is_configuration_complete() -> anyhow::Result<()> {
+        let fixture = MockInfra::new();
+        let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
+
+        // Test when nothing is configured
+        let (is_complete, status) = service.is_configuration_complete().await?;
+        assert!(!is_complete);
+        assert_eq!(status, ConfigStatus::MissingBoth);
+
+        // Set provider only
+        service.set_default_provider(ProviderId::Anthropic).await?;
+        let (is_complete, status) = service.is_configuration_complete().await?;
+        assert!(!is_complete);
+        assert_eq!(status, ConfigStatus::MissingModel);
+
+        // Set model for the provider
+        service
+            .set_default_model("claude-3".to_string().into(), ProviderId::Anthropic)
+            .await?;
+        let (is_complete, status) = service.is_configuration_complete().await?;
+        assert!(is_complete);
+        assert_eq!(status, ConfigStatus::Complete);
+
         Ok(())
     }
 

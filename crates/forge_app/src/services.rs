@@ -146,9 +146,29 @@ pub trait ProviderService: Send + Sync {
     ) -> anyhow::Result<Option<forge_domain::MigrationResult>>;
 }
 
+/// Status of the application configuration.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ConfigStatus {
+    /// Configuration is complete with both provider and model set
+    Complete,
+    /// Provider is not configured
+    MissingProvider,
+    /// Provider is configured but model is missing for that provider
+    MissingModel,
+    /// Both provider and model are missing
+    MissingBoth,
+}
+
 /// Manages user preferences for default providers and models.
 #[async_trait::async_trait]
 pub trait AppConfigService: Send + Sync {
+    /// Checks if the configuration is complete.
+    ///
+    /// Returns a tuple of (is_complete, status) where:
+    /// - is_complete is true if both provider and model are configured
+    /// - status indicates what is missing if configuration is incomplete
+    async fn is_configuration_complete(&self) -> anyhow::Result<(bool, ConfigStatus)>;
+
     /// Gets the user's default provider, or falls back to the first available
     /// provider.
     async fn get_default_provider(&self) -> anyhow::Result<Provider<Url>>;
@@ -917,6 +937,10 @@ impl<I: Services> PolicyService for I {
 
 #[async_trait::async_trait]
 impl<I: Services> AppConfigService for I {
+    async fn is_configuration_complete(&self) -> anyhow::Result<(bool, ConfigStatus)> {
+        self.config_service().is_configuration_complete().await
+    }
+
     async fn get_default_provider(&self) -> anyhow::Result<Provider<Url>> {
         self.config_service().get_default_provider().await
     }

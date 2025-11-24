@@ -240,6 +240,10 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + forge_domain::SkillReposi
         result
     }
 
+    async fn is_configuration_complete(&self) -> anyhow::Result<(bool, forge_app::ConfigStatus)> {
+        self.services.is_configuration_complete().await
+    }
+
     async fn user_info(&self) -> Result<Option<User>> {
         let provider = self.get_default_provider().await?;
         if let Some(api_key) = provider.api_key() {
