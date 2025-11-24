@@ -4,7 +4,7 @@ use anyhow::Result;
 use forge_domain::{extract_tag_content, *};
 
 use crate::{
-    AppConfigService, EnvironmentService, FileDiscoveryService, ProviderService, TemplateEngine,
+    AppConfigService, ConfigStatus, EnvironmentService, FileDiscoveryService, ProviderService, TemplateEngine,
     Walker,
 };
 
@@ -206,6 +206,10 @@ mod tests {
 
         async fn set_default_model(&self, _model: ModelId, _provider_id: ProviderId) -> Result<()> {
             Ok(())
+        }
+
+        async fn is_configuration_complete(&self) -> anyhow::Result<(bool, ConfigStatus)> {
+            Ok((true, ConfigStatus::Complete))
         }
     }
 
