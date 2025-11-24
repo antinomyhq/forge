@@ -308,18 +308,18 @@ mod tests {
         // Assert
         assert_eq!(actual.len(), 2);
 
-        // Check skill-creator
-        let skill_creator = actual.iter().find(|s| s.name == "skill-creator").unwrap();
+        // Check create-skill
+        let create_skill = actual.iter().find(|s| s.name == "create-skill").unwrap();
         assert_eq!(
-            skill_creator.path,
-            Some(std::path::Path::new("forge://skills/skill-creator/SKILL.md").to_path_buf())
+            create_skill.path,
+            Some(std::path::Path::new("forge://skills/create-skill/SKILL.md").to_path_buf())
         );
         assert_eq!(
-            skill_creator.description,
+            create_skill.description,
             "Guide for creating effective skills. This skill should be used when users want to create a new skill (or update an existing skill) that extends your capabilities with specialized knowledge, workflows, or tool integrations."
         );
-        assert!(skill_creator.command.contains("Skill Creator"));
-        assert!(skill_creator.command.contains("creating effective skills"));
+        assert!(create_skill.command.contains("Skill Creator"));
+        assert!(create_skill.command.contains("creating effective skills"));
 
         // Check execute-plan
         let execute_plan = actual.iter().find(|s| s.name == "execute-plan").unwrap();
