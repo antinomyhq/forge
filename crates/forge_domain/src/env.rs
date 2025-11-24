@@ -1,5 +1,5 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use derive_more::Display;
 use derive_setters::Setters;
@@ -195,7 +195,7 @@ impl WorkspaceId {
 /// 2. forge.yaml - Forge configuration file
 /// 3. .forge - Forge directory
 /// 4. forge/.config.json - Forge config file in forge directory
-fn find_workspace_root(cwd: &PathBuf, max_depth: Option<usize>) -> PathBuf {
+fn find_workspace_root(cwd: &Path, max_depth: Option<usize>) -> PathBuf {
     // Get markers from environment variable or use Forge-specific defaults
     let markers_str = std::env::var("FORGE_WORKSPACE_MARKERS")
         .unwrap_or_else(|_| ".git,forge.yaml,.forge,forge/.config.json".to_string());
@@ -206,7 +206,7 @@ fn find_workspace_root(cwd: &PathBuf, max_depth: Option<usize>) -> PathBuf {
         .filter(|s| !s.is_empty())
         .collect::<Vec<_>>();
     
-    let mut current = cwd.clone();
+    let mut current = cwd.to_path_buf();
     let mut depth = 0;
     
     loop {
@@ -218,10 +218,8 @@ fn find_workspace_root(cwd: &PathBuf, max_depth: Option<usize>) -> PathBuf {
         }
         
         // Check depth limit
-        if let Some(max_depth) = max_depth {
-            if depth >= max_depth {
-                break;
-            }
+        if let Some(max_depth) = max_depth && depth >= max_depth {
+            break;
         }
         
         // Move to parent directory
@@ -235,7 +233,7 @@ fn find_workspace_root(cwd: &PathBuf, max_depth: Option<usize>) -> PathBuf {
     }
     
     // Fallback to current working directory if no markers found or depth limit reached
-    cwd.clone()
+    cwd.to_path_buf()
 }
 
 #[cfg(test)]
