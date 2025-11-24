@@ -47,7 +47,11 @@ where
 
         // Get required services and data
         let provider = self.services.get_default_provider().await?;
-        let model = self.services.get_default_model(&provider.id).await?;
+        let model = self
+            .services
+            .get_default_model(Some(&provider.id))
+            .await
+            .ok_or_else(|| anyhow::anyhow!("No default model configured for provider"))?;
 
         // Build user prompt with task and recent commands
         let user_content = format!("<task>{}</task>", prompt.as_str());
@@ -200,8 +204,8 @@ mod tests {
             Ok(())
         }
 
-        async fn get_default_model(&self, _provider_id: &ProviderId) -> Result<ModelId> {
-            Ok(ModelId::new("test-model"))
+        async fn get_default_model(&self, _provider_id: Option<&ProviderId>) -> Option<ModelId> {
+            Some(ModelId::new("test-model"))
         }
 
         async fn set_default_model(&self, _model: ModelId) -> Result<()> {

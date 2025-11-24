@@ -91,6 +91,10 @@ pub enum Error {
 
     #[error("No default provider set.")]
     NoDefaultProvider,
+
+    #[error("No default model configured for provider: {0}")]
+    #[from(skip)]
+    NoDefaultModel(ProviderId),
 }
 
 pub type Result<A> = std::result::Result<A, Error>;
@@ -130,6 +134,10 @@ impl Error {
 
     pub fn vertex_ai_config(message: impl Into<String>) -> Self {
         Self::VertexAiConfiguration { message: message.into() }
+    }
+
+    pub fn no_default_model(provider: ProviderId) -> Self {
+        Self::NoDefaultModel(provider)
     }
 }
 

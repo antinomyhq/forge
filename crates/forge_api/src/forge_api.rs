@@ -279,12 +279,7 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + AppConf
     }
 
     async fn get_default_model(&self) -> Option<ModelId> {
-        let config = self.infra.get_app_config().await.ok()?;
-
-        config
-            .provider
-            .and_then(|provider| config.model.get(&provider))
-            .cloned()
+        self.services.get_default_model(None).await
     }
     async fn set_default_model(&self, model_id: ModelId) -> anyhow::Result<()> {
         self.services.set_default_model(model_id).await
@@ -343,13 +338,6 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + AppConf
     }
 
     async fn get_default_provider(&self) -> Result<Provider<Url>> {
-        let id = self
-            .infra
-            .get_app_config()
-            .await?
-            .provider
-            .ok_or(Error::NoDefaultProvider)?;
-
-        self.services.provider_service().get_provider(id).await
+        self.services.get_default_provider().await
     }
 }

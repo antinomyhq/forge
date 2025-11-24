@@ -69,13 +69,15 @@ impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
         .await
     }
 
-    async fn get_default_model(&self, provider_id: &ProviderId) -> anyhow::Result<ModelId> {
-        if let Some(model_id) = self.infra.get_app_config().await?.model.get(provider_id) {
-            return Ok(model_id.clone());
-        }
+    async fn get_default_model(&self, provider_id: Option<&ProviderId>) -> Option<ModelId> {
+        let config = self.infra.get_app_config().await.ok()?;
 
-        // No active model set for the active provider, throw an error
-        Err(forge_app::Error::NoActiveModel.into())
+        let provider_id = match provider_id {
+            Some(id) => id,
+            None => config.provider.as_ref()?,
+        };
+
+        config.model.get(provider_id).cloned()
     }
 
     async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()> {
@@ -287,9 +289,9 @@ mod tests {
         let fixture = MockInfra::new();
         let service = ForgeAppConfigService::new(Arc::new(fixture));
 
-        let result = service.get_default_model(&ProviderId::OpenAI).await;
+        let result = service.get_default_model(Some(&ProviderId::OpenAI)).await;
 
-        assert!(result.is_err());
+        assert!(result.is_none());
         Ok(())
     }
 
@@ -303,8 +305,8 @@ mod tests {
         service
             .set_default_model("gpt-4".to_string().into())
             .await?;
-        let actual = service.get_default_model(&ProviderId::OpenAI).await?;
-        let expected = "gpt-4".to_string().into();
+        let actual = service.get_default_model(Some(&ProviderId::OpenAI)).await;
+        let expected = Some("gpt-4".to_string().into());
 
         assert_eq!(actual, expected);
         Ok(())
