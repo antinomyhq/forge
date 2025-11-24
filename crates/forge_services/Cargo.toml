@@ -41,6 +41,21 @@ tree-sitter-scala.workspace = true
 tree-sitter-go.workspace = true
 tree-sitter-cpp.workspace = true
 tree-sitter-ruby.workspace = true
+# Phase 1 - New Tree-sitter language support
+tree-sitter-c-sharp.workspace = true
+tree-sitter-c.workspace = true
+tree-sitter-php.workspace = true
+tree-sitter-swift.workspace = true
+tree-sitter-kotlin-ng.workspace = true
+tree-sitter-dart.workspace = true
+tree-sitter-yaml.workspace = true
+tree-sitter-toml-ng.workspace = true
+tree-sitter-bash.workspace = true
+tree-sitter-html.workspace = true
+tree-sitter-json.workspace = true
+tree-sitter-sequel.workspace = true
+tree-sitter-md = { version = "0.5.1" } # Alternative for tree-sitter-markdown
+tree-sitter-powershell.workspace = true
 rust-embed.workspace = true
 base64.workspace = true
 strum_macros.workspace = true
