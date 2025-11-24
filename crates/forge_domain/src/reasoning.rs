@@ -1,20 +1,22 @@
 use serde::{Deserialize, Serialize};
 
 /// Represents a reasoning detail that may be included in the response
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, fake::Dummy, derive_setters::Setters)]
+#[setters(into, strip_option)]
 pub struct ReasoningPart {
     pub text: Option<String>,
     pub signature: Option<String>,
 }
 
 /// Represents a reasoning detail that may be included in the response
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, fake::Dummy, derive_setters::Setters)]
+#[setters(into, strip_option)]
 pub struct ReasoningFull {
     pub text: Option<String>,
     pub signature: Option<String>,
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, fake::Dummy)]
 pub enum Reasoning {
     Part(Vec<ReasoningPart>),
     Full(Vec<ReasoningFull>),
@@ -67,76 +69,52 @@ mod tests {
 
     #[test]
     fn test_reasoning_detail_from_parts() {
+        use fake::{Fake, Faker};
+
         // Create a fixture with three vectors of ReasoningDetailPart
-        let fixture = vec![
-            // First vector [a, b, c]
-            vec![
-                ReasoningPart {
-                    text: Some("a-text".to_string()),
-                    signature: Some("a-sig".to_string()),
-                },
-                ReasoningPart {
-                    text: Some("b-text".to_string()),
-                    signature: Some("b-sig".to_string()),
-                },
-                ReasoningPart {
-                    text: Some("c-text".to_string()),
-                    signature: Some("c-sig".to_string()),
-                },
-            ],
-            // Second vector [d, e, f]
-            vec![
-                ReasoningPart {
-                    text: Some("d-text".to_string()),
-                    signature: Some("d-sig".to_string()),
-                },
-                ReasoningPart {
-                    text: Some("e-text".to_string()),
-                    signature: Some("e-sig".to_string()),
-                },
-                ReasoningPart {
-                    text: Some("f-text".to_string()),
-                    signature: Some("f-sig".to_string()),
-                },
-            ],
-            // Third vector [g, h, i]
-            vec![
-                ReasoningPart {
-                    text: Some("g-text".to_string()),
-                    signature: Some("g-sig".to_string()),
-                },
-                ReasoningPart {
-                    text: Some("h-text".to_string()),
-                    signature: Some("h-sig".to_string()),
-                },
-                ReasoningPart {
-                    text: Some("i-text".to_string()),
-                    signature: Some("i-sig".to_string()),
-                },
-            ],
-        ];
+        let a: ReasoningPart = Faker.fake();
+        let a = a.text("a-text").signature("a-sig");
+
+        let b: ReasoningPart = Faker.fake();
+        let b = b.text("b-text").signature("b-sig");
+
+        let c: ReasoningPart = Faker.fake();
+        let c = c.text("c-text").signature("c-sig");
+
+        let d: ReasoningPart = Faker.fake();
+        let d = d.text("d-text").signature("d-sig");
+
+        let e: ReasoningPart = Faker.fake();
+        let e = e.text("e-text").signature("e-sig");
+
+        let f: ReasoningPart = Faker.fake();
+        let f = f.text("f-text").signature("f-sig");
+
+        let g: ReasoningPart = Faker.fake();
+        let g = g.text("g-text").signature("g-sig");
+
+        let h: ReasoningPart = Faker.fake();
+        let h = h.text("h-text").signature("h-sig");
+
+        let i: ReasoningPart = Faker.fake();
+        let i = i.text("i-text").signature("i-sig");
+
+        let fixture = vec![vec![a, b, c], vec![d, e, f], vec![g, h, i]];
 
         // Execute the function to get the actual result
         let actual = Reasoning::from_parts(fixture);
 
         // Define the expected result
-        let expected = vec![
-            // First merged vector [a, d, g]
-            ReasoningFull {
-                text: Some("a-textd-textg-text".to_string()),
-                signature: Some("a-sigd-sigg-sig".to_string()),
-            },
-            // Second merged vector [b, e, h]
-            ReasoningFull {
-                text: Some("b-texte-texth-text".to_string()),
-                signature: Some("b-sige-sigh-sig".to_string()),
-            },
-            // Third merged vector [c, f, i]
-            ReasoningFull {
-                text: Some("c-textf-texti-text".to_string()),
-                signature: Some("c-sigf-sigi-sig".to_string()),
-            },
-        ];
+        let adg: ReasoningFull = Faker.fake();
+        let adg = adg.text("a-textd-textg-text").signature("a-sigd-sigg-sig");
+
+        let beh: ReasoningFull = Faker.fake();
+        let beh = beh.text("b-texte-texth-text").signature("b-sige-sigh-sig");
+
+        let cfi: ReasoningFull = Faker.fake();
+        let cfi = cfi.text("c-textf-texti-text").signature("c-sigf-sigi-sig");
+
+        let expected = vec![adg, beh, cfi];
 
         // Assert that the actual result matches the expected result
         assert_eq!(actual, expected);

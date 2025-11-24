@@ -551,7 +551,7 @@ impl Context {
     }
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, fake::Dummy)]
 pub enum TokenCount {
     Actual(usize),
     Approx(usize),

@@ -3,13 +3,23 @@ use nom::bytes::complete::tag;
 
 use crate::Image;
 
-#[derive(Debug, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq)]
+#[derive(
+    Debug,
+    serde::Deserialize,
+    serde::Serialize,
+    Clone,
+    PartialEq,
+    Eq,
+    fake::Dummy,
+    derive_setters::Setters,
+)]
+#[setters(into, strip_option)]
 pub struct Attachment {
     pub content: AttachmentContent,
     pub path: String,
 }
 
-#[derive(Debug, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq)]
+#[derive(Debug, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq, fake::Dummy)]
 pub enum AttachmentContent {
     Image(Image),
     FileContent {
@@ -23,7 +33,17 @@ pub enum AttachmentContent {
     },
 }
 
-#[derive(Debug, serde::Deserialize, serde::Serialize, Clone, PartialEq, Eq)]
+#[derive(
+    Debug,
+    serde::Deserialize,
+    serde::Serialize,
+    Clone,
+    PartialEq,
+    Eq,
+    fake::Dummy,
+    derive_setters::Setters,
+)]
+#[setters(into)]
 pub struct DirectoryEntry {
     pub path: String,
     pub is_dir: bool,
