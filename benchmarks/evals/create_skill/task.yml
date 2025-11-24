@@ -1,0 +1,13 @@
+before_run:
+  - cargo build
+run:
+  command: ../../target/debug/forge -p '{{skill}}'
+  parallelism: 10
+  timeout: 60
+  early_exit: true
+validations:
+  - name: "Uses create-skill tool"
+    type: matches_regex
+    regex: ⏺.*\[[0-9:]*\].*Skill.*create-skill
+sources:
+  - csv: create_skill_tasks.csv

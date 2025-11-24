@@ -41,3 +41,7 @@ Cargo.lock
 *-dump.json
 *-dump.html
 .mcp.json
+*.d.ts
+*.js
+*.map
+**/.forge/request.body.json

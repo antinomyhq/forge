@@ -50,7 +50,9 @@ impl Info {
     }
 
     pub fn add_key_value(self, key: impl ToString, value: impl ToString) -> Self {
-        self.add_item(Some(key), value)
+        let key_str = key.to_string();
+        let normalized_key = key_str.to_lowercase();
+        self.add_item(Some(normalized_key), value)
     }
 
     fn add_item(mut self, key: Option<impl ToString>, value: impl ToString) -> Self {
@@ -952,6 +954,32 @@ mod tests {
     }
 
     #[test]
+    fn test_add_key_value_normalizes_to_lowercase() {
+        let info = super::Info::new()
+            .add_key_value("VERSION", "1.0.0")
+            .add_key_value("Working Directory", "/home/user")
+            .add_key_value("Mixed CASE Key", "value");
+
+        let display = info.to_string();
+
+        // All keys should be lowercase - checking just the key part without exact
+        // formatting
+        assert!(display.contains("version"));
+        assert!(display.contains("working directory"));
+        assert!(display.contains("mixed case key"));
+
+        // Values should be preserved
+        assert!(display.contains("1.0.0"));
+        assert!(display.contains("/home/user"));
+        assert!(display.contains("value"));
+
+        // Should not contain uppercase versions
+        assert!(!display.contains("VERSION"));
+        assert!(!display.contains("Working Directory"));
+        assert!(!display.contains("Mixed CASE Key"));
+    }
+
+    #[test]
     fn test_info_from_command_manager() {
         let command_manager = super::ForgeCommandManager::default();
         let info = super::Info::from(&command_manager);
@@ -960,21 +988,21 @@ mod tests {
         // Verify compile-time detection works correctly
         #[cfg(target_os = "macos")]
         {
-            assert!(display.contains("<OPT+ENTER>"));
-            assert!(!display.contains("<ALT+ENTER>"));
+            assert!(display.contains("<opt+enter>"));
+            assert!(!display.contains("<alt+enter>"));
         }
 
         #[cfg(not(target_os = "macos"))]
         {
-            assert!(display.contains("<ALT+ENTER>"));
-            assert!(!display.contains("<OPT+ENTER>"));
+            assert!(display.contains("<alt+enter>"));
+            assert!(!display.contains("<opt+enter>"));
         }
 
         // Should contain standard sections
         assert!(display.contains("COMMANDS"));
         assert!(display.contains("KEYBOARD SHORTCUTS"));
-        assert!(display.contains("<CTRL+C>"));
-        assert!(display.contains("<CTRL+D>"));
+        assert!(display.contains("<ctrl+c>"));
+        assert!(display.contains("<ctrl+d>"));
     }
 
     #[test]

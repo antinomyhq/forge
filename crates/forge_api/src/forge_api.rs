@@ -38,17 +38,24 @@ impl<A, F> ForgeAPI<A, F> {
     }
 }
 
-impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeInfra> {
+impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
     pub fn init(restricted: bool, cwd: PathBuf) -> Self {
         let infra = Arc::new(ForgeInfra::new(restricted, cwd));
         let repo = Arc::new(ForgeRepo::new(infra.clone()));
         let app = Arc::new(ForgeServices::new(repo.clone()));
-        ForgeAPI::new(app, infra)
+        ForgeAPI::new(app, repo)
+    }
+
+    pub async fn get_skills_internal(&self) -> Result<Vec<Skill>> {
+        use forge_domain::SkillRepository;
+        self.infra.load_skills().await
     }
 }
 
 #[async_trait::async_trait]
-impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
+impl<A: Services, F: CommandInfra + EnvironmentInfra + forge_domain::SkillRepository> API
+    for ForgeAPI<A, F>
+{
     async fn discover(&self) -> Result<Vec<File>> {
         let environment = self.services.get_environment();
         let config = Walker::unlimited().cwd(environment.cwd);
@@ -82,9 +89,12 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
         preview: bool,
         max_diff_size: Option<usize>,
         diff: Option<String>,
+        additional_context: Option<String>,
     ) -> Result<forge_app::CommitResult> {
         let git_app = GitApp::new(self.services.clone());
-        let result = git_app.commit_message(max_diff_size, diff).await?;
+        let result = git_app
+            .commit_message(max_diff_size, diff, additional_context)
+            .await?;
 
         if preview {
             Ok(result)
@@ -289,6 +299,10 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
     }
     async fn get_commands(&self) -> Result<Vec<Command>> {
         self.services.get_commands().await
+    }
+
+    async fn get_skills(&self) -> Result<Vec<Skill>> {
+        self.infra.load_skills().await
     }
 
     async fn generate_command(&self, prompt: UserPrompt) -> Result<String> {
