@@ -117,6 +117,14 @@ impl Command for DisableApplicationCursorKeys {
     fn write_ansi(&self, f: &mut impl std::fmt::Write) -> std::fmt::Result {
         write!(f, "\x1b[?1l")
     }
+
+    #[cfg(windows)]
+    fn execute_winapi(&self) -> std::io::Result<()> {
+        Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "not supported on Windows, using ANSI fallback",
+        ))
+    }
 }
 
 /// Custom crossterm command to enable application cursor keys mode
@@ -127,5 +135,13 @@ struct EnableApplicationCursorKeys;
 impl Command for EnableApplicationCursorKeys {
     fn write_ansi(&self, f: &mut impl std::fmt::Write) -> std::fmt::Result {
         write!(f, "\x1b[?1h")
+    }
+
+    #[cfg(windows)]
+    fn execute_winapi(&self) -> std::io::Result<()> {
+        Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "not supported on Windows, using ANSI fallback",
+        ))
     }
 }

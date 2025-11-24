@@ -11,6 +11,7 @@ forge_snaps.workspace = true
 forge_fs.workspace = true
 
 anyhow.workspace = true
+futures.workspace = true
 async-trait.workspace = true
 serde.workspace = true
 serde_json.workspace = true

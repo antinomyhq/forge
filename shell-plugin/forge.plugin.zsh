@@ -476,6 +476,14 @@ function _forge_action_tools() {
     _forge_reset
 }
 
+
+# Action handler: Show skills
+function _forge_action_skill() {
+    echo
+    _forge_exec list skill
+    _forge_reset
+}
+
 # Action handler: Generate shell command from natural language
 # Usage: :? <description>
 function _forge_action_suggest() {
@@ -688,6 +696,9 @@ function forge-accept-line() {
         ;;
         tools|t)
             _forge_action_tools
+        ;;
+        skill)
+            _forge_action_skill
         ;;
         commit)
             _forge_action_commit "$input_text"
