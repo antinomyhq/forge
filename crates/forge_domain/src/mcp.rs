@@ -420,8 +420,6 @@ mod tests {
 
     #[test]
     fn test_display_http_redacts_header_secrets() {
-        use fake::{Fake, Faker};
-
         let secret_token: String = Faker.fake();
         let api_key: String = Faker.fake();
 
