@@ -157,7 +157,7 @@ Forge is designed for developers who want to enhance their workflow with AI assi
 - **Multi-provider support** - Use OpenAI, Anthropic, or other LLM providers
 - **Secure by design** - Your code stays on your machine
 - **Open-source** - Transparent, extensible, and community-driven
-- **Workspace-aware** - Automatically isolates conversations and shell history per project for clean project boundaries
+- **Workspace-aware** - Automatically isolates conversations and prompt history per project for clean project boundaries
 
 Forge helps you code faster, solve complex problems, and learn new technologies without leaving your terminal.
 
@@ -536,9 +536,9 @@ FORGE_HISTORY_FILE=/path/to/history    # Custom history path override (takes pri
 
 **How it works:**
 - Forge automatically detects your workspace root by traversing up from current directory looking for markers
-- Each workspace gets its own isolated history file (`{workspace_root}/.forge_history`) for **conversations and shell commands**
+- Each workspace gets its own isolated history file (`{workspace_root}/.forge_history`) for **conversations and prompt history**
 - All directories within the same workspace share the same workspace ID and history
-- This ensures **project isolation** - conversations and shell history stay within project boundaries
+- This ensures **project isolation** - conversations and prompt history stay within project boundaries
 - Custom history path (`FORGE_HISTORY_FILE`) still takes priority when set
 
 **Default workspace markers (in priority order):**
