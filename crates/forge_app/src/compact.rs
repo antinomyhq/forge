@@ -326,12 +326,13 @@ mod tests {
             .unwrap()
     }
 
-    #[test]
-    fn test_render_summary_frame_snapshot() {
+    #[tokio::test]
+    async fn test_render_summary_frame_snapshot() {
         // Load the conversation fixture
-        let fixture_json = include_str!("fixtures/conversation.json");
+        let fixture_json = forge_test_kit::fixture!("/src/fixtures/conversation.json").await;
+
         let conversation: forge_domain::Conversation =
-            serde_json::from_str(fixture_json).expect("Failed to parse conversation fixture");
+            serde_json::from_str(&fixture_json).expect("Failed to parse conversation fixture");
 
         // Extract context from conversation
         let context = conversation

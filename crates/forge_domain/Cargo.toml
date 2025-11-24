@@ -38,6 +38,7 @@ glob.workspace = true
 fake = { workspace = true }
 
 [dev-dependencies]
+forge_test_kit.workspace = true
 insta = { workspace = true, features = ["yaml"] }
 pretty_assertions.workspace = true
 is_ci.workspace = true

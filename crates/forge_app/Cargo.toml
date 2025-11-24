@@ -43,6 +43,7 @@ lazy_static.workspace = true
 
 
 [dev-dependencies]
+forge_test_kit.workspace = true
 tokio = { workspace = true, features = ["macros", "rt", "time", "test-util"] }
 pretty_assertions.workspace = true
 insta.workspace = true
