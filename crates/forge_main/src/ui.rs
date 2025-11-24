@@ -1832,9 +1832,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 }
                 Ok(())
             }
-            ConfigStatus::MissingModel => {
-                self.on_model_selection().await
-            }
+            ConfigStatus::MissingModel => self.on_model_selection().await,
         }
     }
 

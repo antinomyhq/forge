@@ -4,8 +4,8 @@ use anyhow::Result;
 use forge_domain::{extract_tag_content, *};
 
 use crate::{
-    AppConfigService, ConfigStatus, EnvironmentService, FileDiscoveryService, ProviderService, TemplateEngine,
-    Walker,
+    AppConfigService, ConfigStatus, EnvironmentService, FileDiscoveryService, ProviderService,
+    TemplateEngine, Walker,
 };
 
 /// CommandGenerator handles shell command generation from natural language
