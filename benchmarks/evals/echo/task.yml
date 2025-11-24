@@ -1,0 +1,15 @@
+run:
+  command: echo "{{message}}"
+  parallelism: 5
+  timeout: 10
+validations:
+  - name: "Output contains Hello"
+    type: matches_regex
+    regex: "Hello"
+sources:
+  - value:
+      - message: "Hello, World!"
+      - message: "Hello from test message 123"
+      - message: "Hello with special chars: !@#$%"
+      - message: "Hello multi word message with spaces"
+      - message: "Hello with numbers: 42 and 3.14"

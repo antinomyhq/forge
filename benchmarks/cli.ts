@@ -23,10 +23,7 @@ import {
 } from "./command-generator.js";
 import { parseCliArgs } from "./parse.js";
 import { executeTask, type TaskExecutionResult } from "./task-executor.js";
-import {
-  processValidations,
-  type ValidationResult,
-} from "./verification.js";
+import { processValidations, type ValidationResult } from "./verification.js";
 
 export type TaskResult = {
   index: number;
@@ -139,6 +136,8 @@ async function main() {
     } else if ("cmd" in source) {
       logger.error("cmd source type not yet implemented");
       process.exit(1);
+    } else if ("value" in source) {
+      sourcesData.push(source.value);
     }
   }
 
@@ -164,7 +163,7 @@ async function main() {
       // Generate command using pure function
       const command = generateCommand(task.run.command, row);
 
-      logger.info({ command, taskIndex: i + 1 }, "Executing task");
+      logger.info({ command, task_id: i + 1 }, "Executing task");
 
       // Execute the task
       const executionResult = await executeTask(
@@ -179,11 +178,11 @@ async function main() {
       if (executionResult.error) {
         logger.warn(
           {
-            taskIndex: executionResult.index,
+            task_id: executionResult.index,
             command: executionResult.command,
             duration: executionResult.duration,
             error: executionResult.error,
-            isTimeout: executionResult.isTimeout,
+            is_timeout: executionResult.isTimeout,
           },
           executionResult.isTimeout ? "Task timed out" : "Task failed"
         );
@@ -194,7 +193,8 @@ async function main() {
           task.validations,
           logger,
           executionResult.index,
-          executionResult.duration
+          executionResult.duration,
+          row
         );
 
         return {
@@ -208,27 +208,23 @@ async function main() {
         };
       }
 
-      // Task completed successfully, log execution result
-      logger.info(
-        {
-          taskIndex: executionResult.index,
-          duration: executionResult.duration,
-        },
-        "Task completed successfully"
-      );
-
       // Run validations on the output
-      const { validationResults, status: validationStatus } = processValidations(
-        executionResult.output,
-        task.validations,
-        logger,
-        executionResult.index,
-        executionResult.duration
-      );
+      const { validationResults, status: validationStatus } =
+        processValidations(
+          executionResult.output,
+          task.validations,
+          logger,
+          executionResult.index,
+          executionResult.duration,
+          row
+        );
 
       return {
         index: executionResult.index,
-        status: validationStatus === "passed" ? TaskStatus.Passed : TaskStatus.ValidationFailed,
+        status:
+          validationStatus === "passed"
+            ? TaskStatus.Passed
+            : TaskStatus.ValidationFailed,
         command: executionResult.command,
         duration: executionResult.duration,
         validationResults,
@@ -270,10 +266,10 @@ async function main() {
     {
       total: results.length,
       passed: successCount,
-      validationFailed: warningCount,
+      validation_failed: warningCount,
       timeout: timeoutCount,
       failed: failCount,
-      totalDuration,
+      total_duration: totalDuration,
       validations: {
         total: totalValidations,
         passed: passedValidations,

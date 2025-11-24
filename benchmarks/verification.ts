@@ -1,4 +1,15 @@
+import Handlebars from "handlebars";
 import type { Validation } from "./model.js";
+
+/**
+ * Escapes special regex characters in a string
+ */
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// Register Handlebars helper for escaping regex
+Handlebars.registerHelper("escapeRegex", escapeRegex);
 
 export type ValidationResult = {
   name: string;
@@ -25,13 +36,20 @@ function validateRegex(output: string, regex: string, name: string): ValidationR
  */
 export function runValidations(
   output: string,
-  validations: Array<Validation>
+  validations: Array<Validation>,
+  context?: Record<string, string>
 ): ValidationResult[] {
   const results: ValidationResult[] = [];
 
   for (const validation of validations) {
     if (validation.type === "matches_regex") {
-      results.push(validateRegex(output, validation.regex, validation.name));
+      // Interpolate regex with context if provided
+      let regex = validation.regex;
+      if (context) {
+        const template = Handlebars.compile(regex, { strict: true });
+        regex = template(context);
+      }
+      results.push(validateRegex(output, regex, validation.name));
     }
   }
 
@@ -66,40 +84,49 @@ export function processValidations(
   validations: Array<Validation> | undefined,
   logger: {
     info: (data: any, message: string) => void;
+    warn: (data: any, message: string) => void;
   },
-  taskIndex: number,
-  duration: number
+  task_id: number,
+  duration: number,
+  context?: Record<string, string>
 ): ProcessValidationsResult {
   // Run validations if configured and output is available
   const validationResults =
     validations && validations.length > 0 && output
-      ? runValidations(output, validations)
+      ? runValidations(output, validations, context)
       : [];
 
   const allPassed = allValidationsPassed(validationResults);
   const status = allPassed ? "passed" : "validation_failed";
 
-  // Log validation results if any were run
+  // Log all validation results
   if (validationResults.length > 0) {
     const passedCount = countPassed(validationResults);
     const totalCount = validationResults.length;
 
-    logger.info(
-      {
-        taskIndex,
-        status,
-        duration,
-        validations: validationResults.map((r) => ({
-          name: r.name,
-          passed: r.passed,
-          message: r.message,
-        })),
-        summary: `${passedCount}/${totalCount} validations passed`,
-      },
-      allPassed
-        ? "Validations completed successfully"
-        : "Validations completed with failures"
-    );
+    if (allPassed) {
+      logger.info(
+        {
+          task_id,
+          duration,
+          passed: validationResults.map((r) => r.name),
+        },
+        "Validation Passed"
+      );
+    } else {
+      logger.warn(
+        {
+          task_id,
+          duration,
+          failed: validationResults.filter((r) => !r.passed).map((r) => ({
+            name: r.name,
+            message: r.message,
+          })),
+          summary: `${passedCount}/${totalCount} passed`,
+        },
+        "Validation failed"
+      );
+    }
   }
 
   return { validationResults, status };

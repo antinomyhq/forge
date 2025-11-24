@@ -5,7 +5,7 @@ run:
   parallelism: 10
   timeout: 60
 validations:
-  - name: "Check success message"
+  - name: "Uses create-skill tool"
     type: matches_regex
     regex: ⏺.*\[[0-9:]*\].*Skill.*create-skill
 sources:

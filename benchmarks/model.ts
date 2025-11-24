@@ -11,7 +11,7 @@ export type Validation = {
   regex: string;
 };
 
-export type Source = { csv: string } | { cmd: string };
+export type Source = { csv: string } | { cmd: string } | { value: Record<string, string>[] };
 
 
 export enum TaskStatus {
