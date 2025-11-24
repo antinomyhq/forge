@@ -3,35 +3,36 @@ use std::sync::Arc;
 use anyhow::{Context, anyhow};
 use forge_app::SkillFetchService;
 use forge_domain::Skill;
+use tokio::sync::OnceCell;
 
 /// Fetches detailed information about a specific skill. Use this tool to load
 /// skill content and instructions when you need to understand how to perform a
 /// specialized task. Skills provide domain-specific knowledge, workflows, and
 /// best practices. Only invoke skills that are listed in the available skills
 /// section. Do not invoke a skill that is already active.
-pub struct ForgeSkillFetch<R>(Arc<R>);
+pub struct ForgeSkillFetch<R> {
+    repository: Arc<R>,
+    cache: OnceCell<Vec<Skill>>,
+}
 
 impl<R> ForgeSkillFetch<R> {
     /// Creates a new skill fetch tool
     pub fn new(repository: Arc<R>) -> Self {
-        Self(repository)
+        Self { repository, cache: OnceCell::new() }
     }
 }
 
 #[async_trait::async_trait]
 impl<R: forge_domain::SkillRepository> SkillFetchService for ForgeSkillFetch<R> {
     async fn fetch_skill(&self, skill_name: String) -> anyhow::Result<Skill> {
-        // Load all skills
-        let skills = self
-            .0
-            .load_skills()
-            .await
-            .context("Failed to load skills")?;
+        // Load skills from cache or repository
+        let skills = self.get_or_load_skills().await?;
 
         // Find the requested skill
         skills
-            .into_iter()
+            .iter()
             .find(|skill| skill.name == skill_name)
+            .cloned()
             .ok_or_else(|| {
                 anyhow!(
                     "Skill '{}' not found. Please check the available skills list.",
@@ -41,7 +42,21 @@ impl<R: forge_domain::SkillRepository> SkillFetchService for ForgeSkillFetch<R> 
     }
 
     async fn list_skills(&self) -> anyhow::Result<Vec<Skill>> {
-        self.0.load_skills().await.context("Failed to load skills")
+        self.get_or_load_skills().await.cloned()
+    }
+}
+
+impl<R: forge_domain::SkillRepository> ForgeSkillFetch<R> {
+    /// Gets skills from cache or loads them from repository if not cached
+    async fn get_or_load_skills(&self) -> anyhow::Result<&Vec<Skill>> {
+        self.cache
+            .get_or_try_init(|| async {
+                self.repository
+                    .load_skills()
+                    .await
+                    .context("Failed to load skills")
+            })
+            .await
     }
 }
 
