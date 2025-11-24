@@ -122,59 +122,43 @@ mod tests {
 
     #[test]
     fn test_reasoning_detail_from_parts_with_different_lengths() {
+        use fake::{Fake, Faker};
+
         // Create a fixture with vectors of different lengths
-        let fixture = vec![
-            vec![
-                ReasoningPart {
-                    text: Some("a-text".to_string()),
-                    signature: Some("a-sig".to_string()),
-                },
-                ReasoningPart {
-                    text: Some("b-text".to_string()),
-                    signature: Some("b-sig".to_string()),
-                },
-            ],
-            vec![ReasoningPart {
-                text: Some("c-text".to_string()),
-                signature: Some("c-sig".to_string()),
-            }],
-            vec![
-                ReasoningPart {
-                    text: Some("d-text".to_string()),
-                    signature: Some("d-sig".to_string()),
-                },
-                ReasoningPart {
-                    text: Some("e-text".to_string()),
-                    signature: Some("e-sig".to_string()),
-                },
-                ReasoningPart {
-                    text: Some("f-text".to_string()),
-                    signature: Some("f-sig".to_string()),
-                },
-            ],
-        ];
+        let a: ReasoningPart = Faker.fake();
+        let a = a.text("a-text").signature("a-sig");
+
+        let b: ReasoningPart = Faker.fake();
+        let b = b.text("b-text").signature("b-sig");
+
+        let c: ReasoningPart = Faker.fake();
+        let c = c.text("c-text").signature("c-sig");
+
+        let d: ReasoningPart = Faker.fake();
+        let d = d.text("d-text").signature("d-sig");
+
+        let e: ReasoningPart = Faker.fake();
+        let e = e.text("e-text").signature("e-sig");
+
+        let f: ReasoningPart = Faker.fake();
+        let f = f.text("f-text").signature("f-sig");
+
+        let fixture = vec![vec![a, b], vec![c], vec![d, e, f]];
 
         // Execute the function to get the actual result
         let actual = Reasoning::from_parts(fixture);
 
         // Define the expected result
-        let expected = vec![
-            // First merged vector [a, c, d]
-            ReasoningFull {
-                text: Some("a-textc-textd-text".to_string()),
-                signature: Some("a-sigc-sigd-sig".to_string()),
-            },
-            // Second merged vector [b, e]
-            ReasoningFull {
-                text: Some("b-texte-text".to_string()),
-                signature: Some("b-sige-sig".to_string()),
-            },
-            // Third merged vector [f]
-            ReasoningFull {
-                text: Some("f-text".to_string()),
-                signature: Some("f-sig".to_string()),
-            },
-        ];
+        let acd: ReasoningFull = Faker.fake();
+        let acd = acd.text("a-textc-textd-text").signature("a-sigc-sigd-sig");
+
+        let be: ReasoningFull = Faker.fake();
+        let be = be.text("b-texte-text").signature("b-sige-sig");
+
+        let f_full: ReasoningFull = Faker.fake();
+        let f_full = f_full.text("f-text").signature("f-sig");
+
+        let expected = vec![acd, be, f_full];
 
         // Assert that the actual result matches the expected result
         assert_eq!(actual, expected);
@@ -182,21 +166,30 @@ mod tests {
 
     #[test]
     fn test_reasoning_detail_from_parts_with_none_values() {
+        use fake::{Fake, Faker};
+
         // Create a fixture with some None values
-        let fixture = vec![
-            vec![ReasoningPart { text: Some("a-text".to_string()), signature: None }],
-            vec![ReasoningPart { text: None, signature: Some("b-sig".to_string()) }],
-            vec![ReasoningPart { text: Some("b-test".to_string()), signature: None }],
-        ];
+        let a: ReasoningPart = Faker.fake();
+        let mut a = a.text("a-text");
+        a.signature = None;
+
+        let b: ReasoningPart = Faker.fake();
+        let mut b = b.signature("b-sig");
+        b.text = None;
+
+        let c: ReasoningPart = Faker.fake();
+        let mut c = c.text("b-test");
+        c.signature = None;
+
+        let fixture = vec![vec![a], vec![b], vec![c]];
 
         // Execute the function to get the actual result
         let actual = Reasoning::from_parts(fixture);
 
         // Define the expected result
-        let expected = vec![ReasoningFull {
-            text: Some("a-textb-test".to_string()),
-            signature: Some("b-sig".to_string()),
-        }];
+        let expected_full: ReasoningFull = Faker.fake();
+        let expected_full = expected_full.text("a-textb-test").signature("b-sig");
+        let expected = vec![expected_full];
 
         // Assert that the actual result matches the expected result
         assert_eq!(actual, expected);
@@ -219,31 +212,43 @@ mod tests {
 
     #[test]
     fn test_reasoning_detail_from_parts_filters_incomplete_reasoning() {
+        use fake::{Fake, Faker};
+
+        let text_only: ReasoningPart = Faker.fake();
+        let mut text_only = text_only.text("text-only");
+        text_only.signature = None;
+
+        let complete1: ReasoningPart = Faker.fake();
+        let complete1 = complete1.text("complete-text").signature("complete-sig");
+
+        let mut empty: ReasoningPart = Faker.fake();
+        empty.text = None;
+        empty.signature = None;
+
+        let more_text_only: ReasoningPart = Faker.fake();
+        let mut more_text_only = more_text_only.text("more-text");
+        more_text_only.signature = None;
+
+        let complete2: ReasoningPart = Faker.fake();
+        let complete2 = complete2.text("more-text2").signature("more-sig");
+
+        let mut empty2: ReasoningPart = Faker.fake();
+        empty2.text = None;
+        empty2.signature = None;
+
         let fixture = vec![
-            vec![
-                ReasoningPart { text: Some("text-only".to_string()), signature: None },
-                ReasoningPart {
-                    text: Some("complete-text".to_string()),
-                    signature: Some("complete-sig".to_string()),
-                },
-                ReasoningPart { text: None, signature: None },
-            ],
-            vec![
-                ReasoningPart { text: Some("more-text".to_string()), signature: None },
-                ReasoningPart {
-                    text: Some("more-text2".to_string()),
-                    signature: Some("more-sig".to_string()),
-                },
-                ReasoningPart { text: None, signature: None },
-            ],
+            vec![text_only, complete1, empty],
+            vec![more_text_only, complete2, empty2],
         ];
 
         let actual = Reasoning::from_parts(fixture);
 
-        let expected = vec![ReasoningFull {
-            text: Some("complete-textmore-text2".to_string()),
-            signature: Some("complete-sigmore-sig".to_string()),
-        }];
+        let expected_full: ReasoningFull = Faker.fake();
+        let expected_full = expected_full
+            .text("complete-textmore-text2")
+            .signature("complete-sigmore-sig");
+        let expected = vec![expected_full];
+
         assert_eq!(actual, expected);
     }
 }
