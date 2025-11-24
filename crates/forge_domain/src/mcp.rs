@@ -109,12 +109,24 @@ impl Display for McpServerConfig {
                     output.push_str(&format!("{arg} "));
                 });
 
-                stdio.env.iter().for_each(|(key, value)| {
-                    output.push_str(&format!("{key}={value} "));
+                stdio.env.iter().for_each(|(key, _value)| {
+                    output.push_str(&format!("{key}=*** "));
                 });
             }
             McpServerConfig::Http(sse) => {
                 output.push_str(&format!("{} ", sse.url));
+
+                // Show headers but redact values
+                if !sse.headers.is_empty() {
+                    output.push_str(&format!(
+                        "[headers: {}]",
+                        sse.headers
+                            .keys()
+                            .map(|k| format!("{k}=***"))
+                            .collect::<Vec<_>>()
+                            .join(", ")
+                    ));
+                }
             }
         }
 
@@ -167,6 +179,8 @@ impl McpConfig {
 
 #[cfg(test)]
 mod tests {
+    use fake::{Fake, Faker};
+
     use super::*;
 
     #[test]
@@ -363,16 +377,99 @@ mod tests {
 
     #[test]
     fn test_server_type() {
+        use fake::{Fake, Faker};
         use pretty_assertions::assert_eq;
 
-        let stdio_server = McpServerConfig::new_stdio("node", vec![], None);
+        let command: String = Faker.fake();
+        let stdio_server = McpServerConfig::new_stdio(&command, vec![], None);
         let actual = stdio_server.server_type();
         let expected = "STDIO";
         assert_eq!(actual, expected);
 
-        let http_server = McpServerConfig::new_http("http://localhost:3000");
+        let url: String = format!("https://{}.example.com", Faker.fake::<String>());
+        let http_server = McpServerConfig::new_http(&url);
         let actual = http_server.server_type();
         let expected = "HTTP";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_display_stdio_redacts_env_secrets() {
+        use fake::{Fake, Faker};
+
+        let secret_key: String = Faker.fake();
+        let secret_token: String = Faker.fake();
+
+        let mut env = BTreeMap::new();
+        env.insert("API_KEY".to_string(), secret_key.clone());
+        env.insert("TOKEN".to_string(), secret_token.clone());
+
+        let command: String = Faker.fake();
+        let arg: String = Faker.fake();
+        let fixture = McpServerConfig::new_stdio(&command, vec![arg.clone()], Some(env));
+        let actual = fixture.to_string();
+
+        // Should show env keys but not values
+        assert!(actual.contains("API_KEY=***"));
+        assert!(actual.contains("TOKEN=***"));
+        assert!(!actual.contains(&secret_key));
+        assert!(!actual.contains(&secret_token));
+        assert!(actual.contains(&command));
+        assert!(actual.contains(&arg));
+    }
+
+    #[test]
+    fn test_display_http_redacts_header_secrets() {
+        use fake::{Fake, Faker};
+
+        let secret_token: String = Faker.fake();
+        let api_key: String = Faker.fake();
+
+        let mut headers = BTreeMap::new();
+        headers.insert(
+            "Authorization".to_string(),
+            format!("Bearer {secret_token}"),
+        );
+        headers.insert("X-API-Key".to_string(), api_key.clone());
+
+        let url: String = format!("https://{}.example.com", Faker.fake::<String>());
+        let fixture =
+            McpServerConfig::Http(McpHttpServer { url: url.clone(), headers, disable: false });
+
+        let actual = fixture.to_string();
+
+        // Should show header keys but not values
+        assert!(actual.contains(&url));
+        assert!(actual.contains("Authorization=***"));
+        assert!(actual.contains("X-API-Key=***"));
+        assert!(!actual.contains(&secret_token));
+        assert!(!actual.contains(&api_key));
+        assert!(!actual.contains("Bearer"));
+    }
+
+    #[test]
+    fn test_display_http_without_headers() {
+        use fake::{Fake, Faker};
+        use pretty_assertions::assert_eq;
+
+        let url: String = format!("https://{}.example.com", Faker.fake::<String>());
+        let fixture = McpServerConfig::new_http(&url);
+        let actual = fixture.to_string();
+
+        assert_eq!(actual, url);
+    }
+
+    #[test]
+    fn test_display_stdio_without_env() {
+        use fake::{Fake, Faker};
+        use pretty_assertions::assert_eq;
+
+        let command: String = Faker.fake();
+        let arg: String = Faker.fake();
+        let fixture = McpServerConfig::new_stdio(&command, vec![arg.clone()], None);
+        let actual = fixture.to_string();
+        let expected = format!("{command} {arg}");
+
         assert_eq!(actual, expected);
     }
 }
