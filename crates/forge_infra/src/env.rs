@@ -82,7 +82,7 @@ impl ForgeEnvironmentInfra {
             custom_history_path,
             max_conversations: parse_env::<usize>("FORGE_MAX_CONVERSATIONS").unwrap_or(100),
             codebase_search_limit: parse_env::<usize>("FORGE_CODEBASE_SEARCH_LIMIT").unwrap_or(100),
-            index_server_url: parse_env::<String>("FORGE_INDEX_SERVER_URL")
+            workspace_server_url: parse_env::<String>("FORGE_WORKSPACE_SERVER_URL")
                 .as_ref()
                 .and_then(|url| Url::parse(url.as_str()).ok())
                 .unwrap_or_else(|| {

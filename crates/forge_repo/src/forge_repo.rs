@@ -68,7 +68,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
         ));
 
         let codebase_repo = Arc::new(
-            crate::ForgeContextEngineRepository::new(&env.index_server_url)
+            crate::ForgeContextEngineRepository::new(&env.workspace_server_url)
                 .expect("Failed to create codebase repository"),
         );
         let agent_repository = Arc::new(ForgeAgentRepository::new(infra.clone()));

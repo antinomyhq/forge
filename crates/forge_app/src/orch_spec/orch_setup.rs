@@ -85,7 +85,7 @@ impl Default for TestContext {
                 max_conversations: 100,
                 codebase_search_limit: 100,
                 max_image_size: 262144,
-                index_server_url: Url::parse("http://localhost:8080").unwrap(),
+                workspace_server_url: Url::parse("http://localhost:8080").unwrap(),
             },
             title: Some("test-conversation".into()),
             agent: Agent::new(

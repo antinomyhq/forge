@@ -74,9 +74,9 @@ pub struct Environment {
     /// Controlled by FORGE_CODEBASE_SEARCH_LIMIT environment variable.
     pub codebase_search_limit: usize,
     /// URL for the indexing server.
-    /// Controlled by FORGE_INDEX_SERVER_URL environment variable.
+    /// Controlled by FORGE_WORKSPACE_SERVER_URL environment variable.
     #[dummy(expr = "url::Url::parse(\"http://localhost:8080\").unwrap()")]
-    pub index_server_url: Url,
+    pub workspace_server_url: Url,
 }
 
 impl Environment {
@@ -226,7 +226,7 @@ fn test_command_path() {
         max_conversations: 100,
         codebase_search_limit: 100,
         max_image_size: 262144,
-        index_server_url: "http://localhost:8080".parse().unwrap(),
+        workspace_server_url: "http://localhost:8080".parse().unwrap(),
     };
 
     let actual = fixture.command_path();
@@ -262,7 +262,7 @@ fn test_command_cwd_path() {
         max_conversations: 100,
         codebase_search_limit: 100,
         max_image_size: 262144,
-        index_server_url: "http://localhost:8080".parse().unwrap(),
+        workspace_server_url: "http://localhost:8080".parse().unwrap(),
     };
 
     let actual = fixture.command_cwd_path();
@@ -298,7 +298,7 @@ fn test_command_cwd_path_independent_from_command_path() {
         max_conversations: 100,
         codebase_search_limit: 100,
         max_image_size: 262144,
-        index_server_url: "http://localhost:8080".parse().unwrap(),
+        workspace_server_url: "http://localhost:8080".parse().unwrap(),
     };
 
     let command_path = fixture.command_path();

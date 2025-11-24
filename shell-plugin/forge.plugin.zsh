@@ -513,7 +513,7 @@ function _forge_action_suggest() {
 # Action handler: Index sync
 function _forge_action_sync() {
     echo
-    _forge_exec index sync
+    _forge_exec workspace sync
     _forge_reset
 }
 

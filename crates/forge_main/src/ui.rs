@@ -497,22 +497,22 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 return Ok(());
             }
 
-            TopLevelCommand::Index(index_group) => {
+            TopLevelCommand::Workspace(index_group) => {
                 match index_group.command {
-                    crate::cli::IndexCommand::Sync { path, batch_size } => {
+                    crate::cli::WorkspaceCommand::Sync { path, batch_size } => {
                         self.on_index(path, batch_size).await?;
                     }
-                    crate::cli::IndexCommand::List { porcelain } => {
+                    crate::cli::WorkspaceCommand::List { porcelain } => {
                         self.on_list_workspaces(porcelain).await?;
                     }
-                    crate::cli::IndexCommand::Query { query, path, limit, top_k, use_case } => {
+                    crate::cli::WorkspaceCommand::Query { query, path, limit, top_k, use_case } => {
                         self.on_query(query, path, limit, top_k, use_case).await?;
                     }
 
-                    crate::cli::IndexCommand::Info { path } => {
+                    crate::cli::WorkspaceCommand::Info { path } => {
                         self.on_workspace_info(path).await?;
                     }
-                    crate::cli::IndexCommand::Delete { workspace_id } => {
+                    crate::cli::WorkspaceCommand::Delete { workspace_id } => {
                         self.on_delete_workspace(workspace_id).await?;
                     }
                 }

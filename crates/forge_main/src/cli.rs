@@ -1,14 +1,13 @@
+//! NOTE: Always use singular names for commands and subcommands.
+//! For example: `forge provider login` instead of `forge providers login`.
+//!
+//! NOTE: With every change to this CLI structure, verify that the ZSH plugin
+//! remains compatible. The plugin at `shell-plugin/forge.plugin.zsh` implements
+//! shell completion and command shortcuts that depend on the CLI structure.
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use forge_domain::{AgentId, ProviderId};
-
-/// NOTE: Always use singular names for commands and subcommands.
-/// For example: `forge provider login` instead of `forge providers login`.
-///
-/// NOTE: With every change to this CLI structure, verify that the ZSH plugin
-/// remains compatible. The plugin at `shell-plugin/forge.plugin.zsh` implements
-/// shell completion and command shortcuts that depend on the CLI structure.
 
 #[derive(Parser)]
 #[command(version = env!("CARGO_PKG_VERSION"))]
@@ -136,8 +135,8 @@ pub enum TopLevelCommand {
     /// Run or list custom commands.
     Cmd(CmdCommandGroup),
 
-    /// Manage codebases for semantic search.
-    Index(IndexCommandGroup),
+    /// Manage workspaces for semantic search.
+    Workspace(WorkspaceCommandGroup),
 }
 
 /// Command group for custom command management.
@@ -167,13 +166,13 @@ pub enum CmdCommand {
 
 /// Command group for codebase management.
 #[derive(Parser, Debug, Clone)]
-pub struct IndexCommandGroup {
+pub struct WorkspaceCommandGroup {
     #[command(subcommand)]
-    pub command: IndexCommand,
+    pub command: WorkspaceCommand,
 }
 
 #[derive(Subcommand, Debug, Clone)]
-pub enum IndexCommand {
+pub enum WorkspaceCommand {
     /// Synchronize a directory for semantic search.
     Sync {
         /// Path to the directory to sync
