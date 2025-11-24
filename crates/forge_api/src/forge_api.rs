@@ -53,7 +53,7 @@ impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
 }
 
 #[async_trait::async_trait]
-impl<A: Services, F: CommandInfra + EnvironmentInfra + forge_domain::SkillRepository> API
+impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + AppConfigRepository> API
     for ForgeAPI<A, F>
 {
     async fn discover(&self) -> Result<Vec<File>> {
@@ -234,9 +234,9 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + forge_domain::SkillReposi
     }
 
     async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
-        // Invalidate cache for agents
         let result = self.services.set_default_provider(provider_id).await;
-        self.services.reload_agents().await?;
+        // Invalidate cache for agents
+        let _ = self.services.reload_agents().await;
         result
     }
 
@@ -279,15 +279,23 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + forge_domain::SkillReposi
     }
 
     async fn get_default_model(&self) -> Option<ModelId> {
-        let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
-        agent_provider_resolver.get_model(None).await.ok()
+        let config = self.infra.get_app_config().await.ok()?;
+
+        config
+            .provider
+            .and_then(|provider| config.model.get(&provider))
+            .cloned()
     }
-    async fn set_default_model(
-        &self,
-        agent_id: Option<AgentId>,
-        model_id: ModelId,
-    ) -> anyhow::Result<()> {
-        self.app().set_default_model(agent_id, model_id).await
+    async fn set_default_model(&self, model_id: ModelId) -> anyhow::Result<()> {
+        // FIXME: Move to services
+        let mut config = self.infra.get_app_config().await?;
+        let provider = config
+            .provider
+            .ok_or(anyhow::anyhow!("Default provider not set"))?;
+        config.model.insert(provider, model_id);
+
+        self.infra.set_app_config(&config).await?;
+        Ok(())
     }
 
     async fn get_login_info(&self) -> Result<Option<LoginInfo>> {
@@ -343,7 +351,14 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + forge_domain::SkillReposi
     }
 
     async fn get_default_provider(&self) -> Result<Provider<Url>> {
-        let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
-        agent_provider_resolver.get_provider(None).await
+        let id = self
+            .infra
+            .get_app_config()
+            .await?
+            .provider
+            // FIXME: Use domain error
+            .ok_or(anyhow::anyhow!("No default provider set"))?;
+
+        self.services.provider_service().get_provider(id).await
     }
 }

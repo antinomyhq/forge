@@ -58,7 +58,7 @@ pub struct UI<A, F: Fn() -> A> {
     _guard: forge_tracker::Guard,
 }
 
-impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
+impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     /// Writes a line to the console output
     /// Takes anything that implements ToString trait
     fn writeln<T: ToString>(&mut self, content: T) -> anyhow::Result<()> {
@@ -1549,7 +1549,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
     /// Select a model from the available models
     /// Returns Some(ModelId) if a model was selected, or None if selection was
     /// canceled
+    #[async_recursion::async_recursion]
     async fn select_model(&mut self) -> Result<Option<ModelId>> {
+        // Check if provider is set otherwise first ask to select a provider
+        if !self.api.get_default_provider().await.is_ok() {
+            self.on_provider_selection().await?;
+        }
+
         // Fetch available models
         let mut models = self
             .get_models()
@@ -1620,8 +1626,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             )
             .await?;
 
-        self.display_credential_success(provider_id).await?;
-
         Ok(())
     }
 
@@ -1688,11 +1692,13 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         self.spinner.stop(None)?;
 
-        self.display_credential_success(provider_id).await?;
         Ok(())
     }
 
-    async fn display_credential_success(&mut self, provider_id: ProviderId) -> anyhow::Result<()> {
+    async fn display_credential_success(
+        &mut self,
+        provider_id: ProviderId,
+    ) -> anyhow::Result<bool> {
         self.writeln_title(TitleFormat::info(format!(
             "{provider_id} configured successfully!"
         )))?;
@@ -1704,11 +1710,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         .with_default(true)
         .prompt()?;
 
-        if should_set_active.unwrap_or(false) {
-            self.api.set_default_provider(provider_id).await?;
-            self.writeln_title(TitleFormat::action(format!("Provider set {provider_id}")))?;
-        }
-        Ok(())
+        Ok(should_set_active.unwrap_or(false))
     }
 
     async fn handle_code_flow(
@@ -1763,7 +1765,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         self.spinner.stop(None)?;
 
-        self.display_credential_success(provider_id).await?;
         Ok(())
     }
 
@@ -1821,11 +1822,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         &mut self,
         provider_id: ProviderId,
         auth_methods: Vec<AuthMethod>,
-    ) -> Result<()> {
+    ) -> Result<bool> {
         // Select auth method (or use the only one available)
         let auth_method = match self.select_auth_method(provider_id, &auth_methods).await? {
             Some(method) => method,
-            None => return Ok(()), // User cancelled
+            None => return Ok(false), // User cancelled
         };
 
         self.spinner.start(Some("Initiating authentication..."))?;
@@ -1849,11 +1850,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
         }
 
-        Ok(())
+        self.display_credential_success(provider_id).await
     }
 
     /// Selects a provider, optionally configuring it if not already configured.
-    async fn select_provider(&mut self) -> Result<Option<Provider<Url>>> {
+    async fn select_provider(&mut self) -> Result<Option<AnyProvider>> {
         // Fetch and sort available providers
         let mut providers = self
             .api
@@ -1886,18 +1887,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             return Ok(None);
         };
 
-        // If already configured, extract and return Provider<Url>
-        if provider.0.is_configured() {
-            return Ok(provider.0.into_configured());
-        }
-
-        self.configure_provider(provider.0.id(), provider.0.auth_methods().to_vec())
-            .await?;
-
-        Ok(None)
+        Ok(Some(provider.0))
     }
 
     // Helper method to handle model selection and update the conversation
+    #[async_recursion::async_recursion]
     async fn on_model_selection(&mut self) -> Result<()> {
         // Select a model
         let model_option = self.select_model().await?;
@@ -1908,12 +1902,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             None => return Ok(()),
         };
 
-        let active_agent = self.api.get_active_agent().await;
-
         // Update the operating model via API
-        self.api
-            .set_default_model(active_agent, model.clone())
-            .await?;
+        self.api.set_default_model(model.clone()).await?;
 
         // Update the UI state with the new model
         self.update_model(Some(model.clone()));
@@ -1925,10 +1915,29 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
     async fn on_provider_selection(&mut self) -> Result<()> {
         // Select a provider
-        let provider_option = self.select_provider().await?;
-
         // If no provider was selected (user canceled), return early
-        let provider = match provider_option {
+        let any_provider = match self.select_provider().await? {
+            Some(provider) => provider,
+            None => return Ok(()),
+        };
+
+        // Trigger authentication for the selected provider
+
+        if !any_provider.is_configured() {
+            let can_set_default_provider = self
+                .configure_provider(any_provider.id(), any_provider.auth_methods().to_vec())
+                .await?;
+
+            if !can_set_default_provider {
+                return Ok(());
+            }
+        }
+
+        // Refetch the provider after the auth completion
+        // FIXME: Ideally the configured provider should be returned by the `configure_provider` function.
+        let provider = self.api.get_provider(&any_provider.id()).await?;
+
+        let provider = match provider.into_configured() {
             Some(provider) => provider,
             None => return Ok(()),
         };
@@ -1942,9 +1951,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         )))?;
 
         // Check if the current model is available for the new provider
-        let current_model = self
-            .get_agent_model(self.api.get_active_agent().await)
-            .await;
+        let current_model = self.api.get_default_model().await;
         if let Some(current_model) = current_model {
             let models = self.get_models().await?;
             let model_available = models.iter().any(|m| m.id == current_model);
@@ -1954,6 +1961,8 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.writeln_title(TitleFormat::info("Please select a new model"))?;
                 self.on_model_selection().await?;
             }
+        } else {
+            self.on_model_selection().await?;
         }
 
         Ok(())
@@ -2074,12 +2083,11 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             .await
             .is_none()
         {
-            let active_agent = self.api.get_active_agent().await;
             let model = self
                 .select_model()
                 .await?
                 .ok_or(anyhow::anyhow!("Model selection is required to continue"))?;
-            self.api.set_default_model(active_agent, model).await?;
+            self.api.set_default_model(model).await?;
         }
 
         // Create base workflow and trigger updates if this is the first initialization
@@ -2466,10 +2474,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             }
             ConfigField::Model => {
                 let model_id = self.validate_model(&args.value).await?;
-                let active_agent = self.api.get_active_agent().await;
-                self.api
-                    .set_default_model(active_agent, model_id.clone())
-                    .await?;
+                self.api.set_default_model(model_id.clone()).await?;
                 self.writeln_title(
                     TitleFormat::action(model_id.as_str()).sub_title("is now the default model"),
                 )?;
