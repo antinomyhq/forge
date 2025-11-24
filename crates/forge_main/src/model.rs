@@ -543,7 +543,7 @@ impl SlashCommand {
             SlashCommand::Retry => "retry",
             SlashCommand::Conversations => "conversation",
             SlashCommand::AgentSwitch(agent_id) => agent_id,
-            SlashCommand::Clone => "clone",
+            SlashCommand::Clone => "conversation clone",
         }
     }
 
