@@ -480,7 +480,7 @@ function _forge_action_tools() {
 # Action handler: Show skills
 function _forge_action_skill() {
     echo
-    _forge_exec list skills
+    _forge_exec list skill
     _forge_reset
 }
 
