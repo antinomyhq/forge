@@ -204,7 +204,7 @@ mod tests {
             Ok(ModelId::new("test-model"))
         }
 
-        async fn set_default_model(&self, _model: ModelId, _provider_id: ProviderId) -> Result<()> {
+        async fn set_default_model(&self, _model: ModelId) -> Result<()> {
             Ok(())
         }
     }

@@ -287,14 +287,7 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + AppConf
             .cloned()
     }
     async fn set_default_model(&self, model_id: ModelId) -> anyhow::Result<()> {
-        let provider = self
-            .infra
-            .get_app_config()
-            .await?
-            .provider
-            .ok_or(Error::NoDefaultProvider)?;
-
-        self.services.set_default_model(model_id, provider).await
+        self.services.set_default_model(model_id).await
     }
 
     async fn get_login_info(&self) -> Result<Option<LoginInfo>> {

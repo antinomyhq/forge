@@ -78,11 +78,14 @@ impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
         Err(forge_app::Error::NoActiveModel.into())
     }
 
-    async fn set_default_model(
-        &self,
-        model: ModelId,
-        provider_id: ProviderId,
-    ) -> anyhow::Result<()> {
+    async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()> {
+        let provider_id = self
+            .infra
+            .get_app_config()
+            .await?
+            .provider
+            .ok_or(forge_domain::Error::NoDefaultProvider)?;
+
         self.update(|config| {
             config.model.insert(provider_id, model.clone());
         })
@@ -295,8 +298,10 @@ mod tests {
         let fixture = MockInfra::new();
         let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
 
+        // Set OpenAI as the default provider first
+        service.set_default_provider(ProviderId::OpenAI).await?;
         service
-            .set_default_model("gpt-4".to_string().into(), ProviderId::OpenAI)
+            .set_default_model("gpt-4".to_string().into())
             .await?;
         let actual = service.get_default_model(&ProviderId::OpenAI).await?;
         let expected = "gpt-4".to_string().into();
@@ -310,8 +315,10 @@ mod tests {
         let fixture = MockInfra::new();
         let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
 
+        // Set OpenAI as the default provider first
+        service.set_default_provider(ProviderId::OpenAI).await?;
         service
-            .set_default_model("gpt-4".to_string().into(), ProviderId::OpenAI)
+            .set_default_model("gpt-4".to_string().into())
             .await?;
 
         let config = fixture.get_app_config().await?;
@@ -327,11 +334,15 @@ mod tests {
         let fixture = MockInfra::new();
         let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
 
+        // Set models for different providers by switching active provider
+        service.set_default_provider(ProviderId::OpenAI).await?;
         service
-            .set_default_model("gpt-4".to_string().into(), ProviderId::OpenAI)
+            .set_default_model("gpt-4".to_string().into())
             .await?;
+
+        service.set_default_provider(ProviderId::Anthropic).await?;
         service
-            .set_default_model("claude-3".to_string().into(), ProviderId::Anthropic)
+            .set_default_model("claude-3".to_string().into())
             .await?;
 
         let config = fixture.get_app_config().await?;
