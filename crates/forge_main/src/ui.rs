@@ -2071,9 +2071,15 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         let _ = self.handle_migrate_credentials().await;
 
-        // Ensure we have a model selected before proceeding with initialization
-        // If no provider is configured, select_model will handle prompting for one
+        // Ensure we have both provider and model selected before proceeding
         let active_agent = self.api.get_active_agent().await;
+
+        // Check if provider is configured
+        if self.get_provider(active_agent.clone()).await.is_err() {
+            self.select_provider().await?;
+        }
+
+        // Check if model is selected
         if self.get_agent_model(active_agent.clone()).await.is_none() {
             let model = self
                 .select_model()
