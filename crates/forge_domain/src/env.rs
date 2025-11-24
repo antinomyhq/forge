@@ -87,11 +87,6 @@ pub struct Environment {
 
 impl Environment {
     /// Find workspace root by traversing up the directory tree looking for workspace markers
-    /// Default markers (in priority order):
-    /// 1. .git - git repository (directory or worktree file)
-    /// 2. forge.yaml - Forge configuration file
-    /// 3. .forge - Forge directory
-    /// 4. forge/.config.json - Forge config file in forge directory
     pub fn workspace_root(&self) -> PathBuf {
         find_workspace_root(&self.cwd, self.max_workspace_depth)
     }
@@ -101,12 +96,10 @@ impl Environment {
     }
 
     pub fn history_path(&self) -> PathBuf {
-        // If custom history path is set, always use it
         if let Some(custom_path) = &self.custom_history_path {
             return custom_path.clone();
         }
         
-        // Default to workspace-specific history
         let workspace_root = self.workspace_root();
         workspace_root.join(".forge_history")
     }
@@ -189,14 +182,7 @@ impl WorkspaceId {
     }
 }
 
-/// Find workspace root by traversing up the directory tree looking for workspace markers
-/// Default markers (in priority order):
-/// 1. .git - git repository (directory or worktree file)
-/// 2. forge.yaml - Forge configuration file
-/// 3. .forge - Forge directory
-/// 4. forge/.config.json - Forge config file in forge directory
 fn find_workspace_root(cwd: &Path, max_depth: Option<usize>) -> PathBuf {
-    // Get markers from environment variable or use Forge-specific defaults
     let markers_str = std::env::var("FORGE_WORKSPACE_MARKERS")
         .unwrap_or_else(|_| ".git,forge.yaml,.forge,forge/.config.json".to_string());
     
@@ -210,19 +196,16 @@ fn find_workspace_root(cwd: &Path, max_depth: Option<usize>) -> PathBuf {
     let mut depth = 0;
     
     loop {
-        // Check if ANY marker exists in current directory
         for marker in &markers {
             if current.join(marker).exists() {
                 return current;
             }
         }
         
-        // Check depth limit
         if let Some(max_depth) = max_depth && depth >= max_depth {
             break;
         }
         
-        // Move to parent directory
         match current.parent() {
             Some(parent) => {
                 current = parent.to_path_buf();
@@ -232,7 +215,6 @@ fn find_workspace_root(cwd: &Path, max_depth: Option<usize>) -> PathBuf {
         }
     }
     
-    // Fallback to current working directory if no markers found or depth limit reached
     cwd.to_path_buf()
 }
 
