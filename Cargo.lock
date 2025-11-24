@@ -1200,6 +1200,7 @@ dependencies = [
  "forge_domain",
  "forge_stream",
  "forge_template",
+ "forge_test_kit",
  "futures",
  "glob",
  "handlebars",
@@ -1268,6 +1269,7 @@ dependencies = [
  "fnv_rs",
  "forge_json_repair",
  "forge_template",
+ "forge_test_kit",
  "forge_tool_macros",
  "glob",
  "indexmap",
@@ -1425,6 +1427,7 @@ dependencies = [
  "forge_fs",
  "forge_infra",
  "forge_snaps",
+ "forge_test_kit",
  "gray_matter",
  "handlebars",
  "merge 0.2.0",
@@ -1469,6 +1472,7 @@ dependencies = [
  "forge_domain",
  "forge_fs",
  "forge_snaps",
+ "forge_test_kit",
  "futures",
  "glob",
  "gray_matter",
@@ -1553,6 +1557,15 @@ version = "0.1.0"
 dependencies = [
  "html-escape",
  "pretty_assertions",
+]
+
+[[package]]
+name = "forge_test_kit"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tokio",
 ]
 
 [[package]]

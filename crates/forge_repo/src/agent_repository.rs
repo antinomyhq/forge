@@ -165,9 +165,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_parse_basic_agent() {
-        let content = include_str!("fixtures/agents/basic.md");
+        let content = forge_test_kit::fixture!("/src/fixtures/agents/basic.md").await;
 
-        let actual = parse_agent_file(content).unwrap();
+        let actual = parse_agent_file(&content).unwrap();
 
         assert_eq!(actual.id.as_str(), "test-basic");
         assert_eq!(actual.title.as_ref().unwrap(), "Basic Test Agent");
@@ -183,9 +183,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_parse_advanced_agent() {
-        let content = include_str!("fixtures/agents/advanced.md");
+        let content = forge_test_kit::fixture!("/src/fixtures/agents/advanced.md").await;
 
-        let actual = parse_agent_file(content).unwrap();
+        let actual = parse_agent_file(&content).unwrap();
 
         assert_eq!(actual.id.as_str(), "test-advanced");
         assert_eq!(actual.title.as_ref().unwrap(), "Advanced Test Agent");
