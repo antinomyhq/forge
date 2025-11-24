@@ -287,15 +287,14 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + AppConf
             .cloned()
     }
     async fn set_default_model(&self, model_id: ModelId) -> anyhow::Result<()> {
-        // FIXME: Move to services
-        let mut config = self.infra.get_app_config().await?;
-        let provider = config
+        let provider = self
+            .infra
+            .get_app_config()
+            .await?
             .provider
             .ok_or(anyhow::anyhow!("Default provider not set"))?;
-        config.model.insert(provider, model_id);
 
-        self.infra.set_app_config(&config).await?;
-        Ok(())
+        self.services.set_default_model(model_id, provider).await
     }
 
     async fn get_login_info(&self) -> Result<Option<LoginInfo>> {
