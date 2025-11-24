@@ -292,7 +292,7 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + AppConf
             .get_app_config()
             .await?
             .provider
-            .ok_or(anyhow::anyhow!("Default provider not set"))?;
+            .ok_or(Error::NoDefaultProvider)?;
 
         self.services.set_default_model(model_id, provider).await
     }
