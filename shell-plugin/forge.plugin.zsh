@@ -63,14 +63,7 @@ function _forge_exec() {
     # Ensure FORGE_ACTIVE_AGENT always has a value, default to "forge"
     local agent_id="${_FORGE_ACTIVE_AGENT:-forge}"
     
-    # Disable application cursor keys mode - ensures arrow keys work in dialoguer
-    # Without this, arrow keys send wrong sequences and print A/B characters
-    printf '\e[?1l'
-    
     eval "$_FORGE_BIN --agent $(printf '%q' "$agent_id") $(printf '%q ' "$@")"
-    
-    # Re-enable application cursor keys mode
-    printf '\e[?1h'
 }
 
 # Helper function to clear buffer and reset prompt
@@ -483,6 +476,14 @@ function _forge_action_tools() {
     _forge_reset
 }
 
+
+# Action handler: Show skills
+function _forge_action_skill() {
+    echo
+    _forge_exec list skill
+    _forge_reset
+}
+
 # Action handler: Generate shell command from natural language
 # Usage: :? <description>
 function _forge_action_suggest() {
@@ -695,6 +696,9 @@ function forge-accept-line() {
         ;;
         tools|t)
             _forge_action_tools
+        ;;
+        skill)
+            _forge_action_skill
         ;;
         commit)
             _forge_action_commit "$input_text"
