@@ -4,6 +4,7 @@ run:
   command: ../../target/debug/forge -p '{{skill}}'
   parallelism: 10
   timeout: 60
+  early_exit: true
 validations:
   - name: "Uses create-skill tool"
     type: matches_regex

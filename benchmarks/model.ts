@@ -1,6 +1,6 @@
 export type Task = {
   before_run: Array<string>;
-  run: { command: string; parallelism?: number; timeout?: number };
+  run: { command: string; parallelism?: number; timeout?: number; early_exit?: boolean };
   validations?: Array<Validation>;
   sources: Array<Source>;
 };

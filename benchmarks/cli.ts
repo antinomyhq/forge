@@ -171,7 +171,10 @@ async function main() {
         i + 1,
         debugDir,
         evalDir,
-        task.run.timeout
+        task.run.timeout,
+        task.run.early_exit,
+        task.validations,
+        row
       );
 
       // If execution failed or timed out, still run validations if output is available
@@ -207,6 +210,20 @@ async function main() {
           validationResults,
         };
       }
+
+      // Task completed successfully, log execution result
+      const logMessage = executionResult.earlyExit
+        ? "Task completed (early exit)"
+        : "Task completed successfully";
+      
+      logger.info(
+        {
+          task_id: executionResult.index,
+          duration: executionResult.duration,
+          early_exit: executionResult.earlyExit || undefined,
+        },
+        logMessage
+      );
 
       // Run validations on the output
       const { validationResults, status: validationStatus } =

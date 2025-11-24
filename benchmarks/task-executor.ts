@@ -1,6 +1,8 @@
 import * as fs from "fs";
 import * as path from "path";
 import { spawn } from "child_process";
+import type { Validation } from "./model.js";
+import { runValidations, allValidationsPassed } from "./verification.js";
 
 export type TaskExecutionResult = {
   index: number;
@@ -9,6 +11,7 @@ export type TaskExecutionResult = {
   output?: string;
   error?: string;
   isTimeout: boolean;
+  earlyExit?: boolean;
 };
 
 /**
@@ -34,7 +37,10 @@ export async function executeTask(
   index: number,
   debugDir: string,
   evalDir: string,
-  timeout: number | undefined
+  timeout: number | undefined,
+  earlyExitOnValidation: boolean | undefined,
+  validations: Array<Validation> | undefined,
+  context?: Record<string, string>
 ): Promise<TaskExecutionResult> {
   const startTime = Date.now();
 
@@ -50,6 +56,7 @@ export async function executeTask(
   try {
     // Track timeout state outside the promise
     let timedOut = false;
+    let exitedEarly = false;
     
     // Execute command and stream output to log file
     const output = await new Promise<string>((resolve, reject) => {
@@ -62,6 +69,28 @@ export async function executeTask(
       let stdout = "";
       let stderr = "";
       let timeoutId: NodeJS.Timeout | null = null;
+
+      // Helper function to check validations after each write
+      const checkValidations = () => {
+        if (exitedEarly || timedOut) return;
+        
+        if (earlyExitOnValidation && validations && validations.length > 0) {
+          const currentOutput = stdout + stderr;
+          if (currentOutput) {
+            const results = runValidations(currentOutput, validations, context);
+            if (allValidationsPassed(results)) {
+              exitedEarly = true;
+              if (timeoutId) clearTimeout(timeoutId);
+              logStream.write(`\n${"=".repeat(80)}\n`);
+              logStream.write(`Early exit: All validations passed\n`);
+              logStream.write(`Killing process...\n`);
+              logStream.end();
+              child.kill("SIGTERM");
+              resolve(currentOutput);
+            }
+          }
+        }
+      };
 
       // Set up timeout if configured
       if (timeout) {
@@ -82,6 +111,7 @@ export async function executeTask(
         const text = data.toString();
         stdout += text;
         logStream.write(text);
+        checkValidations();
       });
 
       // Stream stderr to both log file and capture for validation
@@ -89,13 +119,14 @@ export async function executeTask(
         const text = data.toString();
         stderr += text;
         logStream.write(text);
+        checkValidations();
       });
 
       child.on("close", (code) => {
         if (timeoutId) clearTimeout(timeoutId);
 
-        // Don't log or resolve if already timed out
-        if (timedOut) return;
+        // Don't log or resolve if already timed out or exited early
+        if (timedOut || exitedEarly) return;
 
         logStream.write(`\n${"=".repeat(80)}\n`);
         logStream.write(`Finished: ${formatTimestamp(new Date())}\n`);
@@ -112,8 +143,8 @@ export async function executeTask(
       child.on("error", (err) => {
         if (timeoutId) clearTimeout(timeoutId);
 
-        // Don't log if already timed out
-        if (timedOut) return;
+        // Don't log if already timed out or exited early
+        if (timedOut || exitedEarly) return;
 
         logStream.write(`\nError: ${err.message}\n`);
         logStream.end();
@@ -129,6 +160,7 @@ export async function executeTask(
       duration,
       output,
       isTimeout: timedOut,
+      earlyExit: exitedEarly,
     };
   } catch (error) {
     const duration = Date.now() - startTime;
@@ -140,6 +172,7 @@ export async function executeTask(
       duration,
       error: errorMessage,
       isTimeout: false,
+      earlyExit: false,
     };
   }
 }
