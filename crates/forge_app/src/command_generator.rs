@@ -4,8 +4,8 @@ use anyhow::Result;
 use forge_domain::{extract_tag_content, *};
 
 use crate::{
-    AppConfigService, EnvironmentService, FileDiscoveryService, ProviderService,
-    TemplateEngine, Walker,
+    AppConfigService, EnvironmentService, FileDiscoveryService, ProviderService, TemplateEngine,
+    Walker,
 };
 
 /// CommandGenerator handles shell command generation from natural language
@@ -92,9 +92,8 @@ mod tests {
     use tokio::sync::Mutex;
     use url::Url;
 
-    use crate::ConfigStatus;
-
     use super::*;
+    use crate::ConfigStatus;
 
     struct MockServices {
         files: Vec<(String, bool)>,
