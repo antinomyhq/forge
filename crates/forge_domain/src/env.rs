@@ -79,14 +79,15 @@ pub struct Environment {
     /// If set, this provider will be used as default.
     #[dummy(default)]
     pub override_provider: Option<ProviderId>,
-    /// Maximum number of parent directories to traverse when finding workspace root.
-    /// Default: 10 (reasonable limit to prevent infinite loops)
+    /// Maximum number of parent directories to traverse when finding workspace
+    /// root. Default: 10 (reasonable limit to prevent infinite loops)
     #[dummy(expr = "Some(10)")]
     pub max_workspace_depth: Option<usize>,
 }
 
 impl Environment {
-    /// Find workspace root by traversing up the directory tree looking for workspace markers
+    /// Find workspace root by traversing up the directory tree looking for
+    /// workspace markers
     pub fn workspace_root(&self) -> PathBuf {
         find_workspace_root(&self.cwd, self.max_workspace_depth)
     }
@@ -99,7 +100,7 @@ impl Environment {
         if let Some(custom_path) = &self.custom_history_path {
             return custom_path.clone();
         }
-        
+
         let workspace_root = self.workspace_root();
         workspace_root.join(".forge_history")
     }
@@ -185,27 +186,29 @@ impl WorkspaceId {
 fn find_workspace_root(cwd: &Path, max_depth: Option<usize>) -> PathBuf {
     let markers_str = std::env::var("FORGE_WORKSPACE_MARKERS")
         .unwrap_or_else(|_| ".git,forge.yaml,.forge,forge/.config.json".to_string());
-    
+
     let markers = markers_str
         .split(',')
         .map(|s| s.trim())
         .filter(|s| !s.is_empty())
         .collect::<Vec<_>>();
-    
+
     let mut current = cwd.to_path_buf();
     let mut depth = 0;
-    
+
     loop {
         for marker in &markers {
             if current.join(marker).exists() {
                 return current;
             }
         }
-        
-        if let Some(max_depth) = max_depth && depth >= max_depth {
+
+        if let Some(max_depth) = max_depth
+            && depth >= max_depth
+        {
             break;
         }
-        
+
         match current.parent() {
             Some(parent) => {
                 current = parent.to_path_buf();
@@ -214,7 +217,7 @@ fn find_workspace_root(cwd: &Path, max_depth: Option<usize>) -> PathBuf {
             None => break,
         }
     }
-    
+
     cwd.to_path_buf()
 }
 
