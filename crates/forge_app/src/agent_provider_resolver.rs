@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use forge_domain::{AgentId, Error, ModelId, Provider};
+use forge_domain::{AgentId, ModelId, Provider};
 
 use crate::{AgentRegistry, AppConfigService, ProviderAuthService, ProviderService};
 
@@ -82,17 +82,11 @@ where
                 // TODO: Needs review, should we throw an err here?
                 // we can throw crate::Error::AgentNotFound
                 let provider_id = self.get_provider(Some(agent_id)).await?.id;
-                self.0
-                    .get_default_model(Some(&provider_id))
-                    .await
-                    .ok_or_else(|| Error::no_default_model(provider_id).into())
+                Ok(self.0.get_default_model(Some(&provider_id)).await?)
             }
         } else {
             let provider_id = self.get_provider(None).await?.id;
-            self.0
-                .get_default_model(Some(&provider_id))
-                .await
-                .ok_or_else(|| Error::no_default_model(provider_id).into())
+            Ok(self.0.get_default_model(Some(&provider_id)).await?)
         }
     }
 }

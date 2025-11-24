@@ -69,15 +69,22 @@ impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
         .await
     }
 
-    async fn get_default_model(&self, provider_id: Option<&ProviderId>) -> Option<ModelId> {
-        let config = self.infra.get_app_config().await.ok()?;
+    async fn get_default_model(&self, provider_id: Option<&ProviderId>) -> anyhow::Result<ModelId> {
+        let config = self.infra.get_app_config().await?;
 
         let provider_id = match provider_id {
             Some(id) => id,
-            None => config.provider.as_ref()?,
+            None => config
+                .provider
+                .as_ref()
+                .ok_or(forge_domain::Error::NoDefaultProvider)?,
         };
 
-        config.model.get(provider_id).cloned()
+        Ok(config
+            .model
+            .get(provider_id)
+            .cloned()
+            .ok_or_else(|| forge_domain::Error::no_default_model(*provider_id))?)
     }
 
     async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()> {
@@ -291,7 +298,7 @@ mod tests {
 
         let result = service.get_default_model(Some(&ProviderId::OpenAI)).await;
 
-        assert!(result.is_none());
+        assert!(result.is_err());
         Ok(())
     }
 
@@ -305,8 +312,8 @@ mod tests {
         service
             .set_default_model("gpt-4".to_string().into())
             .await?;
-        let actual = service.get_default_model(Some(&ProviderId::OpenAI)).await;
-        let expected = Some("gpt-4".to_string().into());
+        let actual = service.get_default_model(Some(&ProviderId::OpenAI)).await?;
+        let expected = "gpt-4".to_string().into();
 
         assert_eq!(actual, expected);
         Ok(())
