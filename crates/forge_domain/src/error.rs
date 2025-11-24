@@ -90,10 +90,10 @@ pub enum Error {
     VertexAiConfiguration { message: String },
 
     // Indexing errors
-    #[error("No indexing authentication found. Please run `forge index sync` first.")]
+    #[error("No indexing authentication found")]
     AuthTokenNotFound,
 
-    #[error("Workspace not found. Run `forge index sync .` first.")]
+    #[error("Workspace not found")]
     WorkspaceNotFound,
 }
 

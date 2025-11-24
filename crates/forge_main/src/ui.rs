@@ -2824,7 +2824,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             Ok(None) => {
                 self.spinner.stop(None)?;
                 self.writeln_to_stderr(
-                    TitleFormat::error("No workspace found. Run 'forge index sync' to create one.")
+                    TitleFormat::error("No workspace found")
                         .display()
                         .to_string(),
                 )
