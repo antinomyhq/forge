@@ -349,7 +349,13 @@ impl ForgeCommandManager {
             "/login" => Ok(SlashCommand::Login),
             "/logout" => Ok(SlashCommand::Logout),
             "/retry" => Ok(SlashCommand::Retry),
-            "/conversation" | "/conversations" => Ok(SlashCommand::Conversations),
+            "/conversation" | "/conversations" => {
+                if parameters.first() == Some(&"clone") {
+                    Ok(SlashCommand::Clone)
+                } else {
+                    Ok(SlashCommand::Conversations)
+                }
+            }
             "/commit" => {
                 // Support flexible syntax:
                 // /commit              -> commit with AI message
@@ -504,6 +510,9 @@ pub enum SlashCommand {
         usage = "Generate AI commit message and commit changes. Format: /commit <max-diff|preview>"
     ))]
     Commit { max_diff_size: Option<usize> },
+    /// Clone current conversation and switch to it
+    #[strum(props(usage = "Clone current conversation and switch to it"))]
+    Clone,
 }
 
 impl SlashCommand {
@@ -534,7 +543,7 @@ impl SlashCommand {
             SlashCommand::Retry => "retry",
             SlashCommand::Conversations => "conversation",
             SlashCommand::AgentSwitch(agent_id) => agent_id,
-            SlashCommand::Clone { .. } => "clone",
+            SlashCommand::Clone => "clone",
         }
     }
 
@@ -1215,6 +1224,54 @@ mod tests {
 
         // Verify
         let expected = SlashCommand::Dump { html: true };
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_parse_conversation_clone() {
+        let fixture = ForgeCommandManager::default();
+
+        // Execute
+        let actual = fixture.parse("/conversation clone").unwrap();
+
+        // Verify
+        let expected = SlashCommand::Clone;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_parse_conversations_clone() {
+        let fixture = ForgeCommandManager::default();
+
+        // Execute
+        let actual = fixture.parse("/conversations clone").unwrap();
+
+        // Verify
+        let expected = SlashCommand::Clone;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_parse_conversation() {
+        let fixture = ForgeCommandManager::default();
+
+        // Execute
+        let actual = fixture.parse("/conversation").unwrap();
+
+        // Verify
+        let expected = SlashCommand::Conversations;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_parse_conversations() {
+        let fixture = ForgeCommandManager::default();
+
+        // Execute
+        let actual = fixture.parse("/conversations").unwrap();
+
+        // Verify
+        let expected = SlashCommand::Conversations;
         assert_eq!(actual, expected);
     }
 }

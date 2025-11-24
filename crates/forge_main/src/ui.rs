@@ -970,6 +970,10 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 "conversation",
                 "List all conversations for the active workspace [alias: c]",
             ),
+            (
+                "conversation clone",
+                "Clone current conversation and switch to it",
+            ),
             ("retry", "Retry the last command [alias: r]"),
             ("compact", "Compact the conversation context"),
             (
@@ -1529,6 +1533,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         "Agent '{agent_id}' not found or unavailable"
                     ));
                 }
+            }
+            SlashCommand::Clone => {
+                self.on_conversation_clone().await?;
             }
         }
 
@@ -2381,6 +2388,42 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
 
         Ok(())
+    }
+
+    async fn on_conversation_clone(&mut self) -> anyhow::Result<()> {
+        if let Some(current_id) = self.state.conversation_id {
+            let current_conversation = self.validate_conversation_exists(&current_id).await?;
+
+            self.spinner.start(Some("Cloning"))?;
+            let cloned_conversation = self
+                .clone_conversation_internal(current_conversation)
+                .await?;
+            self.spinner.stop(None)?;
+
+            self.state.conversation_id = Some(cloned_conversation.id);
+
+            self.writeln_title(
+                TitleFormat::info("Conversation cloned and switched")
+                    .sub_title(format!("[{} → {}]", current_id, cloned_conversation.id)),
+            )?;
+        } else {
+            self.writeln_title(TitleFormat::warning("No conversation to clone"))?;
+            self.writeln("Start a conversation first or switch to an existing one.")?;
+        }
+
+        Ok(())
+    }
+
+    async fn clone_conversation_internal(
+        &mut self,
+        original: Conversation,
+    ) -> anyhow::Result<Conversation> {
+        let new_id = ConversationId::generate();
+        let mut cloned = original.clone();
+        cloned.id = new_id;
+
+        self.api.upsert_conversation(cloned.clone()).await?;
+        Ok(cloned)
     }
 
     fn update_model(&mut self, model: Option<ModelId>) {
