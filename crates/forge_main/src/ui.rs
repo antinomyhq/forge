@@ -12,6 +12,7 @@ use forge_api::{
     ChatResponse, CodeRequest, Conversation, ConversationId, DeviceCodeRequest, Event,
     InterruptionReason, Model, ModelId, Provider, ProviderId, TextMessage, UserPrompt, Workflow,
 };
+use forge_app::conversation_markdown::render_conversation_markdown;
 use forge_app::utils::truncate_key;
 use forge_app::{CommitResult, ToolResolver};
 use forge_display::MarkdownFormat;
@@ -513,7 +514,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             ConversationCommand::New => {
                 self.handle_generate_conversation_id().await?;
             }
-            ConversationCommand::Dump { id, html } => {
+            ConversationCommand::Dump { id, format } => {
                 let conversation_id =
                     ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
 
@@ -523,7 +524,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.state.conversation_id = Some(conversation_id);
 
                 self.spinner.start(Some("Dumping"))?;
-                self.on_dump(html).await?;
+                self.on_dump(&format).await?;
 
                 self.state.conversation_id = original_id;
             }
@@ -1341,9 +1342,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 self.spinner.start(Some("Compacting"))?;
                 self.on_compaction().await?;
             }
-            SlashCommand::Dump { html } => {
+            SlashCommand::Dump { format } => {
                 self.spinner.start(Some("Dumping"))?;
-                self.on_dump(html).await?;
+                self.on_dump(&format).await?;
             }
             SlashCommand::New => {
                 self.on_new().await?;
@@ -2144,39 +2145,58 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    /// Modified version of handle_dump that supports HTML format
-    async fn on_dump(&mut self, html: bool) -> Result<()> {
+    /// Modified version of handle_dump that supports HTML, Markdown, and JSON
+    /// formats
+    async fn on_dump(&mut self, format: &crate::cli::DumpFormat) -> Result<()> {
         if let Some(conversation_id) = self.state.conversation_id {
             let conversation = self.api.conversation(&conversation_id).await?;
             if let Some(conversation) = conversation {
                 let timestamp = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
-                if html {
-                    // Export as HTML
-                    let html_content = conversation.to_html();
-                    let path = format!("{timestamp}-dump.html");
-                    tokio::fs::write(path.as_str(), html_content).await?;
+                match format {
+                    crate::cli::DumpFormat::Md | crate::cli::DumpFormat::Markdown => {
+                        // Export as Markdown
+                        let markdown_content = render_conversation_markdown(&conversation)?;
+                        let path = format!("{timestamp}-dump.md");
+                        tokio::fs::write(path.as_str(), markdown_content).await?;
 
-                    self.writeln_title(
-                        TitleFormat::action("Conversation HTML dump created".to_string())
-                            .sub_title(path.to_string()),
-                    )?;
+                        self.writeln_title(
+                            TitleFormat::action("Conversation Markdown dump created".to_string())
+                                .sub_title(path.to_string()),
+                        )?;
 
-                    if self.api.environment().auto_open_dump {
-                        open::that(path.as_str()).ok();
+                        if self.api.environment().auto_open_dump {
+                            open::that(path.as_str()).ok();
+                        }
                     }
-                } else {
-                    // Default: Export as JSON
-                    let path = format!("{timestamp}-dump.json");
-                    let content = serde_json::to_string_pretty(&conversation)?;
-                    tokio::fs::write(path.as_str(), content).await?;
+                    crate::cli::DumpFormat::Html => {
+                        // Export as HTML
+                        let html_content = conversation.to_html();
+                        let path = format!("{timestamp}-dump.html");
+                        tokio::fs::write(path.as_str(), html_content).await?;
 
-                    self.writeln_title(
-                        TitleFormat::action("Conversation JSON dump created".to_string())
-                            .sub_title(path.to_string()),
-                    )?;
+                        self.writeln_title(
+                            TitleFormat::action("Conversation HTML dump created".to_string())
+                                .sub_title(path.to_string()),
+                        )?;
 
-                    if self.api.environment().auto_open_dump {
-                        open::that(path.as_str()).ok();
+                        if self.api.environment().auto_open_dump {
+                            open::that(path.as_str()).ok();
+                        }
+                    }
+                    crate::cli::DumpFormat::Json => {
+                        // Export as JSON
+                        let path = format!("{timestamp}-dump.json");
+                        let content = serde_json::to_string_pretty(&conversation)?;
+                        tokio::fs::write(path.as_str(), content).await?;
+
+                        self.writeln_title(
+                            TitleFormat::action("Conversation JSON dump created".to_string())
+                                .sub_title(path.to_string()),
+                        )?;
+
+                        if self.api.environment().auto_open_dump {
+                            open::that(path.as_str()).ok();
+                        }
                     }
                 };
             } else {

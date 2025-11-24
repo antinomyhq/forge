@@ -8,6 +8,7 @@ mod authenticator;
 mod changed_files;
 mod command_generator;
 mod compact;
+pub mod conversation_markdown;
 pub mod dto;
 mod error;
 mod file_tracking;

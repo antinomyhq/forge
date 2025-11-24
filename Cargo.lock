@@ -1272,6 +1272,7 @@ dependencies = [
  "forge_test_kit",
  "forge_tool_macros",
  "glob",
+ "gray_matter",
  "indexmap",
  "insta",
  "is_ci",

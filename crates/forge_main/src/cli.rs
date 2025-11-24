@@ -371,6 +371,41 @@ pub struct ConversationCommandGroup {
     pub porcelain: bool,
 }
 
+/// Export format for conversations.
+#[derive(ValueEnum, Debug, Clone, Default, PartialEq, Eq)]
+pub enum DumpFormat {
+    /// Export as JSON (default).
+    #[default]
+    Json,
+    /// Export as HTML.
+    Html,
+    /// Export as Markdown.
+    Md,
+    /// Export as Markdown (alias).
+    Markdown,
+}
+
+impl DumpFormat {
+    /// Returns true if the format is HTML.
+    pub fn is_html(&self) -> bool {
+        matches!(self, Self::Html)
+    }
+
+    /// Returns true if the format is Markdown.
+    pub fn is_markdown(&self) -> bool {
+        matches!(self, Self::Md | Self::Markdown)
+    }
+
+    /// Returns the string representation of the format.
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Json => "json",
+            Self::Html => "html",
+            Self::Md | Self::Markdown => "markdown",
+        }
+    }
+}
+
 #[derive(Subcommand, Debug, Clone)]
 pub enum ConversationCommand {
     /// List conversation history.
@@ -379,14 +414,14 @@ pub enum ConversationCommand {
     /// Create a new conversation.
     New,
 
-    /// Export conversation as JSON or HTML.
+    /// Export conversation in different formats.
     Dump {
         /// Conversation ID to export.
         id: String,
 
-        /// Export as HTML instead of JSON.
-        #[arg(long)]
-        html: bool,
+        /// Export format (json, html, md, markdown).
+        #[arg(long, short = 'f', default_value = "json")]
+        format: DumpFormat,
     },
 
     /// Compact conversation to reduce token usage.
@@ -634,29 +669,51 @@ mod tests {
     #[test]
     fn test_conversation_dump_json_with_id() {
         let fixture = Cli::parse_from(["forge", "conversation", "dump", "abc123"]);
-        let (id, html) = match fixture.subcommands {
+        let (id, format) = match fixture.subcommands {
             Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
-                ConversationCommand::Dump { id, html } => (id, html),
-                _ => (String::new(), true),
+                ConversationCommand::Dump { id, format } => (id, format),
+                _ => (String::new(), DumpFormat::Html),
             },
-            _ => (String::new(), true),
+            _ => (String::new(), DumpFormat::Html),
         };
         assert_eq!(id, "abc123");
-        assert_eq!(html, false); // JSON is default
+        assert_eq!(format, DumpFormat::Json); // JSON is default
     }
 
     #[test]
     fn test_conversation_dump_html_with_id() {
-        let fixture = Cli::parse_from(["forge", "conversation", "dump", "abc123", "--html"]);
-        let (id, html) = match fixture.subcommands {
+        let fixture = Cli::parse_from([
+            "forge",
+            "conversation",
+            "dump",
+            "abc123",
+            "--format",
+            "html",
+        ]);
+        let (id, format) = match fixture.subcommands {
             Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
-                ConversationCommand::Dump { id, html } => (id, html),
-                _ => (String::new(), false),
+                ConversationCommand::Dump { id, format } => (id, format),
+                _ => (String::new(), DumpFormat::Json),
             },
-            _ => (String::new(), false),
+            _ => (String::new(), DumpFormat::Json),
         };
         assert_eq!(id, "abc123");
-        assert_eq!(html, true);
+        assert_eq!(format, DumpFormat::Html);
+    }
+
+    #[test]
+    fn test_conversation_dump_markdown_with_id() {
+        let fixture =
+            Cli::parse_from(["forge", "conversation", "dump", "abc123", "--format", "md"]);
+        let (id, format) = match fixture.subcommands {
+            Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
+                ConversationCommand::Dump { id, format } => (id, format),
+                _ => (String::new(), DumpFormat::Json),
+            },
+            _ => (String::new(), DumpFormat::Json),
+        };
+        assert_eq!(id, "abc123");
+        assert_eq!(format, DumpFormat::Md);
     }
 
     #[test]
@@ -898,15 +955,15 @@ mod tests {
     #[test]
     fn test_session_alias_dump() {
         let fixture = Cli::parse_from(["forge", "session", "dump", "abc123"]);
-        let (id, html) = match fixture.subcommands {
+        let (id, format) = match fixture.subcommands {
             Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
-                ConversationCommand::Dump { id, html } => (id, html),
-                _ => (String::new(), true),
+                ConversationCommand::Dump { id, format } => (id, format),
+                _ => (String::new(), DumpFormat::Html),
             },
-            _ => (String::new(), true),
+            _ => (String::new(), DumpFormat::Html),
         };
         assert_eq!(id, "abc123");
-        assert_eq!(html, false);
+        assert_eq!(format, DumpFormat::Json);
     }
 
     #[test]

@@ -87,18 +87,6 @@ impl Conversation {
         crate::conversation_html::render_conversation_html(self)
     }
 
-    /// Generates a Markdown representation of the conversation with YAML
-    /// frontmatter
-    ///
-    /// The frontmatter includes conversation metadata (id, title, timestamps,
-    /// metrics), followed by the conversation messages in markdown format.
-    ///
-    /// # Errors
-    /// Returns an error if serialization fails
-    pub fn to_markdown(&self) -> Result<String> {
-        crate::conversation_markdown::render_conversation_markdown(self)
-    }
-
     /// Returns a vector of user messages, selecting the first message from
     /// each consecutive sequence of user messages.
     pub fn first_user_messages(&self) -> Vec<&crate::ContextMessage> {

@@ -9,7 +9,6 @@ mod compact;
 mod context;
 mod conversation;
 mod conversation_html;
-mod conversation_markdown;
 mod env;
 mod error;
 mod event;

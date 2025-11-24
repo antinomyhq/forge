@@ -335,8 +335,18 @@ impl ForgeCommandManager {
             "/exit" => Ok(SlashCommand::Exit),
             "/update" => Ok(SlashCommand::Update),
             "/dump" => {
-                let html = !parameters.is_empty() && parameters[0] == "html";
-                Ok(SlashCommand::Dump { html })
+                // Default to json if no format specified
+                let format = parameters
+                    .first()
+                    .and_then(|s| match s.to_lowercase().as_str() {
+                        "html" => Some(crate::cli::DumpFormat::Html),
+                        "md" => Some(crate::cli::DumpFormat::Md),
+                        "markdown" => Some(crate::cli::DumpFormat::Markdown),
+                        "json" => Some(crate::cli::DumpFormat::Json),
+                        _ => None,
+                    })
+                    .unwrap_or(crate::cli::DumpFormat::Json);
+                Ok(SlashCommand::Dump { format })
             }
             "/act" | "/forge" => Ok(SlashCommand::Forge),
             "/plan" | "/muse" => Ok(SlashCommand::Muse),
@@ -450,9 +460,10 @@ pub enum SlashCommand {
     /// This can be triggered with the '/help' command.
     #[strum(props(usage = "Enable help mode for tool questions"))]
     Help,
-    /// Dumps the current conversation into a json file or html file
-    #[strum(props(usage = "Save conversation as JSON or HTML (use /dump --html for HTML format)"))]
-    Dump { html: bool },
+    /// Dumps the current conversation into a json file, html file, or markdown
+    /// file
+    #[strum(props(usage = "Save conversation (use /dump json|html|md|markdown)"))]
+    Dump { format: crate::cli::DumpFormat },
     /// Switch or select the active model
     /// This can be triggered with the '/model' command.
     #[strum(props(usage = "Switch to a different model"))]
@@ -1200,12 +1211,12 @@ mod tests {
         let actual = fixture.parse("/dump").unwrap();
 
         // Verify
-        let expected = SlashCommand::Dump { html: false };
+        let expected = SlashCommand::Dump { format: crate::cli::DumpFormat::Json };
         assert_eq!(actual, expected);
     }
 
     #[test]
-    fn test_parse_dump_command_html_without_dashes() {
+    fn test_parse_dump_command_html() {
         // Setup
         let fixture = ForgeCommandManager::default();
 
@@ -1213,7 +1224,33 @@ mod tests {
         let actual = fixture.parse("/dump html").unwrap();
 
         // Verify
-        let expected = SlashCommand::Dump { html: true };
+        let expected = SlashCommand::Dump { format: crate::cli::DumpFormat::Html };
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_parse_dump_command_markdown() {
+        // Setup
+        let fixture = ForgeCommandManager::default();
+
+        // Execute
+        let actual = fixture.parse("/dump markdown").unwrap();
+
+        // Verify
+        let expected = SlashCommand::Dump { format: crate::cli::DumpFormat::Markdown };
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_parse_dump_command_md() {
+        // Setup
+        let fixture = ForgeCommandManager::default();
+
+        // Execute
+        let actual = fixture.parse("/dump md").unwrap();
+
+        // Verify
+        let expected = SlashCommand::Dump { format: crate::cli::DumpFormat::Md };
         assert_eq!(actual, expected);
     }
 }
