@@ -4,7 +4,7 @@ use anyhow::Result;
 use forge_domain::{extract_tag_content, *};
 
 use crate::{
-    AppConfigService, ConfigStatus, EnvironmentService, FileDiscoveryService, ProviderService,
+    AppConfigService, EnvironmentService, FileDiscoveryService, ProviderService,
     TemplateEngine, Walker,
 };
 
@@ -91,6 +91,8 @@ mod tests {
     };
     use tokio::sync::Mutex;
     use url::Url;
+
+    use crate::ConfigStatus;
 
     use super::*;
 
