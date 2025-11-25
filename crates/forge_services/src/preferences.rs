@@ -69,7 +69,10 @@ impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
         .await
     }
 
-    async fn get_provider_model(&self, provider_id: Option<&ProviderId>) -> anyhow::Result<ModelId> {
+    async fn get_provider_model(
+        &self,
+        provider_id: Option<&ProviderId>,
+    ) -> anyhow::Result<ModelId> {
         let config = self.infra.get_app_config().await?;
 
         let provider_id = match provider_id {
@@ -312,7 +315,9 @@ mod tests {
         service
             .set_default_model("gpt-4".to_string().into())
             .await?;
-        let actual = service.get_provider_model(Some(&ProviderId::OpenAI)).await?;
+        let actual = service
+            .get_provider_model(Some(&ProviderId::OpenAI))
+            .await?;
         let expected = "gpt-4".to_string().into();
 
         assert_eq!(actual, expected);
