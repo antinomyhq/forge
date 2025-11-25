@@ -212,12 +212,18 @@ pub struct SemanticSearch {
     /// - describe exactly what the agent is searching for
     /// - should not be the query verbatim
     /// - be concise (1–2 sentences)
+    ///
     /// Examples:
     /// - "Why is `select_model()` returning a Pin<Box<Result>> in Rust?"
     /// - "How to fix error E0277 for the ? operator on a pinned boxed result?"
     /// - "Steps to run Diesel migrations in Rust without exposing the DB."
     /// - "How to design a clean architecture service layer with typed errors?"
     pub use_case: String,
+
+    /// Optional file extension filter (e.g., ".rs", ".ts", ".py"). If provided,
+    /// only files with this extension will be included in the search results.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_extension: Option<String>,
 }
 
 /// Request to remove a file at the specified path. Use this when you need to
