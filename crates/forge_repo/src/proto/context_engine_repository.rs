@@ -142,6 +142,7 @@ impl ContextEngineRepository for ForgeContextEngineRepository {
         let request = tonic::Request::new(CreateWorkspaceRequest {
             workspace: Some(WorkspaceDefinition {
                 working_dir: working_dir.to_string_lossy().to_string(),
+                ..Default::default()
             }),
         });
 
@@ -205,6 +206,8 @@ impl ContextEngineRepository for ForgeContextEngineRepository {
                 limit: Some(search_query.data.limit as u32),
                 top_k: search_query.data.top_k,
                 relevance_query: Some(search_query.data.use_case.to_string()),
+                starts_with: search_query.data.starts_with.clone(),
+                ends_with: search_query.data.ends_with.clone(),
                 ..Default::default()
             }),
         });

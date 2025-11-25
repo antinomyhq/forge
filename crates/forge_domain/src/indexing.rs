@@ -71,11 +71,20 @@ pub struct SearchParams<'a> {
     pub limit: usize,
     pub top_k: Option<u32>,
     pub use_case: String,
+    pub starts_with: Option<String>,
+    pub ends_with: Option<String>,
 }
 
 impl<'a> SearchParams<'a> {
     pub fn new(query: &'a str, use_case: &str, limit: usize) -> Self {
-        Self { query, limit, top_k: None, use_case: use_case.to_string() }
+        Self {
+            query,
+            limit,
+            top_k: None,
+            use_case: use_case.to_string(),
+            starts_with: None,
+            ends_with: None,
+        }
     }
 }
 

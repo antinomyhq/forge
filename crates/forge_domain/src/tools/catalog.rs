@@ -42,7 +42,7 @@ pub enum ToolCatalog {
     ReadImage(ReadImage),
     Write(FSWrite),
     Search(FSSearch),
-    SemSearch(CodebaseSearch),
+    SemSearch(SemanticSearch),
     Remove(FSRemove),
     Patch(FSPatch),
     Undo(FSUndo),
@@ -191,7 +191,7 @@ fn default_codebase_top_k() -> u32 {
 /// matches like "all functions named execute" or "TODO comments". When in doubt
 /// between search and sem_search, choose sem_search.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
-pub struct CodebaseSearch {
+pub struct SemanticSearch {
     /// Describe WHAT the code does or its purpose. Include domain-specific
     /// terms and technical context. Good: "retry mechanism with exponential
     /// backoff", "streaming responses from LLM API", "OAuth token refresh
@@ -559,7 +559,7 @@ impl ToolCatalog {
             ToolCatalog::Followup(_) => r#gen.into_root_schema_for::<Followup>(),
             ToolCatalog::Fetch(_) => r#gen.into_root_schema_for::<NetFetch>(),
             ToolCatalog::Search(_) => r#gen.into_root_schema_for::<FSSearch>(),
-            ToolCatalog::SemSearch(_) => r#gen.into_root_schema_for::<CodebaseSearch>(),
+            ToolCatalog::SemSearch(_) => r#gen.into_root_schema_for::<SemanticSearch>(),
             ToolCatalog::Read(_) => r#gen.into_root_schema_for::<FSRead>(),
             ToolCatalog::ReadImage(_) => r#gen.into_root_schema_for::<ReadImage>(),
             ToolCatalog::Remove(_) => r#gen.into_root_schema_for::<FSRemove>(),
