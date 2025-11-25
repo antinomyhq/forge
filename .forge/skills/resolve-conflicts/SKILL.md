@@ -14,6 +14,8 @@ Resolve Git merge conflicts by intelligently combining changes from both branche
 3. **Regenerate Lock Files**: Never manually merge lock files
 4. **Backup Before Resolving**: For deleted-modified files, create backups first
 5. **Validate with Tests**: Always run tests after resolution
+6. **Explain All Resolutions**: For each conflict resolved, provide a one-line explanation of the resolution strategy
+7. **Ask When Unclear**: When the correct resolution isn't clear from the diff, present options to the user and ask for their choice
 
 ## Workflow
 
@@ -26,6 +28,7 @@ git status
 ```
 
 Identify conflict types:
+
 - Regular file conflicts (both modified)
 - Deleted-modified conflicts (one deleted, one modified)
 - Lock file conflicts
@@ -41,6 +44,7 @@ If there are deleted-but-modified files (status: DU, UD, DD, UA, AU):
 ```
 
 This script will:
+
 - Create timestamped backups of modified content
 - Analyze potential relocation targets
 - Generate analysis reports for each file
@@ -50,15 +54,59 @@ Review the backup directory and analysis files to understand where changes shoul
 
 ### Step 3: Resolve Regular Conflicts
 
+For each conflicted file, apply the appropriate resolution pattern. **For every conflict you resolve, provide a one-line explanation** of how you're resolving it.
+
+#### When Resolution is Unclear
+
+When you cannot determine the correct resolution from the diff alone:
+
+1. **Present the conflict** to the user with the conflicting code from both sides
+2. **Provide numbered options** for resolution (Option 1, Option 2, etc.)
+3. **Explain each option** clearly with what it would do
+4. **Ask the user to choose** an option number or provide additional information
+5. **Remember their choice** and apply similar reasoning to subsequent related conflicts
+
+**Example interaction:**
+
+```
+I found a conflict in src/main.rs where both branches modify the `calculate_price` function:
+
+<<<<<<< HEAD (Current Branch)
+fn calculate_price(item: &Item) -> f64 {
+    item.base_price * (1.0 + item.tax_rate)
+}
+=======
+fn calculate_price(item: &Item) -> f64 {
+    item.base_price + item.tax_amount
+}
+>>>>>>> feature-branch (Incoming Branch)
+
+I'm not sure which calculation is correct. Please select an option:
+
+**Option 1**: Keep current branch (multiplies base_price by tax_rate)
+**Option 2**: Keep incoming branch (adds tax_amount to base_price)
+**Option 3**: Keep both approaches with a new parameter
+**Option 4**: Provide more context to help me decide
+
+Please respond with "Option 1", "Option 2", "Option 3", or "Option 4", or provide additional information.
+```
+
+Once the user responds, apply their decision and similar logic to related conflicts.
+
+#### Resolution Patterns
+
 For each conflicted file, apply the appropriate resolution pattern:
 
 #### Imports/Dependencies
 
 **Goal**: Merge all unique imports from both branches.
 
+**One-line explanation**: "Merging imports by combining unique imports from both branches, removing duplicates, and grouping by module."
+
 Read `references/patterns.md` section "Import Conflicts" for detailed examples.
 
 **Quick approach:**
+
 1. Extract all imports from both sides
 2. Remove duplicates
 3. Group by module/package
@@ -68,9 +116,12 @@ Read `references/patterns.md` section "Import Conflicts" for detailed examples.
 
 **Goal**: Include all test cases and test data from both branches.
 
+**One-line explanation**: "Merging tests by including all test cases from both branches, combining fixtures, and renaming if necessary to avoid conflicts."
+
 Read `references/patterns.md` section "Test Conflicts" for detailed examples.
 
 **Quick approach:**
+
 1. Keep all test functions unless they test the exact same thing
 2. Merge test fixtures and setup functions
 3. Combine assertions from both sides
@@ -80,7 +131,10 @@ Read `references/patterns.md` section "Test Conflicts" for detailed examples.
 
 **Goal**: Regenerate the lock file to include dependencies from both branches.
 
+**One-line explanation**: "Resolving lock file by regenerating it with the package manager to incorporate dependencies from both branches."
+
 **Approach:**
+
 ```bash
 # Choose either version (doesn't matter which)
 git checkout --ours Cargo.lock    # or --theirs
@@ -100,9 +154,12 @@ git add Cargo.lock
 
 **Goal**: Merge configuration values from both branches.
 
+**One-line explanation**: "Merging configuration by including all keys from both branches and choosing appropriate values for conflicts."
+
 Read `references/patterns.md` section "Configuration File Conflicts" for detailed examples.
 
 **Quick approach:**
+
 1. Include all keys from both sides
 2. For conflicting values, choose based on:
    - Newer/more recent value
@@ -110,13 +167,18 @@ Read `references/patterns.md` section "Configuration File Conflicts" for detaile
    - Production requirements
 3. Document choice in commit message
 
+**When unclear**: Ask the user which configuration value to prefer (current vs incoming)
+
 #### Code Logic
 
 **Goal**: Understand intent of both changes and combine if possible.
 
+**One-line explanation**: "Resolving code logic by analyzing intent: merging if changes are orthogonal, or choosing one approach if they conflict."
+
 Read `references/patterns.md` section "Code Logic Conflicts" for detailed examples.
 
 **Quick approach:**
+
 1. Analyze what each branch is trying to achieve
 2. If changes are orthogonal (different concerns), merge both
 3. If changes conflict (same concern, different approach):
@@ -125,15 +187,22 @@ Read `references/patterns.md` section "Code Logic Conflicts" for detailed exampl
    - Test both approaches if unclear
    - Document the decision
 
+**When unclear**: Present both approaches as options to the user with context about what each does
+
 #### Struct/Type Definitions
 
 **Goal**: Include all fields from both branches.
 
+**One-line explanation**: "Merging struct by including all fields from both branches and choosing appropriate types for any conflicting field definitions."
+
 **Quick approach:**
+
 1. Merge all fields
 2. If field types conflict, analyze which is more appropriate
 3. Fix all compilation errors from updated struct
 4. Update tests to use new fields
+
+**When unclear**: Ask the user which type definition is correct if field types conflict
 
 ### Step 4: Validate Resolution
 
@@ -144,6 +213,7 @@ After resolving conflicts, validate that all conflicts are resolved:
 ```
 
 This script checks for:
+
 - Remaining conflict markers (<<<<<<<, =======, >>>>>>>)
 - Unmerged paths in git status
 - Deleted-modified conflicts
@@ -164,6 +234,7 @@ cargo test
 ```
 
 If tests fail:
+
 1. Review the failure - is it from merged code or conflict resolution?
 2. Check if both branches' tests pass individually
 3. Fix integration issues between the merged changes
@@ -188,12 +259,31 @@ git commit -m "Resolve merge conflicts: [describe key decisions]
 Co-Authored-By: ForgeCode <noreply@forgecode.dev>"
 ```
 
+## Decision Tracking
+
+When you ask the user to choose between options, track their decision and apply similar reasoning to subsequent conflicts:
+
+**Example scenario:**
+
+1. First conflict: User chooses Option 1 (prefer current branch's validation logic)
+2. Second similar conflict: Apply the same reasoning (prefer current branch's validation approach)
+3. Mention: "Resolving by keeping current branch's approach (consistent with your earlier choice)"
+
+**Key principles:**
+
+- Remember user preferences within the same conflict resolution session
+- Apply consistent patterns when conflicts are similar
+- Mention the consistency: "Following the same pattern as before..."
+- Ask again if a new conflict is sufficiently different from previous ones
+
 ## Common Patterns Reference
 
 For detailed resolution patterns, read:
+
 - `references/patterns.md` - Comprehensive examples for all conflict types
 
 **Quick pattern lookup:**
+
 - **Imports**: Combine all unique imports, group by module
 - **Tests**: Keep all tests unless identical, merge fixtures
 - **Lock files**: Choose either version, regenerate with package manager
@@ -270,16 +360,21 @@ If validation shows conflict markers but you think you resolved them:
 
 ## Quick Reference Card
 
-| Conflict Type | Strategy |
-|--------------|----------|
-| Imports | Merge all, deduplicate, group by module |
-| Tests | Keep all, merge fixtures |
-| Lock files | Regenerate with package manager |
-| Config | Merge keys, choose newer values |
-| Code logic | Analyze intent, merge if orthogonal |
-| Structs | Include all fields |
-| Docs | Combine all sections |
-| Deleted-modified | Backup, analyze, apply to new location |
-| Binary files | Choose one version |
+| Conflict Type    | Strategy                                | One-line Explanation Template                                                                                    |
+| ---------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| Imports          | Merge all, deduplicate, group by module | "Merging imports by combining unique imports from both branches and grouping by module"                          |
+| Tests            | Keep all, merge fixtures                | "Including all test cases from both branches and combining test fixtures"                                        |
+| Lock files       | Regenerate with package manager         | "Regenerating lock file with package manager to include dependencies from both branches"                         |
+| Config           | Merge keys, choose newer values         | "Merging all config keys and choosing [current/incoming] value for [key]"                                        |
+| Code logic       | Analyze intent, merge if orthogonal     | "Merging both changes as they address different concerns" OR "Choosing [current/incoming] approach for [reason]" |
+| Structs          | Include all fields                      | "Including all fields from both branches in struct definition"                                                   |
+| Docs             | Combine all sections                    | "Combining documentation from both branches"                                                                     |
+| Deleted-modified | Backup, analyze, apply to new location  | "Applying modifications to new location after file was moved/renamed"                                            |
+| Binary files     | Choose one version                      | "Keeping [current/incoming] version of binary file"                                                              |
 
-Remember: The goal is to preserve the intent and functionality of both branches while creating a cohesive merged result. When in doubt, run tests and review with the original authors.
+**Remember:**
+
+- Always provide a one-line explanation for each conflict resolution
+- When unclear, present numbered options to the user
+- Track user decisions and apply consistently to similar conflicts
+- The goal is to preserve the intent and functionality of both branches while creating a cohesive merged result
