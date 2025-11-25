@@ -1563,8 +1563,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             self.on_provider_selection().await?;
 
             // Check if a model was already selected during provider activation
-            if let Some(model) = self.api.get_default_model().await {
-                return Ok(Some(model));
+            // Return None to signal the model selection is complete and message was already
+            // printed
+            if self.api.get_default_model().await.is_some() {
+                return Ok(None);
             }
         }
 
