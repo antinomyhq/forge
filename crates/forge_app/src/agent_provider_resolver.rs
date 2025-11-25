@@ -82,11 +82,11 @@ where
                 // TODO: Needs review, should we throw an err here?
                 // we can throw crate::Error::AgentNotFound
                 let provider_id = self.get_provider(Some(agent_id)).await?.id;
-                Ok(self.0.get_default_model(Some(&provider_id)).await?)
+                Ok(self.0.get_provider_model(Some(&provider_id)).await?)
             }
         } else {
             let provider_id = self.get_provider(None).await?.id;
-            Ok(self.0.get_default_model(Some(&provider_id)).await?)
+            Ok(self.0.get_provider_model(Some(&provider_id)).await?)
         }
     }
 }

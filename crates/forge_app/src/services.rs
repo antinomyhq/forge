@@ -168,7 +168,7 @@ pub trait AppConfigService: Send + Sync {
     ///   provider_id is None
     /// - Returns `Error::NoDefaultModel` when no model is configured for the
     ///   provider
-    async fn get_default_model(
+    async fn get_provider_model(
         &self,
         provider_id: Option<&forge_domain::ProviderId>,
     ) -> anyhow::Result<ModelId>;
@@ -937,11 +937,11 @@ impl<I: Services> AppConfigService for I {
             .await
     }
 
-    async fn get_default_model(
+    async fn get_provider_model(
         &self,
         provider_id: Option<&forge_domain::ProviderId>,
     ) -> anyhow::Result<ModelId> {
-        self.config_service().get_default_model(provider_id).await
+        self.config_service().get_provider_model(provider_id).await
     }
 
     async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()> {
