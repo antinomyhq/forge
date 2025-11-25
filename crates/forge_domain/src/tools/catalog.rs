@@ -205,11 +205,18 @@ pub struct SemanticSearch {
     #[serde(default = "default_codebase_top_k")]
     pub top_k: u32,
 
-    /// Describe WHY you're searching and what problem you're trying to solve.
-    /// This filters results to match your specific intent. Good: "I need to
-    /// add similar retry logic to API calls", "understanding how to handle
-    /// authentication errors", "implementing rate limiting for new endpoint".
-    /// Bad: repeating the query or generic phrases.
+    /// A short natural-language description of what you are trying to find.
+    /// This is the query used for document reranking.
+    /// The query MUST:
+    /// - express a single, focused information need
+    /// - describe exactly what the agent is searching for
+    /// - should not be the query verbatim
+    /// - be concise (1–2 sentences)
+    /// Examples:
+    /// - "Why is `select_model()` returning a Pin<Box<Result>> in Rust?"
+    /// - "How to fix error E0277 for the ? operator on a pinned boxed result?"
+    /// - "Steps to run Diesel migrations in Rust without exposing the DB."
+    /// - "How to design a clean architecture service layer with typed errors?"
     pub use_case: String,
 }
 
