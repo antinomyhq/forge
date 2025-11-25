@@ -88,6 +88,7 @@ export function processValidations(
   },
   task_id: number,
   duration: number,
+  logFile: string,
   context?: Record<string, string>
 ): ProcessValidationsResult {
   // Run validations if configured and output is available
@@ -109,6 +110,7 @@ export function processValidations(
         {
           task_id,
           duration,
+          log_file: logFile,
           passed: validationResults.map((r) => r.name),
         },
         "Validation Passed"
@@ -118,13 +120,14 @@ export function processValidations(
         {
           task_id,
           duration,
+          log_file: logFile,
           failed: validationResults.filter((r) => !r.passed).map((r) => ({
             name: r.name,
             message: r.message,
           })),
           summary: `${passedCount}/${totalCount} passed`,
         },
-        "Validation failed"
+        "Validation Failed"
       );
     }
   }
