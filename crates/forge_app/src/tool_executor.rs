@@ -208,7 +208,7 @@ impl<
                 let query = input.query;
                 let use_case = input.use_case;
 
-                let limit = env.codebase_search_limit;
+                let limit = env.sem_search_limit;
                 let top_k = input.top_k;
                 let params = forge_domain::SearchParams::new(&query, &use_case, limit).top_k(top_k);
 

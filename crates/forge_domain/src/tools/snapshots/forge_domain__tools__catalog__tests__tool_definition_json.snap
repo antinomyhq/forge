@@ -108,7 +108,7 @@ expression: tools
 }
 {
   "title": "CodebaseSearch",
-  "description": "Searches code by meaning using AI-powered semantic search to quickly locate specific code implementations. Use when you need to FIND WHERE code is located by describing what it does. Examples: \\\"where is authentication logic\\\", \\\"find retry mechanism\\\", \\\"locate error handling code\\\". Returns code locations with snippets. DO NOT use for finding specific names/patterns like \\\"all functions named execute\\\" - use search tool with regex instead. This tool understands concepts and finds semantically related code.",
+  "description": "AI-powered semantic code search - YOUR DEFAULT TOOL for \"where is\" questions. Use this FIRST when user asks about code location or functionality: \"where is X\", \"find the code that does Y\", \"locate Z implementation\". This tool understands CONCEPTS and BEHAVIOR, not just keywords. Finds code even when exact terms differ. DO NOT skip this tool just because you see obvious file paths in the file list - ALWAYS use sem_search first for \"where is\" questions, then read the results it provides. Examples: \"where is retry logic\" finds exponential backoff code, \"authentication handling\" finds OAuth and JWT code, \"message transformation\" finds serialization/DTOs, \"tool registration\" finds tool setup code. Returns ranked results with code snippets. ONLY use regex search tool for exact name matches like \"all functions named execute\" or \"TODO comments\". When in doubt between search and sem_search, choose sem_search.",
   "type": "object",
   "required": [
     "query",

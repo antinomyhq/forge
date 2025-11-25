@@ -333,7 +333,7 @@ impl ToolOperation {
                 }
             },
             ToolOperation::CodebaseSearch { output } => {
-                let mut root = Element::new("codebase_search_results")
+                let mut root = Element::new("sem_search_results")
                     .attr("query", &output.query)
                     .attr("use_case", &output.use_case)
                     .attr("results", output.results.len());
@@ -1584,7 +1584,7 @@ mod tests {
     }
 
     #[test]
-    fn test_codebase_search_with_results() {
+    fn test_sem_search_with_results() {
         use forge_domain::{CodeNode, CodeSearchResult, CodebaseQueryResult};
 
         let fixture = ToolOperation::CodebaseSearch {
@@ -1629,7 +1629,7 @@ mod tests {
     }
 
     #[test]
-    fn test_codebase_search_with_usecase() {
+    fn test_sem_search_with_usecase() {
         use forge_domain::{CodeNode, CodeSearchResult, CodebaseQueryResult};
 
         let fixture = ToolOperation::CodebaseSearch {
