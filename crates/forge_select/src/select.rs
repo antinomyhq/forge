@@ -1,6 +1,8 @@
 use anyhow::Result;
 use console::strip_ansi_codes;
 
+use crate::{ApplicationCursorKeysGuard, BracketedPasteGuard};
+
 /// Centralized cliclack select functionality with consistent error handling
 pub struct ForgeSelect;
 
@@ -109,8 +111,13 @@ impl<T: 'static> SelectBuilder<T> {
     where
         T: std::fmt::Display + Clone,
     {
+        // Disable bracketed paste mode to prevent ~0 and ~1 markers
+            let _paste_guard = BracketedPasteGuard::new()?;
+            // Disable application cursor keys to ensure arrow keys work correctly
+            let _cursor_guard = ApplicationCursorKeysGuard::new()?;
         // Handle confirm case (bool options)
         if std::any::TypeId::of::<T>() == std::any::TypeId::of::<bool>() {
+
             let mut confirm = cliclack::confirm(&self.message);
 
             if let Some(default) = self.default {
@@ -192,6 +199,12 @@ impl<T> SelectBuilderOwned<T> {
             return Ok(None);
         }
 
+        // Disable bracketed paste mode to prevent ~0 and ~1 markers during
+        // fuzzy search input
+        let _paste_guard = BracketedPasteGuard::new()?;
+        // Disable application cursor keys to ensure arrow keys work correctly
+        let _cursor_guard = ApplicationCursorKeysGuard::new()?;
+
         // Strip ANSI codes from display strings for better fuzzy search experience
         let display_options: Vec<String> = self
             .options
@@ -254,6 +267,11 @@ impl InputBuilder {
     /// Returns an error if the terminal interaction fails for reasons other
     /// than user cancellation
     pub fn prompt(self) -> Result<Option<String>> {
+        // Disable bracketed paste mode to prevent ~0 and ~1 markers during input
+        let _paste_guard = BracketedPasteGuard::new()?;
+        // Disable application cursor keys to ensure arrow keys work correctly
+        let _cursor_guard = ApplicationCursorKeysGuard::new()?;
+
         let mut input = cliclack::input(&self.message);
 
         if let Some(default) = &self.default {
@@ -309,6 +327,11 @@ impl<T> MultiSelectBuilder<T> {
         if self.options.is_empty() {
             return Ok(None);
         }
+
+        // Disable bracketed paste mode to prevent ~0 and ~1 markers
+        let _paste_guard = BracketedPasteGuard::new()?;
+        // Disable application cursor keys to ensure arrow keys work correctly
+        let _cursor_guard = ApplicationCursorKeysGuard::new()?;
 
         let mut multi_select = cliclack::multiselect(&self.message).filter_mode();
 
