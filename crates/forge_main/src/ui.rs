@@ -2676,11 +2676,13 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         let mut stream = self.api.sync_codebase(path.clone(), batch_size).await?;
         let mut progress_bar = ProgressBarManager::default();
+        let mut has_deletions = false;
         while let Some(event) = stream.next().await {
             match event {
                 Ok(IndexProgress::Deleting { current: 0, total }) if total > 0 => {
                     self.spinner.stop(None)?;
-                    progress_bar.start(total as u64, "Deleting")?;
+                    has_deletions = true;
+                    progress_bar.start(total as u64, "[1/2] Deleting")?;
                 }
                 Ok(IndexProgress::Deleting { current, .. }) => {
                     progress_bar.set_position(current as u64)?;
@@ -2688,7 +2690,12 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 Ok(IndexProgress::Uploading { current: 0, total }) if total > 0 => {
                     self.spinner.stop(None)?;
                     progress_bar.stop(None).await?;
-                    progress_bar.start(total as u64, "Uploading")?;
+                    let label = if has_deletions {
+                        "[2/2] Uploading"
+                    } else {
+                        "Uploading"
+                    };
+                    progress_bar.start(total as u64, label)?;
                 }
                 Ok(IndexProgress::Uploading { current, .. }) => {
                     progress_bar.set_position(current as u64)?;
