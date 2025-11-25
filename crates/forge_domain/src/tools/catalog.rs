@@ -724,6 +724,15 @@ impl ToolCatalog {
         }))
     }
 
+    /// Creates a CodebaseSearch tool call with the specified query and use_case
+    pub fn tool_call_codebase_search(query: &str, use_case: &str, top_k: u32) -> ToolCallFull {
+        ToolCallFull::from(ToolCatalog::CodebaseSearch(CodebaseSearch {
+            query: query.to_string(),
+            use_case: use_case.to_string(),
+            top_k,
+        }))
+    }
+
     /// Creates an Undo tool call with the specified path
     pub fn tool_call_undo(path: &str) -> ToolCallFull {
         ToolCallFull::from(ToolCatalog::Undo(FSUndo { path: path.to_string() }))

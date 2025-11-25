@@ -963,6 +963,32 @@ mod tests {
     }
 
     #[test]
+    fn test_context_summary_extracts_codebase_search_tool_calls() {
+        let fixture = context(vec![assistant_with_tools(
+            "Searching codebase",
+            vec![
+                ToolCatalog::tool_call_codebase_search("retry mechanism", "find retry logic", 10)
+                    .call_id("call_1"),
+            ],
+        )]);
+
+        let actual = ContextSummary::from(&fixture);
+
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
+            Role::Assistant,
+            vec![
+                Block::content("Searching codebase"),
+                SummaryToolCall::codebase_search("retry mechanism", "find retry logic", 10)
+                    .id("call_1")
+                    .is_success(false)
+                    .into(),
+            ],
+        )]);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
     fn test_context_summary_links_search_results_to_calls() {
         let fixture = context(vec![
             assistant_with_tools(
