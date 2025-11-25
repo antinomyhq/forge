@@ -144,7 +144,7 @@ mod tests {
                 Ok(crate::ReadOutput {
                     content: Content::File {
                         content: content.clone(),
-                        raw_content_hash: compute_hash(&content),
+                        raw_content_hash: compute_hash(content),
                     },
                     start_line: 1,
                     end_line: 1,
