@@ -44,6 +44,7 @@ use crate::state::UIState;
 use crate::title_display::TitleDisplayExt;
 use crate::tools_display::format_tools;
 use crate::update::on_update;
+use crate::utils::humanize_time;
 use crate::{TRACKER, banner, tracker};
 
 pub struct UI<A, F: Fn() -> A> {
@@ -2786,16 +2787,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 let mut info = Info::new();
 
                 for workspace in workspaces {
-                    let elapsed_time = workspace.last_updated.map_or("NEVER".to_string(), |d| {
-                        let duration = chrono::Utc::now().signed_duration_since(d);
-                        let duration =
-                            Duration::from_secs((duration.num_minutes() * 60).max(0) as u64);
-                        if duration.is_zero() {
-                            "now".to_string()
-                        } else {
-                            format!("{} ago", humantime::format_duration(duration))
-                        }
-                    });
+                    let updated_elapsed_time = workspace
+                        .last_updated
+                        .map_or("NEVER".to_string(), humanize_time);
 
                     let timestamp = workspace.last_updated.map_or("NEVER".to_string(), |d| {
                         d.with_timezone(&chrono::Local)
@@ -2807,7 +2801,14 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         .add_title(format!("Workspace [{}]", timestamp))
                         .add_key_value("id", workspace.workspace_id.to_string())
                         .add_key_value("path", workspace.working_dir)
-                        .add_key_value("updated", elapsed_time)
+                        .add_key_value("updated", updated_elapsed_time);
+
+                    // Only add created_at if available
+                    if let Some(created_at) = workspace.created_at {
+                        info = info.add_key_value("created", humanize_time(created_at));
+                    }
+
+                    info = info
                         .add_key_value("nodes", workspace.node_count)
                         .add_key_value("relations", workspace.relation_count);
                 }
@@ -2844,17 +2845,14 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     .add_key_value("File Count", workspace.node_count.to_string())
                     .add_key_value("Relations", workspace.relation_count.to_string());
 
+                // Add created at if available
+                if let Some(created_at) = workspace.created_at {
+                    info = info.add_key_value("Created At", humanize_time(created_at));
+                }
+
                 // Add last updated if available
                 if let Some(last_updated) = workspace.last_updated {
-                    let duration = chrono::Utc::now().signed_duration_since(last_updated);
-                    let duration =
-                        std::time::Duration::from_secs((duration.num_minutes() * 60).max(0) as u64);
-                    let time_ago = if duration.is_zero() {
-                        "now".to_string()
-                    } else {
-                        format!("{} ago", humantime::format_duration(duration))
-                    };
-                    info = info.add_key_value("Last Updated", time_ago);
+                    info = info.add_key_value("Last Updated", humanize_time(last_updated));
                 }
 
                 self.writeln(info)

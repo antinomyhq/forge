@@ -5,9 +5,10 @@
 //! remains compatible. The plugin at `shell-plugin/forge.plugin.zsh` implements
 //! shell completion and command shortcuts that depend on the CLI structure.
 
+use std::path::PathBuf;
+
 use clap::{Parser, Subcommand, ValueEnum};
 use forge_domain::{AgentId, ProviderId};
-use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(version = env!("CARGO_PKG_VERSION"))]

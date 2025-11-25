@@ -61,12 +61,18 @@ impl TryFrom<Workspace> for WorkspaceInfo {
             .and_then(|ts| chrono::DateTime::parse_from_rfc3339(&ts).ok())
             .map(|dt| dt.with_timezone(&chrono::Utc));
 
+        let created_at = workspace
+            .created_at
+            .and_then(|ts| chrono::DateTime::parse_from_rfc3339(&ts).ok())
+            .map(|dt| dt.with_timezone(&chrono::Utc));
+
         Ok(WorkspaceInfo {
             workspace_id,
             working_dir: workspace.working_dir,
             node_count: workspace.node_count,
             relation_count: workspace.relation_count,
             last_updated,
+            created_at,
         })
     }
 }

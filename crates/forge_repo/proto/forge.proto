@@ -86,6 +86,7 @@ message Workspace {
   uint64 node_count = 3;
   uint64 relation_count = 4;
   optional string last_updated = 5;
+  optional string created_at = 6;
 }
 
 message WorkspaceDefinition {
