@@ -1875,7 +1875,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         if provider_id == ProviderId::ForgeServices {
             let auth = self.api.create_auth_credentials().await?;
             self.writeln_title(
-                TitleFormat::info("NEW API KEY CREATED").sub_title(auth.token.as_str()),
+                TitleFormat::info("Forge API key created").sub_title(auth.token.as_str()),
             )?;
             return Ok(None);
         }
@@ -2665,7 +2665,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         if !self.api.is_authenticated().await? {
             let auth = self.api.create_auth_credentials().await?;
             self.writeln_title(
-                TitleFormat::info("NEW API KEY CREATED").sub_title(auth.token.as_str()),
+                TitleFormat::info("Forge API key created").sub_title(auth.token.as_str()),
             )?;
         }
 
