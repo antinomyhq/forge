@@ -82,11 +82,6 @@ impl SyncPlan {
         self.files_to_delete.len() + self.files_to_upload.len()
     }
 
-    /// Returns the number of files to upload.
-    fn upload_count(&self) -> usize {
-        self.files_to_upload.len()
-    }
-
     /// Returns true if there are no operations to perform.
     fn is_empty(&self) -> bool {
         self.total() == 0
@@ -403,7 +398,7 @@ impl<F> ForgeIndexingService<F> {
 
         emit(IndexProgress::Completed {
             total_files: total_file_count,
-            uploaded_files: plan.upload_count(),
+            uploaded_files: plan.total(),
         })
         .await;
 
