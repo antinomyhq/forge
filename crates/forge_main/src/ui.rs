@@ -2721,47 +2721,27 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         self.spinner.stop(None)?;
 
-        let mut info = Info::new().add_title(format!("FOUND {} RESULTS", results.len()));
+        let mut info = Info::new().add_title(format!("FILES [{} RESULTS]", results.len()));
 
-        for (i, result) in results.iter().enumerate() {
-            let similarity = format!("{:.2}%", result.similarity * 100.0);
-            let result_num = (i + 1).to_string();
-
+        for result in results.iter() {
             match &result.node {
                 forge_domain::CodeNode::FileChunk { file_path, start_line, end_line, .. } => {
-                    info = info
-                        .add_title(result_num)
-                        .add_key_value(
-                            "Location",
-                            format!("{}:{}-{}", file_path, start_line, end_line),
-                        )
-                        .add_key_value("Similarity", similarity);
+                    info = info.add_key_value(
+                        "File",
+                        format!("{}:{}-{}", file_path, start_line, end_line),
+                    );
                 }
                 forge_domain::CodeNode::File { file_path, .. } => {
-                    info = info
-                        .add_title(result_num)
-                        .add_key_value("Location", format!("{} (full file)", file_path))
-                        .add_key_value("Similarity", similarity);
+                    info = info.add_key_value("File", format!("{} (full file)", file_path));
                 }
                 forge_domain::CodeNode::FileRef { file_path, .. } => {
-                    info = info
-                        .add_title(result_num)
-                        .add_key_value("Location", format!("{} (reference)", file_path))
-                        .add_key_value("Similarity", similarity);
+                    info = info.add_key_value("File", format!("{} (reference)", file_path));
                 }
                 forge_domain::CodeNode::Note { content, .. } => {
-                    info = info
-                        .add_title(result_num)
-                        .add_key_value("Type", "Note")
-                        .add_key_value("Similarity", similarity)
-                        .add_key_value("Content", content);
+                    info = info.add_key_value("Note", content);
                 }
                 forge_domain::CodeNode::Task { task, .. } => {
-                    info = info
-                        .add_title(result_num)
-                        .add_key_value("Type", "Task")
-                        .add_key_value("Similarity", similarity)
-                        .add_key_value("Content", task);
+                    info = info.add_key_value("Task", task);
                 }
             }
         }
