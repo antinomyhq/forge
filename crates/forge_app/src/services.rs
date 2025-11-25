@@ -159,18 +159,25 @@ pub trait AppConfigService: Send + Sync {
         provider_id: forge_domain::ProviderId,
     ) -> anyhow::Result<()>;
 
-    /// Gets the user's default model for a specific provider.
-    async fn get_default_model(
+    /// Gets the user's default model for a specific provider or the currently
+    /// active provider. When provider_id is None, uses the currently active
+    /// provider.
+    ///
+    /// # Errors
+    /// - Returns `Error::NoDefaultProvider` when no active provider is set and
+    ///   provider_id is None
+    /// - Returns `Error::NoDefaultModel` when no model is configured for the
+    ///   provider
+    async fn get_provider_model(
         &self,
-        provider_id: &forge_domain::ProviderId,
+        provider_id: Option<&forge_domain::ProviderId>,
     ) -> anyhow::Result<ModelId>;
 
-    /// Sets the user's default model for a specific provider.
-    async fn set_default_model(
-        &self,
-        model: ModelId,
-        provider_id: forge_domain::ProviderId,
-    ) -> anyhow::Result<()>;
+    /// Sets the user's default model for the currently active provider.
+    ///
+    /// # Errors
+    /// Returns an error if no default provider is configured.
+    async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -930,21 +937,15 @@ impl<I: Services> AppConfigService for I {
             .await
     }
 
-    async fn get_default_model(
+    async fn get_provider_model(
         &self,
-        provider_id: &forge_domain::ProviderId,
+        provider_id: Option<&forge_domain::ProviderId>,
     ) -> anyhow::Result<ModelId> {
-        self.config_service().get_default_model(provider_id).await
+        self.config_service().get_provider_model(provider_id).await
     }
 
-    async fn set_default_model(
-        &self,
-        model: ModelId,
-        provider_id: forge_domain::ProviderId,
-    ) -> anyhow::Result<()> {
-        self.config_service()
-            .set_default_model(model, provider_id)
-            .await
+    async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()> {
+        self.config_service().set_default_model(model).await
     }
 }
 

@@ -122,6 +122,9 @@ mod tests {
             let mut env: Environment = Faker.fake();
             if let Some(cwd) = &self.cwd {
                 env.cwd = cwd.clone();
+            } else {
+                // Use a deterministic cwd that won't match any test paths
+                env.cwd = PathBuf::from("/deterministic/test/cwd");
             }
             env
         }
@@ -242,8 +245,8 @@ mod tests {
             .content()
             .unwrap()
             .to_string();
-        assert!(message.contains("/test/file1.txt"));
-        assert!(message.contains("/test/file2.txt"));
+
+        insta::assert_snapshot!(message);
     }
 
     #[tokio::test]

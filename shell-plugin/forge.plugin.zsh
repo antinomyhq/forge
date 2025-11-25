@@ -411,14 +411,8 @@ function _forge_action_provider() {
     
     if [[ -n "$selected" ]]; then
         local name="${selected%% *}"
-        # Check if status contains "available"
-        if echo "$selected" | grep -qi "available"; then
-            # Provider is already configured, just set it as active
-            _forge_exec config set provider "$name"
-        else
-            # Provider needs authentication, login first
-            _forge_exec provider login "$name"
-        fi
+        # Always use config set - it will handle authentication if needed
+        _forge_exec config set provider "$name"
     fi
     _forge_reset
 }
