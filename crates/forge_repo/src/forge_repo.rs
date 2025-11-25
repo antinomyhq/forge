@@ -10,7 +10,8 @@ use forge_app::{
 use forge_domain::{
     AnyProvider, AppConfig, AppConfigRepository, AuthCredential, CommandOutput, Conversation,
     ConversationId, ConversationRepository, Environment, FileInfo, McpServerConfig,
-    MigrationResult, Provider, ProviderId, ProviderRepository, Snapshot, SnapshotRepository,
+    MigrationResult, Provider, ProviderId, ProviderRepository, Skill, SkillRepository, Snapshot,
+    SnapshotRepository,
 };
 // Re-export CacacheStorage from forge_infra
 pub use forge_infra::CacacheStorage;
@@ -23,7 +24,7 @@ use crate::fs_snap::ForgeFileSnapshotService;
 use crate::provider::ForgeProviderRepository;
 use crate::{
     AppConfigRepositoryImpl, ConversationRepositoryImpl, DatabasePool, ForgeAgentRepository,
-    PoolConfig,
+    ForgeSkillRepository, PoolConfig,
 };
 
 /// Repository layer that implements all domain repository traits
@@ -41,6 +42,7 @@ pub struct ForgeRepo<F> {
     indexing_repository: Arc<crate::indexing::IndexingRepositoryImpl>,
     codebase_repo: Arc<crate::ForgeContextEngineRepository>,
     agent_repository: Arc<ForgeAgentRepository<F>>,
+    skill_repository: Arc<ForgeSkillRepository<F>>,
 }
 
 impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
@@ -72,6 +74,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
                 .expect("Failed to create codebase repository"),
         );
         let agent_repository = Arc::new(ForgeAgentRepository::new(infra.clone()));
+        let skill_repository = Arc::new(ForgeSkillRepository::new(infra.clone()));
         Self {
             infra,
             file_snapshot_service,
@@ -82,6 +85,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
             indexing_repository,
             codebase_repo,
             agent_repository,
+            skill_repository,
         }
     }
 }
@@ -415,6 +419,15 @@ impl<F: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra + Send + Sync> A
 {
     async fn get_agents(&self) -> anyhow::Result<Vec<forge_domain::AgentDefinition>> {
         self.agent_repository.get_agents().await
+    }
+}
+
+#[async_trait::async_trait]
+impl<F: FileInfoInfra + EnvironmentInfra + FileReaderInfra + WalkerInfra + Send + Sync>
+    SkillRepository for ForgeRepo<F>
+{
+    async fn load_skills(&self) -> anyhow::Result<Vec<Skill>> {
+        self.skill_repository.load_skills().await
     }
 }
 

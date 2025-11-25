@@ -7,6 +7,7 @@ mod fs_snap;
 mod indexing;
 mod proto;
 mod provider;
+mod skill_repository;
 
 pub use agent_repository::*;
 pub use app_config::*;
@@ -16,3 +17,4 @@ pub use forge_repo::*;
 pub use fs_snap::*;
 pub use indexing::*;
 pub use proto::*;
+pub use skill_repository::*;
