@@ -43,7 +43,10 @@ pub struct ReadOutput {
 
 #[derive(Debug)]
 pub enum Content {
-    File { content: String, raw_content_hash: String },
+    File {
+        content: String,
+        raw_content_hash: String,
+    },
 }
 
 impl Content {

@@ -79,6 +79,7 @@ mod tests {
 
     #[test]
     fn test_fs_read_single_line() {
+        let content = "Hello, world!";
         let fixture = ToolOperation::FsRead {
             input: forge_domain::FSRead {
                 path: "/home/user/test.txt".to_string(),
@@ -87,7 +88,7 @@ mod tests {
                 show_line_numbers: true,
             },
             output: ReadOutput {
-                content: Content::File("Hello, world!".to_string()),
+                content: Content::file(content, &crate::compute_hash(content)),
                 start_line: 1,
                 end_line: 1,
                 total_lines: 5,
@@ -103,6 +104,7 @@ mod tests {
 
     #[test]
     fn test_fs_read_multiple_lines() {
+        let content = "Line 1\nLine 2\nLine 3";
         let fixture = ToolOperation::FsRead {
             input: forge_domain::FSRead {
                 path: "/home/user/test.txt".to_string(),
@@ -111,7 +113,7 @@ mod tests {
                 show_line_numbers: true,
             },
             output: ReadOutput {
-                content: Content::File("Line 1\nLine 2\nLine 3".to_string()),
+                content: Content::file(content, &crate::compute_hash(content)),
                 start_line: 2,
                 end_line: 4,
                 total_lines: 10,

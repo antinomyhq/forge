@@ -50,10 +50,7 @@ impl<F: FsReadService> FileChangeDetector<F> {
                 async move {
                     // Get current hash: Some(hash) if readable, None if unreadable
                     let current_hash = match self.read_file_content(&file_path).await {
-                        Ok(content) => {
-                            println!("cur content: {:?}", content);
-                            Some(compute_hash(&content))
-                        }
+                        Ok(content) => Some(compute_hash(&content)),
                         Err(_) => None,
                     };
 

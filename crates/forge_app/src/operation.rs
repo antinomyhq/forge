@@ -197,7 +197,6 @@ impl ToolOperation {
         match self {
             ToolOperation::FsRead { input, output } => {
                 let (content, content_hash) = output.content.file_content();
-                println!("content_hash: {content_hash}");
                 let elm = Element::new("file_content")
                     .attr("path", &input.path)
                     .attr(
@@ -555,6 +554,8 @@ mod tests {
 
     #[test]
     fn test_fs_read_basic() {
+        let content = "Hello, world!\nThis is a test file.";
+        let hash = crate::compute_hash(content);
         let fixture = ToolOperation::FsRead {
             input: FSRead {
                 path: "/home/user/test.txt".to_string(),
@@ -563,7 +564,7 @@ mod tests {
                 show_line_numbers: true,
             },
             output: ReadOutput {
-                content: Content::File("Hello, world!\nThis is a test file.".to_string()),
+                content: Content::file(content, &crate::compute_hash(content)),
                 start_line: 1,
                 end_line: 2,
                 total_lines: 2,
@@ -584,6 +585,8 @@ mod tests {
 
     #[test]
     fn test_fs_read_basic_special_chars() {
+        let content = "struct Foo<T>{ name: T }";
+        let hash = crate::compute_hash(content);
         let fixture = ToolOperation::FsRead {
             input: FSRead {
                 path: "/home/user/test.txt".to_string(),
@@ -592,7 +595,7 @@ mod tests {
                 show_line_numbers: true,
             },
             output: ReadOutput {
-                content: Content::File("struct Foo<T>{ name: T }".to_string()),
+                content: Content::file(content, &hash),
                 start_line: 1,
                 end_line: 1,
                 total_lines: 1,
@@ -612,6 +615,8 @@ mod tests {
 
     #[test]
     fn test_fs_read_with_explicit_range() {
+        let content = "Line 1\nLine 2\nLine 3";
+        let hash = crate::compute_hash(content);
         let fixture = ToolOperation::FsRead {
             input: FSRead {
                 path: "/home/user/test.txt".to_string(),
@@ -620,7 +625,7 @@ mod tests {
                 show_line_numbers: true,
             },
             output: ReadOutput {
-                content: Content::File("Line 1\nLine 2\nLine 3".to_string()),
+                content: Content::file(content, &hash),
                 start_line: 2,
                 end_line: 3,
                 total_lines: 5,
@@ -641,6 +646,8 @@ mod tests {
 
     #[test]
     fn test_fs_read_with_truncation_path() {
+        let content = "Truncated content";
+        let hash = crate::compute_hash(content);
         let fixture = ToolOperation::FsRead {
             input: FSRead {
                 path: "/home/user/large_file.txt".to_string(),
@@ -649,7 +656,7 @@ mod tests {
                 show_line_numbers: true,
             },
             output: ReadOutput {
-                content: Content::File("Truncated content".to_string()),
+                content: Content::file(content, &hash),
                 start_line: 1,
                 end_line: 100,
                 total_lines: 200,
