@@ -1874,10 +1874,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     ) -> Result<Option<Provider<Url>>> {
         if provider_id == ProviderId::ForgeServices {
             let auth = self.api.create_auth_credentials().await?;
-            let info = Info::new()
-                .add_title("NEW API KEY CREATED")
-                .add_key_value("API Key", auth.token.as_str());
-            self.writeln(info.to_string())?;
+            self.writeln_title(TitleFormat::info("NEW API KEY CREATED").sub_title(auth.token.as_str()))?;
             return Ok(None);
         }
         // Select auth method (or use the only one available)
@@ -2665,10 +2662,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Check if auth already exists and create if needed
         if !self.api.is_authenticated().await? {
             let auth = self.api.create_auth_credentials().await?;
-            let info = Info::new()
-                .add_title("NEW API KEY CREATED")
-                .add_key_value("API Key", auth.token.as_str());
-            self.writeln(info.to_string())?;
+            self.writeln_title(TitleFormat::info("NEW API KEY CREATED").sub_title(auth.token.as_str()))?;
         }
 
         self.spinner.start(Some("Syncing codebase..."))?;
