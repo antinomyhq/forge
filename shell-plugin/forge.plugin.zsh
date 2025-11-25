@@ -364,55 +364,7 @@ function _forge_action_retry() {
 function _forge_action_conversation() {
     local input_text="$1"
     
-        echo
-    
-    # Check for clone subcommand
-    if [[ "$input_text" =~ "^clone( .*)?$" ]]; then
-        local clone_target="${input_text#clone }"  # Remove "clone " prefix
-        
-        # Handle clone current conversation
-        if [[ -z "$clone_target" ]]; then
-            # Clone current conversation
-            if [[ -z "$_FORGE_CONVERSATION_ID" ]]; then
-                echo "\033[31m✗\033[0m No active conversation to clone. Start a conversation first or use :conversation to select one"
-                _forge_reset
-                return 0
-            fi
-            clone_target="$_FORGE_CONVERSATION_ID"
-        fi
-        
-        # Execute clone command
-        echo "\033[33m⏳\033[0m Cloning conversation \033[1m${clone_target}\033[0m..."
-        local clone_output
-        clone_output=$($_FORGE_BIN conversation clone "$clone_target" 2>&1)
-        local clone_exit_code=$?
-        
-        if [[ $clone_exit_code -eq 0 ]]; then
-            # Extract new conversation ID from output
-            local new_id=$(echo "$clone_output" | grep -oE '[a-f0-9-]{36}' | tail -1)
-            
-            if [[ -n "$new_id" ]]; then
-                # Set as active conversation
-                _FORGE_CONVERSATION_ID="$new_id"
-                
-                echo "\033[32m✓\033[0m Conversation cloned and switched to \033[1m${new_id}\033[0m"
-                echo "\033[90m└─ From: \033[2m${clone_target}\033[0m"
-                
-                # Show new conversation info
-                echo
-                _forge_exec conversation info "$new_id"
-            else
-                echo "\033[31m✗\033[0m Failed to extract new conversation ID from clone output"
-                echo "$clone_output"
-            fi
-        else
-            echo "\033[31m✗\033[0m Failed to clone conversation"
-            echo "$clone_output"
-        fi
-        
-        _forge_reset
-        return 0
-    fi
+    echo
     
     # Existing logic for conversation switching
     if [[ -n "$input_text" ]]; then
