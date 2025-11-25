@@ -333,10 +333,8 @@ impl ToolOperation {
                 }
             },
             ToolOperation::CodebaseSearch { output } => {
-                let mut root = Element::new("sem_search_results")
-                    .attr("query", &output.query)
-                    .attr("use_case", &output.use_case)
-                    .attr("results", output.results.len());
+                let mut root =
+                    Element::new("sem_search_results").attr("results", output.results.len());
 
                 if output.results.is_empty() {
                     root = root.text("No results found for query. Try refining your search with more specific terms or different keywords.")
