@@ -6,9 +6,10 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use forge_app::{ContextEngineService, FileReaderInfra, Walker, WalkerInfra, compute_hash};
 use forge_domain::{
-    AuthCredential, ContextEngineRepository, FileUploadResponse, ProviderId, ProviderRepository,
-    UserId, WorkspaceId, WorkspaceRepository,
+    AuthCredential, ContextEngineRepository, IndexProgress, ProviderId, ProviderRepository, UserId,
+    WorkspaceId, WorkspaceRepository,
 };
+use forge_stream::MpscStream;
 use futures::future::join_all;
 use tracing::{info, warn};
 
@@ -30,6 +31,7 @@ impl IndexedFile {
 }
 
 /// Service for indexing codebases and performing semantic search
+#[derive(Clone)]
 pub struct ForgeIndexingService<F> {
     infra: Arc<F>,
 }
@@ -92,15 +94,18 @@ impl<F> ForgeIndexingService<F> {
     ///    (deleted locally)
     /// 3. Deletes those files from the server
     /// 4. Returns the server hashes for upload comparison
-    async fn sync_server_files(
+    async fn sync_server_files<E, Fut>(
         &self,
         user_id: &UserId,
         workspace_id: &WorkspaceId,
         local_file_map: &HashMap<String, String>,
         auth_token: &forge_domain::ApiKey,
+        emit: E,
     ) -> Result<HashMap<String, String>>
     where
         F: ContextEngineRepository,
+        E: Fn(IndexProgress) -> Fut,
+        Fut: std::future::Future<Output = ()>,
     {
         info!("Fetching existing file hashes from server to detect changes...");
         let workspace_files =
@@ -125,6 +130,7 @@ impl<F> ForgeIndexingService<F> {
 
         // Delete outdated/orphaned files from server
         if !files_to_delete.is_empty() {
+            emit(IndexProgress::DeletingFiles { count: files_to_delete.len() }).await;
             info!(
                 "Deleting {} old/orphaned files from server before syncing",
                 files_to_delete.len()
@@ -142,16 +148,19 @@ impl<F> ForgeIndexingService<F> {
 
     /// Determines which files need to be uploaded by comparing local and server
     /// state.
-    async fn find_files_to_upload(
+    async fn find_files_to_upload<E, Fut>(
         &self,
         all_files: Vec<IndexedFile>,
         is_new_workspace: bool,
         user_id: &UserId,
         workspace_id: &WorkspaceId,
         auth_token: &forge_domain::ApiKey,
+        emit: E,
     ) -> Result<Vec<(String, String)>>
     where
         F: WorkspaceRepository + ContextEngineRepository,
+        E: Fn(IndexProgress) -> Fut,
+        Fut: std::future::Future<Output = ()>,
     {
         let total_file_count = all_files.len();
 
@@ -165,7 +174,7 @@ impl<F> ForgeIndexingService<F> {
         let server_hashes = if is_new_workspace {
             HashMap::new()
         } else {
-            self.sync_server_files(user_id, workspace_id, &local_file_map, auth_token)
+            self.sync_server_files(user_id, workspace_id, &local_file_map, auth_token, &emit)
                 .await?
         };
 
@@ -244,19 +253,27 @@ impl<F> ForgeIndexingService<F> {
         let all_files: Vec<_> = join_all(read_tasks).await.into_iter().flatten().collect();
         Ok(all_files)
     }
-}
 
-#[async_trait]
-impl<
-    F: WorkspaceRepository
-        + ProviderRepository
-        + ContextEngineRepository
-        + WalkerInfra
-        + FileReaderInfra,
-> ContextEngineService for ForgeIndexingService<F>
-{
-    async fn sync_codebase(&self, path: PathBuf, batch_size: usize) -> Result<FileUploadResponse> {
+    /// Internal sync implementation that emits progress events.
+    async fn sync_codebase_internal<E, Fut>(
+        &self,
+        path: PathBuf,
+        batch_size: usize,
+        emit: E,
+    ) -> Result<()>
+    where
+        F: WorkspaceRepository
+            + ProviderRepository
+            + ContextEngineRepository
+            + WalkerInfra
+            + FileReaderInfra,
+        E: Fn(IndexProgress) -> Fut + Send + Sync,
+        Fut: std::future::Future<Output = ()> + Send,
+    {
         info!(path = %path.display(), "Starting codebase sync");
+
+        // Emit starting event
+        emit(IndexProgress::Starting).await;
 
         let canonical_path = path
             .canonicalize()
@@ -287,21 +304,34 @@ impl<
         };
 
         let workspace_id = if is_new_workspace {
-            self.infra
+            let id = self
+                .infra
                 .create_workspace(&canonical_path, &token)
                 .await
-                .context("Failed to create workspace on server")?
+                .context("Failed to create workspace on server")?;
+            emit(IndexProgress::WorkspaceCreated { workspace_id: id.clone() }).await;
+            id
         } else {
             workspace_id
         };
 
         // Read all files and compute hashes
+        emit(IndexProgress::DiscoveringFiles { path: canonical_path.clone() }).await;
         let all_files = self.read_files(&canonical_path).await?;
         let total_file_count = all_files.len();
+        emit(IndexProgress::FilesDiscovered { count: total_file_count }).await;
 
         // Determine which files need to be uploaded
+        emit(IndexProgress::ComparingFiles).await;
         let files_to_upload = self
-            .find_files_to_upload(all_files, is_new_workspace, &user_id, &workspace_id, &token)
+            .find_files_to_upload(
+                all_files,
+                is_new_workspace,
+                &user_id,
+                &workspace_id,
+                &token,
+                &emit,
+            )
             .await?;
 
         // Early exit if nothing to upload
@@ -314,16 +344,18 @@ impl<
                 .upsert(&workspace_id, &user_id, &canonical_path)
                 .await
                 .context("Failed to save workspace")?;
-            return Ok(FileUploadResponse::new(
-                workspace_id,
-                total_file_count,
-                forge_domain::FileUploadInfo::default(),
-            )
-            .is_new_workspace(is_new_workspace));
+            emit(IndexProgress::Completed { total_files: total_file_count, uploaded_files: 0 })
+                .await;
+            return Ok(());
         }
 
         // Upload in batches
         let mut total_stats = forge_domain::FileUploadInfo::default();
+        let total_to_upload = files_to_upload.len();
+        let mut uploaded_count = 0;
+
+        // Emit initial progress (0%) so user sees the progress bar
+        emit(IndexProgress::Uploading { current: 0, total: total_to_upload }).await;
 
         for batch in files_to_upload.chunks(batch_size) {
             let file_reads: Vec<forge_domain::FileRead> = batch
@@ -340,6 +372,10 @@ impl<
                 .await
                 .context("Failed to upload files")?;
             total_stats = total_stats + stats;
+
+            uploaded_count += batch.len();
+            emit(IndexProgress::Uploading { current: uploaded_count, total: total_to_upload })
+                .await;
         }
 
         // Save workspace metadata
@@ -351,14 +387,58 @@ impl<
         info!(
             workspace_id = %workspace_id,
             total_files = total_file_count,
-            uploaded = files_to_upload.len(),
+            uploaded = total_to_upload,
             "Sync completed successfully"
         );
 
-        Ok(
-            FileUploadResponse::new(workspace_id, total_file_count, total_stats)
-                .is_new_workspace(is_new_workspace),
-        )
+        emit(IndexProgress::Completed {
+            total_files: total_file_count,
+            uploaded_files: total_to_upload,
+        })
+        .await;
+
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl<
+    F: WorkspaceRepository
+        + ProviderRepository
+        + ContextEngineRepository
+        + WalkerInfra
+        + FileReaderInfra
+        + 'static,
+> ContextEngineService for ForgeIndexingService<F>
+{
+    async fn sync_codebase(
+        &self,
+        path: PathBuf,
+        batch_size: usize,
+    ) -> Result<MpscStream<Result<IndexProgress>>> {
+        // Clone the Arc<F> infrastructure - this is a cheap reference count increment
+        let infra = self.infra.clone();
+
+        Ok(MpscStream::spawn(move |tx| async move {
+            // Recreate service inside the spawned task
+            let service = ForgeIndexingService { infra };
+
+            // Create emit closure that captures the sender
+            let emit = |progress: IndexProgress| {
+                let tx = tx.clone();
+                async move {
+                    let _ = tx.send(Ok(progress)).await;
+                }
+            };
+
+            // Run the sync and emit progress events
+            let result = service.sync_codebase_internal(path, batch_size, emit).await;
+
+            // If there was an error, send it through the channel
+            if let Err(e) = result {
+                let _ = tx.send(Err(e)).await;
+            }
+        }))
     }
 
     /// Performs semantic code search on a workspace.
@@ -847,12 +927,23 @@ mod tests {
 
     #[tokio::test]
     async fn test_sync_new_workspace() {
+        use futures::StreamExt;
         let service = ForgeIndexingService::new(Arc::new(MockInfra::new(&["main.rs", "lib.rs"])));
 
-        let actual = service.sync_codebase(PathBuf::from("."), 20).await.unwrap();
+        let mut stream = service.sync_codebase(PathBuf::from("."), 20).await.unwrap();
 
-        assert_eq!(actual.files_processed, 2);
-        assert_eq!(actual.upload_stats.nodes_created, 2);
+        // Collect all progress events
+        let mut completed = None;
+        while let Some(event) = stream.next().await {
+            if let Ok(IndexProgress::Completed { total_files, uploaded_files, .. }) = event {
+                completed = Some((total_files, uploaded_files));
+            }
+        }
+
+        let (total_files, uploaded_files) =
+            completed.expect("Should have received Completed event");
+        assert_eq!(total_files, 2);
+        assert_eq!(uploaded_files, 2);
     }
 
     #[tokio::test]
@@ -910,6 +1001,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_stale_files_deleted_and_changed_uploaded() {
+        use futures::StreamExt;
         let mut mock = MockInfra::out_of_sync(
             &["changed.rs", "unchanged.rs", "new.rs"],
             &["deleted.rs", "unchanged.rs"],
@@ -918,7 +1010,9 @@ mod tests {
             .push(FileHash { path: "changed.rs".into(), hash: "old".into() });
         let service = ForgeIndexingService::new(Arc::new(mock.clone()));
 
-        service.sync_codebase(PathBuf::from("."), 20).await.unwrap();
+        // Consume the stream to completion
+        let mut stream = service.sync_codebase(PathBuf::from("."), 20).await.unwrap();
+        while stream.next().await.is_some() {}
 
         let deleted = mock.deleted_files.lock().await;
         assert_eq!(deleted.len(), 2);
@@ -933,14 +1027,23 @@ mod tests {
 
     #[tokio::test]
     async fn test_no_upload_when_unchanged() {
+        use futures::StreamExt;
         let mock = MockInfra::synced(&["main.rs"]);
         let service = ForgeIndexingService::new(Arc::new(mock.clone()));
 
-        let actual = service.sync_codebase(PathBuf::from("."), 20).await.unwrap();
+        let mut stream = service.sync_codebase(PathBuf::from("."), 20).await.unwrap();
+
+        // Consume all events
+        let mut completed = None;
+        while let Some(event) = stream.next().await {
+            if let Ok(IndexProgress::Completed { uploaded_files, .. }) = event {
+                completed = Some(uploaded_files);
+            }
+        }
 
         assert!(mock.deleted_files.lock().await.is_empty());
         assert!(mock.uploaded_files.lock().await.is_empty());
-        assert_eq!(actual.upload_stats.nodes_created, 0);
+        assert_eq!(completed.expect("Should have received Completed event"), 0);
     }
 
     #[tokio::test]

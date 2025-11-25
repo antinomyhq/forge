@@ -5,6 +5,81 @@ use uuid::Uuid;
 
 use crate::WorkspaceId;
 
+/// Progress events emitted during codebase indexing
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum IndexProgress {
+    /// Sync operation is starting
+    Starting,
+    /// A new workspace was created on the server
+    WorkspaceCreated {
+        /// The ID of the newly created workspace
+        workspace_id: WorkspaceId,
+    },
+    /// Discovering files in the directory
+    DiscoveringFiles {
+        /// Path being scanned
+        path: std::path::PathBuf,
+    },
+    /// Files have been discovered in the directory
+    FilesDiscovered {
+        /// Total number of files found
+        count: usize,
+    },
+    /// Comparing local files with server state
+    ComparingFiles,
+    /// Deleting outdated/orphaned files from server
+    DeletingFiles {
+        /// Number of files to delete
+        count: usize,
+    },
+    /// Files are being uploaded to the server
+    Uploading {
+        /// Number of files uploaded so far
+        current: usize,
+        /// Total number of files to upload
+        total: usize,
+    },
+    /// Sync operation completed successfully
+    Completed {
+        /// Total number of files in the workspace
+        total_files: usize,
+        /// Number of files that were uploaded (changed or new)
+        uploaded_files: usize,
+    },
+}
+
+impl IndexProgress {
+    /// Returns a human-readable status message for this event
+    pub fn message(&self) -> String {
+        match self {
+            Self::Starting => "Initializing".to_string(),
+            Self::WorkspaceCreated { workspace_id } => {
+                format!("Created workspace {}", workspace_id)
+            }
+            Self::DiscoveringFiles { path } => {
+                format!("Discovering {}", path.display())
+            }
+            Self::FilesDiscovered { count } => {
+                format!("Found {} files", count)
+            }
+            Self::ComparingFiles => "Comparing with server".to_string(),
+            Self::DeletingFiles { count } => {
+                format!("Deleting {} files", count)
+            }
+            Self::Uploading { current, total } => {
+                format!("Uploading {}/{}", current, total)
+            }
+            Self::Completed { uploaded_files, total_files } => {
+                if *uploaded_files == 0 {
+                    format!("All {} files up to date", total_files)
+                } else {
+                    format!("Synced {} of {} files", uploaded_files, total_files)
+                }
+            }
+        }
+    }
+}
+
 /// Stored authentication token for the indexing service (no expiry)
 ///
 /// Associates a user with their indexing service authentication token

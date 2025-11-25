@@ -337,7 +337,7 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + AppConf
         &self,
         path: PathBuf,
         batch_size: usize,
-    ) -> Result<forge_domain::FileUploadResponse> {
+    ) -> Result<forge_stream::MpscStream<Result<forge_domain::IndexProgress>>> {
         self.services.sync_codebase(path, batch_size).await
     }
 

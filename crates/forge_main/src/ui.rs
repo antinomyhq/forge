@@ -2662,6 +2662,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         path: std::path::PathBuf,
         batch_size: usize,
     ) -> anyhow::Result<()> {
+        use forge_domain::IndexProgress;
+
         // Check if auth already exists and create if needed
         if !self.api.is_authenticated().await? {
             let auth = self.api.create_auth_credentials().await?;
@@ -2671,31 +2673,31 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             self.writeln(info.to_string())?;
         }
 
-        self.spinner.start(Some("Syncing codebase..."))?;
+        let mut stream = self.api.sync_codebase(path.clone(), batch_size).await?;
 
-        match self.api.sync_codebase(path.clone(), batch_size).await {
-            Ok(stats) => {
-                self.spinner.stop(None)?;
-
-                // Display workspace creation info
-                if stats.is_new_workspace {
-                    self.writeln_title(
-                        TitleFormat::action("Workspace created")
-                            .sub_title(stats.workspace_id.to_string()),
-                    )?;
+        while let Some(event) = stream.next().await {
+            match event {
+                Ok(e @ IndexProgress::WorkspaceCreated { .. }) => {
+                    self.spinner.stop(None)?;
+                    self.writeln_title(TitleFormat::action(e.message()))?;
+                    self.spinner.start(Some("Syncing"))?;
                 }
-
-                self.writeln_title(TitleFormat::completion(format!(
-                    "Successfully synced: {}",
-                    path.display()
-                )))?;
-                Ok(())
-            }
-            Err(e) => {
-                self.spinner.stop(None)?;
-                Err(e)
+                Ok(e @ IndexProgress::Completed { .. }) => {
+                    self.spinner.stop(None)?;
+                    let msg = format!("{}: {}", e.message(), path.display());
+                    self.writeln_title(TitleFormat::completion(msg))?;
+                }
+                Ok(e) => {
+                    self.spinner.start(Some(&e.message()))?;
+                }
+                Err(e) => {
+                    self.spinner.stop(None)?;
+                    return Err(e);
+                }
             }
         }
+
+        Ok(())
     }
 
     async fn on_query(
