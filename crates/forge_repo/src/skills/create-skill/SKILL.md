@@ -340,7 +340,6 @@ Do not include any other fields in YAML frontmatter.
 
 Write instructions for using the skill and its bundled resources.
 
-
 #### Loading the New Skill
 
 Once the skill is complete, **suggest to the user that they start a new session** to load the newly created skill. Skills are loaded at the beginning of each session, so the new skill will not be available in the current session. Starting a new session ensures the skill is properly registered and available for use.
