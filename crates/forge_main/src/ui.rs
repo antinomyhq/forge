@@ -1305,7 +1305,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         }
 
         if let Some(conversation) =
-            ConversationSelector::select_conversation(&conversations).await?
+            ConversationSelector::select_conversation(&conversations, None).await?
         {
             let conversation_id = conversation.id;
             self.state.conversation_id = Some(conversation_id);
@@ -1380,6 +1380,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         match command {
             SlashCommand::Conversations => {
                 self.list_conversations().await?;
+            }
+            SlashCommand::InteractiveClone => {
+                self.on_interactive_clone().await?;
             }
             SlashCommand::Compact => {
                 self.spinner.start(Some("Compacting"))?;
@@ -1533,9 +1536,6 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         "Agent '{agent_id}' not found or unavailable"
                     ));
                 }
-            }
-            SlashCommand::Clone => {
-                self.on_conversation_clone().await?;
             }
         }
 
@@ -2390,25 +2390,55 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
         Ok(())
     }
 
-    async fn on_conversation_clone(&mut self) -> anyhow::Result<()> {
-        if let Some(current_id) = self.state.conversation_id {
-            let current_conversation = self.validate_conversation_exists(&current_id).await?;
+    async fn on_interactive_clone(&mut self) -> anyhow::Result<()> {
+        self.spinner.start(Some("Loading Conversations"))?;
+        let max_conversations = self.api.environment().max_conversations;
+        let conversations = self.api.get_conversations(Some(max_conversations)).await?;
+        self.spinner.stop(None)?;
+
+        if conversations.is_empty() {
+            self.writeln_title(TitleFormat::error(
+                "No conversations found in this workspace.",
+            ))?;
+            return Ok(());
+        }
+
+        if let Some(conversation) = ConversationSelector::select_conversation(
+            &conversations,
+            Some("Select the conversation to clone:"),
+        )
+        .await?
+        {
+            let original_id = conversation.id;
+            let is_current_conversation = self.state.conversation_id == Some(original_id);
 
             self.spinner.start(Some("Cloning"))?;
-            let cloned_conversation = self
-                .clone_conversation_internal(current_conversation)
-                .await?;
+            let cloned_conversation = self.clone_conversation_internal(conversation).await?;
+            let cloned_conversation_id = cloned_conversation.id;
             self.spinner.stop(None)?;
 
-            self.state.conversation_id = Some(cloned_conversation.id);
+            self.state.conversation_id = Some(cloned_conversation_id);
 
+            // Show conversation content only if cloning a different conversation
+            if !is_current_conversation {
+                // Show conversation content (like /conversation does)
+                self.on_show_last_message(cloned_conversation).await?;
+
+                // Print log about conversation switching
+                self.writeln_title(TitleFormat::info(format!(
+                    "Switched to conversation {}",
+                    cloned_conversation_id.into_string().bold()
+                )))?;
+
+                // Show conversation info
+                self.on_info(false, Some(cloned_conversation_id)).await?;
+            }
+
+            // Show clone confirmation
             self.writeln_title(
                 TitleFormat::info("Conversation cloned and switched")
-                    .sub_title(format!("[{} → {}]", current_id, cloned_conversation.id)),
+                    .sub_title(format!("[{} → {}]", original_id, cloned_conversation_id)),
             )?;
-        } else {
-            self.writeln_title(TitleFormat::warning("No conversation to clone"))?;
-            self.writeln("Start a conversation first or switch to an existing one.")?;
         }
 
         Ok(())

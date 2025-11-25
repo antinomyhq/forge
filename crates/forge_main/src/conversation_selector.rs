@@ -12,9 +12,15 @@ pub struct ConversationSelector;
 impl ConversationSelector {
     /// Select a conversation from the provided list
     ///
-    /// Returns the selected conversation ID, or None if no selection was made
+    /// # Arguments
+    /// * `conversations` - List of conversations to select from
+    /// * `title` - Optional title for the selection prompt (defaults to "Select
+    ///   conversation to resume:")
+    ///
+    /// Returns the selected conversation, or None if no selection was made
     pub async fn select_conversation(
         conversations: &[Conversation],
+        title: Option<&str>,
     ) -> Result<Option<Conversation>> {
         if conversations.is_empty() {
             return Ok(None);
@@ -69,8 +75,12 @@ impl ConversationSelector {
             .map(ConversationItem)
             .collect::<Vec<_>>();
 
-        if let Some(selected) = tokio::task::spawn_blocking(|| {
-            ForgeSelect::select("Select the conversation to resume:", conversations)
+        let prompt_title = title
+            .unwrap_or("Select the conversation to resume:")
+            .to_string();
+
+        if let Some(selected) = tokio::task::spawn_blocking(move || {
+            ForgeSelect::select(prompt_title.as_str(), conversations)
                 .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
                 .prompt()
         })
@@ -106,7 +116,7 @@ mod tests {
     #[tokio::test]
     async fn test_select_conversation_empty_list() {
         let conversations = vec![];
-        let result = ConversationSelector::select_conversation(&conversations)
+        let result = ConversationSelector::select_conversation(&conversations, None)
             .await
             .unwrap();
         assert!(result.is_none());
