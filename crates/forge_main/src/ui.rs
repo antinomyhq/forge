@@ -2419,22 +2419,17 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
             self.state.conversation_id = Some(cloned_conversation_id);
 
-            // Show conversation content only if cloning a different conversation
             if !is_current_conversation {
-                // Show conversation content (like /conversation does)
                 self.on_show_last_message(cloned_conversation).await?;
 
-                // Print log about conversation switching
                 self.writeln_title(TitleFormat::info(format!(
                     "Switched to conversation {}",
                     cloned_conversation_id.into_string().bold()
                 )))?;
 
-                // Show conversation info
                 self.on_info(false, Some(cloned_conversation_id)).await?;
             }
 
-            // Show clone confirmation
             self.writeln_title(
                 TitleFormat::info("Conversation cloned and switched")
                     .sub_title(format!("[{} → {}]", original_id, cloned_conversation_id)),

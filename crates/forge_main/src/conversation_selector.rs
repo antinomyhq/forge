@@ -14,8 +14,7 @@ impl ConversationSelector {
     ///
     /// # Arguments
     /// * `conversations` - List of conversations to select from
-    /// * `title` - Optional title for the selection prompt (defaults to "Select
-    ///   conversation to resume:")
+    /// * `title` - Optional title for the selection prompt
     ///
     /// Returns the selected conversation, or None if no selection was made
     pub async fn select_conversation(
@@ -26,10 +25,8 @@ impl ConversationSelector {
             return Ok(None);
         }
 
-        // Select conversations that have some title
         let conversation_iter = conversations.iter().filter(|c| c.title.is_some());
 
-        // First, calculate all formatted dates to find the maximum length
         let now = Utc::now();
         let dates = conversation_iter.clone().map(|c| {
             let date = c.metadata.updated_at.unwrap_or(c.metadata.created_at);
@@ -135,8 +132,6 @@ mod tests {
             ),
         ];
 
-        // We can't test the actual selection without mocking the UI,
-        // but we can test that the function structure is correct
         assert_eq!(conversations.len(), 2);
     }
 
