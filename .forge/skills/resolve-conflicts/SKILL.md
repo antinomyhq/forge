@@ -11,7 +11,7 @@ Resolve Git merge conflicts by intelligently combining changes from both branche
 
 1. **Prefer Both Changes**: Default to keeping both changes unless they directly contradict
 2. **Merge, Don't Choose**: Especially for imports, tests, and configuration
-3. **Regenerate Lock Files**: Never manually merge lock files
+3. **Regenerate Generated Files**: Never manually merge generated files - always regenerate them from their sources
 4. **Backup Before Resolving**: For deleted-modified files, create backups first
 5. **Validate with Tests**: Always run tests after resolution
 6. **Explain All Resolutions**: For each conflict resolved, provide a one-line explanation of the resolution strategy
@@ -31,7 +31,7 @@ Identify conflict types:
 
 - Regular file conflicts (both modified)
 - Deleted-modified conflicts (one deleted, one modified)
-- Lock file conflicts
+- Generated file conflicts (lock files, build artifacts, generated code)
 - Test file conflicts
 - Import/configuration conflicts
 
@@ -127,28 +127,56 @@ Read `references/patterns.md` section "Test Conflicts" for detailed examples.
 3. Combine assertions from both sides
 4. If test names conflict but test different behaviors, rename to clarify
 
-#### Lock Files
+#### Generated Files
 
-**Goal**: Regenerate the lock file to include dependencies from both branches.
+**Goal**: Regenerate any generated files to include changes from both branches.
 
-**One-line explanation**: "Resolving lock file by regenerating it with the package manager to incorporate dependencies from both branches."
+**One-line explanation**: "Resolving generated file by regenerating it from source files to incorporate changes from both branches."
+
+**Recognition**: A file is generated if it:
+
+- Is produced by a build tool, compiler, or code generator
+- Has a source file or configuration that defines it
+- Contains headers/comments indicating it's auto-generated
+- Is listed in `.gitattributes` as generated
+- Common examples: lock files, protobuf outputs, GraphQL schema files, compiled assets, auto-generated docs
 
 **Approach:**
 
-```bash
-# Choose either version (doesn't matter which)
-git checkout --ours Cargo.lock    # or --theirs
+1. **Identify the generation source**: Determine what command or tool generates the file
+2. **Choose either version** temporarily (doesn't matter which):
 
-# Regenerate based on updated manifest
-cargo update                       # for Cargo.lock
-# npm install                      # for package-lock.json
-# yarn install                     # for yarn.lock
-# bundle install                   # for Gemfile.lock
-# poetry lock --no-update          # for poetry.lock
+   ```bash
+   git checkout --ours <generated-file>    # or --theirs
+   ```
 
-# Stage the regenerated file
-git add Cargo.lock
-```
+3. **Regenerate from source**: Run the appropriate generation command:
+
+   ```bash
+   # Package manager lock files
+   cargo update                       # for Cargo.lock
+   npm install                        # for package-lock.json
+   yarn install                       # for yarn.lock
+   bundle install                     # for Gemfile.lock
+   poetry lock --no-update            # for poetry.lock
+
+   # Code generation
+   protoc ...                         # for protobuf files
+   graphql-codegen                    # for GraphQL generated code
+   make generate                      # for Makefile-based generation
+   npm run generate                   # for npm script-based generation
+
+   # Build artifacts
+   npm run build                      # for compiled/bundled assets
+   cargo build                        # for Rust build artifacts
+   ```
+
+4. **Stage the regenerated file**:
+   ```bash
+   git add <generated-file>
+   ```
+
+**When unsure if a file is generated**: Check for auto-generation markers in the file header, or ask the user if you should regenerate or manually merge the file.
 
 #### Configuration Files
 
@@ -286,7 +314,7 @@ For detailed resolution patterns, read:
 
 - **Imports**: Combine all unique imports, group by module
 - **Tests**: Keep all tests unless identical, merge fixtures
-- **Lock files**: Choose either version, regenerate with package manager
+- **Generated files**: Choose either version, regenerate from source
 - **Config**: Merge all keys, choose newer/safer values for conflicts
 - **Code**: Analyze intent, merge if orthogonal, choose one if conflicting
 - **Structs**: Include all fields from both branches
@@ -364,7 +392,7 @@ If validation shows conflict markers but you think you resolved them:
 | ---------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
 | Imports          | Merge all, deduplicate, group by module | "Merging imports by combining unique imports from both branches and grouping by module"                          |
 | Tests            | Keep all, merge fixtures                | "Including all test cases from both branches and combining test fixtures"                                        |
-| Lock files       | Regenerate with package manager         | "Regenerating lock file with package manager to include dependencies from both branches"                         |
+| Generated files  | Regenerate from source                  | "Regenerating [file] from source to include changes from both branches"                                          |
 | Config           | Merge keys, choose newer values         | "Merging all config keys and choosing [current/incoming] value for [key]"                                        |
 | Code logic       | Analyze intent, merge if orthogonal     | "Merging both changes as they address different concerns" OR "Choosing [current/incoming] approach for [reason]" |
 | Structs          | Include all fields                      | "Including all fields from both branches in struct definition"                                                   |
