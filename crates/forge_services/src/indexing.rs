@@ -45,33 +45,30 @@ struct SyncPlan {
 impl SyncPlan {
     /// Creates a sync plan by comparing local files with remote file hashes.
     fn new(local_files: Vec<IndexedFile>, remote_files: Vec<FileHash>) -> Self {
-        // Build map of local files for comparison
-        let local_file_map: HashMap<String, String> = local_files
+        // Build hash maps for O(1) lookup
+        let local_hashes: HashMap<&str, &str> = local_files
             .iter()
-            .map(|file| (file.path.clone(), file.hash.clone()))
+            .map(|f| (f.path.as_str(), f.hash.as_str()))
             .collect();
-        let remote_file_map = remote_files
+        let remote_hashes: HashMap<&str, &str> = remote_files
             .iter()
-            .map(|f| (&f.path, &f.hash))
-            .collect::<HashMap<_, _>>();
+            .map(|f| (f.path.as_str(), f.hash.as_str()))
+            .collect();
 
-        // Files to delete: on server but either not local or hash changed
+        // Files to delete: on server but not local or hash changed (clone path, keep
+        // borrow)
         let files_to_delete: Vec<String> = remote_files
             .iter()
-            .filter(|v| local_file_map.get(&v.path) != Some(&v.hash))
-            .map(|v| v.path.clone())
+            .filter(|f| local_hashes.get(f.path.as_str()) != Some(&f.hash.as_str()))
+            .map(|f| f.path.clone())
             .collect();
 
-        // Files to upload: local files not on server or hash changed
+        // Files to upload: local files not on server or hash changed (consume
+        // local_files)
         let files_to_upload: Vec<_> = local_files
             .into_iter()
-            .filter_map(|file| {
-                let needs_upload = remote_file_map.get(&file.path) != Some(&&file.hash);
-                needs_upload.then_some(forge_domain::FileRead::new(
-                    file.path.clone(),
-                    file.content.clone(),
-                ))
-            })
+            .filter(|f| remote_hashes.get(f.path.as_str()) != Some(&f.hash.as_str()))
+            .map(|f| forge_domain::FileRead::new(f.path, f.content))
             .collect();
 
         Self { files_to_delete, files_to_upload }
@@ -82,27 +79,20 @@ impl SyncPlan {
         self.files_to_delete.len() + self.files_to_upload.len()
     }
 
-    /// Returns true if there are no operations to perform.
-    fn is_empty(&self) -> bool {
-        self.total() == 0
-    }
-
-    /// Executes the sync plan in batches.
+    /// Executes the sync plan in batches, consuming self.
     async fn execute<'a>(
-        &'a self,
+        self,
         batch_size: usize,
         delete: impl Fn(Vec<String>) -> BoxFuture<'a, Result<()>>,
         upload: impl Fn(Vec<forge_domain::FileRead>) -> BoxFuture<'a, Result<()>>,
         on_progress: impl Fn(usize, usize) -> BoxFuture<'a, ()>,
     ) -> Result<()> {
-        if self.is_empty() {
+        let total = self.total();
+        if total == 0 {
             return Ok(());
         }
 
-        let total = self.total();
         let mut processed = 0;
-
-        // Emit initial progress (0%)
         on_progress(0, total).await;
 
         // Delete outdated/orphaned files
@@ -363,6 +353,7 @@ impl<F> ForgeIndexingService<F> {
 
         // Execute sync plan with unified progress
         let plan = SyncPlan::new(local_files, remote_files);
+        let uploaded_files = plan.total();
         plan.execute(
             batch_size,
             |paths| {
@@ -396,11 +387,7 @@ impl<F> ForgeIndexingService<F> {
             "Sync completed successfully"
         );
 
-        emit(IndexProgress::Completed {
-            total_files: total_file_count,
-            uploaded_files: plan.total(),
-        })
-        .await;
+        emit(IndexProgress::Completed { total_files: total_file_count, uploaded_files }).await;
 
         Ok(())
     }
