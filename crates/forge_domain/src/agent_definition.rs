@@ -60,6 +60,11 @@ pub struct AgentDefinition {
     #[merge(strategy = crate::merge::std::overwrite)]
     pub id: AgentId,
 
+    /// Path to the agent definition file, if loaded from a file
+    #[serde(skip)]
+    #[merge(strategy = crate::merge::std::overwrite)]
+    pub path: Option<String>,
+
     /// Human-readable title for the agent
     #[serde(skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
@@ -255,6 +260,7 @@ impl AgentDefinition {
             max_tool_failure_per_turn: Default::default(),
             max_requests_per_turn: Default::default(),
             provider: Default::default(),
+            path: Default::default(),
         }
     }
 }

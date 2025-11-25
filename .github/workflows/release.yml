@@ -16,7 +16,7 @@
 # -------------------------------------------------------------------
 
 name: Multi Channel Release
-on:
+'on':
   release:
     types:
     - published
@@ -96,9 +96,9 @@ jobs:
       uses: ClementTsang/cargo-action@v0.0.7
       with:
         command: build --release
-        args: --target ${{ matrix.target }}
+        args: '--target ${{ matrix.target }}'
         use-cross: ${{ matrix.cross }}
-        cross-version: 0.2.5
+        cross-version: '0.2.5'
       env:
         RUSTFLAGS: ${{ env.RUSTFLAGS }}
         POSTHOG_API_SECRET: ${{secrets.POSTHOG_API_SECRET}}
@@ -129,7 +129,7 @@ jobs:
         ref: main
         token: ${{ secrets.NPM_ACCESS }}
     - name: Update NPM Package
-      run: ./update-package.sh ${{ github.event.release.tag_name }}
+      run: './update-package.sh ${{ github.event.release.tag_name }}'
       env:
         AUTO_PUSH: 'true'
         CI: 'true'

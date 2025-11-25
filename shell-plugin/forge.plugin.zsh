@@ -63,14 +63,7 @@ function _forge_exec() {
     # Ensure FORGE_ACTIVE_AGENT always has a value, default to "forge"
     local agent_id="${_FORGE_ACTIVE_AGENT:-forge}"
     
-    # Disable application cursor keys mode - ensures arrow keys work in dialoguer
-    # Without this, arrow keys send wrong sequences and print A/B characters
-    printf '\e[?1l'
-    
     eval "$_FORGE_BIN --agent $(printf '%q' "$agent_id") $(printf '%q ' "$@")"
-    
-    # Re-enable application cursor keys mode
-    printf '\e[?1h'
 }
 
 # Helper function to clear buffer and reset prompt
@@ -418,14 +411,8 @@ function _forge_action_provider() {
     
     if [[ -n "$selected" ]]; then
         local name="${selected%% *}"
-        # Check if status contains "available"
-        if echo "$selected" | grep -qi "available"; then
-            # Provider is already configured, just set it as active
-            _forge_exec config set provider "$name"
-        else
-            # Provider needs authentication, login first
-            _forge_exec provider login "$name"
-        fi
+        # Always use config set - it will handle authentication if needed
+        _forge_exec config set provider "$name"
     fi
     _forge_reset
 }
@@ -480,6 +467,14 @@ function _forge_action_tools() {
     # Ensure FORGE_ACTIVE_AGENT always has a value, default to "forge"
     local agent_id="${_FORGE_ACTIVE_AGENT:-forge}"
     _forge_exec list tools "$agent_id"
+    _forge_reset
+}
+
+
+# Action handler: Show skills
+function _forge_action_skill() {
+    echo
+    _forge_exec list skill
     _forge_reset
 }
 
@@ -695,6 +690,9 @@ function forge-accept-line() {
         ;;
         tools|t)
             _forge_action_tools
+        ;;
+        skill)
+            _forge_action_skill
         ;;
         commit)
             _forge_action_commit "$input_text"

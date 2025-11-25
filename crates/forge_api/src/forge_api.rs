@@ -38,17 +38,24 @@ impl<A, F> ForgeAPI<A, F> {
     }
 }
 
-impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeInfra> {
+impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
     pub fn init(restricted: bool, cwd: PathBuf) -> Self {
         let infra = Arc::new(ForgeInfra::new(restricted, cwd));
         let repo = Arc::new(ForgeRepo::new(infra.clone()));
         let app = Arc::new(ForgeServices::new(repo.clone()));
-        ForgeAPI::new(app, infra)
+        ForgeAPI::new(app, repo)
+    }
+
+    pub async fn get_skills_internal(&self) -> Result<Vec<Skill>> {
+        use forge_domain::SkillRepository;
+        self.infra.load_skills().await
     }
 }
 
 #[async_trait::async_trait]
-impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
+impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + AppConfigRepository> API
+    for ForgeAPI<A, F>
+{
     async fn discover(&self) -> Result<Vec<File>> {
         let environment = self.services.get_environment();
         let config = Walker::unlimited().cwd(environment.cwd);
@@ -227,9 +234,9 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
     }
 
     async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
-        // Invalidate cache for agents
         let result = self.services.set_default_provider(provider_id).await;
-        self.services.reload_agents().await?;
+        // Invalidate cache for agents
+        let _ = self.services.reload_agents().await;
         result
     }
 
@@ -272,15 +279,10 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
     }
 
     async fn get_default_model(&self) -> Option<ModelId> {
-        let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
-        agent_provider_resolver.get_model(None).await.ok()
+        self.services.get_provider_model(None).await.ok()
     }
-    async fn set_default_model(
-        &self,
-        agent_id: Option<AgentId>,
-        model_id: ModelId,
-    ) -> anyhow::Result<()> {
-        self.app().set_default_model(agent_id, model_id).await
+    async fn set_default_model(&self, model_id: ModelId) -> anyhow::Result<()> {
+        self.services.set_default_model(model_id).await
     }
 
     async fn get_login_info(&self) -> Result<Option<LoginInfo>> {
@@ -292,6 +294,10 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
     }
     async fn get_commands(&self) -> Result<Vec<Command>> {
         self.services.get_commands().await
+    }
+
+    async fn get_skills(&self) -> Result<Vec<Skill>> {
+        self.infra.load_skills().await
     }
 
     async fn generate_command(&self, prompt: UserPrompt) -> Result<String> {
@@ -332,7 +338,6 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra> API for ForgeAPI<A, F> {
     }
 
     async fn get_default_provider(&self) -> Result<Provider<Url>> {
-        let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
-        agent_provider_resolver.get_provider(None).await
+        self.services.get_default_provider().await
     }
 }

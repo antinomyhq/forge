@@ -35,6 +35,7 @@ pub fn generate_ci_workflow() {
                 .add_type(PullRequestType::Opened)
                 .add_type(PullRequestType::Synchronize)
                 .add_type(PullRequestType::Reopened)
+                .add_type(PullRequestType::Labeled)
                 .add_branch("main"),
         );
     let build_release_pr_job =

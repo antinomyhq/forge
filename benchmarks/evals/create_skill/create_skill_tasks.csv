@@ -1,0 +1,11 @@
+skill
+"Create a skill called `database-backup` that helps automate database backup operations with scheduling and validation"
+"Create a skill called `docker-deploy` that assists with containerized application deployment to various environments"
+"Create a skill called `api-test` that helps test REST APIs with automated request generation and response validation"
+"Create a skill called `log-analyzer` that analyzes application logs for errors, patterns, and performance metrics"
+"Create a skill called `git-workflow` that streamlines common git operations like branch management and PR creation"
+"Create a skill called `security-audit` that performs security checks on code and dependencies"
+"Create a skill called `performance-profiler` that helps profile and optimize application performance"
+"Create a skill called `data-migration` that assists with database schema and data migration tasks"
+"Create a skill called `ci-pipeline` that helps set up and configure CI/CD pipelines"
+"Create a skill called `monitoring-setup` that configures application monitoring and alerting"
