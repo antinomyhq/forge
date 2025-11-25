@@ -801,10 +801,18 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             } else {
                 "DISABLED"
             };
+
+            let location = agent
+                .path
+                .as_ref()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| "BUILT IN".to_string());
+
             info = info
                 .add_title(id.to_case(Case::UpperSnake))
                 .add_key_value("Id", id)
                 .add_key_value("Title", title)
+                .add_key_value("Location", location)
                 .add_key_value("Provider", provider_name)
                 .add_key_value("Model", model_name)
                 .add_key_value("Reasoning", reasoning);
