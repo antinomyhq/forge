@@ -201,7 +201,7 @@ impl<
                     .await?;
                 (input, output).into()
             }
-            ToolCatalog::CodebaseSearch(input) => {
+            ToolCatalog::SemSearch(input) => {
                 let env = self.services.get_environment();
                 let services = self.services.clone();
                 let cwd = env.cwd.clone();

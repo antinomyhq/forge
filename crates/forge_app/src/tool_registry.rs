@@ -146,7 +146,7 @@ impl<S> ToolRegistry<S> {
         ToolCatalog::iter()
             .filter(|tool| {
                 // Filter out codebase_search if cwd is not indexed
-                if matches!(tool, ToolCatalog::CodebaseSearch(_)) {
+                if matches!(tool, ToolCatalog::SemSearch(_)) {
                     codebase_search_supported
                 } else {
                     true

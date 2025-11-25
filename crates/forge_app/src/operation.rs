@@ -1619,7 +1619,7 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.into_tool_output(
-            ToolKind::CodebaseSearch,
+            ToolKind::SemSearch,
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
@@ -1652,7 +1652,7 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.into_tool_output(
-            ToolKind::CodebaseSearch,
+            ToolKind::SemSearch,
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),

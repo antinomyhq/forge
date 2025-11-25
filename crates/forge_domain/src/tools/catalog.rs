@@ -42,7 +42,7 @@ pub enum ToolCatalog {
     ReadImage(ReadImage),
     Write(FSWrite),
     Search(FSSearch),
-    CodebaseSearch(CodebaseSearch),
+    SemSearch(CodebaseSearch),
     Remove(FSRemove),
     Patch(FSPatch),
     Undo(FSUndo),
@@ -516,7 +516,7 @@ impl ToolDescription for ToolCatalog {
             ToolCatalog::Followup(v) => v.description(),
             ToolCatalog::Fetch(v) => v.description(),
             ToolCatalog::Search(v) => v.description(),
-            ToolCatalog::CodebaseSearch(v) => v.description(),
+            ToolCatalog::SemSearch(v) => v.description(),
             ToolCatalog::Read(v) => v.description(),
             ToolCatalog::ReadImage(v) => v.description(),
             ToolCatalog::Remove(v) => v.description(),
@@ -553,7 +553,7 @@ impl ToolCatalog {
             ToolCatalog::Followup(_) => r#gen.into_root_schema_for::<Followup>(),
             ToolCatalog::Fetch(_) => r#gen.into_root_schema_for::<NetFetch>(),
             ToolCatalog::Search(_) => r#gen.into_root_schema_for::<FSSearch>(),
-            ToolCatalog::CodebaseSearch(_) => r#gen.into_root_schema_for::<CodebaseSearch>(),
+            ToolCatalog::SemSearch(_) => r#gen.into_root_schema_for::<CodebaseSearch>(),
             ToolCatalog::Read(_) => r#gen.into_root_schema_for::<FSRead>(),
             ToolCatalog::ReadImage(_) => r#gen.into_root_schema_for::<ReadImage>(),
             ToolCatalog::Remove(_) => r#gen.into_root_schema_for::<FSRemove>(),
@@ -655,7 +655,7 @@ impl ToolCatalog {
                 message: format!("Fetch content from URL: {}", input.url),
             }),
             // Operations that don't require permission checks
-            ToolCatalog::CodebaseSearch(_)
+            ToolCatalog::SemSearch(_)
             | ToolCatalog::Undo(_)
             | ToolCatalog::Followup(_)
             | ToolCatalog::Plan(_)
