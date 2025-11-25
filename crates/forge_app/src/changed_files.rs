@@ -30,8 +30,6 @@ impl<S: FsReadService + EnvironmentService> ChangedFiles<S> {
             .detect(&conversation.metrics)
             .await;
 
-        println!("changes: {changes:?}");
-
         if changes.is_empty() {
             return conversation;
         }
