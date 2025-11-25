@@ -27,10 +27,12 @@ pub enum IndexProgress {
     },
     /// Comparing local files with server state
     ComparingFiles,
-    /// Deleting outdated/orphaned files from server
-    DeletingFiles {
-        /// Number of files to delete
-        count: usize,
+    /// Files are being deleted from the server
+    Deleting {
+        /// Number of files deleted so far
+        current: usize,
+        /// Total number of files to delete
+        total: usize,
     },
     /// Files are being uploaded to the server
     Uploading {
@@ -63,8 +65,8 @@ impl IndexProgress {
                 format!("Found {} files", count)
             }
             Self::ComparingFiles => "Comparing with server".to_string(),
-            Self::DeletingFiles { count } => {
-                format!("Deleting {} files", count)
+            Self::Deleting { current, total } => {
+                format!("Deleting {}/{}", current, total)
             }
             Self::Uploading { current, total } => {
                 format!("Uploading {}/{}", current, total)

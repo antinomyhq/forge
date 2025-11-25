@@ -34,8 +34,9 @@ impl ProgressBarManager {
     }
 
     /// Stops the progress bar and optionally prints a message
-    pub fn stop(&mut self, message: Option<String>) -> Result<()> {
+    pub async fn stop(&mut self, message: Option<String>) -> Result<()> {
         if let Some(bar) = self.bar.take() {
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
             bar.finish_and_clear();
             if let Some(msg) = message {
                 println!("{msg}");

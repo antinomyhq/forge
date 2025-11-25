@@ -100,6 +100,7 @@ impl<F> ForgeIndexingService<F> {
         workspace_id: &WorkspaceId,
         local_file_map: &HashMap<String, String>,
         auth_token: &forge_domain::ApiKey,
+        batch_size: usize,
         emit: E,
     ) -> Result<HashMap<String, String>>
     where
@@ -128,19 +129,33 @@ impl<F> ForgeIndexingService<F> {
             .map(|(path, _)| path.clone())
             .collect();
 
-        // Delete outdated/orphaned files from server
+        // Delete outdated/orphaned files from server in batches
         if !files_to_delete.is_empty() {
-            emit(IndexProgress::DeletingFiles { count: files_to_delete.len() }).await;
+            let total_to_delete = files_to_delete.len();
             info!(
                 "Deleting {} old/orphaned files from server before syncing",
-                files_to_delete.len()
+                total_to_delete
             );
-            let deletion =
-                forge_domain::CodeBase::new(user_id.clone(), workspace_id.clone(), files_to_delete);
-            self.infra
-                .delete_files(&deletion, auth_token)
-                .await
-                .context("Failed to delete old/orphaned files")?;
+
+            // Emit initial progress (0%)
+            emit(IndexProgress::Deleting { current: 0, total: total_to_delete }).await;
+
+            let mut deleted_count = 0;
+            for batch in files_to_delete.chunks(batch_size) {
+                let deletion = forge_domain::CodeBase::new(
+                    user_id.clone(),
+                    workspace_id.clone(),
+                    batch.to_vec(),
+                );
+                self.infra
+                    .delete_files(&deletion, auth_token)
+                    .await
+                    .context("Failed to delete old/orphaned files")?;
+
+                deleted_count += batch.len();
+                emit(IndexProgress::Deleting { current: deleted_count, total: total_to_delete })
+                    .await;
+            }
         }
 
         Ok(server_hashes)
@@ -155,6 +170,7 @@ impl<F> ForgeIndexingService<F> {
         user_id: &UserId,
         workspace_id: &WorkspaceId,
         auth_token: &forge_domain::ApiKey,
+        batch_size: usize,
         emit: E,
     ) -> Result<Vec<(String, String)>>
     where
@@ -174,8 +190,15 @@ impl<F> ForgeIndexingService<F> {
         let server_hashes = if is_new_workspace {
             HashMap::new()
         } else {
-            self.sync_server_files(user_id, workspace_id, &local_file_map, auth_token, &emit)
-                .await?
+            self.sync_server_files(
+                user_id,
+                workspace_id,
+                &local_file_map,
+                auth_token,
+                batch_size,
+                &emit,
+            )
+            .await?
         };
 
         // Identify files that need to be uploaded (new or changed)
@@ -330,6 +353,7 @@ impl<F> ForgeIndexingService<F> {
                 &user_id,
                 &workspace_id,
                 &token,
+                batch_size,
                 &emit,
             )
             .await?;

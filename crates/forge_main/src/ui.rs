@@ -2676,11 +2676,18 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         let mut stream = self.api.sync_codebase(path.clone(), batch_size).await?;
         let mut progress_bar = ProgressBarManager::default();
-
         while let Some(event) = stream.next().await {
             match event {
+                Ok(IndexProgress::Deleting { current: 0, total }) if total > 0 => {
+                    self.spinner.stop(None)?;
+                    progress_bar.start(total as u64, "Deleting")?;
+                }
+                Ok(IndexProgress::Deleting { current, .. }) => {
+                    progress_bar.set_position(current as u64)?;
+                }
                 Ok(IndexProgress::Uploading { current: 0, total }) if total > 0 => {
                     self.spinner.stop(None)?;
+                    progress_bar.stop(None).await?;
                     progress_bar.start(total as u64, "Uploading")?;
                 }
                 Ok(IndexProgress::Uploading { current, .. }) => {
@@ -2692,22 +2699,20 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     self.spinner.start(Some("Syncing"))?;
                 }
                 Ok(e @ IndexProgress::Completed { .. }) => {
-                    // let the progress bar complete before marking the operation complete.
-                    let _ = tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
                     self.spinner.stop(None)?;
-                    progress_bar.stop(None)?;
+                    progress_bar.stop(None).await?;
                     self.writeln_title(TitleFormat::completion(e.message()))?;
                 }
                 Ok(e) => self.spinner.start(Some(&e.message()))?,
                 Err(e) => {
-                    progress_bar.stop(None)?;
+                    progress_bar.stop(None).await?;
                     self.spinner.stop(None)?;
                     return Err(e);
                 }
             }
         }
 
-        progress_bar.stop(None)
+        progress_bar.stop(None).await
     }
 
     async fn on_query(
