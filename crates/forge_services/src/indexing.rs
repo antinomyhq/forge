@@ -1057,7 +1057,7 @@ mod tests {
         let mut stream = service.sync_codebase(PathBuf::from("."), 20).await.unwrap();
 
         // Consume the stream
-        while let Some(_) = stream.next().await {}
+        while (stream.next().await).is_some() {}
 
         let deleted = mock.deleted_files.lock().await;
         assert_eq!(deleted.len(), 1);
