@@ -71,7 +71,8 @@ impl ConversationSelector {
 
         if let Some(selected) = tokio::task::spawn_blocking(|| {
             ForgeSelect::select("Select the conversation to resume:", conversations)
-                .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
+                .max_rows(10)
+                .help_message("Type a name or use arrow keys to navigate and Enter to select")
                 .prompt()
         })
         .await??

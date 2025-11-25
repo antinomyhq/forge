@@ -1433,6 +1433,7 @@ dependencies = [
  "cliclack",
  "console 0.16.1",
  "crossterm 0.28.1",
+ "derive_setters",
  "pretty_assertions",
 ]
 

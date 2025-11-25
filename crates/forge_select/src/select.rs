@@ -7,21 +7,29 @@ use crate::{ApplicationCursorKeysGuard, BracketedPasteGuard};
 pub struct ForgeSelect;
 
 /// Builder for select prompts with fuzzy search
+#[derive(derive_setters::Setters)]
 pub struct SelectBuilder<T> {
     message: String,
     options: Vec<T>,
+    #[setters(strip_option)]
     starting_cursor: Option<usize>,
+    #[setters(strip_option)]
     default: Option<bool>,
+    #[setters(strip_option)]
     help_message: Option<&'static str>,
-    initial_text: Option<String>,
+    #[setters(strip_option)]
+    max_rows: Option<usize>,
 }
 
 /// Builder for select prompts that takes ownership (doesn't require Clone)
+#[derive(derive_setters::Setters)]
 pub struct SelectBuilderOwned<T> {
     message: String,
     options: Vec<T>,
+    #[setters(strip_option)]
     starting_cursor: Option<usize>,
-    initial_text: Option<String>,
+    #[setters(strip_option)]
+    max_rows: Option<usize>,
 }
 
 impl ForgeSelect {
@@ -33,7 +41,7 @@ impl ForgeSelect {
             starting_cursor: None,
             default: None,
             help_message: None,
-            initial_text: None,
+            max_rows: None,
         }
     }
 
@@ -44,7 +52,7 @@ impl ForgeSelect {
             message: message.into(),
             options,
             starting_cursor: None,
-            initial_text: None,
+            max_rows: None,
         }
     }
 
@@ -56,7 +64,7 @@ impl ForgeSelect {
             starting_cursor: None,
             default: None,
             help_message: None,
-            initial_text: None,
+            max_rows: None,
         }
     }
 
@@ -72,30 +80,6 @@ impl ForgeSelect {
 }
 
 impl<T: 'static> SelectBuilder<T> {
-    /// Set starting cursor position
-    pub fn with_starting_cursor(mut self, cursor: usize) -> Self {
-        self.starting_cursor = Some(cursor);
-        self
-    }
-
-    /// Set default for confirm (only works with bool options)
-    pub fn with_default(mut self, default: bool) -> Self {
-        self.default = Some(default);
-        self
-    }
-
-    /// Set help message
-    pub fn with_help_message(mut self, message: &'static str) -> Self {
-        self.help_message = Some(message);
-        self
-    }
-
-    /// Set initial search text for fuzzy search
-    pub fn with_initial_text(mut self, text: impl Into<String>) -> Self {
-        self.initial_text = Some(text.into());
-        self
-    }
-
     /// Execute select prompt with fuzzy search
     ///
     /// # Returns
@@ -145,12 +129,19 @@ impl<T: 'static> SelectBuilder<T> {
 
         let mut select = cliclack::select(&self.message).filter_mode();
 
+        // Limit visible rows to prevent scrolling in long lists
+        if let Some(max_rows) = self.max_rows {
+            select = select.max_rows(max_rows);
+        }
+
         // Add all items
         for (idx, display) in display_options.iter().enumerate() {
             select = select.item(idx, display, "");
         }
 
         // Set initial value if starting cursor is provided
+        // Note: In filter mode with long lists, this causes scrolling to that
+        // position Consider using max_rows() to limit scrolling
         if let Some(cursor) = self.starting_cursor {
             if cursor < self.options.len() {
                 select = select.initial_value(cursor);
@@ -167,18 +158,6 @@ impl<T: 'static> SelectBuilder<T> {
 }
 
 impl<T> SelectBuilderOwned<T> {
-    /// Set starting cursor position
-    pub fn with_starting_cursor(mut self, cursor: usize) -> Self {
-        self.starting_cursor = Some(cursor);
-        self
-    }
-
-    /// Set initial search text for fuzzy search
-    pub fn with_initial_text(mut self, text: impl Into<String>) -> Self {
-        self.initial_text = Some(text.into());
-        self
-    }
-
     /// Execute select prompt with fuzzy search and owned values
     ///
     /// # Returns
@@ -213,12 +192,19 @@ impl<T> SelectBuilderOwned<T> {
 
         let mut select = cliclack::select(&self.message).filter_mode();
 
+        // Limit visible rows to prevent scrolling in long lists
+        if let Some(max_rows) = self.max_rows {
+            select = select.max_rows(max_rows);
+        }
+
         // Add all items
         for (idx, display) in display_options.iter().enumerate() {
             select = select.item(idx, display, "");
         }
 
         // Set initial value if starting cursor is provided
+        // Note: In filter mode with long lists, this causes scrolling to that
+        // position Consider using max_rows() to limit scrolling
         if let Some(cursor) = self.starting_cursor {
             if cursor < self.options.len() {
                 select = select.initial_value(cursor);
@@ -388,17 +374,16 @@ mod tests {
     }
 
     #[test]
-    fn test_select_builder_with_initial_text() {
-        let builder =
-            ForgeSelect::select("Test", vec!["apple", "banana", "cherry"]).with_initial_text("app");
-        assert_eq!(builder.initial_text, Some("app".to_string()));
+    fn test_select_builder_with_max_rows() {
+        let builder = ForgeSelect::select("Test", vec!["apple", "banana", "cherry"]).max_rows(10);
+        assert_eq!(builder.max_rows, Some(10));
     }
 
     #[test]
-    fn test_select_owned_builder_with_initial_text() {
-        let builder = ForgeSelect::select_owned("Test", vec!["apple", "banana", "cherry"])
-            .with_initial_text("ban");
-        assert_eq!(builder.initial_text, Some("ban".to_string()));
+    fn test_select_owned_builder_with_max_rows() {
+        let builder =
+            ForgeSelect::select_owned("Test", vec!["apple", "banana", "cherry"]).max_rows(15);
+        assert_eq!(builder.max_rows, Some(15));
     }
 
     #[test]

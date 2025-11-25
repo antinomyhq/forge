@@ -660,7 +660,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
             // Use the centralized select module
             match ForgeSelect::select("Select a provider to login:", sorted_providers)
-                .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
+                .help_message("Type a name or use arrow keys to navigate and Enter to select")
                 .prompt()?
             {
                 Some(provider) => provider.0,
@@ -718,7 +718,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Use the centralized select module
         match ForgeSelect::select("Select a provider to logout:", sorted_providers)
-            .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
+            .help_message("Type a name or use arrow keys to navigate and Enter to select")
             .prompt()?
         {
             Some(provider) => {
@@ -1590,8 +1590,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Use the centralized select module
         match ForgeSelect::select("Select a model:", models)
-            .with_starting_cursor(starting_cursor)
-            .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
+            .starting_cursor(starting_cursor)
+            .max_rows(10)
+            .help_message("Type a name or use arrow keys to navigate and Enter to select")
             .prompt()?
         {
             Some(model) => Ok(Some(model.0.id)),
@@ -1719,7 +1720,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let should_set_active = ForgeSelect::confirm(format!(
             "Would you like to set {provider_id} as the active provider?"
         ))
-        .with_default(true)
+        .default(true)
         .prompt()?;
 
         Ok(should_set_active.unwrap_or(false))
@@ -1814,7 +1815,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .collect();
 
         match ForgeSelect::select("Select authentication method:", method_names.clone())
-            .with_help_message("Use arrow keys to navigate and Enter to select")
+            .help_message("Use arrow keys to navigate and Enter to select")
             .prompt()?
         {
             Some(selected_name) => {
@@ -1900,8 +1901,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Prompt user to select a provider
         let Some(provider) = ForgeSelect::select("Select a provider:", providers)
-            .with_starting_cursor(starting_cursor)
-            .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
+            .starting_cursor(starting_cursor)
+            .help_message("Type a name or use arrow keys to navigate and Enter to select")
             .prompt()?
         else {
             return Ok(None);
@@ -2342,7 +2343,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     async fn should_continue(&mut self) -> anyhow::Result<()> {
         let should_continue = ForgeSelect::confirm("Do you want to continue anyway?")
-            .with_default(true)
+            .default(true)
             .prompt()?;
 
         if should_continue.unwrap_or(false) {
@@ -2371,8 +2372,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             let prompt_text = "Start a new conversation?";
             let should_start_new_chat = ForgeSelect::confirm(prompt_text)
                 // Pressing ENTER should start new
-                .with_default(true)
-                .with_help_message("ESC = No, continue current conversation")
+                .default(true)
+                .help_message("ESC = No, continue current conversation")
                 .prompt()
                 // Cancel or failure should continue with the session
                 .unwrap_or(Some(false))

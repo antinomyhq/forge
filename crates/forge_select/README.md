@@ -25,9 +25,12 @@ use forge_select::ForgeSelect;
 
 let options = vec!["Option 1", "Option 2", "Option 3"];
 let selected = ForgeSelect::select("Choose an option:", options)
-    .with_starting_cursor(1)
+    .starting_cursor(1)
+    .max_rows(10)  // Limit visible rows to prevent excessive scrolling
     .prompt()?;
 ```
+
+**Note:** When using `starting_cursor()` with filter mode in long lists, the view will scroll to show the initial cursor position. Use `max_rows()` to limit scrolling and keep the list manageable.
 
 ### Confirm (yes/no)
 
@@ -35,7 +38,7 @@ let selected = ForgeSelect::select("Choose an option:", options)
 use forge_select::ForgeSelect;
 
 let confirmed = ForgeSelect::confirm("Are you sure?")
-    .with_default(true)
+    .default(true)
     .prompt()?;
 ```
 
@@ -106,3 +109,4 @@ No other crates should depend on `cliclack` directly - use this crate instead.
 - The select prompt uses cliclack's built-in item system for displaying options
 - Input validation is handled via closure-based validators
 - All error handling converts `std::io::Error` to `Ok(None)` for cancellation cases
+- **Scroll control**: Use `max_rows(n)` to limit the number of visible rows and prevent excessive scrolling in long lists
