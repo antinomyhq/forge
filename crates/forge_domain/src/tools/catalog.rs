@@ -177,18 +177,19 @@ fn default_codebase_top_k() -> u32 {
     10
 }
 
-/// AI-powered semantic code search - YOUR DEFAULT TOOL for "where is" questions.
-/// Use this FIRST when user asks about code location or functionality: "where is 
-/// X", "find the code that does Y", "locate Z implementation". This tool 
-/// understands CONCEPTS and BEHAVIOR, not just keywords. Finds code even when 
-/// exact terms differ. DO NOT skip this tool just because you see obvious file 
-/// paths in the file list - ALWAYS use sem_search first for "where is" questions,
-/// then read the results it provides. Examples: "where is retry logic" finds 
-/// exponential backoff code, "authentication handling" finds OAuth and JWT code, 
-/// "message transformation" finds serialization/DTOs, "tool registration" finds 
-/// tool setup code. Returns ranked results with code snippets. ONLY use regex 
-/// search tool for exact name matches like "all functions named execute" or "TODO 
-/// comments". When in doubt between search and sem_search, choose sem_search.
+/// AI-powered semantic code search - YOUR DEFAULT TOOL for "where is"
+/// questions. Use this FIRST when user asks about code location or
+/// functionality: "where is X", "find the code that does Y", "locate Z
+/// implementation". This tool understands CONCEPTS and BEHAVIOR, not just
+/// keywords. Finds code even when exact terms differ. DO NOT skip this tool
+/// just because you see obvious file paths in the file list - ALWAYS use
+/// sem_search first for "where is" questions, then read the results it
+/// provides. Examples: "where is retry logic" finds exponential backoff code,
+/// "authentication handling" finds OAuth and JWT code, "message transformation"
+/// finds serialization/DTOs, "tool registration" finds tool setup code. Returns
+/// ranked results with code snippets. ONLY use regex search tool for exact name
+/// matches like "all functions named execute" or "TODO comments". When in doubt
+/// between search and sem_search, choose sem_search.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct CodebaseSearch {
     /// Describe WHAT the code does or its purpose. Include domain-specific
