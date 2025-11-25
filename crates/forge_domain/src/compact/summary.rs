@@ -167,6 +167,7 @@ pub enum SummaryTool {
     Fetch { url: String },
     Followup { question: String },
     Plan { plan_name: String },
+    Skill { name: String },
 }
 
 impl From<&Context> for ContextSummary {
@@ -275,6 +276,7 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
         ToolCatalog::Fetch(input) => Some(SummaryTool::Fetch { url: input.url }),
         ToolCatalog::Followup(input) => Some(SummaryTool::Followup { question: input.question }),
         ToolCatalog::Plan(input) => Some(SummaryTool::Plan { plan_name: input.plan_name }),
+        ToolCatalog::Skill(input) => Some(SummaryTool::Skill { name: input.name }),
     }
 }
 

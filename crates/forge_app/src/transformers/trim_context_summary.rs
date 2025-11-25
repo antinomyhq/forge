@@ -27,6 +27,8 @@ enum Operation<'a> {
     Followup(&'a str),
     /// Plan creation with a specific name
     Plan(&'a str),
+    /// Skill loading by name
+    Skill(&'a str),
 }
 
 /// Converts the tool call to its operation type for comparison.
@@ -44,6 +46,7 @@ fn to_op(tool: &SummaryTool) -> Operation<'_> {
         SummaryTool::Fetch { url } => Operation::Fetch(url),
         SummaryTool::Followup { question } => Operation::Followup(question),
         SummaryTool::Plan { plan_name } => Operation::Plan(plan_name),
+        SummaryTool::Skill { name } => Operation::Skill(name),
     }
 }
 

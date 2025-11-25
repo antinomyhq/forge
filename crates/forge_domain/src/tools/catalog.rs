@@ -49,6 +49,7 @@ pub enum ToolCatalog {
     Fetch(NetFetch),
     Followup(Followup),
     Plan(PlanCreate),
+    Skill(SkillFetch),
 }
 
 /// Input structure for agent tool calls. This serves as the generic schema
@@ -373,6 +374,17 @@ pub struct PlanCreate {
     pub content: String,
 }
 
+/// Fetches detailed information about a specific skill. Use this tool to load
+/// skill content and instructions when you need to understand how to perform a
+/// specialized task. Skills provide domain-specific knowledge, workflows, and
+/// best practices. Only invoke skills that are listed in the available skills
+/// section. Do not invoke a skill that is already active.
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+pub struct SkillFetch {
+    /// The name of the skill to fetch (e.g., "pdf", "code_review")
+    pub name: String,
+}
+
 fn default_raw() -> Option<bool> {
     Some(false)
 }
@@ -475,6 +487,7 @@ impl ToolDescription for ToolCatalog {
             ToolCatalog::Undo(v) => v.description(),
             ToolCatalog::Write(v) => v.description(),
             ToolCatalog::Plan(v) => v.description(),
+            ToolCatalog::Skill(v) => v.description(),
         }
     }
 }
@@ -510,6 +523,7 @@ impl ToolCatalog {
             ToolCatalog::Undo(_) => r#gen.into_root_schema_for::<FSUndo>(),
             ToolCatalog::Write(_) => r#gen.into_root_schema_for::<FSWrite>(),
             ToolCatalog::Plan(_) => r#gen.into_root_schema_for::<PlanCreate>(),
+            ToolCatalog::Skill(_) => r#gen.into_root_schema_for::<SkillFetch>(),
         }
     }
 
@@ -604,7 +618,10 @@ impl ToolCatalog {
                 message: format!("Fetch content from URL: {}", input.url),
             }),
             // Operations that don't require permission checks
-            ToolCatalog::Undo(_) | ToolCatalog::Followup(_) | ToolCatalog::Plan(_) => None,
+            ToolCatalog::Undo(_)
+            | ToolCatalog::Followup(_)
+            | ToolCatalog::Plan(_)
+            | ToolCatalog::Skill(_) => None,
         }
     }
 
@@ -697,6 +714,13 @@ impl ToolCatalog {
             plan_name: plan_name.to_string(),
             version: version.to_string(),
             content: content.to_string(),
+        }))
+    }
+
+    /// Creates a Skill tool call with the specified skill name
+    pub fn tool_call_skill(skill_name: &str) -> ToolCallFull {
+        ToolCallFull::from(ToolCatalog::Skill(SkillFetch {
+            name: skill_name.to_string(),
         }))
     }
 

@@ -12,7 +12,7 @@ use forge_api::{
     ChatResponse, CodeRequest, Conversation, ConversationId, DeviceCodeRequest, Event,
     InterruptionReason, Model, ModelId, Provider, ProviderId, TextMessage, UserPrompt, Workflow,
 };
-use forge_app::utils::truncate_key;
+use forge_app::utils::{format_display_path, truncate_key};
 use forge_app::{CommitResult, ToolResolver};
 use forge_display::MarkdownFormat;
 use forge_domain::{
@@ -332,6 +332,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                     }
                     ListCommand::Cmd => {
                         self.on_show_custom_commands(porcelain).await?;
+                    }
+                    ListCommand::Skill => {
+                        self.on_show_skills(porcelain).await?;
                     }
                 }
                 return Ok(());
@@ -798,10 +801,18 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
             } else {
                 "DISABLED"
             };
+
+            let location = agent
+                .path
+                .as_ref()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| "BUILT IN".to_string());
+
             info = info
                 .add_title(id.to_case(Case::UpperSnake))
                 .add_key_value("Id", id)
                 .add_key_value("Title", title)
+                .add_key_value("Location", location)
                 .add_key_value("Provider", provider_name)
                 .add_key_value("Model", model_name)
                 .add_key_value("Reasoning", reasoning);
@@ -965,6 +976,7 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                 "tools",
                 "List all available tools with their descriptions and schema [alias: t]",
             ),
+            ("skill", "List all available skills"),
             ("commit", "Generate AI commit message and commit changes."),
             (
                 "suggest",
@@ -1043,6 +1055,34 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
 
         if porcelain {
             let porcelain = Porcelain::from(&info).skip(2);
+            self.writeln(porcelain)?;
+        } else {
+            self.writeln(info)?;
+        }
+
+        Ok(())
+    }
+
+    /// Lists available skills
+    async fn on_show_skills(&mut self, porcelain: bool) -> anyhow::Result<()> {
+        let skills = self.api.get_skills().await?;
+        let mut info = Info::new();
+        let env = self.api.environment();
+
+        for skill in skills {
+            info = info
+                .add_title(skill.name.clone().to_case(Case::Sentence).to_uppercase())
+                .add_key_value("name", skill.name);
+
+            if let Some(path) = skill.path {
+                info = info.add_key_value("path", format_display_path(&path, &env.cwd));
+            }
+
+            info = info.add_key_value("description", skill.description);
+        }
+
+        if porcelain {
+            let porcelain = Porcelain::from(&info).skip(1).drop_col(3);
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
