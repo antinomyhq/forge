@@ -2750,9 +2750,9 @@ impl<A: API + 'static, F: Fn() -> A> UI<A, F> {
                         .add_title(format!("Workspace [{}]", timestamp))
                         .add_key_value("id", workspace.workspace_id.to_string())
                         .add_key_value("path", workspace.working_dir)
-                        .add_key_value("last updated", elapsed_time)
-                        .add_key_value("total nodes", workspace.node_count)
-                        .add_key_value("total relations", workspace.relation_count);
+                        .add_key_value("updated", elapsed_time)
+                        .add_key_value("nodes", workspace.node_count)
+                        .add_key_value("relations", workspace.relation_count);
                 }
 
                 // Output based on mode
