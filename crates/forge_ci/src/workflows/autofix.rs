@@ -13,7 +13,7 @@ pub fn generate_autofix_workflow() {
             Step::new("Install Protobuf Compiler")
                 .run("sudo apt-get update && sudo apt-get install -y protobuf-compiler"),
         )
-        .add_step(Step::checkout())
+        .add_step(Step::new("Checkout Code").uses("actions", "checkout", "v6"))
         .add_step(
             Step::toolchain()
                 .add_nightly()
