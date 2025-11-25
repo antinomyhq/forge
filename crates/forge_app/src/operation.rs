@@ -555,7 +555,7 @@ mod tests {
     #[test]
     fn test_fs_read_basic() {
         let content = "Hello, world!\nThis is a test file.";
-        let hash = crate::compute_hash(content);
+        let _hash = crate::compute_hash(content);
         let fixture = ToolOperation::FsRead {
             input: FSRead {
                 path: "/home/user/test.txt".to_string(),
