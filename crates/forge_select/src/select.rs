@@ -3,6 +3,8 @@ use console::{strip_ansi_codes, style};
 use dialoguer::theme::ColorfulTheme;
 use dialoguer::{Confirm, FuzzySelect, Input, MultiSelect};
 
+use crate::{ApplicationCursorKeysGuard, BracketedPasteGuard};
+
 /// Check if a dialoguer error is an interrupted error (CTRL+C)
 fn is_interrupted_error(err: &dialoguer::Error) -> bool {
     match err {
@@ -150,6 +152,12 @@ impl<T: 'static> SelectBuilder<T> {
             return Ok(None);
         }
 
+        // Disable bracketed paste mode to prevent ~0 and ~1 markers during
+        // fuzzy search input
+        let _paste_guard = BracketedPasteGuard::new()?;
+        // Disable application cursor keys to ensure arrow keys work correctly
+        let _cursor_guard = ApplicationCursorKeysGuard::new()?;
+
         let theme = ForgeSelect::default_theme();
 
         // Strip ANSI codes from display strings for better fuzzy search experience
@@ -213,6 +221,12 @@ impl<T> SelectBuilderOwned<T> {
         if self.options.is_empty() {
             return Ok(None);
         }
+
+        // Disable bracketed paste mode to prevent ~0 and ~1 markers during
+        // fuzzy search input
+        let _paste_guard = BracketedPasteGuard::new()?;
+        // Disable application cursor keys to ensure arrow keys work correctly
+        let _cursor_guard = ApplicationCursorKeysGuard::new()?;
 
         let theme = ForgeSelect::default_theme();
 
@@ -278,6 +292,11 @@ impl InputBuilder {
     /// Returns an error if the terminal interaction fails for reasons other
     /// than user cancellation
     pub fn prompt(self) -> Result<Option<String>> {
+        // Disable bracketed paste mode to prevent ~0 and ~1 markers during input
+        let _paste_guard = BracketedPasteGuard::new()?;
+        // Disable application cursor keys to ensure arrow keys work correctly
+        let _cursor_guard = ApplicationCursorKeysGuard::new()?;
+
         let theme = ForgeSelect::default_theme();
         let mut input = Input::with_theme(&theme)
             .with_prompt(&self.message)
@@ -320,6 +339,11 @@ impl<T> MultiSelectBuilder<T> {
         if self.options.is_empty() {
             return Ok(None);
         }
+
+        // Disable bracketed paste mode to prevent ~0 and ~1 markers
+        let _paste_guard = BracketedPasteGuard::new()?;
+        // Disable application cursor keys to ensure arrow keys work correctly
+        let _cursor_guard = ApplicationCursorKeysGuard::new()?;
 
         let theme = ForgeSelect::default_theme();
         let multi_select = MultiSelect::with_theme(&theme)

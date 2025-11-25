@@ -17,8 +17,8 @@
 
 name: autofix.ci
 env:
-  RUSTFLAGS: -Dwarnings
-on:
+  RUSTFLAGS: '-Dwarnings'
+'on':
   pull_request:
     types:
     - opened

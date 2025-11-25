@@ -480,19 +480,21 @@ mod tests {
         assert_eq!(actual, expected);
     }
 
-    #[test]
-    fn test_real_example() {
-        let message = include_str!("../../fixtures/tool_call_01.md");
-        let tool_call = ToolCallFull::try_from_xml(message).unwrap();
+    #[tokio::test]
+    async fn test_real_example() {
+        let message = forge_test_kit::fixture!("/src/fixtures/tool_call_01.md").await;
+
+        let tool_call = ToolCallFull::try_from_xml(&message).unwrap();
         let actual = tool_call.first().unwrap().name.to_string();
         let expected = "attempt_completion";
         assert_eq!(actual, expected);
     }
 
-    #[test]
-    fn test_try_from_xml_call_id() {
-        let message = include_str!("../../fixtures/tool_call_01.md");
-        let tool_call = ToolCallFull::try_from_xml(message).unwrap();
+    #[tokio::test]
+    async fn test_try_from_xml_call_id() {
+        let message = forge_test_kit::fixture!("/src/fixtures/tool_call_01.md").await;
+
+        let tool_call = ToolCallFull::try_from_xml(&message).unwrap();
         let actual = tool_call.first().unwrap().call_id.as_ref().unwrap();
         assert!(actual.as_str().starts_with("forge_call_id_"));
     }

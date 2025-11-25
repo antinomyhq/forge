@@ -160,18 +160,25 @@ pub trait AppConfigService: Send + Sync {
         provider_id: forge_domain::ProviderId,
     ) -> anyhow::Result<()>;
 
-    /// Gets the user's default model for a specific provider.
-    async fn get_default_model(
+    /// Gets the user's default model for a specific provider or the currently
+    /// active provider. When provider_id is None, uses the currently active
+    /// provider.
+    ///
+    /// # Errors
+    /// - Returns `Error::NoDefaultProvider` when no active provider is set and
+    ///   provider_id is None
+    /// - Returns `Error::NoDefaultModel` when no model is configured for the
+    ///   provider
+    async fn get_provider_model(
         &self,
-        provider_id: &forge_domain::ProviderId,
+        provider_id: Option<&forge_domain::ProviderId>,
     ) -> anyhow::Result<ModelId>;
 
-    /// Sets the user's default model for a specific provider.
-    async fn set_default_model(
-        &self,
-        model: ModelId,
-        provider_id: forge_domain::ProviderId,
-    ) -> anyhow::Result<()>;
+    /// Sets the user's default model for the currently active provider.
+    ///
+    /// # Errors
+    /// Returns an error if no default provider is configured.
+    async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -469,6 +476,24 @@ pub trait PolicyService: Send + Sync {
     ) -> anyhow::Result<PolicyDecision>;
 }
 
+/// Skill fetch service
+#[async_trait::async_trait]
+pub trait SkillFetchService: Send + Sync {
+    /// Fetches a skill by name
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the skill is not found or cannot be loaded
+    async fn fetch_skill(&self, skill_name: String) -> anyhow::Result<forge_domain::Skill>;
+
+    /// Lists all available skills
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if skills cannot be loaded
+    async fn list_skills(&self) -> anyhow::Result<Vec<forge_domain::Skill>>;
+}
+
 /// Provider authentication service
 #[async_trait::async_trait]
 pub trait ProviderAuthService: Send + Sync {
@@ -522,6 +547,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type PolicyService: PolicyService;
     type ProviderAuthService: ProviderAuthService;
     type CodebaseService: ContextEngineService;
+    type SkillFetchService: SkillFetchService;
 
     fn provider_service(&self) -> &Self::ProviderService;
     fn config_service(&self) -> &Self::AppConfigService;
@@ -551,6 +577,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn policy_service(&self) -> &Self::PolicyService;
     fn provider_auth_service(&self) -> &Self::ProviderAuthService;
     fn context_engine_service(&self) -> &Self::CodebaseService;
+    fn skill_fetch_service(&self) -> &Self::SkillFetchService;
 }
 
 #[async_trait::async_trait]
@@ -949,21 +976,26 @@ impl<I: Services> AppConfigService for I {
             .await
     }
 
-    async fn get_default_model(
+    async fn get_provider_model(
         &self,
-        provider_id: &forge_domain::ProviderId,
+        provider_id: Option<&forge_domain::ProviderId>,
     ) -> anyhow::Result<ModelId> {
-        self.config_service().get_default_model(provider_id).await
+        self.config_service().get_provider_model(provider_id).await
     }
 
-    async fn set_default_model(
-        &self,
-        model: ModelId,
-        provider_id: forge_domain::ProviderId,
-    ) -> anyhow::Result<()> {
-        self.config_service()
-            .set_default_model(model, provider_id)
-            .await
+    async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()> {
+        self.config_service().set_default_model(model).await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> SkillFetchService for I {
+    async fn fetch_skill(&self, skill_name: String) -> anyhow::Result<forge_domain::Skill> {
+        self.skill_fetch_service().fetch_skill(skill_name).await
+    }
+
+    async fn list_skills(&self) -> anyhow::Result<Vec<forge_domain::Skill>> {
+        self.skill_fetch_service().list_skills().await
     }
 }
 

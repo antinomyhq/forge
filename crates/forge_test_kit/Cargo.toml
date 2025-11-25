@@ -1,0 +1,16 @@
+[package]
+name = "forge_test_kit"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { workspace = true }
+serde = { workspace = true, optional = true }
+serde_json = { workspace = true, optional = true }
+
+[features]
+default = []
+json = ["serde", "serde_json"]
+
+[lib]
+doctest = false

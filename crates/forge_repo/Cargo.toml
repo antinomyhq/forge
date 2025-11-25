@@ -11,6 +11,7 @@ forge_snaps.workspace = true
 forge_fs.workspace = true
 
 anyhow.workspace = true
+futures.workspace = true
 async-trait.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -40,6 +41,7 @@ tonic-prost = "0.14.2"
 tonic-prost-build = "0.14.2"
 
 [dev-dependencies]
+forge_test_kit.workspace = true
 tokio = { workspace = true, features = ["macros", "rt", "time", "test-util"] }
 tempfile = { workspace = true }
 pretty_assertions = { workspace = true }

@@ -5,7 +5,7 @@ use url::Url;
 
 use crate::{
     AnyProvider, AppConfig, AuthCredential, Conversation, ConversationId, MigrationResult,
-    Provider, ProviderId, Snapshot, UserId, Workspace, WorkspaceAuth, WorkspaceId,
+    Provider, ProviderId, Skill, Snapshot, UserId, Workspace, WorkspaceAuth, WorkspaceId,
 };
 
 /// Repository for managing file snapshots
@@ -176,4 +176,17 @@ pub trait ContextEngineRepository: Send + Sync {
         workspace_id: &WorkspaceId,
         auth_token: &crate::ApiKey,
     ) -> anyhow::Result<()>;
+}
+
+/// Repository for managing skills
+///
+/// This repository provides operations for loading and managing skills from
+/// markdown files.
+#[async_trait::async_trait]
+pub trait SkillRepository: Send + Sync {
+    /// Loads all available skills from the skills directory
+    ///
+    /// # Errors
+    /// Returns an error if skill loading fails
+    async fn load_skills(&self) -> Result<Vec<Skill>>;
 }

@@ -18,6 +18,9 @@ pub struct Agent {
     // Unique identifier for the agent
     pub id: AgentId,
 
+    /// Path to the agent definition file, if loaded from a file
+    pub path: Option<String>,
+
     /// Human-readable title for the agent
     pub title: Option<String>,
 
@@ -97,6 +100,7 @@ impl Agent {
             reasoning: Default::default(),
             max_tool_failure_per_turn: Default::default(),
             max_requests_per_turn: Default::default(),
+            path: Default::default(),
         }
     }
 
@@ -231,6 +235,7 @@ impl Agent {
             custom_rules: def.custom_rules,
             max_tool_failure_per_turn: def.max_tool_failure_per_turn,
             max_requests_per_turn: def.max_requests_per_turn,
+            path: def.path,
         }
     }
 }
