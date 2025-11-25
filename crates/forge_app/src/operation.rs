@@ -564,7 +564,7 @@ mod tests {
                 show_line_numbers: true,
             },
             output: ReadOutput {
-                content: Content::file(content, &crate::compute_hash(content)),
+                content: Content::file(content, &hash),
                 start_line: 1,
                 end_line: 2,
                 total_lines: 2,
