@@ -114,6 +114,24 @@ impl SummaryToolCall {
         }
     }
 
+    /// Creates a CodebaseSearch tool call with default values (id: None,
+    /// is_success: true)
+    pub fn codebase_search(
+        query: impl Into<String>,
+        use_case: impl Into<String>,
+        top_k: u32,
+    ) -> Self {
+        Self {
+            id: None,
+            tool: SummaryTool::CodebaseSearch {
+                query: query.into(),
+                use_case: use_case.into(),
+                top_k,
+            },
+            is_success: true,
+        }
+    }
+
     /// Creates an Undo tool call with default values (id: None, is_success:
     /// true)
     pub fn undo(path: impl Into<String>) -> Self {
@@ -158,16 +176,41 @@ impl SummaryToolCall {
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SummaryTool {
-    FileRead { path: String },
-    FileUpdate { path: String },
-    FileRemove { path: String },
-    Shell { command: String },
-    Search { pattern: String },
-    Undo { path: String },
-    Fetch { url: String },
-    Followup { question: String },
-    Plan { plan_name: String },
-    Skill { name: String },
+    FileRead {
+        path: String,
+    },
+    FileUpdate {
+        path: String,
+    },
+    FileRemove {
+        path: String,
+    },
+    Shell {
+        command: String,
+    },
+    Search {
+        pattern: String,
+    },
+    CodebaseSearch {
+        query: String,
+        use_case: String,
+        top_k: u32,
+    },
+    Undo {
+        path: String,
+    },
+    Fetch {
+        url: String,
+    },
+    Followup {
+        question: String,
+    },
+    Plan {
+        plan_name: String,
+    },
+    Skill {
+        name: String,
+    },
 }
 
 impl From<&Context> for ContextSummary {
@@ -272,7 +315,11 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
             .file_pattern
             .or(input.regex)
             .map(|pattern| SummaryTool::Search { pattern }),
-        ToolCatalog::CodebaseSearch(input) => Some(SummaryTool::Search { pattern: input.query }),
+        ToolCatalog::CodebaseSearch(input) => Some(SummaryTool::CodebaseSearch {
+            query: input.query,
+            use_case: input.use_case,
+            top_k: input.top_k,
+        }),
         ToolCatalog::Undo(input) => Some(SummaryTool::Undo { path: input.path }),
         ToolCatalog::Fetch(input) => Some(SummaryTool::Fetch { url: input.url }),
         ToolCatalog::Followup(input) => Some(SummaryTool::Followup { question: input.question }),
