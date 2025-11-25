@@ -69,20 +69,35 @@ impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
         .await
     }
 
-    async fn get_default_model(&self, provider_id: &ProviderId) -> anyhow::Result<ModelId> {
-        if let Some(model_id) = self.infra.get_app_config().await?.model.get(provider_id) {
-            return Ok(model_id.clone());
-        }
+    async fn get_provider_model(
+        &self,
+        provider_id: Option<&ProviderId>,
+    ) -> anyhow::Result<ModelId> {
+        let config = self.infra.get_app_config().await?;
 
-        // No active model set for the active provider, throw an error
-        Err(forge_app::Error::NoActiveModel.into())
+        let provider_id = match provider_id {
+            Some(id) => id,
+            None => config
+                .provider
+                .as_ref()
+                .ok_or(forge_domain::Error::NoDefaultProvider)?,
+        };
+
+        Ok(config
+            .model
+            .get(provider_id)
+            .cloned()
+            .ok_or_else(|| forge_domain::Error::no_default_model(*provider_id))?)
     }
 
-    async fn set_default_model(
-        &self,
-        model: ModelId,
-        provider_id: ProviderId,
-    ) -> anyhow::Result<()> {
+    async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()> {
+        let provider_id = self
+            .infra
+            .get_app_config()
+            .await?
+            .provider
+            .ok_or(forge_domain::Error::NoDefaultProvider)?;
+
         self.update(|config| {
             config.model.insert(provider_id, model.clone());
         })
@@ -284,7 +299,7 @@ mod tests {
         let fixture = MockInfra::new();
         let service = ForgeAppConfigService::new(Arc::new(fixture));
 
-        let result = service.get_default_model(&ProviderId::OpenAI).await;
+        let result = service.get_provider_model(Some(&ProviderId::OpenAI)).await;
 
         assert!(result.is_err());
         Ok(())
@@ -295,10 +310,14 @@ mod tests {
         let fixture = MockInfra::new();
         let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
 
+        // Set OpenAI as the default provider first
+        service.set_default_provider(ProviderId::OpenAI).await?;
         service
-            .set_default_model("gpt-4".to_string().into(), ProviderId::OpenAI)
+            .set_default_model("gpt-4".to_string().into())
             .await?;
-        let actual = service.get_default_model(&ProviderId::OpenAI).await?;
+        let actual = service
+            .get_provider_model(Some(&ProviderId::OpenAI))
+            .await?;
         let expected = "gpt-4".to_string().into();
 
         assert_eq!(actual, expected);
@@ -310,8 +329,10 @@ mod tests {
         let fixture = MockInfra::new();
         let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
 
+        // Set OpenAI as the default provider first
+        service.set_default_provider(ProviderId::OpenAI).await?;
         service
-            .set_default_model("gpt-4".to_string().into(), ProviderId::OpenAI)
+            .set_default_model("gpt-4".to_string().into())
             .await?;
 
         let config = fixture.get_app_config().await?;
@@ -327,11 +348,15 @@ mod tests {
         let fixture = MockInfra::new();
         let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
 
+        // Set models for different providers by switching active provider
+        service.set_default_provider(ProviderId::OpenAI).await?;
         service
-            .set_default_model("gpt-4".to_string().into(), ProviderId::OpenAI)
+            .set_default_model("gpt-4".to_string().into())
             .await?;
+
+        service.set_default_provider(ProviderId::Anthropic).await?;
         service
-            .set_default_model("claude-3".to_string().into(), ProviderId::Anthropic)
+            .set_default_model("claude-3".to_string().into())
             .await?;
 
         let config = fixture.get_app_config().await?;

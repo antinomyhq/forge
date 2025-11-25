@@ -47,7 +47,7 @@ where
 
         // Get required services and data
         let provider = self.services.get_default_provider().await?;
-        let model = self.services.get_default_model(&provider.id).await?;
+        let model = self.services.get_provider_model(Some(&provider.id)).await?;
 
         // Build user prompt with task and recent commands
         let user_content = format!("<task>{}</task>", prompt.as_str());
@@ -200,11 +200,14 @@ mod tests {
             Ok(())
         }
 
-        async fn get_default_model(&self, _provider_id: &ProviderId) -> Result<ModelId> {
+        async fn get_provider_model(
+            &self,
+            _provider_id: Option<&ProviderId>,
+        ) -> anyhow::Result<ModelId> {
             Ok(ModelId::new("test-model"))
         }
 
-        async fn set_default_model(&self, _model: ModelId, _provider_id: ProviderId) -> Result<()> {
+        async fn set_default_model(&self, _model: ModelId) -> Result<()> {
             Ok(())
         }
     }
