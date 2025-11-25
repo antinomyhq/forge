@@ -4,7 +4,7 @@ use std::sync::Arc;
 use anyhow::Context;
 use forge_app::{
     Content, EnvironmentInfra, FileInfoInfra, FileReaderInfra as InfraFsReadService, FsReadService,
-    ReadOutput,
+    ReadOutput, compute_hash,
 };
 
 use crate::range::resolve_range;
@@ -91,9 +91,9 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for
                 e
             })
             .with_context(|| format!("Failed to read file content from {}", path.display()))?;
-
+        let hash = compute_hash(&content);
         Ok(ReadOutput {
-            content: Content::File(content),
+            content: Content::file(content, hash),
             start_line: file_info.start_line,
             end_line: file_info.end_line,
             total_lines: file_info.total_lines,

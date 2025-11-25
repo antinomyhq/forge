@@ -50,7 +50,10 @@ impl<F: FsReadService> FileChangeDetector<F> {
                 async move {
                     // Get current hash: Some(hash) if readable, None if unreadable
                     let current_hash = match self.read_file_content(&file_path).await {
-                        Ok(content) => Some(compute_hash(&content)),
+                        Ok(content) => {
+                            println!("cur content: {:?}", content);
+                            Some(compute_hash(&content))
+                        }
                         Err(_) => None,
                     };
 
@@ -90,7 +93,7 @@ impl<F: FsReadService> FileChangeDetector<F> {
             .await?;
 
         match output.content {
-            Content::File(content) => Ok(content),
+            Content::File { content, raw_content_hash: _ } => Ok(content),
         }
     }
 }
@@ -142,7 +145,10 @@ mod tests {
 
             if let Some(content) = self.files.get(&path) {
                 Ok(crate::ReadOutput {
-                    content: Content::File(content.clone()),
+                    content: Content::File {
+                        content: content.clone(),
+                        raw_content_hash: compute_hash(&content),
+                    },
                     start_line: 1,
                     end_line: 1,
                     total_lines: 1,

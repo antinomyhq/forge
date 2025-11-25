@@ -43,17 +43,17 @@ pub struct ReadOutput {
 
 #[derive(Debug)]
 pub enum Content {
-    File(String),
+    File { content: String, raw_content_hash: String },
 }
 
 impl Content {
-    pub fn file<S: Into<String>>(content: S) -> Self {
-        Self::File(content.into())
+    pub fn file<S: Into<String>>(content: S, hash: S) -> Self {
+        Self::File { content: content.into(), raw_content_hash: hash.into() }
     }
 
-    pub fn file_content(&self) -> &str {
+    pub fn file_content(&self) -> (&str, &str) {
         match self {
-            Self::File(content) => content,
+            Self::File { content, raw_content_hash: hash } => (content, hash),
         }
     }
 }

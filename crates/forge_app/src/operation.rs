@@ -196,8 +196,8 @@ impl ToolOperation {
         let tool_name = tool_kind.name();
         match self {
             ToolOperation::FsRead { input, output } => {
-                let content = output.content.file_content();
-                let content_hash = compute_hash(content);
+                let (content, content_hash) = output.content.file_content();
+                println!("content_hash: {content_hash}");
                 let elm = Element::new("file_content")
                     .attr("path", &input.path)
                     .attr(
@@ -211,7 +211,7 @@ impl ToolOperation {
                 tracing::info!(path = %input.path, tool = %tool_name, "File read");
                 *metrics = metrics.clone().insert(
                     input.path.clone(),
-                    FileOperation::new(tool_kind).content_hash(Some(content_hash)),
+                    FileOperation::new(tool_kind).content_hash(Some(content_hash.to_string())),
                 );
 
                 forge_domain::ToolOutput::text(elm)
