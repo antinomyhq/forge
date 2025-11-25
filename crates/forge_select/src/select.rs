@@ -112,12 +112,11 @@ impl<T: 'static> SelectBuilder<T> {
         T: std::fmt::Display + Clone,
     {
         // Disable bracketed paste mode to prevent ~0 and ~1 markers
-            let _paste_guard = BracketedPasteGuard::new()?;
-            // Disable application cursor keys to ensure arrow keys work correctly
-            let _cursor_guard = ApplicationCursorKeysGuard::new()?;
+        let _paste_guard = BracketedPasteGuard::new()?;
+        // Disable application cursor keys to ensure arrow keys work correctly
+        let _cursor_guard = ApplicationCursorKeysGuard::new()?;
         // Handle confirm case (bool options)
         if std::any::TypeId::of::<T>() == std::any::TypeId::of::<bool>() {
-
             let mut confirm = cliclack::confirm(&self.message);
 
             if let Some(default) = self.default {
