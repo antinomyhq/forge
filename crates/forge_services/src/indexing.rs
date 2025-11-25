@@ -1048,12 +1048,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_orphaned_files_deleted() {
+        use futures::StreamExt;
         let mut mock = MockInfra::out_of_sync(&["main.rs"], &["main.rs"]);
         mock.server_files
             .push(FileHash { path: "old.rs".into(), hash: "x".into() });
         let service = ForgeIndexingService::new(Arc::new(mock.clone()));
 
-        service.sync_codebase(PathBuf::from("."), 20).await.unwrap();
+        let mut stream = service.sync_codebase(PathBuf::from("."), 20).await.unwrap();
+
+        // Consume the stream
+        while let Some(_) = stream.next().await {}
 
         let deleted = mock.deleted_files.lock().await;
         assert_eq!(deleted.len(), 1);
