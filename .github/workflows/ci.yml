@@ -42,10 +42,10 @@ jobs:
     steps:
     - name: Checkout Code
       uses: actions/checkout@v5
-    - name: Install Protobuf Compiler
-      run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
-    - name: Checkout Code
-      uses: actions/checkout@v6
+    - name: Setup Protobuf Compiler
+      uses: arduino/setup-protoc@v3
+      with:
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
     - name: Setup Rust Toolchain
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
@@ -60,8 +60,10 @@ jobs:
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
-    - name: Install Protobuf Compiler
-      run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+    - name: Setup Protobuf Compiler
+      uses: arduino/setup-protoc@v3
+      with:
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
     - name: Setup Rust Toolchain
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
