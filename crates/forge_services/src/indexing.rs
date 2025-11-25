@@ -1,17 +1,21 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use forge_app::{ContextEngineService, FileReaderInfra, Walker, WalkerInfra, compute_hash};
 use forge_domain::{
-    AuthCredential, ContextEngineRepository, IndexProgress, ProviderId, ProviderRepository, UserId,
-    WorkspaceId, WorkspaceRepository,
+    AuthCredential, ContextEngineRepository, FileHash, IndexProgress, ProviderId,
+    ProviderRepository, UserId, WorkspaceId, WorkspaceRepository,
 };
 use forge_stream::MpscStream;
 use futures::future::join_all;
 use tracing::{info, warn};
+
+/// Boxed future type for async closures.
+type BoxFuture<'a, T> = Pin<Box<dyn std::future::Future<Output = T> + Send + 'a>>;
 
 /// Represents a file with its content and computed hash
 #[derive(Debug)]
@@ -30,6 +34,100 @@ impl IndexedFile {
     }
 }
 
+/// Result of comparing local and server files
+struct SyncPlan {
+    /// Files to delete from server (outdated or orphaned)
+    files_to_delete: Vec<String>,
+    /// Files to upload (new or changed)
+    files_to_upload: Vec<forge_domain::FileRead>,
+}
+
+impl SyncPlan {
+    /// Creates a sync plan by comparing local files with remote file hashes.
+    fn new(local_files: Vec<IndexedFile>, remote_files: Vec<FileHash>) -> Self {
+        // Build map of local files for comparison
+        let local_file_map: HashMap<String, String> = local_files
+            .iter()
+            .map(|file| (file.path.clone(), file.hash.clone()))
+            .collect();
+        let remote_file_map = remote_files
+            .iter()
+            .map(|f| (&f.path, &f.hash))
+            .collect::<HashMap<_, _>>();
+
+        // Files to delete: on server but either not local or hash changed
+        let files_to_delete: Vec<String> = remote_files
+            .iter()
+            .filter(|v| local_file_map.get(&v.path) != Some(&v.hash))
+            .map(|v| v.path.clone())
+            .collect();
+
+        // Files to upload: local files not on server or hash changed
+        let files_to_upload: Vec<_> = local_files
+            .into_iter()
+            .filter_map(|file| {
+                let needs_upload = remote_file_map.get(&file.path) != Some(&&file.hash);
+                needs_upload.then_some(forge_domain::FileRead::new(
+                    file.path.clone(),
+                    file.content.clone(),
+                ))
+            })
+            .collect();
+
+        Self { files_to_delete, files_to_upload }
+    }
+
+    /// Returns the total number of operations (deletions + uploads).
+    fn total(&self) -> usize {
+        self.files_to_delete.len() + self.files_to_upload.len()
+    }
+
+    /// Returns the number of files to upload.
+    fn upload_count(&self) -> usize {
+        self.files_to_upload.len()
+    }
+
+    /// Returns true if there are no operations to perform.
+    fn is_empty(&self) -> bool {
+        self.total() == 0
+    }
+
+    /// Executes the sync plan in batches.
+    async fn execute<'a>(
+        &'a self,
+        batch_size: usize,
+        delete: impl Fn(Vec<String>) -> BoxFuture<'a, Result<()>>,
+        upload: impl Fn(Vec<forge_domain::FileRead>) -> BoxFuture<'a, Result<()>>,
+        on_progress: impl Fn(usize, usize) -> BoxFuture<'a, ()>,
+    ) -> Result<()> {
+        if self.is_empty() {
+            return Ok(());
+        }
+
+        let total = self.total();
+        let mut processed = 0;
+
+        // Emit initial progress (0%)
+        on_progress(0, total).await;
+
+        // Delete outdated/orphaned files
+        for batch in self.files_to_delete.chunks(batch_size) {
+            delete(batch.to_vec()).await?;
+            processed += batch.len();
+            on_progress(processed, total).await;
+        }
+
+        // Upload new/changed files
+        for batch in self.files_to_upload.chunks(batch_size) {
+            upload(batch.to_vec()).await?;
+            processed += batch.len();
+            on_progress(processed, total).await;
+        }
+
+        Ok(())
+    }
+}
+
 /// Service for indexing codebases and performing semantic search
 #[derive(Clone)]
 pub struct ForgeIndexingService<F> {
@@ -43,10 +141,6 @@ impl<F> ForgeIndexingService<F> {
     }
 
     /// Extract WorkspaceAuth components from AuthCredential
-    ///
-    /// # Errors
-    /// Returns an error if the credential is not an API key or contains invalid
-    /// data
     fn extract_workspace_auth(
         credential: &AuthCredential,
     ) -> Result<(forge_domain::ApiKey, UserId)> {
@@ -86,141 +180,60 @@ impl<F> ForgeIndexingService<F> {
         }
     }
 
-    /// Fetches server files, deletes outdated/orphaned ones, and returns
-    /// current state.
-    /// This method:
-    /// 1. Fetches existing files from the server
-    /// 2. Identifies files that are outdated (changed hash) or orphaned
-    ///    (deleted locally)
-    /// 3. Deletes those files from the server
-    /// 4. Returns the server hashes for upload comparison
-    async fn sync_server_files<E, Fut>(
+    /// Fetches remote file hashes from the server.
+    async fn fetch_remote_hashes(
         &self,
         user_id: &UserId,
         workspace_id: &WorkspaceId,
-        local_file_map: &HashMap<String, String>,
         auth_token: &forge_domain::ApiKey,
-        batch_size: usize,
-        emit: E,
-    ) -> Result<HashMap<String, String>>
+    ) -> Vec<FileHash>
     where
         F: ContextEngineRepository,
-        E: Fn(IndexProgress) -> Fut,
-        Fut: std::future::Future<Output = ()>,
     {
         info!("Fetching existing file hashes from server to detect changes...");
         let workspace_files =
             forge_domain::CodeBase::new(user_id.clone(), workspace_id.clone(), ());
-        let server_hashes = self
-            .infra
+        self.infra
             .list_workspace_files(&workspace_files, auth_token)
             .await
-            .map(|files| {
-                let hashes: HashMap<_, _> = files.into_iter().map(|f| (f.path, f.hash)).collect();
-                info!("Found {} files on server", hashes.len());
-                hashes
-            })
-            .unwrap_or_default();
-
-        // Identify outdated/orphaned files
-        let files_to_delete: Vec<String> = server_hashes
-            .iter()
-            .filter(|(path, hash)| local_file_map.get(*path) != Some(*hash))
-            .map(|(path, _)| path.clone())
-            .collect();
-
-        // Delete outdated/orphaned files from server in batches
-        if !files_to_delete.is_empty() {
-            let total_to_delete = files_to_delete.len();
-            info!(
-                "Deleting {} old/orphaned files from server before syncing",
-                total_to_delete
-            );
-
-            // Emit initial progress (0%)
-            emit(IndexProgress::Deleting { current: 0, total: total_to_delete }).await;
-
-            let mut deleted_count = 0;
-            for batch in files_to_delete.chunks(batch_size) {
-                let deletion = forge_domain::CodeBase::new(
-                    user_id.clone(),
-                    workspace_id.clone(),
-                    batch.to_vec(),
-                );
-                self.infra
-                    .delete_files(&deletion, auth_token)
-                    .await
-                    .context("Failed to delete old/orphaned files")?;
-
-                deleted_count += batch.len();
-                emit(IndexProgress::Deleting { current: deleted_count, total: total_to_delete })
-                    .await;
-            }
-        }
-
-        Ok(server_hashes)
+            .unwrap_or_default()
     }
 
-    /// Determines which files need to be uploaded by comparing local and server
-    /// state.
-    async fn find_files_to_upload<E, Fut>(
+    /// Deletes a batch of files from the server.
+    async fn delete(
         &self,
-        all_files: Vec<IndexedFile>,
-        is_new_workspace: bool,
         user_id: &UserId,
         workspace_id: &WorkspaceId,
-        auth_token: &forge_domain::ApiKey,
-        batch_size: usize,
-        emit: E,
-    ) -> Result<Vec<(String, String)>>
+        token: &forge_domain::ApiKey,
+        paths: Vec<String>,
+    ) -> Result<()>
     where
-        F: WorkspaceRepository + ContextEngineRepository,
-        E: Fn(IndexProgress) -> Fut,
-        Fut: std::future::Future<Output = ()>,
+        F: ContextEngineRepository,
     {
-        let total_file_count = all_files.len();
+        let deletion = forge_domain::CodeBase::new(user_id.clone(), workspace_id.clone(), paths);
+        self.infra
+            .delete_files(&deletion, token)
+            .await
+            .context("Failed to delete files")
+    }
 
-        // Build map of local files for comparison
-        let local_file_map: HashMap<String, String> = all_files
-            .iter()
-            .map(|file| (file.path.clone(), file.hash.clone()))
-            .collect();
-
-        // Sync server files (fetch, delete outdated, return current state)
-        let server_hashes = if is_new_workspace {
-            HashMap::new()
-        } else {
-            self.sync_server_files(
-                user_id,
-                workspace_id,
-                &local_file_map,
-                auth_token,
-                batch_size,
-                &emit,
-            )
-            .await?
-        };
-
-        // Identify files that need to be uploaded (new or changed)
-        let files_to_upload: Vec<_> = all_files
-            .into_iter()
-            .filter_map(|file| {
-                let needs_upload = server_hashes.get(&file.path) != Some(&file.hash);
-                needs_upload.then_some((file.path, file.content))
-            })
-            .collect();
-
-        // Log optimization stats
-        if !server_hashes.is_empty() {
-            let skipped = total_file_count - files_to_upload.len();
-            info!(
-                "Uploading {} changed files (skipping {} unchanged)",
-                files_to_upload.len(),
-                skipped
-            );
-        }
-
-        Ok(files_to_upload)
+    /// Uploads a batch of files to the server.
+    async fn upload(
+        &self,
+        user_id: &UserId,
+        workspace_id: &WorkspaceId,
+        token: &forge_domain::ApiKey,
+        files: Vec<forge_domain::FileRead>,
+    ) -> Result<()>
+    where
+        F: ContextEngineRepository,
+    {
+        let upload = forge_domain::CodeBase::new(user_id.clone(), workspace_id.clone(), files);
+        self.infra
+            .upload_files(&upload, token)
+            .await
+            .context("Failed to upload files")?;
+        Ok(())
     }
 
     /// Walks the directory, reads all files, and computes their hashes.
@@ -340,67 +353,41 @@ impl<F> ForgeIndexingService<F> {
 
         // Read all files and compute hashes
         emit(IndexProgress::DiscoveringFiles { path: canonical_path.clone() }).await;
-        let all_files = self.read_files(&canonical_path).await?;
-        let total_file_count = all_files.len();
+        let local_files = self.read_files(&canonical_path).await?;
+        let total_file_count = local_files.len();
         emit(IndexProgress::FilesDiscovered { count: total_file_count }).await;
 
-        // Determine which files need to be uploaded
+        // Fetch remote hashes and create sync plan
         emit(IndexProgress::ComparingFiles).await;
-        let files_to_upload = self
-            .find_files_to_upload(
-                all_files,
-                is_new_workspace,
-                &user_id,
-                &workspace_id,
-                &token,
-                batch_size,
-                &emit,
-            )
-            .await?;
-
-        // Early exit if nothing to upload
-        if files_to_upload.is_empty() {
-            info!(
-                "All {} files are up to date - nothing to upload",
-                total_file_count
-            );
-            self.infra
-                .upsert(&workspace_id, &user_id, &canonical_path)
+        let remote_files = if is_new_workspace {
+            Vec::new()
+        } else {
+            self.fetch_remote_hashes(&user_id, &workspace_id, &token)
                 .await
-                .context("Failed to save workspace")?;
-            emit(IndexProgress::Completed { total_files: total_file_count, uploaded_files: 0 })
-                .await;
-            return Ok(());
-        }
+        };
 
-        // Upload in batches
-        let mut total_stats = forge_domain::FileUploadInfo::default();
-        let total_to_upload = files_to_upload.len();
-        let mut uploaded_count = 0;
-
-        // Emit initial progress (0%) so user sees the progress bar
-        emit(IndexProgress::Uploading { current: 0, total: total_to_upload }).await;
-
-        for batch in files_to_upload.chunks(batch_size) {
-            let file_reads: Vec<forge_domain::FileRead> = batch
-                .iter()
-                .map(|(path, content)| forge_domain::FileRead::new(path.clone(), content.clone()))
-                .collect();
-
-            let upload =
-                forge_domain::CodeBase::new(user_id.clone(), workspace_id.clone(), file_reads);
-
-            let stats = self
-                .infra
-                .upload_files(&upload, &token)
-                .await
-                .context("Failed to upload files")?;
-            total_stats = total_stats + stats;
-
-            uploaded_count += batch.len();
-            emit(IndexProgress::Uploading { current: uploaded_count, total: total_to_upload })
-                .await;
-        }
+        // Execute sync plan with unified progress
+        let plan = SyncPlan::new(local_files, remote_files);
+        plan.execute(
+            batch_size,
+            |paths| {
+                let user_id = user_id.clone();
+                let workspace_id = workspace_id.clone();
+                let token = token.clone();
+                Box::pin(async move { self.delete(&user_id, &workspace_id, &token, paths).await })
+            },
+            |files| {
+                let user_id = user_id.clone();
+                let workspace_id = workspace_id.clone();
+                let token = token.clone();
+                Box::pin(async move { self.upload(&user_id, &workspace_id, &token, files).await })
+            },
+            |current, total| {
+                let emit = &emit;
+                Box::pin(async move { emit(IndexProgress::Syncing { current, total }).await })
+            },
+        )
+        .await?;
 
         // Save workspace metadata
         self.infra
@@ -411,13 +398,12 @@ impl<F> ForgeIndexingService<F> {
         info!(
             workspace_id = %workspace_id,
             total_files = total_file_count,
-            uploaded = total_to_upload,
             "Sync completed successfully"
         );
 
         emit(IndexProgress::Completed {
             total_files: total_file_count,
-            uploaded_files: total_to_upload,
+            uploaded_files: plan.upload_count(),
         })
         .await;
 
@@ -643,9 +629,6 @@ where
     ///
     /// This method authenticates with the indexing service backend and stores
     /// the authentication credentials locally for future use.
-    ///
-    /// # Errors
-    /// Returns an error if authentication or storing credentials fails
     pub async fn login(&self) -> Result<()> {
         // Call gRPC API to authenticate
         let auth = self
@@ -666,9 +649,6 @@ where
     }
 
     /// Logout from the indexing service by removing the authentication token
-    ///
-    /// # Errors
-    /// Returns an error if deletion fails
     pub async fn logout(&self) -> Result<()> {
         self.infra
             .remove_credential(&ProviderId::ForgeServices)

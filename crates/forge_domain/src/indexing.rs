@@ -27,18 +27,11 @@ pub enum IndexProgress {
     },
     /// Comparing local files with server state
     ComparingFiles,
-    /// Files are being deleted from the server
-    Deleting {
-        /// Number of files deleted so far
+    /// Syncing files (deleting outdated + uploading new/changed)
+    Syncing {
+        /// Number of files processed so far
         current: usize,
-        /// Total number of files to delete
-        total: usize,
-    },
-    /// Files are being uploaded to the server
-    Uploading {
-        /// Number of files uploaded so far
-        current: usize,
-        /// Total number of files to upload
+        /// Total number of files to process (deletions + uploads)
         total: usize,
     },
     /// Sync operation completed successfully
@@ -65,11 +58,8 @@ impl IndexProgress {
                 format!("Found {} files", count)
             }
             Self::ComparingFiles => "Comparing with server".to_string(),
-            Self::Deleting { current, total } => {
-                format!("Deleting {}/{}", current, total)
-            }
-            Self::Uploading { current, total } => {
-                format!("Uploading {}/{}", current, total)
+            Self::Syncing { current, total } => {
+                format!("Syncing {}/{}", current, total)
             }
             Self::Completed { uploaded_files, total_files } => {
                 if *uploaded_files == 0 {

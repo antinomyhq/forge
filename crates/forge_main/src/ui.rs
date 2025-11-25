@@ -2676,28 +2676,13 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         let mut stream = self.api.sync_codebase(path.clone(), batch_size).await?;
         let mut progress_bar = ProgressBarManager::default();
-        let mut has_deletions = false;
         while let Some(event) = stream.next().await {
             match event {
-                Ok(IndexProgress::Deleting { current: 0, total }) if total > 0 => {
+                Ok(IndexProgress::Syncing { current: 0, total }) => {
                     self.spinner.stop(None)?;
-                    has_deletions = true;
-                    progress_bar.start(total as u64, "[1/2] Deleting")?;
+                    progress_bar.start(total as u64, "Syncing")?;
                 }
-                Ok(IndexProgress::Deleting { current, .. }) => {
-                    progress_bar.set_position(current as u64)?;
-                }
-                Ok(IndexProgress::Uploading { current: 0, total }) if total > 0 => {
-                    self.spinner.stop(None)?;
-                    progress_bar.stop(None).await?;
-                    let label = if has_deletions {
-                        "[2/2] Uploading"
-                    } else {
-                        "Uploading"
-                    };
-                    progress_bar.start(total as u64, label)?;
-                }
-                Ok(IndexProgress::Uploading { current, .. }) => {
+                Ok(IndexProgress::Syncing { current, .. }) => {
                     progress_bar.set_position(current as u64)?;
                 }
                 Ok(e @ IndexProgress::WorkspaceCreated { .. }) => {
