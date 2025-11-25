@@ -1342,6 +1342,7 @@ name = "forge_main"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-recursion",
  "atty",
  "chrono",
  "clap",
