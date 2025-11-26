@@ -509,6 +509,7 @@ function _forge_action_tools() {
 
 # Action handler: Open external editor for command composition
 function _forge_action_editor() {
+    local initial_text="$1"
     echo
     
     # Determine editor in order of preference: FORGE_EDITOR > EDITOR > nano
@@ -542,7 +543,10 @@ function _forge_action_editor() {
     # Ensure cleanup on exit
     trap "rm -f '$temp_file'" EXIT INT TERM
     
-    # Create empty temporary file (no default content for clean prompt)
+    # Pre-populate with initial text if provided
+    if [[ -n "$initial_text" ]]; then
+        echo "$initial_text" > "$temp_file"
+    fi
     
     # Open editor
     eval "$editor_cmd '$temp_file'"
@@ -769,7 +773,7 @@ function forge-accept-line() {
             _forge_action_skill
         ;;
         edit|ed)
-            _forge_action_editor
+            _forge_action_editor "$input_text"
         ;;
         commit)
             _forge_action_commit "$input_text"
