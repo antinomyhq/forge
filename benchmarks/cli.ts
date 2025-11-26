@@ -163,13 +163,14 @@ async function main() {
       // Generate command using pure function
       const command = generateCommand(task.run.command, row);
 
-      logger.info({ command, task_id: i + 1 }, "Executing task");
+      const logFile = path.join(debugDir, `task_run_${i + 1}.log`);
+      logger.info({ command, task_id: i + 1, log_file: logFile }, "Executing task");
 
       // Execute the task
       const executionResult = await executeTask(
         command,
         i + 1,
-        debugDir,
+        logFile,
         evalDir,
         task.run.timeout,
         task.run.early_exit,
@@ -197,6 +198,7 @@ async function main() {
           logger,
           executionResult.index,
           executionResult.duration,
+          logFile,
           row
         );
 
@@ -233,6 +235,7 @@ async function main() {
           logger,
           executionResult.index,
           executionResult.duration,
+          logFile,
           row
         );
 

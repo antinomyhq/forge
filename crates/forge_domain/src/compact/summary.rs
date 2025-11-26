@@ -123,7 +123,7 @@ impl SummaryToolCall {
     ) -> Self {
         Self {
             id: None,
-            tool: SummaryTool::CodebaseSearch {
+            tool: SummaryTool::SemSearch {
                 query: query.into(),
                 use_case: use_case.into(),
                 top_k,
@@ -191,7 +191,7 @@ pub enum SummaryTool {
     Search {
         pattern: String,
     },
-    CodebaseSearch {
+    SemSearch {
         query: String,
         use_case: String,
         top_k: u32,
@@ -315,11 +315,7 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
             .file_pattern
             .or(input.regex)
             .map(|pattern| SummaryTool::Search { pattern }),
-        ToolCatalog::CodebaseSearch(input) => Some(SummaryTool::CodebaseSearch {
-            query: input.query,
-            use_case: input.use_case,
-            top_k: input.top_k,
-        }),
+        ToolCatalog::SemSearch(input) => Some(SummaryTool::SemSearch { query: input.query, use_case: input.use_case, top_k: input.top_k }),
         ToolCatalog::Undo(input) => Some(SummaryTool::Undo { path: input.path }),
         ToolCatalog::Fetch(input) => Some(SummaryTool::Fetch { url: input.url }),
         ToolCatalog::Followup(input) => Some(SummaryTool::Followup { question: input.question }),
@@ -967,7 +963,7 @@ mod tests {
         let fixture = context(vec![assistant_with_tools(
             "Searching codebase",
             vec![
-                ToolCatalog::tool_call_codebase_search("retry mechanism", "find retry logic", 10)
+                ToolCatalog::tool_call_codebase_search("retry mechanism", "find retry logic", 10, None)
                     .call_id("call_1"),
             ],
         )]);

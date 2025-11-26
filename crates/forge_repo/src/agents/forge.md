@@ -16,7 +16,7 @@ tools:
   - sage
   - mcp_*
   - read_image
-  - codebase_search
+  - sem_search
   - skill
 user_prompt: |-
   <{{event.name}}>{{event.value}}</{{event.name}}>

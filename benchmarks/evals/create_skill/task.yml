@@ -6,8 +6,8 @@ run:
   timeout: 60
   early_exit: true
 validations:
-  - name: "Uses create-skill tool"
-    type: matches_regex
-    regex: ⏺.*\[[0-9:]*\].*Skill.*create-skill
+  - type: matches_regex
+    name: "Uses create-skill tool"
+    regex: .*\[[0-9:]*\].*Skill.*create-skill
 sources:
   - csv: create_skill_tasks.csv

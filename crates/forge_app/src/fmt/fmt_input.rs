@@ -60,9 +60,9 @@ impl FormatContent for ToolCatalog {
                 };
                 Some(TitleFormat::debug(title).into())
             }
-            ToolCatalog::CodebaseSearch(input) => Some(
-                TitleFormat::debug(format!("Codebase Search '{}'", input.query))
-                    .sub_title(format!("[{}]", input.use_case))
+            ToolCatalog::SemSearch(input) => Some(
+                TitleFormat::debug(format!("Codebase Search '{}'", input.use_case))
+                    .sub_title(format!("[{}]", input.query))
                     .into(),
             ),
             ToolCatalog::Remove(input) => {

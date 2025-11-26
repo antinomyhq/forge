@@ -68,14 +68,36 @@ impl<T> CodeBase<T> {
 #[setters(strip_option, into)]
 pub struct SearchParams<'a> {
     pub query: &'a str,
-    pub limit: usize,
+    pub limit: Option<usize>,
     pub top_k: Option<u32>,
     pub use_case: String,
+    pub starts_with: Option<String>,
+    pub ends_with: Option<String>,
 }
 
 impl<'a> SearchParams<'a> {
-    pub fn new(query: &'a str, use_case: &str, limit: usize) -> Self {
-        Self { query, limit, top_k: None, use_case: use_case.to_string() }
+    pub fn new(query: &'a str, use_case: &str) -> Self {
+        Self {
+            query,
+            limit: None,
+            top_k: None,
+            use_case: use_case.to_string(),
+            starts_with: None,
+            ends_with: None,
+        }
+    }
+}
+
+impl<'a> From<&'a crate::SemanticSearch> for SearchParams<'a> {
+    fn from(search: &'a crate::SemanticSearch) -> Self {
+        Self {
+            query: &search.query,
+            limit: None,
+            top_k: Some(search.top_k),
+            use_case: search.use_case.clone(),
+            starts_with: None,
+            ends_with: search.file_extension.clone(),
+        }
     }
 }
 
@@ -334,5 +356,86 @@ mod tests {
         let s = workspace_id.to_string();
         let parsed = WorkspaceId::from_string(&s).unwrap();
         assert_eq!(workspace_id, parsed);
+    }
+
+    #[test]
+    fn test_search_params_with_file_extension() {
+        let actual = SearchParams::new("retry mechanism", "find retry logic")
+            .limit(10usize)
+            .top_k(20u32)
+            .ends_with(".rs");
+
+        let expected = SearchParams {
+            query: "retry mechanism",
+            limit: Some(10),
+            top_k: Some(20),
+            use_case: "find retry logic".to_string(),
+            starts_with: None,
+            ends_with: Some(".rs".to_string()),
+        };
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_search_params_without_file_extension() {
+        let actual = SearchParams::new("auth logic", "authentication implementation").limit(5usize);
+
+        let expected = SearchParams {
+            query: "auth logic",
+            limit: Some(5),
+            top_k: None,
+            use_case: "authentication implementation".to_string(),
+            starts_with: None,
+            ends_with: None,
+        };
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_search_params_from_semantic_search() {
+        let search = crate::SemanticSearch {
+            query: "retry mechanism".to_string(),
+            top_k: 15,
+            use_case: "find retry logic".to_string(),
+            file_extension: Some(".rs".to_string()),
+        };
+
+        let actual = SearchParams::from(&search).limit(20usize);
+
+        let expected = SearchParams {
+            query: "retry mechanism",
+            limit: Some(20),
+            top_k: Some(15),
+            use_case: "find retry logic".to_string(),
+            starts_with: None,
+            ends_with: Some(".rs".to_string()),
+        };
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_search_params_from_semantic_search_without_extension() {
+        let search = crate::SemanticSearch {
+            query: "auth logic".to_string(),
+            top_k: 10,
+            use_case: "authentication implementation".to_string(),
+            file_extension: None,
+        };
+
+        let actual = SearchParams::from(&search).limit(5usize);
+
+        let expected = SearchParams {
+            query: "auth logic",
+            limit: Some(5),
+            top_k: Some(10),
+            use_case: "authentication implementation".to_string(),
+            starts_with: None,
+            ends_with: None,
+        };
+
+        assert_eq!(actual, expected);
     }
 }

@@ -333,10 +333,8 @@ impl ToolOperation {
                 }
             },
             ToolOperation::CodebaseSearch { output } => {
-                let mut root = Element::new("codebase_search_results")
-                    .attr("query", &output.query)
-                    .attr("use_case", &output.use_case)
-                    .attr("results", output.results.len());
+                let mut root =
+                    Element::new("sem_search_results").attr("results", output.results.len());
 
                 if output.results.is_empty() {
                     root = root.text("No results found for query. Try refining your search with more specific terms or different keywords.")
@@ -1584,7 +1582,7 @@ mod tests {
     }
 
     #[test]
-    fn test_codebase_search_with_results() {
+    fn test_sem_search_with_results() {
         use forge_domain::{CodeNode, CodeSearchResult, CodebaseQueryResult};
 
         let fixture = ToolOperation::CodebaseSearch {
@@ -1619,7 +1617,7 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.into_tool_output(
-            ToolKind::CodebaseSearch,
+            ToolKind::SemSearch,
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
@@ -1629,7 +1627,7 @@ mod tests {
     }
 
     #[test]
-    fn test_codebase_search_with_usecase() {
+    fn test_sem_search_with_usecase() {
         use forge_domain::{CodeNode, CodeSearchResult, CodebaseQueryResult};
 
         let fixture = ToolOperation::CodebaseSearch {
@@ -1652,7 +1650,7 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.into_tool_output(
-            ToolKind::CodebaseSearch,
+            ToolKind::SemSearch,
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
