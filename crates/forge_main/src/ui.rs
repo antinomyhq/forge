@@ -2773,16 +2773,29 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             self.spinner.start(Some("Fetching workspaces..."))?;
         }
 
-        match self.api.list_codebases().await {
+        // Fetch workspaces and current workspace info in parallel
+        let env = self.api.environment();
+        let (workspaces_result, current_workspace_result) = tokio::join!(
+            self.api.list_codebases(),
+            self.api.get_workspace_info(env.cwd)
+        );
+
+        match workspaces_result {
             Ok(workspaces) => {
                 if !porcelain {
                     self.spinner.stop(None)?;
                 }
 
+                // Get active workspace ID if current workspace info is available
+                let current_workspace = current_workspace_result.ok().flatten();
+                let active_workspace_id = current_workspace.as_ref().map(|ws| &ws.workspace_id);
+
                 // Build Info object once
                 let mut info = Info::new();
 
                 for workspace in workspaces {
+                    let is_active = active_workspace_id == Some(&workspace.workspace_id);
+
                     let elapsed_time = workspace.last_updated.map_or("NEVER".to_string(), |d| {
                         let duration = chrono::Utc::now().signed_duration_since(d);
                         let duration =
@@ -2794,14 +2807,14 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         }
                     });
 
-                    let timestamp = workspace.last_updated.map_or("NEVER".to_string(), |d| {
-                        d.with_timezone(&chrono::Local)
-                            .format("%Y-%m-%d %H:%M:%S %Z")
-                            .to_string()
-                    });
+                    let title = if is_active {
+                        "Workspace [ACTIVE]".to_string()
+                    } else {
+                        "Workspace".to_string()
+                    };
 
                     info = info
-                        .add_title(format!("Workspace [{}]", timestamp))
+                        .add_title(title)
                         .add_key_value("id", workspace.workspace_id.to_string())
                         .add_key_value("path", workspace.working_dir)
                         .add_key_value("updated", elapsed_time)
