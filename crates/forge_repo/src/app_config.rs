@@ -280,7 +280,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_set_runtime_config_only_updates_cache() {
-        use std::collections::HashMap;
+        
 
         use forge_domain::{ModelId, ProviderId};
 
@@ -337,7 +337,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_set_app_config_busts_runtime_cache() {
-        use forge_domain::{ModelId, ProviderId};
+        use forge_domain::ProviderId;
 
         let (repo, _temp_dir) = repository_with_config_fixture();
 
