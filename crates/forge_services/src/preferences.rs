@@ -177,6 +177,11 @@ mod tests {
             *self.app_config.lock().unwrap() = config.clone();
             Ok(())
         }
+
+        async fn set_runtime_config(&self, config: &AppConfig) -> anyhow::Result<()> {
+            *self.app_config.lock().unwrap() = config.clone();
+            Ok(())
+        }
     }
 
     #[async_trait::async_trait]
