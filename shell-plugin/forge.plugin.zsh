@@ -355,10 +355,76 @@ function _forge_action_compact() {
     _forge_handle_conversation_command "compact"
 }
 
-# Action handler: Retry last message
-function _forge_action_retry() {
-    _forge_handle_conversation_command "retry"
+# Action handler: Delete conversation
+function _forge_action_delete() {
+    local input_text="$1"
+    
+    if [[ -n "$input_text" ]]; then
+        # Direct ID mode: delete specific conversation
+        _forge_delete_and_handle_state "$input_text"
+    else
+        # Interactive mode: select conversation to delete
+        echo
+        local conversations_output
+        conversations_output=$($_FORGE_BIN conversation list --porcelain 2>/dev/null)
+        
+        if [[ -n "$conversations_output" ]]; then
+            local selected_conversation
+            selected_conversation=$(echo "$conversations_output" | _forge_fzf --delimiter="$_FORGE_DELIMITER" --with-nth="2,3" --prompt="Delete conversation ❯ ")
+            
+            if [[ -n "$selected_conversation" ]]; then
+                local conversation_id=$(echo "$selected_conversation" | sed -E 's/  .*//' | tr -d '\n')
+                _forge_delete_and_handle_state "$conversation_id"
+            fi
+        else
+            _forge_log error "No conversations found"
+        fi
+    fi
+    
+    _forge_reset
 }
+
+# Helper function to delete conversation and handle state
+function _forge_delete_and_handle_state() {
+    local conversation_id="$1"
+    
+    # Get conversation title for confirmation
+    local conversation_info
+    conversation_info=$($_FORGE_BIN conversation info "$conversation_id" --porcelain 2>/dev/null)
+    
+    if [[ -z "$conversation_info" ]]; then
+        _forge_log error "Conversation '$conversation_id' not found"
+        return 1
+    fi
+    
+    # Extract title from conversation info
+    local title=$(echo "$conversation_info" | cut -d':' -f2 | sed 's/^ *//')
+    if [[ -z "$title" ]]; then
+        title="Untitled"
+    fi
+    
+    # Confirm deletion
+    echo
+    local confirm_message="Delete conversation '$title' ($conversation_id)? This action cannot be undone."
+    if echo "$confirm_message" | _forge_fzf --header="[y] Yes, [n] No" --prompt="Confirm ❯ " --expect="y,n" | grep -q "y"; then
+        # Delete the conversation
+        if $_FORGE_BIN conversation delete "$conversation_id"; then
+            _forge_log success "Conversation '$title' deleted successfully"
+            
+            # Clear active conversation if it was the deleted one
+            if [[ "$_FORGE_CONVERSATION_ID" == "$conversation_id" ]]; then
+                _FORGE_CONVERSATION_ID=""
+                _forge_log info "Active conversation cleared"
+            fi
+        else
+            _forge_log error "Failed to delete conversation"
+        fi
+    else
+        _forge_log info "Conversation deletion cancelled"
+    fi
+}
+
+# Action handler: Retry last message
 
 # Action handler: List/switch conversations
 function _forge_action_conversation() {
@@ -750,7 +816,10 @@ function forge-accept-line() {
         ;;
         dump|d)
             _forge_action_dump "$input_text"
-        ;;
+            ;;
+        delete)
+            _forge_action_delete "$input_text"
+            ;;
         compact)
             _forge_action_compact
         ;;
