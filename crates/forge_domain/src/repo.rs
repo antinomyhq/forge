@@ -83,13 +83,6 @@ pub trait ConversationRepository: Send + Sync {
 pub trait AppConfigRepository: Send + Sync {
     async fn get_app_config(&self) -> anyhow::Result<AppConfig>;
     async fn set_app_config(&self, config: &AppConfig) -> anyhow::Result<()>;
-
-    /// Sets runtime configuration by updating only the cache, without
-    /// persisting to disk.
-    ///
-    /// This method is used for session-specific overrides (e.g., CLI arguments)
-    /// that should not modify the persistent configuration file.
-    async fn set_runtime_config(&self, config: &AppConfig) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]

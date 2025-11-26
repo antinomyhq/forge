@@ -158,10 +158,6 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Send + Sync> AppC
     async fn set_app_config(&self, config: &AppConfig) -> anyhow::Result<()> {
         self.app_config_repository.set_app_config(config).await
     }
-
-    async fn set_runtime_config(&self, config: &AppConfig) -> anyhow::Result<()> {
-        self.app_config_repository.set_runtime_config(config).await
-    }
 }
 
 #[async_trait::async_trait]

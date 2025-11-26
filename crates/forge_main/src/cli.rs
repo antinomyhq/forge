@@ -62,17 +62,17 @@ pub struct Cli {
     #[arg(long, alias = "aid")]
     pub agent: Option<AgentId>,
 
-    /// Provider to use for this session (runtime override, not persisted).
+    /// Provider to use for this session.
     ///
-    /// When provided, overrides the default provider configuration for this
-    /// session only. The persistent configuration remains unchanged.
+    /// When provided, overrides the default provider configuration.
+    /// Set FORGE_EPHEMERAL_APP_CONFIG=true to prevent writing to config file.
     #[arg(long)]
     pub provider: Option<ProviderId>,
 
-    /// Model to use for this session (runtime override, not persisted).
+    /// Model to use for this session.
     ///
-    /// When provided, overrides the default model configuration for this
-    /// session only. The persistent configuration remains unchanged.
+    /// When provided, overrides the default model configuration.
+    /// Set FORGE_EPHEMERAL_APP_CONFIG=true to prevent writing to config file.
     #[arg(long)]
     pub model: Option<ModelId>,
 

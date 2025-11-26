@@ -22,9 +22,6 @@ pub trait API: Sync + Send {
     /// Provides a list of models available in the current environment
     async fn get_models(&self) -> Result<Vec<Model>>;
 
-    /// Provides a list of models available for a specific provider
-    async fn get_models_for_provider(&self, provider: AnyProvider) -> Result<Vec<Model>>;
-
     /// Provides a list of agents available in the current environment
     async fn get_agents(&self) -> Result<Vec<Agent>>;
     /// Provides a list of providers available in the current environment
@@ -196,6 +193,6 @@ pub trait API: Sync + Send {
     /// Gets the application configuration
     async fn get_app_config(&self) -> Result<forge_domain::AppConfig>;
 
-    /// Sets runtime configuration (cache-only, does not persist to disk)
-    async fn set_runtime_config(&self, config: &forge_domain::AppConfig) -> Result<()>;
+    /// Sets the application configuration
+    async fn set_app_config(&self, config: &forge_domain::AppConfig) -> Result<()>;
 }

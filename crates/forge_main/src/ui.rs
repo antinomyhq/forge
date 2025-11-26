@@ -2215,27 +2215,13 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     .provider
                     .ok_or_else(|| anyhow::anyhow!("No provider configured. Use --provider flag or configure a default provider first."))?;
 
-                // Validate that the model is available from the provider
-                let provider = self.api.get_provider(&provider_id).await?;
-                let available_models = self.api.get_models_for_provider(provider).await?;
-                let model_exists = available_models
-                    .iter()
-                    .any(|m| m.id.as_str() == model_id.as_str());
-
-                if !model_exists {
-                    let error_msg = format!(
-                        "Model '{}' is not available from provider '{}'. Use 'forge provider model list {}' to see available models.",
-                        model_id, provider_id, provider_id
-                    );
-                    self.writeln_title(TitleFormat::error(&error_msg))?;
-                    return Err(anyhow::anyhow!(error_msg));
-                }
-
                 config.model.insert(provider_id, model_id);
             }
 
-            // Set runtime config (cache only, does not persist to disk)
-            self.api.set_runtime_config(&config).await?;
+            // Set app config - behavior depends on FORGE_EPHEMERAL_APP_CONFIG env var:
+            // - If FORGE_EPHEMERAL_APP_CONFIG=true: only updates cache (no disk write)
+            // - If not set: writes to disk and becomes new default
+            self.api.set_app_config(&config).await?;
         }
 
         // Run the independent initialization tasks in parallel for better performance
