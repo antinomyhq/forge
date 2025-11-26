@@ -76,10 +76,13 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for
 
         let (start_line, end_line) = resolve_range(start_line, end_line, env.max_read_size);
 
-        let (content, file_info) = self
-            .0
-            .range_read_utf8(path, start_line, end_line)
-            .await
+        // Read the range for content and the entire file for hashing in parallel
+        let (range_result, full_content_result) = tokio::join!(
+            self.0.range_read_utf8(path, start_line, end_line),
+            self.0.read_utf8(path)
+        );
+
+        let (content, file_info) = range_result
             .map_err(|e| {
                 tracing::error!(
                     path = %path.display(),
@@ -91,7 +94,15 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for
                 e
             })
             .with_context(|| format!("Failed to read file content from {}", path.display()))?;
-        let hash = compute_hash(&content);
+
+        let full_content = full_content_result.with_context(|| {
+            format!(
+                "Failed to read full file content for hashing from {}",
+                path.display()
+            )
+        })?;
+        let hash = compute_hash(&full_content);
+
         Ok(ReadOutput {
             content: Content::file(content),
             start_line: file_info.start_line,

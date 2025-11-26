@@ -131,16 +131,18 @@ mod tests {
 
     #[test]
     fn test_fs_create_new_file() {
+        let content = "New file content";
         let fixture = ToolOperation::FsCreate {
             input: forge_domain::FSWrite {
                 path: "/home/user/project/new_file.txt".to_string(),
-                content: "New file content".to_string(),
+                content: content.to_string(),
                 overwrite: false,
             },
             output: FsCreateOutput {
                 path: "/home/user/project/new_file.txt".to_string(),
                 before: None,
                 warning: None,
+                raw_content_hash: crate::compute_hash(content),
             },
         };
         let env = fixture_environment();
@@ -153,16 +155,18 @@ mod tests {
 
     #[test]
     fn test_fs_create_overwrite() {
+        let content = "new content";
         let fixture = ToolOperation::FsCreate {
             input: forge_domain::FSWrite {
                 path: "/home/user/project/existing_file.txt".to_string(),
-                content: "new content".to_string(),
+                content: content.to_string(),
                 overwrite: true,
             },
             output: FsCreateOutput {
                 path: "/home/user/project/existing_file.txt".to_string(),
                 before: Some("old content".to_string()),
                 warning: None,
+                raw_content_hash: crate::compute_hash(content),
             },
         };
         let env = fixture_environment();
@@ -179,16 +183,18 @@ mod tests {
 
     #[test]
     fn test_fs_create_with_warning() {
+        let content = "File content";
         let fixture = ToolOperation::FsCreate {
             input: forge_domain::FSWrite {
                 path: "/home/user/project/file.txt".to_string(),
-                content: "File content".to_string(),
+                content: content.to_string(),
                 overwrite: false,
             },
             output: FsCreateOutput {
                 path: "/home/user/project/file.txt".to_string(),
                 before: None,
                 warning: Some("File created outside project directory".to_string()),
+                raw_content_hash: crate::compute_hash(content),
             },
         };
         let env = fixture_environment();
@@ -297,6 +303,7 @@ mod tests {
 
     #[test]
     fn test_fs_patch_success() {
+        let after_content = "Hello universe\nThis is a test\nNew line";
         let fixture = ToolOperation::FsPatch {
             input: forge_domain::FSPatch {
                 path: "/home/user/project/test.txt".to_string(),
@@ -307,7 +314,8 @@ mod tests {
             output: PatchOutput {
                 warning: None,
                 before: "Hello world\nThis is a test".to_string(),
-                after: "Hello universe\nThis is a test\nNew line".to_string(),
+                after: after_content.to_string(),
+                raw_content_hash: crate::compute_hash(after_content),
             },
         };
         let env = fixture_environment();
@@ -318,6 +326,7 @@ mod tests {
 
     #[test]
     fn test_fs_patch_with_warning() {
+        let after_content = "line1\nnew line\nline2";
         let fixture = ToolOperation::FsPatch {
             input: forge_domain::FSPatch {
                 path: "/home/user/project/large_file.txt".to_string(),
@@ -328,7 +337,8 @@ mod tests {
             output: PatchOutput {
                 warning: Some("Large file modification".to_string()),
                 before: "line1\nline2".to_string(),
-                after: "line1\nnew line\nline2".to_string(),
+                after: after_content.to_string(),
+                raw_content_hash: crate::compute_hash(after_content),
             },
         };
         let env = fixture_environment();

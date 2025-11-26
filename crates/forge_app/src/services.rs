@@ -30,6 +30,7 @@ pub struct PatchOutput {
     pub warning: Option<String>,
     pub before: String,
     pub after: String,
+    pub raw_content_hash: String,
 }
 
 #[derive(Debug, Setters)]
@@ -96,6 +97,7 @@ pub struct FsCreateOutput {
     // Set when the file already exists
     pub before: Option<String>,
     pub warning: Option<String>,
+    pub raw_content_hash: String,
 }
 
 #[derive(Debug)]
