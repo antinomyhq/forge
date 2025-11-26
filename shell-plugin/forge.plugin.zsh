@@ -5,7 +5,7 @@
 
 # Configuration: Change these variables to customize the forge command and special characters
 # Using typeset to keep variables local to plugin scope and prevent public exposure
-typeset -h _FORGE_BIN="${FORGE_BIN:-/home/dkowalski/Projekty/forgecode/feature/agent-command-for-zsh-plugin/target/debug/forge}"
+typeset -h _FORGE_BIN="${FORGE_BIN:-forge}"
 typeset -h _FORGE_CONVERSATION_PATTERN=":"
 typeset -h _FORGE_MAX_COMMIT_DIFF="${FORGE_MAX_COMMIT_DIFF:-100000}"
 typeset -h _FORGE_DELIMITER='\s\s+'
