@@ -213,6 +213,14 @@ pub enum WorkspaceCommand {
         /// Describe your intent or goal to filter results for relevance.
         #[arg(long, short = 'r')]
         use_case: String,
+
+        /// Filter results to files starting with this prefix.
+        #[arg(long)]
+        starts_with: Option<String>,
+
+        /// Filter results to files ending with this suffix.
+        #[arg(long)]
+        ends_with: Option<String>,
     },
 
     /// Show workspace information for an indexed directory.

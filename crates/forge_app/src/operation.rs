@@ -200,7 +200,6 @@ impl ToolOperation {
         match self {
             ToolOperation::FsRead { input, output } => {
                 let content = output.content.file_content();
-                let content_hash = compute_hash(content);
                 let elm = Element::new("file_content")
                     .attr("path", &input.path)
                     .attr(
@@ -214,7 +213,7 @@ impl ToolOperation {
                 tracing::info!(path = %input.path, tool = %tool_name, "File read");
                 *metrics = metrics.clone().insert(
                     input.path.clone(),
-                    FileOperation::new(tool_kind).content_hash(Some(content_hash)),
+                    FileOperation::new(tool_kind).content_hash(Some(output.content_hash.clone())),
                 );
 
                 forge_domain::ToolOutput::text(elm)
@@ -226,14 +225,13 @@ impl ToolOperation {
                     &input.content,
                 );
                 let diff = console::strip_ansi_codes(diff_result.diff()).to_string();
-                let content_hash = Some(compute_hash(&input.content));
 
                 *metrics = metrics.clone().insert(
                     input.path.clone(),
                     FileOperation::new(tool_kind)
                         .lines_added(diff_result.lines_added())
                         .lines_removed(diff_result.lines_removed())
-                        .content_hash(content_hash),
+                        .content_hash(Some(output.content_hash.clone())),
                 );
 
                 let mut elm = if output.before.as_ref().is_some() {
@@ -333,10 +331,8 @@ impl ToolOperation {
                 }
             },
             ToolOperation::CodebaseSearch { output } => {
-                let mut root = Element::new("codebase_search_results")
-                    .attr("query", &output.query)
-                    .attr("use_case", &output.use_case)
-                    .attr("results", output.results.len());
+                let mut root =
+                    Element::new("sem_search_results").attr("results", output.results.len());
 
                 if output.results.is_empty() {
                     root = root.text("No results found for query. Try refining your search with more specific terms or different keywords.")
@@ -351,7 +347,6 @@ impl ToolOperation {
             ToolOperation::FsPatch { input, output } => {
                 let diff_result = DiffFormat::format(&output.before, &output.after);
                 let diff = console::strip_ansi_codes(diff_result.diff()).to_string();
-                let content_hash = Some(compute_hash(&output.after));
 
                 let mut elm = Element::new("file_diff")
                     .attr("path", &input.path)
@@ -367,7 +362,7 @@ impl ToolOperation {
                     FileOperation::new(tool_kind)
                         .lines_added(diff_result.lines_added())
                         .lines_removed(diff_result.lines_removed())
-                        .content_hash(content_hash),
+                        .content_hash(Some(output.content_hash.clone())),
                 );
 
                 forge_domain::ToolOutput::text(elm)
@@ -574,6 +569,8 @@ mod tests {
 
     #[test]
     fn test_fs_read_basic() {
+        let content = "Hello, world!\nThis is a test file.";
+        let hash = crate::compute_hash(content);
         let fixture = ToolOperation::FsRead {
             input: FSRead {
                 path: "/home/user/test.txt".to_string(),
@@ -582,10 +579,11 @@ mod tests {
                 show_line_numbers: true,
             },
             output: ReadOutput {
-                content: Content::File("Hello, world!\nThis is a test file.".to_string()),
+                content: Content::file(content),
                 start_line: 1,
                 end_line: 2,
                 total_lines: 2,
+                content_hash: hash,
             },
         };
 
@@ -603,6 +601,8 @@ mod tests {
 
     #[test]
     fn test_fs_read_basic_special_chars() {
+        let content = "struct Foo<T>{ name: T }";
+        let hash = crate::compute_hash(content);
         let fixture = ToolOperation::FsRead {
             input: FSRead {
                 path: "/home/user/test.txt".to_string(),
@@ -611,10 +611,11 @@ mod tests {
                 show_line_numbers: true,
             },
             output: ReadOutput {
-                content: Content::File("struct Foo<T>{ name: T }".to_string()),
+                content: Content::file(content),
                 start_line: 1,
                 end_line: 1,
                 total_lines: 1,
+                content_hash: hash,
             },
         };
 
@@ -631,6 +632,8 @@ mod tests {
 
     #[test]
     fn test_fs_read_with_explicit_range() {
+        let content = "Line 1\nLine 2\nLine 3";
+        let hash = crate::compute_hash(content);
         let fixture = ToolOperation::FsRead {
             input: FSRead {
                 path: "/home/user/test.txt".to_string(),
@@ -639,10 +642,11 @@ mod tests {
                 show_line_numbers: true,
             },
             output: ReadOutput {
-                content: Content::File("Line 1\nLine 2\nLine 3".to_string()),
+                content: Content::file(content),
                 start_line: 2,
                 end_line: 3,
                 total_lines: 5,
+                content_hash: hash,
             },
         };
 
@@ -660,6 +664,8 @@ mod tests {
 
     #[test]
     fn test_fs_read_with_truncation_path() {
+        let content = "Truncated content";
+        let hash = crate::compute_hash(content);
         let fixture = ToolOperation::FsRead {
             input: FSRead {
                 path: "/home/user/large_file.txt".to_string(),
@@ -668,10 +674,11 @@ mod tests {
                 show_line_numbers: true,
             },
             output: ReadOutput {
-                content: Content::File("Truncated content".to_string()),
+                content: Content::file(content),
                 start_line: 1,
                 end_line: 100,
                 total_lines: 200,
+                content_hash: hash,
             },
         };
 
@@ -691,16 +698,18 @@ mod tests {
 
     #[test]
     fn test_fs_create_basic() {
+        let content = "Hello, world!";
         let fixture = ToolOperation::FsCreate {
             input: forge_domain::FSWrite {
                 path: "/home/user/new_file.txt".to_string(),
-                content: "Hello, world!".to_string(),
+                content: content.to_string(),
                 overwrite: false,
             },
             output: FsCreateOutput {
                 path: "/home/user/new_file.txt".to_string(),
                 before: None,
                 warning: None,
+                content_hash: compute_hash(content),
             },
         };
 
@@ -718,16 +727,18 @@ mod tests {
 
     #[test]
     fn test_fs_create_overwrite() {
+        let content = "New content for the file";
         let fixture = ToolOperation::FsCreate {
             input: forge_domain::FSWrite {
                 path: "/home/user/existing_file.txt".to_string(),
-                content: "New content for the file".to_string(),
+                content: content.to_string(),
                 overwrite: true,
             },
             output: FsCreateOutput {
                 path: "/home/user/existing_file.txt".to_string(),
                 before: Some("Old content".to_string()),
                 warning: None,
+                content_hash: compute_hash(content),
             },
         };
 
@@ -1191,16 +1202,18 @@ mod tests {
 
     #[test]
     fn test_fs_create_with_warning() {
+        let content = "Content with warning";
         let fixture = ToolOperation::FsCreate {
             input: forge_domain::FSWrite {
                 path: "/home/user/file_with_warning.txt".to_string(),
-                content: "Content with warning".to_string(),
+                content: content.to_string(),
                 overwrite: false,
             },
             output: FsCreateOutput {
                 path: "/home/user/file_with_warning.txt".to_string(),
                 before: None,
                 warning: Some("File created in non-standard location".to_string()),
+                content_hash: compute_hash(content),
             },
         };
 
@@ -1304,6 +1317,7 @@ mod tests {
 
     #[test]
     fn test_fs_patch_basic() {
+        let after_content = "Hello universe\nThis is a test";
         let fixture = ToolOperation::FsPatch {
             input: forge_domain::FSPatch {
                 path: "/home/user/test.txt".to_string(),
@@ -1314,7 +1328,8 @@ mod tests {
             output: PatchOutput {
                 warning: None,
                 before: "Hello world\nThis is a test".to_string(),
-                after: "Hello universe\nThis is a test".to_string(),
+                after: after_content.to_string(),
+                content_hash: compute_hash(after_content),
             },
         };
 
@@ -1332,6 +1347,7 @@ mod tests {
 
     #[test]
     fn test_fs_patch_with_warning() {
+        let after_content = "line1\nnew line\nline2";
         let fixture = ToolOperation::FsPatch {
             input: forge_domain::FSPatch {
                 path: "/home/user/large_file.txt".to_string(),
@@ -1342,7 +1358,8 @@ mod tests {
             output: PatchOutput {
                 warning: Some("Large file modification".to_string()),
                 before: "line1\nline2".to_string(),
-                after: "line1\nnew line\nline2".to_string(),
+                after: after_content.to_string(),
+                content_hash: compute_hash(after_content),
             },
         };
 
@@ -1584,7 +1601,7 @@ mod tests {
     }
 
     #[test]
-    fn test_codebase_search_with_results() {
+    fn test_sem_search_with_results() {
         use forge_domain::{CodeNode, CodeSearchResult, CodebaseQueryResult};
 
         let fixture = ToolOperation::CodebaseSearch {
@@ -1629,7 +1646,7 @@ mod tests {
     }
 
     #[test]
-    fn test_codebase_search_with_usecase() {
+    fn test_sem_search_with_usecase() {
         use forge_domain::{CodeNode, CodeSearchResult, CodebaseQueryResult};
 
         let fixture = ToolOperation::CodebaseSearch {

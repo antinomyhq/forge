@@ -142,12 +142,12 @@ impl<S: Services> ToolRegistry<S> {
 }
 
 impl<S> ToolRegistry<S> {
-    fn get_system_tools(codebase_search_supported: bool) -> Vec<ToolDefinition> {
+    fn get_system_tools(sem_search_supported: bool) -> Vec<ToolDefinition> {
         ToolCatalog::iter()
             .filter(|tool| {
-                // Filter out codebase_search if cwd is not indexed
+                // Filter out sem_search if cwd is not indexed
                 if matches!(tool, ToolCatalog::SemSearch(_)) {
-                    codebase_search_supported
+                    sem_search_supported
                 } else {
                     true
                 }
@@ -406,14 +406,14 @@ mod tests {
     }
 
     #[test]
-    fn test_codebase_search_included_when_supported() {
+    fn test_sem_search_included_when_supported() {
         let actual = ToolRegistry::<()>::get_system_tools(true);
-        assert!(actual.iter().any(|t| t.name.as_str() == "codebase_search"));
+        assert!(actual.iter().any(|t| t.name.as_str() == "sem_search"));
     }
 
     #[test]
-    fn test_codebase_search_filtered_when_not_supported() {
+    fn test_sem_search_filtered_when_not_supported() {
         let actual = ToolRegistry::<()>::get_system_tools(false);
-        assert!(actual.iter().all(|t| t.name.as_str() != "codebase_search"));
+        assert!(actual.iter().all(|t| t.name.as_str() != "sem_search"));
     }
 }

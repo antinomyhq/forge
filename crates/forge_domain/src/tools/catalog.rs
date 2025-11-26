@@ -42,7 +42,7 @@ pub enum ToolCatalog {
     ReadImage(ReadImage),
     Write(FSWrite),
     Search(FSSearch),
-    SemSearch(CodebaseSearch),
+    SemSearch(SemanticSearch),
     Remove(FSRemove),
     Patch(FSPatch),
     Undo(FSUndo),
@@ -177,15 +177,21 @@ fn default_codebase_top_k() -> u32 {
     10
 }
 
-/// Searches code by meaning using AI-powered semantic search to quickly locate
-/// specific code implementations. Use when you need to FIND WHERE code is
-/// located by describing what it does. Examples: \"where is authentication
-/// logic\", \"find retry mechanism\", \"locate error handling code\". Returns
-/// code locations with snippets. DO NOT use for finding specific names/patterns
-/// like \"all functions named execute\" - use search tool with regex instead.
-/// This tool understands concepts and finds semantically related code.
+/// AI-powered semantic code search - YOUR DEFAULT TOOL for "where is"
+/// questions. Use this FIRST when user asks about code location or
+/// functionality: "where is X", "find the code that does Y", "locate Z
+/// implementation". This tool understands CONCEPTS and BEHAVIOR, not just
+/// keywords. Finds code even when exact terms differ. DO NOT skip this tool
+/// just because you see obvious file paths in the file list - ALWAYS use
+/// sem_search first for "where is" questions, then read the results it
+/// provides. Examples: "where is retry logic" finds exponential backoff code,
+/// "authentication handling" finds OAuth and JWT code, "message transformation"
+/// finds serialization/DTOs, "tool registration" finds tool setup code. Returns
+/// ranked results with code snippets. ONLY use regex search tool for exact name
+/// matches like "all functions named execute" or "TODO comments". When in doubt
+/// between search and sem_search, choose sem_search.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
-pub struct CodebaseSearch {
+pub struct SemanticSearch {
     /// Describe WHAT the code does or its purpose. Include domain-specific
     /// terms and technical context. Good: "retry mechanism with exponential
     /// backoff", "streaming responses from LLM API", "OAuth token refresh
@@ -199,12 +205,25 @@ pub struct CodebaseSearch {
     #[serde(default = "default_codebase_top_k")]
     pub top_k: u32,
 
-    /// Describe WHY you're searching and what problem you're trying to solve.
-    /// This filters results to match your specific intent. Good: "I need to
-    /// add similar retry logic to API calls", "understanding how to handle
-    /// authentication errors", "implementing rate limiting for new endpoint".
-    /// Bad: repeating the query or generic phrases.
+    /// A short natural-language description of what you are trying to find.
+    /// This is the query used for document reranking.
+    /// The query MUST:
+    /// - express a single, focused information need
+    /// - describe exactly what the agent is searching for
+    /// - should not be the query verbatim
+    /// - be concise (1–2 sentences)
+    ///
+    /// Examples:
+    /// - "Why is `select_model()` returning a Pin<Box<Result>> in Rust?"
+    /// - "How to fix error E0277 for the ? operator on a pinned boxed result?"
+    /// - "Steps to run Diesel migrations in Rust without exposing the DB."
+    /// - "How to design a clean architecture service layer with typed errors?"
     pub use_case: String,
+
+    /// Optional file extension filter (e.g., ".rs", ".ts", ".py"). If provided,
+    /// only files with this extension will be included in the search results.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_extension: Option<String>,
 }
 
 /// Request to remove a file at the specified path. Use this when you need to
@@ -553,7 +572,7 @@ impl ToolCatalog {
             ToolCatalog::Followup(_) => r#gen.into_root_schema_for::<Followup>(),
             ToolCatalog::Fetch(_) => r#gen.into_root_schema_for::<NetFetch>(),
             ToolCatalog::Search(_) => r#gen.into_root_schema_for::<FSSearch>(),
-            ToolCatalog::SemSearch(_) => r#gen.into_root_schema_for::<CodebaseSearch>(),
+            ToolCatalog::SemSearch(_) => r#gen.into_root_schema_for::<SemanticSearch>(),
             ToolCatalog::Read(_) => r#gen.into_root_schema_for::<FSRead>(),
             ToolCatalog::ReadImage(_) => r#gen.into_root_schema_for::<ReadImage>(),
             ToolCatalog::Remove(_) => r#gen.into_root_schema_for::<FSRemove>(),

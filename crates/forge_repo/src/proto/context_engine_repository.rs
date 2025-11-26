@@ -148,6 +148,7 @@ impl ContextEngineRepository for ForgeContextEngineRepository {
         let request = tonic::Request::new(CreateWorkspaceRequest {
             workspace: Some(WorkspaceDefinition {
                 working_dir: working_dir.to_string_lossy().to_string(),
+                ..Default::default()
             }),
         });
 
@@ -208,10 +209,13 @@ impl ContextEngineRepository for ForgeContextEngineRepository {
             }),
             query: Some(Query {
                 prompt: Some(search_query.data.query.to_string()),
-                limit: Some(search_query.data.limit as u32),
+                limit: search_query.data.limit.map(|l| l as u32),
                 top_k: search_query.data.top_k,
                 relevance_query: Some(search_query.data.use_case.to_string()),
-                ..Default::default()
+                starts_with: search_query.data.starts_with.clone(),
+                ends_with: search_query.data.ends_with.clone(),
+                max_distance: None,
+                kinds: vec![NodeKind::FileChunk.into()],
             }),
         });
 

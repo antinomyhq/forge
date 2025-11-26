@@ -35,7 +35,7 @@ function formatTimestamp(date: Date): string {
 export async function executeTask(
   command: string,
   index: number,
-  debugDir: string,
+  logFile: string,
   evalDir: string,
   timeout: number | undefined,
   earlyExitOnValidation: boolean | undefined,
@@ -44,8 +44,7 @@ export async function executeTask(
 ): Promise<TaskExecutionResult> {
   const startTime = Date.now();
 
-  // Create log file for this task
-  const logFile = path.join(debugDir, `task_run_${index}.log`);
+  // Create log stream for this task
   const logStream = fs.createWriteStream(logFile);
 
   // Write command at the top of the log file

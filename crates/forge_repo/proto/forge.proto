@@ -86,11 +86,14 @@ message Workspace {
   uint64 node_count = 3;
   uint64 relation_count = 4;
   optional string last_updated = 5;
-  optional string created_at = 6;
+  uint32 min_chunk_size = 6;
+  uint32 max_chunk_size = 7;
 }
 
 message WorkspaceDefinition {
   string working_dir = 1;
+  uint32 min_chunk_size = 2;
+  uint32 max_chunk_size = 3;
 }
 
 message GitInfo {
@@ -141,13 +144,6 @@ message Node {
   NodeData data = 6;
 }
 
-message Relation {
-  oneof kind {
-    RelationType relation_type = 1;
-    Relation inverse = 2;
-  }
-}
-
 message QueryItem {
   Node node = 1;
   optional float distance = 2;
@@ -167,6 +163,8 @@ message Query {
   repeated NodeKind kinds = 4;
   optional uint32 top_k = 5;
   optional string relevance_query = 6;
+  optional string starts_with = 7;
+  optional string ends_with = 8;
 }
 
 message FileUploadContent {

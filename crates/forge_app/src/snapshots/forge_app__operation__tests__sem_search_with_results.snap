@@ -2,9 +2,7 @@
 source: crates/forge_app/src/operation.rs
 expression: to_value(actual)
 ---
-<codebase_search_results
-  query="retry mechanism with exponential backoff"
-  use_case="where is the retrying logic written"
+<sem_search_results
   results="2"
 >
 <file_chunk
@@ -30,4 +28,4 @@ expression: to_value(actual)
     // Implementation...
 }]]>
 </file_chunk>
-</codebase_search_results>
+</sem_search_results>

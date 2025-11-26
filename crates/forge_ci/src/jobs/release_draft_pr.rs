@@ -8,7 +8,7 @@ pub fn create_draft_release_pr_job() -> Job {
         .cond(Expression::new(
             "github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci: build all targets')",
         ))
-        .add_step(Step::new("Checkout Code").uses("actions", "checkout", "v5"))
+        .add_step(Step::new("Checkout Code").uses("actions", "checkout", "v6"))
         .add_step(
             Step::new("Set Release Version").run(
                 r#"echo "crate_release_name=pr-build-${{ github.event.number }}" >> $GITHUB_OUTPUT && echo "crate_release_id=pr-build-${{ github.event.number }}" >> $GITHUB_OUTPUT"#,
