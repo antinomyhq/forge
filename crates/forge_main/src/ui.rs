@@ -1019,6 +1019,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             ),
             ("retry", "Retry the last command [alias: r]"),
             ("compact", "Compact the conversation context"),
+            ("edit", "Use an external editor to write a prompt"),
             (
                 "tools",
                 "List all available tools with their descriptions and schema [alias: t]",

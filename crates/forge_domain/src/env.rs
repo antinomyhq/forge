@@ -131,6 +131,16 @@ impl Environment {
         self.base_path.join("cache")
     }
 
+    /// Returns the global skills directory path (~/forge/skills)
+    pub fn global_skills_path(&self) -> PathBuf {
+        self.base_path.join("skills")
+    }
+
+    /// Returns the project-local skills directory path (.forge/skills)
+    pub fn local_skills_path(&self) -> PathBuf {
+        self.cwd.join(".forge/skills")
+    }
+
     pub fn workspace_id(&self) -> WorkspaceId {
         let mut hasher = DefaultHasher::default();
         self.cwd.hash(&mut hasher);
@@ -189,6 +199,51 @@ mod tests {
 
         // Verify they are different paths
         assert_ne!(agent_path, agent_cwd_path);
+    }
+
+    #[test]
+    fn test_global_skills_path() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture.base_path(PathBuf::from("/home/user/.forge"));
+
+        let actual = fixture.global_skills_path();
+        let expected = PathBuf::from("/home/user/.forge/skills");
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_local_skills_path() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture.cwd(PathBuf::from("/projects/my-app"));
+
+        let actual = fixture.local_skills_path();
+        let expected = PathBuf::from("/projects/my-app/.forge/skills");
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_skills_paths_independent() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture
+            .cwd(PathBuf::from("/projects/my-app"))
+            .base_path(PathBuf::from("/home/user/.forge"));
+
+        let global_path = fixture.global_skills_path();
+        let local_path = fixture.local_skills_path();
+
+        let expected_global = PathBuf::from("/home/user/.forge/skills");
+        let expected_local = PathBuf::from("/projects/my-app/.forge/skills");
+
+        // Verify global path uses base_path
+        assert_eq!(global_path, expected_global);
+
+        // Verify local path uses cwd
+        assert_eq!(local_path, expected_local);
+
+        // Verify they are different paths
+        assert_ne!(global_path, local_path);
     }
 }
 
