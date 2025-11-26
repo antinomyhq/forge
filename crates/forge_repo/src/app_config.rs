@@ -285,11 +285,13 @@ mod tests {
         let (repo, _temp_dir) = repository_with_config_fixture();
 
         // Create a modified config with runtime overrides
-        let mut runtime_config = AppConfig::default();
-        runtime_config.provider = Some(ProviderId::OpenAI);
-        runtime_config
-            .model
-            .insert(ProviderId::OpenAI, ModelId::new("gpt-4o"));
+        let runtime_config = AppConfig {
+            key_info: None,
+            provider: Some(ProviderId::OpenAI),
+            model: [(ProviderId::OpenAI, ModelId::new("gpt-4o"))]
+                .into_iter()
+                .collect(),
+        };
 
         // Set runtime config (should only update cache)
         repo.set_runtime_config(&runtime_config).await.unwrap();
@@ -315,12 +317,16 @@ mod tests {
         let (repo, _temp_dir) = repository_with_config_fixture();
 
         // Set runtime config
-        let mut runtime_config = AppConfig::default();
-        runtime_config.provider = Some(ProviderId::Anthropic);
-        runtime_config.model.insert(
-            ProviderId::Anthropic,
-            ModelId::new("claude-3-5-sonnet-20241022"),
-        );
+        let runtime_config = AppConfig {
+            key_info: None,
+            provider: Some(ProviderId::Anthropic),
+            model: [(
+                ProviderId::Anthropic,
+                ModelId::new("claude-3-5-sonnet-20241022"),
+            )]
+            .into_iter()
+            .collect(),
+        };
 
         repo.set_runtime_config(&runtime_config).await.unwrap();
 
@@ -340,8 +346,7 @@ mod tests {
         let (repo, _temp_dir) = repository_with_config_fixture();
 
         // Set runtime config
-        let mut runtime_config = AppConfig::default();
-        runtime_config.provider = Some(ProviderId::OpenAI);
+        let runtime_config = AppConfig { provider: Some(ProviderId::OpenAI), ..Default::default() };
         repo.set_runtime_config(&runtime_config).await.unwrap();
 
         // Verify runtime config is returned
@@ -349,8 +354,8 @@ mod tests {
         assert_eq!(cached.provider, Some(ProviderId::OpenAI));
 
         // Write new config to disk (should bust cache)
-        let mut persistent_config = AppConfig::default();
-        persistent_config.provider = Some(ProviderId::Anthropic);
+        let persistent_config =
+            AppConfig { provider: Some(ProviderId::Anthropic), ..Default::default() };
         repo.set_app_config(&persistent_config).await.unwrap();
 
         // Next read should return the persisted config, not the runtime cache
