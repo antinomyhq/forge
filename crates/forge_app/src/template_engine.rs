@@ -91,6 +91,12 @@ pub struct TemplateEngine<'a> {
     handlebar: Handlebars<'a>,
 }
 
+impl Default for TemplateEngine<'_> {
+    fn default() -> Self {
+        Self { handlebar: HANDLEBARS.clone() }
+    }
+}
+
 impl<'a> TemplateEngine<'a> {
     /// Renders a template with the provided data.
     pub fn render<V: serde::Serialize>(
@@ -102,11 +108,17 @@ impl<'a> TemplateEngine<'a> {
         Ok(self.handlebar.render(&template.template, data)?)
     }
 
-    pub fn handlebar_instance() -> Handlebars<'static> {
-        create_handlerbar()
+    /// Renders a template with the provided data.
+    pub fn render_template<V: serde::Serialize>(
+        &self,
+        template: impl Into<Template<V>>,
+        data: &V,
+    ) -> anyhow::Result<String> {
+        let template = template.into();
+        Ok(self.handlebar.render_template(&template.template, data)?)
     }
 
-    pub(crate) fn default() -> Self {
-        TemplateEngine { handlebar: HANDLEBARS.clone() }
+    pub fn handlebar_instance() -> Handlebars<'static> {
+        create_handlerbar()
     }
 }

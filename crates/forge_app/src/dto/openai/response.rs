@@ -277,7 +277,12 @@ impl TryFrom<Response> for ChatCompletionMessage {
                     }
                     Ok(response)
                 } else {
-                    let default_response = ChatCompletionMessage::assistant(Content::full(""));
+                    let mut default_response = ChatCompletionMessage::assistant(Content::full(""));
+                    // No choices – this can happen with Ollama/LMStudio streaming where the final
+                    // chunk only contains usage information.
+                    if let Some(u) = usage {
+                        default_response.usage = Some(u.into());
+                    }
                     Ok(default_response)
                 }
             }
@@ -341,10 +346,11 @@ mod tests {
         assert!(Fixture::test_response_compatibility(event));
     }
 
-    #[test]
-    fn test_responses() -> anyhow::Result<()> {
-        let input = include_str!("./responses.jsonl").split("\n");
-        for (i, line) in input.enumerate() {
+    #[tokio::test]
+    async fn test_responses() -> anyhow::Result<()> {
+        let content = forge_test_kit::fixture!("/src/dto/openai/responses.jsonl").await;
+
+        for (i, line) in content.split('\n').enumerate() {
             let i = i + 1;
             let _: Response = serde_json::from_str(line).with_context(|| {
                 format!("Failed to parse response [responses.jsonl:{i}]: {line}")

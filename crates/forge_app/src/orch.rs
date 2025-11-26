@@ -191,7 +191,6 @@ impl<S: AgentService> Orchestrator<S> {
 
         debug!(
             conversation_id = %self.conversation.id.clone(),
-            event_name = %event.name,
             event_value = %format!("{:?}", event.value),
             "Dispatching event"
         );
@@ -225,7 +224,7 @@ impl<S: AgentService> Orchestrator<S> {
             ToolCallContext::new(self.conversation.metrics.clone()).sender(self.sender.clone());
 
         // Asynchronously generate a title for the provided task
-        // FIXME: Move into app.rs
+        // TODO: Move into app.rs
         let title = self.generate_title(model_id.clone());
 
         while !should_yield {

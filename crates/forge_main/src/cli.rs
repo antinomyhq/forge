@@ -1,14 +1,14 @@
+//! NOTE: Always use singular names for commands and subcommands.
+//! For example: `forge provider login` instead of `forge providers login`.
+//!
+//! NOTE: With every change to this CLI structure, verify that the ZSH plugin
+//! remains compatible. The plugin at `shell-plugin/forge.plugin.zsh` implements
+//! shell completion and command shortcuts that depend on the CLI structure.
+
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use forge_domain::{AgentId, ProviderId};
-
-/// NOTE: Always use singular names for commands and subcommands.
-/// For example: `forge provider login` instead of `forge providers login`.
-///
-/// NOTE: With every change to this CLI structure, verify that the ZSH plugin
-/// remains compatible. The plugin at `shell-plugin/forge.plugin.zsh` implements
-/// shell completion and command shortcuts that depend on the CLI structure.
 
 #[derive(Parser)]
 #[command(version = env!("CARGO_PKG_VERSION"))]
@@ -20,6 +20,14 @@ pub struct Cli {
     /// forge`.
     #[arg(long, short = 'p')]
     pub prompt: Option<String>,
+
+    /// Piped input from stdin (populated internally)
+    ///
+    /// This field is automatically populated when content is piped to forge
+    /// via stdin. It's kept separate from the prompt to allow proper handling
+    /// as a droppable message.
+    #[arg(skip)]
+    pub piped_input: Option<String>,
 
     /// Path to a JSON file containing the conversation to execute.
     #[arg(long)]
@@ -205,6 +213,10 @@ pub enum ListCommand {
     /// List custom commands.
     #[command(alias = "cmds")]
     Cmd,
+
+    /// List available skills.
+    #[command(alias = "skills")]
+    Skill,
 }
 
 /// Command group for generating shell extensions.
@@ -1039,6 +1051,37 @@ mod tests {
                 .map(|s| s.to_string())
                 .collect::<Vec<String>>(),
         );
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_list_skill_command() {
+        let fixture = Cli::parse_from(["forge", "list", "skill"]);
+        let is_skill_list = match fixture.subcommands {
+            Some(TopLevelCommand::List(list)) => matches!(list.command, ListCommand::Skill),
+            _ => false,
+        };
+        assert_eq!(is_skill_list, true);
+    }
+
+    #[test]
+    fn test_list_skills_alias_command() {
+        let fixture = Cli::parse_from(["forge", "list", "skills"]);
+        let is_skill_list = match fixture.subcommands {
+            Some(TopLevelCommand::List(list)) => matches!(list.command, ListCommand::Skill),
+            _ => false,
+        };
+        assert_eq!(is_skill_list, true);
+    }
+
+    #[test]
+    fn test_list_skill_with_porcelain() {
+        let fixture = Cli::parse_from(["forge", "list", "skill", "--porcelain"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::List(list)) => list.porcelain,
+            _ => false,
+        };
+        let expected = true;
         assert_eq!(actual, expected);
     }
 }

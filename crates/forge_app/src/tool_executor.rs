@@ -12,7 +12,7 @@ use crate::utils::format_display_path;
 use crate::{
     ConversationService, EnvironmentService, FollowUpService, FsCreateService, FsPatchService,
     FsReadService, FsRemoveService, FsSearchService, FsUndoService, ImageReadService,
-    NetFetchService, PlanCreateService, PolicyService,
+    NetFetchService, PlanCreateService, PolicyService, SkillFetchService,
 };
 
 pub struct ToolExecutor<S> {
@@ -33,7 +33,8 @@ impl<
         + ConversationService
         + EnvironmentService
         + PlanCreateService
-        + PolicyService,
+        + PolicyService
+        + SkillFetchService,
 > ToolExecutor<S>
 {
     pub fn new(services: Arc<S>) -> Self {
@@ -268,6 +269,10 @@ impl<
                     )
                     .await?;
                 (input, output).into()
+            }
+            ToolCatalog::Skill(input) => {
+                let skill = self.services.fetch_skill(input.name.clone()).await?;
+                (input, skill).into()
             }
         })
     }

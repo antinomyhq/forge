@@ -52,7 +52,7 @@ impl<I: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra> AgentRepository
 impl<I: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra> ForgeAgentRepository<I> {
     /// Load all agent definitions from all available sources
     async fn load_agents(&self) -> anyhow::Result<Vec<AgentDefinition>> {
-        // Load built-in agents
+        // Load built-in agents (no path - will display as "BUILT IN")
         let mut agents = self.init_default().await?;
 
         // Load custom agents from global directory
@@ -63,7 +63,6 @@ impl<I: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra> ForgeAgentRepos
         // Load custom agents from CWD
         let dir = self.infra.get_environment().agent_cwd_path();
         let cwd_agents = self.init_agent_dir(&dir).await?;
-
         agents.extend(cwd_agents);
 
         // Handle agent ID conflicts by keeping the last occurrence
@@ -95,14 +94,17 @@ impl<I: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra> ForgeAgentRepos
             .await
             .with_context(|| format!("Failed to read agents from: {}", dir.display()))?;
 
-        parse_agent_iter(files.into_iter().map(|(path, content)| {
-            let name = path
-                .file_stem()
-                .and_then(|s| s.to_str())
-                .unwrap_or("unknown")
-                .to_string();
-            (name, content)
-        }))
+        let mut agents = Vec::new();
+        for (path, content) in files {
+            let mut agent = parse_agent_file(&content)
+                .with_context(|| format!("Failed to parse agent: {}", path.display()))?;
+
+            // Store the file path
+            agent.path = Some(path.display().to_string());
+            agents.push(agent);
+        }
+
+        Ok(agents)
     }
 }
 
@@ -165,9 +167,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_parse_basic_agent() {
-        let content = include_str!("fixtures/agents/basic.md");
+        let content = forge_test_kit::fixture!("/src/fixtures/agents/basic.md").await;
 
-        let actual = parse_agent_file(content).unwrap();
+        let actual = parse_agent_file(&content).unwrap();
 
         assert_eq!(actual.id.as_str(), "test-basic");
         assert_eq!(actual.title.as_ref().unwrap(), "Basic Test Agent");
@@ -183,9 +185,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_parse_advanced_agent() {
-        let content = include_str!("fixtures/agents/advanced.md");
+        let content = forge_test_kit::fixture!("/src/fixtures/agents/advanced.md").await;
 
-        let actual = parse_agent_file(content).unwrap();
+        let actual = parse_agent_file(&content).unwrap();
 
         assert_eq!(actual.id.as_str(), "test-advanced");
         assert_eq!(actual.title.as_ref().unwrap(), "Advanced Test Agent");

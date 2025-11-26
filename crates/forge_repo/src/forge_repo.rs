@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -10,7 +11,8 @@ use forge_app::{
 use forge_domain::{
     AnyProvider, AppConfig, AppConfigRepository, AuthCredential, CommandOutput, Conversation,
     ConversationId, ConversationRepository, Environment, FileInfo, McpServerConfig,
-    MigrationResult, Provider, ProviderId, ProviderRepository, Snapshot, SnapshotRepository,
+    MigrationResult, Provider, ProviderId, ProviderRepository, Skill, SkillRepository, Snapshot,
+    SnapshotRepository,
 };
 // Re-export CacacheStorage from forge_infra
 pub use forge_infra::CacacheStorage;
@@ -23,7 +25,7 @@ use crate::fs_snap::ForgeFileSnapshotService;
 use crate::provider::ForgeProviderRepository;
 use crate::{
     AppConfigRepositoryImpl, ConversationRepositoryImpl, DatabasePool, ForgeAgentRepository,
-    PoolConfig,
+    ForgeSkillRepository, PoolConfig,
 };
 
 /// Repository layer that implements all domain repository traits
@@ -39,6 +41,7 @@ pub struct ForgeRepo<F> {
     mcp_cache_repository: Arc<CacacheStorage>,
     provider_repository: Arc<ForgeProviderRepository<F>>,
     agent_repository: Arc<ForgeAgentRepository<F>>,
+    skill_repository: Arc<ForgeSkillRepository<F>>,
 }
 
 impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
@@ -59,6 +62,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
 
         let provider_repository = Arc::new(ForgeProviderRepository::new(infra.clone()));
         let agent_repository = Arc::new(ForgeAgentRepository::new(infra.clone()));
+        let skill_repository = Arc::new(ForgeSkillRepository::new(infra.clone()));
         Self {
             infra,
             file_snapshot_service,
@@ -67,6 +71,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
             mcp_cache_repository,
             provider_repository,
             agent_repository,
+            skill_repository,
         }
     }
 }
@@ -209,6 +214,10 @@ impl<F: EnvironmentInfra> EnvironmentInfra for ForgeRepo<F> {
     }
     fn get_env_var(&self, key: &str) -> Option<String> {
         self.infra.get_env_var(key)
+    }
+
+    fn get_env_vars(&self) -> BTreeMap<String, String> {
+        self.infra.get_env_vars()
     }
 }
 
@@ -358,8 +367,12 @@ where
 {
     type Client = F::Client;
 
-    async fn connect(&self, config: McpServerConfig) -> anyhow::Result<F::Client> {
-        self.infra.connect(config).await
+    async fn connect(
+        &self,
+        config: McpServerConfig,
+        env_vars: &BTreeMap<String, String>,
+    ) -> anyhow::Result<F::Client> {
+        self.infra.connect(config, env_vars).await
     }
 }
 
@@ -398,6 +411,15 @@ impl<F: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra + Send + Sync> A
 {
     async fn get_agents(&self) -> anyhow::Result<Vec<forge_domain::AgentDefinition>> {
         self.agent_repository.get_agents().await
+    }
+}
+
+#[async_trait::async_trait]
+impl<F: FileInfoInfra + EnvironmentInfra + FileReaderInfra + WalkerInfra + Send + Sync>
+    SkillRepository for ForgeRepo<F>
+{
+    async fn load_skills(&self) -> anyhow::Result<Vec<Skill>> {
+        self.skill_repository.load_skills().await
     }
 }
 

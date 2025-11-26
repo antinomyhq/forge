@@ -17,14 +17,15 @@
 
 name: ci
 env:
-  RUSTFLAGS: -Dwarnings
+  RUSTFLAGS: '-Dwarnings'
   OPENROUTER_API_KEY: ${{secrets.OPENROUTER_API_KEY}}
-on:
+'on':
   pull_request:
     types:
     - opened
     - synchronize
     - reopened
+    - labeled
     branches:
     - main
   push:
@@ -40,7 +41,7 @@ jobs:
       contents: read
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
     - name: Setup Rust Toolchain
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
@@ -54,7 +55,7 @@ jobs:
       contents: read
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
     - name: Setup Rust Toolchain
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
@@ -73,9 +74,12 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+    outputs:
+      crate_release_name: ${{ steps.set_output.outputs.crate_release_name }}
+      crate_release_id: ${{ steps.set_output.outputs.crate_release_id }}
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
     - id: create_release
       name: Draft Release
       uses: release-drafter/release-drafter@v6
@@ -86,22 +90,19 @@ jobs:
     - id: set_output
       name: Export Outputs
       run: echo "crate_release_id=${{ steps.create_release.outputs.id }}" >> $GITHUB_OUTPUT && echo "crate_release_name=${{ steps.create_release.outputs.tag_name }}" >> $GITHUB_OUTPUT
-    outputs:
-      crate_release_name: ${{ steps.set_output.outputs.crate_release_name }}
-      crate_release_id: ${{ steps.set_output.outputs.crate_release_id }}
   draft_release_pr:
     if: 'github.event_name == ''pull_request'' && contains(github.event.pull_request.labels.*.name, ''ci: build all targets'')'
     name: Draft Release for PR
     runs-on: ubuntu-latest
-    steps:
-    - name: Checkout Code
-      uses: actions/checkout@v5
-    - id: set_output
-      name: Set Release Version
-      run: echo "crate_release_name=pr-build-${{ github.event.number }}" >> $GITHUB_OUTPUT && echo "crate_release_id=pr-build-${{ github.event.number }}" >> $GITHUB_OUTPUT
     outputs:
       crate_release_name: ${{ steps.set_output.outputs.crate_release_name }}
       crate_release_id: ${{ steps.set_output.outputs.crate_release_id }}
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v6
+    - id: set_output
+      name: Set Release Version
+      run: echo "crate_release_name=pr-build-${{ github.event.number }}" >> $GITHUB_OUTPUT && echo "crate_release_id=pr-build-${{ github.event.number }}" >> $GITHUB_OUTPUT
   build_release:
     needs:
     - draft_release
@@ -161,7 +162,7 @@ jobs:
           target: aarch64-linux-android
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
     - name: Setup Cross Toolchain
       if: ${{ matrix.cross == 'false' }}
       uses: taiki-e/setup-cross-toolchain-action@v1
@@ -177,9 +178,9 @@ jobs:
       uses: ClementTsang/cargo-action@v0.0.7
       with:
         command: build --release
-        args: --target ${{ matrix.target }}
+        args: '--target ${{ matrix.target }}'
         use-cross: ${{ matrix.cross }}
-        cross-version: 0.2.5
+        cross-version: '0.2.5'
       env:
         RUSTFLAGS: ${{ env.RUSTFLAGS }}
         POSTHOG_API_SECRET: ${{secrets.POSTHOG_API_SECRET}}
@@ -251,7 +252,7 @@ jobs:
           target: aarch64-linux-android
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
     - name: Setup Cross Toolchain
       if: ${{ matrix.cross == 'false' }}
       uses: taiki-e/setup-cross-toolchain-action@v1
@@ -267,9 +268,9 @@ jobs:
       uses: ClementTsang/cargo-action@v0.0.7
       with:
         command: build --release
-        args: --target ${{ matrix.target }}
+        args: '--target ${{ matrix.target }}'
         use-cross: ${{ matrix.cross }}
-        cross-version: 0.2.5
+        cross-version: '0.2.5'
       env:
         RUSTFLAGS: ${{ env.RUSTFLAGS }}
         POSTHOG_API_SECRET: ${{secrets.POSTHOG_API_SECRET}}

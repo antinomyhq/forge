@@ -99,12 +99,12 @@ mod tests {
     mod yaml_policies_tests {
         use crate::policies::{Permission, Policy, PolicyConfig, Rule};
 
-        #[test]
-        fn test_yaml_policies_roundtrip() {
-            let yaml_content = include_str!("../fixtures/policies_test.yml");
+        #[tokio::test]
+        async fn test_yaml_policies_roundtrip() {
+            let yaml_content = forge_test_kit::fixture!("/src/fixtures/policies_test.yml").await;
 
             let policies: PolicyConfig =
-                serde_yml::from_str(yaml_content).expect("Failed to parse policies YAML");
+                serde_yml::from_str(&yaml_content).expect("Failed to parse policies YAML");
 
             assert_eq!(policies.policies.len(), 3);
 
