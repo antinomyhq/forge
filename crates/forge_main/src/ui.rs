@@ -1001,39 +1001,21 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     async fn on_show_commands(&mut self, porcelain: bool) -> anyhow::Result<()> {
         let mut info = Info::new();
 
-        // Define base commands with their descriptions and type
-        let built_in_commands = [
-            ("info", "Print session information [alias: i]"),
-            ("env", "Display environment information [alias: e]"),
-            ("provider", "Switch the providers [alias: p]"),
-            ("model", "Switch the models [alias: m]"),
-            ("new", "Start new conversation [alias: n]"),
-            (
-                "dump",
-                "Save conversation as JSON or HTML (use /dump html for HTML format) [alias: d]",
-            ),
-            (
-                "conversation",
-                "List all conversations for the active workspace [alias: c]",
-            ),
-            ("retry", "Retry the last command [alias: r]"),
-            ("compact", "Compact the conversation context"),
-            ("edit", "Use an external editor to write a prompt"),
-            (
-                "tools",
-                "List all available tools with their descriptions and schema [alias: t]",
-            ),
-            ("skill", "List all available skills"),
-            ("commit", "Generate AI commit message and commit changes."),
-            (
-                "suggest",
-                "Generate shell commands without executing them [alias: s]",
-            ),
-            ("login", "Login to a provider"),
-            ("logout", "Logout from a provider"),
-        ];
+        // Load built-in commands from CSV
+        const COMMANDS_CSV: &str = include_str!("built_in_commands.csv");
+        let built_in_commands: Vec<(&str, &str)> = COMMANDS_CSV
+            .lines()
+            .skip(1) // Skip header
+            .filter_map(|line| {
+                let mut parts = line.splitn(2, ',');
+                match (parts.next(), parts.next()) {
+                    (Some(cmd), Some(desc)) => Some((cmd, desc)),
+                    _ => None,
+                }
+            })
+            .collect();
 
-        for (name, description) in built_in_commands {
+        for (name, description) in &built_in_commands {
             info = info
                 .add_title(name)
                 .add_key_value("type", "command")
