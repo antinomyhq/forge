@@ -318,7 +318,12 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
             .file_pattern
             .or(input.regex)
             .map(|pattern| SummaryTool::Search { pattern }),
-        ToolCatalog::SemSearch(input) => Some(SummaryTool::SemSearch { query: input.query, use_case: input.use_case, top_k: input.top_k, file_extension: input.file_extension }),
+        ToolCatalog::SemSearch(input) => Some(SummaryTool::SemSearch {
+            query: input.query,
+            use_case: input.use_case,
+            top_k: input.top_k,
+            file_extension: input.file_extension,
+        }),
         ToolCatalog::Undo(input) => Some(SummaryTool::Undo { path: input.path }),
         ToolCatalog::Fetch(input) => Some(SummaryTool::Fetch { url: input.url }),
         ToolCatalog::Followup(input) => Some(SummaryTool::Followup { question: input.question }),
@@ -966,8 +971,13 @@ mod tests {
         let fixture = context(vec![assistant_with_tools(
             "Searching codebase",
             vec![
-                ToolCatalog::tool_call_semantic_search("retry mechanism", "find retry logic", 10, None)
-                    .call_id("call_1"),
+                ToolCatalog::tool_call_semantic_search(
+                    "retry mechanism",
+                    "find retry logic",
+                    10,
+                    None,
+                )
+                .call_id("call_1"),
             ],
         )]);
 

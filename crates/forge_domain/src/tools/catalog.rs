@@ -743,7 +743,8 @@ impl ToolCatalog {
         }))
     }
 
-    /// Creates a Semantic Search tool call with the specified query and use_case
+    /// Creates a Semantic Search tool call with the specified query and
+    /// use_case
     pub fn tool_call_semantic_search(
         query: &str,
         use_case: &str,

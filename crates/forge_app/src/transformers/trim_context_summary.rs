@@ -51,7 +51,12 @@ fn to_op(tool: &SummaryTool) -> Operation<'_> {
         SummaryTool::Shell { command } => Operation::Shell(command),
         SummaryTool::Search { pattern } => Operation::Search(pattern),
         SummaryTool::SemSearch { query, use_case, top_k, file_extension } => {
-            Operation::CodebaseSearch { query, use_case, top_k: *top_k, file_extension: file_extension.as_deref() }
+            Operation::CodebaseSearch {
+                query,
+                use_case,
+                top_k: *top_k,
+                file_extension: file_extension.as_deref(),
+            }
         }
         SummaryTool::Fetch { url } => Operation::Fetch(url),
         SummaryTool::Followup { question } => Operation::Followup(question),
