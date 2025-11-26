@@ -82,7 +82,8 @@ function _forge_print_agent_message() {
 
 # Helper function to print messages with consistent formatting based on log level
 # Usage: _forge_log <level> <message>
-# Levels: error, info, success, warning
+# Levels: error, info, success, warning, debug
+# Color scheme matches crates/forge_main/src/title_display.rs
 function _forge_log() {
     local level="$1"
     local message="$2"
@@ -90,16 +91,24 @@ function _forge_log() {
     
     case "$level" in
         error)
-            echo "\033[31m✗\033[0m ${timestamp} ${message}"
+            # Category::Error - Red ❌
+            echo "\033[31m❌\033[0m ${timestamp} \033[31m${message}\033[0m"
             ;;
         info)
-            echo "\033[33m⏺\033[0m ${timestamp} ${message}"
+            # Category::Info - White ⏺
+            echo "\033[37m⏺\033[0m ${timestamp} \033[37m${message}\033[0m"
             ;;
         success)
-            echo "\033[36m⏺\033[0m ${timestamp} ${message}"
+            # Category::Action/Completion - Yellow ⏺
+            echo "\033[33m⏺\033[0m ${timestamp} \033[37m${message}\033[0m"
             ;;
         warning)
-            echo "\033[33m⚠\033[0m ${timestamp} ${message}"
+            # Category::Warning - Bright yellow ⚠️
+            echo "\033[93m⚠️\033[0m ${timestamp} \033[93m${message}\033[0m"
+            ;;
+        debug)
+            # Category::Debug - Cyan ⏺ with dimmed text
+            echo "\033[36m⏺\033[0m ${timestamp} \033[90m${message}\033[0m"
             ;;
         *)
             echo "${message}"
@@ -547,7 +556,7 @@ function _forge_action_editor() {
     
     # Read and process content
     local content
-    content=$(sed '/^#/d; /^$/d' "$temp_file" | tr -d '\r')
+    content=$(cat "$temp_file" | tr -d '\r')
     
     if [ -z "$content" ]; then
         _forge_log info "No content to insert"
