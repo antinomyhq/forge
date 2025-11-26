@@ -2717,7 +2717,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     ) -> anyhow::Result<()> {
         self.spinner.start(Some("Searching codebase..."))?;
 
-        let mut params = forge_domain::SearchParams::new(&query, &use_case, limit);
+        let mut params = forge_domain::SearchParams::new(&query, &use_case).limit(limit);
         if let Some(k) = top_k {
             params = params.top_k(k);
         }
