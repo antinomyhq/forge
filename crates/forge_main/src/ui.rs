@@ -46,6 +46,45 @@ use crate::tools_display::format_tools;
 use crate::update::on_update;
 use crate::{TRACKER, banner, tracker};
 
+/// Formats an MCP server config for display, redacting sensitive information.
+/// Returns the command/URL string only.
+fn format_mcp_server(server: &forge_domain::McpServerConfig) -> String {
+    match server {
+        forge_domain::McpServerConfig::Stdio(stdio) => {
+            let mut output = format!("{} ", stdio.command);
+            for arg in &stdio.args {
+                output.push_str(&format!("{arg} "));
+            }
+            for key in stdio.env.keys() {
+                output.push_str(&format!("{key}=*** "));
+            }
+            output.trim().to_string()
+        }
+        forge_domain::McpServerConfig::Http(http) => http.url.clone(),
+    }
+}
+
+/// Formats HTTP headers for display, redacting values.
+/// Returns None if there are no headers.
+fn format_mcp_headers(server: &forge_domain::McpServerConfig) -> Option<String> {
+    match server {
+        forge_domain::McpServerConfig::Stdio(_) => None,
+        forge_domain::McpServerConfig::Http(http) => {
+            if http.headers.is_empty() {
+                None
+            } else {
+                Some(
+                    http.headers
+                        .keys()
+                        .map(|k| format!("{k}=***"))
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                )
+            }
+        }
+    }
+}
+
 pub struct UI<A, F: Fn() -> A> {
     markdown: MarkdownFormat,
     state: UIState,
@@ -273,7 +312,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                                     tracker::error(&error);
                                     tracing::error!(error = ?error);
                                     self.spinner.stop(None)?;
-                                    self.writeln_to_stderr(TitleFormat::error(format!("{:?}", error)).display().to_string())?;
+                                    self.writeln_to_stderr(TitleFormat::error(format!("{error:?}")).display().to_string())?;
                                 },
                             }
                         }
@@ -415,7 +454,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         .ok_or(anyhow::anyhow!("Server not found"))?;
 
                     let mut output = String::new();
-                    output.push_str(&format!("{name}: {server}"));
+                    output.push_str(&format!("{name}: {}", format_mcp_server(server)));
                     self.writeln_title(TitleFormat::info(output))?;
                 }
                 McpCommand::Reload => {
@@ -517,8 +556,18 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         starts_with,
                         ends_with,
                     } => {
-                        self.on_query(query, path, limit, top_k, use_case, starts_with, ends_with)
-                            .await?;
+                        let mut params =
+                            forge_domain::SearchParams::new(&query, &use_case).limit(limit);
+                        if let Some(k) = top_k {
+                            params = params.top_k(k);
+                        }
+                        if let Some(prefix) = starts_with {
+                            params = params.starts_with(prefix);
+                        }
+                        if let Some(suffix) = ends_with {
+                            params = params.ends_with(suffix);
+                        }
+                        self.on_query(path, params).await?;
                     }
 
                     crate::cli::WorkspaceCommand::Info { path } => {
@@ -1193,19 +1242,56 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(())
     }
 
-    /// Displays all MCP servers
+    /// Displays all MCP servers with their available tools
     async fn on_show_mcp_servers(&mut self, porcelain: bool) -> anyhow::Result<()> {
+        self.spinner.start(Some("Loading MCP servers"))?;
         let mcp_servers = self.api.read_mcp_config(None).await?;
+        let all_tools = self.api.get_tools().await?;
 
         let mut info = Info::new();
 
         for (name, server) in mcp_servers.mcp_servers {
+            let label = match server {
+                forge_domain::McpServerConfig::Stdio(_) => "Command",
+                forge_domain::McpServerConfig::Http(_) => "URL",
+            };
+
             info = info
                 .add_title(name.to_uppercase())
-                .add_key_value("Command", server.to_string());
+                .add_key_value("Type", server.server_type())
+                .add_key_value(label, format_mcp_server(&server));
+
+            // Add headers for HTTP servers if present
+            if let Some(headers) = format_mcp_headers(&server) {
+                info = info.add_key_value("Headers", headers);
+            }
 
             if server.is_disabled() {
-                info = info.add_key_value("Status", "disabled")
+                info = info.add_key_value("Status", "disabled");
+            }
+
+            // Add tools for this MCP server
+            if let Some(tools) = all_tools.mcp.get_servers().get(&name)
+                && !tools.is_empty()
+            {
+                info = info.add_key_value("Tools", tools.len().to_string());
+                for tool in tools {
+                    info = info.add_value(tool.name.to_string());
+                }
+            }
+        }
+
+        // Show failed MCP servers
+        if !all_tools.mcp.get_failures().is_empty() {
+            info = info.add_title("FAILED");
+            for (server_name, error) in all_tools.mcp.get_failures().iter() {
+                // Truncate error message for readability
+                let truncated_error = if error.len() > 80 {
+                    format!("{}...", &error[..77])
+                } else {
+                    error.clone()
+                };
+                info = info.add_value(format!("[✗] {server_name} - {truncated_error}"));
             }
         }
 
@@ -1609,8 +1695,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             self.on_provider_selection().await?;
 
             // Check if a model was already selected during provider activation
-            if let Some(model) = self.api.get_default_model().await {
-                return Ok(Some(model));
+            // Return None to signal the model selection is complete and message was already
+            // printed
+            if self.api.get_default_model().await.is_some() {
+                return Ok(None);
             }
         }
 
@@ -1847,7 +1935,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Multiple auth methods - ask user to choose
         self.spinner.stop(None)?;
 
-        self.writeln_title(TitleFormat::action(format!("Configure {}", provider_id)))?;
+        self.writeln_title(TitleFormat::action(format!("Configure {provider_id}")))?;
         self.writeln("Multiple authentication methods available".dimmed())?;
 
         let method_names: Vec<String> = auth_methods
@@ -2144,7 +2232,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         sub_title.push('[');
 
         if let Some(ref agent) = self.api.get_active_agent().await {
-            sub_title.push_str(format!("via {}", agent).as_str());
+            sub_title.push_str(format!("via {agent}").as_str());
         }
 
         if let Some(ref model) = self
@@ -2467,7 +2555,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Output based on format
         if porcelain {
-            println!("{}", new_id);
+            println!("{new_id}");
         } else {
             self.writeln_title(
                 TitleFormat::info("Cloned").sub_title(format!("[{} → {}]", original.id, cloned.id)),
@@ -2631,9 +2719,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             };
 
             Err(anyhow::anyhow!(
-                "Model '{}' not found. Available models: {}",
-                model_str,
-                suggestion
+                "Model '{model_str}' not found. Available models: {suggestion}"
             ))
         }
     }
@@ -2707,26 +2793,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     async fn on_query(
         &mut self,
-        query: String,
         path: PathBuf,
-        limit: usize,
-        top_k: Option<u32>,
-        use_case: String,
-        starts_with: Option<String>,
-        ends_with: Option<String>,
+        params: forge_domain::SearchParams<'_>,
     ) -> anyhow::Result<()> {
         self.spinner.start(Some("Searching codebase..."))?;
-
-        let mut params = forge_domain::SearchParams::new(&query, &use_case).limit(limit);
-        if let Some(k) = top_k {
-            params = params.top_k(k);
-        }
-        if let Some(prefix) = starts_with {
-            params = params.starts_with(prefix);
-        }
-        if let Some(suffix) = ends_with {
-            params = params.ends_with(suffix);
-        }
 
         let results = match self.api.query_codebase(path.clone(), params).await {
             Ok(results) => results,
@@ -2912,7 +2982,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             let message = if count == 1 {
                 "Migrated 1 provider from environment variables".to_string()
             } else {
-                format!("Migrated {} providers from environment variables", count)
+                format!("Migrated {count} providers from environment variables")
             };
             self.writeln_title(TitleFormat::info(message))?;
         }

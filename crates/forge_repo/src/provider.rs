@@ -557,7 +557,7 @@ mod tests {
 
 #[cfg(test)]
 mod env_tests {
-    use std::collections::HashMap;
+    use std::collections::{BTreeMap, HashMap};
     use std::path::PathBuf;
     use std::sync::Arc;
 
@@ -595,6 +595,13 @@ mod env_tests {
 
         fn get_env_var(&self, key: &str) -> Option<String> {
             self.env_vars.get(key).cloned()
+        }
+
+        fn get_env_vars(&self) -> BTreeMap<String, String> {
+            self.env_vars
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect()
         }
     }
 
@@ -979,6 +986,13 @@ mod env_tests {
 
             fn get_env_var(&self, key: &str) -> Option<String> {
                 self.env_vars.get(key).cloned()
+            }
+
+            fn get_env_vars(&self) -> BTreeMap<String, String> {
+                self.env_vars
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect()
             }
         }
 

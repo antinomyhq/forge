@@ -282,7 +282,11 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + AppConf
         self.services.get_provider_model(None).await.ok()
     }
     async fn set_default_model(&self, model_id: ModelId) -> anyhow::Result<()> {
-        self.services.set_default_model(model_id).await
+        let result = self.services.set_default_model(model_id).await;
+        // Invalidate cache for agents
+        let _ = self.services.reload_agents().await;
+
+        result
     }
 
     async fn get_login_info(&self) -> Result<Option<LoginInfo>> {
