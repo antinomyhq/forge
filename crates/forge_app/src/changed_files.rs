@@ -113,7 +113,7 @@ mod tests {
                         start_line: 1,
                         end_line: 1,
                         total_lines: 1,
-                        raw_content_hash: hash,
+                        content_hash: hash,
                     }
                 })
                 .ok_or_else(|| anyhow::anyhow!(std::io::Error::from(std::io::ErrorKind::NotFound)))

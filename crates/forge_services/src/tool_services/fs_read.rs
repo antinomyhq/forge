@@ -108,7 +108,7 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for
             start_line: file_info.start_line,
             end_line: file_info.end_line,
             total_lines: file_info.total_lines,
-            raw_content_hash: hash,
+            content_hash: hash,
         })
     }
 }

@@ -83,13 +83,13 @@ impl<
         self.infra.write(path, Bytes::from(content.clone())).await?;
 
         // Compute hash of the written file content
-        let raw_content_hash = compute_hash(&content);
+        let content_hash = compute_hash(&content);
 
         Ok(FsCreateOutput {
             path: path.display().to_string(),
             before: old_content,
             warning: syntax_warning.map(|v| v.to_string()),
-            raw_content_hash,
+            content_hash,
         })
     }
 }

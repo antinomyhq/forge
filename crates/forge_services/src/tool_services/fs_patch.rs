@@ -234,13 +234,13 @@ impl<F: FileWriterInfra + SnapshotRepository> FsPatchService for ForgeFsPatch<F>
             .await?;
 
         // Compute hash of the final file content
-        let raw_content_hash = compute_hash(&current_content);
+        let content_hash = compute_hash(&current_content);
 
         Ok(PatchOutput {
             warning: tool_services::syn::validate(path, &current_content).map(|e| e.to_string()),
             before: old_content,
             after: current_content,
-            raw_content_hash,
+            content_hash,
         })
     }
 }

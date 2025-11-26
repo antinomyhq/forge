@@ -210,8 +210,7 @@ impl ToolOperation {
                 tracing::info!(path = %input.path, tool = %tool_name, "File read");
                 *metrics = metrics.clone().insert(
                     input.path.clone(),
-                    FileOperation::new(tool_kind)
-                        .content_hash(Some(output.raw_content_hash.clone())),
+                    FileOperation::new(tool_kind).content_hash(Some(output.content_hash.clone())),
                 );
 
                 forge_domain::ToolOutput::text(elm)
@@ -229,7 +228,7 @@ impl ToolOperation {
                     FileOperation::new(tool_kind)
                         .lines_added(diff_result.lines_added())
                         .lines_removed(diff_result.lines_removed())
-                        .content_hash(Some(output.raw_content_hash.clone())),
+                        .content_hash(Some(output.content_hash.clone())),
                 );
 
                 let mut elm = if output.before.as_ref().is_some() {
@@ -346,7 +345,7 @@ impl ToolOperation {
                     FileOperation::new(tool_kind)
                         .lines_added(diff_result.lines_added())
                         .lines_removed(diff_result.lines_removed())
-                        .content_hash(Some(output.raw_content_hash.clone())),
+                        .content_hash(Some(output.content_hash.clone())),
                 );
 
                 forge_domain::ToolOutput::text(elm)
@@ -567,7 +566,7 @@ mod tests {
                 start_line: 1,
                 end_line: 2,
                 total_lines: 2,
-                raw_content_hash: hash,
+                content_hash: hash,
             },
         };
 
@@ -599,7 +598,7 @@ mod tests {
                 start_line: 1,
                 end_line: 1,
                 total_lines: 1,
-                raw_content_hash: hash,
+                content_hash: hash,
             },
         };
 
@@ -630,7 +629,7 @@ mod tests {
                 start_line: 2,
                 end_line: 3,
                 total_lines: 5,
-                raw_content_hash: hash,
+                content_hash: hash,
             },
         };
 
@@ -662,7 +661,7 @@ mod tests {
                 start_line: 1,
                 end_line: 100,
                 total_lines: 200,
-                raw_content_hash: hash,
+                content_hash: hash,
             },
         };
 
@@ -693,7 +692,7 @@ mod tests {
                 path: "/home/user/new_file.txt".to_string(),
                 before: None,
                 warning: None,
-                raw_content_hash: compute_hash(content),
+                content_hash: compute_hash(content),
             },
         };
 
@@ -722,7 +721,7 @@ mod tests {
                 path: "/home/user/existing_file.txt".to_string(),
                 before: Some("Old content".to_string()),
                 warning: None,
-                raw_content_hash: compute_hash(content),
+                content_hash: compute_hash(content),
             },
         };
 
@@ -1197,7 +1196,7 @@ mod tests {
                 path: "/home/user/file_with_warning.txt".to_string(),
                 before: None,
                 warning: Some("File created in non-standard location".to_string()),
-                raw_content_hash: compute_hash(content),
+                content_hash: compute_hash(content),
             },
         };
 
@@ -1313,7 +1312,7 @@ mod tests {
                 warning: None,
                 before: "Hello world\nThis is a test".to_string(),
                 after: after_content.to_string(),
-                raw_content_hash: compute_hash(after_content),
+                content_hash: compute_hash(after_content),
             },
         };
 
@@ -1343,7 +1342,7 @@ mod tests {
                 warning: Some("Large file modification".to_string()),
                 before: "line1\nline2".to_string(),
                 after: after_content.to_string(),
-                raw_content_hash: compute_hash(after_content),
+                content_hash: compute_hash(after_content),
             },
         };
 
