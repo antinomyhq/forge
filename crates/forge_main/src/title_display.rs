@@ -27,9 +27,9 @@ impl TitleDisplay {
             Category::Action => "⏺".yellow(),
             Category::Info => "⏺".white(),
             Category::Debug => "⏺".cyan(),
-            Category::Error => "⏺".red(),
+            Category::Error => "❌".red(),
             Category::Completion => "⏺".yellow(),
-            Category::Warning => "⏺".bright_yellow(),
+            Category::Warning => "⚠️".bright_yellow(),
         };
 
         buf.push_str(format!("{icon} ").as_str());
