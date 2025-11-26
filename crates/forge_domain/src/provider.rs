@@ -51,6 +51,30 @@ impl ProviderId {
     pub const OPENAI_COMPATIBLE: ProviderId = ProviderId(Cow::Borrowed("openai_compatible"));
     pub const ANTHROPIC_COMPATIBLE: ProviderId = ProviderId(Cow::Borrowed("anthropic_compatible"));
 
+    /// Returns all built-in provider IDs
+    ///
+    /// This includes all providers defined as constants in this implementation.
+    pub fn built_in_providers() -> &'static [ProviderId] {
+        &[
+            ProviderId::FORGE,
+            ProviderId::OPENAI,
+            ProviderId::OPEN_ROUTER,
+            ProviderId::REQUESTY,
+            ProviderId::ZAI,
+            ProviderId::ZAI_CODING,
+            ProviderId::CEREBRAS,
+            ProviderId::XAI,
+            ProviderId::ANTHROPIC,
+            ProviderId::CLAUDE_CODE,
+            ProviderId::VERTEX_AI,
+            ProviderId::BIG_MODEL,
+            ProviderId::AZURE,
+            ProviderId::GITHUB_COPILOT,
+            ProviderId::OPENAI_COMPATIBLE,
+            ProviderId::ANTHROPIC_COMPATIBLE,
+        ]
+    }
+
     /// Returns the display name for UI (UpperCamelCase with special handling
     /// for acronyms).
     ///

@@ -2,7 +2,7 @@ use std::fmt::Display;
 use std::sync::{Arc, Mutex};
 
 use colored::Colorize;
-use forge_api::{Agent, AnyProvider, Model, Template};
+use forge_api::{Agent, AnyProvider, Model, ProviderId, Template};
 use forge_domain::UserCommand;
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{EnumIter, EnumProperty};
@@ -62,7 +62,11 @@ impl Display for CliProvider {
         // Format: "✓ " + name_padded + " [" + domain + "]"
         // Longest built-in provider display name is "AnthropicCompatible" (20 chars)
         // But we use 19 to account for the space before "["
-        let name_width = 19;
+        let name_width = ProviderId::built_in_providers()
+            .iter()
+            .map(|id| id.to_string().len())
+            .max()
+            .unwrap_or(10);
 
         let name = self.0.id().to_string();
 
