@@ -1105,6 +1105,65 @@ mod tests {
         assert!(actual.is_none());
     }
 
+    #[test]
+    fn test_sync_plan_new_computes_correct_diff() {
+        let local = vec![
+            IndexedFile::new("a.rs".into(), "content_a".into(), "hash_a".into()),
+            IndexedFile::new("b.rs".into(), "new_content".into(), "new_hash".into()),
+            IndexedFile::new("d.rs".into(), "content_d".into(), "hash_d".into()),
+        ];
+        let remote = vec![
+            FileHash { path: "a.rs".into(), hash: "hash_a".into() },
+            FileHash { path: "b.rs".into(), hash: "old_hash".into() },
+            FileHash { path: "c.rs".into(), hash: "hash_c".into() },
+        ];
+
+        let actual = SyncPlan::new(local, remote);
+
+        assert_eq!(actual.total(), 4);
+        assert_eq!(actual.files_to_delete.len(), 2);
+        assert_eq!(actual.files_to_upload.len(), 2);
+        assert!(actual.files_to_delete.contains(&"b.rs".to_string()));
+        assert!(actual.files_to_delete.contains(&"c.rs".to_string()));
+        assert!(actual.files_to_upload.iter().any(|f| f.path == "b.rs"));
+        assert!(actual.files_to_upload.iter().any(|f| f.path == "d.rs"));
+    }
+
+    #[tokio::test]
+    async fn test_sync_plan_execute_batches_and_tracks_progress() {
+        use std::sync::Mutex;
+
+        let plan = SyncPlan {
+            files_to_delete: vec!["a.rs".into(), "b.rs".into(), "c.rs".into()],
+            files_to_upload: vec![
+                forge_domain::FileRead::new("d.rs".into(), "content_d".into()),
+                forge_domain::FileRead::new("e.rs".into(), "content_e".into()),
+            ],
+        };
+
+        let progress = Arc::new(Mutex::new(Vec::new()));
+        let progress_clone = progress.clone();
+
+        plan.execute(
+            2,
+            |_| Box::pin(async { Ok(()) }),
+            |_| Box::pin(async { Ok(()) }),
+            move |processed, total| {
+                let progress = progress_clone.clone();
+                Box::pin(async move {
+                    progress.lock().unwrap().push((processed, total));
+                })
+            },
+        )
+        .await
+        .unwrap();
+
+        let actual = progress.lock().unwrap().clone();
+        let expected = vec![(0, 5), (2, 5), (3, 5), (5, 5)];
+
+        assert_eq!(actual, expected);
+    }
+
     #[tokio::test]
     async fn test_get_workspace_info_error_when_not_authenticated() {
         let mut mock = MockInfra::synced(&["main.rs"]);
