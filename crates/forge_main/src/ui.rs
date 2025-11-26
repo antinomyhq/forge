@@ -2868,14 +2868,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         .add_title(format!("Workspace [{}]", timestamp))
                         .add_key_value("id", workspace.workspace_id.to_string())
                         .add_key_value("path", workspace.working_dir)
-                        .add_key_value("updated", updated_elapsed_time);
-
-                    // Only add created_at if available
-                    if let Some(created_at) = workspace.created_at {
-                        info = info.add_key_value("created", humanize_time(created_at));
-                    }
-
-                    info = info
+                        .add_key_value("updated", updated_elapsed_time)
+                        .add_key_value("created", humanize_time(workspace.created_at))
                         .add_key_value("nodes", workspace.node_count)
                         .add_key_value("relations", workspace.relation_count);
                 }
@@ -2910,12 +2904,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     .add_key_value("Workspace ID", workspace.workspace_id.to_string())
                     .add_key_value("Workspace Path", workspace.working_dir)
                     .add_key_value("File Count", workspace.node_count.to_string())
-                    .add_key_value("Relations", workspace.relation_count.to_string());
-
-                // Add created at if available
-                if let Some(created_at) = workspace.created_at {
-                    info = info.add_key_value("Created At", humanize_time(created_at));
-                }
+                    .add_key_value("Relations", workspace.relation_count.to_string())
+                    .add_key_value("Created At", humanize_time(workspace.created_at));
 
                 // Add last updated if available
                 if let Some(last_updated) = workspace.last_updated {

@@ -153,7 +153,7 @@ pub struct WorkspaceInfo {
     /// Last updated timestamp
     pub last_updated: Option<chrono::DateTime<chrono::Utc>>,
     /// Workspace created time.
-    pub created_at: Option<chrono::DateTime<chrono::Utc>>,
+    pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
 /// File hash information from the server
