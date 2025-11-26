@@ -634,6 +634,14 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     .await?;
                 self.spinner.stop(None)?;
             }
+            ConversationCommand::Delete { id, force } => {
+                let conversation_id =
+                    ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
+
+                let conversation = self.validate_conversation_exists(&conversation_id).await?;
+
+                self.on_conversation_delete(conversation, force).await?;
+            }
         }
 
         Ok(())
@@ -2679,6 +2687,54 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             self.writeln(self.markdown.render(message))?;
         }
 
+        Ok(())
+    }
+
+    async fn on_conversation_delete(
+        &mut self,
+        conversation: Conversation,
+        force: bool,
+    ) -> anyhow::Result<()> {
+        if !force {
+            let confirmed = self.confirm_delete_conversation(&conversation)?;
+            if !confirmed {
+                self.writeln_title(TitleFormat::info("Delete cancelled"))?;
+                return Ok(());
+            }
+        }
+
+        self.spinner.start(Some("Deleting"))?;
+        self.api.delete_conversation(&conversation.id).await?;
+        self.spinner.stop(None)?;
+
+        self.handle_conversation_state_after_delete(&conversation.id).await?;
+
+        self.writeln_title(
+            TitleFormat::info("Deleted")
+                .sub_title(format!("Conversation '{}' was permanently deleted", conversation.title.as_deref().unwrap_or("Untitled"))),
+        )?;
+
+        Ok(())
+    }
+
+    fn confirm_delete_conversation(&self, conversation: &Conversation) -> anyhow::Result<bool> {
+        let title = conversation.title.as_deref().unwrap_or("Untitled");
+        let prompt = format!("Delete conversation '{}'?", title);
+        
+        match forge_select::ForgeSelect::confirm(&prompt).with_default(false).prompt()? {
+            Some(confirmed) => Ok(confirmed),
+            None => Err(anyhow::anyhow!("Delete confirmation cancelled")),
+        }
+    }
+
+    async fn handle_conversation_state_after_delete(
+        &mut self,
+        deleted_id: &ConversationId,
+    ) -> anyhow::Result<()> {
+        if self.state.conversation_id == Some(*deleted_id) {
+            self.state.conversation_id = None;
+            self.writeln_title(TitleFormat::info("Active conversation cleared"))?;
+        }
         Ok(())
     }
 

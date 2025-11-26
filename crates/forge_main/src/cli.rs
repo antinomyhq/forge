@@ -428,6 +428,16 @@ pub enum ConversationCommand {
         /// Conversation ID to clone.
         id: String,
     },
+
+    /// Delete a conversation permanently.
+    Delete {
+        /// Conversation ID to delete.
+        id: String,
+
+        /// Skip confirmation prompt.
+        #[arg(long)]
+        force: bool,
+    },
 }
 
 /// Command group for provider authentication management.
