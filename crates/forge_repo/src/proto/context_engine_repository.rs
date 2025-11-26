@@ -60,12 +60,18 @@ impl TryFrom<Workspace> for WorkspaceInfo {
             .last_updated
             .and_then(|ts| chrono::DateTime::from_timestamp(ts.seconds, ts.nanos as u32));
 
+        let created_at = workspace
+            .created_at
+            .and_then(|ts| chrono::DateTime::from_timestamp(ts.seconds, ts.nanos as u32))
+            .context("Missing or invalid created_at")?;
+
         Ok(WorkspaceInfo {
             workspace_id,
             working_dir: workspace.working_dir,
             node_count: workspace.node_count,
             relation_count: workspace.relation_count,
             last_updated,
+            created_at,
         })
     }
 }
