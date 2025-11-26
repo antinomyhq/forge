@@ -234,16 +234,18 @@ mod tests {
 
         // When shell is normal but restricted flag is true -> should check editor list
         let shell_normal = "/bin/bash";
-        let is_restricted_mode_flag = true || EditorService::is_restricted_shell(shell_normal);
+        let restricted_flag_true = true;
+        let is_restricted_mode_flag = restricted_flag_true || EditorService::is_restricted_shell(shell_normal);
         assert!(is_restricted_mode_flag);
 
         // When shell is rbash but restricted flag is false -> should check editor list
         let shell_rbash = "/bin/rbash";
-        let is_restricted_mode_shell = false || EditorService::is_restricted_shell(shell_rbash);
+        let restricted_flag_false = false;
+        let is_restricted_mode_shell = restricted_flag_false || EditorService::is_restricted_shell(shell_rbash);
         assert!(is_restricted_mode_shell);
 
         // When both are normal -> should not check editor list
-        let is_restricted_mode_none = false || EditorService::is_restricted_shell(shell_normal);
+        let is_restricted_mode_none = restricted_flag_false || EditorService::is_restricted_shell(shell_normal);
         assert!(!is_restricted_mode_none);
     }
 }
