@@ -429,6 +429,7 @@ Control how Forge handles retry logic for failed requests:
 FORGE_RETRY_INITIAL_BACKOFF_MS=1000    # Initial backoff time in milliseconds (default: 1000)
 FORGE_RETRY_BACKOFF_FACTOR=2           # Multiplier for backoff time (default: 2)
 FORGE_RETRY_MAX_ATTEMPTS=3             # Maximum retry attempts (default: 3)
+FORGE_RETRY_STATUS_CODES=429,500,502   # HTTP status codes to retry (default: 429,500,503,504)
 FORGE_SUPPRESS_RETRY_ERRORS=false      # Suppress retry error messages (default: false)
 ```
 
