@@ -2769,35 +2769,29 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         let mut stream = self.api.sync_codebase(path.clone(), batch_size).await?;
         let mut progress_bar = ProgressBarManager::default();
+        progress_bar.start(100, "Indexing codebase")?;
+
         while let Some(event) = stream.next().await {
             match event {
-                Ok(IndexProgress::Syncing { current: 0, total }) => {
-                    self.spinner.stop(None)?;
-                    progress_bar.start(total as u64, "Syncing")?;
-                }
-                Ok(IndexProgress::Syncing { current, .. }) => {
-                    progress_bar.set_position(current as u64)?;
-                }
-                Ok(e @ IndexProgress::WorkspaceCreated { .. }) => {
-                    self.spinner.stop(None)?;
-                    self.writeln_title(TitleFormat::action(e.message()))?;
-                    self.spinner.start(Some("Syncing"))?;
-                }
-                Ok(e @ IndexProgress::Completed { .. }) => {
-                    self.spinner.stop(None)?;
+                Ok(ref progress @ IndexProgress::Completed { .. }) => {
+                    progress_bar.set_position(100)?;
                     progress_bar.stop(None).await?;
-                    self.writeln_title(TitleFormat::completion(e.message()))?;
+                    self.writeln_title(TitleFormat::completion(progress.message()))?;
                 }
-                Ok(e) => self.spinner.start(Some(&e.message()))?,
+                Ok(ref progress) => {
+                    progress_bar.set_message(&progress.message())?;
+                    if let Some(weight) = progress.weight() {
+                        progress_bar.set_position(weight)?;
+                    }
+                }
                 Err(e) => {
                     progress_bar.stop(None).await?;
-                    self.spinner.stop(None)?;
                     return Err(e);
                 }
             }
         }
 
-        progress_bar.stop(None).await
+        Ok(())
     }
 
     async fn on_query(

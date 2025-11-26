@@ -13,7 +13,7 @@ impl ProgressBarManager {
         let pb = ProgressBar::new(total);
         pb.set_style(
             ProgressStyle::with_template(
-                "{spinner:.green} [{elapsed_precise}] [{bar:20.green}] {pos}/{len} ({percent}%) {msg}",
+                "{spinner:.green} {msg:.green} [{bar:20.green}] {pos}/{len} [{elapsed_precise}]",
             )
             .unwrap()
             .progress_chars("█░░")
@@ -29,6 +29,14 @@ impl ProgressBarManager {
     pub fn set_position(&self, current: u64) -> Result<()> {
         if let Some(bar) = &self.bar {
             bar.set_position(current);
+        }
+        Ok(())
+    }
+
+    /// Updates the progress bar message
+    pub fn set_message(&self, message: &str) -> Result<()> {
+        if let Some(bar) = &self.bar {
+            bar.set_message(message.to_string());
         }
         Ok(())
     }

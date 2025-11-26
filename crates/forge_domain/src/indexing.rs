@@ -44,28 +44,50 @@ pub enum IndexProgress {
 }
 
 impl IndexProgress {
+    /// Progress weight allocation:
+    /// - 0-20%: Discovery phase (guaranteed events)
+    /// - 20-100%: Syncing phase (file operations)
+    const DISCOVERY_WEIGHT: u64 = 20;
+    const SYNC_WEIGHT: u64 = 80;
+
+    /// Returns the progress weight (0-100) for this event.
+    pub fn weight(&self) -> Option<u64> {
+        match self {
+            Self::Starting => Some(0),
+            Self::DiscoveringFiles { .. } => Some(5),
+            Self::FilesDiscovered { .. } => Some(10),
+            Self::ComparingFiles => Some(Self::DISCOVERY_WEIGHT),
+            Self::Completed { .. } => Some(100),
+            Self::WorkspaceCreated { .. } => None,
+            Self::Syncing { current, total } => {
+                let sync_progress = if *total > 0 {
+                    (*current as u64 * Self::SYNC_WEIGHT) / *total as u64
+                } else {
+                    0
+                };
+                Some(Self::DISCOVERY_WEIGHT + sync_progress)
+            }
+        }
+    }
+
     /// Returns a human-readable status message for this event
     pub fn message(&self) -> String {
         match self {
-            Self::Starting => "Initializing".to_string(),
-            Self::WorkspaceCreated { workspace_id } => {
-                format!("Created workspace {}", workspace_id)
-            }
+            Self::Starting => "Starting...".to_string(),
+            Self::WorkspaceCreated { .. } => "Workspace created".to_string(),
             Self::DiscoveringFiles { path } => {
-                format!("Discovering {}", path.display())
+                // Show only the last directory component for brevity
+                let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("files");
+                format!("Discovering {}", name)
             }
-            Self::FilesDiscovered { count } => {
-                format!("Found {} files", count)
-            }
-            Self::ComparingFiles => "Comparing with server".to_string(),
-            Self::Syncing { current, total } => {
-                format!("Syncing {}/{}", current, total)
-            }
+            Self::FilesDiscovered { count } => format!("Found {} files", count),
+            Self::ComparingFiles => "Comparing...".to_string(),
+            Self::Syncing { .. } => "Syncing...".to_string(),
             Self::Completed { uploaded_files, total_files } => {
                 if *uploaded_files == 0 {
-                    format!("All {} files up to date", total_files)
+                    format!("{} files up to date", total_files)
                 } else {
-                    format!("Synced {} of {} files", uploaded_files, total_files)
+                    format!("Synced {} files", uploaded_files)
                 }
             }
         }
