@@ -1290,6 +1290,17 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             info = info.add_key_value("Model", model);
         }
 
+        // Show runtime overrides if CLI flags were provided
+        if self.cli.provider.is_some() || self.cli.model.is_some() {
+            info = info.add_title("RUNTIME OVERRIDES (NOT PERSISTED)");
+            if let Some(provider_id) = self.cli.provider {
+                info = info.add_key_value("Provider", format!("{} (from --provider)", provider_id));
+            }
+            if let Some(model_id) = &self.cli.model {
+                info = info.add_key_value("Model", format!("{} (from --model)", model_id));
+            }
+        }
+
         // Add provider information
         match (default_provider, agent_provider) {
             (Some(default), Some(agent_specific)) if default.id != agent_specific.id => {
@@ -2180,6 +2191,52 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Initialize the state of the UI
     async fn init_state(&mut self, first: bool) -> Result<Workflow> {
+        // Apply CLI provider/model overrides if specified
+        if self.cli.provider.is_some() || self.cli.model.is_some() {
+            let mut config = self.api.get_app_config().await?;
+
+            // Apply provider override
+            if let Some(provider_id) = self.cli.provider {
+                // Validate provider exists
+                if let Err(e) = self.api.get_provider(&provider_id).await {
+                    self.writeln_title(TitleFormat::error(format!(
+                        "Invalid provider '{}': {}",
+                        provider_id, e
+                    )))?;
+                    return Err(e);
+                }
+                config.provider = Some(provider_id);
+            }
+
+            // Apply model override
+            if let Some(model_id) = self.cli.model.clone() {
+                let provider_id = config
+                    .provider
+                    .ok_or_else(|| anyhow::anyhow!("No provider configured. Use --provider flag or configure a default provider first."))?;
+
+                // Validate that the model is available from the provider
+                let provider = self.api.get_provider(&provider_id).await?;
+                let available_models = self.api.get_models_for_provider(provider).await?;
+                let model_exists = available_models
+                    .iter()
+                    .any(|m| m.id.as_str() == model_id.as_str());
+
+                if !model_exists {
+                    let error_msg = format!(
+                        "Model '{}' is not available from provider '{}'. Use 'forge provider model list {}' to see available models.",
+                        model_id, provider_id, provider_id
+                    );
+                    self.writeln_title(TitleFormat::error(&error_msg))?;
+                    return Err(anyhow::anyhow!(error_msg));
+                }
+
+                config.model.insert(provider_id, model_id);
+            }
+
+            // Set runtime config (cache only, does not persist to disk)
+            self.api.set_runtime_config(&config).await?;
+        }
+
         // Run the independent initialization tasks in parallel for better performance
         let workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
 

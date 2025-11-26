@@ -73,6 +73,14 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Send + Sync> AppC
 
         Ok(())
     }
+
+    async fn set_runtime_config(&self, config: &AppConfig) -> anyhow::Result<()> {
+        // Update cache only, without writing to disk
+        let mut cache = self.cache.lock().await;
+        *cache = Some(config.clone());
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -268,5 +276,87 @@ mod tests {
 
         // Config should be the default
         assert_eq!(config, AppConfig::default());
+    }
+
+    #[tokio::test]
+    async fn test_set_runtime_config_only_updates_cache() {
+        use std::collections::HashMap;
+
+        use forge_domain::{ModelId, ProviderId};
+
+        let (repo, _temp_dir) = repository_with_config_fixture();
+
+        // Create a modified config with runtime overrides
+        let mut runtime_config = AppConfig::default();
+        runtime_config.provider = Some(ProviderId::OpenAI);
+        runtime_config
+            .model
+            .insert(ProviderId::OpenAI, ModelId::new("gpt-4o"));
+
+        // Set runtime config (should only update cache)
+        repo.set_runtime_config(&runtime_config).await.unwrap();
+
+        // Get config should return the runtime config
+        let actual = repo.get_app_config().await.unwrap();
+        assert_eq!(actual, runtime_config);
+
+        // Verify file was NOT written by reading directly
+        let file_content = repo.infra.files.lock().unwrap();
+        let file_config_str = file_content.get(&repo.infra.config_path).unwrap();
+        let file_config: AppConfig = serde_json::from_str(file_config_str).unwrap();
+
+        // File should still contain the default config, not the runtime config
+        let expected = AppConfig::default();
+        assert_eq!(file_config, expected);
+    }
+
+    #[tokio::test]
+    async fn test_runtime_config_cache_used_before_disk() {
+        use forge_domain::{ModelId, ProviderId};
+
+        let (repo, _temp_dir) = repository_with_config_fixture();
+
+        // Set runtime config
+        let mut runtime_config = AppConfig::default();
+        runtime_config.provider = Some(ProviderId::Anthropic);
+        runtime_config.model.insert(
+            ProviderId::Anthropic,
+            ModelId::new("claude-3-5-sonnet-20241022"),
+        );
+
+        repo.set_runtime_config(&runtime_config).await.unwrap();
+
+        // First read should use cache
+        let first_read = repo.get_app_config().await.unwrap();
+        assert_eq!(first_read, runtime_config);
+
+        // Second read should also use cache
+        let second_read = repo.get_app_config().await.unwrap();
+        assert_eq!(second_read, runtime_config);
+    }
+
+    #[tokio::test]
+    async fn test_set_app_config_busts_runtime_cache() {
+        use forge_domain::{ModelId, ProviderId};
+
+        let (repo, _temp_dir) = repository_with_config_fixture();
+
+        // Set runtime config
+        let mut runtime_config = AppConfig::default();
+        runtime_config.provider = Some(ProviderId::OpenAI);
+        repo.set_runtime_config(&runtime_config).await.unwrap();
+
+        // Verify runtime config is returned
+        let cached = repo.get_app_config().await.unwrap();
+        assert_eq!(cached.provider, Some(ProviderId::OpenAI));
+
+        // Write new config to disk (should bust cache)
+        let mut persistent_config = AppConfig::default();
+        persistent_config.provider = Some(ProviderId::Anthropic);
+        repo.set_app_config(&persistent_config).await.unwrap();
+
+        // Next read should return the persisted config, not the runtime cache
+        let after_write = repo.get_app_config().await.unwrap();
+        assert_eq!(after_write.provider, Some(ProviderId::Anthropic));
     }
 }

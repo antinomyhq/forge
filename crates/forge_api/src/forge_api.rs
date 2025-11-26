@@ -76,6 +76,13 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + AppConf
             )
             .await?)
     }
+
+    async fn get_models_for_provider(&self, provider: AnyProvider) -> Result<Vec<Model>> {
+        // Convert AnyProvider to Provider<Url>
+        let provider_with_url = self.services.get_provider(provider.id()).await?;
+        Ok(self.services.models(provider_with_url).await?)
+    }
+
     async fn get_agents(&self) -> Result<Vec<Agent>> {
         self.services.get_agents().await
     }
@@ -343,5 +350,13 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + AppConf
 
     async fn get_default_provider(&self) -> Result<Provider<Url>> {
         self.services.get_default_provider().await
+    }
+
+    async fn get_app_config(&self) -> Result<AppConfig> {
+        self.infra.get_app_config().await
+    }
+
+    async fn set_runtime_config(&self, config: &AppConfig) -> Result<()> {
+        self.infra.set_runtime_config(config).await
     }
 }
