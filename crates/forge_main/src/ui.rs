@@ -1024,6 +1024,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 "conversation",
                 "List all conversations for the active workspace [alias: c]",
             ),
+            ("delete", "Permanently delete a conversation"),
             ("retry", "Retry the last command [alias: r]"),
             ("compact", "Compact the conversation context"),
             ("edit", "Use an external editor to write a prompt"),
@@ -1468,6 +1469,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         match command {
             SlashCommand::Conversations => {
                 self.list_conversations().await?;
+            }
+            SlashCommand::Delete => {
+                self.on_delete_interactive().await?;
             }
             SlashCommand::Compact => {
                 self.spinner.start(Some("Compacting"))?;
@@ -2713,6 +2717,33 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             TitleFormat::info("Deleted")
                 .sub_title(format!("Conversation '{}' was permanently deleted", conversation.title.as_deref().unwrap_or("Untitled"))),
         )?;
+
+        Ok(())
+    }
+
+    async fn on_delete_interactive(&mut self) -> anyhow::Result<()> {
+        let conversations = self.api.get_conversations(None).await?;
+
+        if conversations.is_empty() {
+            self.writeln_title(TitleFormat::info("No conversations found"))?;
+            return Ok(());
+        }
+
+        if let Some(conversation) = ConversationSelector::select_conversation(&conversations).await? {
+            if self.confirm_delete_conversation(&conversation)? {
+                let conversation_id = conversation.id;
+                self.api.delete_conversation(&conversation_id).await?;
+                self.writeln_title(TitleFormat::info("Conversation deleted successfully"))?;
+
+                if let Some(active_conversation_id) = self.state.conversation_id {
+                    if active_conversation_id == conversation_id {
+                        self.handle_conversation_state_after_delete(&conversation_id).await?;
+                    }
+                }
+            } else {
+                self.writeln_title(TitleFormat::info("Conversation deletion cancelled"))?;
+            }
+        }
 
         Ok(())
     }
