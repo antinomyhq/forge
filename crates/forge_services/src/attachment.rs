@@ -120,7 +120,7 @@ impl<F: FileReaderInfra + EnvironmentInfra + FileInfoInfra + DirectoryReaderInfr
 
 #[cfg(test)]
 pub mod tests {
-    use std::collections::{HashMap, HashSet};
+    use std::collections::{BTreeMap, HashMap, HashSet};
     use std::path::{Path, PathBuf};
     use std::sync::{Arc, Mutex};
 
@@ -158,6 +158,10 @@ pub mod tests {
 
         fn get_env_var(&self, _key: &str) -> Option<String> {
             None
+        }
+
+        fn get_env_vars(&self) -> BTreeMap<String, String> {
+            BTreeMap::new()
         }
     }
 
@@ -424,6 +428,7 @@ pub mod tests {
         async fn connect(
             &self,
             _: forge_app::domain::McpServerConfig,
+            _: &BTreeMap<String, String>,
         ) -> anyhow::Result<Self::Client> {
             Ok(Mock)
         }
@@ -645,6 +650,10 @@ pub mod tests {
 
         fn get_env_var(&self, _key: &str) -> Option<String> {
             None
+        }
+
+        fn get_env_vars(&self) -> BTreeMap<String, String> {
+            BTreeMap::new()
         }
     }
 
