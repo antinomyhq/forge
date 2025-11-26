@@ -516,7 +516,7 @@ function _forge_action_editor() {
     
     # Validate editor exists
     if ! command -v "${editor_cmd%% *}" &>/dev/null; then
-        _forge_log error "Editor '$editor_cmd' not found. Set FORGE_EDITOR or EDITOR environment variable"
+        _forge_log error "Editor not found: $editor_cmd (set FORGE_EDITOR or EDITOR)"
         _forge_reset
         return 1
     fi
@@ -549,7 +549,7 @@ function _forge_action_editor() {
     local editor_exit_code=$?
     
     if [ $editor_exit_code -ne 0 ]; then
-        _forge_log error "Editor exited with error (code: $editor_exit_code)"
+        _forge_log error "Editor exited with error code $editor_exit_code"
         _forge_reset
         return 1
     fi
@@ -559,7 +559,7 @@ function _forge_action_editor() {
     content=$(cat "$temp_file" | tr -d '\r')
     
     if [ -z "$content" ]; then
-        _forge_log info "No content to insert"
+        _forge_log info "Editor closed with no content"
         _forge_reset
         return 0
     fi
@@ -568,7 +568,7 @@ function _forge_action_editor() {
     BUFFER=": $content"
     CURSOR=${#BUFFER}
     
-    _forge_log info "Command inserted into buffer (press ENTER to execute)"
+    _forge_log info "Command ready - press Enter to execute"
     zle reset-prompt
 }
 
