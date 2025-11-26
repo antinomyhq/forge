@@ -80,6 +80,42 @@ function _forge_print_agent_message() {
     echo "\033[33m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] \033[1;37m${agent_name:u}\033[0m \033[90mis the active agent\033[0m"
 }
 
+# Helper function to print messages with consistent formatting based on log level
+# Usage: _forge_log <level> <message>
+# Levels: error, info, success, warning, debug
+# Color scheme matches crates/forge_main/src/title_display.rs
+function _forge_log() {
+    local level="$1"
+    local message="$2"
+    local timestamp="\033[90m[$(date '+%H:%M:%S')]\033[0m"
+    
+    case "$level" in
+        error)
+            # Category::Error - Red ❌
+            echo "\033[31m❌\033[0m ${timestamp} \033[31m${message}\033[0m"
+            ;;
+        info)
+            # Category::Info - White ⏺
+            echo "\033[37m⏺\033[0m ${timestamp} \033[37m${message}\033[0m"
+            ;;
+        success)
+            # Category::Action/Completion - Yellow ⏺
+            echo "\033[33m⏺\033[0m ${timestamp} \033[37m${message}\033[0m"
+            ;;
+        warning)
+            # Category::Warning - Bright yellow ⚠️
+            echo "\033[93m⚠️\033[0m ${timestamp} \033[93m${message}\033[0m"
+            ;;
+        debug)
+            # Category::Debug - Cyan ⏺ with dimmed text
+            echo "\033[36m⏺\033[0m ${timestamp} \033[90m${message}\033[0m"
+            ;;
+        *)
+            echo "${message}"
+            ;;
+    esac
+}
+
 # Helper function to find the index of a value in a list (1-based)
 # Returns the index if found, 1 otherwise
 function _forge_find_index() {
@@ -110,7 +146,7 @@ function _forge_select_provider() {
     output=$($_FORGE_BIN list provider --porcelain 2>/dev/null)
     
     if [[ -z "$output" ]]; then
-        echo "\033[31m✗\033[0m No providers available"
+        _forge_log error "No providers available"
         return 1
     fi
     
@@ -118,7 +154,7 @@ function _forge_select_provider() {
     if [[ -n "$filter_status" ]]; then
         output=$(echo "$output" | grep -i "$filter_status")
         if [[ -z "$output" ]]; then
-            echo "\033[31m✗\033[0m No ${filter_status} providers found"
+            _forge_log error "No ${filter_status} providers found"
             return 1
         fi
     fi
@@ -200,7 +236,7 @@ function _forge_handle_conversation_command() {
     
     # Check if FORGE_CONVERSATION_ID is set
     if [[ -z "$_FORGE_CONVERSATION_ID" ]]; then
-        echo "\033[31m✗\033[0m No active conversation. Start a conversation first or use :list to see existing ones"
+        _forge_log error "No active conversation. Start a conversation first or use :list to see existing ones"
         _forge_reset
         return 0
     fi
@@ -345,7 +381,7 @@ function _forge_action_conversation() {
         _forge_exec conversation info "$conversation_id"
         
         # Print log about conversation switching
-        echo "\033[36m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] Switched to conversation \033[1m${conversation_id}\033[0m"
+        _forge_log success "Switched to conversation \033[1m${conversation_id}\033[0m"
         
         _forge_reset
         return 0
@@ -393,11 +429,11 @@ function _forge_action_conversation() {
             _forge_exec conversation info "$conversation_id"
             
             # Print log about conversation switching
-            echo "\033[36m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] Switched to conversation \033[1m${conversation_id}\033[0m"
+            _forge_log success "Switched to conversation \033[1m${conversation_id}\033[0m"
             
         fi
     else
-        echo "\033[31m✗\033[0m No conversations found"
+        _forge_log error "No conversations found"
     fi
     
     _forge_reset
@@ -471,6 +507,75 @@ function _forge_action_tools() {
 }
 
 
+# Action handler: Open external editor for command composition
+function _forge_action_editor() {
+    local initial_text="$1"
+    echo
+    
+    # Determine editor in order of preference: FORGE_EDITOR > EDITOR > nano
+    local editor_cmd="${FORGE_EDITOR:-${EDITOR:-nano}}"
+    
+    # Validate editor exists
+    if ! command -v "${editor_cmd%% *}" &>/dev/null; then
+        _forge_log error "Editor not found: $editor_cmd (set FORGE_EDITOR or EDITOR)"
+        _forge_reset
+        return 1
+    fi
+    
+    # Create .forge directory if it doesn't exist
+    local forge_dir=".forge"
+    if [[ ! -d "$forge_dir" ]]; then
+        mkdir -p "$forge_dir" || {
+            _forge_log error "Failed to create .forge directory"
+            _forge_reset
+            return 1
+        }
+    fi
+    
+    # Create temporary file with git-like naming: FORGE_EDITMSG
+    local temp_file="${forge_dir}/FORGE_EDITMSG"
+    touch "$temp_file" || {
+        _forge_log error "Failed to create temporary file"
+        _forge_reset
+        return 1
+    }
+    
+    # Ensure cleanup on exit
+    trap "rm -f '$temp_file'" EXIT INT TERM
+    
+    # Pre-populate with initial text if provided
+    if [[ -n "$initial_text" ]]; then
+        echo "$initial_text" > "$temp_file"
+    fi
+    
+    # Open editor
+    eval "$editor_cmd '$temp_file'"
+    local editor_exit_code=$?
+    
+    if [ $editor_exit_code -ne 0 ]; then
+        _forge_log error "Editor exited with error code $editor_exit_code"
+        _forge_reset
+        return 1
+    fi
+    
+    # Read and process content
+    local content
+    content=$(cat "$temp_file" | tr -d '\r')
+    
+    if [ -z "$content" ]; then
+        _forge_log info "Editor closed with no content"
+        _forge_reset
+        return 0
+    fi
+    
+    # Insert into buffer with : prefix
+    BUFFER=": $content"
+    CURSOR=${#BUFFER}
+    
+    _forge_log info "Command ready - press Enter to execute"
+    zle reset-prompt
+}
+
 # Action handler: Show skills
 function _forge_action_skill() {
     echo
@@ -484,7 +589,7 @@ function _forge_action_suggest() {
     local description="$1"
     
     if [[ -z "$description" ]]; then
-        echo "\033[31m✗\033[0m Please provide a command description"
+        _forge_log error "Please provide a command description"
         _forge_reset
         return 0
     fi
@@ -500,34 +605,7 @@ function _forge_action_suggest() {
         CURSOR=${#BUFFER}
         zle reset-prompt
     else
-        echo "\033[31m✗\033[0m Failed to generate command"
-        _forge_reset
-    fi
-}
-
-# Action handler: Generate shell command from natural language
-# Usage: :? <description>
-function _forge_action_suggest() {
-    local description="$1"
-    
-    if [[ -z "$description" ]]; then
-        echo "\033[31m✗\033[0m Please provide a command description"
-        _forge_reset
-        return 0
-    fi
-    
-    echo
-    # Generate the command
-    local generated_command
-    generated_command=$(FORCE_COLOR=true CLICOLOR_FORCE=1 _forge_exec suggest "$description")
-    
-    if [[ -n "$generated_command" ]]; then
-        # Replace the buffer with the generated command
-        BUFFER="$generated_command"
-        CURSOR=${#BUFFER}
-        zle reset-prompt
-    else
-        echo "\033[31m✗\033[0m Failed to generate command"
+        _forge_log error "Failed to generate command"
         _forge_reset
     fi
 }
@@ -568,7 +646,7 @@ function _forge_action_default() {
             local command_row=$(echo "$commands_list" | grep "^${user_action}\b")
             if [[ -z "$command_row" ]]; then
                 echo
-                echo "\033[31m⏺\033[0m \033[90m[$(date '+%H:%M:%S')]\033[0m \033[1;31mERROR:\033[0m Command '\033[1m${user_action}\033[0m' not found"
+                _forge_log error "Command '\033[1m${user_action}\033[0m' not found"
                 _forge_reset
                 return 0
             fi
@@ -598,7 +676,7 @@ function _forge_action_default() {
             echo
             # Set the agent in the local variable
             _FORGE_ACTIVE_AGENT="$user_action"
-            echo "\033[33m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] \033[1;37m${_FORGE_ACTIVE_AGENT:u}\033[0m \033[90mis now the active agent\033[0m"
+            _forge_log info "\033[1;37m${_FORGE_ACTIVE_AGENT:u}\033[0m \033[90mis now the active agent\033[0m"
         fi
         _forge_reset
         return 0
@@ -693,6 +771,9 @@ function forge-accept-line() {
         ;;
         skill)
             _forge_action_skill
+        ;;
+        edit|ed)
+            _forge_action_editor "$input_text"
         ;;
         commit)
             _forge_action_commit "$input_text"

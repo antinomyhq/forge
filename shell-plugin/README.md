@@ -146,6 +146,12 @@ export FORGE_BIN="/path/to/custom/forge"
 - Internal pattern matching for conversation syntax (`:`)
 - New session command keyword: `:new` or `:n`
 
+### .forge Directory
+
+The plugin creates a `.forge` directory in your current working directory (similar to `.git`) for temporary files:
+
+- `FORGE_EDITMSG`: Temporary file used when opening an external editor with `:edit`
+
 ## Advanced Features
 
 ### Command History
