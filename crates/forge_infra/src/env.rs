@@ -131,6 +131,10 @@ impl EnvironmentInfra for ForgeEnvironmentInfra {
     fn get_shell(&self) -> String {
         std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string())
     }
+
+    fn is_restricted(&self) -> bool {
+        self.restricted
+    }
 }
 
 /// Trait for parsing environment variable values with custom logic for

@@ -105,6 +105,10 @@ impl EnvironmentInfra for ForgeInfra {
     fn get_shell(&self) -> String {
         std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string())
     }
+
+    fn is_restricted(&self) -> bool {
+        self.environment_service.is_restricted()
+    }
 }
 
 #[async_trait::async_trait]

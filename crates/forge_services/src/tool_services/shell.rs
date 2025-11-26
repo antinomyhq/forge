@@ -122,7 +122,7 @@ mod tests {
 
         async fn execute_editor_command(
             &self,
-            command: &str,
+            _command: &str,
             _working_dir: PathBuf,
             _env_vars: Option<Vec<String>>,
         ) -> anyhow::Result<ExitStatus> {
@@ -159,6 +159,10 @@ mod tests {
 
         fn get_shell(&self) -> String {
             "/bin/bash".to_string()
+        }
+
+        fn is_restricted(&self) -> bool {
+            false
         }
     }
 

@@ -125,6 +125,10 @@ mod tests {
         fn get_shell(&self) -> String {
             "/bin/bash".to_string()
         }
+
+        fn is_restricted(&self) -> bool {
+            false
+        }
     }
 
     #[async_trait::async_trait]

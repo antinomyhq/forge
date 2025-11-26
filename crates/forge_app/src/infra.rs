@@ -31,6 +31,7 @@ pub trait EnvironmentInfra: Send + Sync {
     fn get_env_vars(&self) -> BTreeMap<String, String>;
     fn get_editor_command(&self) -> String;
     fn get_shell(&self) -> String;
+    fn is_restricted(&self) -> bool;
 }
 
 /// Repository for accessing system environment information

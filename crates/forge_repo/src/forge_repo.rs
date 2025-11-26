@@ -227,6 +227,10 @@ impl<F: EnvironmentInfra> EnvironmentInfra for ForgeRepo<F> {
     fn get_shell(&self) -> String {
         self.infra.get_shell()
     }
+
+    fn is_restricted(&self) -> bool {
+        self.infra.is_restricted()
+    }
 }
 
 #[async_trait::async_trait]

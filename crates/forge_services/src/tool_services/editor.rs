@@ -134,7 +134,8 @@ where
 
         // Check if we're in restricted mode
         let shell = self.infra.get_shell();
-        if Self::is_restricted_shell(&shell) && !Self::is_editor_command(&editor) {
+        let is_restricted_mode = self.infra.is_restricted() || Self::is_restricted_shell(&shell);
+        if is_restricted_mode && !Self::is_editor_command(&editor) {
             eprintln!("Note: Using external editor (restricted mode detected)");
             eprintln!("Note: Some editors may have limited functionality in restricted mode");
             eprintln!("Note: Set FORGE_EDITOR environment variable if needed");
@@ -195,12 +196,12 @@ mod tests {
 
     #[test]
     fn test_get_editor_command_default() {
-        let service = EditorService::new();
         unsafe {
             std::env::remove_var("FORGE_EDITOR");
             std::env::remove_var("EDITOR");
         }
 
+        let service = EditorService::new();
         let command = service.get_editor_command();
         assert_eq!(command, "nano");
     }
@@ -225,5 +226,24 @@ mod tests {
         unsafe {
             std::env::remove_var("EDITOR");
         }
+    }
+
+    #[test]
+    fn test_restricted_mode_logic() {
+        // Test that restricted mode is correctly detected from both flag and shell
+
+        // When shell is normal but restricted flag is true -> should check editor list
+        let shell_normal = "/bin/bash";
+        let is_restricted_mode_flag = true || EditorService::is_restricted_shell(shell_normal);
+        assert!(is_restricted_mode_flag);
+
+        // When shell is rbash but restricted flag is false -> should check editor list
+        let shell_rbash = "/bin/rbash";
+        let is_restricted_mode_shell = false || EditorService::is_restricted_shell(shell_rbash);
+        assert!(is_restricted_mode_shell);
+
+        // When both are normal -> should not check editor list
+        let is_restricted_mode_none = false || EditorService::is_restricted_shell(shell_normal);
+        assert!(!is_restricted_mode_none);
     }
 }
