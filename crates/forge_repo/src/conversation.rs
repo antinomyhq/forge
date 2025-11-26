@@ -262,6 +262,18 @@ impl ConversationRepository for ConversationRepositoryImpl {
         };
         Ok(conversation)
     }
+
+    async fn delete_conversation(&self, conversation_id: &ConversationId) -> anyhow::Result<()> {
+        let mut connection = self.pool.get_connection()?;
+        let workspace_id = self.wid.id() as i64;
+        
+        diesel::delete(conversations::table)
+            .filter(conversations::workspace_id.eq(&workspace_id))
+            .filter(conversations::conversation_id.eq(conversation_id.into_string()))
+            .execute(&mut connection)?;
+        
+        Ok(())
+    }
 }
 
 #[cfg(test)]

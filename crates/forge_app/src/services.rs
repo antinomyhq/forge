@@ -222,6 +222,15 @@ pub trait ConversationService: Send + Sync {
 
     /// Find the last active conversation
     async fn last_conversation(&self) -> anyhow::Result<Option<Conversation>>;
+
+    /// Permanently deletes a conversation
+    ///
+    /// # Arguments
+    /// * `conversation_id` - The ID of the conversation to delete
+    ///
+    /// # Errors
+    /// Returns an error if the operation fails
+    async fn delete_conversation(&self, conversation_id: &ConversationId) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -573,6 +582,10 @@ impl<I: Services> ConversationService for I {
 
     async fn last_conversation(&self) -> anyhow::Result<Option<Conversation>> {
         self.conversation_service().last_conversation().await
+    }
+
+    async fn delete_conversation(&self, conversation_id: &ConversationId) -> anyhow::Result<()> {
+        self.conversation_service().delete_conversation(conversation_id).await
     }
 }
 #[async_trait::async_trait]

@@ -77,6 +77,15 @@ pub trait ConversationRepository: Send + Sync {
     /// # Errors
     /// Returns an error if the operation fails
     async fn get_last_conversation(&self) -> Result<Option<Conversation>>;
+
+    /// Permanently deletes a conversation
+    ///
+    /// # Arguments
+    /// * `conversation_id` - The ID of the conversation to delete
+    ///
+    /// # Errors
+    /// Returns an error if the operation fails
+    async fn delete_conversation(&self, conversation_id: &ConversationId) -> Result<()>;
 }
 
 #[async_trait::async_trait]

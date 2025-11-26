@@ -185,6 +185,10 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + AppConf
         self.services.last_conversation().await
     }
 
+    async fn delete_conversation(&self, conversation_id: &ConversationId) -> anyhow::Result<()> {
+        self.services.delete_conversation(conversation_id).await
+    }
+
     async fn execute_shell_command(
         &self,
         command: &str,
