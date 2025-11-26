@@ -5,7 +5,7 @@ use anyhow::Context;
 use bytes::Bytes;
 use forge_app::{
     FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra, FsCreateOutput,
-    FsCreateService,
+    FsCreateService, compute_hash,
 };
 use forge_domain::SnapshotRepository;
 
@@ -80,12 +80,16 @@ impl<
         }
 
         // Write file only after validation passes and directories are created
-        self.infra.write(path, Bytes::from(content)).await?;
+        self.infra.write(path, Bytes::from(content.clone())).await?;
+
+        // Compute hash of the written file content
+        let content_hash = compute_hash(&content);
 
         Ok(FsCreateOutput {
             path: path.display().to_string(),
             before: old_content,
             warning: syntax_warning.map(|v| v.to_string()),
+            content_hash,
         })
     }
 }
