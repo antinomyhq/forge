@@ -1916,7 +1916,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         auth_methods: Vec<AuthMethod>,
     ) -> Result<Option<Provider<Url>>> {
         // Select auth method (or use the only one available)
-        let auth_method = match self.select_auth_method(provider_id.clone(), &auth_methods).await? {
+        let auth_method = match self
+            .select_auth_method(provider_id.clone(), &auth_methods)
+            .await?
+        {
             Some(method) => method,
             None => return Ok(None), // User cancelled
         };
@@ -1932,10 +1935,12 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Handle the specific authentication flow based on the request type
         match auth_request {
             AuthContextRequest::ApiKey(request) => {
-                self.handle_api_key_input(provider_id.clone(), &request).await?;
+                self.handle_api_key_input(provider_id.clone(), &request)
+                    .await?;
             }
             AuthContextRequest::DeviceCode(request) => {
-                self.handle_device_flow(provider_id.clone(), &request).await?;
+                self.handle_device_flow(provider_id.clone(), &request)
+                    .await?;
             }
             AuthContextRequest::Code(request) => {
                 self.handle_code_flow(provider_id.clone(), &request).await?;

@@ -52,7 +52,8 @@ fn overwrite<T>(base: &mut T, other: T) {
 struct ProviderConfigs(#[merge(strategy = merge_configs)] Vec<ProviderConfig>);
 
 fn merge_configs(base: &mut Vec<ProviderConfig>, other: Vec<ProviderConfig>) {
-    let mut map: std::collections::HashMap<_, _> = base.drain(..).map(|c| (c.id.clone(), c)).collect();
+    let mut map: std::collections::HashMap<_, _> =
+        base.drain(..).map(|c| (c.id.clone(), c)).collect();
 
     for other_config in other {
         let id = other_config.id.clone();

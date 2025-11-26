@@ -105,7 +105,9 @@ where
             .infra
             .get_credential(&provider.id)
             .await?
-            .ok_or_else(|| forge_domain::Error::ProviderNotAvailable { provider: provider.id.clone() })?;
+            .ok_or_else(|| forge_domain::Error::ProviderNotAvailable {
+                provider: provider.id.clone(),
+            })?;
 
         // Get required params (only used for API key, but needed for factory)
         let required_params = if matches!(auth_method, AuthMethod::ApiKey) {
