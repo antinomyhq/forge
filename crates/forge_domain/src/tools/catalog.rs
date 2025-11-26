@@ -743,8 +743,8 @@ impl ToolCatalog {
         }))
     }
 
-    /// Creates a CodebaseSearch tool call with the specified query and use_case
-    pub fn tool_call_codebase_search(
+    /// Creates a Semantic Search tool call with the specified query and use_case
+    pub fn tool_call_semantic_search(
         query: &str,
         use_case: &str,
         top_k: u32,
