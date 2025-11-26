@@ -302,7 +302,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                                     tracker::error(&error);
                                     tracing::error!(error = ?error);
                                     self.spinner.stop(None)?;
-                                    self.writeln_to_stderr(TitleFormat::error(format!("{:?}", error)).display().to_string())?;
+                                    self.writeln_to_stderr(TitleFormat::error(format!("{error:?}")).display().to_string())?;
                                 },
                             }
                         }
@@ -1018,6 +1018,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             ),
             ("retry", "Retry the last command [alias: r]"),
             ("compact", "Compact the conversation context"),
+            ("edit", "Use an external editor to write a prompt"),
             (
                 "tools",
                 "List all available tools with their descriptions and schema [alias: t]",
@@ -1879,7 +1880,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Multiple auth methods - ask user to choose
         self.spinner.stop(None)?;
 
-        self.writeln_title(TitleFormat::action(format!("Configure {}", provider_id)))?;
+        self.writeln_title(TitleFormat::action(format!("Configure {provider_id}")))?;
         self.writeln("Multiple authentication methods available".dimmed())?;
 
         let method_names: Vec<String> = auth_methods
@@ -2162,7 +2163,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         sub_title.push('[');
 
         if let Some(ref agent) = self.api.get_active_agent().await {
-            sub_title.push_str(format!("via {}", agent).as_str());
+            sub_title.push_str(format!("via {agent}").as_str());
         }
 
         if let Some(ref model) = self
@@ -2485,7 +2486,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Output based on format
         if porcelain {
-            println!("{}", new_id);
+            println!("{new_id}");
         } else {
             self.writeln_title(
                 TitleFormat::info("Cloned").sub_title(format!("[{} → {}]", original.id, cloned.id)),
@@ -2649,9 +2650,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             };
 
             Err(anyhow::anyhow!(
-                "Model '{}' not found. Available models: {}",
-                model_str,
-                suggestion
+                "Model '{model_str}' not found. Available models: {suggestion}"
             ))
         }
     }
@@ -2701,7 +2700,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             let message = if count == 1 {
                 "Migrated 1 provider from environment variables".to_string()
             } else {
-                format!("Migrated {} providers from environment variables", count)
+                format!("Migrated {count} providers from environment variables")
             };
             self.writeln_title(TitleFormat::info(message))?;
         }
