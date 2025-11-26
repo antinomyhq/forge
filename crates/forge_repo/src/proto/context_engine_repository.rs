@@ -58,8 +58,7 @@ impl TryFrom<Workspace> for WorkspaceInfo {
 
         let last_updated = workspace
             .last_updated
-            .and_then(|ts| chrono::DateTime::parse_from_rfc3339(&ts).ok())
-            .map(|dt| dt.with_timezone(&chrono::Utc));
+            .and_then(|ts| chrono::DateTime::from_timestamp(ts.seconds, ts.nanos as u32));
 
         Ok(WorkspaceInfo {
             workspace_id,
