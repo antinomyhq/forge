@@ -53,7 +53,9 @@ num-format.workspace = true
 atty = "0.2"
 url.workspace = true
 indexmap.workspace = true
-cli-clipboard = "0.4"
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+arboard = "3.4"
 async-recursion.workspace = true
 
 [dev-dependencies]

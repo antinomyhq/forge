@@ -1735,22 +1735,27 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             "→".blue(),
             display_uri.blue().underline()
         ))?;
-        // Try to copy code to clipboard automatically
-        match cli_clipboard::set_contents(user_code.to_owned()) {
-            Ok(_) => {
-                self.writeln(format!(
-                    "{} Code copied to clipboard: {}",
-                    "✓".green().bold(),
-                    user_code.bold().yellow()
-                ))?;
-            }
-            Err(_) => {
-                self.writeln(format!(
-                    "{} Enter code: {}",
-                    "→".blue(),
-                    user_code.bold().yellow()
-                ))?;
-            }
+        // Try to copy code to clipboard automatically (not available on Android)
+        #[cfg(not(target_os = "android"))]
+        let clipboard_copied = arboard::Clipboard::new()
+            .and_then(|mut clipboard| clipboard.set_text(user_code))
+            .is_ok();
+
+        #[cfg(target_os = "android")]
+        let clipboard_copied = false;
+
+        if clipboard_copied {
+            self.writeln(format!(
+                "{} Code copied to clipboard: {}",
+                "✓".green().bold(),
+                user_code.bold().yellow()
+            ))?;
+        } else {
+            self.writeln(format!(
+                "{} Enter code: {}",
+                "→".blue(),
+                user_code.bold().yellow()
+            ))?;
         }
         self.writeln("")?;
 
