@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -231,6 +232,10 @@ impl<F: EnvironmentInfra> EnvironmentInfra for ForgeRepo<F> {
     fn get_env_var(&self, key: &str) -> Option<String> {
         self.infra.get_env_var(key)
     }
+
+    fn get_env_vars(&self) -> BTreeMap<String, String> {
+        self.infra.get_env_vars()
+    }
 }
 
 #[async_trait::async_trait]
@@ -379,8 +384,12 @@ where
 {
     type Client = F::Client;
 
-    async fn connect(&self, config: McpServerConfig) -> anyhow::Result<F::Client> {
-        self.infra.connect(config).await
+    async fn connect(
+        &self,
+        config: McpServerConfig,
+        env_vars: &BTreeMap<String, String>,
+    ) -> anyhow::Result<F::Client> {
+        self.infra.connect(config, env_vars).await
     }
 }
 
