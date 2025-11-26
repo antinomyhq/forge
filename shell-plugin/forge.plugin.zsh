@@ -5,7 +5,7 @@
 
 # Configuration: Change these variables to customize the forge command and special characters
 # Using typeset to keep variables local to plugin scope and prevent public exposure
-typeset -h _FORGE_BIN="${FORGE_BIN:-forge}"
+typeset -h _FORGE_BIN="${FORGE_BIN:-/home/dkowalski/Projekty/forgecode/feature/agent-command-for-zsh-plugin/target/debug/forge}"
 typeset -h _FORGE_CONVERSATION_PATTERN=":"
 typeset -h _FORGE_MAX_COMMIT_DIFF="${FORGE_MAX_COMMIT_DIFF:-100000}"
 typeset -h _FORGE_DELIMITER='\s\s+'
@@ -68,9 +68,17 @@ function _forge_exec() {
 
 # Helper function to clear buffer and reset prompt
 function _forge_reset() {
-    BUFFER=""
-    CURSOR=${#BUFFER}
-    zle reset-prompt
+    for precmd in $precmd_functions; do
+        if typeset -f "$precmd" >/dev/null 2>&1; then
+            "$precmd"
+        fi
+    done
+
+   BUFFER=""
+   CURSOR=0
+
+   zle reset-prompt 
+    
 }
 
 # Helper function to print operating agent messages with consistent formatting
@@ -439,7 +447,82 @@ function _forge_action_conversation() {
     _forge_reset
 }
 
-# Action handler: Select provider
+# Action handler: Select agent
+function _forge_action_agent() {
+    local input_text="$1"
+    
+    echo
+    
+    # If an agent ID is provided directly, use it
+    if [[ -n "$input_text" ]]; then
+        local agent_id="$input_text"
+        
+        # Validate that the agent exists
+        local agent_exists=$($_FORGE_BIN list agents --porcelain 2>/dev/null | grep -q "^${agent_id}\b" && echo "true" || echo "false")
+        if [[ "$agent_exists" == "false" ]]; then
+            _forge_log error "Agent '\033[1m${agent_id}\033[0m' not found"
+            _forge_reset
+            return 0
+        fi
+        
+        # Set the agent as active
+        _FORGE_ACTIVE_AGENT="$agent_id"
+        
+        # Print log about agent switching
+        _forge_log success "Switched to agent \033[1m${agent_id}\033[0m"
+        
+        _forge_reset
+        return 0
+    fi
+    
+    # Get agents list
+    local agents_output
+    agents_output=$($_FORGE_BIN list agents --porcelain 2>/dev/null)
+    
+    if [[ -n "$agents_output" ]]; then
+        # Get current agent ID
+        local current_agent="$_FORGE_ACTIVE_AGENT"
+        
+        # Sort agents alphabetically by name (first field)
+        local sorted_agents=$(echo "$agents_output" | sort)
+        
+        # Create prompt with current agent - show agent ID, title, provider, model and reasoning
+        local prompt_text="Agent ❯ "
+        local fzf_args=(
+            --prompt="$prompt_text"
+            --delimiter="$_FORGE_DELIMITER"
+            --with-nth="1,2,4,5,6"
+        )
+
+        # If there's a current agent, position cursor on it
+        if [[ -n "$current_agent" ]]; then
+            local index=$(_forge_find_index "$sorted_agents" "$current_agent")
+            fzf_args+=(--bind="start:pos($index)")
+        fi
+
+        local selected_agent
+        # Use fzf without preview for simple selection like provider/model
+        selected_agent=$(echo "$sorted_agents" | _forge_fzf "${fzf_args[@]}")
+        
+        if [[ -n "$selected_agent" ]]; then
+            # Extract the first field (agent ID)
+            local agent_id=$(echo "$selected_agent" | awk '{print $1}')
+            
+            # Set the selected agent as active
+            _FORGE_ACTIVE_AGENT="$agent_id"
+            
+            # Print log about agent switching
+            _forge_log success "Switched to agent \033[1m${agent_id}\033[0m"
+            
+        fi
+    else
+        _forge_log error "No agents found"
+    fi
+    
+    _forge_reset
+}
+
+# Action handler: Select provider# Action handler: Select provider
 function _forge_action_provider() {
     echo
     local selected
@@ -756,6 +839,9 @@ function forge-accept-line() {
         ;;
         retry|r)
             _forge_action_retry
+        ;;
+        agent|a)
+            _forge_action_agent "$input_text"
         ;;
         conversation|c)
             _forge_action_conversation "$input_text"

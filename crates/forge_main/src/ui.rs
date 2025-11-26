@@ -881,7 +881,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 Porcelain::from(&info)
                     .skip(1)
                     .drop_col(0)
-                    .map_col(4, |text| match text.as_deref() {
+                    .map_col(5, |text| match text.as_deref() {
                         Some("ENABLED") => Some("Reasoning".to_string()),
                         Some("DISABLED") => Some("Non-Reasoning".to_string()),
                         _ => None,
@@ -1024,6 +1024,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 "List all available tools with their descriptions and schema [alias: t]",
             ),
             ("skill", "List all available skills"),
+            ("agent", "Select and switch between agents [alias: a]"),
             ("commit", "Generate AI commit message and commit changes."),
             (
                 "suggest",
