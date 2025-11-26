@@ -976,6 +976,7 @@ mod tests {
             node_count: 0,
             relation_count: 0,
             last_updated: None,
+            created_at: chrono::Utc::now(),
         });
         let service = ForgeIndexingService::new(Arc::new(mock));
 
@@ -1069,6 +1070,7 @@ mod tests {
             node_count: 0,
             relation_count: 0,
             last_updated: None,
+            created_at: chrono::Utc::now(),
         });
         let service = ForgeIndexingService::new(Arc::new(mock));
 
@@ -1088,6 +1090,7 @@ mod tests {
             node_count: 5,
             relation_count: 10,
             last_updated: Some(chrono::Utc::now()),
+            created_at: chrono::Utc::now(),
         });
         let service = ForgeIndexingService::new(Arc::new(mock));
 
