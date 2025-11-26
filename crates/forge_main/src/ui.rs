@@ -2839,6 +2839,29 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(())
     }
 
+    /// Helper function to format workspace information consistently
+    fn format_workspace_info(workspace: &forge_domain::WorkspaceInfo) -> Info {
+        let updated_time = workspace
+            .last_updated
+            .map_or("NEVER".to_string(), humanize_time);
+
+        let mut info = Info::new();
+
+        let timestamp = workspace
+            .created_at
+            .with_timezone(&chrono::Local)
+            .format("%Y-%m-%d %H:%M:%S %Z")
+            .to_string();
+        info = info.add_title(format!("Workspace [{}]", timestamp));
+
+        info.add_key_value("ID", workspace.workspace_id.to_string())
+            .add_key_value("Path", workspace.working_dir.to_string())
+            .add_key_value("File", workspace.node_count.to_string())
+            .add_key_value("Relations", workspace.relation_count.to_string())
+            .add_key_value("Created At", humanize_time(workspace.created_at))
+            .add_key_value("Updated At", updated_time)
+    }
+
     async fn on_list_workspaces(&mut self, porcelain: bool) -> anyhow::Result<()> {
         if !porcelain {
             self.spinner.start(Some("Fetching workspaces..."))?;
@@ -2853,25 +2876,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 // Build Info object once
                 let mut info = Info::new();
 
-                for workspace in workspaces {
-                    let updated_elapsed_time = workspace
-                        .last_updated
-                        .map_or("NEVER".to_string(), humanize_time);
-
-                    let timestamp = workspace.last_updated.map_or("NEVER".to_string(), |d| {
-                        d.with_timezone(&chrono::Local)
-                            .format("%Y-%m-%d %H:%M:%S %Z")
-                            .to_string()
-                    });
-
-                    info = info
-                        .add_title(format!("Workspace [{}]", timestamp))
-                        .add_key_value("id", workspace.workspace_id.to_string())
-                        .add_key_value("path", workspace.working_dir)
-                        .add_key_value("updated", updated_elapsed_time)
-                        .add_key_value("created", humanize_time(workspace.created_at))
-                        .add_key_value("nodes", workspace.node_count)
-                        .add_key_value("relations", workspace.relation_count);
+                for workspace in &workspaces {
+                    info = info.extend(Self::format_workspace_info(workspace));
                 }
 
                 // Output based on mode
@@ -2899,18 +2905,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             Ok(Some(workspace)) => {
                 self.spinner.stop(None)?;
 
-                let mut info = Info::new()
-                    .add_title("WORKSPACE")
-                    .add_key_value("Workspace ID", workspace.workspace_id.to_string())
-                    .add_key_value("Workspace Path", workspace.working_dir)
-                    .add_key_value("File Count", workspace.node_count.to_string())
-                    .add_key_value("Relations", workspace.relation_count.to_string())
-                    .add_key_value("Created At", humanize_time(workspace.created_at));
-
-                // Add last updated if available
-                if let Some(last_updated) = workspace.last_updated {
-                    info = info.add_key_value("Last Updated", humanize_time(last_updated));
-                }
+                let info = Self::format_workspace_info(&workspace);
 
                 self.writeln(info)
             }
