@@ -9,7 +9,7 @@ use crate::xml::extract_tag_content;
 use crate::{Error, Result, ToolCallArguments, ToolName, ToolResult};
 
 /// Unique identifier for a using a tool
-#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Serialize, fake::Dummy)]
 #[serde(transparent)]
 pub struct ToolCallId(pub(crate) String);
 
@@ -36,7 +36,7 @@ impl ToolCallId {
 
 /// Contains a part message for using a tool. This is received as a part of the
 /// response from the model only when streaming is enabled.
-#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize, Setters)]
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize, Setters, fake::Dummy)]
 #[setters(strip_option, into)]
 pub struct ToolCallPart {
     /// Optional unique identifier that represents a single call to the tool

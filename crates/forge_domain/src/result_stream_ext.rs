@@ -178,26 +178,32 @@ mod tests {
 
     #[tokio::test]
     async fn test_into_full_basic() {
+        use fake::{Fake, Faker};
+
         // Fixture: Create a stream of messages
+        let fixture: Usage = Faker.fake();
+        let mut usage1 = fixture
+            .prompt_tokens(TokenCount::Actual(10))
+            .completion_tokens(TokenCount::Actual(5))
+            .total_tokens(TokenCount::Actual(15))
+            .cached_tokens(TokenCount::Actual(0));
+        usage1.cost = None;
+
+        let fixture: Usage = Faker.fake();
+        let mut usage2 = fixture
+            .prompt_tokens(TokenCount::Actual(10))
+            .completion_tokens(TokenCount::Actual(10))
+            .total_tokens(TokenCount::Actual(20))
+            .cached_tokens(TokenCount::Actual(0));
+        usage2.cost = None;
+
         let messages = vec![
             Ok(ChatCompletionMessage::default()
                 .content(Content::part("Hello "))
-                .usage(Usage {
-                    prompt_tokens: TokenCount::Actual(10),
-                    completion_tokens: TokenCount::Actual(5),
-                    total_tokens: TokenCount::Actual(15),
-                    cached_tokens: TokenCount::Actual(0),
-                    cost: None,
-                })),
+                .usage(usage1)),
             Ok(ChatCompletionMessage::default()
                 .content(Content::part("world!"))
-                .usage(Usage {
-                    prompt_tokens: TokenCount::Actual(10),
-                    completion_tokens: TokenCount::Actual(10),
-                    total_tokens: TokenCount::Actual(20),
-                    cached_tokens: TokenCount::Actual(0),
-                    cost: None,
-                })),
+                .usage(usage2.clone())),
         ];
 
         let result_stream: BoxStream<ChatCompletionMessage, anyhow::Error> =
@@ -207,20 +213,9 @@ mod tests {
         let actual = result_stream.into_full(false).await.unwrap();
 
         // Expected: Combined content and latest usage
-        let expected = ChatCompletionMessageFull {
-            content: "Hello world!".to_string(),
-            tool_calls: vec![],
-            usage: Usage {
-                prompt_tokens: TokenCount::Actual(10),
-                completion_tokens: TokenCount::Actual(10),
-                total_tokens: TokenCount::Actual(20),
-                cached_tokens: TokenCount::Actual(0),
-                cost: None,
-            },
-            reasoning: None,
-            reasoning_details: None,
-            finish_reason: None,
-        };
+        let expected = ChatCompletionMessageFull::default()
+            .content("Hello world!")
+            .usage(usage2);
 
         assert_eq!(actual, expected);
     }
@@ -245,14 +240,9 @@ mod tests {
         let actual = result_stream.into_full(false).await.unwrap();
 
         // Expected: Content and tool calls
-        let expected = ChatCompletionMessageFull {
-            content: "Processing...".to_string(),
-            tool_calls: vec![tool_call],
-            usage: Usage::default(),
-            reasoning: None,
-            reasoning_details: None,
-            finish_reason: None,
-        };
+        let expected = ChatCompletionMessageFull::default()
+            .content("Processing...")
+            .tool_calls(vec![tool_call]);
 
         assert_eq!(actual, expected);
     }
@@ -308,14 +298,9 @@ mod tests {
         let actual = result_stream.into_full(false).await.unwrap();
 
         // Expected: Reasoning should be aggregated from all messages
-        let expected = ChatCompletionMessageFull {
-            content: "Hello world!".to_string(),
-            tool_calls: vec![],
-            usage: Usage::default(),
-            reasoning: Some("First reasoning: thinking deeply about this...".to_string()),
-            reasoning_details: None,
-            finish_reason: None,
-        };
+        let expected = ChatCompletionMessageFull::default()
+            .content("Hello world!")
+            .reasoning("First reasoning: thinking deeply about this...");
 
         assert_eq!(actual, expected);
     }
@@ -359,14 +344,9 @@ mod tests {
             },
         ];
 
-        let expected = ChatCompletionMessageFull {
-            content: "Processing... complete".to_string(),
-            tool_calls: vec![],
-            usage: Usage::default(),
-            reasoning: None,
-            reasoning_details: Some(expected_reasoning_details),
-            finish_reason: None,
-        };
+        let expected = ChatCompletionMessageFull::default()
+            .content("Processing... complete")
+            .reasoning_details(expected_reasoning_details);
 
         assert_eq!(actual, expected);
     }
@@ -388,14 +368,7 @@ mod tests {
         let actual = result_stream.into_full(false).await.unwrap();
 
         // Expected: Empty reasoning should result in None
-        let expected = ChatCompletionMessageFull {
-            content: "Hello world".to_string(),
-            tool_calls: vec![],
-            usage: Usage::default(),
-            reasoning: None, // Empty reasoning should be None
-            reasoning_details: None,
-            finish_reason: None,
-        };
+        let expected = ChatCompletionMessageFull::default().content("Hello world");
 
         assert_eq!(actual, expected);
     }
@@ -468,21 +441,14 @@ mod tests {
         let actual = result_stream.into_full(false).await.unwrap();
 
         // Expected: Should process all content without interruption
-        let expected = ChatCompletionMessageFull {
-            content: format!("{xml_content} and more content"),
-            tool_calls: vec![], /* No XML tool calls should be extracted when interruption is
-                                 * disabled */
-            usage: Usage {
-                prompt_tokens: TokenCount::Actual(5),
-                completion_tokens: TokenCount::Actual(15),
-                total_tokens: TokenCount::Actual(20),
-                cached_tokens: TokenCount::Actual(0),
-                cost: None,
-            },
-            reasoning: None,
-            reasoning_details: None,
-            finish_reason: None,
-        };
+        let expected = ChatCompletionMessageFull::default()
+            .content(format!("{xml_content} and more content"))
+            .usage(
+                Usage::default()
+                    .prompt_tokens(TokenCount::Actual(5))
+                    .completion_tokens(TokenCount::Actual(15))
+                    .total_tokens(TokenCount::Actual(20)),
+            );
 
         assert_eq!(actual, expected);
     }
@@ -510,20 +476,14 @@ mod tests {
         let actual = result_stream.into_full(false).await.unwrap();
 
         // Expected: Usage should be from the last message (even if it has no content)
-        let expected = ChatCompletionMessageFull {
-            content: "Starting processing complete".to_string(),
-            tool_calls: vec![],
-            usage: Usage {
-                prompt_tokens: TokenCount::Actual(5),
-                completion_tokens: TokenCount::Actual(15),
-                total_tokens: TokenCount::Actual(20),
-                cached_tokens: TokenCount::Actual(0),
-                cost: None,
-            },
-            reasoning: None,
-            reasoning_details: None,
-            finish_reason: None,
-        };
+        let expected = ChatCompletionMessageFull::default()
+            .content("Starting processing complete")
+            .usage(
+                Usage::default()
+                    .prompt_tokens(TokenCount::Actual(5))
+                    .completion_tokens(TokenCount::Actual(15))
+                    .total_tokens(TokenCount::Actual(20)),
+            );
 
         assert_eq!(actual, expected);
     }
@@ -554,15 +514,9 @@ mod tests {
         let actual = result_stream.into_full(false).await.unwrap();
 
         // Expected: Should use the last finish reason from the stream
-        let expected = ChatCompletionMessageFull {
-            content: "Processing... continue done".to_string(),
-            tool_calls: vec![],
-            usage: Usage::default(),
-            reasoning: None,
-            reasoning_details: None,
-            finish_reason: Some(FinishReason::Stop), /* Should be from the last message with a
-                                                      * finish reason */
-        };
+        let expected = ChatCompletionMessageFull::default()
+            .content("Processing... continue done")
+            .finish_reason(FinishReason::Stop);
 
         assert_eq!(actual, expected);
     }
@@ -583,14 +537,9 @@ mod tests {
         let actual = result_stream.into_full(false).await.unwrap();
 
         // Expected: Should have the tool_calls finish reason
-        let expected = ChatCompletionMessageFull {
-            content: "I'll call a tool".to_string(),
-            tool_calls: vec![],
-            usage: Usage::default(),
-            reasoning: None,
-            reasoning_details: None,
-            finish_reason: Some(FinishReason::ToolCalls),
-        };
+        let expected = ChatCompletionMessageFull::default()
+            .content("I'll call a tool")
+            .finish_reason(FinishReason::ToolCalls);
 
         assert_eq!(actual, expected);
     }
@@ -610,14 +559,7 @@ mod tests {
         let actual = result_stream.into_full(false).await.unwrap();
 
         // Expected: finish_reason should be None
-        let expected = ChatCompletionMessageFull {
-            content: "Hello world".to_string(),
-            tool_calls: vec![],
-            usage: Usage::default(),
-            reasoning: None,
-            reasoning_details: None,
-            finish_reason: None,
-        };
+        let expected = ChatCompletionMessageFull::default().content("Hello world");
 
         assert_eq!(actual, expected);
     }
@@ -700,14 +642,9 @@ mod tests {
         let actual = result_stream.into_full(false).await.unwrap();
 
         // Expected: Should succeed because finish reason is present
-        let expected = ChatCompletionMessageFull {
-            content: "".to_string(),
-            tool_calls: vec![],
-            usage: Usage::default(),
-            reasoning: None,
-            reasoning_details: None,
-            finish_reason: Some(FinishReason::Stop),
-        };
+        let expected = ChatCompletionMessageFull::default()
+            .content("")
+            .finish_reason(FinishReason::Stop);
 
         assert_eq!(actual, expected);
     }
@@ -732,14 +669,9 @@ mod tests {
         let actual = result_stream.into_full(false).await.unwrap();
 
         // Expected: Should succeed because tool calls are present
-        let expected = ChatCompletionMessageFull {
-            content: "".to_string(),
-            tool_calls: vec![tool_call],
-            usage: Usage::default(),
-            reasoning: None,
-            reasoning_details: None,
-            finish_reason: None,
-        };
+        let expected = ChatCompletionMessageFull::default()
+            .content("")
+            .tool_calls(vec![tool_call]);
 
         assert_eq!(actual, expected);
     }

@@ -7,7 +7,8 @@ use super::{ToolCall, ToolCallFull};
 use crate::TokenCount;
 use crate::reasoning::{Reasoning, ReasoningFull};
 
-#[derive(Default, Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Default, Clone, Debug, Serialize, Deserialize, PartialEq, fake::Dummy, Setters)]
+#[setters(into, strip_option)]
 pub struct Usage {
     pub prompt_tokens: TokenCount,
     pub completion_tokens: TokenCount,
@@ -55,7 +56,7 @@ impl From<FinishReason> for ChatCompletionMessage {
 }
 
 /// Represents partial or full content of a message
-#[derive(Clone, Debug, PartialEq, Eq, From)]
+#[derive(Clone, Debug, PartialEq, Eq, From, fake::Dummy)]
 pub enum Content {
     Part(ContentPart),
     Full(ContentFull),
@@ -87,12 +88,12 @@ impl Content {
 }
 
 /// Used typically when streaming is enabled
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, fake::Dummy)]
 #[serde(transparent)]
 pub struct ContentPart(String);
 
 /// Used typically when full responses are enabled (Streaming is disabled)
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize, fake::Dummy)]
 #[serde(transparent)]
 pub struct ContentFull(String);
 
@@ -104,7 +105,9 @@ impl<T: AsRef<str>> From<T> for Content {
 
 /// The reason why the model stopped generating output.
 /// Read more: https://platform.openai.com/docs/guides/function-calling#edge-cases
-#[derive(Clone, Debug, Deserialize, Serialize, EnumString, IntoStaticStr, PartialEq, Eq)]
+#[derive(
+    Clone, Debug, Deserialize, Serialize, EnumString, IntoStaticStr, PartialEq, Eq, fake::Dummy,
+)]
 pub enum FinishReason {
     /// The model stopped generating output because it reached the maximum
     /// allowed length.
@@ -166,7 +169,8 @@ impl ChatCompletionMessage {
 /// Represents a complete message from the LLM provider with all content
 /// collected This is typically used after processing a stream of
 /// ChatCompletionMessage
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Default, Setters)]
+#[setters(into, strip_option)]
 pub struct ChatCompletionMessageFull {
     pub content: String,
     pub reasoning: Option<String>,
@@ -180,67 +184,66 @@ pub struct ChatCompletionMessageFull {
 mod tests {
     use std::str::FromStr;
 
+    use fake::{Fake, Faker};
     use pretty_assertions::assert_eq;
 
     use super::*;
     #[test]
     fn test_usage_accumulate_with_both_costs() {
-        let fixture_usage_1 = Usage {
-            prompt_tokens: TokenCount::Actual(100),
-            completion_tokens: TokenCount::Actual(50),
-            total_tokens: TokenCount::Actual(150),
-            cached_tokens: TokenCount::Actual(20),
-            cost: Some(0.01),
-        };
+        let fixture: Usage = Faker.fake();
+        let fixture_usage_1 = fixture
+            .prompt_tokens(TokenCount::Actual(100))
+            .completion_tokens(TokenCount::Actual(50))
+            .total_tokens(TokenCount::Actual(150))
+            .cached_tokens(TokenCount::Actual(20))
+            .cost(0.01);
 
-        let fixture_usage_2 = Usage {
-            prompt_tokens: TokenCount::Actual(200),
-            completion_tokens: TokenCount::Actual(75),
-            total_tokens: TokenCount::Actual(275),
-            cached_tokens: TokenCount::Actual(30),
-            cost: Some(0.02),
-        };
+        let fixture: Usage = Faker.fake();
+        let fixture_usage_2 = fixture
+            .prompt_tokens(TokenCount::Actual(200))
+            .completion_tokens(TokenCount::Actual(75))
+            .total_tokens(TokenCount::Actual(275))
+            .cached_tokens(TokenCount::Actual(30))
+            .cost(0.02);
 
         let actual = fixture_usage_1.accumulate(&fixture_usage_2);
 
-        let expected = Usage {
-            prompt_tokens: TokenCount::Actual(300),
-            completion_tokens: TokenCount::Actual(125),
-            total_tokens: TokenCount::Actual(425),
-            cached_tokens: TokenCount::Actual(50),
-            cost: Some(0.03),
-        };
+        let expected = Usage::default()
+            .prompt_tokens(TokenCount::Actual(300))
+            .completion_tokens(TokenCount::Actual(125))
+            .total_tokens(TokenCount::Actual(425))
+            .cached_tokens(TokenCount::Actual(50))
+            .cost(0.03);
 
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_usage_accumulate_mixed_token_types() {
-        let fixture_usage_1 = Usage {
-            prompt_tokens: TokenCount::Actual(100),
-            completion_tokens: TokenCount::Approx(50),
-            total_tokens: TokenCount::Actual(150),
-            cached_tokens: TokenCount::Actual(20),
-            cost: Some(0.01),
-        };
+        let fixture: Usage = Faker.fake();
+        let fixture_usage_1 = fixture
+            .prompt_tokens(TokenCount::Actual(100))
+            .completion_tokens(TokenCount::Approx(50))
+            .total_tokens(TokenCount::Actual(150))
+            .cached_tokens(TokenCount::Actual(20))
+            .cost(0.01);
 
-        let fixture_usage_2 = Usage {
-            prompt_tokens: TokenCount::Approx(200),
-            completion_tokens: TokenCount::Actual(75),
-            total_tokens: TokenCount::Approx(275),
-            cached_tokens: TokenCount::Approx(30),
-            cost: Some(0.02),
-        };
+        let fixture: Usage = Faker.fake();
+        let fixture_usage_2 = fixture
+            .prompt_tokens(TokenCount::Approx(200))
+            .completion_tokens(TokenCount::Actual(75))
+            .total_tokens(TokenCount::Approx(275))
+            .cached_tokens(TokenCount::Approx(30))
+            .cost(0.02);
 
         let actual = fixture_usage_1.accumulate(&fixture_usage_2);
 
-        let expected = Usage {
-            prompt_tokens: TokenCount::Approx(300),
-            completion_tokens: TokenCount::Approx(125),
-            total_tokens: TokenCount::Approx(425),
-            cached_tokens: TokenCount::Approx(50),
-            cost: Some(0.03),
-        };
+        let expected = Usage::default()
+            .prompt_tokens(TokenCount::Approx(300))
+            .completion_tokens(TokenCount::Approx(125))
+            .total_tokens(TokenCount::Approx(425))
+            .cached_tokens(TokenCount::Approx(50))
+            .cost(0.03);
 
         assert_eq!(actual, expected);
     }
@@ -255,13 +258,13 @@ mod tests {
             cost: Some(0.01),
         };
 
-        let fixture_usage_2 = Usage {
-            prompt_tokens: TokenCount::Actual(200),
-            completion_tokens: TokenCount::Actual(75),
-            total_tokens: TokenCount::Actual(275),
-            cached_tokens: TokenCount::Actual(30),
-            cost: None,
-        };
+        let fixture: Usage = Faker.fake();
+        let mut fixture_usage_2 = fixture
+            .prompt_tokens(TokenCount::Actual(200))
+            .completion_tokens(TokenCount::Actual(75))
+            .total_tokens(TokenCount::Actual(275))
+            .cached_tokens(TokenCount::Actual(30));
+        fixture_usage_2.cost = None;
 
         let actual = fixture_usage_1.accumulate(&fixture_usage_2);
 
@@ -278,31 +281,29 @@ mod tests {
 
     #[test]
     fn test_usage_accumulate_no_costs() {
-        let fixture_usage_1 = Usage {
-            prompt_tokens: TokenCount::Actual(100),
-            completion_tokens: TokenCount::Actual(50),
-            total_tokens: TokenCount::Actual(150),
-            cached_tokens: TokenCount::Actual(20),
-            cost: None,
-        };
+        let fixture: Usage = Faker.fake();
+        let mut fixture_usage_1 = fixture
+            .prompt_tokens(TokenCount::Actual(100))
+            .completion_tokens(TokenCount::Actual(50))
+            .total_tokens(TokenCount::Actual(150))
+            .cached_tokens(TokenCount::Actual(20));
+        fixture_usage_1.cost = None;
 
-        let fixture_usage_2 = Usage {
-            prompt_tokens: TokenCount::Actual(200),
-            completion_tokens: TokenCount::Actual(75),
-            total_tokens: TokenCount::Actual(275),
-            cached_tokens: TokenCount::Actual(30),
-            cost: None,
-        };
+        let fixture: Usage = Faker.fake();
+        let mut fixture_usage_2 = fixture
+            .prompt_tokens(TokenCount::Actual(200))
+            .completion_tokens(TokenCount::Actual(75))
+            .total_tokens(TokenCount::Actual(275))
+            .cached_tokens(TokenCount::Actual(30));
+        fixture_usage_2.cost = None;
 
         let actual = fixture_usage_1.accumulate(&fixture_usage_2);
 
-        let expected = Usage {
-            prompt_tokens: TokenCount::Actual(300),
-            completion_tokens: TokenCount::Actual(125),
-            total_tokens: TokenCount::Actual(425),
-            cached_tokens: TokenCount::Actual(50),
-            cost: None,
-        };
+        let expected = Usage::default()
+            .prompt_tokens(TokenCount::Actual(300))
+            .completion_tokens(TokenCount::Actual(125))
+            .total_tokens(TokenCount::Actual(425))
+            .cached_tokens(TokenCount::Actual(50));
 
         assert_eq!(actual, expected);
     }
@@ -311,23 +312,22 @@ mod tests {
     fn test_usage_accumulate_with_defaults() {
         let fixture_usage_1 = Usage::default();
 
-        let fixture_usage_2 = Usage {
-            prompt_tokens: TokenCount::Actual(200),
-            completion_tokens: TokenCount::Actual(75),
-            total_tokens: TokenCount::Actual(275),
-            cached_tokens: TokenCount::Actual(30),
-            cost: Some(0.05),
-        };
+        let fixture: Usage = Faker.fake();
+        let fixture_usage_2 = fixture
+            .prompt_tokens(TokenCount::Actual(200))
+            .completion_tokens(TokenCount::Actual(75))
+            .total_tokens(TokenCount::Actual(275))
+            .cached_tokens(TokenCount::Actual(30))
+            .cost(0.05);
 
         let actual = fixture_usage_1.accumulate(&fixture_usage_2);
 
-        let expected = Usage {
-            prompt_tokens: TokenCount::Actual(200),
-            completion_tokens: TokenCount::Actual(75),
-            total_tokens: TokenCount::Actual(275),
-            cached_tokens: TokenCount::Actual(30),
-            cost: Some(0.05),
-        };
+        let expected = Usage::default()
+            .prompt_tokens(TokenCount::Actual(200))
+            .completion_tokens(TokenCount::Actual(75))
+            .total_tokens(TokenCount::Actual(275))
+            .cached_tokens(TokenCount::Actual(30))
+            .cost(0.05);
 
         assert_eq!(actual, expected);
     }

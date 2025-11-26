@@ -80,7 +80,7 @@ insta.workspace = true
 mockito.workspace = true
 pretty_assertions.workspace = true
 tempfile.workspace = true
-fake = { version = "4.4.0", features = ["derive"] }
+fake = { workspace = true }
 forge_test_kit.workspace = true
 
 

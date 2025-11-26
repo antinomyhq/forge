@@ -3,7 +3,7 @@ use derive_setters::Setters;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, Deserialize, Serialize, Setters)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize, Setters, fake::Dummy)]
 pub struct Model {
     pub id: ModelId,
     pub name: Option<String>,
@@ -28,7 +28,9 @@ impl Parameters {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, Hash, Eq, Display, JsonSchema)]
+#[derive(
+    Clone, Debug, Deserialize, PartialEq, Serialize, Hash, Eq, Display, JsonSchema, fake::Dummy,
+)]
 #[serde(transparent)]
 pub struct ModelId(String);
 
