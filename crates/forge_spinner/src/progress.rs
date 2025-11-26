@@ -13,7 +13,7 @@ impl ProgressBarManager {
         let pb = ProgressBar::new(total);
         pb.set_style(
             ProgressStyle::with_template(
-                "{spinner:.green} {msg:.green} [{bar:20.green}] {pos}/{len} [{elapsed_precise}]",
+                "{spinner:.green} {elapsed} {msg:<10.green} [{bar:20.green}] [{pos}/{len}]",
             )
             .unwrap()
             .progress_chars("█░░")

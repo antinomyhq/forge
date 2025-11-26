@@ -325,11 +325,19 @@ impl<F> ForgeIndexingService<F> {
         };
 
         let workspace_id = if is_new_workspace {
+            // Create an workspace.
             let id = self
                 .infra
                 .create_workspace(&canonical_path, &token)
                 .await
                 .context("Failed to create workspace on server")?;
+
+            // Save workspace in database to avoid creating multiple workspaces
+            self.infra
+                .upsert(&id, &user_id, &canonical_path)
+                .await
+                .context("Failed to save workspace")?;
+
             emit(IndexProgress::WorkspaceCreated { workspace_id: id.clone() }).await;
             id
         } else {
