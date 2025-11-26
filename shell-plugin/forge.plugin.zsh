@@ -118,15 +118,18 @@ function _forge_log() {
 
 # Helper function to find the index of a value in a list (1-based)
 # Returns the index if found, 1 otherwise
+# Usage: _forge_find_index <output> <value_to_find> [field_number]
+# field_number: which field to compare (1 for first field, 2 for second field, etc.)
 function _forge_find_index() {
     local output="$1"
     local value_to_find="$2"
+    local field_number="${3:-1}"  # Default to first field if not specified
 
     local index=1
     while IFS= read -r line; do
-        # Extract the second field (provider ID) for comparison
-        local provider_id=$(echo "$line" | awk '{print $2}')
-        if [[ "$provider_id" == "$value_to_find" ]]; then
+        # Extract the specified field for comparison
+        local field_value=$(echo "$line" | awk "{print \$$field_number}")
+        if [[ "$field_value" == "$value_to_find" ]]; then
             echo "$index"
             return 0
         fi
@@ -173,7 +176,8 @@ function _forge_select_provider() {
     
     # Position cursor on current provider if available
     if [[ -n "$current_provider" ]]; then
-        local index=$(_forge_find_index "$output" "$current_provider")
+        # For providers, compare against the first field (display name)
+        local index=$(_forge_find_index "$output" "$current_provider" 1)
         fzf_args+=(--bind="start:pos($index)")
     fi
     
@@ -216,7 +220,8 @@ function _forge_select_and_set_config() {
             fi
 
             if [[ -n "$default_value" ]]; then
-                local index=$(_forge_find_index "$output" "$default_value")
+                # For models, compare against the first field (model_id)
+                local index=$(_forge_find_index "$output" "$default_value" 1)
                 
                 fzf_args+=(--bind="start:pos($index)")
                 
@@ -412,7 +417,8 @@ function _forge_action_conversation() {
 
         # If there's a current conversation, position cursor on it
         if [[ -n "$current_id" ]]; then
-            local index=$(_forge_find_index "$conversations_output" "$current_id")
+            # For conversations, compare against the first field (conversation_id)
+            local index=$(_forge_find_index "$conversations_output" "$current_id" 1)
             fzf_args+=(--bind="start:pos($index)")
         fi
 

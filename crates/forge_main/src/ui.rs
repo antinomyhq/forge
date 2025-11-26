@@ -904,8 +904,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let mut info = Info::new();
 
         for provider in providers.iter() {
-            let id = (*provider.id()).to_string();
-            let display_name = provider.id().display_name();
+            let id: &str = &provider.id();
+            let display_name = provider.id().to_string();
             let domain = if let Some(url) = provider.url() {
                 url.domain().map(|d| d.to_string()).unwrap_or_default()
             } else {
@@ -1916,7 +1916,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         auth_methods: Vec<AuthMethod>,
     ) -> Result<Option<Provider<Url>>> {
         // Select auth method (or use the only one available)
-        let auth_method = match self.select_auth_method(provider_id, &auth_methods).await? {
+        let auth_method = match self.select_auth_method(provider_id.clone(), &auth_methods).await? {
             Some(method) => method,
             None => return Ok(None), // User cancelled
         };
@@ -1926,23 +1926,23 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Initiate the authentication flow
         let auth_request = self
             .api
-            .init_provider_auth(provider_id, auth_method)
+            .init_provider_auth(provider_id.clone(), auth_method)
             .await?;
 
         // Handle the specific authentication flow based on the request type
         match auth_request {
             AuthContextRequest::ApiKey(request) => {
-                self.handle_api_key_input(provider_id, &request).await?;
+                self.handle_api_key_input(provider_id.clone(), &request).await?;
             }
             AuthContextRequest::DeviceCode(request) => {
-                self.handle_device_flow(provider_id, &request).await?;
+                self.handle_device_flow(provider_id.clone(), &request).await?;
             }
             AuthContextRequest::Code(request) => {
-                self.handle_code_flow(provider_id, &request).await?;
+                self.handle_code_flow(provider_id.clone(), &request).await?;
             }
         }
 
-        let should_set_active = self.display_credential_success(provider_id).await?;
+        let should_set_active = self.display_credential_success(provider_id.clone()).await?;
 
         if !should_set_active {
             return Ok(None);
@@ -2052,7 +2052,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     /// a compatible model is selected.
     async fn finalize_provider_activation(&mut self, provider: Provider<Url>) -> Result<()> {
         // Set the provider via API
-        self.api.set_default_provider(provider.id).await?;
+        self.api.set_default_provider(provider.id.clone()).await?;
 
         self.writeln_title(TitleFormat::action(format!(
             "Switched to provider: {}",

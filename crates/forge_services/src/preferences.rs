@@ -73,7 +73,7 @@ impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
             .model
             .get(provider_id)
             .cloned()
-            .ok_or_else(|| forge_domain::Error::no_default_model(*provider_id))?)
+            .ok_or_else(|| forge_domain::Error::no_default_model(provider_id.clone()))?)
     }
 
     async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()> {

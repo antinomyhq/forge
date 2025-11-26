@@ -1,7 +1,7 @@
+use std::borrow::Cow;
 use std::collections::HashMap;
-use std::ops::Deref;
 
-use derive_more::{AsRef, Deref as DeriveDeref, From};
+use derive_more::{AsRef, Deref, From};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use url::Url;
@@ -16,7 +16,6 @@ use crate::{ApiKey, AuthCredential, AuthDetails, Model, Template};
 /// using `from_str()`.
 #[derive(
     Debug,
-    Copy,
     Clone,
     PartialEq,
     Eq,
@@ -25,31 +24,32 @@ use crate::{ApiKey, AuthCredential, AuthDetails, Model, Template};
     Ord,
     JsonSchema,
     AsRef,
-    DeriveDeref,
+    Deref,
     Serialize,
+    Deserialize,
 )]
 #[schemars(with = "String")]
-#[serde(transparent)]
-pub struct ProviderId(&'static str);
+#[serde(from = "String")]
+pub struct ProviderId(Cow<'static, str>);
 
 impl ProviderId {
     // Built-in provider constants
-    pub const FORGE: ProviderId = ProviderId("forge");
-    pub const OPENAI: ProviderId = ProviderId("openai");
-    pub const OPEN_ROUTER: ProviderId = ProviderId("open_router");
-    pub const REQUESTY: ProviderId = ProviderId("requesty");
-    pub const ZAI: ProviderId = ProviderId("zai");
-    pub const ZAI_CODING: ProviderId = ProviderId("zai_coding");
-    pub const CEREBRAS: ProviderId = ProviderId("cerebras");
-    pub const XAI: ProviderId = ProviderId("xai");
-    pub const ANTHROPIC: ProviderId = ProviderId("anthropic");
-    pub const CLAUDE_CODE: ProviderId = ProviderId("claude_code");
-    pub const VERTEX_AI: ProviderId = ProviderId("vertex_ai");
-    pub const BIG_MODEL: ProviderId = ProviderId("big_model");
-    pub const AZURE: ProviderId = ProviderId("azure");
-    pub const GITHUB_COPILOT: ProviderId = ProviderId("github_copilot");
-    pub const OPENAI_COMPATIBLE: ProviderId = ProviderId("openai_compatible");
-    pub const ANTHROPIC_COMPATIBLE: ProviderId = ProviderId("anthropic_compatible");
+    pub const FORGE: ProviderId = ProviderId(Cow::Borrowed("forge"));
+    pub const OPENAI: ProviderId = ProviderId(Cow::Borrowed("openai"));
+    pub const OPEN_ROUTER: ProviderId = ProviderId(Cow::Borrowed("open_router"));
+    pub const REQUESTY: ProviderId = ProviderId(Cow::Borrowed("requesty"));
+    pub const ZAI: ProviderId = ProviderId(Cow::Borrowed("zai"));
+    pub const ZAI_CODING: ProviderId = ProviderId(Cow::Borrowed("zai_coding"));
+    pub const CEREBRAS: ProviderId = ProviderId(Cow::Borrowed("cerebras"));
+    pub const XAI: ProviderId = ProviderId(Cow::Borrowed("xai"));
+    pub const ANTHROPIC: ProviderId = ProviderId(Cow::Borrowed("anthropic"));
+    pub const CLAUDE_CODE: ProviderId = ProviderId(Cow::Borrowed("claude_code"));
+    pub const VERTEX_AI: ProviderId = ProviderId(Cow::Borrowed("vertex_ai"));
+    pub const BIG_MODEL: ProviderId = ProviderId(Cow::Borrowed("big_model"));
+    pub const AZURE: ProviderId = ProviderId(Cow::Borrowed("azure"));
+    pub const GITHUB_COPILOT: ProviderId = ProviderId(Cow::Borrowed("github_copilot"));
+    pub const OPENAI_COMPATIBLE: ProviderId = ProviderId(Cow::Borrowed("openai_compatible"));
+    pub const ANTHROPIC_COMPATIBLE: ProviderId = ProviderId(Cow::Borrowed("anthropic_compatible"));
 
     /// Returns the display name for UI (UpperCamelCase with special handling
     /// for acronyms).
@@ -58,9 +58,9 @@ impl ProviderId {
     /// - "openai" -> "OpenAI"
     /// - "open_router" -> "OpenRouter"
     /// - "xai" -> "XAI"
-    pub fn display_name(&self) -> String {
+    fn display_name(&self) -> String {
         // Special cases for known providers with acronyms
-        match *self.deref() {
+        match self.0.as_ref() {
             "openai" => "OpenAI".to_string(),
             "xai" => "XAI".to_string(),
             "zai" => "ZAI".to_string(),
@@ -69,7 +69,7 @@ impl ProviderId {
             _ => {
                 // For other providers, use UpperCamelCase conversion
                 use convert_case::{Case, Casing};
-                self.deref().to_case(Case::UpperCamel)
+                self.0.to_case(Case::UpperCamel)
             }
         }
     }
@@ -103,20 +103,16 @@ impl std::str::FromStr for ProviderId {
             "github_copilot" => ProviderId::GITHUB_COPILOT,
             "openai_compatible" => ProviderId::OPENAI_COMPATIBLE,
             "anthropic_compatible" => ProviderId::ANTHROPIC_COMPATIBLE,
-            // For custom providers, leak the string to get a 'static lifetime
-            custom => ProviderId(Box::leak(custom.to_string().into_boxed_str())),
+            // For custom providers, use Cow::Owned to avoid memory leaks
+            custom => ProviderId(Cow::Owned(custom.to_string())),
         };
         Ok(provider)
     }
 }
 
-impl<'de> Deserialize<'de> for ProviderId {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        Ok(std::str::FromStr::from_str(&s).unwrap())
+impl From<String> for ProviderId {
+    fn from(s: String) -> Self {
+        std::str::FromStr::from_str(&s).unwrap()
     }
 }
 
@@ -189,8 +185,8 @@ impl AnyProvider {
 
     pub fn id(&self) -> ProviderId {
         match self {
-            AnyProvider::Url(p) => p.id,
-            AnyProvider::Template(p) => p.id,
+            AnyProvider::Url(p) => p.id.clone(),
+            AnyProvider::Template(p) => p.id.clone(),
         }
     }
 
@@ -382,19 +378,19 @@ mod tests {
 
     #[test]
     fn test_provider_id_display_name() {
-        assert_eq!(ProviderId::OPENAI.display_name(), "OpenAI");
-        assert_eq!(ProviderId::OPEN_ROUTER.display_name(), "OpenRouter");
-        assert_eq!(ProviderId::ZAI.display_name(), "ZAI");
-        assert_eq!(ProviderId::XAI.display_name(), "XAI");
-        assert_eq!(ProviderId::ANTHROPIC.display_name(), "Anthropic");
-        assert_eq!(ProviderId::GITHUB_COPILOT.display_name(), "GithubCopilot");
-        assert_eq!(ProviderId::VERTEX_AI.display_name(), "VertexAI");
+        assert_eq!(ProviderId::OPENAI.to_string(), "OpenAI");
+        assert_eq!(ProviderId::OPEN_ROUTER.to_string(), "OpenRouter");
+        assert_eq!(ProviderId::ZAI.to_string(), "ZAI");
+        assert_eq!(ProviderId::XAI.to_string(), "XAI");
+        assert_eq!(ProviderId::ANTHROPIC.to_string(), "Anthropic");
+        assert_eq!(ProviderId::GITHUB_COPILOT.to_string(), "GithubCopilot");
+        assert_eq!(ProviderId::VERTEX_AI.to_string(), "VertexAI");
         assert_eq!(
-            ProviderId::OPENAI_COMPATIBLE.display_name(),
+            ProviderId::OPENAI_COMPATIBLE.to_string(),
             "OpenAICompatible"
         );
         assert_eq!(
-            ProviderId::ANTHROPIC_COMPATIBLE.display_name(),
+            ProviderId::ANTHROPIC_COMPATIBLE.to_string(),
             "AnthropicCompatible"
         );
     }
