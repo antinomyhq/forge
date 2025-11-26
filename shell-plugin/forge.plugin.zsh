@@ -512,9 +512,19 @@ function _forge_action_editor() {
         return 1
     fi
     
-    # Create temporary file
-    local temp_file
-    temp_file=$(mktemp "/tmp/forge-edit-XXXXXX.md") || {
+    # Create .forge directory if it doesn't exist
+    local forge_dir=".forge"
+    if [[ ! -d "$forge_dir" ]]; then
+        mkdir -p "$forge_dir" || {
+            _forge_log error "Failed to create .forge directory"
+            _forge_reset
+            return 1
+        }
+    fi
+    
+    # Create temporary file with git-like naming: FORGE_EDITMSG
+    local temp_file="${forge_dir}/FORGE_EDITMSG"
+    touch "$temp_file" || {
         _forge_log error "Failed to create temporary file"
         _forge_reset
         return 1
