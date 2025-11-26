@@ -2,7 +2,9 @@ use std::sync::Arc;
 
 use anyhow::Context;
 use forge_app::domain::Skill;
-use forge_app::{EnvironmentInfra, FileInfoInfra, FileReaderInfra, Walker, WalkerInfra};
+use forge_app::{
+    EnvironmentInfra, FileInfoInfra, FileReaderInfra, TemplateEngine, Walker, WalkerInfra,
+};
 use forge_domain::SkillRepository;
 use futures::future::join_all;
 use gray_matter::engine::YAML;
@@ -11,7 +13,7 @@ use serde::Deserialize;
 
 /// Repository implementation for loading skills from multiple sources:
 /// 1. Built-in skills (embedded in the application)
-/// 2. Global custom skills (from ~/.forge/skills/ directory)
+/// 2. Global custom skills (from ~/forge/skills/ directory)
 /// 3. Project-local skills (from .forge/skills/ directory in current working
 ///    directory)
 ///
@@ -24,7 +26,7 @@ use serde::Deserialize;
 ///
 /// ## Directory Resolution
 /// - **Built-in skills**: Embedded in application binary
-/// - **Global skills**: `{HOME}/.forge/skills/<skill-name>/SKILL.md`
+/// - **Global skills**: `~/forge/skills/<skill-name>/SKILL.md`
 /// - **CWD skills**: `./.forge/skills/<skill-name>/SKILL.md` (relative to
 ///   current working directory)
 ///
@@ -76,17 +78,25 @@ impl<I: FileInfoInfra + EnvironmentInfra + FileReaderInfra + WalkerInfra> SkillR
         skills.extend(builtin_skills);
 
         // Load global skills
-        let global_dir = env.base_path.join("skills");
+        let global_dir = env.global_skills_path();
         let global_skills = self.load_skills_from_dir(&global_dir).await?;
         skills.extend(global_skills);
 
         // Load project-local skills
-        let cwd_dir = env.cwd.join(".forge/skills");
+        let cwd_dir = env.local_skills_path();
         let cwd_skills = self.load_skills_from_dir(&cwd_dir).await?;
         skills.extend(cwd_skills);
 
         // Resolve conflicts by keeping the last occurrence (CWD > Global > Built-in)
-        Ok(resolve_skill_conflicts(skills))
+        let skills = resolve_skill_conflicts(skills);
+
+        // Render all skills with environment context
+        let rendered_skills = skills
+            .into_iter()
+            .map(|skill| self.render_skill(skill, &env))
+            .collect::<anyhow::Result<Vec<_>>>()?;
+
+        Ok(rendered_skills)
     }
 }
 
@@ -199,6 +209,26 @@ impl<I: FileInfoInfra + EnvironmentInfra + FileReaderInfra + WalkerInfra> ForgeS
             .collect();
 
         Ok(skills)
+    }
+
+    /// Renders a skill's command field with environment context
+    ///
+    /// # Arguments
+    /// * `skill` - The skill to render
+    /// * `env` - The environment containing path information
+    ///
+    /// # Errors
+    /// Returns an error if template rendering fails
+    fn render_skill(&self, skill: Skill, env: &forge_domain::Environment) -> anyhow::Result<Skill> {
+        let skill_context = serde_json::json!({
+            "global_skills_path": env.global_skills_path().display().to_string(),
+            "local_skills_path": env.local_skills_path().display().to_string(),
+        });
+
+        let rendered_command = TemplateEngine::default()
+            .render_template(forge_domain::Template::new(&skill.command), &skill_context)?;
+
+        Ok(skill.command(rendered_command))
     }
 }
 
