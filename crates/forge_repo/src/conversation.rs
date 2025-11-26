@@ -267,6 +267,7 @@ impl ConversationRepository for ConversationRepositoryImpl {
         let mut connection = self.pool.get_connection()?;
         let workspace_id = self.wid.id() as i64;
         
+        // Security: Ensure users can only delete conversations within their workspace
         diesel::delete(conversations::table)
             .filter(conversations::workspace_id.eq(&workspace_id))
             .filter(conversations::conversation_id.eq(conversation_id.into_string()))
