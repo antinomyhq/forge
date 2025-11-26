@@ -26,6 +26,7 @@ enum Operation<'a> {
         query: &'a str,
         use_case: &'a str,
         top_k: u32,
+        file_extension: Option<&'a str>,
     },
     /// Fetch operation for a specific URL
     Fetch(&'a str),
@@ -49,8 +50,8 @@ fn to_op(tool: &SummaryTool) -> Operation<'_> {
         SummaryTool::Undo { path } => Operation::File(path),
         SummaryTool::Shell { command } => Operation::Shell(command),
         SummaryTool::Search { pattern } => Operation::Search(pattern),
-        SummaryTool::SemSearch { query, use_case, top_k } => {
-            Operation::CodebaseSearch { query, use_case, top_k: *top_k }
+        SummaryTool::SemSearch { query, use_case, top_k, file_extension } => {
+            Operation::CodebaseSearch { query, use_case, top_k: *top_k, file_extension: file_extension.as_deref() }
         }
         SummaryTool::Fetch { url } => Operation::Fetch(url),
         SummaryTool::Followup { question } => Operation::Followup(question),

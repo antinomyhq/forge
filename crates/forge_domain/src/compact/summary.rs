@@ -120,6 +120,7 @@ impl SummaryToolCall {
         query: impl Into<String>,
         use_case: impl Into<String>,
         top_k: u32,
+        file_extension: Option<String>,
     ) -> Self {
         Self {
             id: None,
@@ -127,6 +128,7 @@ impl SummaryToolCall {
                 query: query.into(),
                 use_case: use_case.into(),
                 top_k,
+                file_extension,
             },
             is_success: true,
         }
@@ -195,6 +197,7 @@ pub enum SummaryTool {
         query: String,
         use_case: String,
         top_k: u32,
+        file_extension: Option<String>,
     },
     Undo {
         path: String,
@@ -315,7 +318,7 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
             .file_pattern
             .or(input.regex)
             .map(|pattern| SummaryTool::Search { pattern }),
-        ToolCatalog::SemSearch(input) => Some(SummaryTool::SemSearch { query: input.query, use_case: input.use_case, top_k: input.top_k }),
+        ToolCatalog::SemSearch(input) => Some(SummaryTool::SemSearch { query: input.query, use_case: input.use_case, top_k: input.top_k, file_extension: input.file_extension }),
         ToolCatalog::Undo(input) => Some(SummaryTool::Undo { path: input.path }),
         ToolCatalog::Fetch(input) => Some(SummaryTool::Fetch { url: input.url }),
         ToolCatalog::Followup(input) => Some(SummaryTool::Followup { question: input.question }),
@@ -974,7 +977,7 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Searching codebase"),
-                SummaryToolCall::codebase_search("retry mechanism", "find retry logic", 10)
+                SummaryToolCall::codebase_search("retry mechanism", "find retry logic", 10, None)
                     .id("call_1")
                     .is_success(false)
                     .into(),
