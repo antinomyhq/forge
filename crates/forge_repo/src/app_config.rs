@@ -78,7 +78,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Send + Sync> AppC
 #[cfg(test)]
 mod tests {
 
-    use std::collections::HashMap;
+    use std::collections::{BTreeMap, HashMap};
     use std::path::{Path, PathBuf};
     use std::sync::Mutex;
 
@@ -112,6 +112,10 @@ mod tests {
 
         fn get_env_var(&self, _key: &str) -> Option<String> {
             None
+        }
+
+        fn get_env_vars(&self) -> BTreeMap<String, String> {
+            BTreeMap::new()
         }
     }
 

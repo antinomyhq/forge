@@ -4,8 +4,9 @@ use std::sync::Arc;
 use anyhow::Context;
 use forge_app::{
     Content, EnvironmentInfra, FileInfoInfra, FileReaderInfra as InfraFsReadService, FsReadService,
-    ReadOutput,
+    ReadOutput, compute_hash,
 };
+use forge_domain::FileInfo;
 
 use crate::range::resolve_range;
 use crate::utils::assert_absolute_path;
@@ -76,27 +77,45 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for
 
         let (start_line, end_line) = resolve_range(start_line, end_line, env.max_read_size);
 
-        let (content, file_info) = self
+        // Read the file once - range_read_utf8 internally reads the full file
+        // to compute line ranges, so we can hash the full content it already read
+        let full_content = self
             .0
-            .range_read_utf8(path, start_line, end_line)
+            .read_utf8(path)
             .await
-            .map_err(|e| {
-                tracing::error!(
-                    path = %path.display(),
-                    start_line = start_line,
-                    end_line = end_line,
-                    error = %e,
-                    "Failed to read file content"
-                );
-                e
-            })
             .with_context(|| format!("Failed to read file content from {}", path.display()))?;
 
+        let hash = compute_hash(&full_content);
+
+        // Now extract the requested range from the content we already have
+        let lines: Vec<&str> = full_content.lines().collect();
+        let total_lines = lines.len() as u64;
+
+        // Convert to 0-based indexing and clamp to valid range
+        let start_pos = start_line
+            .saturating_sub(1)
+            .min(total_lines.saturating_sub(1));
+        let end_pos = end_line
+            .saturating_sub(1)
+            .min(total_lines.saturating_sub(1));
+
+        // Extract requested lines
+        let content = if start_pos == 0 && end_pos >= total_lines.saturating_sub(1) {
+            full_content.clone() // Return full content if requesting entire file
+        } else if total_lines == 0 {
+            String::new()
+        } else {
+            lines[start_pos as usize..=end_pos as usize].join("\n")
+        };
+
+        let file_info = FileInfo { start_line, end_line, total_lines };
+
         Ok(ReadOutput {
-            content: Content::File(content),
+            content: Content::file(content),
             start_line: file_info.start_line,
             end_line: file_info.end_line,
             total_lines: file_info.total_lines,
+            content_hash: hash,
         })
     }
 }

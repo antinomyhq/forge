@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
@@ -121,6 +122,11 @@ impl EnvironmentInfra for ForgeEnvironmentInfra {
 
     fn get_env_var(&self, key: &str) -> Option<String> {
         std::env::var(key).ok()
+    }
+
+    fn get_env_vars(&self) -> BTreeMap<String, String> {
+        // TODO: Maybe cache it?
+        std::env::vars().collect()
     }
 }
 
