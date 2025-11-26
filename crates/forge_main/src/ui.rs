@@ -45,6 +45,45 @@ use crate::tools_display::format_tools;
 use crate::update::on_update;
 use crate::{TRACKER, banner, tracker};
 
+/// Formats an MCP server config for display, redacting sensitive information.
+/// Returns the command/URL string only.
+fn format_mcp_server(server: &forge_domain::McpServerConfig) -> String {
+    match server {
+        forge_domain::McpServerConfig::Stdio(stdio) => {
+            let mut output = format!("{} ", stdio.command);
+            for arg in &stdio.args {
+                output.push_str(&format!("{arg} "));
+            }
+            for key in stdio.env.keys() {
+                output.push_str(&format!("{key}=*** "));
+            }
+            output.trim().to_string()
+        }
+        forge_domain::McpServerConfig::Http(http) => http.url.clone(),
+    }
+}
+
+/// Formats HTTP headers for display, redacting values.
+/// Returns None if there are no headers.
+fn format_mcp_headers(server: &forge_domain::McpServerConfig) -> Option<String> {
+    match server {
+        forge_domain::McpServerConfig::Stdio(_) => None,
+        forge_domain::McpServerConfig::Http(http) => {
+            if http.headers.is_empty() {
+                None
+            } else {
+                Some(
+                    http.headers
+                        .keys()
+                        .map(|k| format!("{k}=***"))
+                        .collect::<Vec<_>>()
+                        .join(", "),
+                )
+            }
+        }
+    }
+}
+
 pub struct UI<A, F: Fn() -> A> {
     markdown: MarkdownFormat,
     state: UIState,
@@ -405,7 +444,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         .ok_or(anyhow::anyhow!("Server not found"))?;
 
                     let mut output = String::new();
-                    output.push_str(&format!("{name}: {server}"));
+                    output.push_str(&format!("{name}: {}", format_mcp_server(server)));
                     self.writeln_title(TitleFormat::info(output))?;
                 }
                 McpCommand::Reload => {
@@ -1169,7 +1208,12 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             info = info
                 .add_title(name.to_uppercase())
                 .add_key_value("Type", server.server_type())
-                .add_key_value(label, server.to_string());
+                .add_key_value(label, format_mcp_server(&server));
+
+            // Add headers for HTTP servers if present
+            if let Some(headers) = format_mcp_headers(&server) {
+                info = info.add_key_value("Headers", headers);
+            }
 
             if server.is_disabled() {
                 info = info.add_key_value("Status", "disabled");
