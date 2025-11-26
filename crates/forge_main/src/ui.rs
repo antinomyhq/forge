@@ -2854,7 +2854,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .to_string();
 
         let title = if is_active {
-            format!("Workspace [{}] [ACTIVE]", timestamp)
+            format!("Workspace [ACTIVE]")
         } else {
             format!("Workspace [{}]", timestamp)
         };
