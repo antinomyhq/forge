@@ -109,10 +109,11 @@ mod tests {
                 .map(|content| {
                     let hash = compute_hash(content);
                     ReadOutput {
-                        content: Content::file(content.clone(), hash),
+                        content: Content::file(content.clone()),
                         start_line: 1,
                         end_line: 1,
                         total_lines: 1,
+                        raw_content_hash: hash,
                     }
                 })
                 .ok_or_else(|| anyhow::anyhow!(std::io::Error::from(std::io::ErrorKind::NotFound)))

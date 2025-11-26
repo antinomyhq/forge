@@ -165,10 +165,9 @@ impl<
                     )
                     .await?;
                 let output = if input.show_line_numbers {
-                    let (file_content, hash) = output.content.file_content();
-                    let hash = hash.to_string();
+                    let file_content = output.content.file_content();
                     let numbered_content = file_content.numbered_from(output.start_line as usize);
-                    output.content(crate::Content::file(numbered_content, hash))
+                    output.content(crate::Content::file(numbered_content))
                 } else {
                     output
                 };

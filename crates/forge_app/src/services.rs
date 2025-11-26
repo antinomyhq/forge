@@ -39,24 +39,22 @@ pub struct ReadOutput {
     pub start_line: u64,
     pub end_line: u64,
     pub total_lines: u64,
+    pub raw_content_hash: String,
 }
 
 #[derive(Debug)]
 pub enum Content {
-    File {
-        content: String,
-        raw_content_hash: String,
-    },
+    File(String),
 }
 
 impl Content {
-    pub fn file<S: Into<String>>(content: S, hash: S) -> Self {
-        Self::File { content: content.into(), raw_content_hash: hash.into() }
+    pub fn file<S: Into<String>>(content: S) -> Self {
+        Self::File(content.into())
     }
 
-    pub fn file_content(&self) -> (&str, &str) {
+    pub fn file_content(&self) -> &str {
         match self {
-            Self::File { content, raw_content_hash: hash } => (content, hash),
+            Self::File(content) => content,
         }
     }
 }

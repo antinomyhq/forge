@@ -90,7 +90,7 @@ impl<F: FsReadService> FileChangeDetector<F> {
             .await?;
 
         match output.content {
-            Content::File { content, raw_content_hash: _ } => Ok(content),
+            Content::File(content) => Ok(content),
         }
     }
 }
@@ -142,13 +142,11 @@ mod tests {
 
             if let Some(content) = self.files.get(&path) {
                 Ok(crate::ReadOutput {
-                    content: Content::File {
-                        content: content.clone(),
-                        raw_content_hash: compute_hash(content),
-                    },
+                    content: Content::File(content.clone()),
                     start_line: 1,
                     end_line: 1,
                     total_lines: 1,
+                    raw_content_hash: compute_hash(content),
                 })
             } else {
                 Err(anyhow::anyhow!(std::io::Error::from(

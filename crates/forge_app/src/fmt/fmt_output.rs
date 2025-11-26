@@ -88,10 +88,11 @@ mod tests {
                 show_line_numbers: true,
             },
             output: ReadOutput {
-                content: Content::file(content, &crate::compute_hash(content)),
+                content: Content::file(content),
                 start_line: 1,
                 end_line: 1,
                 total_lines: 5,
+                raw_content_hash: crate::compute_hash(content),
             },
         };
         let env = fixture_environment();
@@ -113,10 +114,11 @@ mod tests {
                 show_line_numbers: true,
             },
             output: ReadOutput {
-                content: Content::file(content, &crate::compute_hash(content)),
+                content: Content::file(content),
                 start_line: 2,
                 end_line: 4,
                 total_lines: 10,
+                raw_content_hash: crate::compute_hash(content),
             },
         };
         let env = fixture_environment();

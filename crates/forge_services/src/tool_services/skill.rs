@@ -35,8 +35,7 @@ impl<R: forge_domain::SkillRepository> SkillFetchService for ForgeSkillFetch<R> 
             .cloned()
             .ok_or_else(|| {
                 anyhow!(
-                    "Skill '{}' not found. Please check the available skills list.",
-                    skill_name
+                    "Skill '{skill_name}' not found. Please check the available skills list."
                 )
             })
     }

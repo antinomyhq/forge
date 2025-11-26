@@ -93,10 +93,11 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for
             .with_context(|| format!("Failed to read file content from {}", path.display()))?;
         let hash = compute_hash(&content);
         Ok(ReadOutput {
-            content: Content::file(content, hash),
+            content: Content::file(content),
             start_line: file_info.start_line,
             end_line: file_info.end_line,
             total_lines: file_info.total_lines,
+            raw_content_hash: hash,
         })
     }
 }

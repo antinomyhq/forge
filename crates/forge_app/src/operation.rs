@@ -196,7 +196,7 @@ impl ToolOperation {
         let tool_name = tool_kind.name();
         match self {
             ToolOperation::FsRead { input, output } => {
-                let (content, content_hash) = output.content.file_content();
+                let content = output.content.file_content();
                 let elm = Element::new("file_content")
                     .attr("path", &input.path)
                     .attr(
@@ -210,7 +210,8 @@ impl ToolOperation {
                 tracing::info!(path = %input.path, tool = %tool_name, "File read");
                 *metrics = metrics.clone().insert(
                     input.path.clone(),
-                    FileOperation::new(tool_kind).content_hash(Some(content_hash.to_string())),
+                    FileOperation::new(tool_kind)
+                        .content_hash(Some(output.raw_content_hash.clone())),
                 );
 
                 forge_domain::ToolOutput::text(elm)
@@ -564,10 +565,11 @@ mod tests {
                 show_line_numbers: true,
             },
             output: ReadOutput {
-                content: Content::file(content, &hash),
+                content: Content::file(content),
                 start_line: 1,
                 end_line: 2,
                 total_lines: 2,
+                raw_content_hash: hash,
             },
         };
 
@@ -595,10 +597,11 @@ mod tests {
                 show_line_numbers: true,
             },
             output: ReadOutput {
-                content: Content::file(content, &hash),
+                content: Content::file(content),
                 start_line: 1,
                 end_line: 1,
                 total_lines: 1,
+                raw_content_hash: hash,
             },
         };
 
@@ -625,10 +628,11 @@ mod tests {
                 show_line_numbers: true,
             },
             output: ReadOutput {
-                content: Content::file(content, &hash),
+                content: Content::file(content),
                 start_line: 2,
                 end_line: 3,
                 total_lines: 5,
+                raw_content_hash: hash,
             },
         };
 
@@ -656,10 +660,11 @@ mod tests {
                 show_line_numbers: true,
             },
             output: ReadOutput {
-                content: Content::file(content, &hash),
+                content: Content::file(content),
                 start_line: 1,
                 end_line: 100,
                 total_lines: 200,
+                raw_content_hash: hash,
             },
         };
 

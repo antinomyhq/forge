@@ -99,9 +99,7 @@ impl OAuthHttpProvider for AnthropicHttpProvider {
             let status = response.status();
             let error_text = response.text().await.unwrap_or_default();
             anyhow::bail!(
-                "Token exchange failed with status {}: {}",
-                status,
-                error_text
+                "Token exchange failed with status {status}: {error_text}"
             );
         }
 
