@@ -201,16 +201,14 @@ impl<
                     .await?;
                 (input, output).into()
             }
-            ToolCatalog::CodebaseSearch(input) => {
+            ToolCatalog::SemSearch(input) => {
                 let env = self.services.get_environment();
                 let services = self.services.clone();
                 let cwd = env.cwd.clone();
-                let query = input.query;
-                let use_case = input.use_case;
+                let query = input.query.clone();
+                let use_case = input.use_case.clone();
 
-                let limit = env.codebase_search_limit;
-                let top_k = input.top_k;
-                let params = forge_domain::SearchParams::new(&query, &use_case, limit).top_k(top_k);
+                let params = forge_domain::SearchParams::from(&input).limit(env.sem_search_limit);
 
                 let results = services.query_codebase(cwd, params).await?;
                 let output = forge_domain::CodebaseQueryResult { query, use_case, results };

@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use forge_app::domain::PatchOperation;
-use forge_app::{FileWriterInfra, FsPatchService, PatchOutput};
+use forge_app::{FileWriterInfra, FsPatchService, PatchOutput, compute_hash};
 use forge_domain::SnapshotRepository;
 use thiserror::Error;
 use tokio::fs;
@@ -233,10 +233,14 @@ impl<F: FileWriterInfra + SnapshotRepository> FsPatchService for ForgeFsPatch<F>
             .write(path, Bytes::from(current_content.clone()))
             .await?;
 
+        // Compute hash of the final file content
+        let content_hash = compute_hash(&current_content);
+
         Ok(PatchOutput {
             warning: tool_services::syn::validate(path, &current_content).map(|e| e.to_string()),
             before: old_content,
             after: current_content,
+            content_hash,
         })
     }
 }

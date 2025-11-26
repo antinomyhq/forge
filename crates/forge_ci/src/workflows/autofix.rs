@@ -8,12 +8,13 @@ use crate::jobs;
 pub fn generate_autofix_workflow() {
     let lint_fix_job = Job::new("Lint Fix")
         .permissions(Permissions::default().contents(Level::Read))
+        .add_step(Step::new("Checkout Code").uses("actions", "checkout", "v6"))
         .add_step(Step::new("Install SQLite").run("sudo apt-get install -y libsqlite3-dev"))
         .add_step(
-            Step::new("Install Protobuf Compiler")
-                .run("sudo apt-get update && sudo apt-get install -y protobuf-compiler"),
+            Step::new("Setup Protobuf Compiler")
+                .uses("arduino", "setup-protoc", "v3")
+                .with(("repo-token", "${{ secrets.GITHUB_TOKEN }}")),
         )
-        .add_step(Step::checkout())
         .add_step(
             Step::toolchain()
                 .add_nightly()

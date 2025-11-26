@@ -4,6 +4,7 @@
 //! NOTE: With every change to this CLI structure, verify that the ZSH plugin
 //! remains compatible. The plugin at `shell-plugin/forge.plugin.zsh` implements
 //! shell completion and command shortcuts that depend on the CLI structure.
+
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
@@ -212,6 +213,14 @@ pub enum WorkspaceCommand {
         /// Describe your intent or goal to filter results for relevance.
         #[arg(long, short = 'r')]
         use_case: String,
+
+        /// Filter results to files starting with this prefix.
+        #[arg(long)]
+        starts_with: Option<String>,
+
+        /// Filter results to files ending with this suffix.
+        #[arg(long)]
+        ends_with: Option<String>,
     },
 
     /// Show workspace information for an indexed directory.

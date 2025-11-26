@@ -277,7 +277,12 @@ impl TryFrom<Response> for ChatCompletionMessage {
                     }
                     Ok(response)
                 } else {
-                    let default_response = ChatCompletionMessage::assistant(Content::full(""));
+                    let mut default_response = ChatCompletionMessage::assistant(Content::full(""));
+                    // No choices – this can happen with Ollama/LMStudio streaming where the final
+                    // chunk only contains usage information.
+                    if let Some(u) = usage {
+                        default_response.usage = Some(u.into());
+                    }
                     Ok(default_response)
                 }
             }

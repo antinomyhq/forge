@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
@@ -81,7 +82,7 @@ impl ForgeEnvironmentInfra {
             forge_api_url,
             custom_history_path,
             max_conversations: parse_env::<usize>("FORGE_MAX_CONVERSATIONS").unwrap_or(100),
-            codebase_search_limit: parse_env::<usize>("FORGE_CODEBASE_SEARCH_LIMIT").unwrap_or(100),
+            sem_search_limit: parse_env::<usize>("FORGE_SEM_SEARCH_LIMIT").unwrap_or(100),
             workspace_server_url: parse_env::<String>("FORGE_WORKSPACE_SERVER_URL")
                 .as_ref()
                 .and_then(|url| Url::parse(url.as_str()).ok())
@@ -121,6 +122,11 @@ impl EnvironmentInfra for ForgeEnvironmentInfra {
 
     fn get_env_var(&self, key: &str) -> Option<String> {
         std::env::var(key).ok()
+    }
+
+    fn get_env_vars(&self) -> BTreeMap<String, String> {
+        // TODO: Maybe cache it?
+        std::env::vars().collect()
     }
 }
 
