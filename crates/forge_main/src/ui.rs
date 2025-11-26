@@ -556,8 +556,18 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         starts_with,
                         ends_with,
                     } => {
-                        self.on_query(query, path, limit, top_k, use_case, starts_with, ends_with)
-                            .await?;
+                        let mut params =
+                            forge_domain::SearchParams::new(&query, &use_case).limit(limit);
+                        if let Some(k) = top_k {
+                            params = params.top_k(k);
+                        }
+                        if let Some(prefix) = starts_with {
+                            params = params.starts_with(prefix);
+                        }
+                        if let Some(suffix) = ends_with {
+                            params = params.ends_with(suffix);
+                        }
+                        self.on_query(path, params).await?;
                     }
 
                     crate::cli::WorkspaceCommand::Info { path } => {
@@ -2783,26 +2793,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     async fn on_query(
         &mut self,
-        query: String,
         path: PathBuf,
-        limit: usize,
-        top_k: Option<u32>,
-        use_case: String,
-        starts_with: Option<String>,
-        ends_with: Option<String>,
+        params: forge_domain::SearchParams<'_>,
     ) -> anyhow::Result<()> {
         self.spinner.start(Some("Searching codebase..."))?;
-
-        let mut params = forge_domain::SearchParams::new(&query, &use_case).limit(limit);
-        if let Some(k) = top_k {
-            params = params.top_k(k);
-        }
-        if let Some(prefix) = starts_with {
-            params = params.starts_with(prefix);
-        }
-        if let Some(suffix) = ends_with {
-            params = params.ends_with(suffix);
-        }
 
         let results = match self.api.query_codebase(path.clone(), params).await {
             Ok(results) => results,
