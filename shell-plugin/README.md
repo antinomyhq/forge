@@ -119,9 +119,33 @@ This displays:
 
 The plugin automatically displays session information including:
 
+#### Session Status
+The plugin automatically displays session information including:
+
 - Conversation ID when starting new sessions
 - Active agent information
 - New session confirmations with timestamps
+
+#### Conversation Deletion
+Delete conversations interactively or by ID:
+
+```bash
+# Interactive conversation selection and deletion
+:delete
+
+# Delete specific conversation by ID
+:delete <conversation-id>
+
+# List conversations for selection
+:conversation
+```
+
+**Features:**
+- **Interactive selection** with fzf interface showing conversation titles
+- **Confirmation dialog** with conversation title and ID display
+- **State management** - automatically clears active conversation when deleted
+- **Error handling** for invalid conversation IDs
+- **Cross-session consistency** - maintains conversation context across related commands
 
 ## Syntax Highlighting
 

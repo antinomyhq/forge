@@ -430,8 +430,57 @@ FORGE_RETRY_INITIAL_BACKOFF_MS=1000    # Initial backoff time in milliseconds (d
 FORGE_RETRY_BACKOFF_FACTOR=2           # Multiplier for backoff time (default: 2)
 FORGE_RETRY_MAX_ATTEMPTS=3             # Maximum retry attempts (default: 3)
 FORGE_SUPPRESS_RETRY_ERRORS=false      # Suppress retry error messages (default: false)
-FORGE_RETRY_STATUS_CODES=429,500,502   # HTTP status codes to retry (default: 429,500,502,503,504)
 ```
+
+### CLI Commands
+
+Forge provides comprehensive conversation management through CLI commands:
+
+#### Conversation Management
+
+```bash
+# List all conversations
+forge conversation list
+
+# Start new conversation
+forge conversation new
+
+# Show conversation details
+forge conversation show <conversation-id>
+
+# Switch to specific conversation
+forge conversation <conversation-id>
+
+# Delete conversation
+forge conversation delete <conversation-id>
+
+# Delete with confirmation (interactive mode)
+forge conversation delete
+```
+
+#### Interactive Mode (ZSH Plugin)
+
+When using the ZSH plugin, you can manage conversations with these commands:
+
+```bash
+# Interactive conversation selection and deletion
+:delete
+
+# Delete specific conversation by ID
+:delete <conversation-id>
+
+# List conversations
+:conversation
+
+# Switch to conversation
+:conversation <conversation-id>
+```
+
+**Features:**
+- **Conversation deletion** with confirmation dialog
+- **Interactive selection** using fzf interface
+- **State management** - automatically clears active conversation when deleted
+- **Cross-platform** support for Unix/Linux/macOS/Windows
 
 </details>
 
