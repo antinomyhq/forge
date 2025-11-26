@@ -28,7 +28,7 @@ dirs = "6.0.0"
 dissimilar = "1.0.9"
 dotenvy = "0.15.7"
 futures = "0.3.31"
-gh-workflow = "0.8.0"
+gh-workflow = "0.8.1"
 glob = "0.3.3"
 grep-searcher = "0.1.14"
 grep-regex = "0.1.13"
@@ -125,10 +125,11 @@ uuid = { version = "1.18.0", features = [
 whoami = "1.6.1"
 fnv_rs = "0.4.3"
 merge = { version = "0.2", features = ["derive"] }
-rmcp = { version = "0.8.1", features = [
+rmcp = { version = "0.8.5", features = [
     "client",
     "transport-sse-client-reqwest",
     "transport-child-process",
+    "transport-streamable-http-client-reqwest",
 ] }
 open = "5.3.2"
 nucleo = "0.5.0"

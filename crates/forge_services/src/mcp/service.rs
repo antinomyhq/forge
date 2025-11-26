@@ -6,7 +6,9 @@ use forge_app::domain::{
     McpConfig, McpServerConfig, McpServers, ServerName, ToolCallFull, ToolDefinition, ToolName,
     ToolOutput,
 };
-use forge_app::{KVStore, McpClientInfra, McpConfigManager, McpServerInfra, McpService};
+use forge_app::{
+    EnvironmentInfra, KVStore, McpClientInfra, McpConfigManager, McpServerInfra, McpService,
+};
 use tokio::sync::{Mutex, RwLock};
 
 use crate::mcp::tool::McpExecutor;
@@ -30,7 +32,7 @@ struct ToolHolder<T> {
 impl<M, I, C> ForgeMcpService<M, I, C>
 where
     M: McpConfigManager,
-    I: McpServerInfra + KVStore,
+    I: McpServerInfra + KVStore + EnvironmentInfra,
     C: McpClientInfra + Clone,
     C: From<<I as McpServerInfra>::Client>,
 {
@@ -83,7 +85,8 @@ where
         server_name: &ServerName,
         config: McpServerConfig,
     ) -> anyhow::Result<()> {
-        let client = self.infra.connect(config).await?;
+        let env_vars = self.infra.get_env_vars();
+        let client = self.infra.connect(config, &env_vars).await?;
         let client = Arc::new(C::from(client));
         self.insert_clients(server_name, client).await?;
 
@@ -184,7 +187,8 @@ where
 }
 
 #[async_trait::async_trait]
-impl<M: McpConfigManager, I: McpServerInfra + KVStore, C> McpService for ForgeMcpService<M, I, C>
+impl<M: McpConfigManager, I: McpServerInfra + KVStore + EnvironmentInfra, C> McpService
+    for ForgeMcpService<M, I, C>
 where
     C: McpClientInfra + Clone,
     C: From<<I as McpServerInfra>::Client>,
