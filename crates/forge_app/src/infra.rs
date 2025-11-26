@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::hash::Hash;
 use std::path::{Path, PathBuf};
 
@@ -27,6 +28,7 @@ use crate::{WalkedFile, Walker};
 pub trait EnvironmentInfra: Send + Sync {
     fn get_environment(&self) -> Environment;
     fn get_env_var(&self, key: &str) -> Option<String>;
+    fn get_env_vars(&self) -> BTreeMap<String, String>;
 }
 
 /// Repository for accessing system environment information
@@ -171,7 +173,11 @@ pub trait McpClientInfra: Clone + Send + Sync + 'static {
 #[async_trait::async_trait]
 pub trait McpServerInfra: Send + Sync + 'static {
     type Client: McpClientInfra;
-    async fn connect(&self, config: McpServerConfig) -> anyhow::Result<Self::Client>;
+    async fn connect(
+        &self,
+        config: McpServerConfig,
+        env_vars: &BTreeMap<String, String>,
+    ) -> anyhow::Result<Self::Client>;
 }
 /// Service for walking filesystem directories
 #[async_trait::async_trait]
