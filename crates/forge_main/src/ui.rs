@@ -1031,6 +1031,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             ),
             ("login", "Login to a provider"),
             ("logout", "Logout from a provider"),
+            ("clone", "Clone an existing conversation"),
         ];
 
         for (name, description) in built_in_commands {

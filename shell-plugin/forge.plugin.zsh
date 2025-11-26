@@ -447,7 +447,7 @@ function _forge_clone_and_switch() {
     local original_conversation_id="$_FORGE_CONVERSATION_ID"
     
     # Execute clone command
-    echo "\033[33m⏳\033[0m Cloning conversation \033[1m${clone_target}\033[0m..."
+    _forge_log info "Cloning conversation \033[1m${clone_target}\033[0m..."
     local clone_output
     clone_output=$($_FORGE_BIN conversation clone "$clone_target" 2>&1)
     local clone_exit_code=$?
@@ -474,13 +474,13 @@ function _forge_clone_and_switch() {
             fi
             
             # Print log about switching to cloned conversation
-            echo "\033[36m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] Switched to cloned conversation \033[1m${new_id}\033[0m"
+            _forge_log info "Switched to cloned conversation \033[1m${new_id}\033[0m"
         else
-            echo "\033[31m✗\033[0m Failed to extract new conversation ID from clone output"
+            _forge_log error "Failed to extract new conversation ID from clone output"
             echo "$clone_output"
         fi
     else
-        echo "\033[31m✗\033[0m Failed to clone conversation"
+        _forge_log error "Failed to clone conversation"
         echo "$clone_output"
     fi
 }
@@ -504,7 +504,7 @@ function _forge_action_clone() {
     conversations_output=$($_FORGE_BIN conversation list --porcelain 2>/dev/null)
     
     if [[ -z "$conversations_output" ]]; then
-        echo "\033[31m✗\033[0m No conversations found"
+        _forge_log error "No conversations found"
         _forge_reset
         return 0
     fi
