@@ -1494,6 +1494,7 @@ dependencies = [
  "merge",
  "pretty_assertions",
  "prost",
+ "prost-types",
  "reqwest 0.12.23",
  "reqwest-eventsource",
  "serde",

@@ -1,5 +1,7 @@
 syntax = "proto3";
 
+import "google/protobuf/timestamp.proto";
+
 package forge.v1;
 
 // Main service for interacting with Forge's context engine
@@ -85,9 +87,10 @@ message Workspace {
   string working_dir = 2;
   uint64 node_count = 3;
   uint64 relation_count = 4;
-  optional string last_updated = 5;
+  optional google.protobuf.Timestamp last_updated = 5;
   uint32 min_chunk_size = 6;
   uint32 max_chunk_size = 7;
+  google.protobuf.Timestamp created_at = 8;
 }
 
 message WorkspaceDefinition {
