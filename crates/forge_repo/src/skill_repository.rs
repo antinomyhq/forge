@@ -76,11 +76,9 @@ impl<I: FileInfoInfra + EnvironmentInfra + FileReaderInfra + WalkerInfra> SkillR
         skills.extend(builtin_skills);
 
         // Load global skills
-        if let Some(home) = &env.home {
-            let global_dir = home.join(".forge/skills");
-            let global_skills = self.load_skills_from_dir(&global_dir).await?;
-            skills.extend(global_skills);
-        }
+        let global_dir = env.base_path.join("skills");
+        let global_skills = self.load_skills_from_dir(&global_dir).await?;
+        skills.extend(global_skills);
 
         // Load project-local skills
         let cwd_dir = env.cwd.join(".forge/skills");
