@@ -23,6 +23,25 @@ impl ForgeCommandExecutorService {
         Self { restricted, env, ready: Arc::new(Mutex::new(())) }
     }
 
+    pub async fn execute_editor_command(
+        &self,
+        command: &str,
+        working_dir: PathBuf,
+        env_vars: Option<Vec<String>>,
+    ) -> anyhow::Result<std::process::ExitStatus> {
+        let _guard = self.ready.lock().await;
+        let mut prepared_command = self.prepare_command(command, &working_dir, env_vars);
+
+        // Explicitly set stdin to null to avoid hanging in piped scenarios
+        // stdout/stderr inherit to show editor UI
+        prepared_command
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::inherit())
+            .stderr(std::process::Stdio::inherit());
+
+        Ok(prepared_command.spawn()?.wait().await?)
+    }
+
     fn prepare_command(
         &self,
         command_str: &str,
@@ -31,7 +50,9 @@ impl ForgeCommandExecutorService {
     ) -> Command {
         // Create a basic command
         let is_windows = cfg!(target_os = "windows");
-        let shell = if self.restricted && !is_windows {
+        let is_editor_command = command_str.trim().starts_with("/editor");
+
+        let shell = if self.restricted && !is_windows && !is_editor_command {
             "rbash"
         } else {
             self.env.shell.as_str()
@@ -189,6 +210,39 @@ impl CommandInfra for ForgeCommandExecutorService {
             .stderr(std::process::Stdio::inherit());
 
         Ok(prepared_command.spawn()?.wait().await?)
+    }
+
+    async fn execute_editor_command(
+        &self,
+        command: &str,
+        working_dir: PathBuf,
+        env_vars: Option<Vec<String>>,
+    ) -> anyhow::Result<std::process::ExitStatus> {
+        let mut prepared_command = self.prepare_command(command, &working_dir, env_vars);
+
+        // Explicitly set stdin to null to avoid hanging in piped scenarios
+        // stdout/stderr inherit to show editor UI
+        prepared_command
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::inherit())
+            .stderr(std::process::Stdio::inherit());
+
+        Ok(prepared_command.spawn()?.wait().await?)
+    }
+
+    async fn execute_command_with_args(
+        &self,
+        command: &str,
+        args: &[&str],
+    ) -> anyhow::Result<CommandOutput> {
+        let command_with_args = format!("{} {}", command, args.join(" "));
+        self.execute_command(
+            command_with_args,
+            std::env::current_dir().unwrap_or_default(),
+            false,
+            None,
+        )
+        .await
     }
 }
 

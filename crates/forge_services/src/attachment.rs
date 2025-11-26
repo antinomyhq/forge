@@ -122,6 +122,7 @@ impl<F: FileReaderInfra + EnvironmentInfra + FileInfoInfra + DirectoryReaderInfr
 pub mod tests {
     use std::collections::{BTreeMap, HashMap, HashSet};
     use std::path::{Path, PathBuf};
+    use std::process::ExitStatus;
     use std::sync::{Arc, Mutex};
 
     use base64::Engine;
@@ -162,6 +163,14 @@ pub mod tests {
 
         fn get_env_vars(&self) -> BTreeMap<String, String> {
             BTreeMap::new()
+        }
+
+        fn get_editor_command(&self) -> String {
+            "nano".to_string()
+        }
+
+        fn get_shell(&self) -> String {
+            "/bin/bash".to_string()
         }
     }
 
@@ -563,6 +572,34 @@ pub mod tests {
         ) -> anyhow::Result<std::process::ExitStatus> {
             unimplemented!()
         }
+
+        async fn execute_command_with_args(
+            &self,
+            command: &str,
+            args: &[&str],
+        ) -> anyhow::Result<CommandOutput> {
+            let full_command = format!("{} {}", command, args.join(" "));
+            self.execute_command(full_command, PathBuf::from("/test"), false, None)
+                .await
+        }
+
+        async fn execute_editor_command(
+            &self,
+            command: &str,
+            _working_dir: PathBuf,
+            _env_vars: Option<Vec<String>>,
+        ) -> anyhow::Result<ExitStatus> {
+            // For mock, just simulate successful execution
+            #[cfg(unix)]
+            {
+                use std::os::unix::process::ExitStatusExt;
+                Ok(ExitStatus::from_raw(0))
+            }
+            #[cfg(not(unix))]
+            {
+                Ok(ExitStatus::from_raw(0))
+            }
+        }
     }
 
     #[async_trait::async_trait]
@@ -654,6 +691,14 @@ pub mod tests {
 
         fn get_env_vars(&self) -> BTreeMap<String, String> {
             BTreeMap::new()
+        }
+
+        fn get_editor_command(&self) -> String {
+            "nano".to_string()
+        }
+
+        fn get_shell(&self) -> String {
+            "/bin/bash".to_string()
         }
     }
 

@@ -219,6 +219,14 @@ impl<F: EnvironmentInfra> EnvironmentInfra for ForgeRepo<F> {
     fn get_env_vars(&self) -> BTreeMap<String, String> {
         self.infra.get_env_vars()
     }
+
+    fn get_editor_command(&self) -> String {
+        self.infra.get_editor_command()
+    }
+
+    fn get_shell(&self) -> String {
+        self.infra.get_shell()
+    }
 }
 
 #[async_trait::async_trait]
@@ -401,6 +409,25 @@ where
     ) -> anyhow::Result<std::process::ExitStatus> {
         self.infra
             .execute_command_raw(command, working_dir, env_vars)
+            .await
+    }
+
+    async fn execute_command_with_args(
+        &self,
+        command: &str,
+        args: &[&str],
+    ) -> anyhow::Result<CommandOutput> {
+        self.infra.execute_command_with_args(command, args).await
+    }
+
+    async fn execute_editor_command(
+        &self,
+        command: &str,
+        working_dir: PathBuf,
+        env_vars: Option<Vec<String>>,
+    ) -> anyhow::Result<std::process::ExitStatus> {
+        self.infra
+            .execute_editor_command(command, working_dir, env_vars)
             .await
     }
 }

@@ -574,6 +574,14 @@ mod env_tests {
                 .map(|(k, v)| (k.clone(), v.clone()))
                 .collect()
         }
+
+        fn get_editor_command(&self) -> String {
+            "nano".to_string()
+        }
+
+        fn get_shell(&self) -> String {
+            "/bin/bash".to_string()
+        }
     }
 
     #[async_trait::async_trait]
@@ -924,6 +932,14 @@ mod env_tests {
                     .iter()
                     .map(|(k, v)| (k.clone(), v.clone()))
                     .collect()
+            }
+
+            fn get_editor_command(&self) -> String {
+                "nano".to_string()
+            }
+
+            fn get_shell(&self) -> String {
+                "/bin/bash".to_string()
             }
         }
 

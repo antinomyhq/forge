@@ -3,6 +3,8 @@ mod cli;
 mod completer;
 mod conversation_selector;
 mod editor;
+#[cfg(test)]
+mod editor_tests;
 mod env;
 mod info;
 mod input;

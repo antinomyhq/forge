@@ -29,6 +29,8 @@ pub trait EnvironmentInfra: Send + Sync {
     fn get_environment(&self) -> Environment;
     fn get_env_var(&self, key: &str) -> Option<String>;
     fn get_env_vars(&self) -> BTreeMap<String, String>;
+    fn get_editor_command(&self) -> String;
+    fn get_shell(&self) -> String;
 }
 
 /// Repository for accessing system environment information
@@ -118,6 +120,22 @@ pub trait CommandInfra: Send + Sync {
 
     /// execute the shell command on present stdio.
     async fn execute_command_raw(
+        &self,
+        command: &str,
+        working_dir: PathBuf,
+        env_vars: Option<Vec<String>>,
+    ) -> anyhow::Result<std::process::ExitStatus>;
+
+    /// Execute command with arguments
+    async fn execute_command_with_args(
+        &self,
+        command: &str,
+        args: &[&str],
+    ) -> anyhow::Result<CommandOutput>;
+
+    /// execute editor command with null stdin to avoid hanging in piped
+    /// scenarios
+    async fn execute_editor_command(
         &self,
         command: &str,
         working_dir: PathBuf,

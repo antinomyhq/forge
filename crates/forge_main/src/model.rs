@@ -174,6 +174,7 @@ impl ForgeCommandManager {
                 | "conversations"
                 | "list"
                 | "commit"
+                | "editor"
         )
     }
 
@@ -357,6 +358,7 @@ impl ForgeCommandManager {
                 let max_diff_size = parameters.iter().find_map(|&p| p.parse::<usize>().ok());
                 Ok(SlashCommand::Commit { max_diff_size })
             }
+            "/editor" => Ok(SlashCommand::Editor),
             text => {
                 let parts = text.split_ascii_whitespace().collect::<Vec<&str>>();
 
@@ -504,6 +506,10 @@ pub enum SlashCommand {
         usage = "Generate AI commit message and commit changes. Format: /commit <max-diff|preview>"
     ))]
     Commit { max_diff_size: Option<usize> },
+
+    /// Open external editor for composing complex prompts
+    #[strum(props(usage = "Open external editor for composing prompts"))]
+    Editor,
 }
 
 impl SlashCommand {
@@ -534,6 +540,7 @@ impl SlashCommand {
             SlashCommand::Retry => "retry",
             SlashCommand::Conversations => "conversation",
             SlashCommand::AgentSwitch(agent_id) => agent_id,
+            SlashCommand::Editor => "editor",
         }
     }
 

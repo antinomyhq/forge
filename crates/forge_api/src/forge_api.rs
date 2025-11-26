@@ -50,6 +50,11 @@ impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
         use forge_domain::SkillRepository;
         self.infra.load_skills().await
     }
+
+    /// Get infrastructure for editor operations
+    pub fn get_infra(&self) -> Arc<ForgeRepo<ForgeInfra>> {
+        self.infra.clone()
+    }
 }
 
 #[async_trait::async_trait]
@@ -214,6 +219,14 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + AppConf
     ) -> anyhow::Result<std::process::ExitStatus> {
         let cwd = self.environment().cwd;
         self.infra.execute_command_raw(command, cwd, None).await
+    }
+
+    async fn execute_editor_command(
+        &self,
+        command: &str,
+    ) -> anyhow::Result<std::process::ExitStatus> {
+        let cwd = self.environment().cwd;
+        self.infra.execute_editor_command(command, cwd, None).await
     }
 
     async fn init_login(&self) -> Result<InitAuth> {

@@ -1613,6 +1613,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     ));
                 }
             }
+            SlashCommand::Editor => {
+                self.on_editor().await?;
+            }
         }
 
         Ok(false)
@@ -2704,6 +2707,53 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             self.writeln_title(TitleFormat::info(message))?;
         }
         Ok(())
+    }
+
+    /// Handle editor command
+    async fn on_editor(&mut self) -> Result<()> {
+        use std::env;
+
+        use tempfile::NamedTempFile;
+
+        // Get the editor command from environment
+        let editor = env::var("FORGE_EDITOR")
+            .or_else(|_| env::var("EDITOR"))
+            .unwrap_or_else(|_| "nano".to_string());
+
+        // Create a temporary file with markdown suffix
+        let temp_file = NamedTempFile::with_suffix(".md")?;
+        let temp_path = temp_file.path().to_string_lossy().to_string();
+
+        // Execute the editor with the temporary file
+        match self
+            .api
+            .execute_editor_command(&format!("{} {}", editor, temp_path))
+            .await
+        {
+            Ok(status) if status.success() => {
+                // Read the content from the temporary file
+                match std::fs::read_to_string(&temp_path) {
+                    Ok(content) => {
+                        if !content.trim().is_empty() {
+                            self.console.set_buffer(content);
+                        }
+                        Ok(())
+                    }
+                    Err(e) => {
+                        self.writeln(format!("Failed to read editor content: {}", e))?;
+                        Ok(())
+                    }
+                }
+            }
+            Ok(status) => {
+                self.writeln(format!("Editor exited with non-zero status: {}", status))?;
+                Ok(())
+            }
+            Err(e) => {
+                self.writeln(format!("Failed to launch editor: {}", e))?;
+                Ok(())
+            }
+        }
     }
 }
 

@@ -95,6 +95,16 @@ impl EnvironmentInfra for ForgeInfra {
     fn get_env_vars(&self) -> BTreeMap<String, String> {
         self.environment_service.get_env_vars()
     }
+
+    fn get_editor_command(&self) -> String {
+        std::env::var("FORGE_EDITOR")
+            .or_else(|_| std::env::var("EDITOR"))
+            .unwrap_or_else(|_| "nano".to_string())
+    }
+
+    fn get_shell(&self) -> String {
+        std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string())
+    }
 }
 
 #[async_trait::async_trait]
@@ -186,6 +196,32 @@ impl CommandInfra for ForgeInfra {
     ) -> anyhow::Result<ExitStatus> {
         self.command_executor_service
             .execute_command_raw(command, working_dir, env_vars)
+            .await
+    }
+
+    async fn execute_command_with_args(
+        &self,
+        command: &str,
+        args: &[&str],
+    ) -> anyhow::Result<CommandOutput> {
+        let command_with_args = format!("{} {}", command, args.join(" "));
+        self.execute_command(
+            command_with_args,
+            std::env::current_dir().unwrap_or_default(),
+            false,
+            None,
+        )
+        .await
+    }
+
+    async fn execute_editor_command(
+        &self,
+        command: &str,
+        working_dir: PathBuf,
+        env_vars: Option<Vec<String>>,
+    ) -> anyhow::Result<ExitStatus> {
+        self.command_executor_service
+            .execute_editor_command(command, working_dir, env_vars)
             .await
     }
 }

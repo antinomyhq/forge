@@ -99,6 +99,10 @@ pub trait API: Sync + Send {
     /// Executes the shell command on present stdio.
     async fn execute_shell_command_raw(&self, command: &str) -> Result<std::process::ExitStatus>;
 
+    /// Executes an editor command with null stdin to avoid hanging in piped
+    /// scenarios
+    async fn execute_editor_command(&self, command: &str) -> Result<std::process::ExitStatus>;
+
     /// Reads and merges MCP configurations from all available configuration
     /// files This combines both user-level and local configurations with
     /// local taking precedence. If scope is provided, only loads from that

@@ -121,6 +121,16 @@ impl EnvironmentInfra for ForgeEnvironmentInfra {
         // TODO: Maybe cache it?
         std::env::vars().collect()
     }
+
+    fn get_editor_command(&self) -> String {
+        std::env::var("FORGE_EDITOR")
+            .or_else(|_| std::env::var("EDITOR"))
+            .unwrap_or_else(|_| "nano".to_string())
+    }
+
+    fn get_shell(&self) -> String {
+        std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string())
+    }
 }
 
 /// Trait for parsing environment variable values with custom logic for

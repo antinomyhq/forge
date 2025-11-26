@@ -1,3 +1,4 @@
+mod editor;
 mod fetch;
 mod followup;
 mod fs_create;
@@ -12,6 +13,7 @@ mod shell;
 mod skill;
 mod syn;
 
+pub use editor::*;
 pub use fetch::*;
 pub use followup::*;
 pub use fs_create::*;
