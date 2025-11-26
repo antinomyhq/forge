@@ -22,6 +22,8 @@ Use the following summary frames as the authoritative reference for all coding s
 **Search:** `{{tool_call.tool.search.pattern}}`
 {{else if tool_call.tool.skill}}
 **Skill:** `{{tool_call.tool.skill.name}}`
+{{else if tool_call.tool.sem_search}}
+**Semantic Search:** `{{tool_call.tool.sem_search.use_case}}`
 {{else if tool_call.tool.shell}}
 **Execute:** 
 ```
