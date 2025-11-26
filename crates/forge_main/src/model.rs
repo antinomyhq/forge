@@ -174,7 +174,7 @@ impl ForgeCommandManager {
                 | "conversations"
                 | "list"
                 | "commit"
-                | "editor"
+                | "edit"
         )
     }
 
@@ -358,7 +358,7 @@ impl ForgeCommandManager {
                 let max_diff_size = parameters.iter().find_map(|&p| p.parse::<usize>().ok());
                 Ok(SlashCommand::Commit { max_diff_size })
             }
-            "/editor" => Ok(SlashCommand::Editor),
+            "/edit" => Ok(SlashCommand::Editor),
             text => {
                 let parts = text.split_ascii_whitespace().collect::<Vec<&str>>();
 
@@ -540,7 +540,7 @@ impl SlashCommand {
             SlashCommand::Retry => "retry",
             SlashCommand::Conversations => "conversation",
             SlashCommand::AgentSwitch(agent_id) => agent_id,
-            SlashCommand::Editor => "editor",
+            SlashCommand::Editor => "edit",
         }
     }
 

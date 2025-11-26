@@ -50,7 +50,7 @@ impl ForgeCommandExecutorService {
     ) -> Command {
         // Create a basic command
         let is_windows = cfg!(target_os = "windows");
-        let is_editor_command = command_str.trim().starts_with("/editor");
+        let is_editor_command = command_str.trim().starts_with("/edit");
 
         let shell = if self.restricted && !is_windows && !is_editor_command {
             "rbash"

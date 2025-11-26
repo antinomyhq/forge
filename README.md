@@ -516,7 +516,7 @@ FORGE_HISTORY_FILE=/path/to/history    # Custom path for Forge history file (def
 FORGE_BANNER="Your custom banner text" # Custom banner text to display on startup (default: Forge ASCII art)
 FORGE_SHOW_TASK_STATS=true             # Show task stats such as file changes, token usage etc. after completion (default: true)
 FORGE_MAX_CONVERSATIONS=100            # Maximum number of conversations to show in list (default: 100)
-FORGE_EDITOR=nano                      # External editor for /editor command (default: nano)
+FORGE_EDITOR=nano                      # External editor for /edit command (default: nano)
 SHELL=/bin/zsh                         # Shell to use for command execution (Unix/Linux/macOS)
 COMSPEC=cmd.exe                        # Command processor to use (Windows)
 ```
