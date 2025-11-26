@@ -53,7 +53,7 @@ num-format.workspace = true
 atty = "0.2"
 url.workspace = true
 indexmap.workspace = true
-arboard = "3.4"
+cli-clipboard = "0.4"
 async-recursion.workspace = true
 
 [dev-dependencies]

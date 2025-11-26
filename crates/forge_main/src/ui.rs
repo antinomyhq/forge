@@ -1736,7 +1736,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             display_uri.blue().underline()
         ))?;
         // Try to copy code to clipboard automatically
-        match arboard::Clipboard::new().and_then(|mut clipboard| clipboard.set_text(user_code)) {
+        match cli_clipboard::set_contents(user_code.to_owned()) {
             Ok(_) => {
                 self.writeln(format!(
                     "{} Code copied to clipboard: {}",
