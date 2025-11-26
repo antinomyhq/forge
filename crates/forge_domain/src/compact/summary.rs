@@ -114,6 +114,26 @@ impl SummaryToolCall {
         }
     }
 
+    /// Creates a CodebaseSearch tool call with default values (id: None,
+    /// is_success: true)
+    pub fn codebase_search(
+        query: impl Into<String>,
+        use_case: impl Into<String>,
+        top_k: u32,
+        file_extension: Option<String>,
+    ) -> Self {
+        Self {
+            id: None,
+            tool: SummaryTool::SemSearch {
+                query: query.into(),
+                use_case: use_case.into(),
+                top_k,
+                file_extension,
+            },
+            is_success: true,
+        }
+    }
+
     /// Creates an Undo tool call with default values (id: None, is_success:
     /// true)
     pub fn undo(path: impl Into<String>) -> Self {
@@ -158,16 +178,42 @@ impl SummaryToolCall {
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SummaryTool {
-    FileRead { path: String },
-    FileUpdate { path: String },
-    FileRemove { path: String },
-    Shell { command: String },
-    Search { pattern: String },
-    Undo { path: String },
-    Fetch { url: String },
-    Followup { question: String },
-    Plan { plan_name: String },
-    Skill { name: String },
+    FileRead {
+        path: String,
+    },
+    FileUpdate {
+        path: String,
+    },
+    FileRemove {
+        path: String,
+    },
+    Shell {
+        command: String,
+    },
+    Search {
+        pattern: String,
+    },
+    SemSearch {
+        query: String,
+        use_case: String,
+        top_k: u32,
+        file_extension: Option<String>,
+    },
+    Undo {
+        path: String,
+    },
+    Fetch {
+        url: String,
+    },
+    Followup {
+        question: String,
+    },
+    Plan {
+        plan_name: String,
+    },
+    Skill {
+        name: String,
+    },
 }
 
 impl From<&Context> for ContextSummary {
@@ -272,7 +318,12 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
             .file_pattern
             .or(input.regex)
             .map(|pattern| SummaryTool::Search { pattern }),
-        ToolCatalog::SemSearch(input) => Some(SummaryTool::Search { pattern: input.query }),
+        ToolCatalog::SemSearch(input) => Some(SummaryTool::SemSearch {
+            query: input.query,
+            use_case: input.use_case,
+            top_k: input.top_k,
+            file_extension: input.file_extension,
+        }),
         ToolCatalog::Undo(input) => Some(SummaryTool::Undo { path: input.path }),
         ToolCatalog::Fetch(input) => Some(SummaryTool::Fetch { url: input.url }),
         ToolCatalog::Followup(input) => Some(SummaryTool::Followup { question: input.question }),
@@ -906,6 +957,37 @@ mod tests {
             vec![
                 Block::content("Searching files"),
                 SummaryToolCall::search("/test/src")
+                    .id("call_1")
+                    .is_success(false)
+                    .into(),
+            ],
+        )]);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_context_summary_extracts_codebase_search_tool_calls() {
+        let fixture = context(vec![assistant_with_tools(
+            "Searching codebase",
+            vec![
+                ToolCatalog::tool_call_semantic_search(
+                    "retry mechanism",
+                    "find retry logic",
+                    10,
+                    None,
+                )
+                .call_id("call_1"),
+            ],
+        )]);
+
+        let actual = ContextSummary::from(&fixture);
+
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
+            Role::Assistant,
+            vec![
+                Block::content("Searching codebase"),
+                SummaryToolCall::codebase_search("retry mechanism", "find retry logic", 10, None)
                     .id("call_1")
                     .is_success(false)
                     .into(),

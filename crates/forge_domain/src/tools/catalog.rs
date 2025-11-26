@@ -743,6 +743,22 @@ impl ToolCatalog {
         }))
     }
 
+    /// Creates a Semantic Search tool call with the specified query and
+    /// use_case
+    pub fn tool_call_semantic_search(
+        query: &str,
+        use_case: &str,
+        top_k: u32,
+        file_ext: Option<String>,
+    ) -> ToolCallFull {
+        ToolCallFull::from(ToolCatalog::SemSearch(SemanticSearch {
+            query: query.to_string(),
+            use_case: use_case.to_string(),
+            top_k,
+            file_extension: file_ext,
+        }))
+    }
+
     /// Creates an Undo tool call with the specified path
     pub fn tool_call_undo(path: &str) -> ToolCallFull {
         ToolCallFull::from(ToolCatalog::Undo(FSUndo { path: path.to_string() }))
