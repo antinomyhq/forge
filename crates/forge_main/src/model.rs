@@ -2,7 +2,7 @@ use std::fmt::Display;
 use std::sync::{Arc, Mutex};
 
 use colored::Colorize;
-use forge_api::{Agent, AnyProvider, Model, ProviderId, Template};
+use forge_api::{Agent, AnyProvider, Model, Template};
 use forge_domain::UserCommand;
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{EnumIter, EnumProperty};
@@ -58,11 +58,11 @@ pub struct CliProvider(pub AnyProvider);
 
 impl Display for CliProvider {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Dynamically calculate the maximum provider name width
-        let name_width = ProviderId::iter()
-            .map(|id| id.to_string().len())
-            .max()
-            .unwrap_or(10);
+        // Use fixed width for alignment
+        // Format: "✓ " + name_padded + " [" + domain + "]"
+        // Longest built-in provider display name is "AnthropicCompatible" (20 chars)
+        // But we use 19 to account for the space before "["
+        let name_width = 19;
 
         let name = self.0.id().to_string();
 
@@ -835,13 +835,13 @@ mod tests {
         let agents = vec![
             Agent::new(
                 "test-agent",
-                ProviderId::Anthropic,
+                ProviderId::ANTHROPIC,
                 ModelId::new("claude-3-5-sonnet-20241022"),
             )
             .title("Test Agent".to_string()),
             Agent::new(
                 "another",
-                ProviderId::Anthropic,
+                ProviderId::ANTHROPIC,
                 ModelId::new("claude-3-5-sonnet-20241022"),
             )
             .title("Another Agent".to_string()),
@@ -880,7 +880,7 @@ mod tests {
         let agents = vec![
             Agent::new(
                 "test-agent",
-                ProviderId::Anthropic,
+                ProviderId::ANTHROPIC,
                 ModelId::new("claude-3-5-sonnet-20241022"),
             )
             .title("Test Agent".to_string()),
@@ -1015,7 +1015,7 @@ mod tests {
     #[test]
     fn test_cli_provider_display_minimal() {
         let fixture = AnyProvider::Url(Provider {
-            id: ProviderId::OpenAI,
+            id: ProviderId::OPENAI,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
@@ -1032,7 +1032,7 @@ mod tests {
     #[test]
     fn test_cli_provider_display_with_subdomain() {
         let fixture = AnyProvider::Url(Provider {
-            id: ProviderId::OpenRouter,
+            id: ProviderId::OPEN_ROUTER,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://openrouter.ai/api/v1/chat/completions").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
@@ -1049,7 +1049,7 @@ mod tests {
     #[test]
     fn test_cli_provider_display_no_domain() {
         let fixture = AnyProvider::Url(Provider {
-            id: ProviderId::Forge,
+            id: ProviderId::FORGE,
             response: ProviderResponse::OpenAI,
             url: Url::parse("http://localhost:8080/chat/completions").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
@@ -1066,7 +1066,7 @@ mod tests {
     #[test]
     fn test_cli_provider_display_template() {
         let fixture = AnyProvider::Template(Provider {
-            id: ProviderId::Anthropic,
+            id: ProviderId::ANTHROPIC,
             response: ProviderResponse::Anthropic,
             url: Template::new("https://api.anthropic.com/v1/messages"),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
@@ -1083,7 +1083,7 @@ mod tests {
     #[test]
     fn test_cli_provider_display_ip_address() {
         let fixture = AnyProvider::Url(Provider {
-            id: ProviderId::Forge,
+            id: ProviderId::FORGE,
             response: ProviderResponse::OpenAI,
             url: Url::parse("http://192.168.1.1:8080/chat/completions").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
