@@ -1002,6 +1002,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let mut info = Info::new();
 
         // Load built-in commands from CSV
+        // NOTE: When adding a new command, update built_in_commands.csv AND
+        //       shell-plugin/forge.plugin.zsh (case statement around line 745)
         const COMMANDS_CSV: &str = include_str!("built_in_commands.csv");
         let built_in_commands: Vec<(&str, &str)> = COMMANDS_CSV
             .lines()
