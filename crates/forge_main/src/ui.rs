@@ -2804,12 +2804,13 @@ mod ui_tests {
 
     #[tokio::test]
     async fn test_confirm_delete_conversation_returns_result() -> Result<()> {
-        // Use a simple test that doesn't require full UI setup to avoid tracing conflicts
+        // Use a simple test that doesn't require full UI setup to avoid tracing
+        // conflicts
         let conversation = Conversation::new(ConversationId::generate())
             .title(Some("Test Conversation".to_string()));
 
         // Test that conversation can be created and has expected properties
-        assert!(conversation.id.to_string().len() > 0);
+        assert!(!conversation.id.to_string().is_empty());
         assert_eq!(conversation.title, Some("Test Conversation".to_string()));
 
         // Test passes if we can create conversation and verify its properties
