@@ -88,7 +88,7 @@ impl ForgeEnvironmentInfra {
                 .as_ref()
                 .and_then(|url| Url::parse(url.as_str()).ok())
                 .unwrap_or_else(|| {
-                    Url::parse("https://forge-ce-383492806735.us-central1.run.app").unwrap()
+                    Url::parse("https://api.forgecode.dev/").unwrap()
                 }),
         }
     }
