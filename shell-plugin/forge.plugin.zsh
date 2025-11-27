@@ -902,3 +902,94 @@ bindkey '^M' forge-accept-line
 bindkey '^J' forge-accept-line
 # Update the Tab binding to use the new completion widget
 bindkey '^I' forge-completion  # Tab for both @ and :command completion
+
+#################################################################################
+# POWERLEVEL10K INTEGRATION
+#################################################################################
+# Automatically configure Powerlevel10k prompt segments for Forge
+# This section only runs if Powerlevel10k is detected (p10k command exists)
+
+if (( $+functions[p10k] )) || [[ -n "$POWERLEVEL9K_MODE" ]]; then
+
+  #################################[ forge_agent: forge active agent ]#################################
+  # Custom segment to display the currently active Forge agent
+  # This function runs on every prompt render to show which agent is handling tasks
+  #
+  # POSITIONING:
+  # - Added to POWERLEVEL9K_LEFT_PROMPT_ELEMENTS as the FIRST item
+  # - Appears on the far LEFT of your prompt in BOLD WHITE UPPERCASE
+  function prompt_forge_agent() {
+    # Check if $_FORGE_ACTIVE_AGENT environment variable is set
+    if [[ -n "$_FORGE_ACTIVE_AGENT" ]]; then
+      # Convert the agent name to UPPERCASE using ${(U)variable} syntax
+      local agent_upper="${(U)_FORGE_ACTIVE_AGENT}"
+      
+      # Display the prompt segment using p10k:
+      # -f 231         : Set foreground color to white (color code 231)
+      # -t "$agent_upper" : Set the text content to the uppercase agent name
+      p10k segment -f 231 -t "$agent_upper"
+    fi
+  }
+
+  # Instant prompt version of forge_agent
+  # This enables the segment to appear in instant prompt (fast startup mode)
+  function instant_prompt_forge_agent() {
+    prompt_forge_agent
+  }
+
+  # Customization: Make the forge_agent text BOLD and WHITE
+  # %B = Start bold, %b = End bold
+  # %F{231} = White foreground color, %f = Reset foreground
+  typeset -g POWERLEVEL9K_FORGE_AGENT_CONTENT_EXPANSION='%B%F{231}${(U)_FORGE_ACTIVE_AGENT}%f%b'
+
+  #################################[ forge_model: forge current model ]#################################
+  # Custom segment to display the current forge model configuration
+  # This function runs on every prompt render to show which AI model is currently active
+  #
+  # POSITIONING:
+  # - Added to POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS as the FIRST item
+  # - Appears on the far RIGHT of your prompt in DIMMED GRAY
+  function prompt_forge_model() {
+    local model_output
+    
+    # Determine which forge binary to use:
+    # 1. First try _FORGE_BIN (plugin internal variable)
+    # 2. Then try FORGE_BIN environment variable (for development/debugging)
+    # 3. Fall back to 'forge' command in PATH (for production)
+    local forge_cmd="${_FORGE_BIN:-${FORGE_BIN:-forge}}"
+    
+    # Execute 'forge config get model' to retrieve the current model
+    # Suppress errors (2>/dev/null) to avoid cluttering the prompt if forge isn't available
+    model_output=$($forge_cmd config get model 2>/dev/null)
+    
+    # Only display the segment if we successfully got a model name
+    if [[ -n "$model_output" ]]; then
+      # Display the prompt segment using p10k:
+      # -f 242         : Set foreground color to dimmed gray (color code 242)
+      # -i '󰚩'         : Display a robot icon as the segment icon
+      # -t "$model_output" : Set the text content to the model name
+      p10k segment -f 242 -i '󰚩' -t "$model_output"
+    fi
+  }
+
+  # Instant prompt version of forge_model
+  # This enables the segment to appear in instant prompt (fast startup mode)
+  function instant_prompt_forge_model() {
+    prompt_forge_model
+  }
+
+  #################################[ Update Prompt Elements ]#################################
+  # Prepend forge_agent to LEFT prompt (appears first/leftmost)
+  # Only add if not already present
+  if [[ ! " ${POWERLEVEL9K_LEFT_PROMPT_ELEMENTS[*]} " =~ " forge_agent " ]]; then
+    POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=(forge_agent "${POWERLEVEL9K_LEFT_PROMPT_ELEMENTS[@]}")
+  fi
+
+  # Prepend forge_model to RIGHT prompt (appears first/rightmost)
+  # Only add if not already present
+  if [[ ! " ${POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS[*]} " =~ " forge_model " ]]; then
+    POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=(forge_model "${POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS[@]}")
+  fi
+
+fi
+# End of Powerlevel10k integration
