@@ -1,21 +1,22 @@
 ---
 name: resolve-conflicts
-description: Resolve Git merge conflicts by intelligently combining changes from both branches. Use when encountering merge conflicts during git merge, rebase, or cherry-pick operations. Specializes in merging imports, tests, lock files (regeneration), configuration files, and handling deleted-but-modified files with backup and analysis.
+description: Use this skill immediately when the user mentions merge conflicts that need to be resolved. Do not attempt to resolve conflicts directly - invoke this skill first. This skill specializes in providing a structured framework for merging imports, tests, lock files (regeneration), configuration files, and handling deleted-but-modified files with backup and analysis.
 ---
 
 # Git Conflict Resolution
 
-Resolve Git merge conflicts by intelligently combining changes from both branches while preserving the intent of both changes.
+Resolve Git merge conflicts by intelligently combining changes from both branches while preserving the intent of both changes. This skill follows a plan-first approach: assess conflicts, create a detailed resolution plan, get approval, then execute.
 
 ## Core Principles
 
-1. **Prefer Both Changes**: Default to keeping both changes unless they directly contradict
-2. **Merge, Don't Choose**: Especially for imports, tests, and configuration
-3. **Regenerate Generated Files**: Never manually merge generated files - always regenerate them from their sources
-4. **Backup Before Resolving**: For deleted-modified files, create backups first
-5. **Validate with Tests**: Always run tests after resolution
-6. **Explain All Resolutions**: For each conflict resolved, provide a one-line explanation of the resolution strategy
-7. **Ask When Unclear**: When the correct resolution isn't clear from the diff, present options to the user and ask for their choice
+1. **Plan Before Executing**: Always create a structured resolution plan and get user approval before making changes
+2. **Prefer Both Changes**: Default to keeping both changes unless they directly contradict
+3. **Merge, Don't Choose**: Especially for imports, tests, and configuration
+4. **Regenerate Generated Files**: Never manually merge generated files - always regenerate them from their sources
+5. **Backup Before Resolving**: For deleted-modified files, create backups first
+6. **Validate with Tests**: Always run tests after resolution
+7. **Explain All Resolutions**: For each conflict resolved, provide a one-line explanation of the resolution strategy
+8. **Ask When Unclear**: When the correct resolution isn't clear from the diff, present options to the user and ask for their choice
 
 ## Workflow
 
@@ -27,15 +28,80 @@ Run initial checks to understand the conflict scope:
 git status
 ```
 
-Identify conflict types:
+Identify and categorize all conflicted files:
 
 - Regular file conflicts (both modified)
 - Deleted-modified conflicts (one deleted, one modified)
 - Generated file conflicts (lock files, build artifacts, generated code)
 - Test file conflicts
 - Import/configuration conflicts
+- Binary file conflicts
 
-### Step 2: Handle Deleted-Modified Files
+For each conflicted file, gather information:
+
+- File type and purpose
+- Nature of the conflict (content, deletion, type change)
+- Scope of changes (lines changed, sections affected)
+- Whether the file is generated or hand-written
+
+### Step 2: Create Merge Resolution Plan
+
+Based on the assessment, create a structured plan before resolving any conflicts. Present the plan in the following markdown format:
+
+```markdown
+## Merge Resolution Plan
+
+### Conflict Summary
+
+- **Total conflicted files**: [N]
+- **Deleted-modified conflicts**: [N]
+- **Generated files**: [N]
+- **Regular conflicts**: [N]
+
+### Resolution Strategy by File
+
+#### 1. [File Path]
+
+**Conflict Type**: [deleted-modified / generated / imports / tests / code logic / config / struct / binary]
+**Strategy**: [Brief description of resolution approach]
+**Rationale**: [Why this strategy is appropriate]
+**Risk**: [Low/Medium/High] - [Brief risk description]
+**Action Items**:
+
+- [ ] [Specific action 1]
+- [ ] [Specific action 2]
+
+#### 2. [File Path]
+
+...
+
+### Execution Order
+
+1. **Phase 1: Deleted-Modified Files** - Handle deletions and backups first
+2. **Phase 2: Generated Files** - Regenerate from source
+3. **Phase 3: Low-Risk Merges** - Imports, tests, documentation
+4. **Phase 4: High-Risk Merges** - Code logic, configuration, structs
+5. **Phase 5: Validation** - Compile, test, verify
+
+### Questions/Decisions Needed
+
+- [ ] **[File/Decision]**: [Question for user] (Options: 1, 2, 3)
+
+### Validation Steps
+
+- [ ] Run conflict validation script
+- [ ] Compile project
+- [ ] Run test suite
+- [ ] Manual verification of high-risk changes
+```
+
+**Present this plan to the user** and wait for their approval before proceeding with resolution. If there are any unclear conflicts where you need user input, list them in the "Questions/Decisions Needed" section.
+
+**For a complete example plan**, see `references/sample-plan.md`.
+
+### Step 3: Handle Deleted-Modified Files
+
+**Execute this phase only after the plan is approved.**
 
 If there are deleted-but-modified files (status: DU, UD, DD, UA, AU):
 
@@ -52,13 +118,15 @@ This script will:
 
 Review the backup directory and analysis files to understand where changes should be applied.
 
-### Step 3: Resolve Regular Conflicts
+### Step 4: Execute Resolution Plan
 
-For each conflicted file, apply the appropriate resolution pattern. **For every conflict you resolve, provide a one-line explanation** of how you're resolving it.
+**Follow the execution order defined in your plan.** For each conflicted file, apply the appropriate resolution pattern according to your plan. **For every conflict you resolve, provide a one-line explanation** of how you're resolving it.
+
+As you complete each action item in your plan, mark it as done and report progress to the user.
 
 #### When Resolution is Unclear
 
-When you cannot determine the correct resolution from the diff alone:
+When you cannot determine the correct resolution from the diff alone (these should already be listed in your plan's "Questions/Decisions Needed" section):
 
 1. **Present the conflict** to the user with the conflicting code from both sides
 2. **Provide numbered options** for resolution (Option 1, Option 2, etc.)
@@ -232,9 +300,9 @@ Read `references/patterns.md` section "Code Logic Conflicts" for detailed exampl
 
 **When unclear**: Ask the user which type definition is correct if field types conflict
 
-### Step 4: Validate Resolution
+### Step 5: Validate Resolution
 
-After resolving conflicts, validate that all conflicts are resolved:
+After completing all resolution phases in your plan, validate that all conflicts are resolved:
 
 ```bash
 .forge/skills/resolve-conflicts/scripts/validate-conflicts.sh
@@ -247,9 +315,9 @@ This script checks for:
 - Deleted-modified conflicts
 - Merge state files
 
-### Step 5: Compile and Test
+### Step 6: Compile and Test
 
-Build and test to ensure the resolution is correct:
+Build and test to ensure the resolution is correct (as defined in your plan's validation steps):
 
 ```bash
 # For Rust projects
@@ -268,21 +336,27 @@ If tests fail:
 3. Fix integration issues between the merged changes
 4. Re-run tests until all pass
 
-### Step 6: Finalize
+### Step 7: Finalize
 
-Once all conflicts are resolved and tests pass:
+Once all conflicts are resolved and tests pass, review your completed plan and commit:
 
 ```bash
 # Review the changes
 git diff --cached
 
-# Commit with descriptive message
+# Commit with descriptive message that references the plan
 git commit -m "Resolve merge conflicts: [describe key decisions]
 
+Executed merge resolution plan:
+- [Phase 1 summary]
+- [Phase 2 summary]
+- [Phase 3+ summaries]
+
+Key decisions:
 - Merged imports from both branches
 - Combined test cases
 - Regenerated lock files
-- [other significant decisions]
+- [other significant decisions from plan]
 
 Co-Authored-By: ForgeCode <noreply@forgecode.dev>"
 ```

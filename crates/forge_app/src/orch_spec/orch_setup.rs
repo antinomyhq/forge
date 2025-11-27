@@ -88,7 +88,7 @@ impl Default for TestContext {
             title: Some("test-conversation".into()),
             agent: Agent::new(
                 AgentId::new("forge"),
-                ProviderId::Anthropic,
+                ProviderId::ANTHROPIC,
                 ModelId::new("claude-3-5-sonnet-20241022"),
             )
             .system_prompt(Template::new("You are Forge"))

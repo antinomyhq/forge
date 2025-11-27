@@ -39,7 +39,7 @@ where
             let provider = providers
                 .iter()
                 .find(|p| p.id() == provider_id)
-                .ok_or_else(|| forge_domain::Error::provider_not_available(provider_id))?;
+                .ok_or_else(|| forge_domain::Error::provider_not_available(provider_id.clone()))?;
             provider.url_params().to_vec()
         } else {
             vec![]
@@ -48,7 +48,7 @@ where
         // Create appropriate strategy and initialize
         let strategy =
             self.infra
-                .create_auth_strategy(provider_id, auth_method, required_params)?;
+                .create_auth_strategy(provider_id.clone(), auth_method, required_params)?;
         strategy.init().await
     }
 
@@ -78,7 +78,7 @@ where
             let provider = providers
                 .iter()
                 .find(|p| p.id() == provider_id)
-                .ok_or_else(|| forge_domain::Error::provider_not_available(provider_id))?;
+                .ok_or_else(|| forge_domain::Error::provider_not_available(provider_id.clone()))?;
             provider.url_params().to_vec()
         } else {
             vec![]
@@ -87,7 +87,7 @@ where
         // Create strategy and complete authentication
         let strategy =
             self.infra
-                .create_auth_strategy(provider_id, auth_method, required_params)?;
+                .create_auth_strategy(provider_id.clone(), auth_method, required_params)?;
         let credential = strategy.complete(auth_context_response).await?;
 
         // Store credential
@@ -105,7 +105,9 @@ where
             .infra
             .get_credential(&provider.id)
             .await?
-            .ok_or_else(|| forge_domain::Error::ProviderNotAvailable { provider: provider.id })?;
+            .ok_or_else(|| forge_domain::Error::ProviderNotAvailable {
+                provider: provider.id.clone(),
+            })?;
 
         // Get required params (only used for API key, but needed for factory)
         let required_params = if matches!(auth_method, AuthMethod::ApiKey) {
@@ -117,7 +119,7 @@ where
         // Create strategy and refresh credential
         let strategy =
             self.infra
-                .create_auth_strategy(provider.id, auth_method, required_params)?;
+                .create_auth_strategy(provider.id.clone(), auth_method, required_params)?;
         let refreshed = strategy.refresh(&credential).await?;
 
         // Store refreshed credential
