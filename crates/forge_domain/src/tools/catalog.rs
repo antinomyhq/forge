@@ -221,10 +221,11 @@ impl SearchQuery {
 /// between search and sem_search, choose sem_search.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct SemanticSearch {
-    /// List of search queries to execute in parallel. It's ALWAYS a good idea to use
-    /// multiple queries with different phrasings to maximize search coverage. Each query pairs
-    /// a search term with its use_case for document re-ranking. Multiple queries
-    /// with varied terminology find more relevant results than a single query.
+    /// List of search queries to execute in parallel. It's ALWAYS a good idea
+    /// to use multiple queries with different phrasings to maximize search
+    /// coverage. Each query pairs a search term with its use_case for
+    /// document re-ranking. Multiple queries with varied terminology find
+    /// more relevant results than a single query.
     pub queries: Vec<SearchQuery>,
 
     /// Optional file extension filter (e.g., ".rs", ".ts", ".py"). If provided,

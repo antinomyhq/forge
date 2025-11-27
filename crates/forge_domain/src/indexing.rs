@@ -232,8 +232,12 @@ impl CodebaseQueryResult {
             .attr("use_case", &self.use_case)
             .attr("results", self.results.len());
 
-        for result in &self.results {
-            elem = elem.append(result.node.to_element());
+        if self.results.is_empty() {
+            elem = elem.text("No results found. Try using multiple queries with different phrasings, synonyms, or more specific use_case descriptions to improve search coverage.");
+        } else {
+            for result in &self.results {
+                elem = elem.append(result.node.to_element());
+            }
         }
 
         elem
