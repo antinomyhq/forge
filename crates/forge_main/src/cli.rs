@@ -1085,6 +1085,37 @@ mod tests {
     }
 
     #[test]
+    fn test_conversation_delete_with_id() {
+        let fixture = Cli::parse_from(["forge", "conversation", "delete", "550e8400-e29b-41d4-a716-446655440000"]);
+        let is_delete_with_id = match fixture.subcommands {
+            Some(TopLevelCommand::Conversation(conversation)) => {
+                matches!(conversation.command, ConversationCommand::Delete { id: _, force: _ })
+            }
+            _ => false,
+        };
+        assert_eq!(is_delete_with_id, true);
+    }
+
+    #[test]
+    fn test_conversation_delete_with_force_flag() {
+        let fixture = Cli::parse_from([
+            "forge", "conversation", "delete", 
+            "550e8400-e29b-41d4-a716-446655440000", 
+            "--force"
+        ]);
+        let has_force_flag = match fixture.subcommands {
+            Some(TopLevelCommand::Conversation(conversation)) => {
+                match conversation.command {
+                    ConversationCommand::Delete { force, .. } => force,
+                    _ => false,
+                }
+            }
+            _ => false,
+        };
+        assert_eq!(has_force_flag, true);
+    }
+
+    #[test]
     fn test_list_skill_with_porcelain() {
         let fixture = Cli::parse_from(["forge", "list", "skill", "--porcelain"]);
         let actual = match fixture.subcommands {
