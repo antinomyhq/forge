@@ -62,5 +62,9 @@
   {
     "command": "logout",
     "description": "Logout from a provider"
+  },
+  {
+    "command": "agent",
+    "description": "Select and switch between agents [alias: a]"
   }
 ]
