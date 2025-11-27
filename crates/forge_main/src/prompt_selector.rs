@@ -75,7 +75,6 @@ impl PromptSelector {
 #[cfg(test)]
 mod tests {
     use forge_domain::{ContextMessage, ModelId};
-    
 
     use super::*;
 
