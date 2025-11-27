@@ -4,8 +4,16 @@ run:
   timeout: 10
 validations:
   - name: "Output contains Hello"
-    type: matches_regex
+    type: regex
     regex: "Hello"
+  - name: "Contains Hello using grep"
+    type: shell
+    command: 'grep -q "Hello"'
+    exit_code: 0
+  - name: "Output is not empty"
+    type: shell
+    command: 'grep -q "."'
+    exit_code: 0
 sources:
   - value:
       - message: "Hello, World!"
