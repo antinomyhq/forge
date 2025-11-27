@@ -144,7 +144,6 @@ export FORGE_BIN="/path/to/custom/forge"
 
 - `FORGE_BIN`: Path to the forge executable (default: `forge`)
 - `FORGE_ENABLE_SHORTCUTS`: Enable/disable keyboard shortcuts (default: `true`)
-- `FORGE_PLATFORM`: Auto-detected platform (`macos` or `linux`) - for debugging purposes
 - Internal pattern matching for conversation syntax (`:`)
 - New session command keyword: `:new` or `:n`
 
