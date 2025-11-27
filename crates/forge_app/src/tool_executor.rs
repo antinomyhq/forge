@@ -2,7 +2,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use forge_domain::{
-    LineNumbers, TitleFormat, ToolCallContext, ToolCallFull, ToolCatalog, ToolOutput,
+    CodebaseQueryResult, LineNumbers, TitleFormat, ToolCallContext, ToolCallFull, ToolCatalog,
+    ToolOutput,
 };
 
 use crate::fmt::content::FormatContent;
@@ -205,16 +206,38 @@ impl<
                 let env = self.services.get_environment();
                 let services = self.services.clone();
                 let cwd = env.cwd.clone();
-                let query = input.query.clone();
-                let use_case = input.use_case.clone();
+                let limit = env.sem_search_limit;
+                let top_k = env.sem_search_top_k as u32;
+                let params: Vec<_> = input
+                    .queries
+                    .iter()
+                    .map(|search_query| {
+                        let mut params = forge_domain::SearchParams::new(
+                            &search_query.query,
+                            &search_query.use_case,
+                        )
+                        .limit(limit)
+                        .top_k(top_k);
+                        if let Some(ext) = &input.file_extension {
+                            params = params.ends_with(ext);
+                        }
+                        params
+                    })
+                    .collect();
 
-                let params = forge_domain::SearchParams::from(&input)
-                    .limit(env.sem_search_limit)
-                    .top_k(env.sem_search_top_k as u32);
+                let result = services.query_codebase_batch(cwd, params).await?;
+                let output = input
+                    .queries
+                    .into_iter()
+                    .zip(result.into_iter())
+                    .map(|(query, results)| CodebaseQueryResult {
+                        query: query.query,
+                        use_case: query.use_case,
+                        results,
+                    })
+                    .collect::<Vec<_>>();
 
-                let results = services.query_codebase(cwd, params).await?;
-                let output = forge_domain::CodebaseQueryResult { query, use_case, results };
-
+                let output = forge_domain::CodebaseSearchResults { queries: output };
                 ToolOperation::CodebaseSearch { output }
             }
             ToolCatalog::Remove(input) => {

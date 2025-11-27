@@ -2,7 +2,10 @@
 source: crates/forge_app/src/operation.rs
 expression: to_value(actual)
 ---
-<sem_search_results
+<sem_search_results>
+<query_result
+  query="authentication logic"
+  use_case="need to add similar auth to my endpoint"
   results="1"
 >
 <file_chunk
@@ -12,4 +15,5 @@ expression: to_value(actual)
     verify_jwt(token)
 }]]>
 </file_chunk>
+</query_result>
 </sem_search_results>
