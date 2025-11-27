@@ -928,17 +928,29 @@ if (( $+functions[p10k] )) || [[ -n "$POWERLEVEL9K_MODE" ]]; then
   #
   # POSITIONING:
   # - Added to POWERLEVEL9K_LEFT_PROMPT_ELEMENTS as the FIRST item
-  # - Appears on the far LEFT of your prompt in BOLD WHITE UPPERCASE
+  # - Appears on the far LEFT of your prompt in BOLD UPPERCASE
+  #
+  # COLOR:
+  # - DIMMED GRAY (242) when no active conversation (_FORGE_CONVERSATION_ID is empty)
+  # - WHITE (231) when there's an active conversation
   function prompt_forge_agent() {
     # Check if $_FORGE_ACTIVE_AGENT environment variable is set
     if [[ -n "$_FORGE_ACTIVE_AGENT" ]]; then
       # Convert the agent name to UPPERCASE using ${(U)variable} syntax
       local agent_upper="${(U)_FORGE_ACTIVE_AGENT}"
       
+      # Determine color based on conversation state:
+      # - 242 (dimmed gray) = no active conversation
+      # - 231 (white) = active conversation
+      local segment_color=242
+      if [[ -n "$_FORGE_CONVERSATION_ID" ]]; then
+        segment_color=231
+      fi
+      
       # Display the prompt segment using p10k:
-      # -f 231         : Set foreground color to white (color code 231)
+      # -f $segment_color : Set foreground color based on conversation state
       # -t "$agent_upper" : Set the text content to the uppercase agent name
-      p10k segment -f 231 -t "$agent_upper"
+      p10k segment -f $segment_color -t "$agent_upper"
     fi
   }
 
@@ -948,10 +960,10 @@ if (( $+functions[p10k] )) || [[ -n "$POWERLEVEL9K_MODE" ]]; then
     prompt_forge_agent
   }
 
-  # Customization: Make the forge_agent text BOLD and WHITE
+  # Customization: Make the forge_agent text BOLD
   # %B = Start bold, %b = End bold
-  # %F{231} = White foreground color, %f = Reset foreground
-  typeset -g POWERLEVEL9K_FORGE_AGENT_CONTENT_EXPANSION='%B%F{231}${(U)_FORGE_ACTIVE_AGENT}%f%b'
+  # Color is handled dynamically by prompt_forge_agent function
+  typeset -g POWERLEVEL9K_FORGE_AGENT_CONTENT_EXPANSION='%B${(U)_FORGE_ACTIVE_AGENT}%b'
 
   #################################[ forge_model: forge current model ]#################################
   # Custom segment to display the current forge model configuration
@@ -1034,12 +1046,24 @@ if ! (( $+functions[p10k] )) && [[ -z "$POWERLEVEL9K_MODE" ]]; then
 
   #################################[ _forge_zsh_prompt_agent ]#################################
   # Returns the active agent formatted for display in PROMPT
-  # Format: BOLD WHITE UPPERCASE agent name
+  # Format: BOLD UPPERCASE agent name
+  #
+  # COLOR:
+  # - DIMMED GRAY (242) when no active conversation (_FORGE_CONVERSATION_ID is empty)
+  # - WHITE (231) when there's an active conversation
   function _forge_zsh_prompt_agent() {
     if [[ -n "$_FORGE_ACTIVE_AGENT" ]]; then
-      # %B = bold, %F{231} = white, %f = reset foreground, %b = reset bold
+      # Determine color based on conversation state:
+      # - 242 (dimmed gray) = no active conversation
+      # - 231 (white) = active conversation
+      local agent_color=242
+      if [[ -n "$_FORGE_CONVERSATION_ID" ]]; then
+        agent_color=231
+      fi
+      
+      # %B = bold, %F{color} = set color, %f = reset foreground, %b = reset bold
       # ${(U)var} = uppercase the variable
-      echo "%B%F{231}${(U)_FORGE_ACTIVE_AGENT}%f%b "
+      echo "%B%F{$agent_color}${(U)_FORGE_ACTIVE_AGENT}%f%b "
     fi
   }
 

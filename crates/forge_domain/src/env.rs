@@ -6,7 +6,7 @@ use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::{HttpConfig, RetryConfig};
+use crate::{HttpConfig, RetryConfig, WorkspaceId};
 
 const VERSION: &str = match option_env!("APP_VERSION") {
     Some(val) => val,
