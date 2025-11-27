@@ -173,6 +173,39 @@ pub struct FSSearch {
     pub file_pattern: Option<String>,
 }
 
+/// A paired query and use_case for semantic search. Each query must have a
+/// corresponding use_case for document reranking.
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct SearchQuery {
+    /// Describe WHAT the code does or its purpose. Include domain-specific
+    /// terms and technical context. Good: "retry mechanism with exponential
+    /// backoff", "streaming responses from LLM API", "OAuth token refresh
+    /// flow". Bad: generic terms like "retry" or "auth" without context. Think
+    /// about the behavior and functionality you're looking for.
+    pub query: String,
+
+    /// A short natural-language description of what you are trying to find.
+    /// This is the query used for document reranking. The query MUST:
+    /// - express a single, focused information need
+    /// - describe exactly what the agent is searching for
+    /// - should not be the query verbatim
+    /// - be concise (1–2 sentences)
+    ///
+    /// Examples:
+    /// - "Why is `select_model()` returning a Pin<Box<Result>> in Rust?"
+    /// - "How to fix error E0277 for the ? operator on a pinned boxed result?"
+    /// - "Steps to run Diesel migrations in Rust without exposing the DB."
+    /// - "How to design a clean architecture service layer with typed errors?"
+    pub use_case: String,
+}
+
+impl SearchQuery {
+    /// Creates a new search query with the given query and use_case
+    pub fn new(query: impl Into<String>, use_case: impl Into<String>) -> Self {
+        Self { query: query.into(), use_case: use_case.into() }
+    }
+}
+
 /// AI-powered semantic code search - YOUR DEFAULT TOOL for "where is"
 /// questions. Use this FIRST when user asks about code location or
 /// functionality: "where is X", "find the code that does Y", "locate Z
@@ -188,27 +221,9 @@ pub struct FSSearch {
 /// between search and sem_search, choose sem_search.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct SemanticSearch {
-    /// Describe WHAT the code does or its purpose. Include domain-specific
-    /// terms and technical context. Good: "retry mechanism with exponential
-    /// backoff", "streaming responses from LLM API", "OAuth token refresh
-    /// flow". Bad: generic terms like "retry" or "auth" without context. Think
-    /// about the behavior and functionality you're looking for.
-    pub queries: Vec<String>,
-
-    /// A short natural-language description of what you are trying to find.
-    /// This is the query used for document reranking.
-    /// The query MUST:
-    /// - express a single, focused information need
-    /// - describe exactly what the agent is searching for
-    /// - should not be the query verbatim
-    /// - be concise (1–2 sentences)
-    ///
-    /// Examples:
-    /// - "Why is `select_model()` returning a Pin<Box<Result>> in Rust?"
-    /// - "How to fix error E0277 for the ? operator on a pinned boxed result?"
-    /// - "Steps to run Diesel migrations in Rust without exposing the DB."
-    /// - "How to design a clean architecture service layer with typed errors?"
-    pub use_cases: Vec<String>,
+    /// List of search queries to execute. Each query pairs a search term with
+    /// its use_case for document reranking.
+    pub queries: Vec<SearchQuery>,
 
     /// Optional file extension filter (e.g., ".rs", ".ts", ".py"). If provided,
     /// only files with this extension will be included in the search results.
@@ -733,16 +748,13 @@ impl ToolCatalog {
         }))
     }
 
-    /// Creates a Semantic Search tool call with the specified queries and
-    /// use_cases
+    /// Creates a Semantic Search tool call with the specified queries
     pub fn tool_call_semantic_search(
-        queries: Vec<String>,
-        use_cases: Vec<String>,
+        queries: Vec<SearchQuery>,
         file_ext: Option<String>,
     ) -> ToolCallFull {
         ToolCallFull::from(ToolCatalog::SemSearch(SemanticSearch {
             queries,
-            use_cases,
             file_extension: file_ext,
         }))
     }

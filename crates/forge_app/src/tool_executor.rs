@@ -209,13 +209,12 @@ impl<
                 let futures: Vec<_> = input
                     .queries
                     .iter()
-                    .zip(input.use_cases.iter())
-                    .map(|(query, use_case)| {
+                    .map(|search_query| {
                         let services = services.clone();
                         let cwd = cwd.clone();
                         let file_extension = input.file_extension.clone();
-                        let query = query.clone();
-                        let use_case = use_case.clone();
+                        let query = search_query.query.clone();
+                        let use_case = search_query.use_case.clone();
                         let limit = env.sem_search_limit;
                         let top_k = env.sem_search_top_k as u32;
                         async move {
