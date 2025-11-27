@@ -1295,10 +1295,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         if self.cli.provider.is_some() || self.cli.model.is_some() {
             info = info.add_title("RUNTIME OVERRIDES (NOT PERSISTED)");
             if let Some(provider_id) = self.cli.provider {
-                info = info.add_key_value("Provider", format!("{} (from --provider)", provider_id));
+                info = info.add_key_value("Provider", format!("{} [from --provider]", provider_id));
             }
             if let Some(model_id) = &self.cli.model {
-                info = info.add_key_value("Model", format!("{} (from --model)", model_id));
+                info = info.add_key_value("Model", format!("{} [from --model]", model_id));
             }
         }
 
