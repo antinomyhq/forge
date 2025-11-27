@@ -73,6 +73,10 @@ pub struct Environment {
     /// Maximum number of results to return from initial vector search.
     /// Controlled by FORGE_SEM_SEARCH_LIMIT environment variable.
     pub sem_search_limit: usize,
+    /// Top-k parameter for relevance filtering during semantic search.
+    /// Controls the number of nearest neighbors to consider.
+    /// Controlled by FORGE_SEM_SEARCH_TOP_K environment variable.
+    pub sem_search_top_k: usize,
     /// URL for the indexing server.
     /// Controlled by FORGE_WORKSPACE_SERVER_URL environment variable.
     #[dummy(expr = "url::Url::parse(\"http://localhost:8080\").unwrap()")]
@@ -225,6 +229,7 @@ fn test_command_path() {
         custom_history_path: None,
         max_conversations: 100,
         sem_search_limit: 100,
+        sem_search_top_k: 10,
         max_image_size: 262144,
         workspace_server_url: "http://localhost:8080".parse().unwrap(),
     };
@@ -261,6 +266,7 @@ fn test_command_cwd_path() {
         custom_history_path: None,
         max_conversations: 100,
         sem_search_limit: 100,
+        sem_search_top_k: 10,
         max_image_size: 262144,
         workspace_server_url: "http://localhost:8080".parse().unwrap(),
     };
@@ -297,6 +303,7 @@ fn test_command_cwd_path_independent_from_command_path() {
         custom_history_path: None,
         max_conversations: 100,
         sem_search_limit: 100,
+        sem_search_top_k: 10,
         max_image_size: 262144,
         workspace_server_url: "http://localhost:8080".parse().unwrap(),
     };

@@ -372,7 +372,6 @@ mod tests {
                     SummaryToolCall::codebase_search(
                         "authentication logic",
                         "Find authentication implementation",
-                        10,
                         Some(".rs".to_string()),
                     )
                     .id("call_4")

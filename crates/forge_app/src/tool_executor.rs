@@ -211,7 +211,9 @@ impl<
                 let query = input.query.clone();
                 let use_case = input.use_case.clone();
 
-                let params = forge_domain::SearchParams::from(&input).limit(env.sem_search_limit);
+                let params = forge_domain::SearchParams::from(&input)
+                    .limit(env.sem_search_limit)
+                    .top_k(env.sem_search_top_k as u32);
 
                 let results = services.query_codebase(cwd, params).await?;
                 let output = forge_domain::CodebaseQueryResult { query, use_case, results };
