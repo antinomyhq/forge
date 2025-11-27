@@ -36,7 +36,10 @@ impl<
         + EnvironmentService
         + PlanCreateService
         + PolicyService
-        + SkillFetchService,
+        + SkillFetchService
+        + Send
+        + Sync
+        + 'static,
 > ToolExecutor<S>
 {
     pub fn new(services: Arc<S>) -> Self {
@@ -326,6 +329,18 @@ impl<
         }
 
         let operation = execution_result?;
+
+        // Re-index the codebase if a file was modified and codebase was already indexed.
+        if operation.is_file_modifying() {
+            let cwd = env.cwd.clone();
+            let services = self.services.clone();
+            tokio::spawn(async move {
+                if services.is_indexed(&cwd).await.unwrap_or(false) {
+                    tracing::info!("Re-indexing codebase after file modification");
+                    let _ = services.sync_codebase(cwd, 20).await;
+                }
+            });
+        }
 
         // Send formatted output message
         if let Some(output) = operation.to_content(&env) {

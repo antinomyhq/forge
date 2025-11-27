@@ -80,6 +80,19 @@ pub enum ToolOperation {
     },
 }
 
+impl ToolOperation {
+    /// Returns true if this operation modified a file on disk.
+    pub fn is_file_modifying(&self) -> bool {
+        matches!(
+            self,
+            ToolOperation::FsCreate { .. }
+                | ToolOperation::FsPatch { .. }
+                | ToolOperation::FsUndo { .. }
+                | ToolOperation::FsRemove { .. }
+        )
+    }
+}
+
 /// Trait for stream elements that can be converted to XML elements
 pub trait StreamElement {
     fn stream_name(&self) -> &'static str;
