@@ -71,10 +71,12 @@ Example: `plans/2025-11-24-add-auth-v1.md`
 
 - **ALWAYS use checkbox format** (`- [ ]`) for ALL implementation tasks
 - **NEVER use numbered lists** or plain bullet points in Implementation Plan section
+- **NEVER write code, code snippets, or code examples** in the plan
 - Include clear rationale for each task
 - Provide specific, measurable verification criteria
 - Document assumptions made for ambiguous requirements
 - Focus on strategic "what" and "why", not tactical "how"
+- Describe what needs to be done using natural language, not code
 
 ## Best Practices
 
@@ -91,8 +93,10 @@ This is a **planning-only** skill:
 - ✅ Research codebase and analyze structure
 - ✅ Create strategic plans and documentation
 - ✅ Assess risks and propose alternatives
+- ✅ Describe implementations using natural language
 - ❌ Make actual code changes
 - ❌ Modify files or create implementations
 - ❌ Run tests or build commands
+- ❌ Write code, code snippets, or code examples in plans
 
 If user requests implementation work, suggest switching to an implementation agent.
