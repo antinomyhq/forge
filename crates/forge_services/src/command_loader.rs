@@ -178,8 +178,8 @@ mod tests {
     async fn test_parse_builtin_commands() {
         // Test that all built-in commands parse correctly
         let builtin_commands = [
-            ("fixme", "../../.forge/commands/fixme.md"),
-            ("check", "../../.forge/commands/check.md"),
+            ("fixme", "src/fixtures/commands/fixme.md"),
+            ("check", "src/fixtures/commands/check.md"),
         ];
 
         for (name, path) in builtin_commands {
