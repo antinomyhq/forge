@@ -1084,28 +1084,18 @@ zle -N forge-shortcut-editor-with-content
 case "$(uname -s)" in
     Darwin*)
         # macOS-specific key bindings
-        FORGE_PLATFORM="macos"
-        ;;
-    Linux*|CYGWIN*|MINGW*|MSYS*)
-        # Linux/Windows key bindings
-        FORGE_PLATFORM="linux"
-        ;;
-    *)
-        # Default to Linux bindings for unknown platforms
-        FORGE_PLATFORM="linux"
-        ;;
-esac
-
-# Platform-specific keyboard shortcuts
-case "$FORGE_PLATFORM" in
-    macos)
-        # macOS Option+; bindings
         bindkey '\e;' forge-shortcut-colon-prefix         # Option+; (most common)
         bindkey '^[;' forge-shortcut-colon-prefix          # Option+; alternative
         bindkey '\e[1;3A' forge-shortcut-colon-prefix      # Option+; for some terminals
         ;;
+    Linux*|CYGWIN*|MINGW*|MSYS*)
+        # Linux/Windows key bindings
+        bindkey '\e;' forge-shortcut-colon-prefix         # Alt+;
+        bindkey '\e[1;3F' forge-shortcut-colon-prefix  # Alternative Alt+; for some terminals
+        bindkey '^[;' forge-shortcut-colon-prefix          # Another Alt+; variant
+        ;;
     *)
-        # Linux/Windows Alt+; bindings (current implementation)
+        # Default to Linux bindings for unknown platforms
         bindkey '\e;' forge-shortcut-colon-prefix         # Alt+;
         bindkey '\e[1;3F' forge-shortcut-colon-prefix  # Alternative Alt+; for some terminals
         bindkey '^[;' forge-shortcut-colon-prefix          # Another Alt+; variant
@@ -1120,17 +1110,23 @@ bindkey '^e' forge-shortcut-editor-with-content   # Ctrl+e → editor with conte
 # Show initialization message once per session
 if [[ -z "$FORGE_SHORTCUTS_LOADED" ]]; then
     if command -v _forge_log >/dev/null 2>&1; then
-        if [[ "$FORGE_PLATFORM" == "macos" ]]; then
-            _forge_log info "Forge shortcuts enabled: Option+; (prefix), Ctrl+e (editor)"
-        else
-            _forge_log info "Forge shortcuts enabled: Alt+; (prefix), Ctrl+e (editor)"
-        fi
+        case "$(uname -s)" in
+            Darwin*)
+                _forge_log info "Forge shortcuts enabled: Option+; (prefix), Ctrl+e (editor)"
+                ;;
+            *)
+                _forge_log info "Forge shortcuts enabled: Alt+; (prefix), Ctrl+e (editor)"
+                ;;
+        esac
     else
-        if [[ "$FORGE_PLATFORM" == "macos" ]]; then
-            echo "⏺ Forge shortcuts enabled: Option+; (prefix), Ctrl+e (editor)"
-        else
-            echo "⏺ Forge shortcuts enabled: Alt+; (prefix), Ctrl+e (editor)"
-        fi
+        case "$(uname -s)" in
+            Darwin*)
+                echo "⏺ Forge shortcuts enabled: Option+; (prefix), Ctrl+e (editor)"
+                ;;
+            *)
+                echo "⏺ Forge shortcuts enabled: Alt+; (prefix), Ctrl+e (editor)"
+                ;;
+        esac
     fi
     export FORGE_SHORTCUTS_LOADED=1
 fi
