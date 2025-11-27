@@ -1,6 +1,7 @@
-use std::{str::FromStr, sync::Arc};
+use std::str::FromStr;
+use std::sync::Arc;
 
-use anyhow::{anyhow, bail};
+use anyhow::bail;
 use bytes::Bytes;
 use forge_app::{EnvironmentInfra, FileReaderInfra, FileWriterInfra};
 use forge_domain::{AppConfig, AppConfigRepository, ModelId, ProviderId};
@@ -41,13 +42,14 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> AppConfigRepositor
     }
 
     fn get_overrides(&self) -> (Option<ModelId>, Option<ProviderId>) {
-        // FIXME: Set this in Environment {override_model: Option<ModelId>, override_provider: Option<ProviderId>}
-        // And then directly read it from the env object
+        // FIXME: Set this in Environment {override_model: Option<ModelId>,
+        // override_provider: Option<ProviderId>} And then directly read it from
+        // the env object
 
         let model_id = self
             .infra
             .get_env_var("FORGE_OVERRIDE_MODEL")
-            .map(|id| ModelId::new(id));
+            .map(ModelId::new);
 
         let provider_id = self
             .infra
