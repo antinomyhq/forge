@@ -261,7 +261,8 @@ impl<F: forge_app::FileWriterInfra + 'static> HttpInfra for ForgeHttpInfra<F> {
 
 #[cfg(test)]
 mod tests {
-    use std::{path::PathBuf, sync::Arc};
+    use std::path::PathBuf;
+    use std::sync::Arc;
 
     use fake::{Fake, Faker};
     use forge_app::FileWriterInfra;
