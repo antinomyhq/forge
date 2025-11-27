@@ -342,6 +342,14 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     async fn handle_subcommands(&mut self, subcommand: TopLevelCommand) -> anyhow::Result<()> {
         match subcommand {
+            TopLevelCommand::Agent(agent_group) => {
+                match agent_group.command {
+                    crate::cli::AgentCommand::List => {
+                        self.on_show_agents(agent_group.porcelain).await?;
+                    }
+                }
+                return Ok(());
+            }
             TopLevelCommand::List(list_group) => {
                 let porcelain = list_group.porcelain;
                 match list_group.command {
