@@ -1001,27 +1001,25 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     async fn on_show_commands(&mut self, porcelain: bool) -> anyhow::Result<()> {
         let mut info = Info::new();
 
-        // Load built-in commands from CSV
-        // NOTE: When adding a new command, update built_in_commands.csv AND
+        // Load built-in commands from JSON
+        // NOTE: When adding a new command, update built_in_commands.json AND
         //       shell-plugin/forge.plugin.zsh (case statement around line 745)
-        const COMMANDS_CSV: &str = include_str!("built_in_commands.csv");
-        let built_in_commands: Vec<(&str, &str)> = COMMANDS_CSV
-            .lines()
-            .skip(1) // Skip header
-            .filter_map(|line| {
-                let mut parts = line.splitn(2, ',');
-                match (parts.next(), parts.next()) {
-                    (Some(cmd), Some(desc)) => Some((cmd, desc)),
-                    _ => None,
-                }
-            })
-            .collect();
+        const COMMANDS_JSON: &str = include_str!("built_in_commands.json");
 
-        for (name, description) in &built_in_commands {
+        #[derive(serde::Deserialize)]
+        struct Command<'a> {
+            command: &'a str,
+            description: &'a str,
+        }
+
+        let built_in_commands: Vec<Command> =
+            serde_json::from_str(COMMANDS_JSON).expect("Failed to parse built_in_commands.json");
+
+        for cmd in &built_in_commands {
             info = info
-                .add_title(name)
+                .add_title(cmd.command)
                 .add_key_value("type", "command")
-                .add_key_value("description", description);
+                .add_key_value("description", cmd.description);
         }
 
         // Add agent aliases
