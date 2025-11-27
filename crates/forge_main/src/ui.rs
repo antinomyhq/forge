@@ -1010,44 +1010,25 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     async fn on_show_commands(&mut self, porcelain: bool) -> anyhow::Result<()> {
         let mut info = Info::new();
 
-        // Define base commands with their descriptions and type
-        let built_in_commands = [
-            ("info", "Print session information [alias: i]"),
-            ("env", "Display environment information [alias: e]"),
-            ("provider", "Switch the providers [alias: p]"),
-            ("model", "Switch the models [alias: m]"),
-            ("new", "Start new conversation [alias: n]"),
-            (
-                "dump",
-                "Save conversation as JSON or HTML (use /dump html for HTML format) [alias: d]",
-            ),
-            (
-                "conversation",
-                "List all conversations for the active workspace [alias: c]",
-            ),
-            ("retry", "Retry the last command [alias: r]"),
-            ("compact", "Compact the conversation context"),
-            ("edit", "Use an external editor to write a prompt"),
-            (
-                "tools",
-                "List all available tools with their descriptions and schema [alias: t]",
-            ),
-            ("skill", "List all available skills"),
-            ("agent", "Select and switch between agents [alias: a]"),
-            ("commit", "Generate AI commit message and commit changes."),
-            (
-                "suggest",
-                "Generate shell commands without executing them [alias: s]",
-            ),
-            ("login", "Login to a provider"),
-            ("logout", "Logout from a provider"),
-        ];
+        // Load built-in commands from JSON
+        // NOTE: When adding a new command, update built_in_commands.json AND
+        //       shell-plugin/forge.plugin.zsh (case statement around line 745)
+        const COMMANDS_JSON: &str = include_str!("built_in_commands.json");
 
-        for (name, description) in built_in_commands {
+        #[derive(serde::Deserialize)]
+        struct Command<'a> {
+            command: &'a str,
+            description: &'a str,
+        }
+
+        let built_in_commands: Vec<Command> =
+            serde_json::from_str(COMMANDS_JSON).expect("Failed to parse built_in_commands.json");
+
+        for cmd in &built_in_commands {
             info = info
-                .add_title(name)
+                .add_title(cmd.command)
                 .add_key_value("type", "command")
-                .add_key_value("description", description);
+                .add_key_value("description", cmd.description);
         }
 
         // Add agent aliases
@@ -2174,23 +2155,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         title.push_str(format!(" {}", id.into_string()).as_str());
 
-        let mut sub_title = String::new();
-        sub_title.push('[');
-
-        if let Some(ref agent) = self.api.get_active_agent().await {
-            sub_title.push_str(format!("via {agent}").as_str());
-        }
-
-        if let Some(ref model) = self
-            .get_agent_model(self.api.get_active_agent().await)
-            .await
-        {
-            sub_title.push_str(format!("/{}", model.as_str()).as_str());
-        }
-
-        sub_title.push(']');
-
-        self.writeln_title(TitleFormat::debug(title).sub_title(sub_title.bold().to_string()))?;
+        self.writeln_title(TitleFormat::debug(title))?;
         Ok(())
     }
 

@@ -837,6 +837,10 @@ function forge-accept-line() {
         ;;
     esac
     
+    # ⚠️  IMPORTANT: When adding a new command here, you MUST also update:
+    #     crates/forge_main/src/built_in_commands.json
+    #     Add a new entry: {"command": "name", "description": "Description [alias: x]"}
+    #
     # Dispatch to appropriate action handler using pattern matching
     case "$user_action" in
         new|n)
