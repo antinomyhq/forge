@@ -65,7 +65,7 @@ impl FormatContent for ToolCatalog {
                     .queries
                     .iter()
                     .zip(input.use_cases.iter())
-                    .map(|(q, u)| format!("{} ({})", q, u))
+                    .map(|(q, u)| format!("{} [{}]", q, u))
                     .collect();
                 Some(
                     TitleFormat::debug("Codebase Search")
