@@ -21,7 +21,6 @@ pub trait API: Sync + Send {
 
     /// Provides a list of models available in the current environment
     async fn get_models(&self) -> Result<Vec<Model>>;
-
     /// Provides a list of agents available in the current environment
     async fn get_agents(&self) -> Result<Vec<Agent>>;
     /// Provides a list of providers available in the current environment
@@ -189,10 +188,4 @@ pub trait API: Sync + Send {
     /// credentials. This is a one-time migration that runs only if the
     /// credentials file doesn't exist.
     async fn migrate_env_credentials(&self) -> Result<Option<forge_domain::MigrationResult>>;
-
-    /// Gets the application configuration
-    async fn get_app_config(&self) -> Result<forge_domain::AppConfig>;
-
-    /// Sets the application configuration
-    async fn set_app_config(&self, config: &forge_domain::AppConfig) -> Result<()>;
 }

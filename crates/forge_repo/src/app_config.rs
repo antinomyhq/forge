@@ -343,8 +343,8 @@ mod tests {
         // Create a modified config with runtime overrides
         let ephemeral_config = AppConfig {
             key_info: None,
-            provider: Some(ProviderId::OpenAI),
-            model: [(ProviderId::OpenAI, ModelId::new("gpt-4o"))]
+            provider: Some(ProviderId::OPENAI),
+            model: [(ProviderId::OPENAI, ModelId::new("gpt-4o"))]
                 .into_iter()
                 .collect(),
         };
@@ -379,9 +379,9 @@ mod tests {
         // Set ephemeral config
         let ephemeral_config = AppConfig {
             key_info: None,
-            provider: Some(ProviderId::Anthropic),
+            provider: Some(ProviderId::ANTHROPIC),
             model: [(
-                ProviderId::Anthropic,
+                ProviderId::ANTHROPIC,
                 ModelId::new("claude-3-5-sonnet-20241022"),
             )]
             .into_iter()
@@ -407,7 +407,7 @@ mod tests {
         let (repo, _temp_dir) = repository_with_config_fixture();
 
         // Set config in normal mode
-        let normal_config = AppConfig { provider: Some(ProviderId::OpenAI), ..Default::default() };
+        let normal_config = AppConfig { provider: Some(ProviderId::OPENAI), ..Default::default() };
         repo.set_app_config(&normal_config).await.unwrap();
 
         // Verify config is written to disk
@@ -415,16 +415,16 @@ mod tests {
             let file_content = repo.infra.files.lock().unwrap();
             let file_config_str = file_content.get(&repo.infra.config_path).unwrap();
             let file_config: AppConfig = serde_json::from_str(file_config_str).unwrap();
-            assert_eq!(file_config.provider, Some(ProviderId::OpenAI));
+            assert_eq!(file_config.provider, Some(ProviderId::OPENAI));
         } // Drop the lock before the next write
 
         // Write new config to disk (should bust cache)
         let persistent_config =
-            AppConfig { provider: Some(ProviderId::Anthropic), ..Default::default() };
+            AppConfig { provider: Some(ProviderId::ANTHROPIC), ..Default::default() };
         repo.set_app_config(&persistent_config).await.unwrap();
 
         // Next read should return the persisted config, not the runtime cache
         let after_write = repo.get_app_config().await.unwrap();
-        assert_eq!(after_write.provider, Some(ProviderId::Anthropic));
+        assert_eq!(after_write.provider, Some(ProviderId::ANTHROPIC));
     }
 }

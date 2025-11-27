@@ -345,12 +345,4 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + AppConf
     async fn get_default_provider(&self) -> Result<Provider<Url>> {
         self.services.get_default_provider().await
     }
-
-    async fn get_app_config(&self) -> Result<AppConfig> {
-        self.infra.get_app_config().await
-    }
-
-    async fn set_app_config(&self, config: &AppConfig) -> Result<()> {
-        self.infra.set_app_config(config).await
-    }
 }

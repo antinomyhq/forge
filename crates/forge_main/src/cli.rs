@@ -1123,8 +1123,8 @@ mod tests {
 
     #[test]
     fn test_cli_provider_flag() {
-        let fixture = Cli::parse_from(["forge", "--provider", "OpenAI"]);
-        let expected = Some(ProviderId::OpenAI);
+        let fixture = Cli::parse_from(["forge", "--provider", "openai"]);
+        let expected = Some(ProviderId::OPENAI);
         assert_eq!(fixture.provider, expected);
     }
 
@@ -1139,9 +1139,9 @@ mod tests {
     #[test]
     fn test_cli_provider_and_model_flags() {
         use forge_domain::ModelId;
-        let fixture = Cli::parse_from(["forge", "--provider", "OpenAI", "--model", "gpt-4o"]);
+        let fixture = Cli::parse_from(["forge", "--provider", "openai", "--model", "gpt-4o"]);
 
-        let expected_provider = Some(ProviderId::OpenAI);
+        let expected_provider = Some(ProviderId::OPENAI);
         let expected_model = Some(ModelId::new("gpt-4o"));
 
         assert_eq!(fixture.provider, expected_provider);
@@ -1154,14 +1154,14 @@ mod tests {
         let fixture = Cli::parse_from([
             "forge",
             "--provider",
-            "Anthropic",
+            "anthropic",
             "--model",
             "claude-3-5-sonnet-20241022",
             "-p",
             "test prompt",
         ]);
 
-        assert_eq!(fixture.provider, Some(ProviderId::Anthropic));
+        assert_eq!(fixture.provider, Some(ProviderId::ANTHROPIC));
         assert_eq!(
             fixture.model,
             Some(ModelId::new("claude-3-5-sonnet-20241022"))
