@@ -119,7 +119,6 @@ impl SummaryToolCall {
     pub fn codebase_search(
         query: impl Into<String>,
         use_case: impl Into<String>,
-        top_k: u32,
         file_extension: Option<String>,
     ) -> Self {
         Self {
@@ -127,7 +126,6 @@ impl SummaryToolCall {
             tool: SummaryTool::SemSearch {
                 query: query.into(),
                 use_case: use_case.into(),
-                top_k,
                 file_extension,
             },
             is_success: true,
@@ -196,7 +194,6 @@ pub enum SummaryTool {
     SemSearch {
         query: String,
         use_case: String,
-        top_k: u32,
         file_extension: Option<String>,
     },
     Undo {
@@ -321,7 +318,6 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
         ToolCatalog::SemSearch(input) => Some(SummaryTool::SemSearch {
             query: input.query,
             use_case: input.use_case,
-            top_k: input.top_k,
             file_extension: input.file_extension,
         }),
         ToolCatalog::Undo(input) => Some(SummaryTool::Undo { path: input.path }),
@@ -974,7 +970,6 @@ mod tests {
                 ToolCatalog::tool_call_semantic_search(
                     "retry mechanism",
                     "find retry logic",
-                    10,
                     None,
                 )
                 .call_id("call_1"),
@@ -987,7 +982,7 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Searching codebase"),
-                SummaryToolCall::codebase_search("retry mechanism", "find retry logic", 10, None)
+                SummaryToolCall::codebase_search("retry mechanism", "find retry logic", None)
                     .id("call_1")
                     .is_success(false)
                     .into(),
