@@ -983,15 +983,17 @@ if (( $+functions[p10k] )) || [[ -n "$POWERLEVEL9K_MODE" ]]; then
       # - 242 (dimmed gray) = no active conversation
       # - 39 (cyan) = active conversation
       local segment_color=242
+      local icon_args=()
       if [[ -n "$_FORGE_CONVERSATION_ID" ]]; then
         segment_color=39
+        icon_args=(-i '󰚩')
       fi
       
       # Display the prompt segment using p10k:
       # -f $segment_color : Set foreground color based on conversation state
-      # -i '󰚩'            : Display a robot icon as the segment icon
+      # -i '󰚩'            : Display a robot icon (only when conversation is active)
       # -t "$model_output" : Set the text content to the model name
-      p10k segment -f $segment_color -i '󰚩' -t "$model_output"
+      p10k segment -f $segment_color "${icon_args[@]}" -t "$model_output"
     fi
   }
 
@@ -1058,12 +1060,14 @@ if ! (( $+functions[p10k] )) && [[ -z "$POWERLEVEL9K_MODE" ]]; then
       # - 242 (dimmed gray) = no active conversation
       # - 39 (cyan) = active conversation
       local segment_color=242
+      local icon=""
       if [[ -n "$_FORGE_CONVERSATION_ID" ]]; then
         segment_color=39
+        icon="󰚩 "
       fi
       
       # %F{color} = set foreground color, %f = reset foreground
-      echo "%F{$segment_color}󰚩 ${model_output}%f"
+      echo "%F{$segment_color}${icon}${model_output}%f"
     fi
   }
 
