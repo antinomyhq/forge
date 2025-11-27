@@ -585,7 +585,9 @@ impl<I: Services> ConversationService for I {
     }
 
     async fn delete_conversation(&self, conversation_id: &ConversationId) -> anyhow::Result<()> {
-        self.conversation_service().delete_conversation(conversation_id).await
+        self.conversation_service()
+            .delete_conversation(conversation_id)
+            .await
     }
 }
 #[async_trait::async_trait]

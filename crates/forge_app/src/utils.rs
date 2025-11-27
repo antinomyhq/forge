@@ -2,18 +2,7 @@ use std::path::Path;
 
 use crate::{Match, MatchResult};
 
-/// Formats a path for display, converting absolute paths to relative when
-/// possible
-///
-/// If the path starts with the current working directory, returns a
-/// relative path. Otherwise, returns the original absolute path.
-///
-/// # Arguments
-/// * `path` - The path to format
-/// * `cwd` - The current working directory path
-///
-/// # Returns
-/// * A formatted path string
+/// Formats a path for display, converting absolute to relative when possible.
 pub fn format_display_path(path: &Path, cwd: &Path) -> String {
     // Try to create a relative path for display if possible
     let display_path = if path.starts_with(cwd) {
@@ -32,17 +21,8 @@ pub fn format_display_path(path: &Path, cwd: &Path) -> String {
     }
 }
 
-/// Truncates a key string for display purposes
-///
-/// If the key length is 20 characters or less, returns it unchanged.
-/// Otherwise, shows the first 13 characters and last 4 characters with "..." in
-/// between.
-///
-/// # Arguments
-/// * `key` - The key string to truncate
-///
-/// # Returns
-/// * A truncated version of the key for safe display
+/// Truncates a key for display (shows first 13 and last 4 chars if longer than
+/// 20).
 pub fn truncate_key(key: &str) -> String {
     if key.len() <= 20 {
         key.to_string()
@@ -66,17 +46,7 @@ pub fn format_match(matched: &Match, base_dir: &Path) -> String {
     }
 }
 
-/// Computes SHA-256 hash of the given content
-///
-/// General-purpose utility function that computes a SHA-256 hash of string
-/// content. Returns a consistent hexadecimal representation that can be used
-/// for content comparison, caching, or change detection.
-///
-/// # Arguments
-/// * `content` - The content string to hash
-///
-/// # Returns
-/// * A hexadecimal string representation of the SHA-256 hash
+/// Computes SHA-256 hash of the given content.
 pub fn compute_hash(content: &str) -> String {
     use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();

@@ -42,10 +42,25 @@ impl Compactor {
         let retention = CompactionStrategy::retain(self.compact.retention_window);
 
         let strategy = if max {
-            // TODO: Consider using `eviction.max(retention)`
             retention
         } else {
-            eviction.min(retention)
+            // Combine strategies: use minimum retention
+            match (eviction, retention) {
+                (CompactionStrategy::Evict(e), CompactionStrategy::Retain(r)) => {
+                    let retain_count = (e * context.token_count_approx() as f64).ceil() as usize;
+                    CompactionStrategy::retain(retain_count.min(r))
+                }
+                (CompactionStrategy::Retain(r1), CompactionStrategy::Retain(r2)) => {
+                    CompactionStrategy::retain(r1.min(r2))
+                }
+                (CompactionStrategy::Evict(e1), CompactionStrategy::Evict(e2)) => {
+                    CompactionStrategy::evict(e1.min(e2))
+                }
+                (_eviction, retention) => {
+                    // Fallback to retention (more conservative)
+                    retention
+                }
+            }
         };
 
         match strategy.eviction_range(&context) {
@@ -92,20 +107,10 @@ impl Compactor {
         )?;
 
         // Extended thinking reasoning chain preservation
-        //
-        // Extended thinking requires the first assistant message to have
-        // reasoning_details for subsequent messages to maintain reasoning
-        // chains. After compaction, this consistency can break if the first
-        // remaining assistant lacks reasoning.
-        //
-        // Solution: Extract the LAST reasoning from compacted messages and inject it
-        // into the first assistant message after compaction. This preserves
-        // chain continuity while preventing exponential accumulation across
-        // multiple compactions.
-        //
-        // Example: [U, A+r, U, A+r, U, A] → compact → [U-summary, A+r, U, A]
-        //                                                          └─from last
-        // compacted
+        // Extract the LAST reasoning from compacted messages and inject it
+        // into the first assistant message after compaction to preserve chain
+        // continuity. Example: [U, A+r, U, A+r, U, A] → compact → [U-summary,
+        // A+r, U, A]
         let reasoning_details = compaction_sequence
             .iter()
             .rev() // Get LAST reasoning (most recent)

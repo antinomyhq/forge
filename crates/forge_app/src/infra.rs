@@ -47,20 +47,8 @@ pub trait FileReaderInfra: Send + Sync {
     /// Returns the file content as raw bytes.
     async fn read(&self, path: &Path) -> anyhow::Result<Vec<u8>>;
 
-    /// Reads a specific line range from a file at the specified path.
-    /// Returns the file content within the range as a UTF-8 string along with
-    /// metadata.
-    ///
-    /// - start_line specifies the starting line position (1-based, inclusive).
-    /// - end_line specifies the ending line position (1-based, inclusive).
-    /// - Both start_line and end_line are inclusive bounds.
-    /// - Binary files are automatically detected and rejected.
-    ///
-    /// Returns a tuple containing the file content and FileInfo with metadata
-    /// about the read operation:
-    /// - FileInfo.start_line: starting line position
-    /// - FileInfo.end_line: ending line position
-    /// - FileInfo.total_lines: total line count in file
+    /// Reads a specific line range from a file (1-based, inclusive bounds).
+    /// Returns UTF-8 content and metadata. Binary files are rejected.
     async fn range_read_utf8(
         &self,
         path: &Path,

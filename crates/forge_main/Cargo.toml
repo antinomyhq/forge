@@ -21,6 +21,7 @@ forge_tracker.workspace = true
 
 forge_spinner.workspace = true
 forge_select.workspace = true
+forge_stream.workspace = true
 
 merge.workspace = true
 forge_fs.workspace = true
@@ -54,6 +55,9 @@ atty = "0.2"
 url.workspace = true
 indexmap.workspace = true
 async-recursion.workspace = true
+async-trait.workspace = true
+dirs.workspace = true
+regex.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt", "time", "test-util"] }

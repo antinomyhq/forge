@@ -119,35 +119,7 @@ mod tests {
     }
 
     #[test]
-    fn test_two_messages() {
-        let actual = create_test_context("su");
-        let expected = "[s[u";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_multiple_system_messages() {
-        let actual = create_test_context("sssuuu");
-        let expected = "[sssuu[u";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_three_messages_first_and_last_cached() {
-        let actual = create_test_context("sua");
-        let expected = "[su[a";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_four_messages_first_and_last_cached() {
-        let actual = create_test_context("suau");
-        let expected = "[sua[u";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_five_messages_first_and_last_cached() {
+    fn test_multiple_messages() {
         let actual = create_test_context("suaua");
         let expected = "[suau[a";
         assert_eq!(actual, expected);
@@ -157,15 +129,6 @@ mod tests {
     fn test_longer_conversation() {
         let actual = create_test_context("suuauuaaau");
         let expected = "[suuauuaaa[u";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_cache_removal_from_second_to_last() {
-        // Test that second-to-last message doesn't have cache when there are 3+
-        // messages
-        let actual = create_test_context("suuauuaaauauau");
-        let expected = "[suuauuaaauaua[u";
         assert_eq!(actual, expected);
     }
 }

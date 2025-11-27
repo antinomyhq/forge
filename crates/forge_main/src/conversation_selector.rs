@@ -85,23 +85,7 @@ impl ConversationSelector {
 
 #[cfg(test)]
 mod tests {
-    use chrono::Utc;
-    use forge_api::Conversation;
-    use forge_domain::{ConversationId, MetaData, Metrics};
-    use pretty_assertions::assert_eq;
-
     use super::*;
-
-    fn create_test_conversation(id: &str, title: Option<&str>) -> Conversation {
-        let now = Utc::now();
-        Conversation {
-            id: ConversationId::parse(id).unwrap(),
-            title: title.map(|t| t.to_string()),
-            context: None,
-            metrics: Metrics::default().started_at(now),
-            metadata: MetaData { created_at: now, updated_at: Some(now) },
-        }
-    }
 
     #[tokio::test]
     async fn test_select_conversation_empty_list() {
@@ -110,33 +94,5 @@ mod tests {
             .await
             .unwrap();
         assert!(result.is_none());
-    }
-
-    #[test]
-    fn test_select_conversation_with_titles() {
-        let conversations = [
-            create_test_conversation(
-                "550e8400-e29b-41d4-a716-446655440000",
-                Some("First Conversation"),
-            ),
-            create_test_conversation(
-                "550e8400-e29b-41d4-a716-446655440001",
-                Some("Second Conversation"),
-            ),
-        ];
-
-        // We can't test the actual selection without mocking the UI,
-        // but we can test that the function structure is correct
-        assert_eq!(conversations.len(), 2);
-    }
-
-    #[test]
-    fn test_select_conversation_without_titles() {
-        let conversations = [
-            create_test_conversation("550e8400-e29b-41d4-a716-446655440002", None),
-            create_test_conversation("550e8400-e29b-41d4-a716-446655440003", None),
-        ];
-
-        assert_eq!(conversations.len(), 2);
     }
 }
