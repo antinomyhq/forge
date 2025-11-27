@@ -2808,16 +2808,12 @@ mod ui_tests {
         let conversation = Conversation::new(ConversationId::generate())
             .title(Some("Test Conversation".to_string()));
 
-        let result = ui.confirm_delete_conversation(&conversation);
-
-        // In test environment, confirm might fail due to no terminal
-        // That's expected behavior - we just test that it returns a Result
-        match result {
-            Ok(_) | Err(_) => {
-                // Both success and error are acceptable in test environment
-                Ok(())
-            }
-        }
+        // Just test that the method exists and returns the expected type
+        // In CI environment, the confirm might fail due to no terminal
+        let _result = ui.confirm_delete_conversation(&conversation);
+        
+        // Test passes if we can call the method without panicking
+        Ok(())
     }
 
     #[tokio::test]
