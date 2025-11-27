@@ -948,7 +948,11 @@ if (( $+functions[p10k] )) || [[ -n "$POWERLEVEL9K_MODE" ]]; then
   #
   # POSITIONING:
   # - Added to POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS as the FIRST item
-  # - Appears on the far RIGHT of your prompt in DIMMED GRAY
+  # - Appears on the far RIGHT of your prompt
+  #
+  # COLOR:
+  # - DIMMED GRAY (242) when no active conversation (_FORGE_CONVERSATION_ID is empty)
+  # - CYAN (39) when there's an active conversation
   function prompt_forge_model() {
     local model_output
     
@@ -964,11 +968,19 @@ if (( $+functions[p10k] )) || [[ -n "$POWERLEVEL9K_MODE" ]]; then
     
     # Only display the segment if we successfully got a model name
     if [[ -n "$model_output" ]]; then
+      # Determine color based on conversation state:
+      # - 242 (dimmed gray) = no active conversation
+      # - 39 (cyan) = active conversation
+      local segment_color=242
+      if [[ -n "$_FORGE_CONVERSATION_ID" ]]; then
+        segment_color=39
+      fi
+      
       # Display the prompt segment using p10k:
-      # -f 242         : Set foreground color to dimmed gray (color code 242)
-      # -i '󰚩'         : Display a robot icon as the segment icon
+      # -f $segment_color : Set foreground color based on conversation state
+      # -i '󰚩'            : Display a robot icon as the segment icon
       # -t "$model_output" : Set the text content to the model name
-      p10k segment -f 242 -i '󰚩' -t "$model_output"
+      p10k segment -f $segment_color -i '󰚩' -t "$model_output"
     fi
   }
 
@@ -1020,15 +1032,27 @@ if ! (( $+functions[p10k] )) && [[ -z "$POWERLEVEL9K_MODE" ]]; then
 
   #################################[ _forge_zsh_prompt_model ]#################################
   # Returns the current model formatted for display in RPROMPT
-  # Format: DIMMED GRAY with robot icon
+  # Format: Robot icon + model name
+  #
+  # COLOR:
+  # - DIMMED GRAY (242) when no active conversation (_FORGE_CONVERSATION_ID is empty)
+  # - CYAN (39) when there's an active conversation
   function _forge_zsh_prompt_model() {
     local forge_cmd="${_FORGE_BIN:-${FORGE_BIN:-forge}}"
     local model_output
     model_output=$($forge_cmd config get model 2>/dev/null)
     
     if [[ -n "$model_output" ]]; then
-      # %F{242} = dimmed gray, %f = reset foreground
-      echo "%F{242}󰚩 ${model_output}%f"
+      # Determine color based on conversation state:
+      # - 242 (dimmed gray) = no active conversation
+      # - 39 (cyan) = active conversation
+      local segment_color=242
+      if [[ -n "$_FORGE_CONVERSATION_ID" ]]; then
+        segment_color=39
+      fi
+      
+      # %F{color} = set foreground color, %f = reset foreground
+      echo "%F{$segment_color}󰚩 ${model_output}%f"
     fi
   }
 
