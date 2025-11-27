@@ -23,11 +23,12 @@ pub fn is_extension_installed() -> bool {
     // Try to list installed extensions
     if let Ok(output) = Command::new("code").arg("--list-extensions").output()
         && output.status.success()
-            && let Ok(extensions) = String::from_utf8(output.stdout) {
-                return extensions
-                    .lines()
-                    .any(|line| line.trim() == "ForgeCode.forge-vscode");
-            }
+        && let Ok(extensions) = String::from_utf8(output.stdout)
+    {
+        return extensions
+            .lines()
+            .any(|line| line.trim() == "ForgeCode.forge-vscode");
+    }
     false
 }
 
