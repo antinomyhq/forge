@@ -33,13 +33,13 @@ use crate::cli::{
     TopLevelCommand,
 };
 use crate::conversation_selector::ConversationSelector;
-use crate::prompt_selector::PromptSelector;
 use crate::env::should_show_completion_prompt;
 use crate::info::Info;
 use crate::input::Console;
 use crate::model::{CliModel, CliProvider, ForgeCommandManager, SlashCommand};
 use crate::porcelain::Porcelain;
 use crate::prompt::ForgePrompt;
+use crate::prompt_selector::PromptSelector;
 use crate::state::UIState;
 use crate::title_display::TitleDisplayExt;
 use crate::tools_display::format_tools;
@@ -2519,9 +2519,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         porcelain: bool,
     ) -> anyhow::Result<()> {
         // Get all user prompts from the conversation
-        let context = original.context.as_ref().ok_or_else(|| {
-            anyhow::anyhow!("Conversation has no context to branch from")
-        })?;
+        let context = original
+            .context
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Conversation has no context to branch from"))?;
 
         let prompts = context.user_prompts_with_indices();
         if prompts.is_empty() {
@@ -2532,9 +2533,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Let user select a prompt
         let selected = PromptSelector::select_prompt(&prompts).await?;
-        let (prompt_index, _) = selected.ok_or_else(|| {
-            anyhow::anyhow!("No prompt selected")
-        })?;
+        let (prompt_index, _) = selected.ok_or_else(|| anyhow::anyhow!("No prompt selected"))?;
 
         self.spinner.start(Some("Creating branch"))?;
 
@@ -2562,12 +2561,12 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         if porcelain {
             println!("{new_id}");
         } else {
-            self.writeln_title(
-                TitleFormat::info("Branched").sub_title(format!(
-                    "[{} → {}] from prompt #{}",
-                    original.id, branched.id, prompt_index + 1
-                )),
-            )?;
+            self.writeln_title(TitleFormat::info("Branched").sub_title(format!(
+                "[{} → {}] from prompt #{}",
+                original.id,
+                branched.id,
+                prompt_index + 1
+            )))?;
         }
 
         Ok(())

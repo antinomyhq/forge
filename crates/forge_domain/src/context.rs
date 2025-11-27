@@ -551,7 +551,8 @@ impl Context {
     }
 
     /// Returns a vector of all user prompts with their message indices.
-    /// Each tuple contains (index, message) where index is the position in the messages vector.
+    /// Each tuple contains (index, message) where index is the position in the
+    /// messages vector.
     pub fn user_prompts_with_indices(&self) -> Vec<(usize, &ContextMessage)> {
         self.messages
             .iter()
@@ -560,8 +561,9 @@ impl Context {
             .collect()
     }
 
-    /// Creates a new context containing only messages up to and including the specified index.
-    /// This is used for branching conversations from a specific point.
+    /// Creates a new context containing only messages up to and including the
+    /// specified index. This is used for branching conversations from a
+    /// specific point.
     pub fn truncate_at(&self, index: usize) -> Self {
         let mut truncated = self.clone();
         if index < truncated.messages.len() {
