@@ -7,7 +7,7 @@ run:
   early_exit: true
 validations:
   - name: "Uses create-skill tool"
-    type: matches_regex
+    type: regex
     regex: ⏺.*\[[0-9:]*\].*Skill.*create-skill
 sources:
   - csv: create_skill_tasks.csv

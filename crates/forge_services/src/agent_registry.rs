@@ -90,7 +90,8 @@ impl<R: AgentRepository + AppConfigRepository + ProviderRepository> ForgeAgentRe
 
         // Convert definitions to runtime agents and populate map
         for def in agent_defs {
-            let agent = Agent::from_agent_def(def, default_provider.id, default_model.clone());
+            let agent =
+                Agent::from_agent_def(def, default_provider.id.clone(), default_model.clone());
             agents_map.insert(agent.id.as_str().to_string(), agent);
         }
 
