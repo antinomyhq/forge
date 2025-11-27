@@ -658,8 +658,12 @@ function _forge_action_editor() {
         return 0
     fi
     
-    # Insert into buffer with : prefix
-    BUFFER=": $content"
+        # Insert into buffer with : prefix (only if not already present)
+    if [[ "$content" =~ ^: ]]; then
+        BUFFER="$content"
+    else
+        BUFFER=": $content"
+    fi
     CURSOR=${#BUFFER}
     
     _forge_log info "Command ready - press Enter to execute"
@@ -907,6 +911,232 @@ function forge-bracketed-paste() {
 zle -N bracketed-paste forge-bracketed-paste
 
 
+
+# ===== FORGE KEYBOARD SHORTCUTS =====
+# Enable/disable shortcuts (default: enabled)
+if [[ -z "$FORGE_ENABLE_SHORTCUTS" ]]; then
+    FORGE_ENABLE_SHORTCUTS="true"
+fi
+
+# Only proceed if shortcuts are enabled
+if [[ "$FORGE_ENABLE_SHORTCUTS" == "true" ]]; then
+
+# =============================================================================
+# SHORTCUT FUNCTIONS
+# =============================================================================
+
+# Alt+;: Add : prefix to current buffer
+FORGE_SHORTCUT_IN_PROGRESS=false
+
+function forge-shortcut-colon-prefix() {
+    # Prevent multiple rapid executions
+    if [[ "$FORGE_SHORTCUT_IN_PROGRESS" == "true" ]]; then
+        return
+    fi
+    FORGE_SHORTCUT_IN_PROGRESS=true
+    
+    # Remove trailing semicolon if present (some terminals add it after Ctrl+Alt+;)
+    if [[ "$BUFFER" =~ ";$" ]]; then
+        BUFFER="${BUFFER%;}"
+    fi
+    
+    if [[ -n "$BUFFER" ]]; then
+        # Buffer has content - check if it already starts with ":"
+        local trimmed_buffer=$(echo "$BUFFER" | sed 's/^[[:space:]]*//')
+        
+        if [[ "${trimmed_buffer:0:1}" == ":" ]]; then
+            # Buffer already starts with :, do nothing
+            FORGE_SHORTCUT_IN_PROGRESS=false
+            return
+        else
+            # Buffer doesn't start with :, prepend : prefix
+            BUFFER=": $BUFFER"
+        fi
+    else
+        # Buffer empty - insert : prefix only
+        BUFFER=": "
+    fi
+    
+    # Position cursor at end of buffer
+    CURSOR=${#BUFFER}
+    
+    # Reset prompt only if ZLE is active
+    if [[ -n "$ZLE_VERSION" ]]; then
+        zle reset-prompt 2>/dev/null || true
+    fi
+    
+    # Reset the flag
+    FORGE_SHORTCUT_IN_PROGRESS=false
+}
+
+# Ctrl+e: Open editor with current buffer content
+function forge-shortcut-editor-with-content() {
+    local current_buffer="$BUFFER"
+    local prefix=""
+    local content_for_editor="$current_buffer"
+    
+    # Check if buffer starts with :word pattern (command with content)
+    if [[ "$current_buffer" =~ ^:[^[:space:]]+[[:space:]]+(.*)$ ]]; then
+        # Extract prefix (:word) and content for editor
+        prefix="${current_buffer%% *}"
+        content_for_editor="${current_buffer#* }"
+    # Check if buffer starts with : (just colon with space and content)
+    elif [[ "$current_buffer" =~ ^:[[:space:]]+(.*)$ ]]; then
+        # Extract prefix (:) and content for editor
+        prefix=":"
+        content_for_editor="${match[1]}"
+    fi
+    
+    # Call editor with the appropriate content
+    _forge_action_editor_with_prefix "$content_for_editor" "$prefix"
+}
+
+# Internal function: Open editor with content and restore with prefix
+function _forge_action_editor_with_prefix() {
+    local initial_text="$1"
+    local original_prefix="$2"
+    echo
+    
+    # Debug: Show what we received
+    _forge_log info "Debug: Received text: '${initial_text}', prefix: '${original_prefix}'"
+    
+    # Determine editor in order of preference: FORGE_EDITOR > EDITOR > nano
+    local editor_cmd="${FORGE_EDITOR:-${EDITOR:-nano}}"
+    
+    # Validate editor exists
+    if ! command -v "${editor_cmd%% *}" &>/dev/null; then
+        _forge_log error "Editor not found: $editor_cmd (set FORGE_EDITOR or EDITOR)"
+        _forge_reset
+        return 1
+    fi
+    
+    # Create .forge directory if it doesn't exist
+    local forge_dir=".forge"
+    if [[ ! -d "$forge_dir" ]]; then
+        mkdir -p "$forge_dir" || {
+            _forge_log error "Failed to create .forge directory"
+            _forge_reset
+            return 1
+        }
+    fi
+    
+    # Create temporary file with git-like naming: FORGE_EDITMSG
+    local temp_file="${forge_dir}/FORGE_EDITMSG"
+    touch "$temp_file" || {
+        _forge_log error "Failed to create temporary file"
+        _forge_reset
+        return 1
+    }
+    
+    # Ensure cleanup on exit
+    trap "rm -f '$temp_file'" EXIT INT TERM
+    
+    # Pre-populate with initial text if provided
+    if [[ -n "$initial_text" ]]; then
+        echo "$initial_text" > "$temp_file"
+    fi
+    
+    # Open editor
+    eval "$editor_cmd '$temp_file'"
+    local editor_exit_code=$?
+    
+    if [ $editor_exit_code -ne 0 ]; then
+        _forge_log error "Editor exited with error code $editor_exit_code"
+        _forge_reset
+        return 1
+    fi
+    
+    # Read and process content
+    local content
+    content=$(cat "$temp_file" | tr -d '\r')
+    
+    if [ -z "$content" ]; then
+        _forge_log info "Editor closed with no content"
+        _forge_reset
+        return 0
+    fi
+    
+    # Reconstruct buffer with original prefix if it existed
+    if [[ -n "$original_prefix" ]]; then
+        BUFFER="$original_prefix $content"
+    else
+        BUFFER=": $content"
+    fi
+    CURSOR=${#BUFFER}
+    
+    _forge_log info "Command ready - press Enter to execute"
+    # Only reset prompt if ZLE is active (interactive shell)
+    if [[ $options[zle] = on ]]; then
+        zle reset-prompt
+    fi
+}
+
+# =============================================================================
+# REGISTRATION AND BINDING
+# =============================================================================
+
+# Register ZLE widgets for each shortcut function
+zle -N forge-shortcut-colon-prefix
+zle -N forge-shortcut-editor-with-content
+
+# Bind keyboard shortcuts with platform-specific detection
+# Detect operating system for platform-specific key bindings
+case "$(uname -s)" in
+    Darwin*)
+        # macOS-specific key bindings
+        FORGE_PLATFORM="macos"
+        ;;
+    Linux*|CYGWIN*|MINGW*|MSYS*)
+        # Linux/Windows key bindings
+        FORGE_PLATFORM="linux"
+        ;;
+    *)
+        # Default to Linux bindings for unknown platforms
+        FORGE_PLATFORM="linux"
+        ;;
+esac
+
+# Platform-specific keyboard shortcuts
+case "$FORGE_PLATFORM" in
+    macos)
+        # macOS Option+; bindings
+        bindkey '\e;' forge-shortcut-colon-prefix         # Option+; (most common)
+        bindkey '^[;' forge-shortcut-colon-prefix          # Option+; alternative
+        bindkey '\e[1;3A' forge-shortcut-colon-prefix      # Option+; for some terminals
+        ;;
+    *)
+        # Linux/Windows Alt+; bindings (current implementation)
+        bindkey '\e;' forge-shortcut-colon-prefix         # Alt+;
+        bindkey '\e[1;3F' forge-shortcut-colon-prefix  # Alternative Alt+; for some terminals
+        bindkey '^[;' forge-shortcut-colon-prefix          # Another Alt+; variant
+        ;;
+esac
+bindkey '^e' forge-shortcut-editor-with-content   # Ctrl+e → editor with content
+
+# =============================================================================
+# INITIALIZATION MESSAGE
+# =============================================================================
+
+# Show initialization message once per session
+if [[ -z "$FORGE_SHORTCUTS_LOADED" ]]; then
+    if command -v _forge_log >/dev/null 2>&1; then
+        if [[ "$FORGE_PLATFORM" == "macos" ]]; then
+            _forge_log info "Forge shortcuts enabled: Option+; (prefix), Ctrl+e (editor)"
+        else
+            _forge_log info "Forge shortcuts enabled: Alt+; (prefix), Ctrl+e (editor)"
+        fi
+    else
+        if [[ "$FORGE_PLATFORM" == "macos" ]]; then
+            echo "⏺ Forge shortcuts enabled: Option+; (prefix), Ctrl+e (editor)"
+        else
+            echo "⏺ Forge shortcuts enabled: Alt+; (prefix), Ctrl+e (editor)"
+        fi
+    fi
+    export FORGE_SHORTCUTS_LOADED=1
+fi
+
+# End of shortcuts section
+fi
 
 # Bind Enter to our custom accept-line that transforms :commands
 bindkey '^M' forge-accept-line

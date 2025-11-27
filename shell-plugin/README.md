@@ -143,6 +143,8 @@ export FORGE_BIN="/path/to/custom/forge"
 ### Available Configuration Variables
 
 - `FORGE_BIN`: Path to the forge executable (default: `forge`)
+- `FORGE_ENABLE_SHORTCUTS`: Enable/disable keyboard shortcuts (default: `true`)
+- `FORGE_PLATFORM`: Auto-detected platform (`macos` or `linux`) - for debugging purposes
 - Internal pattern matching for conversation syntax (`:`)
 - New session command keyword: `:new` or `:n`
 
@@ -164,9 +166,19 @@ All transformed commands are properly saved to ZSH history, allowing you to:
 
 ### Keyboard Shortcuts
 
+The plugin automatically detects your operating system and provides platform-specific shortcuts:
+
+#### Cross-Platform Shortcuts:
 - **Tab**: Interactive completion for files (`@`) and agents (`:`)
 - **Enter**: Transform and execute `:commands`
 - **Ctrl+C**: Interrupt running forge commands
+- **Ctrl+e**: Open editor with current buffer content
+
+#### Platform-Specific Prefix Shortcuts:
+- **Linux/Windows**: **Alt+;** - Add `:` prefix to current buffer
+- **macOS**: **Option+;** - Add `:` prefix to current buffer
+
+The plugin detects your platform automatically and shows the appropriate shortcuts in the initialization message.
 
 ## Examples
 
