@@ -94,11 +94,12 @@ mod tests {
 
     use std::collections::{BTreeMap, HashMap};
     use std::path::{Path, PathBuf};
+    use std::str::FromStr;
     use std::sync::Mutex;
 
     use bytes::Bytes;
     use forge_app::{EnvironmentInfra, FileReaderInfra, FileWriterInfra};
-    use forge_domain::{AppConfig, Environment};
+    use forge_domain::{AppConfig, Environment, ProviderId};
     use pretty_assertions::assert_eq;
     use tempfile::TempDir;
 
@@ -293,7 +294,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_read_handles_invalid_provider_gracefully() {
+    async fn test_read_handles_custom_provider() {
         let fixture = r#"{
             "provider": "xyz",
             "model": {}
@@ -312,7 +313,10 @@ mod tests {
 
         let actual = repo.get_app_config().await.unwrap();
 
-        let expected = AppConfig::default();
+        let expected = AppConfig {
+            provider: Some(ProviderId::from_str("xyz").unwrap()),
+            ..Default::default()
+        };
         assert_eq!(actual, expected);
     }
 

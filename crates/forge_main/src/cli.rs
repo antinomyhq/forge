@@ -101,6 +101,9 @@ impl Cli {
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum TopLevelCommand {
+    /// Manage agents.
+    Agent(AgentCommandGroup),
+
     /// Generate shell extension scripts.
     #[command(hide = true)]
     Extension(ExtensionCommandGroup),
@@ -174,6 +177,25 @@ pub enum CmdCommand {
     /// Execute a custom command.
     #[command(external_subcommand)]
     Execute(Vec<String>),
+}
+
+/// Command group for agent management.
+#[derive(Parser, Debug, Clone)]
+pub struct AgentCommandGroup {
+    #[command(subcommand)]
+    pub command: AgentCommand,
+
+    /// Output in machine-readable format.
+    #[arg(long, global = true)]
+    pub porcelain: bool,
+}
+
+/// Agent management commands.
+#[derive(Subcommand, Debug, Clone)]
+pub enum AgentCommand {
+    /// List available agents.
+    #[command(alias = "ls")]
+    List,
 }
 
 /// Command group for listing resources.

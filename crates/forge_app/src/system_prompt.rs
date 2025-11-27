@@ -158,7 +158,7 @@ mod tests {
         use forge_domain::{AgentId, ModelId, ProviderId};
         Agent::new(
             AgentId::new("test_agent"),
-            ProviderId::Forge,
+            ProviderId::FORGE,
             ModelId::new("test_model"),
         )
     }
