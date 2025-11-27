@@ -21,6 +21,13 @@ Validates the structure and content of a single plan file.
 
 **Checks:**
 - ✓ Filename follows convention: `YYYY-MM-DD-task-name-vN.md`
+  - Year is reasonable (2020 to current year + 1)
+  - Month is valid (01-12)
+  - Day is valid (01-31)
+  - Task name is meaningful (not generic like "test", "task", "temp")
+  - Task name length is reasonable (5-60 characters)
+  - Version number is reasonable (not > 50)
+  - No uppercase letters or underscores (use lowercase and hyphens only)
 - ✓ File is in `plans/` directory
 - ✓ All required sections present:
   - Main heading (`# Title`)
@@ -34,6 +41,12 @@ Validates the structure and content of a single plan file.
 - ✓ No code blocks (` ``` `) in the plan
 - ✓ No code snippets (detects suspicious patterns)
 - ✓ No placeholder tasks (TODO, TBD, etc.)
+- ✓ **Task quality and density:**
+  - Task descriptions are descriptive (≥ 20 characters recommended)
+  - Average task length is substantial (30-200 chars recommended)
+  - No generic/vague descriptions ("implement feature", "fix bug", etc.)
+  - No duplicate or highly similar tasks
+  - Consistent and sequential numbering if tasks are numbered
 - ✓ Verification criteria have content
 - ✓ Risks include mitigations
 - ✓ Reasonable number of tasks (3-20)
@@ -91,8 +104,17 @@ See `SKILL.md` for the complete plan template structure.
 
 ## Common Validation Errors
 
-1. **Missing checkboxes**: Use `- [ ]` not `1.` or `-`
-2. **Code blocks**: Plans should use natural language, not code
-3. **Missing sections**: All required sections must be present
-4. **Empty sections**: Sections should have meaningful content
-5. **Incorrect filename**: Must follow `YYYY-MM-DD-task-name-vN.md` pattern
+1. **Invalid filename format**: Must follow `YYYY-MM-DD-task-name-vN.md` pattern
+   - Use lowercase letters only
+   - Use hyphens (not underscores) to separate words
+   - Use valid date (month 01-12, day 01-31, year 2020+)
+   - Avoid generic names like "test", "task", "temp"
+2. **Missing checkboxes**: Use `- [ ]` not `1.` or `-`
+3. **Code blocks**: Plans should use natural language, not code
+4. **Missing sections**: All required sections must be present
+5. **Empty sections**: Sections should have meaningful content
+6. **Poor task quality**: Tasks should be descriptive and specific
+   - Avoid short descriptions like "Do this", "Fix that", "Update code"
+   - Avoid generic descriptions like "implement feature", "add functionality"
+   - Include rationale and context in task descriptions
+   - Aim for 30-150 characters per task description

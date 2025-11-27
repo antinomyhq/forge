@@ -211,11 +211,119 @@ if [ -z "$CHECKBOX_COUNT" ]; then
     CHECKBOX_COUNT=0
 fi
 if [ "$CHECKBOX_COUNT" -lt 3 ]; then
-    warning "Implementation Plan has only $CHECKBOX_COUNT tasks. Consider breaking down into more specific steps."
+    error "Implementation Plan has only $CHECKBOX_COUNT tasks. Plans must have at least 3 tasks."
+elif [ "$CHECKBOX_COUNT" -lt 5 ]; then
+    warning "Implementation Plan has only $CHECKBOX_COUNT tasks. Consider adding more detailed steps."
 elif [ "$CHECKBOX_COUNT" -gt 20 ]; then
     warning "Implementation Plan has $CHECKBOX_COUNT tasks. Consider grouping or creating sub-plans."
 else
     success "Implementation Plan has $CHECKBOX_COUNT tasks"
+fi
+
+# 14. Check task quality and density
+if [ "$CHECKBOX_COUNT" -gt 0 ]; then
+    # Extract all task lines
+    TASKS=$(echo "$CONTENT" | sed -n '/^## Implementation Plan$/,/^## /p' | grep --color=never -E '^\- \[ \]')
+    
+    # 14a. Check for very short tasks (< 20 chars after checkbox)
+    SHORT_TASKS=""
+    SHORT_COUNT=0
+    while IFS= read -r task; do
+        # Remove "- [ ] " prefix and numbering
+        TASK_TEXT=$(echo "$task" | sed 's/^- \[ \] //' | sed 's/^[0-9]*\. *//')
+        if [ ${#TASK_TEXT} -lt 20 ] && [ ${#TASK_TEXT} -gt 0 ]; then
+            SHORT_TASKS="$SHORT_TASKS$TASK_TEXT"$'\n'
+            SHORT_COUNT=$((SHORT_COUNT + 1))
+        fi
+    done <<< "$TASKS"
+    
+    if [ "$SHORT_COUNT" -gt 0 ]; then
+        warning "Found $SHORT_COUNT task(s) with very short descriptions (< 20 chars). Tasks should be descriptive."
+        echo "$SHORT_TASKS" | head -3 | sed 's/^/  - /'
+    fi
+    
+    # 14b. Check for generic/vague task descriptions
+    GENERIC_PATTERNS="(implement feature|add functionality|fix bug|update code|make changes|do work|complete task|finish|setup|configure)"
+    GENERIC_TASKS=$(echo "$TASKS" | grep -iE "$GENERIC_PATTERNS" || true)
+    if [ -n "$GENERIC_TASKS" ]; then
+        warning "Found tasks with generic/vague descriptions. Be more specific about what needs to be done."
+        echo "$GENERIC_TASKS" | head -3 | sed 's/^/  /'
+    fi
+    
+    # 14c. Check average task length (should be descriptive)
+    TOTAL_LENGTH=0
+    TASK_COUNT=0
+    while IFS= read -r task; do
+        TASK_TEXT=$(echo "$task" | sed 's/^- \[ \] //' | sed 's/^[0-9]*\. *//')
+        TASK_LEN=${#TASK_TEXT}
+        TOTAL_LENGTH=$((TOTAL_LENGTH + TASK_LEN))
+        TASK_COUNT=$((TASK_COUNT + 1))
+    done <<< "$TASKS"
+    
+    if [ "$TASK_COUNT" -gt 0 ]; then
+        AVG_LENGTH=$((TOTAL_LENGTH / TASK_COUNT))
+        if [ "$AVG_LENGTH" -lt 30 ]; then
+            warning "Average task description length is only $AVG_LENGTH characters. Tasks should be more detailed and include rationale."
+        elif [ "$AVG_LENGTH" -gt 200 ]; then
+            warning "Average task description length is $AVG_LENGTH characters. Consider breaking down complex tasks."
+        else
+            success "Task descriptions have good detail level (avg: $AVG_LENGTH chars)"
+        fi
+    fi
+    
+    # 14d. Check for potential duplicate or very similar tasks
+    # Compare each task with others for similarity
+    TASK_ARRAY=()
+    while IFS= read -r task; do
+        TASK_TEXT=$(echo "$task" | sed 's/^- \[ \] //' | sed 's/^[0-9]*\. *//' | tr '[:upper:]' '[:lower:]')
+        TASK_ARRAY+=("$TASK_TEXT")
+    done <<< "$TASKS"
+    
+    SIMILAR_FOUND=false
+    for i in "${!TASK_ARRAY[@]}"; do
+        for j in "${!TASK_ARRAY[@]}"; do
+            if [ "$i" -lt "$j" ]; then
+                TASK1="${TASK_ARRAY[$i]}"
+                TASK2="${TASK_ARRAY[$j]}"
+                # Check if tasks are very similar (same first 30 chars)
+                TASK1_PREFIX="${TASK1:0:30}"
+                TASK2_PREFIX="${TASK2:0:30}"
+                if [ -n "$TASK1_PREFIX" ] && [ "$TASK1_PREFIX" = "$TASK2_PREFIX" ]; then
+                    if [ "$SIMILAR_FOUND" = false ]; then
+                        warning "Found potentially duplicate or very similar tasks. Review for redundancy."
+                        SIMILAR_FOUND=true
+                    fi
+                fi
+            fi
+        done
+    done
+    
+    # 14e. Check task numbering consistency
+    NUMBERED_TASKS=$(echo "$TASKS" | grep --color=never -E '^\- \[ \] [0-9]+\.')
+    if [ -n "$NUMBERED_TASKS" ]; then
+        NUMBERED_COUNT=$(echo "$NUMBERED_TASKS" | wc -l | tr -d ' ')
+        if [ "$NUMBERED_COUNT" -eq "$CHECKBOX_COUNT" ]; then
+            # All tasks are numbered - check sequence
+            NUMBERS=$(echo "$NUMBERED_TASKS" | sed 's/^- \[ \] \([0-9]*\)\..*/\1/')
+            EXPECTED=1
+            SEQUENCE_OK=true
+            while IFS= read -r num; do
+                if [ "$num" -ne "$EXPECTED" ]; then
+                    SEQUENCE_OK=false
+                    break
+                fi
+                EXPECTED=$((EXPECTED + 1))
+            done <<< "$NUMBERS"
+            
+            if [ "$SEQUENCE_OK" = true ]; then
+                success "Task numbering is consistent and sequential"
+            else
+                warning "Task numbering is inconsistent. Should be sequential: 1, 2, 3, ..."
+            fi
+        elif [ "$NUMBERED_COUNT" -gt 0 ]; then
+            warning "Only $NUMBERED_COUNT of $CHECKBOX_COUNT tasks are numbered. Be consistent."
+        fi
+    fi
 fi
 
 # Final summary
