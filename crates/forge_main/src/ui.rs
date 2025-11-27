@@ -2811,7 +2811,7 @@ mod ui_tests {
         // Just test that the method exists and returns the expected type
         // In CI environment, the confirm might fail due to no terminal
         let _result = ui.confirm_delete_conversation(&conversation);
-        
+
         // Test passes if we can call the method without panicking
         Ok(())
     }
