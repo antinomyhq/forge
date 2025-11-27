@@ -173,10 +173,6 @@ pub struct FSSearch {
     pub file_pattern: Option<String>,
 }
 
-fn default_codebase_top_k() -> u32 {
-    10
-}
-
 /// AI-powered semantic code search - YOUR DEFAULT TOOL for "where is"
 /// questions. Use this FIRST when user asks about code location or
 /// functionality: "where is X", "find the code that does Y", "locate Z
@@ -198,12 +194,6 @@ pub struct SemanticSearch {
     /// flow". Bad: generic terms like "retry" or "auth" without context. Think
     /// about the behavior and functionality you're looking for.
     pub query: String,
-
-    /// Top-k parameter for relevance filtering. Controls the number of nearest
-    /// neighbors to consider during semantic search. Higher values may return
-    /// more results but with lower relevance. Defaults to 10 if not specified.
-    #[serde(default = "default_codebase_top_k")]
-    pub top_k: u32,
 
     /// A short natural-language description of what you are trying to find.
     /// This is the query used for document reranking.
@@ -748,13 +738,11 @@ impl ToolCatalog {
     pub fn tool_call_semantic_search(
         query: &str,
         use_case: &str,
-        top_k: u32,
         file_ext: Option<String>,
     ) -> ToolCallFull {
         ToolCallFull::from(ToolCatalog::SemSearch(SemanticSearch {
             query: query.to_string(),
             use_case: use_case.to_string(),
-            top_k,
             file_extension: file_ext,
         }))
     }
