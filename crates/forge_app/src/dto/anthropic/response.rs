@@ -29,6 +29,7 @@ impl From<Model> for forge_domain::Model {
             tools_supported: Some(true),
             supports_parallel_tool_calls: None,
             supports_reasoning: None,
+            pricing: None,
         }
     }
 }
@@ -125,8 +126,13 @@ pub struct Usage {
     pub cache_creation_input_tokens: Option<usize>,
 }
 
-impl From<Usage> for forge_domain::Usage {
-    fn from(usage: Usage) -> Self {
+impl Usage {
+    /// Convert to domain Usage with optional cost calculation from pricing
+    ///
+    /// # Arguments
+    ///
+    /// * `pricing` - Optional pricing information to calculate cost
+    pub fn to_usage_with_pricing(&self, pricing: Option<&forge_domain::Pricing>) -> forge_domain::Usage {
         // Anthropic token breakdown:
         // - input_tokens: tokens NOT from cache (billed at full price)
         // - cache_creation_input_tokens: tokens written to cache (billed at full price
@@ -135,17 +141,15 @@ impl From<Usage> for forge_domain::Usage {
         // Total input = input_tokens + cache_creation_input_tokens +
         // cache_read_input_tokens
 
-        let input_tokens = usage.input_tokens.unwrap_or_default();
-        let cache_creation = usage.cache_creation_input_tokens.unwrap_or_default();
-        let cache_read = usage.cache_read_input_tokens.unwrap_or_default();
+        let input_tokens = self.input_tokens.unwrap_or_default();
+        let cache_creation = self.cache_creation_input_tokens.unwrap_or_default();
+        let cache_read = self.cache_read_input_tokens.unwrap_or_default();
+        let output_tokens = self.output_tokens.unwrap_or_default();
 
         // prompt_tokens should include ALL input tokens
         let prompt_tokens = TokenCount::Actual(input_tokens + cache_creation + cache_read);
 
-        let completion_tokens = usage
-            .output_tokens
-            .map(TokenCount::Actual)
-            .unwrap_or_default();
+        let completion_tokens = TokenCount::Actual(output_tokens);
 
         // cached_tokens represents tokens that benefited from caching
         // This includes both cache creation and cache reads
@@ -153,13 +157,24 @@ impl From<Usage> for forge_domain::Usage {
 
         let total_tokens = prompt_tokens + completion_tokens;
 
+        // Calculate cost if pricing is available
+        let cost = pricing.and_then(|p| {
+            p.calculate_anthropic_cost(input_tokens, output_tokens, cache_creation, cache_read)
+        });
+
         forge_domain::Usage {
             prompt_tokens,
             completion_tokens,
             total_tokens,
             cached_tokens,
-            ..Default::default()
+            cost,
         }
+    }
+}
+
+impl From<Usage> for forge_domain::Usage {
+    fn from(usage: Usage) -> Self {
+        usage.to_usage_with_pricing(None)
     }
 }
 

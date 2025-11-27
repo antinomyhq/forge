@@ -137,6 +137,7 @@ mod tests {
                             tools_supported: Some(true),
                             supports_parallel_tool_calls: Some(true),
                             supports_reasoning: Some(false),
+                            pricing: None,
                         }]),
                     },
                     Provider {
@@ -160,6 +161,7 @@ mod tests {
                             tools_supported: Some(true),
                             supports_parallel_tool_calls: Some(true),
                             supports_reasoning: Some(true),
+                            pricing: None,
                         }]),
                     },
                 ],

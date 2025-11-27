@@ -106,6 +106,16 @@ impl From<Model> for forge_domain::Model {
             .flatten()
             .any(|param| param == "reasoning");
 
+        // Convert OpenAI pricing to domain pricing
+        let pricing = value.pricing.map(|p| forge_domain::Pricing {
+            prompt: p.prompt,
+            completion: p.completion,
+            image: p.image,
+            request: p.request,
+            cache_write: None,
+            cache_read: None,
+        });
+
         forge_domain::Model {
             id: value.id,
             name: value.name,
@@ -114,6 +124,7 @@ impl From<Model> for forge_domain::Model {
             tools_supported: Some(tools_supported),
             supports_parallel_tool_calls: Some(supports_parallel_tool_calls),
             supports_reasoning: Some(is_reasoning_supported),
+            pricing,
         }
     }
 }

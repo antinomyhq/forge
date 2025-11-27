@@ -975,6 +975,34 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             } else {
                 info = info.add_key_value("Tools", "<unknown>")
             }
+
+            // Add pricing information if available
+            if let Some(pricing) = &model.pricing {
+                if let Some(prompt) = pricing.prompt {
+                    info = info.add_key_value(
+                        "Input Price",
+                        format!("${:.6}/1K tokens", prompt * 1000.0)
+                    );
+                }
+                if let Some(completion) = pricing.completion {
+                    info = info.add_key_value(
+                        "Output Price",
+                        format!("${:.6}/1K tokens", completion * 1000.0)
+                    );
+                }
+                if let Some(cache_write) = pricing.cache_write {
+                    info = info.add_key_value(
+                        "Cache Write",
+                        format!("${:.6}/1K tokens", cache_write * 1000.0)
+                    );
+                }
+                if let Some(cache_read) = pricing.cache_read {
+                    info = info.add_key_value(
+                        "Cache Read",
+                        format!("${:.6}/1K tokens", cache_read * 1000.0)
+                    );
+                }
+            }
         }
 
         if porcelain {
