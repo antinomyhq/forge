@@ -161,6 +161,7 @@ Forge is designed for developers who want to enhance their workflow with AI assi
 
 Forge helps you code faster, solve complex problems, and learn new technologies without leaving your terminal.
 
+## Command-Line Options
 
 Here's a quick reference of Forge's command-line options:
 
@@ -536,7 +537,7 @@ FORGE_HISTORY_FILE=/path/to/history    # Custom history path override (takes pri
 
 **How it works:**
 - Forge automatically detects your workspace root by traversing up from current directory looking for markers
-- Each workspace gets its own isolated history file (`{workspace_root}/.forge_history`) for **conversations and prompt history**
+- Each workspace gets its own isolated history file (`{workspace_root}/.forge/.forge_history`) for **conversations and prompt history**
 - All directories within the same workspace share the same workspace ID and history
 - This ensures **project isolation** - conversations and prompt history stay within project boundaries
 - Custom history path (`FORGE_HISTORY_FILE`) still takes priority when set

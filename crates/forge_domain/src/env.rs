@@ -102,7 +102,14 @@ impl Environment {
         }
 
         let workspace_root = self.workspace_root();
-        workspace_root.join(".forge_history")
+        let forge_dir = workspace_root.join(".forge");
+
+        // Create .forge directory if it doesn't exist
+        if let Err(e) = std::fs::create_dir_all(&forge_dir) {
+            eprintln!("Warning: Failed to create .forge directory: {}", e);
+        }
+
+        forge_dir.join(".forge_history")
     }
     pub fn snapshot_path(&self) -> PathBuf {
         self.base_path.join("snapshots")
