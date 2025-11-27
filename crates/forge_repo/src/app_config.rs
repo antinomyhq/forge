@@ -1,8 +1,9 @@
-use std::sync::Arc;
+use std::{str::FromStr, sync::Arc};
 
+use anyhow::{anyhow, bail};
 use bytes::Bytes;
 use forge_app::{EnvironmentInfra, FileReaderInfra, FileWriterInfra};
-use forge_domain::{AppConfig, AppConfigRepository};
+use forge_domain::{AppConfig, AppConfigRepository, ModelId, ProviderId};
 use tokio::sync::Mutex;
 
 /// Repository for managing application configuration with caching support.
@@ -21,7 +22,7 @@ impl<F> AppConfigRepositoryImpl<F> {
     }
 }
 
-impl<F: EnvironmentInfra + FileReaderInfra> AppConfigRepositoryImpl<F> {
+impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> AppConfigRepositoryImpl<F> {
     async fn read_inner(&self) -> anyhow::Result<AppConfig> {
         let path = self.infra.get_environment().app_config();
         let content = self.infra.read_utf8(&path).await?;
@@ -31,14 +32,46 @@ impl<F: EnvironmentInfra + FileReaderInfra> AppConfigRepositoryImpl<F> {
     async fn read(&self) -> AppConfig {
         self.read_inner().await.unwrap_or_default()
     }
-}
 
-impl<F: EnvironmentInfra + FileWriterInfra> AppConfigRepositoryImpl<F> {
     async fn write(&self, config: &AppConfig) -> anyhow::Result<()> {
         let path = self.infra.get_environment().app_config();
         let content = serde_json::to_string_pretty(config)?;
         self.infra.write(&path, Bytes::from(content)).await?;
         Ok(())
+    }
+
+    fn get_overrides(&self) -> (Option<ModelId>, Option<ProviderId>) {
+        // FIXME: Set this in Environment {override_model: Option<ModelId>, override_provider: Option<ProviderId>}
+        // And then directly read it from the env object
+
+        let model_id = self
+            .infra
+            .get_env_var("FORGE_OVERRIDE_MODEL")
+            .map(|id| ModelId::new(id));
+
+        let provider_id = self
+            .infra
+            .get_env_var("FORGE_OVERRIDE_PROVIDER")
+            .map(|id| ProviderId::from_str(id.as_str()).unwrap());
+
+        (model_id, provider_id)
+    }
+
+    fn apply_overrides(&self, mut config: AppConfig) -> AppConfig {
+        let (model, provider) = self.get_overrides();
+        // Override the model in the config for all the providers
+        if let Some(model) = model {
+            for (_, mut_model_id) in config.model.iter_mut() {
+                *mut_model_id = model.clone();
+            }
+        }
+
+        // Override the default provider
+        if let Some(provider) = provider {
+            config.provider = Some(provider)
+        }
+
+        config
     }
 }
 
@@ -61,10 +94,16 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Send + Sync> AppC
         let mut cache = self.cache.lock().await;
         *cache = Some(config.clone());
 
-        Ok(config)
+        Ok(self.apply_overrides(config))
     }
 
     async fn set_app_config(&self, config: &AppConfig) -> anyhow::Result<()> {
+        let (model, provider) = self.get_overrides();
+
+        if model.is_some() || provider.is_some() {
+            bail!("Could not save configuration: Model or Provider was overridden")
+        }
+
         self.write(config).await?;
 
         // Bust the cache after successful write
