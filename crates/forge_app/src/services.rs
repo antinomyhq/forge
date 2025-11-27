@@ -398,6 +398,12 @@ pub trait ShellService: Send + Sync {
 }
 
 #[async_trait::async_trait]
+pub trait EditorService: Send + Sync {
+    /// Opens external editor for editing prompt content
+    async fn edit_prompt(&self, current_content: Option<String>) -> anyhow::Result<Option<String>>;
+}
+
+#[async_trait::async_trait]
 pub trait AuthService: Send + Sync {
     async fn init_auth(&self) -> anyhow::Result<InitAuth>;
     async fn login(&self, auth: &InitAuth) -> anyhow::Result<LoginInfo>;

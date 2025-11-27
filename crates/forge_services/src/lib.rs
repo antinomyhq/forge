@@ -21,15 +21,17 @@ mod tool_services;
 mod utils;
 mod workflow;
 
+pub use agent_registry::*;
 pub use clipper::*;
 pub use command_loader::*;
 pub use custom_instructions::*;
 pub use discovery::*;
 pub use error::*;
-pub use forge_services::*;
+pub use forge_services::ForgeServices;
 pub use policy::*;
 pub use preferences::*;
 pub use provider_auth::*;
+pub use tool_services::*;
 
 /// Converts a type from its external representation into its domain model
 /// representation.

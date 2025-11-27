@@ -118,6 +118,18 @@ mod tests {
         fn get_env_vars(&self) -> BTreeMap<String, String> {
             BTreeMap::new()
         }
+
+        fn get_editor_command(&self) -> String {
+            "nano".to_string()
+        }
+
+        fn get_shell(&self) -> String {
+            "/bin/bash".to_string()
+        }
+
+        fn is_restricted(&self) -> bool {
+            false
+        }
     }
 
     #[async_trait::async_trait]

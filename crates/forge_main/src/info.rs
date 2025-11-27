@@ -203,7 +203,8 @@ impl From<&Environment> for Info {
                 "Max Search Result Bytes",
                 format!("{} bytes", env.max_search_result_bytes),
             )
-            .add_key_value("Max Conversations", env.max_conversations.to_string());
+            .add_key_value("Max Conversations", env.max_conversations.to_string())
+            .add_key_value("Forge Editor", get_forge_editor_display());
 
         info
     }
@@ -560,6 +561,16 @@ impl From<&Conversation> for Info {
 
         info
     }
+}
+
+/// Gets display value for FORGE_EDITOR environment variable
+fn get_forge_editor_display() -> String {
+    // Use the same logic as the editor service for consistency
+
+    // Show what command will actually be used
+    std::env::var("FORGE_EDITOR")
+        .or_else(|_| std::env::var("EDITOR"))
+        .unwrap_or_else(|_| "nano".to_string())
 }
 
 #[cfg(test)]
