@@ -993,3 +993,77 @@ if (( $+functions[p10k] )) || [[ -n "$POWERLEVEL9K_MODE" ]]; then
 
 fi
 # End of Powerlevel10k integration
+
+#################################################################################
+# PLAIN ZSH PROMPT INTEGRATION
+#################################################################################
+# Automatically configure zsh prompt for Forge (for users without Powerlevel10k)
+# This section only runs if Powerlevel10k is NOT detected
+
+if ! (( $+functions[p10k] )) && [[ -z "$POWERLEVEL9K_MODE" ]]; then
+
+  # Store original prompts to preserve user's existing configuration
+  # We'll prepend/append our forge info to these
+  typeset -g _FORGE_ORIGINAL_PROMPT="${PROMPT}"
+  typeset -g _FORGE_ORIGINAL_RPROMPT="${RPROMPT}"
+
+  #################################[ _forge_zsh_prompt_agent ]#################################
+  # Returns the active agent formatted for display in PROMPT
+  # Format: BOLD WHITE UPPERCASE agent name
+  function _forge_zsh_prompt_agent() {
+    if [[ -n "$_FORGE_ACTIVE_AGENT" ]]; then
+      # %B = bold, %F{231} = white, %f = reset foreground, %b = reset bold
+      # ${(U)var} = uppercase the variable
+      echo "%B%F{231}${(U)_FORGE_ACTIVE_AGENT}%f%b "
+    fi
+  }
+
+  #################################[ _forge_zsh_prompt_model ]#################################
+  # Returns the current model formatted for display in RPROMPT
+  # Format: DIMMED GRAY with robot icon
+  function _forge_zsh_prompt_model() {
+    local forge_cmd="${_FORGE_BIN:-${FORGE_BIN:-forge}}"
+    local model_output
+    model_output=$($forge_cmd config get model 2>/dev/null)
+    
+    if [[ -n "$model_output" ]]; then
+      # %F{242} = dimmed gray, %f = reset foreground
+      echo "%F{242}󰚩 ${model_output}%f"
+    fi
+  }
+
+  #################################[ _forge_zsh_precmd ]#################################
+  # Precmd hook that updates PROMPT and RPROMPT before each prompt display
+  # This ensures the agent and model are always current
+  function _forge_zsh_precmd() {
+    # Build LEFT prompt: [AGENT] + original prompt
+    # Only add agent prefix if _FORGE_ACTIVE_AGENT is set
+    if [[ -n "$_FORGE_ACTIVE_AGENT" ]]; then
+      PROMPT="$(_forge_zsh_prompt_agent)${_FORGE_ORIGINAL_PROMPT}"
+    else
+      PROMPT="${_FORGE_ORIGINAL_PROMPT}"
+    fi
+    
+    # Build RIGHT prompt: original rprompt + [MODEL]
+    local model_segment="$(_forge_zsh_prompt_model)"
+    if [[ -n "$model_segment" ]]; then
+      if [[ -n "$_FORGE_ORIGINAL_RPROMPT" ]]; then
+        RPROMPT="${_FORGE_ORIGINAL_RPROMPT} ${model_segment}"
+      else
+        RPROMPT="${model_segment}"
+      fi
+    else
+      RPROMPT="${_FORGE_ORIGINAL_RPROMPT}"
+    fi
+  }
+
+  # Register the precmd hook
+  # Using add-zsh-hook if available (from zsh/hooks), otherwise append to precmd_functions
+  if (( $+functions[add-zsh-hook] )); then
+    add-zsh-hook precmd _forge_zsh_precmd
+  else
+    precmd_functions+=(_forge_zsh_precmd)
+  fi
+
+fi
+# End of Plain ZSH integration
