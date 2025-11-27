@@ -33,6 +33,7 @@ use crate::cli::{
     TopLevelCommand,
 };
 use crate::conversation_selector::ConversationSelector;
+use crate::prompt_selector::PromptSelector;
 use crate::env::should_show_completion_prompt;
 use crate::info::Info;
 use crate::input::Console;
@@ -631,6 +632,17 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
                 self.spinner.start(Some("Cloning"))?;
                 self.on_clone_conversation(conversation, conversation_group.porcelain)
+                    .await?;
+                self.spinner.stop(None)?;
+            }
+            ConversationCommand::Branch { id } => {
+                let conversation_id =
+                    ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
+
+                let conversation = self.validate_conversation_exists(&conversation_id).await?;
+
+                self.spinner.start(Some("Loading prompts"))?;
+                self.on_branch_conversation(conversation, conversation_group.porcelain)
                     .await?;
                 self.spinner.stop(None)?;
             }
@@ -2490,6 +2502,71 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         } else {
             self.writeln_title(
                 TitleFormat::info("Cloned").sub_title(format!("[{} → {}]", original.id, cloned.id)),
+            )?;
+        }
+
+        Ok(())
+    }
+
+    /// Branches a conversation from a specific prompt
+    ///
+    /// # Arguments
+    /// * `original` - The conversation to branch from
+    /// * `porcelain` - If true, output only the new conversation ID
+    async fn on_branch_conversation(
+        &mut self,
+        original: Conversation,
+        porcelain: bool,
+    ) -> anyhow::Result<()> {
+        // Get all user prompts from the conversation
+        let context = original.context.as_ref().ok_or_else(|| {
+            anyhow::anyhow!("Conversation has no context to branch from")
+        })?;
+
+        let prompts = context.user_prompts_with_indices();
+        if prompts.is_empty() {
+            return Err(anyhow::anyhow!("No user prompts found in conversation"));
+        }
+
+        self.spinner.stop(None)?;
+
+        // Let user select a prompt
+        let selected = PromptSelector::select_prompt(&prompts).await?;
+        let (prompt_index, _) = selected.ok_or_else(|| {
+            anyhow::anyhow!("No prompt selected")
+        })?;
+
+        self.spinner.start(Some("Creating branch"))?;
+
+        // Create a new conversation with context truncated at the selected prompt
+        let new_id = ConversationId::generate();
+        let mut branched = original.clone();
+        branched.id = new_id;
+
+        // Truncate context at the selected prompt index
+        if let Some(mut context) = branched.context.take() {
+            // Include all messages up to and including the selected prompt
+            // This means we include the prompt itself and all previous messages
+            context = context.truncate_at(prompt_index);
+            branched.context = Some(context);
+        }
+
+        // Update metadata
+        let now = chrono::Utc::now();
+        branched.metadata.updated_at = Some(now);
+
+        // Upsert the branched conversation
+        self.api.upsert_conversation(branched.clone()).await?;
+
+        // Output based on format
+        if porcelain {
+            println!("{new_id}");
+        } else {
+            self.writeln_title(
+                TitleFormat::info("Branched").sub_title(format!(
+                    "[{} → {}] from prompt #{}",
+                    original.id, branched.id, prompt_index + 1
+                )),
             )?;
         }
 

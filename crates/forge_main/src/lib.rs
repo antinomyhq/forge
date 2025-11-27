@@ -2,6 +2,7 @@ pub mod banner;
 mod cli;
 mod completer;
 mod conversation_selector;
+mod prompt_selector;
 mod editor;
 mod env;
 mod info;

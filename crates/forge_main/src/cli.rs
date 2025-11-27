@@ -428,6 +428,12 @@ pub enum ConversationCommand {
         /// Conversation ID to clone.
         id: String,
     },
+
+    /// Branch conversation from a specific prompt.
+    Branch {
+        /// Conversation ID to branch from.
+        id: String,
+    },
 }
 
 /// Command group for provider authentication management.
