@@ -162,6 +162,7 @@ export function processValidations(
           task_id,
           duration,
           log_file: logFile,
+          request_file: context?.request_file,
           passed: validationResults.map((r) => r.name),
         },
         "Validation Passed"
@@ -172,6 +173,7 @@ export function processValidations(
           task_id,
           duration,
           log_file: logFile,
+          request_file: context?.request_file,
           failed: validationResults.filter((r) => !r.passed).map((r) => ({
             name: r.name,
             message: r.message,
