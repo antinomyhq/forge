@@ -68,6 +68,7 @@ function _forge_exec() {
 
 # Helper function to clear buffer and reset prompt
 function _forge_reset() {
+    # Invoke precmd hooks to ensure prompt customizations (starship, oh-my-zsh themes, etc.) refresh properly
     for precmd in $precmd_functions; do
         if typeset -f "$precmd" >/dev/null 2>&1; then
             "$precmd"
