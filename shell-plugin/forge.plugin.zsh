@@ -370,7 +370,7 @@ function _forge_action_delete() {
         
         if [[ -n "$conversations_output" ]]; then
             local selected_conversation
-            selected_conversation=$(echo "$conversations_output" | _forge_fzf --delimiter="$_FORGE_DELIMITER" --with-nth="2,3" --prompt="Delete conversation ❯ ")
+            selected_conversation=$(echo "$conversations_output" | _forge_fzf --delimiter="$_FORGE_DELIMITER" --with-nth="2,3" --preview="CLICOLOR_FORCE=1 $_FORGE_BIN conversation info {1}; echo; CLICOLOR_FORCE=1 $_FORGE_BIN conversation show {1}" --preview-window=right:60%:wrap:border-sharp)
             
             if [[ -n "$selected_conversation" ]]; then
                 local conversation_id=$(echo "$selected_conversation" | sed -E 's/  .*//' | tr -d '\n')
