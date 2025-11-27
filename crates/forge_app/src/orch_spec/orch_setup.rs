@@ -80,7 +80,7 @@ impl Default for TestContext {
                 max_search_result_bytes: 200,
                 stdout_max_line_length: 200, // 5 MB
                 auto_open_dump: false,
-                debug_requests: false,
+                debug_requests: None,
                 custom_history_path: None,
                 max_conversations: 100,
                 max_image_size: 262144,

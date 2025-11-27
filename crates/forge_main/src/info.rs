@@ -193,7 +193,13 @@ impl From<&Environment> for Info {
             .add_key_value("Tool Timeout", format!("{}s", env.tool_timeout))
             .add_key_value("Max Image Size", format!("{} bytes", env.max_image_size))
             .add_key_value("Auto Open Dump", env.auto_open_dump.to_string())
-            .add_key_value("Debug Requests", env.debug_requests.to_string())
+            .add_key_value(
+                "Debug Requests",
+                env.debug_requests
+                    .as_ref()
+                    .map(|p| p.display().to_string())
+                    .unwrap_or_else(|| "Not set".to_string()),
+            )
             .add_key_value(
                 "Stdout Max Line Length",
                 env.stdout_max_line_length.to_string(),
