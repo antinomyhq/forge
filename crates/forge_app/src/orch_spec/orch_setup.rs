@@ -84,6 +84,8 @@ impl Default for TestContext {
                 custom_history_path: None,
                 max_conversations: 100,
                 max_image_size: 262144,
+                override_model: None,
+                override_provider: None,
             },
             title: Some("test-conversation".into()),
             agent: Agent::new(
