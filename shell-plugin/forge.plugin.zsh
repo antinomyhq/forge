@@ -83,13 +83,6 @@ function _forge_reset() {
     
 }
 
-# Helper function to print operating agent messages with consistent formatting
-function _forge_print_agent_message() {
-    # Ensure FORGE_ACTIVE_AGENT always has a value, default to "forge"
-    local agent_name="${_FORGE_ACTIVE_AGENT:-forge}"
-    echo "\033[33m⏺\033[0m \033[90m[$(date '+%H:%M:%S')] \033[1;37m${agent_name:u}\033[0m \033[90mis the active agent\033[0m"
-}
-
 # Helper function to print messages with consistent formatting based on log level
 # Usage: _forge_log <level> <message>
 # Levels: error, info, success, warning, debug
@@ -338,7 +331,6 @@ function _forge_action_new() {
     
     echo
     _forge_exec banner
-    _forge_print_agent_message
     _forge_reset
 }
 
