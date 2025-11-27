@@ -193,7 +193,7 @@ pub struct SemanticSearch {
     /// backoff", "streaming responses from LLM API", "OAuth token refresh
     /// flow". Bad: generic terms like "retry" or "auth" without context. Think
     /// about the behavior and functionality you're looking for.
-    pub query: String,
+    pub queries: Vec<String>,
 
     /// A short natural-language description of what you are trying to find.
     /// This is the query used for document reranking.
@@ -208,7 +208,7 @@ pub struct SemanticSearch {
     /// - "How to fix error E0277 for the ? operator on a pinned boxed result?"
     /// - "Steps to run Diesel migrations in Rust without exposing the DB."
     /// - "How to design a clean architecture service layer with typed errors?"
-    pub use_case: String,
+    pub use_cases: Vec<String>,
 
     /// Optional file extension filter (e.g., ".rs", ".ts", ".py"). If provided,
     /// only files with this extension will be included in the search results.
@@ -733,16 +733,16 @@ impl ToolCatalog {
         }))
     }
 
-    /// Creates a Semantic Search tool call with the specified query and
-    /// use_case
+    /// Creates a Semantic Search tool call with the specified queries and
+    /// use_cases
     pub fn tool_call_semantic_search(
-        query: &str,
-        use_case: &str,
+        queries: Vec<String>,
+        use_cases: Vec<String>,
         file_ext: Option<String>,
     ) -> ToolCallFull {
         ToolCallFull::from(ToolCatalog::SemSearch(SemanticSearch {
-            query: query.to_string(),
-            use_case: use_case.to_string(),
+            queries,
+            use_cases,
             file_extension: file_ext,
         }))
     }

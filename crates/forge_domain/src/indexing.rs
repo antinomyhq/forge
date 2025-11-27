@@ -88,19 +88,6 @@ impl<'a> SearchParams<'a> {
     }
 }
 
-impl<'a> From<&'a crate::SemanticSearch> for SearchParams<'a> {
-    fn from(search: &'a crate::SemanticSearch) -> Self {
-        Self {
-            query: &search.query,
-            limit: None,
-            top_k: None,
-            use_case: search.use_case.clone(),
-            starts_with: None,
-            ends_with: search.file_extension.clone(),
-        }
-    }
-}
-
 pub type CodeSearchQuery<'a> = CodeBase<SearchParams<'a>>;
 pub type FileUpload = CodeBase<Vec<FileRead>>;
 pub type FileDeletion = CodeBase<Vec<String>>;
@@ -233,6 +220,31 @@ pub struct CodebaseQueryResult {
     pub use_case: String,
     /// The search results for this query
     pub results: Vec<CodeSearchResult>,
+}
+
+impl CodebaseQueryResult {
+    /// Convert to XML element for tool output
+    pub fn to_element(&self) -> forge_template::Element {
+        use forge_template::Element;
+
+        let mut elem = Element::new("query_result")
+            .attr("query", &self.query)
+            .attr("use_case", &self.use_case)
+            .attr("results", self.results.len());
+
+        for result in &self.results {
+            elem = elem.append(result.node.to_element());
+        }
+
+        elem
+    }
+}
+
+/// Results for multiple codebase search queries
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct CodebaseSearchResults {
+    /// Results for each query/use_case pair
+    pub queries: Vec<CodebaseQueryResult>,
 }
 
 /// A search result with its similarity score
@@ -387,50 +399,6 @@ mod tests {
             query: "auth logic",
             limit: Some(5),
             top_k: None,
-            use_case: "authentication implementation".to_string(),
-            starts_with: None,
-            ends_with: None,
-        };
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_search_params_from_semantic_search() {
-        let search = crate::SemanticSearch {
-            query: "retry mechanism".to_string(),
-            use_case: "find retry logic".to_string(),
-            file_extension: Some(".rs".to_string()),
-        };
-
-        let actual = SearchParams::from(&search).limit(20usize).top_k(15u32);
-
-        let expected = SearchParams {
-            query: "retry mechanism",
-            limit: Some(20),
-            top_k: Some(15),
-            use_case: "find retry logic".to_string(),
-            starts_with: None,
-            ends_with: Some(".rs".to_string()),
-        };
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_search_params_from_semantic_search_without_extension() {
-        let search = crate::SemanticSearch {
-            query: "auth logic".to_string(),
-            use_case: "authentication implementation".to_string(),
-            file_extension: None,
-        };
-
-        let actual = SearchParams::from(&search).limit(5usize).top_k(10u32);
-
-        let expected = SearchParams {
-            query: "auth logic",
-            limit: Some(5),
-            top_k: Some(10),
             use_case: "authentication implementation".to_string(),
             starts_with: None,
             ends_with: None,

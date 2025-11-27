@@ -117,17 +117,13 @@ impl SummaryToolCall {
     /// Creates a CodebaseSearch tool call with default values (id: None,
     /// is_success: true)
     pub fn codebase_search(
-        query: impl Into<String>,
-        use_case: impl Into<String>,
+        queries: Vec<String>,
+        use_cases: Vec<String>,
         file_extension: Option<String>,
     ) -> Self {
         Self {
             id: None,
-            tool: SummaryTool::SemSearch {
-                query: query.into(),
-                use_case: use_case.into(),
-                file_extension,
-            },
+            tool: SummaryTool::SemSearch { queries, use_cases, file_extension },
             is_success: true,
         }
     }
@@ -192,8 +188,8 @@ pub enum SummaryTool {
         pattern: String,
     },
     SemSearch {
-        query: String,
-        use_case: String,
+        queries: Vec<String>,
+        use_cases: Vec<String>,
         file_extension: Option<String>,
     },
     Undo {
@@ -316,8 +312,8 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
             .or(input.regex)
             .map(|pattern| SummaryTool::Search { pattern }),
         ToolCatalog::SemSearch(input) => Some(SummaryTool::SemSearch {
-            query: input.query,
-            use_case: input.use_case,
+            queries: input.queries,
+            use_cases: input.use_cases,
             file_extension: input.file_extension,
         }),
         ToolCatalog::Undo(input) => Some(SummaryTool::Undo { path: input.path }),
@@ -968,8 +964,8 @@ mod tests {
             "Searching codebase",
             vec![
                 ToolCatalog::tool_call_semantic_search(
-                    "retry mechanism",
-                    "find retry logic",
+                    vec!["retry mechanism".to_string()],
+                    vec!["find retry logic".to_string()],
                     None,
                 )
                 .call_id("call_1"),
@@ -982,10 +978,14 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Searching codebase"),
-                SummaryToolCall::codebase_search("retry mechanism", "find retry logic", None)
-                    .id("call_1")
-                    .is_success(false)
-                    .into(),
+                SummaryToolCall::codebase_search(
+                    vec!["retry mechanism".to_string()],
+                    vec!["find retry logic".to_string()],
+                    None,
+                )
+                .id("call_1")
+                .is_success(false)
+                .into(),
             ],
         )]);
 

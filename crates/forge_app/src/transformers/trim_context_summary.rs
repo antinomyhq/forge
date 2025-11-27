@@ -13,7 +13,7 @@ pub struct TrimContextSummary;
 ///
 /// Used for identifying and comparing operations to determine if they operate
 /// on the same resource (e.g., same file path, same shell command).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum Operation<'a> {
     /// File operation (read, update, remove, undo) on a specific path
     File(&'a str),
@@ -21,10 +21,10 @@ enum Operation<'a> {
     Shell(&'a str),
     /// Search operation with a specific pattern
     Search(&'a str),
-    /// Codebase search operation with query and use_case
+    /// Codebase search operation with queries and use_cases
     CodebaseSearch {
-        query: &'a str,
-        use_case: &'a str,
+        queries: Vec<String>,
+        use_cases: Vec<String>,
         file_extension: Option<&'a str>,
     },
     /// Fetch operation for a specific URL
@@ -49,8 +49,12 @@ fn to_op(tool: &SummaryTool) -> Operation<'_> {
         SummaryTool::Undo { path } => Operation::File(path),
         SummaryTool::Shell { command } => Operation::Shell(command),
         SummaryTool::Search { pattern } => Operation::Search(pattern),
-        SummaryTool::SemSearch { query, use_case, file_extension } => {
-            Operation::CodebaseSearch { query, use_case, file_extension: file_extension.as_deref() }
+        SummaryTool::SemSearch { queries, use_cases, file_extension } => {
+            Operation::CodebaseSearch {
+                queries: queries.clone(),
+                use_cases: use_cases.clone(),
+                file_extension: file_extension.as_deref(),
+            }
         }
         SummaryTool::Fetch { url } => Operation::Fetch(url),
         SummaryTool::Followup { question } => Operation::Followup(question),

@@ -205,16 +205,38 @@ impl<
                 let env = self.services.get_environment();
                 let services = self.services.clone();
                 let cwd = env.cwd.clone();
-                let query = input.query.clone();
-                let use_case = input.use_case.clone();
 
-                let params = forge_domain::SearchParams::from(&input)
-                    .limit(env.sem_search_limit)
-                    .top_k(env.sem_search_top_k as u32);
+                let futures: Vec<_> = input
+                    .queries
+                    .iter()
+                    .zip(input.use_cases.iter())
+                    .map(|(query, use_case)| {
+                        let services = services.clone();
+                        let cwd = cwd.clone();
+                        let file_extension = input.file_extension.clone();
+                        let query = query.clone();
+                        let use_case = use_case.clone();
+                        let limit = env.sem_search_limit;
+                        let top_k = env.sem_search_top_k as u32;
+                        async move {
+                            let mut params = forge_domain::SearchParams::new(&query, &use_case)
+                                .limit(limit)
+                                .top_k(top_k);
+                            if let Some(ext) = &file_extension {
+                                params = params.ends_with(ext);
+                            }
+                            let results = services.query_codebase(cwd, params).await?;
+                            Ok::<_, anyhow::Error>(forge_domain::CodebaseQueryResult {
+                                query,
+                                use_case,
+                                results,
+                            })
+                        }
+                    })
+                    .collect();
+                let queries = futures::future::try_join_all(futures).await?;
 
-                let results = services.query_codebase(cwd, params).await?;
-                let output = forge_domain::CodebaseQueryResult { query, use_case, results };
-
+                let output = forge_domain::CodebaseSearchResults { queries };
                 ToolOperation::CodebaseSearch { output }
             }
             ToolCatalog::Remove(input) => {
