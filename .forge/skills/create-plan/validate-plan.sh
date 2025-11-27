@@ -55,6 +55,53 @@ if [[ ! "$FILENAME" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}-[a-z0-9-]+-v[0-9]+\.md$ ]]; t
     error "Filename must follow pattern: YYYY-MM-DD-task-name-vN.md (got: $FILENAME)"
 else
     success "Filename follows naming convention"
+    
+    # Extract components for additional validation
+    if [[ "$FILENAME" =~ ^([0-9]{4})-([0-9]{2})-([0-9]{2})-([a-z0-9-]+)-v([0-9]+)\.md$ ]]; then
+        YEAR="${BASH_REMATCH[1]}"
+        MONTH="${BASH_REMATCH[2]}"
+        DAY="${BASH_REMATCH[3]}"
+        TASK_NAME="${BASH_REMATCH[4]}"
+        VERSION="${BASH_REMATCH[5]}"
+        
+        # 1a. Validate date is reasonable
+        CURRENT_YEAR=$(date +%Y)
+        if [ "$YEAR" -lt 2020 ] || [ "$YEAR" -gt $((CURRENT_YEAR + 1)) ]; then
+            error "Year $YEAR seems unreasonable (should be between 2020 and $((CURRENT_YEAR + 1)))"
+        fi
+        
+        if [ "$MONTH" -lt 1 ] || [ "$MONTH" -gt 12 ]; then
+            error "Month $MONTH is invalid (must be 01-12)"
+        fi
+        
+        if [ "$DAY" -lt 1 ] || [ "$DAY" -gt 31 ]; then
+            error "Day $DAY is invalid (must be 01-31)"
+        fi
+        
+        # 1b. Check task name is meaningful (not generic placeholders)
+        GENERIC_NAMES="^(task|test|plan|temp|tmp|example|sample|demo|foo|bar)$"
+        if [[ "$TASK_NAME" =~ $GENERIC_NAMES ]]; then
+            warning "Task name '$TASK_NAME' is too generic. Use a descriptive name."
+        fi
+        
+        # 1c. Check task name length (should be descriptive but not too long)
+        TASK_NAME_LENGTH=${#TASK_NAME}
+        if [ "$TASK_NAME_LENGTH" -lt 5 ]; then
+            warning "Task name '$TASK_NAME' is very short. Consider a more descriptive name."
+        elif [ "$TASK_NAME_LENGTH" -gt 60 ]; then
+            warning "Task name is very long ($TASK_NAME_LENGTH chars). Consider shortening."
+        fi
+        
+        # 1d. Check version number is reasonable
+        if [ "$VERSION" -gt 50 ]; then
+            warning "Version number $VERSION seems high. Are you sure this is correct?"
+        fi
+        
+        # 1e. Check for uppercase letters or underscores (should use hyphens)
+        if [[ "$FILENAME" =~ [A-Z_] ]]; then
+            error "Filename contains uppercase letters or underscores. Use lowercase and hyphens only."
+        fi
+    fi
 fi
 
 # 2. Check file is in plans directory
