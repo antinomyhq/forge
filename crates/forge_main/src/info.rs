@@ -55,6 +55,14 @@ impl Info {
         self.add_item(Some(normalized_key), value)
     }
 
+    pub fn add_key_value_when(self, key: impl ToString, value: Option<impl ToString>) -> Self {
+        if let Some(value) = value {
+            self.add_key_value(key, value)
+        } else {
+            self
+        }
+    }
+
     fn add_item(mut self, key: Option<impl ToString>, value: impl ToString) -> Self {
         self.sections.push(Section::Items(
             key.map(|a| a.to_string()),
@@ -193,7 +201,10 @@ impl From<&Environment> for Info {
             .add_key_value("Tool Timeout", format!("{}s", env.tool_timeout))
             .add_key_value("Max Image Size", format!("{} bytes", env.max_image_size))
             .add_key_value("Auto Open Dump", env.auto_open_dump.to_string())
-            .add_key_value("Debug Requests", env.debug_requests.to_string())
+            .add_key_value_when(
+                "Debug Requests",
+                env.debug_requests.as_ref().map(|p| p.display().to_string()),
+            )
             .add_key_value(
                 "Stdout Max Line Length",
                 env.stdout_max_line_length.to_string(),

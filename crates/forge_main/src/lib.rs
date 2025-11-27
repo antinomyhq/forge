@@ -16,6 +16,7 @@ mod title_display;
 mod tools_display;
 pub mod tracker;
 mod ui;
+mod vscode;
 
 mod update;
 
