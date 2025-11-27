@@ -12,7 +12,7 @@ mod forge_services;
 mod http;
 mod mcp;
 mod policy;
-mod preferences;
+mod app_config;
 mod provider;
 mod provider_auth;
 mod range;
@@ -28,7 +28,7 @@ pub use discovery::*;
 pub use error::*;
 pub use forge_services::*;
 pub use policy::*;
-pub use preferences::*;
+pub use app_config::*;
 pub use provider_auth::*;
 
 /// Converts a type from its external representation into its domain model
