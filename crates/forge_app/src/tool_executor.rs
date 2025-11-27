@@ -2,7 +2,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use forge_domain::{
-    LineNumbers, TitleFormat, ToolCallContext, ToolCallFull, ToolCatalog, ToolOutput,
+    CodebaseQueryResult, LineNumbers, TitleFormat, ToolCallContext, ToolCallFull, ToolCatalog,
+    ToolOutput,
 };
 
 use crate::fmt::content::FormatContent;
@@ -205,37 +206,38 @@ impl<
                 let env = self.services.get_environment();
                 let services = self.services.clone();
                 let cwd = env.cwd.clone();
-
-                let futures: Vec<_> = input
+                let limit = env.sem_search_limit;
+                let top_k = env.sem_search_top_k as u32;
+                let params: Vec<_> = input
                     .queries
                     .iter()
                     .map(|search_query| {
-                        let services = services.clone();
-                        let cwd = cwd.clone();
-                        let file_extension = input.file_extension.clone();
-                        let query = search_query.query.clone();
-                        let use_case = search_query.use_case.clone();
-                        let limit = env.sem_search_limit;
-                        let top_k = env.sem_search_top_k as u32;
-                        async move {
-                            let mut params = forge_domain::SearchParams::new(&query, &use_case)
-                                .limit(limit)
-                                .top_k(top_k);
-                            if let Some(ext) = &file_extension {
-                                params = params.ends_with(ext);
-                            }
-                            let results = services.query_codebase(cwd, params).await?;
-                            Ok::<_, anyhow::Error>(forge_domain::CodebaseQueryResult {
-                                query,
-                                use_case,
-                                results,
-                            })
+                        let mut params = forge_domain::SearchParams::new(
+                            &search_query.query,
+                            &search_query.use_case,
+                        )
+                        .limit(limit)
+                        .top_k(top_k);
+                        if let Some(ext) = &input.file_extension {
+                            params = params.ends_with(ext);
                         }
+                        params
                     })
                     .collect();
-                let queries = futures::future::try_join_all(futures).await?;
 
-                let output = forge_domain::CodebaseSearchResults { queries };
+                let result = services.query_codebase_batch(cwd, params).await?;
+                let output = input
+                    .queries
+                    .into_iter()
+                    .zip(result.into_iter())
+                    .map(|(query, results)| CodebaseQueryResult {
+                        query: query.query,
+                        use_case: query.use_case,
+                        results,
+                    })
+                    .collect::<Vec<_>>();
+
+                let output = forge_domain::CodebaseSearchResults { queries: output };
                 ToolOperation::CodebaseSearch { output }
             }
             ToolCatalog::Remove(input) => {
