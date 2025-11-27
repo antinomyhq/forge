@@ -42,21 +42,8 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> AppConfigRepositor
     }
 
     fn get_overrides(&self) -> (Option<ModelId>, Option<ProviderId>) {
-        // FIXME: Set this in Environment {override_model: Option<ModelId>,
-        // override_provider: Option<ProviderId>} And then directly read it from
-        // the env object
-
-        let model_id = self
-            .infra
-            .get_env_var("FORGE_OVERRIDE_MODEL")
-            .map(ModelId::new);
-
-        let provider_id = self
-            .infra
-            .get_env_var("FORGE_OVERRIDE_PROVIDER")
-            .map(|id| ProviderId::from_str(id.as_str()).unwrap());
-
-        (model_id, provider_id)
+        let env = self.infra.get_environment();
+        (env.override_model, env.override_provider)
     }
 
     fn apply_overrides(&self, mut config: AppConfig) -> AppConfig {
@@ -313,5 +300,283 @@ mod tests {
 
         // Config should be the default
         assert_eq!(config, AppConfig::default());
+    }
+
+    #[tokio::test]
+    async fn test_override_model() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let config_path = temp_dir.path().join(".config.json");
+
+        // Create a custom mock that returns override values
+        #[derive(Clone)]
+        struct CustomMockInfra {
+            files: Arc<Mutex<HashMap<PathBuf, String>>>,
+            config_path: PathBuf,
+        }
+
+        impl CustomMockInfra {
+            fn new(config_path: PathBuf) -> Self {
+                Self { files: Arc::new(Mutex::new(HashMap::new())), config_path }
+            }
+        }
+
+        impl EnvironmentInfra for CustomMockInfra {
+            fn get_environment(&self) -> Environment {
+                use fake::{Fake, Faker};
+                let env: Environment = Faker.fake();
+                env.base_path(self.config_path.parent().unwrap().to_path_buf())
+                    .override_model(ModelId::new("override-model"))
+            }
+
+            fn get_env_var(&self, _key: &str) -> Option<String> {
+                None
+            }
+
+            fn get_env_vars(&self) -> BTreeMap<String, String> {
+                BTreeMap::new()
+            }
+        }
+
+        #[async_trait::async_trait]
+        impl FileReaderInfra for CustomMockInfra {
+            async fn read_utf8(&self, path: &Path) -> anyhow::Result<String> {
+                self.files
+                    .lock()
+                    .unwrap()
+                    .get(path)
+                    .cloned()
+                    .ok_or_else(|| anyhow::anyhow!("File not found"))
+            }
+
+            async fn read(&self, _path: &Path) -> anyhow::Result<Vec<u8>> {
+                unimplemented!()
+            }
+
+            async fn range_read_utf8(
+                &self,
+                _path: &Path,
+                _start_line: u64,
+                _end_line: u64,
+            ) -> anyhow::Result<(String, forge_domain::FileInfo)> {
+                unimplemented!()
+            }
+        }
+
+        #[async_trait::async_trait]
+        impl FileWriterInfra for CustomMockInfra {
+            async fn write(&self, path: &Path, contents: Bytes) -> anyhow::Result<()> {
+                let content = String::from_utf8(contents.to_vec())?;
+                self.files
+                    .lock()
+                    .unwrap()
+                    .insert(path.to_path_buf(), content);
+                Ok(())
+            }
+
+            async fn write_temp(&self, _: &str, _: &str, _: &str) -> anyhow::Result<PathBuf> {
+                unimplemented!()
+            }
+        }
+
+        // Set up a config with a specific model
+        let mut config = AppConfig::default();
+        config.model.insert(
+            ProviderId::ANTHROPIC,
+            ModelId::new("claude-3-5-sonnet-20241022"),
+        );
+        let content = serde_json::to_string_pretty(&config).unwrap();
+
+        let infra = Arc::new(CustomMockInfra::new(config_path.clone()));
+        infra.files.lock().unwrap().insert(config_path, content);
+
+        let repo = AppConfigRepositoryImpl::new(infra);
+        let actual = repo.get_app_config().await.unwrap();
+
+        // The override model should be applied to all providers
+        assert_eq!(
+            actual.model.get(&ProviderId::ANTHROPIC),
+            Some(&ModelId::new("override-model"))
+        );
+    }
+
+    #[tokio::test]
+    async fn test_override_provider() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let config_path = temp_dir.path().join(".config.json");
+
+        // Create a custom mock that returns override values
+        #[derive(Clone)]
+        struct CustomMockInfra {
+            files: Arc<Mutex<HashMap<PathBuf, String>>>,
+            config_path: PathBuf,
+        }
+
+        impl CustomMockInfra {
+            fn new(config_path: PathBuf) -> Self {
+                Self { files: Arc::new(Mutex::new(HashMap::new())), config_path }
+            }
+        }
+
+        impl EnvironmentInfra for CustomMockInfra {
+            fn get_environment(&self) -> Environment {
+                use fake::{Fake, Faker};
+                let env: Environment = Faker.fake();
+                env.base_path(self.config_path.parent().unwrap().to_path_buf())
+                    .override_provider(ProviderId::OPENAI)
+            }
+
+            fn get_env_var(&self, _key: &str) -> Option<String> {
+                None
+            }
+
+            fn get_env_vars(&self) -> BTreeMap<String, String> {
+                BTreeMap::new()
+            }
+        }
+
+        #[async_trait::async_trait]
+        impl FileReaderInfra for CustomMockInfra {
+            async fn read_utf8(&self, path: &Path) -> anyhow::Result<String> {
+                self.files
+                    .lock()
+                    .unwrap()
+                    .get(path)
+                    .cloned()
+                    .ok_or_else(|| anyhow::anyhow!("File not found"))
+            }
+
+            async fn read(&self, _path: &Path) -> anyhow::Result<Vec<u8>> {
+                unimplemented!()
+            }
+
+            async fn range_read_utf8(
+                &self,
+                _path: &Path,
+                _start_line: u64,
+                _end_line: u64,
+            ) -> anyhow::Result<(String, forge_domain::FileInfo)> {
+                unimplemented!()
+            }
+        }
+
+        #[async_trait::async_trait]
+        impl FileWriterInfra for CustomMockInfra {
+            async fn write(&self, path: &Path, contents: Bytes) -> anyhow::Result<()> {
+                let content = String::from_utf8(contents.to_vec())?;
+                self.files
+                    .lock()
+                    .unwrap()
+                    .insert(path.to_path_buf(), content);
+                Ok(())
+            }
+
+            async fn write_temp(&self, _: &str, _: &str, _: &str) -> anyhow::Result<PathBuf> {
+                unimplemented!()
+            }
+        }
+
+        // Set up a config with a specific provider
+        let mut config = AppConfig::default();
+        config.provider = Some(ProviderId::ANTHROPIC);
+        let content = serde_json::to_string_pretty(&config).unwrap();
+
+        let infra = Arc::new(CustomMockInfra::new(config_path.clone()));
+        infra.files.lock().unwrap().insert(config_path, content);
+
+        let repo = AppConfigRepositoryImpl::new(infra);
+        let actual = repo.get_app_config().await.unwrap();
+
+        // The override provider should be applied
+        assert_eq!(actual.provider, Some(ProviderId::OPENAI));
+    }
+
+    #[tokio::test]
+    async fn test_override_prevents_config_write() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let config_path = temp_dir.path().join(".config.json");
+
+        // Create a custom mock that returns override values
+        #[derive(Clone)]
+        struct CustomMockInfra {
+            files: Arc<Mutex<HashMap<PathBuf, String>>>,
+            config_path: PathBuf,
+        }
+
+        impl CustomMockInfra {
+            fn new(config_path: PathBuf) -> Self {
+                Self { files: Arc::new(Mutex::new(HashMap::new())), config_path }
+            }
+        }
+
+        impl EnvironmentInfra for CustomMockInfra {
+            fn get_environment(&self) -> Environment {
+                use fake::{Fake, Faker};
+                let env: Environment = Faker.fake();
+                env.base_path(self.config_path.parent().unwrap().to_path_buf())
+                    .override_model(ModelId::new("override-model"))
+            }
+
+            fn get_env_var(&self, _key: &str) -> Option<String> {
+                None
+            }
+
+            fn get_env_vars(&self) -> BTreeMap<String, String> {
+                BTreeMap::new()
+            }
+        }
+
+        #[async_trait::async_trait]
+        impl FileReaderInfra for CustomMockInfra {
+            async fn read_utf8(&self, path: &Path) -> anyhow::Result<String> {
+                self.files
+                    .lock()
+                    .unwrap()
+                    .get(path)
+                    .cloned()
+                    .ok_or_else(|| anyhow::anyhow!("File not found"))
+            }
+
+            async fn read(&self, _path: &Path) -> anyhow::Result<Vec<u8>> {
+                unimplemented!()
+            }
+
+            async fn range_read_utf8(
+                &self,
+                _path: &Path,
+                _start_line: u64,
+                _end_line: u64,
+            ) -> anyhow::Result<(String, forge_domain::FileInfo)> {
+                unimplemented!()
+            }
+        }
+
+        #[async_trait::async_trait]
+        impl FileWriterInfra for CustomMockInfra {
+            async fn write(&self, path: &Path, contents: Bytes) -> anyhow::Result<()> {
+                let content = String::from_utf8(contents.to_vec())?;
+                self.files
+                    .lock()
+                    .unwrap()
+                    .insert(path.to_path_buf(), content);
+                Ok(())
+            }
+
+            async fn write_temp(&self, _: &str, _: &str, _: &str) -> anyhow::Result<PathBuf> {
+                unimplemented!()
+            }
+        }
+
+        let infra = Arc::new(CustomMockInfra::new(config_path));
+        let repo = AppConfigRepositoryImpl::new(infra);
+
+        // Attempting to write config when override is set should fail
+        let config = AppConfig::default();
+        let actual = repo.set_app_config(&config).await;
+
+        assert!(actual.is_err());
+        assert!(actual
+            .unwrap_err()
+            .to_string()
+            .contains("Model or Provider was overridden"));
     }
 }

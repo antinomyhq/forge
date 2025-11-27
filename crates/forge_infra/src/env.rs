@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use forge_app::EnvironmentInfra;
-use forge_domain::{Environment, RetryConfig, TlsBackend, TlsVersion};
+use forge_domain::{Environment, ModelId, ProviderId, RetryConfig, TlsBackend, TlsVersion};
 use reqwest::Url;
 
 #[derive(Clone)]
@@ -55,6 +55,10 @@ impl ForgeEnvironmentInfra {
         // Parse custom history file path from environment variable
         let custom_history_path = parse_env::<String>("FORGE_HISTORY_FILE").map(PathBuf::from);
 
+        let override_model = parse_env::<String>("FORGE_OVERRIDE_MODEL").map(ModelId::new);
+        let override_provider = parse_env::<String>("FORGE_OVERRIDE_PROVIDER")
+            .and_then(|s| ProviderId::from_str(&s).ok());
+
         Environment {
             os: std::env::consts::OS.to_string(),
             pid: std::process::id(),
@@ -82,6 +86,8 @@ impl ForgeEnvironmentInfra {
             forge_api_url,
             custom_history_path,
             max_conversations: parse_env::<usize>("FORGE_MAX_CONVERSATIONS").unwrap_or(100),
+            override_model,
+            override_provider,
         }
     }
 
