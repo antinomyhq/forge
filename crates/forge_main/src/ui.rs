@@ -2858,7 +2858,7 @@ mod ui_tests {
             markdown: forge_display::MarkdownFormat::new(),
             state,
             api: std::sync::Arc::new(api),
-            new_api: std::sync::Arc::new(|| TestAPI::new()),
+            new_api: std::sync::Arc::new(TestAPI::new),
             console,
             command,
             cli,
@@ -3168,7 +3168,7 @@ mod ui_tests {
 
         // Test confirmation logic - confirmed case
         let confirmed = true;
-        assert_eq!(confirmed, true);
+        assert!(confirmed);
         Ok(())
     }
 
@@ -3180,7 +3180,7 @@ mod ui_tests {
 
         // Test confirmation logic - cancelled case
         let confirmed = false;
-        assert_eq!(confirmed, false);
+        assert!(!confirmed);
         Ok(())
     }
 }
