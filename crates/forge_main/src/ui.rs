@@ -1282,17 +1282,6 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             info = info.add_key_value("Model", model);
         }
 
-        // Show runtime overrides if CLI flags were provided
-        if self.cli.provider.is_some() || self.cli.model.is_some() {
-            info = info.add_title("RUNTIME OVERRIDES (NOT PERSISTED)");
-            if let Some(provider_id) = &self.cli.provider {
-                info = info.add_key_value("Provider", format!("{} [from --provider]", provider_id));
-            }
-            if let Some(model_id) = &self.cli.model {
-                info = info.add_key_value("Model", format!("{} [from --model]", model_id));
-            }
-        }
-
         // Add provider information
         match (default_provider, agent_provider) {
             (Some(default), Some(agent_specific)) if default.id != agent_specific.id => {
@@ -2172,28 +2161,6 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Initialize the state of the UI
     async fn init_state(&mut self, first: bool) -> Result<Workflow> {
-        // Apply CLI provider/model overrides if specified
-        // Note: set_default_provider and set_default_model respect
-        // FORGE_EPHEMERAL_APP_CONFIG env var:
-        // - If FORGE_EPHEMERAL_APP_CONFIG=true: only updates cache (no disk write)
-        // - If not set: writes to disk and becomes new default
-        if let Some(provider_id) = &self.cli.provider {
-            // Validate provider exists
-            if let Err(e) = self.api.get_provider(provider_id).await {
-                self.writeln_title(TitleFormat::error(format!(
-                    "Invalid provider '{}': {}",
-                    provider_id, e
-                )))?;
-                return Err(e);
-            }
-            self.api.set_default_provider(provider_id.clone()).await?;
-        }
-
-        // Apply model override (requires provider to be set)
-        if let Some(model_id) = self.cli.model.clone() {
-            self.api.set_default_model(model_id).await?;
-        }
-
         // Run the independent initialization tasks in parallel for better performance
         let workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
 

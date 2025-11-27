@@ -8,7 +8,7 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
-use forge_domain::{AgentId, ModelId, ProviderId};
+use forge_domain::{AgentId, ProviderId};
 
 #[derive(Parser)]
 #[command(version = env!("CARGO_PKG_VERSION"))]
@@ -61,20 +61,6 @@ pub struct Cli {
     /// Agent ID to use for this session.
     #[arg(long, alias = "aid")]
     pub agent: Option<AgentId>,
-
-    /// Provider to use for this session.
-    ///
-    /// When provided, overrides the default provider configuration.
-    /// Set FORGE_EPHEMERAL_APP_CONFIG=true to prevent writing to config file.
-    #[arg(long)]
-    pub provider: Option<ProviderId>,
-
-    /// Model to use for this session.
-    ///
-    /// When provided, overrides the default model configuration.
-    /// Set FORGE_EPHEMERAL_APP_CONFIG=true to prevent writing to config file.
-    #[arg(long)]
-    pub model: Option<ModelId>,
 
     /// Top-level subcommands.
     #[command(subcommand)]
@@ -1119,53 +1105,5 @@ mod tests {
         };
         let expected = true;
         assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_cli_provider_flag() {
-        let fixture = Cli::parse_from(["forge", "--provider", "openai"]);
-        let expected = Some(ProviderId::OPENAI);
-        assert_eq!(fixture.provider, expected);
-    }
-
-    #[test]
-    fn test_cli_model_flag() {
-        use forge_domain::ModelId;
-        let fixture = Cli::parse_from(["forge", "--model", "gpt-4o"]);
-        let expected = Some(ModelId::new("gpt-4o"));
-        assert_eq!(fixture.model, expected);
-    }
-
-    #[test]
-    fn test_cli_provider_and_model_flags() {
-        use forge_domain::ModelId;
-        let fixture = Cli::parse_from(["forge", "--provider", "openai", "--model", "gpt-4o"]);
-
-        let expected_provider = Some(ProviderId::OPENAI);
-        let expected_model = Some(ModelId::new("gpt-4o"));
-
-        assert_eq!(fixture.provider, expected_provider);
-        assert_eq!(fixture.model, expected_model);
-    }
-
-    #[test]
-    fn test_cli_provider_and_model_with_prompt() {
-        use forge_domain::ModelId;
-        let fixture = Cli::parse_from([
-            "forge",
-            "--provider",
-            "anthropic",
-            "--model",
-            "claude-3-5-sonnet-20241022",
-            "-p",
-            "test prompt",
-        ]);
-
-        assert_eq!(fixture.provider, Some(ProviderId::ANTHROPIC));
-        assert_eq!(
-            fixture.model,
-            Some(ModelId::new("claude-3-5-sonnet-20241022"))
-        );
-        assert_eq!(fixture.prompt, Some("test prompt".to_string()));
     }
 }

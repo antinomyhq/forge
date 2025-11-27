@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use forge_app::AppConfigService;
+use forge_app::{AppConfigService, EnvironmentInfra};
 use forge_domain::{
     AppConfig, AppConfigRepository, ModelId, Provider, ProviderId, ProviderRepository,
 };
@@ -32,20 +32,31 @@ impl<F: ProviderRepository + AppConfigRepository> ForgeAppConfigService<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
+impl<F: ProviderRepository + AppConfigRepository + EnvironmentInfra + Send + Sync> AppConfigService
     for ForgeAppConfigService<F>
 {
     async fn get_default_provider(&self) -> anyhow::Result<Provider<Url>> {
-        let app_config = self.infra.get_app_config().await?;
-        if let Some(provider_id) = app_config.provider
-            && let Ok(provider) = self.infra.get_provider(provider_id).await
-            && provider.is_configured()
-        {
-            return Ok(provider);
-        }
+        use forge_domain::ProviderId;
 
-        // No default provider configured - return error to force explicit configuration
-        Err(forge_domain::Error::NoDefaultProvider.into())
+        let app_config = self.infra.get_app_config().await?;
+
+        // Check for environment variable override
+        let provider_id =
+            if let Some(provider_str) = self.infra.get_env_var("FORGE_OVERRIDE_PROVIDER") {
+                provider_str.parse::<ProviderId>()?
+            } else if let Some(provider_id) = app_config.provider {
+                provider_id
+            } else {
+                // No default provider configured - return error to force explicit configuration
+                return Err(forge_domain::Error::NoDefaultProvider.into());
+            };
+
+        let provider = self.infra.get_provider(provider_id).await?;
+        if provider.is_configured() {
+            Ok(provider)
+        } else {
+            Err(forge_domain::Error::NoDefaultProvider.into())
+        }
     }
 
     async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
@@ -59,6 +70,13 @@ impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
         &self,
         provider_id: Option<&ProviderId>,
     ) -> anyhow::Result<ModelId> {
+        use forge_domain::ModelId;
+
+        // Check for environment variable override first
+        if let Some(model_str) = self.infra.get_env_var("FORGE_OVERRIDE_MODEL") {
+            return Ok(ModelId::new(&model_str));
+        }
+
         let config = self.infra.get_app_config().await?;
 
         let provider_id = match provider_id {
@@ -217,6 +235,20 @@ mod tests {
 
         async fn migrate_env_credentials(&self) -> anyhow::Result<Option<MigrationResult>> {
             Ok(None)
+        }
+    }
+
+    impl forge_app::EnvironmentInfra for MockInfra {
+        fn get_environment(&self) -> forge_domain::Environment {
+            unimplemented!("Not needed for these tests")
+        }
+
+        fn get_env_var(&self, _key: &str) -> Option<String> {
+            None // No env var overrides in tests by default
+        }
+
+        fn get_env_vars(&self) -> std::collections::BTreeMap<String, String> {
+            std::collections::BTreeMap::new()
         }
     }
 

@@ -76,7 +76,6 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + AppConf
             )
             .await?)
     }
-
     async fn get_agents(&self) -> Result<Vec<Agent>> {
         self.services.get_agents().await
     }
