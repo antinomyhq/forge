@@ -811,11 +811,68 @@ mod tests {
 
         // Verify it's not an array format
         assert!(!json.contains("[{"));
-        // Verify it contains the tool field
+                // Verify it contains the tool field
         assert!(json.contains("\"tool\":\"patch\""));
         // Verify structure is correct
         assert!(json.contains("\"lines_added\":10"));
         assert!(json.contains("\"lines_removed\":5"));
         assert!(json.contains("\"content_hash\":\"abc123\""));
+    }
+
+    #[tokio::test]
+    async fn test_delete_conversation_success() -> anyhow::Result<()> {
+        let repo = repository()?;
+        let conversation = Conversation::new(ConversationId::generate())
+            .title(Some("Test Conversation".to_string()));
+        
+        repo.upsert_conversation(conversation.clone()).await?;
+        
+        repo.delete_conversation(&conversation.id).await?;
+        
+        let result = repo.get_conversation(&conversation.id).await?;
+        assert!(result.is_none());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_delete_conversation_not_found() -> anyhow::Result<()> {
+        let repo = repository()?;
+        let non_existent_id = ConversationId::generate();
+        
+        let result = repo.delete_conversation(&non_existent_id).await;
+        assert!(result.is_ok());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_delete_conversation_workspace_filtering() -> anyhow::Result<()> {
+        let repo = repository()?;
+        let conversation = Conversation::new(ConversationId::generate())
+            .title(Some("Test Conversation".to_string()));
+        
+        repo.upsert_conversation(conversation.clone()).await?;
+        
+        repo.delete_conversation(&conversation.id).await?;
+        
+        let result = repo.get_conversation(&conversation.id).await?;
+        assert!(result.is_none());
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_delete_conversation_idempotent() -> anyhow::Result<()> {
+        let repo = repository()?;
+        let conversation = Conversation::new(ConversationId::generate())
+            .title(Some("Test Conversation".to_string()));
+        
+        repo.upsert_conversation(conversation.clone()).await?;
+        
+        repo.delete_conversation(&conversation.id).await?;
+        let result1 = repo.delete_conversation(&conversation.id).await;
+        let result2 = repo.delete_conversation(&conversation.id).await;
+        
+        assert!(result1.is_ok());
+        assert!(result2.is_ok());
+        Ok(())
     }
 }
