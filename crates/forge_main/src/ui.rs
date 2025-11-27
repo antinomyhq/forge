@@ -1024,6 +1024,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 "conversation",
                 "List all conversations for the active workspace [alias: c]",
             ),
+            (
+                "conversation clone",
+                "Clone current conversation and switch to it",
+            ),
             ("retry", "Retry the last command [alias: r]"),
             ("compact", "Compact the conversation context"),
             ("edit", "Use an external editor to write a prompt"),
@@ -1394,7 +1398,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         if let Some(conversation) =
-            ConversationSelector::select_conversation(&conversations).await?
+            ConversationSelector::select_conversation(&conversations, None).await?
         {
             let conversation_id = conversation.id;
             self.state.conversation_id = Some(conversation_id);
@@ -1469,6 +1473,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         match command {
             SlashCommand::Conversations => {
                 self.list_conversations().await?;
+            }
+            SlashCommand::InteractiveClone => {
+                self.on_interactive_clone().await?;
             }
             SlashCommand::Compact => {
                 self.spinner.start(Some("Compacting"))?;
@@ -2503,6 +2510,67 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         Ok(())
+    }
+
+    async fn on_interactive_clone(&mut self) -> anyhow::Result<()> {
+        self.spinner.start(Some("Loading Conversations"))?;
+        let max_conversations = self.api.environment().max_conversations;
+        let conversations = self.api.get_conversations(Some(max_conversations)).await?;
+        self.spinner.stop(None)?;
+
+        if conversations.is_empty() {
+            self.writeln_title(TitleFormat::error(
+                "No conversations found in this workspace.",
+            ))?;
+            return Ok(());
+        }
+
+        if let Some(conversation) = ConversationSelector::select_conversation(
+            &conversations,
+            Some("Select the conversation to clone:"),
+        )
+        .await?
+        {
+            let original_id = conversation.id;
+            let is_current_conversation = self.state.conversation_id == Some(original_id);
+
+            self.spinner.start(Some("Cloning"))?;
+            let cloned_conversation = self.clone_conversation_internal(conversation).await?;
+            let cloned_conversation_id = cloned_conversation.id;
+            self.spinner.stop(None)?;
+
+            self.state.conversation_id = Some(cloned_conversation_id);
+
+            if !is_current_conversation {
+                self.on_show_last_message(cloned_conversation).await?;
+
+                self.writeln_title(TitleFormat::info(format!(
+                    "Switched to conversation {}",
+                    cloned_conversation_id.into_string().bold()
+                )))?;
+
+                self.on_info(false, Some(cloned_conversation_id)).await?;
+            }
+
+            self.writeln_title(
+                TitleFormat::info("Conversation cloned and switched")
+                    .sub_title(format!("[{} → {}]", original_id, cloned_conversation_id)),
+            )?;
+        }
+
+        Ok(())
+    }
+
+    async fn clone_conversation_internal(
+        &mut self,
+        original: Conversation,
+    ) -> anyhow::Result<Conversation> {
+        let new_id = ConversationId::generate();
+        let mut cloned = original.clone();
+        cloned.id = new_id;
+
+        self.api.upsert_conversation(cloned.clone()).await?;
+        Ok(cloned)
     }
 
     fn update_model(&mut self, model: Option<ModelId>) {
