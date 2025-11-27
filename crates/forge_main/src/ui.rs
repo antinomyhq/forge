@@ -2149,23 +2149,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         title.push_str(format!(" {}", id.into_string()).as_str());
 
-        let mut sub_title = String::new();
-        sub_title.push('[');
-
-        if let Some(ref agent) = self.api.get_active_agent().await {
-            sub_title.push_str(format!("via {agent}").as_str());
-        }
-
-        if let Some(ref model) = self
-            .get_agent_model(self.api.get_active_agent().await)
-            .await
-        {
-            sub_title.push_str(format!("/{}", model.as_str()).as_str());
-        }
-
-        sub_title.push(']');
-
-        self.writeln_title(TitleFormat::debug(title).sub_title(sub_title.bold().to_string()))?;
+        self.writeln_title(TitleFormat::debug(title))?;
         Ok(())
     }
 
