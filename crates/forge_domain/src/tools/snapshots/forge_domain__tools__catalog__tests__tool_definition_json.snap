@@ -120,7 +120,7 @@ expression: tools
       "nullable": true
     },
     "queries": {
-      "description": "List of search queries to execute. Each query pairs a search term with its use_case for document reranking.",
+      "description": "List of search queries to execute in parallel. It's ALWAYS a good idea to use multiple queries with different phrasings to maximize search coverage. Each query pairs a search term with its use_case for document re-ranking. Multiple queries with varied terminology find more relevant results than a single query.",
       "type": "array",
       "items": {
         "description": "A paired query and use_case for semantic search. Each query must have a corresponding use_case for document reranking.",

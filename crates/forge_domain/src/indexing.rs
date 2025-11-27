@@ -410,4 +410,37 @@ mod tests {
 
         assert_eq!(actual, expected);
     }
+
+    #[test]
+    fn test_codebase_query_result_empty_results() {
+        let fixture = CodebaseQueryResult {
+            query: "retry mechanism".to_string(),
+            use_case: "find retry logic".to_string(),
+            results: vec![],
+        };
+
+        let actual = fixture.to_element().render();
+        insta::assert_snapshot!(actual);
+    }
+
+    #[test]
+    fn test_codebase_query_result_with_results() {
+        let fixture = CodebaseQueryResult {
+            query: "auth logic".to_string(),
+            use_case: "authentication".to_string(),
+            results: vec![CodeSearchResult {
+                node: CodeNode::FileChunk {
+                    node_id: "node-1".to_string(),
+                    file_path: "src/auth.rs".to_string(),
+                    content: "fn authenticate() {}".to_string(),
+                    start_line: 10,
+                    end_line: 15,
+                },
+                similarity: 0.95,
+            }],
+        };
+
+        let actual = fixture.to_element().render();
+        insta::assert_snapshot!(actual);
+    }
 }
