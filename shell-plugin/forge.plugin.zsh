@@ -976,6 +976,10 @@ if (( $+functions[p10k] )) || [[ -n "$POWERLEVEL9K_MODE" ]]; then
   # COLOR:
   # - DIMMED GRAY (242) when no active conversation (_FORGE_CONVERSATION_ID is empty)
   # - CYAN (39) when there's an active conversation
+  #
+  # INDICATOR:
+  # - ○ (empty circle) when idle (no conversation)
+  # - ● (filled circle) when active (conversation in progress)
   function prompt_forge_model() {
     local model_output
     
@@ -991,21 +995,21 @@ if (( $+functions[p10k] )) || [[ -n "$POWERLEVEL9K_MODE" ]]; then
     
     # Only display the segment if we successfully got a model name
     if [[ -n "$model_output" ]]; then
-      # Determine color based on conversation state:
-      # - 242 (dimmed gray) = no active conversation
-      # - 39 (cyan) = active conversation
+      # Determine color and indicator based on conversation state:
+      # - 242 (dimmed gray) + ○ = no active conversation (idle)
+      # - 39 (cyan) + ● = active conversation
       local segment_color=242
-      local icon_args=()
+      local indicator="○"
       if [[ -n "$_FORGE_CONVERSATION_ID" ]]; then
         segment_color=39
-        icon_args=(-i '󰚩')
+        indicator="●"
       fi
       
       # Display the prompt segment using p10k:
       # -f $segment_color : Set foreground color based on conversation state
-      # -i '󰚩'            : Display a robot icon (only when conversation is active)
+      # -i '$indicator'   : Display conversation indicator (○ idle or ● active)
       # -t "$model_output" : Set the text content to the model name
-      p10k segment -f $segment_color "${icon_args[@]}" -t "$model_output"
+      p10k segment -f $segment_color -i "$indicator" -t "$model_output"
     fi
   }
 
@@ -1069,29 +1073,33 @@ if ! (( $+functions[p10k] )) && [[ -z "$POWERLEVEL9K_MODE" ]]; then
 
   #################################[ _forge_zsh_prompt_model ]#################################
   # Returns the current model formatted for display in RPROMPT
-  # Format: Robot icon + model name
+  # Format: Indicator + model name
   #
   # COLOR:
   # - DIMMED GRAY (242) when no active conversation (_FORGE_CONVERSATION_ID is empty)
   # - CYAN (39) when there's an active conversation
+  #
+  # INDICATOR:
+  # - ○ (empty circle) when idle (no conversation)
+  # - ● (filled circle) when active (conversation in progress)
   function _forge_zsh_prompt_model() {
     local forge_cmd="${_FORGE_BIN:-${FORGE_BIN:-forge}}"
     local model_output
     model_output=$($forge_cmd config get model 2>/dev/null)
     
     if [[ -n "$model_output" ]]; then
-      # Determine color based on conversation state:
-      # - 242 (dimmed gray) = no active conversation
-      # - 39 (cyan) = active conversation
+      # Determine color and indicator based on conversation state:
+      # - 242 (dimmed gray) + ○ = no active conversation (idle)
+      # - 39 (cyan) + ● = active conversation
       local segment_color=242
-      local icon=""
+      local indicator="○"
       if [[ -n "$_FORGE_CONVERSATION_ID" ]]; then
         segment_color=39
-        icon="󰚩 "
+        indicator="●"
       fi
       
       # %F{color} = set foreground color, %f = reset foreground
-      echo "%F{$segment_color}${icon}${model_output}%f"
+      echo "%F{$segment_color}${indicator} ${model_output}%f"
     fi
   }
 
