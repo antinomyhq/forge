@@ -291,7 +291,13 @@ impl<S: AgentService> Orchestrator<S> {
             // Send the usage information if available
             self.send(ChatResponse::Usage(usage.clone())).await?;
 
-            context = context.usage(usage);
+            // Accumulate usage across all requests
+            let accumulated_usage = match context.accumulated_usage.as_ref() {
+                Some(existing_usage) => existing_usage.clone().accumulate(&usage),
+                None => usage.clone(),
+            };
+
+            context = context.usage(usage).accumulated_usage(accumulated_usage);
 
             debug!(agent_id = %agent.id, tool_call_count = tool_calls.len(), "Tool call count");
 

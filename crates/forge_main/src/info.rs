@@ -553,8 +553,14 @@ impl From<&Conversation> for Info {
             info = info.extend(&conversation.metrics);
         }
 
-        // Insert token usage
-        if let Some(usage) = conversation.context.as_ref().and_then(|c| c.usage.as_ref()) {
+        // Insert token usage - show accumulated usage if available, otherwise show
+        // current usage
+        let usage_to_display = conversation
+            .context
+            .as_ref()
+            .and_then(|c| c.accumulated_usage.as_ref().or(c.usage.as_ref()));
+
+        if let Some(usage) = usage_to_display {
             info = info.extend(usage);
         }
 

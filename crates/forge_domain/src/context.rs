@@ -352,6 +352,8 @@ pub struct Context {
     pub reasoning: Option<crate::agent_definition::ReasoningConfig>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub usage: Option<Usage>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub accumulated_usage: Option<Usage>,
 }
 
 impl Context {
