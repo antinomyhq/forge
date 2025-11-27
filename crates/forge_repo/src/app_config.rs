@@ -475,10 +475,7 @@ mod tests {
         }
 
         // Set up a config with a specific provider
-        let config = AppConfig {
-            provider: Some(ProviderId::ANTHROPIC),
-            ..Default::default()
-        };
+        let config = AppConfig { provider: Some(ProviderId::ANTHROPIC), ..Default::default() };
         let content = serde_json::to_string_pretty(&config).unwrap();
 
         let infra = Arc::new(CustomMockInfra::new(config_path.clone()));
