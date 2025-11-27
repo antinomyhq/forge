@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { spawn } from "child_process";
-import type { Validation } from "./model.js";
+import type { Validation, Task } from "./model.js";
 import { runValidations, allValidationsPassed } from "./verification.js";
 
 export type TaskExecutionResult = {
@@ -37,9 +37,7 @@ export async function executeTask(
   index: number,
   logFile: string,
   evalDir: string,
-  timeout: number | undefined,
-  earlyExitOnValidation: boolean | undefined,
-  validations: Array<Validation> | undefined,
+  task: Task,
   context?: Record<string, string>
 ): Promise<TaskExecutionResult> {
   const startTime = Date.now();
@@ -61,7 +59,7 @@ export async function executeTask(
     const output = await new Promise<string>((resolve, reject) => {
       const child = spawn(command, {
         shell: true,
-        cwd: path.dirname(evalDir),
+        cwd: task.run.cwd ?? path.dirname(evalDir),
         stdio: ["ignore", "pipe", "pipe"],
       });
 
@@ -73,10 +71,10 @@ export async function executeTask(
       const checkValidations = () => {
         if (exitedEarly || timedOut) return;
         
-        if (earlyExitOnValidation && validations && validations.length > 0) {
+        if (task.run.early_exit && task.validations && task.validations.length > 0) {
           const currentOutput = stdout + stderr;
           if (currentOutput) {
-            const results = runValidations(currentOutput, validations, context);
+            const results = runValidations(currentOutput, task.validations, context);
             if (allValidationsPassed(results)) {
               exitedEarly = true;
               if (timeoutId) clearTimeout(timeoutId);
@@ -92,17 +90,17 @@ export async function executeTask(
       };
 
       // Set up timeout if configured
-      if (timeout) {
+      if (task.run.timeout) {
         timeoutId = setTimeout(() => {
           timedOut = true;
           logStream.write(`\n${"=".repeat(80)}\n`);
-          logStream.write(`Timeout: ${timeout}s exceeded\n`);
+          logStream.write(`Timeout: ${task.run.timeout}s exceeded\n`);
           logStream.write(`Killing process...\n`);
           logStream.end();
           child.kill("SIGKILL");
           // Resolve with captured output so far
           resolve(stdout + stderr);
-        }, timeout * 1000);
+        }, task.run.timeout * 1000);
       }
 
       // Stream stdout to both log file and capture for validation

@@ -2165,6 +2165,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
 
         let _ = self.handle_migrate_credentials().await;
+        let _ = self.install_vscode_extension().await;
 
         // Ensure we have a model selected before proceeding with initialization
         if self
@@ -2678,6 +2679,18 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 format!("Migrated {count} providers from environment variables")
             };
             self.writeln_title(TitleFormat::info(message))?;
+        }
+        Ok(())
+    }
+
+    /// Silently install VS Code extension if in VS Code and extension not
+    /// installed
+    async fn install_vscode_extension(&mut self) -> Result<()> {
+        if crate::vscode::should_install_extension() {
+            // Spawn installation in background to avoid blocking startup
+            tokio::task::spawn_blocking(|| {
+                let _ = crate::vscode::install_extension();
+            });
         }
         Ok(())
     }
