@@ -89,6 +89,21 @@ impl SyncPlan {
         self.files_to_delete.len() + self.files_to_upload.len() - self.modified_files.len()
     }
 
+    /// Calculates the score contribution for a batch of paths.
+    /// Modified files contribute 0.5 (half for delete, half for upload).
+    /// Non-modified files contribute 1.0.
+    fn batch_score<'a>(&self, paths: impl Iterator<Item = &'a str>) -> f64 {
+        paths
+            .map(|path| {
+                if self.modified_files.contains(path) {
+                    0.5
+                } else {
+                    1.0
+                }
+            })
+            .sum()
+    }
+
     /// Executes the sync plan in batches, consuming self.
     /// Progress is reported as (current_score, total) where modified files
     /// contribute 0.5 for delete and 0.5 for upload.
@@ -110,26 +125,14 @@ impl SyncPlan {
         // Delete outdated/orphaned files
         for batch in self.files_to_delete.chunks(batch_size) {
             delete(batch.to_vec()).await?;
-            for path in batch {
-                if self.modified_files.contains(path) {
-                    current_score += 0.5; // Modified file: 0.5 for delete
-                } else {
-                    current_score += 1.0; // Pure delete: 1.0
-                }
-            }
+            current_score += self.batch_score(batch.iter().map(|s| s.as_str()));
             on_progress(current_score, total).await;
         }
 
         // Upload new/changed files
         for batch in self.files_to_upload.chunks(batch_size) {
             upload(batch.to_vec()).await?;
-            for file in batch {
-                if self.modified_files.contains(&file.path) {
-                    current_score += 0.5; // Modified file: 0.5 for upload
-                } else {
-                    current_score += 1.0; // Pure upload: 1.0
-                }
-            }
+            current_score += self.batch_score(batch.iter().map(|f| f.path.as_str()));
             on_progress(current_score, total).await;
         }
 
