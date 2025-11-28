@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use forge_app::dto::ToolsOverview;
 use forge_app::{
     AgentProviderResolver, AgentRegistry, AppConfigService, AuthService, CommandInfra,
@@ -67,14 +67,7 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + AppConf
     }
 
     async fn get_models(&self) -> Result<Vec<Model>> {
-        // Use AgentProviderResolver to ensure OAuth tokens are refreshed if needed
-        let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
-        let provider = agent_provider_resolver
-            .get_provider(None)
-            .await
-            .context("Failed to fetch models")?;
-
-        Ok(self.services.models(provider).await?)
+        self.app().get_models().await
     }
     async fn get_agents(&self) -> Result<Vec<Agent>> {
         self.services.get_agents().await
