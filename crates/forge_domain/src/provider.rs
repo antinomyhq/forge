@@ -1,32 +1,24 @@
-use std::{borrow::Cow, fmt::Display};
+use std::borrow::Cow;
 use std::collections::HashMap;
 
 use derive_more::{AsRef, Deref, From};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use strum_macros::Display;
 use url::Url;
 
 use crate::{ApiKey, AuthCredential, AuthDetails, Model, Template};
 
 /// Distinguishes between different categories of providers
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Display, Default)]
 #[serde(rename_all = "snake_case")]
-#[derive(Default)]
+#[strum(serialize_all = "snake_case")]
 pub enum ProviderType {
     /// LLM providers for chat completions (default for backward compatibility)
     #[default]
     Llm,
     /// Context engine providers for code indexing and search
     ContextEngine,
-}
-
-impl Display for ProviderType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            ProviderType::ContextEngine => write!(f, "context_engine"),
-            ProviderType::Llm => write!(f, "llm"),
-        }
-    }
 }
 
 
