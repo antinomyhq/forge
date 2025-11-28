@@ -86,7 +86,11 @@ pub trait ConversationRepository: Send + Sync {
     ///
     /// # Errors
     /// Returns an error if operation fails
-    async fn rename_conversation(&self, conversation_id: &ConversationId, new_title: &str) -> Result<()>;
+    async fn rename_conversation(
+        &self,
+        conversation_id: &ConversationId,
+        new_title: &str,
+    ) -> Result<()>;
 }
 
 #[async_trait::async_trait]

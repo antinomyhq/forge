@@ -223,7 +223,8 @@ pub trait ConversationService: Send + Sync {
     async fn last_conversation(&self) -> anyhow::Result<Option<Conversation>>;
 
     /// Rename a conversation with a new title
-    async fn rename_conversation(&self, id: &ConversationId, new_title: &str) -> anyhow::Result<()>;
+    async fn rename_conversation(&self, id: &ConversationId, new_title: &str)
+    -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -582,8 +583,14 @@ impl<I: Services> ConversationService for I {
         self.conversation_service().last_conversation().await
     }
 
-    async fn rename_conversation(&self, id: &ConversationId, new_title: &str) -> anyhow::Result<()> {
-        self.conversation_service().rename_conversation(id, new_title).await
+    async fn rename_conversation(
+        &self,
+        id: &ConversationId,
+        new_title: &str,
+    ) -> anyhow::Result<()> {
+        self.conversation_service()
+            .rename_conversation(id, new_title)
+            .await
     }
 }
 #[async_trait::async_trait]

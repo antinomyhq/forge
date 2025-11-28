@@ -62,6 +62,8 @@ impl<S: ConversationRepository> ConversationService for ForgeConversationService
     }
 
     async fn rename_conversation(&self, id: &ConversationId, new_title: &str) -> Result<()> {
-        self.conversation_repository.rename_conversation(id, new_title).await
+        self.conversation_repository
+            .rename_conversation(id, new_title)
+            .await
     }
 }

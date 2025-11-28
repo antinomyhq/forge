@@ -166,8 +166,14 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + AppConf
         self.services.find_conversation(conversation_id).await
     }
 
-    async fn rename_conversation(&self, conversation_id: &ConversationId, new_title: &str) -> anyhow::Result<()> {
-        self.services.rename_conversation(conversation_id, new_title).await
+    async fn rename_conversation(
+        &self,
+        conversation_id: &ConversationId,
+        new_title: &str,
+    ) -> anyhow::Result<()> {
+        self.services
+            .rename_conversation(conversation_id, new_title)
+            .await
     }
 
     async fn get_conversations(&self, limit: Option<usize>) -> anyhow::Result<Vec<Conversation>> {
