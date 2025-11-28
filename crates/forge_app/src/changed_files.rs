@@ -90,6 +90,7 @@ impl<S: FsReadService + EnvironmentService + ContextEngineService + 'static> Cha
 mod tests {
     use std::collections::HashMap;
     use std::path::PathBuf;
+    use std::sync::atomic::{AtomicBool, Ordering};
 
     use forge_domain::{
         Agent, AgentId, Context, Conversation, ConversationId, Environment, FileOperation, Metrics,
@@ -101,23 +102,12 @@ mod tests {
     use crate::services::Content;
     use crate::{EnvironmentService, FsReadService, ReadOutput, compute_hash};
 
-    #[derive(Clone)]
+    #[derive(Default)]
     struct TestServices {
         files: HashMap<String, String>,
         cwd: Option<PathBuf>,
         indexed: bool,
-        sync_called: Arc<std::sync::Mutex<bool>>,
-    }
-
-    impl Default for TestServices {
-        fn default() -> Self {
-            Self {
-                files: HashMap::default(),
-                cwd: None,
-                indexed: false,
-                sync_called: Arc::new(std::sync::Mutex::new(false)),
-            }
-        }
+        sync_called: AtomicBool,
     }
 
     #[async_trait::async_trait]
@@ -166,7 +156,7 @@ mod tests {
             _batch_size: usize,
         ) -> anyhow::Result<forge_domain::FileUploadResponse> {
             use forge_domain::{FileUploadInfo, WorkspaceId};
-            *self.sync_called.lock().unwrap() = true;
+            self.sync_called.store(true, Ordering::SeqCst);
             Ok(forge_domain::FileUploadResponse::new(
                 WorkspaceId::generate(),
                 0,
@@ -220,53 +210,23 @@ mod tests {
     fn fixture(
         files: HashMap<String, String>,
         tracked_files: HashMap<String, Option<String>>,
-    ) -> (ChangedFiles<TestServices>, Conversation) {
-        fixture_with_cwd(files, tracked_files, None)
+    ) -> (ChangedFiles<TestServices>, Conversation, Arc<TestServices>) {
+        fixture_with_options(files, tracked_files, None, false)
     }
 
-    fn fixture_with_cwd(
+    fn fixture_with_options(
         files: HashMap<String, String>,
         tracked_files: HashMap<String, Option<String>>,
         cwd: Option<PathBuf>,
-    ) -> (ChangedFiles<TestServices>, Conversation) {
-        let services = Arc::new(TestServices { files, cwd, ..Default::default() });
-        let agent = Agent::new(
-            AgentId::new("test"),
-            ProviderId::Anthropic,
-            ModelId::new("test-model"),
-        );
-        let changed_files = ChangedFiles::new(services, agent);
-
-        let mut metrics = Metrics::default();
-        for (path, hash) in tracked_files {
-            metrics
-                .file_operations
-                .insert(path, FileOperation::new(ToolKind::Write).content_hash(hash));
-        }
-
-        let conversation = Conversation::new(ConversationId::generate()).metrics(metrics);
-
-        (changed_files, conversation)
-    }
-
-    fn fixture_for_reindex(
-        files: HashMap<String, String>,
-        tracked_files: HashMap<String, Option<String>>,
         indexed: bool,
-    ) -> (
-        ChangedFiles<TestServices>,
-        Conversation,
-        Arc<std::sync::Mutex<bool>>,
-    ) {
-        let sync_called = Arc::new(std::sync::Mutex::new(false));
-        let services =
-            Arc::new(TestServices { files, cwd: None, indexed, sync_called: sync_called.clone() });
+    ) -> (ChangedFiles<TestServices>, Conversation, Arc<TestServices>) {
+        let services = Arc::new(TestServices { files, cwd, indexed, ..Default::default() });
         let agent = Agent::new(
             AgentId::new("test"),
             ProviderId::Anthropic,
             ModelId::new("test-model"),
         );
-        let changed_files = ChangedFiles::new(services, agent);
+        let changed_files = ChangedFiles::new(services.clone(), agent);
 
         let mut metrics = Metrics::default();
         for (path, hash) in tracked_files {
@@ -277,7 +237,7 @@ mod tests {
 
         let conversation = Conversation::new(ConversationId::generate()).metrics(metrics);
 
-        (changed_files, conversation, sync_called)
+        (changed_files, conversation, services)
     }
 
     #[tokio::test]
@@ -285,7 +245,7 @@ mod tests {
         let content = "hello world";
         let hash = crate::compute_hash(content);
 
-        let (service, mut conversation) = fixture(
+        let (service, mut conversation, _) = fixture(
             [("/test/file.txt".into(), content.into())].into(),
             [("/test/file.txt".into(), Some(hash))].into(),
         );
@@ -306,7 +266,7 @@ mod tests {
         let old_hash = crate::compute_hash("old content");
         let new_content = "new content";
 
-        let (service, conversation) = fixture(
+        let (service, conversation, _) = fixture(
             [("/test/file.txt".into(), new_content.into())].into(),
             [("/test/file.txt".into(), Some(old_hash))].into(),
         );
@@ -326,7 +286,7 @@ mod tests {
         let new_content = "new content";
         let new_hash = crate::compute_hash(new_content);
 
-        let (service, conversation) = fixture(
+        let (service, conversation, _) = fixture(
             [("/test/file.txt".into(), new_content.into())].into(),
             [("/test/file.txt".into(), Some(old_hash))].into(),
         );
@@ -344,7 +304,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_multiple_files_changed() {
-        let (service, conversation) = fixture(
+        let (service, conversation, _) = fixture(
             [
                 ("/test/file1.txt".into(), "new 1".into()),
                 ("/test/file2.txt".into(), "new 2".into()),
@@ -374,10 +334,11 @@ mod tests {
         let cwd = PathBuf::from("/home/user/project");
         let absolute_path = "/home/user/project/src/main.rs";
 
-        let (service, conversation) = fixture_with_cwd(
+        let (service, conversation, _) = fixture_with_options(
             [(absolute_path.into(), new_content.into())].into(),
             [(absolute_path.into(), Some(old_hash))].into(),
             Some(cwd),
+            false,
         );
 
         let actual = service.handle_external_changes(conversation).await;
@@ -392,49 +353,35 @@ mod tests {
         assert_eq!(message, expected);
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_triggers_reindex_when_indexed() {
         let old_hash = crate::compute_hash("old content");
-        let new_content = "new content";
-
-        let (service, conversation, sync_called) = fixture_for_reindex(
-            [("/test/file.txt".into(), new_content.into())].into(),
+        let (service, conversation, services) = fixture_with_options(
+            [("/test/file.txt".into(), "new content".into())].into(),
             [("/test/file.txt".into(), Some(old_hash))].into(),
-            true, // Codebase is indexed
+            None,
+            true,
         );
 
         service.handle_external_changes(conversation).await;
+        tokio::time::advance(std::time::Duration::from_millis(1)).await;
 
-        // Give background task time to execute
-        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-
-        let actual = *sync_called.lock().unwrap();
-        assert!(
-            actual,
-            "sync_codebase should be called when codebase is indexed"
-        );
+        assert!(services.sync_called.load(Ordering::SeqCst));
     }
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_skips_reindex_when_not_indexed() {
         let old_hash = crate::compute_hash("old content");
-        let new_content = "new content";
-
-        let (service, conversation, sync_called) = fixture_for_reindex(
-            [("/test/file.txt".into(), new_content.into())].into(),
+        let (service, conversation, services) = fixture_with_options(
+            [("/test/file.txt".into(), "new content".into())].into(),
             [("/test/file.txt".into(), Some(old_hash))].into(),
-            false, // Codebase is NOT indexed
+            None,
+            false,
         );
 
         service.handle_external_changes(conversation).await;
+        tokio::time::advance(std::time::Duration::from_millis(1)).await;
 
-        // Give background task time to execute (if it were to run)
-        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-
-        let actual = *sync_called.lock().unwrap();
-        assert!(
-            !actual,
-            "sync_codebase should NOT be called when codebase is not indexed"
-        );
+        assert!(!services.sync_called.load(Ordering::SeqCst));
     }
 }
