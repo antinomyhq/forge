@@ -100,10 +100,23 @@ mod tests {
     use crate::services::Content;
     use crate::{EnvironmentService, FsReadService, ReadOutput, compute_hash};
 
-    #[derive(Clone, Default)]
+    #[derive(Clone)]
     struct TestServices {
         files: HashMap<String, String>,
         cwd: Option<PathBuf>,
+        indexed: bool,
+        sync_called: Arc<std::sync::Mutex<bool>>,
+    }
+
+    impl Default for TestServices {
+        fn default() -> Self {
+            Self {
+                files: HashMap::default(),
+                cwd: None,
+                indexed: false,
+                sync_called: Arc::new(std::sync::Mutex::new(false)),
+            }
+        }
     }
 
     #[async_trait::async_trait]
@@ -152,6 +165,7 @@ mod tests {
             _batch_size: usize,
         ) -> anyhow::Result<forge_domain::FileUploadResponse> {
             use forge_domain::{FileUploadInfo, WorkspaceId};
+            *self.sync_called.lock().unwrap() = true;
             Ok(forge_domain::FileUploadResponse::new(
                 WorkspaceId::generate(),
                 0,
@@ -186,7 +200,7 @@ mod tests {
         }
 
         async fn is_indexed(&self, _path: &std::path::Path) -> anyhow::Result<bool> {
-            Ok(false)
+            Ok(self.indexed)
         }
 
         async fn is_authenticated(&self) -> anyhow::Result<bool> {
@@ -214,7 +228,7 @@ mod tests {
         tracked_files: HashMap<String, Option<String>>,
         cwd: Option<PathBuf>,
     ) -> (ChangedFiles<TestServices>, Conversation) {
-        let services = Arc::new(TestServices { files, cwd });
+        let services = Arc::new(TestServices { files, cwd, ..Default::default() });
         let agent = Agent::new(
             AgentId::new("test"),
             ProviderId::Anthropic,
@@ -232,6 +246,37 @@ mod tests {
         let conversation = Conversation::new(ConversationId::generate()).metrics(metrics);
 
         (changed_files, conversation)
+    }
+
+    fn fixture_for_reindex(
+        files: HashMap<String, String>,
+        tracked_files: HashMap<String, Option<String>>,
+        indexed: bool,
+    ) -> (
+        ChangedFiles<TestServices>,
+        Conversation,
+        Arc<std::sync::Mutex<bool>>,
+    ) {
+        let sync_called = Arc::new(std::sync::Mutex::new(false));
+        let services =
+            Arc::new(TestServices { files, cwd: None, indexed, sync_called: sync_called.clone() });
+        let agent = Agent::new(
+            AgentId::new("test"),
+            ProviderId::Anthropic,
+            ModelId::new("test-model"),
+        );
+        let changed_files = ChangedFiles::new(services, agent);
+
+        let mut metrics = Metrics::default();
+        for (path, hash) in tracked_files {
+            metrics
+                .file_operations
+                .insert(path, FileOperation::new(ToolKind::Write).content_hash(hash));
+        }
+
+        let conversation = Conversation::new(ConversationId::generate()).metrics(metrics);
+
+        (changed_files, conversation, sync_called)
     }
 
     #[tokio::test]
@@ -344,5 +389,51 @@ mod tests {
         let expected = "<information>\n<critical>The following files have been modified externally. Please re-read them if its relevant for the task.</critical>\n<files>\n<file>src/main.rs</file>\n</files>\n</information>";
 
         assert_eq!(message, expected);
+    }
+
+    #[tokio::test]
+    async fn test_triggers_reindex_when_indexed() {
+        let old_hash = crate::compute_hash("old content");
+        let new_content = "new content";
+
+        let (service, conversation, sync_called) = fixture_for_reindex(
+            [("/test/file.txt".into(), new_content.into())].into(),
+            [("/test/file.txt".into(), Some(old_hash))].into(),
+            true, // Codebase is indexed
+        );
+
+        service.handle_external_changes(conversation).await;
+
+        // Give background task time to execute
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+        let actual = *sync_called.lock().unwrap();
+        assert!(
+            actual,
+            "sync_codebase should be called when codebase is indexed"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_skips_reindex_when_not_indexed() {
+        let old_hash = crate::compute_hash("old content");
+        let new_content = "new content";
+
+        let (service, conversation, sync_called) = fixture_for_reindex(
+            [("/test/file.txt".into(), new_content.into())].into(),
+            [("/test/file.txt".into(), Some(old_hash))].into(),
+            false, // Codebase is NOT indexed
+        );
+
+        service.handle_external_changes(conversation).await;
+
+        // Give background task time to execute (if it were to run)
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+        let actual = *sync_called.lock().unwrap();
+        assert!(
+            !actual,
+            "sync_codebase should NOT be called when codebase is not indexed"
+        );
     }
 }
