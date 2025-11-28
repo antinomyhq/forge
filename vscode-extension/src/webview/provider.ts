@@ -54,7 +54,8 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
         webviewView.webview.options = {
             enableScripts: true,
             localResourceRoots: [
-                vscode.Uri.joinPath(this.extensionUri, 'webview')
+                vscode.Uri.joinPath(this.extensionUri, 'webview'),
+                vscode.Uri.joinPath(this.extensionUri, 'node_modules', '@vscode', 'codicons', 'dist')
             ]
         };
 
@@ -200,6 +201,11 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
             vscode.Uri.joinPath(this.extensionUri, 'webview', 'main.js')
         );
 
+        // Get codicon font URI from VS Code
+        const codiconUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(this.extensionUri, 'node_modules', '@vscode/codicons', 'dist', 'codicon.css')
+        );
+
         // Generate nonce for CSP
         const nonce = getNonce();
 
@@ -213,6 +219,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; font-src ${cspSource};">
+    <link rel="stylesheet" href="${codiconUri}">
     <link rel="stylesheet" href="${styleUri}">
     <title>ForgeCode Chat</title>
 </head>
@@ -257,6 +264,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
                 ></textarea>
                 <button id="send-button" class="send-button" title="Send message (Ctrl+Enter)">
                     <span class="codicon codicon-send"></span>
+                    <span class="button-text">Send</span>
                 </button>
             </div>
             <div class="input-footer">

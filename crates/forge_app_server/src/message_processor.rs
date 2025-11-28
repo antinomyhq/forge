@@ -355,6 +355,7 @@ impl<A: API + 'static, W: AsyncWrite + Unpin + Send + 'static> MessageProcessor<
             .map(|agent| {
                 serde_json::json!({
                     "id": agent.id,
+                    "name": agent.title.as_deref().unwrap_or(agent.id.as_str()),
                     "provider": agent.provider,
                     "model": agent.model,
                 })
@@ -418,8 +419,7 @@ impl<A: API + 'static, W: AsyncWrite + Unpin + Send + 'static> MessageProcessor<
             .iter()
             .map(|provider| {
                 let provider_id = provider.id().to_string();
-                let is_active = active_provider
-                    .as_ref() == Some(&provider_id);
+                let is_active = active_provider.as_ref() == Some(&provider_id);
                 serde_json::json!({
                     "id": provider_id,
                     "isActive": is_active,

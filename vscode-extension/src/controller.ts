@@ -62,6 +62,9 @@ export class Controller {
     public async handleWebviewReady(): Promise<void> {
         this.outputChannel.appendLine('[Controller] Webview ready, sending initial state');
         
+        // Fetch current agent and model from server
+        await this.refreshAgentAndModel();
+        
         // Send current state to webview
         this.webviewProvider.updateState({
             messages: this.messages,
@@ -427,6 +430,60 @@ export class Controller {
     }
 
     /**
+     * Refresh agent and model from server
+     */
+    public async refreshAgentAndModel(): Promise<void> {
+        try {
+            this.outputChannel.appendLine('[Controller] Fetching current agent and model from server');
+            
+            const response = await this.rpcClient.request<EnvInfoResponse>(
+                'env/info',
+                undefined
+            );
+            
+            this.outputChannel.appendLine(`[Controller] Environment info: ${JSON.stringify(response)}`);
+            
+            // Fetch agent list to get display names
+            const agentListResponse = await this.rpcClient.request<{ agents: AgentInfo[] }>(
+                'agent/list',
+                undefined
+            );
+            
+            // Fetch model list to get display names  
+            const modelListResponse = await this.rpcClient.request<{ models: ModelInfo[] }>(
+                'model/list',
+                undefined
+            );
+            
+            // Update agent if available
+            if (response.activeAgent) {
+                // Find agent display name
+                const agent = agentListResponse.agents.find(a => a.id === response.activeAgent);
+                this.agent = agent?.name || response.activeAgent;
+                this.outputChannel.appendLine(`[Controller] Updated agent: ${this.agent}`);
+            }
+            
+            // Update model if available
+            if (response.defaultModel) {
+                // Find model display name
+                const model = modelListResponse.models.find(m => m.id === response.defaultModel);
+                this.model = model?.name || model?.id || response.defaultModel;
+                this.outputChannel.appendLine(`[Controller] Updated model: ${this.model}`);
+            }
+            
+            // Update header in webview
+            this.webviewProvider.updateHeader({
+                agent: this.agent,
+                model: this.model
+            });
+            
+        } catch (error) {
+            this.outputChannel.appendLine(`[Controller] Failed to fetch environment info: ${error}`);
+            // Continue with default values on error
+        }
+    }
+
+    /**
      * Dispose of resources
      */
     public dispose(): void {
@@ -438,4 +495,28 @@ interface Message {
     role: 'user' | 'assistant';
     content: string;
     timestamp: number;
+}
+
+
+interface EnvInfoResponse {
+    cwd: string;
+    os: string;
+    shell: string;
+    home: string;
+    activeAgent?: string;
+    defaultModel?: string;
+}
+
+interface AgentInfo {
+    id: string;
+    name: string;
+    description?: string;
+    provider?: string;
+    model?: string;
+}
+
+interface ModelInfo {
+    id: string;
+    name?: string;
+    contextLength?: number;
 }

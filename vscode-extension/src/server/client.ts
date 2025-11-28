@@ -23,14 +23,18 @@ export class JsonRpcClient extends EventEmitter {
     /**
      * Send a JSON-RPC request and wait for response
      */
-    async request<T = unknown>(method: string, params: unknown): Promise<T> {
+    async request<T = unknown>(method: string, params?: unknown): Promise<T> {
         const id = this.nextId++;
-        const request: JsonRpcRequest = {
+        const request: Partial<JsonRpcRequest> = {
             jsonrpc: '2.0',
             id,
             method,
-            params,
         };
+        
+        // Only include params if defined
+        if (params !== undefined) {
+            request.params = params;
+        }
 
         // Create promise for response
         const promise = new Promise<T>((resolve, reject) => {
@@ -47,7 +51,7 @@ export class JsonRpcClient extends EventEmitter {
         });
 
         // Send request
-        this.send(request);
+        this.send(request as JsonRpcRequest);
 
         return promise;
     }

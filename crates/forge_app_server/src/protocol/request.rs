@@ -149,4 +149,31 @@ mod tests {
         let json = serde_json::to_value(&request).unwrap();
         assert_eq!(json["method"], "initialized");
     }
+
+    #[test]
+    fn test_env_info_request() {
+        let json = serde_json::json!({
+            "method": "env/info"
+        });
+        let request: ClientRequest = serde_json::from_value(json).unwrap();
+
+        match request {
+            ClientRequest::EnvInfo => {}
+            _ => panic!("Expected EnvInfo variant"),
+        }
+    }
+
+    #[test]
+    fn test_env_info_request_with_empty_params() {
+        let json = serde_json::json!({
+            "method": "env/info",
+            "params": {}
+        });
+        let request: ClientRequest = serde_json::from_value(json).unwrap();
+
+        match request {
+            ClientRequest::EnvInfo => {}
+            _ => panic!("Expected EnvInfo variant"),
+        }
+    }
 }

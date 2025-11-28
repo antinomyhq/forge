@@ -429,7 +429,7 @@ body {
 }
 
 .send-button {
-    padding: 10px 16px;
+    padding: 10px 12px;
     border: none;
     border-radius: 6px;
     background-color: var(--button-bg);
@@ -439,6 +439,14 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.send-button .button-text {
+    font-family: var(--vscode-font-family);
+    color: var(--button-fg);
 }
 
 .send-button:hover:not(:disabled) {
@@ -467,12 +475,12 @@ body {
     font-size: 11px;
 }
 
+.char-counter::before {
+    content: 'Characters: ';
+    opacity: 0.8;
+}
+
 /* Utility classes */
 .hidden {
     display: none !important;
-}
-
-.codicon {
-    font-family: codicon;
-    font-size: inherit;
 }

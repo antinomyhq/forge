@@ -161,7 +161,12 @@
         },
         "forgecode.logLevel": {
           "type": "string",
-          "enum": ["error", "warn", "info", "debug"],
+          "enum": [
+            "error",
+            "warn",
+            "info",
+            "debug"
+          ],
           "default": "info",
           "description": "Log level for ForgeCode extension"
         }
@@ -183,5 +188,7 @@
     "eslint": "^8.40.0",
     "typescript": "^5.0.0"
   },
-  "dependencies": {}
+  "dependencies": {
+    "@vscode/codicons": "^0.0.43"
+  }
 }

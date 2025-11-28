@@ -1,10 +1,11 @@
 import * as vscode from 'vscode';
 import { JsonRpcClient } from '../server/client';
+import { EventEmitter } from 'events';
 
 /**
  * Agent and Model selector
  */
-export class AgentModelSelector {
+export class AgentModelSelector extends EventEmitter {
     private statusBarAgent: vscode.StatusBarItem;
     private statusBarModel: vscode.StatusBarItem;
     private currentAgent = 'Forge';
@@ -14,6 +15,7 @@ export class AgentModelSelector {
         private rpcClient: JsonRpcClient,
         private outputChannel: vscode.OutputChannel
     ) {
+        super();
         // Create status bar items
         this.statusBarAgent = vscode.window.createStatusBarItem(
             vscode.StatusBarAlignment.Left,
@@ -80,6 +82,9 @@ export class AgentModelSelector {
 
                 this.outputChannel.appendLine(`[AgentSelector] Selected: ${selected.agent.name}`);
                 vscode.window.showInformationMessage(`Agent: ${selected.agent.name}`);
+                
+                // Emit event for controller to refresh
+                this.emit('agentChanged', selected.agent.id);
             }
 
         } catch (error) {
@@ -126,6 +131,9 @@ export class AgentModelSelector {
 
                 this.outputChannel.appendLine(`[ModelSelector] Selected: ${selected.model.id}`);
                 vscode.window.showInformationMessage(`Model: ${selected.model.id}`);
+                
+                // Emit event for controller to refresh
+                this.emit('modelChanged', selected.model.id);
             }
 
         } catch (error) {

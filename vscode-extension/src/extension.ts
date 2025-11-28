@@ -131,6 +131,19 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             outputChannel
         );
 
+        // Connect agent/model selector events to controller
+        agentModelSelector.on('agentChanged', () => {
+            controller?.refreshAgentAndModel().catch((error) => {
+                outputChannel?.appendLine(`Error refreshing agent: ${error}`);
+            });
+        });
+
+        agentModelSelector.on('modelChanged', () => {
+            controller?.refreshAgentAndModel().catch((error) => {
+                outputChannel?.appendLine(`Error refreshing model: ${error}`);
+            });
+        });
+
         // Connect webview events to controller
         webviewProvider.onReady(() => {
             controller?.handleWebviewReady().catch((error) => {
