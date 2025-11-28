@@ -15,7 +15,7 @@
 pub async fn fixture(path: &str) -> String {
     tokio::fs::read_to_string(path)
         .await
-        .unwrap_or_else(|e| panic!("Failed to load fixture at {}: {}", path, e))
+        .unwrap_or_else(|e| panic!("Failed to load fixture at {path}: {e}"))
 }
 
 /// Macro to load a fixture file relative to the calling crate's manifest

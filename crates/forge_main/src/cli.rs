@@ -78,15 +78,18 @@ pub struct Cli {
 impl Cli {
     /// Determines whether the CLI should start in interactive mode.
     ///
-    /// Returns true when no prompt or subcommand is provided, indicating
-    /// the user wants to enter interactive mode.
+    /// Returns true when no prompt, piped input, or subcommand is provided,
+    /// indicating the user wants to enter interactive mode.
     pub fn is_interactive(&self) -> bool {
-        self.prompt.is_none() && self.subcommands.is_none()
+        self.prompt.is_none() && self.piped_input.is_none() && self.subcommands.is_none()
     }
 }
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum TopLevelCommand {
+    /// Manage agents.
+    Agent(AgentCommandGroup),
+
     /// Generate shell extension scripts.
     #[command(hide = true)]
     Extension(ExtensionCommandGroup),
@@ -160,6 +163,25 @@ pub enum CmdCommand {
     /// Execute a custom command.
     #[command(external_subcommand)]
     Execute(Vec<String>),
+}
+
+/// Command group for agent management.
+#[derive(Parser, Debug, Clone)]
+pub struct AgentCommandGroup {
+    #[command(subcommand)]
+    pub command: AgentCommand,
+
+    /// Output in machine-readable format.
+    #[arg(long, global = true)]
+    pub porcelain: bool,
+}
+
+/// Agent management commands.
+#[derive(Subcommand, Debug, Clone)]
+pub enum AgentCommand {
+    /// List available agents.
+    #[command(alias = "ls")]
+    List,
 }
 
 /// Command group for listing resources.
