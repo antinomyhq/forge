@@ -127,34 +127,32 @@ where
                             };
 
                             // Create strategy and refresh credential
-                            match self.infra.create_auth_strategy(
+                            if let Ok(strategy) = self.infra.create_auth_strategy(
                                 provider.id.clone(),
                                 auth_method.clone(),
                                 required_params,
                             ) {
-                                Ok(strategy) => {
-                                    match strategy.refresh(&existing_credential).await {
-                                        Ok(refreshed) => {
-                                            // Store refreshed credential
-                                            if self
-                                                .infra
-                                                .upsert_credential(refreshed.clone())
-                                                .await
-                                                .is_err()
-                                            {
-                                                continue;
-                                            }
+                                match strategy.refresh(&existing_credential).await {
+                                    Ok(refreshed) => {
+                                        // Store refreshed credential
+                                        if self
+                                            .infra
+                                            .upsert_credential(refreshed.clone())
+                                            .await
+                                            .is_err()
+                                        {
+                                            continue;
+                                        }
 
-                                            // Update provider with refreshed credential
-                                            provider.credential = Some(refreshed);
-                                            break; // Success, stop trying other methods
-                                        }
-                                        Err(_) => {
-                                            // If refresh fails, continue with existing credentials
-                                        }
+                                        // Update provider with refreshed credential
+                                        provider.credential = Some(refreshed);
+                                        break; // Success, stop trying other methods
+                                    }
+                                    Err(_) => {
+                                        // If refresh fails, continue with
+                                        // existing credentials
                                     }
                                 }
-                                Err(_) => {}
                             }
                         }
                         _ => {}
