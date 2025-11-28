@@ -40,8 +40,8 @@ struct SyncPlan {
     files_to_delete: Vec<String>,
     /// Files to upload (new or changed)
     files_to_upload: Vec<forge_domain::FileRead>,
-    /// Files that are modified (hash doesn't match)
-    modified_files: Vec<String>,
+    /// Files that are modified (exists in both delete and upload)
+    modified_files: std::collections::HashSet<String>,
 }
 
 impl SyncPlan {
@@ -57,16 +57,14 @@ impl SyncPlan {
             .map(|f| (f.path.as_str(), f.hash.as_str()))
             .collect();
 
-        // Files to delete: on server but not local or hash changed (clone path, keep
-        // borrow)
+        // Files to delete: on server but not local or hash changed
         let files_to_delete: Vec<String> = remote_files
             .iter()
             .filter(|f| local_hashes.get(f.path.as_str()) != Some(&f.hash.as_str()))
             .map(|f| f.path.clone())
             .collect();
 
-        // Files to upload: local files not on server or hash changed (consume
-        // local_files)
+        // Files to upload: local files not on server or hash changed
         let files_to_upload: Vec<_> = local_files
             .into_iter()
             .filter(|f| remote_hashes.get(f.path.as_str()) != Some(&f.hash.as_str()))
@@ -76,7 +74,7 @@ impl SyncPlan {
         // Modified files: paths that appear in both delete and upload lists
         let delete_paths: std::collections::HashSet<&str> =
             files_to_delete.iter().map(|s| s.as_str()).collect();
-        let modified_files: Vec<String> = files_to_upload
+        let modified_files: std::collections::HashSet<String> = files_to_upload
             .iter()
             .filter(|f| delete_paths.contains(f.path.as_str()))
             .map(|f| f.path.clone())
@@ -106,9 +104,6 @@ impl SyncPlan {
             return Ok(());
         }
 
-        let modified_paths: std::collections::HashSet<&str> =
-            self.modified_files.iter().map(|s| s.as_str()).collect();
-
         let mut current_score = 0.0;
         on_progress(current_score, total).await;
 
@@ -116,7 +111,7 @@ impl SyncPlan {
         for batch in self.files_to_delete.chunks(batch_size) {
             delete(batch.to_vec()).await?;
             for path in batch {
-                if modified_paths.contains(path.as_str()) {
+                if self.modified_files.contains(path) {
                     current_score += 0.5; // Modified file: 0.5 for delete
                 } else {
                     current_score += 1.0; // Pure delete: 1.0
@@ -129,7 +124,7 @@ impl SyncPlan {
         for batch in self.files_to_upload.chunks(batch_size) {
             upload(batch.to_vec()).await?;
             for file in batch {
-                if modified_paths.contains(file.path.as_str()) {
+                if self.modified_files.contains(&file.path) {
                     current_score += 0.5; // Modified file: 0.5 for upload
                 } else {
                     current_score += 1.0; // Pure upload: 1.0
@@ -1184,7 +1179,7 @@ mod tests {
                 forge_domain::FileRead::new("d.rs".into(), "content_d".into()),
                 forge_domain::FileRead::new("e.rs".into(), "content_e".into()),
             ],
-            modified_files: vec![],
+            modified_files: std::collections::HashSet::new(),
         };
 
         let progress = Arc::new(Mutex::new(Vec::new()));
@@ -1228,7 +1223,7 @@ mod tests {
                 forge_domain::FileRead::new("a.rs".into(), "new_content".into()),
                 forge_domain::FileRead::new("c.rs".into(), "content_c".into()),
             ],
-            modified_files: vec!["a.rs".into()],
+            modified_files: ["a.rs".to_string()].into_iter().collect(),
         };
 
         let progress = Arc::new(Mutex::new(Vec::new()));

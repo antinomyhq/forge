@@ -90,7 +90,11 @@ impl IndexProgress {
                 if *uploaded_files == 0 {
                     "Already up to date".to_string()
                 } else {
-                    let file_word = if *uploaded_files == 1 { "file" } else { "files" };
+                    let file_word = if *uploaded_files == 1 {
+                        "file"
+                    } else {
+                        "files"
+                    };
                     format!("{} {} changed", uploaded_files, file_word)
                 }
             }
