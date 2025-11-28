@@ -64,10 +64,10 @@ impl IndexProgress {
     pub fn weight(&self) -> Option<u64> {
         match self {
             Self::Starting => Some(0),
-            Self::DiscoveringFiles { .. } => Some(2),
+            Self::DiscoveringFiles { .. } => Some(1),
             Self::FilesDiscovered { .. } => Some(3),
             Self::ComparingFiles => Some(5),
-            Self::DiffComputed { .. } => Some(Self::DISCOVERY_WEIGHT),
+            Self::DiffComputed { .. } => Some(10),
             Self::Completed { .. } => Some(100),
             Self::WorkspaceCreated { .. } => None,
             Self::Syncing { current, total } => {
