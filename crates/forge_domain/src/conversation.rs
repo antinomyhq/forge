@@ -6,6 +6,126 @@ use uuid::Uuid;
 
 use crate::{Context, Error, Metrics, Result};
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ConversationTitle {
+    pub value: String,
+}
+
+impl ConversationTitle {
+    pub fn new(title: String) -> Result<Self> {
+        let trimmed = title.trim();
+        
+        if trimmed.is_empty() {
+            return Err(Error::InvalidConversationTitle("Title cannot be empty".to_string()));
+        }
+        
+        if trimmed.len() > 255 {
+            return Err(Error::InvalidConversationTitle("Title too long (max 255 characters)".to_string()));
+        }
+        
+        if contains_control_characters(trimmed) {
+            return Err(Error::InvalidConversationTitle("Title contains invalid characters".to_string()));
+        }
+        
+        Ok(Self {
+            value: trimmed.to_string(),
+        })
+    }
+}
+
+fn contains_control_characters(s: &str) -> bool {
+    s.chars().any(|c| {
+        c == '\0' ||           // Null byte
+        (c < ' ' && c != '\t' && c != '\n' && c != '\r') || // Control characters except tab, newline, carriage return
+        c == '\x1b'          // ANSI escape sequences
+    })
+}
+
+#[cfg(test)]
+mod conversation_title_tests {
+    use super::*;
+
+    #[test]
+    fn test_valid_title() {
+        let title = ConversationTitle::new("Valid Title".to_string()).unwrap();
+        assert_eq!(title.value, "Valid Title");
+    }
+
+    #[test]
+    fn test_empty_title() {
+        let result = ConversationTitle::new("".to_string());
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), Error::InvalidConversationTitle(_)));
+    }
+
+    #[test]
+    fn test_whitespace_only_title() {
+        let result = ConversationTitle::new("   \t\n   ".to_string());
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), Error::InvalidConversationTitle(_)));
+    }
+
+    #[test]
+    fn test_title_too_long() {
+        let long_title = "a".repeat(256);
+        let result = ConversationTitle::new(long_title);
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), Error::InvalidConversationTitle(_)));
+    }
+
+    #[test]
+    fn test_title_max_length() {
+        let max_title = "a".repeat(255);
+        let title = ConversationTitle::new(max_title).unwrap();
+        assert_eq!(title.value.len(), 255);
+    }
+
+    #[test]
+    fn test_title_with_null_byte() {
+        let result = ConversationTitle::new("Invalid\x00Title".to_string());
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), Error::InvalidConversationTitle(_)));
+    }
+
+    #[test]
+    fn test_title_with_ansi_escape() {
+        let result = ConversationTitle::new("Invalid\x1b[31mTitle".to_string());
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), Error::InvalidConversationTitle(_)));
+    }
+
+    #[test]
+    fn test_title_with_control_character() {
+        let result = ConversationTitle::new("Invalid\x01Title".to_string());
+        assert!(result.is_err());
+        assert!(matches!(result.unwrap_err(), Error::InvalidConversationTitle(_)));
+    }
+
+    #[test]
+    fn test_title_with_allowed_whitespace() {
+        let title = ConversationTitle::new("  Valid Title  ".to_string()).unwrap();
+        assert_eq!(title.value, "Valid Title");
+    }
+
+    #[test]
+    fn test_title_with_tab() {
+        let title = ConversationTitle::new("Valid\tTitle".to_string()).unwrap();
+        assert_eq!(title.value, "Valid\tTitle");
+    }
+
+    #[test]
+    fn test_title_with_newline() {
+        let title = ConversationTitle::new("Valid\nTitle".to_string()).unwrap();
+        assert_eq!(title.value, "Valid\nTitle");
+    }
+
+    #[test]
+    fn test_title_with_carriage_return() {
+        let title = ConversationTitle::new("Valid\rTitle".to_string()).unwrap();
+        assert_eq!(title.value, "Valid\rTitle");
+    }
+}
+
 #[derive(Debug, Default, Display, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(transparent)]
 pub struct ConversationId(Uuid);
