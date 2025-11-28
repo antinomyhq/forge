@@ -714,6 +714,28 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.on_clone_conversation(conversation, porcelain).await?;
                 self.spinner.stop(None)?;
             }
+            ConversationCommand::Rename { id, new_title } => {
+                let conversation_id =
+                    ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
+
+                let conversation = self.validate_conversation_exists(&conversation_id).await?;
+
+                let final_title = match new_title {
+                    Some(title) => title,
+                    None => {
+                        let current = conversation.title.as_deref().unwrap_or("<untitled>");
+                        self.prompt_for_new_title(current).await?
+                    }
+                };
+
+                self.spinner.start(Some("Renaming"))?;
+                self.api.rename_conversation(&conversation_id, &final_title).await?;
+                self.spinner.stop(None)?;
+
+                self.writeln_title(TitleFormat::action(
+                    format!("Conversation renamed to '{}'", final_title)
+                ))?;
+            }
         }
 
         Ok(())
@@ -3085,5 +3107,24 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 let _ = crate::vscode::install_extension();
             }
         });
+    }
+
+    async fn prompt_for_new_title(&mut self, current_title: &str) -> Result<String> {
+        self.spinner.stop(None)?;
+        
+        let new_title = ForgeSelect::input(format!("Rename '{}' to:", current_title))
+            .with_default(current_title)
+            .prompt()?
+            .context("Rename cancelled")?;
+        
+        if new_title.trim().is_empty() {
+            anyhow::bail!("Title cannot be empty");
+        }
+        
+        if new_title == current_title {
+            anyhow::bail!("Title unchanged");
+        }
+        
+        Ok(new_title.trim().to_string())
     }
 }

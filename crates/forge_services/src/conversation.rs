@@ -60,4 +60,8 @@ impl<S: ConversationRepository> ConversationService for ForgeConversationService
     async fn last_conversation(&self) -> Result<Option<Conversation>> {
         self.conversation_repository.get_last_conversation().await
     }
+
+    async fn rename_conversation(&self, id: &ConversationId, new_title: &str) -> Result<()> {
+        self.conversation_repository.rename_conversation(id, new_title).await
+    }
 }

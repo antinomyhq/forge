@@ -542,6 +542,14 @@ pub enum ConversationCommand {
         #[arg(long)]
         porcelain: bool,
     },
+
+    /// Rename a conversation.
+    Rename {
+        /// Conversation ID to rename.
+        id: String,
+        /// New title for the conversation.
+        new_title: Option<String>,
+    },
 }
 
 /// Command group for provider authentication management.

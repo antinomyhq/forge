@@ -262,6 +262,18 @@ impl ConversationRepository for ConversationRepositoryImpl {
         };
         Ok(conversation)
     }
+
+    async fn rename_conversation(&self, conversation_id: &ConversationId, new_title: &str) -> anyhow::Result<()> {
+        // Get existing conversation to preserve other fields
+        let mut conversation = self.get_conversation(conversation_id).await?
+            .ok_or_else(|| anyhow::anyhow!("Conversation not found"))?;
+        
+        // Update title using domain validation
+        conversation.title = Some(new_title.to_string());
+        
+        // Use existing upsert method to update
+        self.upsert_conversation(conversation).await
+    }
 }
 
 #[cfg(test)]
