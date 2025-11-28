@@ -21,7 +21,6 @@ pub enum ProviderType {
     ContextEngine,
 }
 
-
 /// --- IMPORTANT ---
 /// The order of providers is important because that would be order in which the
 /// providers will be resolved
