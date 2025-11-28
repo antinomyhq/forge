@@ -71,7 +71,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
     fn get_headers_with_request(&self, request: &Request) -> Vec<(String, String)> {
         let mut headers = self.get_headers();
         // Add Session-Id header for zai and zai_coding providers
-        if (self.provider.id == ProviderId::Zai || self.provider.id == ProviderId::ZaiCoding)
+        if (self.provider.id == ProviderId::ZAI || self.provider.id == ProviderId::ZAI_CODING)
             && request.session_id.is_some()
         {
             headers.push((
@@ -125,7 +125,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
 
     async fn inner_models(&self) -> Result<Vec<forge_app::domain::Model>> {
         // For Vertex AI, load models from static JSON file using VertexProvider logic
-        if self.provider.id == ProviderId::VertexAi {
+        if self.provider.id == ProviderId::VERTEX_AI {
             debug!("Loading Vertex AI models from static JSON file");
             Ok(self.inner_vertex_models())
         } else {
@@ -239,10 +239,10 @@ mod tests {
 
     fn openai(key: &str) -> Provider<Url> {
         Provider {
-            id: ProviderId::OpenAI,
+            id: ProviderId::OPENAI,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
-            credential: make_credential(ProviderId::OpenAI, key),
+            credential: make_credential(ProviderId::OPENAI, key),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             models: forge_domain::Models::Url(
@@ -253,10 +253,10 @@ mod tests {
 
     fn zai(key: &str) -> Provider<Url> {
         Provider {
-            id: ProviderId::Zai,
+            id: ProviderId::ZAI,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.z.ai/api/paas/v4/chat/completions").unwrap(),
-            credential: make_credential(ProviderId::Zai, key),
+            credential: make_credential(ProviderId::ZAI, key),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             models: forge_domain::Models::Url(
@@ -267,10 +267,10 @@ mod tests {
 
     fn zai_coding(key: &str) -> Provider<Url> {
         Provider {
-            id: ProviderId::ZaiCoding,
+            id: ProviderId::ZAI_CODING,
             response: ProviderResponse::OpenAI,
             url: Url::parse("https://api.z.ai/api/coding/paas/v4/chat/completions").unwrap(),
-            credential: make_credential(ProviderId::ZaiCoding, key),
+            credential: make_credential(ProviderId::ZAI_CODING, key),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             models: forge_domain::Models::Url(
@@ -281,10 +281,10 @@ mod tests {
 
     fn anthropic(key: &str) -> Provider<Url> {
         Provider {
-            id: ProviderId::Anthropic,
+            id: ProviderId::ANTHROPIC,
             response: ProviderResponse::Anthropic,
             url: Url::parse("https://api.anthropic.com/v1/messages").unwrap(),
-            credential: make_credential(ProviderId::Anthropic, key),
+            credential: make_credential(ProviderId::ANTHROPIC, key),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             models: forge_domain::Models::Url(
@@ -343,10 +343,10 @@ mod tests {
 
     fn create_provider(base_url: &str) -> anyhow::Result<OpenAIProvider<MockHttpClient>> {
         let provider = Provider {
-            id: ProviderId::OpenAI,
+            id: ProviderId::OPENAI,
             response: ProviderResponse::OpenAI,
             url: reqwest::Url::parse(base_url)?,
-            credential: make_credential(ProviderId::OpenAI, "test-api-key"),
+            credential: make_credential(ProviderId::OPENAI, "test-api-key"),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             models: forge_domain::Models::Url(reqwest::Url::parse(base_url)?.join("models")?),
