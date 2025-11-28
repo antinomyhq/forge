@@ -223,7 +223,7 @@ mod tests {
         let services = Arc::new(TestServices { files, cwd, indexed, ..Default::default() });
         let agent = Agent::new(
             AgentId::new("test"),
-            ProviderId::Anthropic,
+            ProviderId::ANTHROPIC,
             ModelId::new("test-model"),
         );
         let changed_files = ChangedFiles::new(services.clone(), agent);

@@ -58,8 +58,12 @@ pub struct CliProvider(pub AnyProvider);
 
 impl Display for CliProvider {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // Dynamically calculate the maximum provider name width
-        let name_width = ProviderId::iter()
+        // Use fixed width for alignment
+        // Format: "✓ " + name_padded + " [" + domain + "]"
+        // Longest built-in provider display name is "AnthropicCompatible" (20 chars)
+        // But we use 19 to account for the space before "["
+        let name_width = ProviderId::built_in_providers()
+            .iter()
             .map(|id| id.to_string().len())
             .max()
             .unwrap_or(10);
@@ -841,13 +845,13 @@ mod tests {
         let agents = vec![
             Agent::new(
                 "test-agent",
-                ProviderId::Anthropic,
+                ProviderId::ANTHROPIC,
                 ModelId::new("claude-3-5-sonnet-20241022"),
             )
             .title("Test Agent".to_string()),
             Agent::new(
                 "another",
-                ProviderId::Anthropic,
+                ProviderId::ANTHROPIC,
                 ModelId::new("claude-3-5-sonnet-20241022"),
             )
             .title("Another Agent".to_string()),
@@ -886,7 +890,7 @@ mod tests {
         let agents = vec![
             Agent::new(
                 "test-agent",
-                ProviderId::Anthropic,
+                ProviderId::ANTHROPIC,
                 ModelId::new("claude-3-5-sonnet-20241022"),
             )
             .title("Test Agent".to_string()),
@@ -1021,7 +1025,7 @@ mod tests {
     #[test]
     fn test_cli_provider_display_minimal() {
         let fixture = AnyProvider::Url(Provider {
-            id: ProviderId::OpenAI,
+            id: ProviderId::OPENAI,
             provider_type: forge_domain::ProviderType::Llm,
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
@@ -1041,7 +1045,7 @@ mod tests {
     #[test]
     fn test_cli_provider_display_with_subdomain() {
         let fixture = AnyProvider::Url(Provider {
-            id: ProviderId::OpenRouter,
+            id: ProviderId::OPEN_ROUTER,
             provider_type: forge_domain::ProviderType::Llm,
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://openrouter.ai/api/v1/chat/completions").unwrap(),
@@ -1061,7 +1065,7 @@ mod tests {
     #[test]
     fn test_cli_provider_display_no_domain() {
         let fixture = AnyProvider::Url(Provider {
-            id: ProviderId::Forge,
+            id: ProviderId::FORGE,
             provider_type: forge_domain::ProviderType::Llm,
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse("http://localhost:8080/chat/completions").unwrap(),
@@ -1081,7 +1085,7 @@ mod tests {
     #[test]
     fn test_cli_provider_display_template() {
         let fixture = AnyProvider::Template(Provider {
-            id: ProviderId::Anthropic,
+            id: ProviderId::ANTHROPIC,
             provider_type: Default::default(),
             response: Some(ProviderResponse::Anthropic),
             url: Template::new("https://api.anthropic.com/v1/messages"),
@@ -1101,7 +1105,7 @@ mod tests {
     #[test]
     fn test_cli_provider_display_ip_address() {
         let fixture = AnyProvider::Url(Provider {
-            id: ProviderId::Forge,
+            id: ProviderId::FORGE,
             provider_type: forge_domain::ProviderType::Llm,
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse("http://192.168.1.1:8080/chat/completions").unwrap(),

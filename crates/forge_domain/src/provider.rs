@@ -1,9 +1,9 @@
+use std::borrow::Cow;
 use std::collections::HashMap;
 
-use derive_more::From;
+use derive_more::{AsRef, Deref, From};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use strum_macros::{Display, EnumIter, EnumString};
 use url::Url;
 
 use crate::{ApiKey, AuthCredential, AuthDetails, Model, Template};
@@ -25,41 +25,131 @@ pub enum ProviderType {
 /// providers will be resolved
 #[derive(
     Debug,
-    Copy,
     Clone,
     PartialEq,
     Eq,
     Hash,
-    Serialize,
-    Deserialize,
-    Display,
-    EnumString,
-    EnumIter,
     PartialOrd,
     Ord,
     JsonSchema,
+    AsRef,
+    Deref,
+    Serialize,
+    Deserialize,
 )]
-#[serde(rename_all = "snake_case")]
-pub enum ProviderId {
-    Forge,
-    #[serde(rename = "openai")]
-    OpenAI,
-    OpenRouter,
-    Requesty,
-    Zai,
-    ZaiCoding,
-    Cerebras,
-    Xai,
-    Anthropic,
-    ClaudeCode,
-    VertexAi,
-    BigModel,
-    Azure,
-    GithubCopilot,
-    #[serde(rename = "openai_compatible")]
-    OpenAICompatible,
-    AnthropicCompatible,
-    ForgeServices,
+#[schemars(with = "String")]
+#[serde(from = "String")]
+pub struct ProviderId(Cow<'static, str>);
+
+impl ProviderId {
+    // Built-in provider constants
+    pub const FORGE: ProviderId = ProviderId(Cow::Borrowed("forge"));
+    pub const OPENAI: ProviderId = ProviderId(Cow::Borrowed("openai"));
+    pub const OPEN_ROUTER: ProviderId = ProviderId(Cow::Borrowed("open_router"));
+    pub const REQUESTY: ProviderId = ProviderId(Cow::Borrowed("requesty"));
+    pub const ZAI: ProviderId = ProviderId(Cow::Borrowed("zai"));
+    pub const ZAI_CODING: ProviderId = ProviderId(Cow::Borrowed("zai_coding"));
+    pub const CEREBRAS: ProviderId = ProviderId(Cow::Borrowed("cerebras"));
+    pub const XAI: ProviderId = ProviderId(Cow::Borrowed("xai"));
+    pub const ANTHROPIC: ProviderId = ProviderId(Cow::Borrowed("anthropic"));
+    pub const CLAUDE_CODE: ProviderId = ProviderId(Cow::Borrowed("claude_code"));
+    pub const VERTEX_AI: ProviderId = ProviderId(Cow::Borrowed("vertex_ai"));
+    pub const BIG_MODEL: ProviderId = ProviderId(Cow::Borrowed("big_model"));
+    pub const AZURE: ProviderId = ProviderId(Cow::Borrowed("azure"));
+    pub const GITHUB_COPILOT: ProviderId = ProviderId(Cow::Borrowed("github_copilot"));
+    pub const OPENAI_COMPATIBLE: ProviderId = ProviderId(Cow::Borrowed("openai_compatible"));
+    pub const ANTHROPIC_COMPATIBLE: ProviderId = ProviderId(Cow::Borrowed("anthropic_compatible"));
+    pub const FORGE_SERVICES: ProviderId = ProviderId(Cow::Borrowed("forge_services"));
+
+    /// Returns all built-in provider IDs
+    ///
+    /// This includes all providers defined as constants in this implementation.
+    pub fn built_in_providers() -> &'static [ProviderId] {
+        &[
+            ProviderId::FORGE,
+            ProviderId::OPENAI,
+            ProviderId::OPEN_ROUTER,
+            ProviderId::REQUESTY,
+            ProviderId::ZAI,
+            ProviderId::ZAI_CODING,
+            ProviderId::CEREBRAS,
+            ProviderId::XAI,
+            ProviderId::ANTHROPIC,
+            ProviderId::CLAUDE_CODE,
+            ProviderId::VERTEX_AI,
+            ProviderId::BIG_MODEL,
+            ProviderId::AZURE,
+            ProviderId::GITHUB_COPILOT,
+            ProviderId::OPENAI_COMPATIBLE,
+            ProviderId::ANTHROPIC_COMPATIBLE,
+            ProviderId::FORGE_SERVICES,
+        ]
+    }
+
+    /// Returns the display name for UI (UpperCamelCase with special handling
+    /// for acronyms).
+    ///
+    /// This converts snake_case IDs to proper display names:
+    /// - "openai" -> "OpenAI"
+    /// - "open_router" -> "OpenRouter"
+    /// - "xai" -> "XAI"
+    fn display_name(&self) -> String {
+        // Special cases for known providers with acronyms
+        match self.0.as_ref() {
+            "openai" => "OpenAI".to_string(),
+            "xai" => "XAI".to_string(),
+            "zai" => "ZAI".to_string(),
+            "vertex_ai" => "VertexAI".to_string(),
+            "openai_compatible" => "OpenAICompatible".to_string(),
+            _ => {
+                // For other providers, use UpperCamelCase conversion
+                use convert_case::{Case, Casing};
+                self.0.to_case(Case::UpperCamel)
+            }
+        }
+    }
+}
+
+impl std::fmt::Display for ProviderId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.display_name())
+    }
+}
+
+impl std::str::FromStr for ProviderId {
+    type Err = std::convert::Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // Check if it's a built-in provider first
+        let provider = match s {
+            "forge" => ProviderId::FORGE,
+            "openai" => ProviderId::OPENAI,
+            "open_router" => ProviderId::OPEN_ROUTER,
+            "requesty" => ProviderId::REQUESTY,
+            "zai" => ProviderId::ZAI,
+            "zai_coding" => ProviderId::ZAI_CODING,
+            "cerebras" => ProviderId::CEREBRAS,
+            "xai" => ProviderId::XAI,
+            "anthropic" => ProviderId::ANTHROPIC,
+            "claude_code" => ProviderId::CLAUDE_CODE,
+            "vertex_ai" => ProviderId::VERTEX_AI,
+            "big_model" => ProviderId::BIG_MODEL,
+            "azure" => ProviderId::AZURE,
+            "github_copilot" => ProviderId::GITHUB_COPILOT,
+            "openai_compatible" => ProviderId::OPENAI_COMPATIBLE,
+            "anthropic_compatible" => ProviderId::ANTHROPIC_COMPATIBLE,
+            "forge_services" => ProviderId::FORGE_SERVICES,
+            // For custom providers, use Cow::Owned to avoid memory leaks
+            custom => ProviderId(Cow::Owned(custom.to_string())),
+        };
+        Ok(provider)
+    }
+}
+
+impl From<String> for ProviderId {
+    fn from(s: String) -> Self {
+        std::str::FromStr::from_str(&s).unwrap()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -134,8 +224,8 @@ impl AnyProvider {
 
     pub fn id(&self) -> ProviderId {
         match self {
-            AnyProvider::Url(p) => p.id,
-            AnyProvider::Template(p) => p.id,
+            AnyProvider::Url(p) => p.id.clone(),
+            AnyProvider::Template(p) => p.id.clone(),
         }
     }
 
@@ -196,13 +286,13 @@ mod test_helpers {
     /// Test helper for creating a ZAI provider
     pub(super) fn zai(key: &str) -> Provider<Url> {
         Provider {
-            id: ProviderId::Zai,
+            id: ProviderId::ZAI,
             provider_type: Default::default(),
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.z.ai/api/paas/v4/chat/completions").unwrap(),
             auth_methods: vec![crate::AuthMethod::ApiKey],
             url_params: vec![],
-            credential: make_credential(ProviderId::Zai, key),
+            credential: make_credential(ProviderId::ZAI, key),
             models: Some(ModelSource::Url(
                 Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
             )),
@@ -212,13 +302,13 @@ mod test_helpers {
     /// Test helper for creating a ZAI Coding provider
     pub(super) fn zai_coding(key: &str) -> Provider<Url> {
         Provider {
-            id: ProviderId::ZaiCoding,
+            id: ProviderId::ZAI_CODING,
             provider_type: Default::default(),
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.z.ai/api/coding/paas/v4/chat/completions").unwrap(),
             auth_methods: vec![crate::AuthMethod::ApiKey],
             url_params: vec![],
-            credential: make_credential(ProviderId::ZaiCoding, key),
+            credential: make_credential(ProviderId::ZAI_CODING, key),
             models: Some(ModelSource::Url(
                 Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
             )),
@@ -228,13 +318,13 @@ mod test_helpers {
     /// Test helper for creating an OpenAI provider
     pub(super) fn openai(key: &str) -> Provider<Url> {
         Provider {
-            id: ProviderId::OpenAI,
+            id: ProviderId::OPENAI,
             provider_type: Default::default(),
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             auth_methods: vec![crate::AuthMethod::ApiKey],
             url_params: vec![],
-            credential: make_credential(ProviderId::OpenAI, key),
+            credential: make_credential(ProviderId::OPENAI, key),
             models: Some(ModelSource::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             )),
@@ -244,13 +334,13 @@ mod test_helpers {
     /// Test helper for creating an XAI provider
     pub(super) fn xai(key: &str) -> Provider<Url> {
         Provider {
-            id: ProviderId::Xai,
+            id: ProviderId::XAI,
             provider_type: Default::default(),
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.x.ai/v1/chat/completions").unwrap(),
             auth_methods: vec![crate::AuthMethod::ApiKey],
             url_params: vec![],
-            credential: make_credential(ProviderId::Xai, key),
+            credential: make_credential(ProviderId::XAI, key),
             models: Some(ModelSource::Url(
                 Url::parse("https://api.x.ai/v1/models").unwrap(),
             )),
@@ -283,7 +373,7 @@ mod test_helpers {
             )
         };
         Provider {
-            id: ProviderId::VertexAi,
+            id: ProviderId::VERTEX_AI,
             provider_type: Default::default(),
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse(&chat_url).unwrap(),
@@ -292,7 +382,7 @@ mod test_helpers {
                 .iter()
                 .map(|&s| s.to_string().into())
                 .collect(),
-            credential: make_credential(ProviderId::VertexAi, key),
+            credential: make_credential(ProviderId::VERTEX_AI, key),
             models: Some(ModelSource::Url(Url::parse(&model_url).unwrap())),
         }
     }
@@ -314,7 +404,7 @@ mod test_helpers {
         );
 
         Provider {
-            id: ProviderId::Azure,
+            id: ProviderId::AZURE,
             provider_type: Default::default(),
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse(&chat_url).unwrap(),
@@ -323,7 +413,7 @@ mod test_helpers {
                 .iter()
                 .map(|&s| s.to_string().into())
                 .collect(),
-            credential: make_credential(ProviderId::Azure, key),
+            credential: make_credential(ProviderId::AZURE, key),
             models: Some(ModelSource::Url(Url::parse(&model_url).unwrap())),
         }
     }
@@ -340,16 +430,35 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_provider_id_display_name() {
+        assert_eq!(ProviderId::OPENAI.to_string(), "OpenAI");
+        assert_eq!(ProviderId::OPEN_ROUTER.to_string(), "OpenRouter");
+        assert_eq!(ProviderId::ZAI.to_string(), "ZAI");
+        assert_eq!(ProviderId::XAI.to_string(), "XAI");
+        assert_eq!(ProviderId::ANTHROPIC.to_string(), "Anthropic");
+        assert_eq!(ProviderId::GITHUB_COPILOT.to_string(), "GithubCopilot");
+        assert_eq!(ProviderId::VERTEX_AI.to_string(), "VertexAI");
+        assert_eq!(
+            ProviderId::OPENAI_COMPATIBLE.to_string(),
+            "OpenAICompatible"
+        );
+        assert_eq!(
+            ProviderId::ANTHROPIC_COMPATIBLE.to_string(),
+            "AnthropicCompatible"
+        );
+    }
+
+    #[test]
     fn test_xai() {
         let fixture = "test_key";
         let actual = xai(fixture);
         let expected = Provider {
-            id: ProviderId::Xai,
+            id: ProviderId::XAI,
             provider_type: Default::default(),
             response: Some(ProviderResponse::OpenAI),
             url: Url::from_str("https://api.x.ai/v1/chat/completions").unwrap(),
             credential: Some(AuthCredential {
-                id: ProviderId::Xai,
+                id: ProviderId::XAI,
                 auth_details: AuthDetails::ApiKey(ApiKey::from(fixture.to_string())),
                 url_params: HashMap::new(),
             }),
@@ -365,10 +474,10 @@ mod tests {
     #[test]
     fn test_is_xai_with_direct_comparison() {
         let fixture_xai = xai("key");
-        assert_eq!(fixture_xai.id, ProviderId::Xai);
+        assert_eq!(fixture_xai.id, ProviderId::XAI);
 
         let fixture_other = openai("key");
-        assert_ne!(fixture_other.id, ProviderId::Xai);
+        assert_ne!(fixture_other.id, ProviderId::XAI);
     }
 
     #[test]
@@ -442,7 +551,7 @@ mod tests {
         ));
         assert_eq!(actual_model, expected_model);
 
-        assert_eq!(fixture.id, ProviderId::Azure);
+        assert_eq!(fixture.id, ProviderId::AZURE);
         assert_eq!(fixture.response, Some(ProviderResponse::OpenAI));
     }
 

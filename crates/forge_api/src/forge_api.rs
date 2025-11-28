@@ -110,7 +110,7 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + AppConf
         Ok(providers
             .into_iter()
             .find(|p| p.id() == *id)
-            .ok_or_else(|| Error::provider_not_available(*id))?)
+            .ok_or_else(|| Error::provider_not_available(id.clone()))?)
     }
 
     async fn chat(

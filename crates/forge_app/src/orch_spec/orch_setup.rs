@@ -80,7 +80,7 @@ impl Default for TestContext {
                 max_search_result_bytes: 200,
                 stdout_max_line_length: 200, // 5 MB
                 auto_open_dump: false,
-                debug_requests: false,
+                debug_requests: None,
                 custom_history_path: None,
                 max_conversations: 100,
                 sem_search_limit: 100,
@@ -88,11 +88,13 @@ impl Default for TestContext {
                 max_image_size: 262144,
                 workspace_server_url: Url::parse("http://localhost:8080").unwrap(),
                 sync_batch_size: 10,
+                override_model: None,
+                override_provider: None,
             },
             title: Some("test-conversation".into()),
             agent: Agent::new(
                 AgentId::new("forge"),
-                ProviderId::Anthropic,
+                ProviderId::ANTHROPIC,
                 ModelId::new("claude-3-5-sonnet-20241022"),
             )
             .system_prompt(Template::new("You are Forge"))
