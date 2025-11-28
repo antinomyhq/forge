@@ -1685,9 +1685,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         self.spinner.stop(None)?;
 
         // Extract existing API key and URL params for prefilling
-        let existing_url_params = request
-            .existing_credential
-            .as_ref();
+        let existing_url_params = request.existing_credential.as_ref();
 
         // Collect URL parameters if required
         let url_params = request
