@@ -4,14 +4,15 @@ use std::collections::HashMap;
 use derive_more::{AsRef, Deref, From};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use strum_macros::Display;
 use url::Url;
 
 use crate::{ApiKey, AuthCredential, AuthDetails, Model, Template};
 
 /// Distinguishes between different categories of providers
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Display, Default)]
 #[serde(rename_all = "snake_case")]
-#[derive(Default)]
+#[strum(serialize_all = "snake_case")]
 pub enum ProviderType {
     /// LLM providers for chat completions (default for backward compatibility)
     #[default]
@@ -19,6 +20,7 @@ pub enum ProviderType {
     /// Context engine providers for code indexing and search
     ContextEngine,
 }
+
 
 /// --- IMPORTANT ---
 /// The order of providers is important because that would be order in which the
@@ -219,6 +221,13 @@ impl AnyProvider {
         match self {
             AnyProvider::Url(p) => p.is_configured(),
             AnyProvider::Template(p) => p.is_configured(),
+        }
+    }
+
+    pub fn provider_type(&self) -> &ProviderType {
+        match self {
+            AnyProvider::Url(p) => &p.provider_type,
+            AnyProvider::Template(t) => &t.provider_type,
         }
     }
 

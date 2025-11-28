@@ -144,11 +144,12 @@ function _forge_find_index() {
 }
 
 # Helper function to select a provider from the list
-# Usage: _forge_select_provider [filter_status] [current_provider]
+# Usage: _forge_select_provider [filter_status] [current_provider] [filter_type]
 # Returns: selected provider line (via stdout)
 function _forge_select_provider() {
     local filter_status="${1:-}"
     local current_provider="${2:-}"
+    local filter_type="${3:-}"
     local output
     output=$($_FORGE_BIN list provider --porcelain 2>/dev/null)
     
@@ -166,6 +167,15 @@ function _forge_select_provider() {
         fi
     fi
     
+    # Filter by type if specified (e.g., "llm" for LLM providers)
+    if [[ -n "$filter_type" ]]; then
+        output=$(echo "$output" | grep -i "$filter_type")
+        if [[ -z "$output" ]]; then
+            _forge_log error "No ${filter_type} providers found"
+            return 1
+        fi
+    fi
+    
     # Get current provider if not provided
     if [[ -z "$current_provider" ]]; then
         current_provider=$($_FORGE_BIN config get provider --porcelain 2>/dev/null)
@@ -174,7 +184,7 @@ function _forge_select_provider() {
     local fzf_args=(
         --delimiter="$_FORGE_DELIMITER"
         --prompt="Provider ❯ "
-        --with-nth=1,3..
+        --with-nth=1,3,5..
     )
     
     # Position cursor on current provider if available
@@ -527,11 +537,12 @@ function _forge_action_agent() {
     _forge_reset
 }
 
-# Action handler: Select provider# Action handler: Select provider
+# Action handler: Select provider
 function _forge_action_provider() {
     echo
     local selected
-    selected=$(_forge_select_provider)
+    # Filter to show only LLM providers
+    selected=$(_forge_select_provider "" "" "llm")
     
     if [[ -n "$selected" ]]; then
         # Extract the second field (provider ID) from the selected line
