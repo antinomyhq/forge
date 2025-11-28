@@ -29,19 +29,6 @@ impl<F: ProviderRepository + AppConfigRepository> ForgeAppConfigService<F> {
         self.infra.set_app_config(&config).await?;
         Ok(())
     }
-
-    /// Gets the first available provider from the provider registry.
-    async fn get_first_available_provider(&self) -> anyhow::Result<Provider<Url>> {
-        self.infra
-            .get_all_providers()
-            .await?
-            .into_iter()
-            .find_map(|p| match p {
-                forge_domain::AnyProvider::Url(provider) => Some(provider),
-                forge_domain::AnyProvider::Template(_) => None,
-            })
-            .ok_or_else(|| forge_app::Error::NoActiveProvider.into())
-    }
 }
 
 #[async_trait::async_trait]
@@ -50,12 +37,15 @@ impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
 {
     async fn get_default_provider(&self) -> anyhow::Result<Provider<Url>> {
         let app_config = self.infra.get_app_config().await?;
-        if let Some(provider_id) = app_config.provider {
-            return self.infra.get_provider(provider_id).await;
+        if let Some(provider_id) = app_config.provider
+            && let Ok(provider) = self.infra.get_provider(provider_id).await
+            && provider.is_configured()
+        {
+            return Ok(provider);
         }
 
-        // No active provider set, try to find the first available one
-        self.get_first_available_provider().await
+        // No default provider configured - return error to force explicit configuration
+        Err(forge_domain::Error::NoDefaultProvider.into())
     }
 
     async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
@@ -65,20 +55,35 @@ impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
         .await
     }
 
-    async fn get_default_model(&self, provider_id: &ProviderId) -> anyhow::Result<ModelId> {
-        if let Some(model_id) = self.infra.get_app_config().await?.model.get(provider_id) {
-            return Ok(model_id.clone());
-        }
+    async fn get_provider_model(
+        &self,
+        provider_id: Option<&ProviderId>,
+    ) -> anyhow::Result<ModelId> {
+        let config = self.infra.get_app_config().await?;
 
-        // No active model set for the active provider, throw an error
-        Err(forge_app::Error::NoActiveModel.into())
+        let provider_id = match provider_id {
+            Some(id) => id,
+            None => config
+                .provider
+                .as_ref()
+                .ok_or(forge_domain::Error::NoDefaultProvider)?,
+        };
+
+        Ok(config
+            .model
+            .get(provider_id)
+            .cloned()
+            .ok_or_else(|| forge_domain::Error::no_default_model(provider_id.clone()))?)
     }
 
-    async fn set_default_model(
-        &self,
-        model: ModelId,
-        provider_id: ProviderId,
-    ) -> anyhow::Result<()> {
+    async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()> {
+        let provider_id = self
+            .infra
+            .get_app_config()
+            .await?
+            .provider
+            .ok_or(forge_domain::Error::NoDefaultProvider)?;
+
         self.update(|config| {
             config.model.insert(provider_id, model.clone());
         })
@@ -92,7 +97,8 @@ mod tests {
     use std::sync::Mutex;
 
     use forge_domain::{
-        AnyProvider, AppConfig, Model, Models, Provider, ProviderId, ProviderResponse,
+        AnyProvider, AppConfig, MigrationResult, Model, Models, Provider, ProviderId,
+        ProviderResponse,
     };
     use pretty_assertions::assert_eq;
     use url::Url;
@@ -111,11 +117,11 @@ mod tests {
                 app_config: Arc::new(Mutex::new(AppConfig::default())),
                 providers: vec![
                     Provider {
-                        id: ProviderId::OpenAI,
+                        id: ProviderId::OPENAI,
                         response: ProviderResponse::OpenAI,
                         url: Url::parse("https://api.openai.com").unwrap(),
                         credential: Some(forge_domain::AuthCredential {
-                            id: ProviderId::OpenAI,
+                            id: ProviderId::OPENAI,
                             auth_details: forge_domain::AuthDetails::ApiKey(
                                 forge_domain::ApiKey::from("test-key".to_string()),
                             ),
@@ -134,13 +140,13 @@ mod tests {
                         }]),
                     },
                     Provider {
-                        id: ProviderId::Anthropic,
+                        id: ProviderId::ANTHROPIC,
                         response: ProviderResponse::Anthropic,
                         url: Url::parse("https://api.anthropic.com").unwrap(),
                         auth_methods: vec![forge_domain::AuthMethod::ApiKey],
                         url_params: vec![],
                         credential: Some(forge_domain::AuthCredential {
-                            id: ProviderId::Anthropic,
+                            id: ProviderId::ANTHROPIC,
                             auth_details: forge_domain::AuthDetails::ApiKey(
                                 forge_domain::ApiKey::from("test-key".to_string()),
                             ),
@@ -208,6 +214,10 @@ mod tests {
         async fn remove_credential(&self, _id: &ProviderId) -> anyhow::Result<()> {
             Ok(())
         }
+
+        async fn migrate_env_credentials(&self) -> anyhow::Result<Option<MigrationResult>> {
+            Ok(None)
+        }
     }
 
     #[tokio::test]
@@ -215,10 +225,9 @@ mod tests {
         let fixture = MockInfra::new();
         let service = ForgeAppConfigService::new(Arc::new(fixture));
 
-        let actual = service.get_default_provider().await?;
-        let expected = ProviderId::OpenAI;
+        let result = service.get_default_provider().await;
 
-        assert_eq!(actual.id, expected);
+        assert!(result.is_err());
         Ok(())
     }
 
@@ -227,11 +236,29 @@ mod tests {
         let fixture = MockInfra::new();
         let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
 
-        service.set_default_provider(ProviderId::Anthropic).await?;
+        service.set_default_provider(ProviderId::ANTHROPIC).await?;
         let actual = service.get_default_provider().await?;
-        let expected = ProviderId::Anthropic;
+        let expected = ProviderId::ANTHROPIC;
 
         assert_eq!(actual.id, expected);
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_default_provider_when_configured_provider_not_available() -> anyhow::Result<()>
+    {
+        let mut fixture = MockInfra::new();
+        // Remove OpenAI from available providers but keep it in config
+        fixture.providers.retain(|p| p.id != ProviderId::OPENAI);
+        let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
+
+        // Set OpenAI as the default provider in config
+        service.set_default_provider(ProviderId::OPENAI).await?;
+
+        // Should return error since configured provider is not available
+        let result = service.get_default_provider().await;
+
+        assert!(result.is_err());
         Ok(())
     }
 
@@ -240,11 +267,11 @@ mod tests {
         let fixture = MockInfra::new();
         let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
 
-        service.set_default_provider(ProviderId::Anthropic).await?;
+        service.set_default_provider(ProviderId::ANTHROPIC).await?;
 
         let config = fixture.get_app_config().await?;
         let actual = config.provider;
-        let expected = Some(ProviderId::Anthropic);
+        let expected = Some(ProviderId::ANTHROPIC);
 
         assert_eq!(actual, expected);
         Ok(())
@@ -255,7 +282,7 @@ mod tests {
         let fixture = MockInfra::new();
         let service = ForgeAppConfigService::new(Arc::new(fixture));
 
-        let result = service.get_default_model(&ProviderId::OpenAI).await;
+        let result = service.get_provider_model(Some(&ProviderId::OPENAI)).await;
 
         assert!(result.is_err());
         Ok(())
@@ -266,10 +293,14 @@ mod tests {
         let fixture = MockInfra::new();
         let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
 
+        // Set OpenAI as the default provider first
+        service.set_default_provider(ProviderId::OPENAI).await?;
         service
-            .set_default_model("gpt-4".to_string().into(), ProviderId::OpenAI)
+            .set_default_model("gpt-4".to_string().into())
             .await?;
-        let actual = service.get_default_model(&ProviderId::OpenAI).await?;
+        let actual = service
+            .get_provider_model(Some(&ProviderId::OPENAI))
+            .await?;
         let expected = "gpt-4".to_string().into();
 
         assert_eq!(actual, expected);
@@ -281,12 +312,14 @@ mod tests {
         let fixture = MockInfra::new();
         let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
 
+        // Set OpenAI as the default provider first
+        service.set_default_provider(ProviderId::OPENAI).await?;
         service
-            .set_default_model("gpt-4".to_string().into(), ProviderId::OpenAI)
+            .set_default_model("gpt-4".to_string().into())
             .await?;
 
         let config = fixture.get_app_config().await?;
-        let actual = config.model.get(&ProviderId::OpenAI).cloned();
+        let actual = config.model.get(&ProviderId::OPENAI).cloned();
         let expected = Some("gpt-4".to_string().into());
 
         assert_eq!(actual, expected);
@@ -298,60 +331,24 @@ mod tests {
         let fixture = MockInfra::new();
         let service = ForgeAppConfigService::new(Arc::new(fixture.clone()));
 
+        // Set models for different providers by switching active provider
+        service.set_default_provider(ProviderId::OPENAI).await?;
         service
-            .set_default_model("gpt-4".to_string().into(), ProviderId::OpenAI)
+            .set_default_model("gpt-4".to_string().into())
             .await?;
+
+        service.set_default_provider(ProviderId::ANTHROPIC).await?;
         service
-            .set_default_model("claude-3".to_string().into(), ProviderId::Anthropic)
+            .set_default_model("claude-3".to_string().into())
             .await?;
 
         let config = fixture.get_app_config().await?;
         let actual = config.model;
         let mut expected = HashMap::new();
-        expected.insert(ProviderId::OpenAI, "gpt-4".to_string().into());
-        expected.insert(ProviderId::Anthropic, "claude-3".to_string().into());
+        expected.insert(ProviderId::OPENAI, "gpt-4".to_string().into());
+        expected.insert(ProviderId::ANTHROPIC, "claude-3".to_string().into());
 
         assert_eq!(actual, expected);
-        Ok(())
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-    async fn test_get_first_available_provider_is_deterministic() -> anyhow::Result<()> {
-        // Setup mock with multiple providers
-        // Without sorting in the repository layer, the order from
-        // filter_map().collect() would be non-deterministic This test verifies
-        // that get_first_available_provider always returns the same provider
-
-        // Create multiple service instances to expose potential non-deterministic
-        // behavior Each instance will have a different provider order without
-        // sorting
-        let mut all_first_providers = std::collections::HashSet::new();
-
-        for _ in 0..100 {
-            let fixture = MockInfra::new();
-            let service = ForgeAppConfigService::new(Arc::new(fixture));
-            let first_provider = service.get_first_available_provider().await?;
-            all_first_providers.insert(first_provider.id);
-        }
-
-        // With sorting in the repository layer, we should always get the same provider
-        assert_eq!(
-            all_first_providers.len(),
-            1,
-            "get_first_available_provider should always return the same provider consistently across multiple service instances, got: {:?}",
-            all_first_providers
-        );
-
-        // Verify it's always OpenAI (first in ProviderId enum after Forge)
-        let fixture = MockInfra::new();
-        let service = ForgeAppConfigService::new(Arc::new(fixture));
-        let first_provider = service.get_first_available_provider().await?;
-        assert_eq!(
-            first_provider.id,
-            ProviderId::OpenAI,
-            "First provider should be OpenAI (first in ProviderId enum order after Forge)"
-        );
-
         Ok(())
     }
 }

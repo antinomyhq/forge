@@ -4,11 +4,11 @@ use std::time::Duration;
 use bytes::Bytes;
 use derive_setters::Setters;
 use forge_domain::{
-    Agent, AgentId, AnyProvider, Attachment, AuthContextRequest, AuthContextResponse,
-    AuthCredential, AuthMethod, ChatCompletionMessage, CommandOutput, Context, Conversation,
-    ConversationId, Environment, File, Image, InitAuth, LoginInfo, McpConfig, McpServers, Model,
-    ModelId, PatchOperation, Provider, ProviderId, ResultStream, Scope, Template, ToolCallFull,
-    ToolOutput, Workflow,
+    AgentId, AnyProvider, Attachment, AuthContextRequest, AuthContextResponse, AuthCredential,
+    AuthMethod, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
+    Environment, File, Image, InitAuth, LoginInfo, McpConfig, McpServers, Model, ModelId,
+    PatchOperation, Provider, ProviderId, ResultStream, Scope, Template, ToolCallFull, ToolOutput,
+    Workflow,
 };
 use merge::Merge;
 use reqwest::Response;
@@ -30,6 +30,7 @@ pub struct PatchOutput {
     pub warning: Option<String>,
     pub before: String,
     pub after: String,
+    pub content_hash: String,
 }
 
 #[derive(Debug, Setters)]
@@ -39,6 +40,7 @@ pub struct ReadOutput {
     pub start_line: u64,
     pub end_line: u64,
     pub total_lines: u64,
+    pub content_hash: String,
 }
 
 #[derive(Debug)]
@@ -95,6 +97,7 @@ pub struct FsCreateOutput {
     // Set when the file already exists
     pub before: Option<String>,
     pub warning: Option<String>,
+    pub content_hash: String,
 }
 
 #[derive(Debug)]
@@ -138,6 +141,12 @@ pub trait ProviderService: Send + Sync {
         credential: forge_domain::AuthCredential,
     ) -> anyhow::Result<()>;
     async fn remove_credential(&self, id: &forge_domain::ProviderId) -> anyhow::Result<()>;
+    /// Migrates environment variable-based credentials to file-based
+    /// credentials. Returns Some(MigrationResult) if credentials were migrated,
+    /// None if file already exists or no credentials to migrate.
+    async fn migrate_env_credentials(
+        &self,
+    ) -> anyhow::Result<Option<forge_domain::MigrationResult>>;
 }
 
 /// Manages user preferences for default providers and models.
@@ -153,18 +162,25 @@ pub trait AppConfigService: Send + Sync {
         provider_id: forge_domain::ProviderId,
     ) -> anyhow::Result<()>;
 
-    /// Gets the user's default model for a specific provider.
-    async fn get_default_model(
+    /// Gets the user's default model for a specific provider or the currently
+    /// active provider. When provider_id is None, uses the currently active
+    /// provider.
+    ///
+    /// # Errors
+    /// - Returns `Error::NoDefaultProvider` when no active provider is set and
+    ///   provider_id is None
+    /// - Returns `Error::NoDefaultModel` when no model is configured for the
+    ///   provider
+    async fn get_provider_model(
         &self,
-        provider_id: &forge_domain::ProviderId,
+        provider_id: Option<&forge_domain::ProviderId>,
     ) -> anyhow::Result<ModelId>;
 
-    /// Sets the user's default model for a specific provider.
-    async fn set_default_model(
-        &self,
-        model: ModelId,
-        provider_id: forge_domain::ProviderId,
-    ) -> anyhow::Result<()>;
+    /// Sets the user's default model for the currently active provider.
+    ///
+    /// # Errors
+    /// Returns an error if no default provider is configured.
+    async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -393,20 +409,20 @@ pub trait AuthService: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait AgentRegistry: Send + Sync {
-    /// Load all agent definitions from the forge/agent directory
-    async fn get_agents(&self) -> anyhow::Result<Vec<Agent>>;
-
-    /// Get agent by ID
-    async fn get_agent(&self, agent_id: &AgentId) -> anyhow::Result<Option<Agent>>;
-
-    /// Get the currently active agent
-    async fn get_active_agent(&self) -> anyhow::Result<Option<Agent>>;
-
     /// Get the active agent ID
     async fn get_active_agent_id(&self) -> anyhow::Result<Option<AgentId>>;
 
     /// Set the active agent ID
     async fn set_active_agent_id(&self, agent_id: AgentId) -> anyhow::Result<()>;
+
+    /// Get all agents from the registry store
+    async fn get_agents(&self) -> anyhow::Result<Vec<forge_domain::Agent>>;
+
+    /// Get agent by ID (from registry store)
+    async fn get_agent(&self, agent_id: &AgentId) -> anyhow::Result<Option<forge_domain::Agent>>;
+
+    /// Reload agents by invalidating the cache
+    async fn reload_agents(&self) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -424,6 +440,24 @@ pub trait PolicyService: Send + Sync {
         &self,
         operation: &forge_domain::PermissionOperation,
     ) -> anyhow::Result<PolicyDecision>;
+}
+
+/// Skill fetch service
+#[async_trait::async_trait]
+pub trait SkillFetchService: Send + Sync {
+    /// Fetches a skill by name
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the skill is not found or cannot be loaded
+    async fn fetch_skill(&self, skill_name: String) -> anyhow::Result<forge_domain::Skill>;
+
+    /// Lists all available skills
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if skills cannot be loaded
+    async fn list_skills(&self) -> anyhow::Result<Vec<forge_domain::Skill>>;
 }
 
 /// Provider authentication service
@@ -478,6 +512,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type CommandLoaderService: CommandLoaderService;
     type PolicyService: PolicyService;
     type ProviderAuthService: ProviderAuthService;
+    type SkillFetchService: SkillFetchService;
 
     fn provider_service(&self) -> &Self::ProviderService;
     fn config_service(&self) -> &Self::AppConfigService;
@@ -506,6 +541,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn command_loader_service(&self) -> &Self::CommandLoaderService;
     fn policy_service(&self) -> &Self::PolicyService;
     fn provider_auth_service(&self) -> &Self::ProviderAuthService;
+    fn skill_fetch_service(&self) -> &Self::SkillFetchService;
 }
 
 #[async_trait::async_trait]
@@ -571,6 +607,12 @@ impl<I: Services> ProviderService for I {
 
     async fn remove_credential(&self, id: &forge_domain::ProviderId) -> anyhow::Result<()> {
         self.provider_service().remove_credential(id).await
+    }
+
+    async fn migrate_env_credentials(
+        &self,
+    ) -> anyhow::Result<Option<forge_domain::MigrationResult>> {
+        self.provider_service().migrate_env_credentials().await
     }
 }
 
@@ -843,24 +885,24 @@ pub trait HttpClientService: Send + Sync + 'static {
 
 #[async_trait::async_trait]
 impl<I: Services> AgentRegistry for I {
-    async fn get_agents(&self) -> anyhow::Result<Vec<Agent>> {
-        self.agent_registry().get_agents().await
-    }
-
-    async fn get_agent(&self, agent_id: &AgentId) -> anyhow::Result<Option<Agent>> {
-        self.agent_registry().get_agent(agent_id).await
-    }
-
-    async fn get_active_agent(&self) -> anyhow::Result<Option<Agent>> {
-        self.agent_registry().get_active_agent().await
-    }
-
     async fn get_active_agent_id(&self) -> anyhow::Result<Option<AgentId>> {
         self.agent_registry().get_active_agent_id().await
     }
 
     async fn set_active_agent_id(&self, agent_id: AgentId) -> anyhow::Result<()> {
         self.agent_registry().set_active_agent_id(agent_id).await
+    }
+
+    async fn get_agents(&self) -> anyhow::Result<Vec<forge_domain::Agent>> {
+        self.agent_registry().get_agents().await
+    }
+
+    async fn get_agent(&self, agent_id: &AgentId) -> anyhow::Result<Option<forge_domain::Agent>> {
+        self.agent_registry().get_agent(agent_id).await
+    }
+
+    async fn reload_agents(&self) -> anyhow::Result<()> {
+        self.agent_registry().reload_agents().await
     }
 }
 
@@ -898,21 +940,26 @@ impl<I: Services> AppConfigService for I {
             .await
     }
 
-    async fn get_default_model(
+    async fn get_provider_model(
         &self,
-        provider_id: &forge_domain::ProviderId,
+        provider_id: Option<&forge_domain::ProviderId>,
     ) -> anyhow::Result<ModelId> {
-        self.config_service().get_default_model(provider_id).await
+        self.config_service().get_provider_model(provider_id).await
     }
 
-    async fn set_default_model(
-        &self,
-        model: ModelId,
-        provider_id: forge_domain::ProviderId,
-    ) -> anyhow::Result<()> {
-        self.config_service()
-            .set_default_model(model, provider_id)
-            .await
+    async fn set_default_model(&self, model: ModelId) -> anyhow::Result<()> {
+        self.config_service().set_default_model(model).await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> SkillFetchService for I {
+    async fn fetch_skill(&self, skill_name: String) -> anyhow::Result<forge_domain::Skill> {
+        self.skill_fetch_service().fetch_skill(skill_name).await
+    }
+
+    async fn list_skills(&self) -> anyhow::Result<Vec<forge_domain::Skill>> {
+        self.skill_fetch_service().list_skills().await
     }
 }
 

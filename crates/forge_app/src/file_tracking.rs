@@ -33,7 +33,7 @@ impl<F: FsReadService> FileChangeDetector<F> {
     /// Detects files that have changed since the last notification
     ///
     /// Compares current file hash with stored hash. Returns a list of file
-    /// changes.
+    /// changes sorted by path for deterministic ordering.
     ///
     /// # Arguments
     ///
@@ -70,11 +70,16 @@ impl<F: FsReadService> FileChangeDetector<F> {
             })
             .collect();
 
-        futures::future::join_all(futures)
+        let mut changes: Vec<FileChange> = futures::future::join_all(futures)
             .await
             .into_iter()
             .flatten()
-            .collect()
+            .collect();
+
+        // Sort by path for deterministic ordering
+        changes.sort_by(|a, b| a.path.cmp(&b.path));
+
+        changes
     }
 
     /// Reads file content using the FsReadService
@@ -141,6 +146,7 @@ mod tests {
                     start_line: 1,
                     end_line: 1,
                     total_lines: 1,
+                    content_hash: compute_hash(content),
                 })
             } else {
                 Err(anyhow::anyhow!(std::io::Error::from(

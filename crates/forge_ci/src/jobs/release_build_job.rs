@@ -37,7 +37,7 @@ impl From<ReleaseBuilderJob> for Job {
                     .contents(Level::Write)
                     .pull_requests(Level::Write),
             )
-            .add_step(Step::new("Checkout Code").uses("actions", "checkout", "v5"))
+            .add_step(Step::new("Checkout Code").uses("actions", "checkout", "v6"))
             // Install Rust with cross-compilation target
             .add_step(
                 Step::new("Setup Cross Toolchain")

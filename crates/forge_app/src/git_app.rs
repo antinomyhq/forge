@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use forge_domain::*;
+use forge_template::Element;
 
 use crate::{
     AgentProviderResolver, AgentRegistry, AppConfigService, EnvironmentService,
@@ -47,10 +48,8 @@ struct DiffContext {
     diff_content: String,
     branch_name: String,
     recent_commits: String,
-    was_truncated: bool,
-    max_diff_size: Option<usize>,
-    original_size: usize,
     has_staged_files: bool,
+    additional_context: Option<String>,
 }
 
 impl<S> GitApp<S> {
@@ -99,6 +98,8 @@ where
     ///   unlimited.
     /// * `diff` - Optional diff content provided via pipe. If provided, this
     ///   diff is used instead of fetching from git.
+    /// * `additional_context` - Optional additional text to help structure the
+    ///   commit message
     ///
     /// # Errors
     ///
@@ -107,9 +108,11 @@ where
         &self,
         max_diff_size: Option<usize>,
         diff: Option<String>,
+        additional_context: Option<String>,
     ) -> Result<CommitResult> {
-        let CommitMessageDetails { message, has_staged_files } =
-            self.generate_commit_message(max_diff_size, diff).await?;
+        let CommitMessageDetails { message, has_staged_files } = self
+            .generate_commit_message(max_diff_size, diff, additional_context)
+            .await?;
 
         Ok(CommitResult { message, committed: false, has_staged_files })
     }
@@ -149,6 +152,7 @@ where
         &self,
         max_diff_size: Option<usize>,
         diff: Option<String>,
+        additional_context: Option<String>,
     ) -> Result<CommitMessageDetails> {
         // Get current working directory
         let cwd = self.services.get_environment().cwd;
@@ -167,17 +171,14 @@ where
         };
 
         // Truncate diff if it exceeds max size
-        let (truncated_diff, was_truncated) =
-            self.truncate_diff(diff_content, max_diff_size, original_size);
+        let (truncated_diff, _) = self.truncate_diff(diff_content, max_diff_size, original_size);
 
         self.generate_message_from_diff(DiffContext {
             diff_content: truncated_diff,
             branch_name,
             recent_commits,
-            was_truncated,
-            max_diff_size,
-            original_size,
             has_staged_files,
+            additional_context,
         })
         .await
     }
@@ -250,27 +251,23 @@ where
             agent_provider_resolver.get_model(agent_id)
         )?;
 
-        // Create an context
-        let truncation_notice = if ctx.was_truncated {
-            format!(
-                "\n\n[Note: Diff truncated to {} bytes. Original size: {} bytes]",
-                ctx.max_diff_size.unwrap(),
-                ctx.original_size
-            )
-        } else {
-            String::new()
-        };
+        // Build git diff content with optional truncation notice
+        // Build user message using Element
+        let mut user_message = Element::new("user_message")
+            .append(Element::new("branch_name").text(&ctx.branch_name))
+            .append(Element::new("recent_commit_messages").text(&ctx.recent_commits))
+            .append(Element::new("git_diff").cdata(&ctx.diff_content));
+
+        // Add additional context if provided
+        if let Some(additional_context) = &ctx.additional_context {
+            user_message =
+                user_message.append(Element::new("additional_context").text(additional_context));
+        }
 
         let context = forge_domain::Context::default()
             .add_message(ContextMessage::system(rendered_prompt))
             .add_message(ContextMessage::user(
-                format!(
-                    "<branch_name>\n{}\n</branch_name>\n\n<recent_commit_messages>\n{}\n</recent_commit_messages>\n\n<git_diff>\n{}{}\n</git_diff>",
-                    ctx.branch_name,
-                    ctx.recent_commits,
-                    ctx.diff_content,
-                    truncation_notice
-                ),
+                user_message.to_string(),
                 Some(model.clone()),
             ));
 

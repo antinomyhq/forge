@@ -4,8 +4,8 @@ use anyhow::Result;
 use url::Url;
 
 use crate::{
-    AnyProvider, AppConfig, AuthCredential, Conversation, ConversationId, Provider, ProviderId,
-    Snapshot,
+    AnyProvider, AppConfig, AuthCredential, Conversation, ConversationId, MigrationResult,
+    Provider, ProviderId, Skill, Snapshot,
 };
 
 /// Repository for managing file snapshots
@@ -92,4 +92,18 @@ pub trait ProviderRepository: Send + Sync {
     async fn upsert_credential(&self, credential: AuthCredential) -> anyhow::Result<()>;
     async fn get_credential(&self, id: &ProviderId) -> anyhow::Result<Option<AuthCredential>>;
     async fn remove_credential(&self, id: &ProviderId) -> anyhow::Result<()>;
+    async fn migrate_env_credentials(&self) -> anyhow::Result<Option<MigrationResult>>;
+}
+
+/// Repository for managing skills
+///
+/// This repository provides operations for loading and managing skills from
+/// markdown files.
+#[async_trait::async_trait]
+pub trait SkillRepository: Send + Sync {
+    /// Loads all available skills from the skills directory
+    ///
+    /// # Errors
+    /// Returns an error if skill loading fails
+    async fn load_skills(&self) -> Result<Vec<Skill>>;
 }

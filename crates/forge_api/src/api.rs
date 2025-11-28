@@ -38,6 +38,7 @@ pub trait API: Sync + Send {
         preview: bool,
         max_diff_size: Option<usize>,
         diff: Option<String>,
+        additional_context: Option<String>,
     ) -> Result<forge_app::CommitResult>;
 
     /// Returns the current environment
@@ -151,17 +152,16 @@ pub trait API: Sync + Send {
     async fn get_default_model(&self) -> Option<ModelId>;
 
     /// Sets the operating model
-    async fn set_default_model(
-        &self,
-        agent_id: Option<AgentId>,
-        model_id: ModelId,
-    ) -> anyhow::Result<()>;
+    async fn set_default_model(&self, model_id: ModelId) -> anyhow::Result<()>;
 
     /// Refresh MCP caches by fetching fresh data
     async fn reload_mcp(&self) -> Result<()>;
 
     /// List of commands defined in .md file(s)
     async fn get_commands(&self) -> Result<Vec<Command>>;
+
+    /// List of available skills
+    async fn get_skills(&self) -> Result<Vec<Skill>>;
 
     /// Generate a shell command from natural language prompt
     async fn generate_command(&self, prompt: UserPrompt) -> Result<String>;
@@ -183,4 +183,9 @@ pub trait API: Sync + Send {
 
     /// Remove provider credentials (logout)
     async fn remove_provider(&self, provider_id: &ProviderId) -> Result<()>;
+
+    /// Migrate environment variable-based credentials to file-based
+    /// credentials. This is a one-time migration that runs only if the
+    /// credentials file doesn't exist.
+    async fn migrate_env_credentials(&self) -> Result<Option<forge_domain::MigrationResult>>;
 }

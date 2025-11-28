@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::hash::Hash;
 use std::path::{Path, PathBuf};
 
@@ -27,6 +28,7 @@ use crate::{WalkedFile, Walker};
 pub trait EnvironmentInfra: Send + Sync {
     fn get_environment(&self) -> Environment;
     fn get_env_var(&self, key: &str) -> Option<String>;
+    fn get_env_vars(&self) -> BTreeMap<String, String>;
 }
 
 /// Repository for accessing system environment information
@@ -171,7 +173,11 @@ pub trait McpClientInfra: Clone + Send + Sync + 'static {
 #[async_trait::async_trait]
 pub trait McpServerInfra: Send + Sync + 'static {
     type Client: McpClientInfra;
-    async fn connect(&self, config: McpServerConfig) -> anyhow::Result<Self::Client>;
+    async fn connect(
+        &self,
+        config: McpServerConfig,
+        env_vars: &BTreeMap<String, String>,
+    ) -> anyhow::Result<Self::Client>;
 }
 /// Service for walking filesystem directories
 #[async_trait::async_trait]
@@ -320,4 +326,25 @@ pub trait StrategyFactory: Send + Sync {
         auth_method: forge_domain::AuthMethod,
         required_params: Vec<forge_domain::URLParam>,
     ) -> anyhow::Result<Self::Strategy>;
+}
+
+/// Repository for loading agent definitions from multiple sources.
+///
+/// This trait provides access to agent definitions from:
+/// 1. Built-in agents (embedded in the application)
+/// 2. Global custom agents (from ~/.forge/agents/ directory)
+/// 3. Project-local agents (from .forge/agents/ directory in current working
+///    directory)
+///
+/// ## Agent Precedence
+/// When agents have duplicate IDs across different sources, the precedence
+/// order is: **CWD (project-local) > Global custom > Built-in**
+///
+/// This means project-local agents can override global agents, and both can
+/// override built-in agents.
+#[async_trait::async_trait]
+pub trait AgentRepository: Send + Sync {
+    /// Load all agent definitions from all available sources with conflict
+    /// resolution.
+    async fn get_agents(&self) -> anyhow::Result<Vec<forge_domain::AgentDefinition>>;
 }

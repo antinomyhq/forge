@@ -6,7 +6,7 @@ use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::{HttpConfig, RetryConfig};
+use crate::{HttpConfig, ModelId, ProviderId, RetryConfig};
 
 const VERSION: &str = match option_env!("APP_VERSION") {
     Some(val) => val,
@@ -61,15 +61,24 @@ pub struct Environment {
     /// Whether to automatically open HTML dump files in the browser.
     /// Controlled by FORGE_DUMP_AUTO_OPEN environment variable.
     pub auto_open_dump: bool,
-    /// Whether to write debug request files to .forge directory.
+    /// Path where debug request files should be written.
     /// Controlled by FORGE_DEBUG_REQUESTS environment variable.
-    pub debug_requests: bool,
+    pub debug_requests: Option<PathBuf>,
     /// Custom history file path from FORGE_HISTORY_FILE environment variable.
     /// If None, uses the default history path.
     pub custom_history_path: Option<PathBuf>,
     /// Maximum number of conversations to show in list.
     /// Controlled by FORGE_MAX_CONVERSATIONS environment variable.
     pub max_conversations: usize,
+    /// Override model for all providers from FORGE_OVERRIDE_MODEL environment
+    /// variable. If set, this model will be used instead of configured
+    /// models.
+    #[dummy(default)]
+    pub override_model: Option<ModelId>,
+    /// Override provider from FORGE_OVERRIDE_PROVIDER environment variable.
+    /// If set, this provider will be used as default.
+    #[dummy(default)]
+    pub override_provider: Option<ProviderId>,
 }
 
 impl Environment {
@@ -131,6 +140,16 @@ impl Environment {
         self.base_path.join("cache")
     }
 
+    /// Returns the global skills directory path (~/forge/skills)
+    pub fn global_skills_path(&self) -> PathBuf {
+        self.base_path.join("skills")
+    }
+
+    /// Returns the project-local skills directory path (.forge/skills)
+    pub fn local_skills_path(&self) -> PathBuf {
+        self.cwd.join(".forge/skills")
+    }
+
     pub fn workspace_id(&self) -> WorkspaceId {
         let mut hasher = DefaultHasher::default();
         self.cwd.hash(&mut hasher);
@@ -190,6 +209,51 @@ mod tests {
         // Verify they are different paths
         assert_ne!(agent_path, agent_cwd_path);
     }
+
+    #[test]
+    fn test_global_skills_path() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture.base_path(PathBuf::from("/home/user/.forge"));
+
+        let actual = fixture.global_skills_path();
+        let expected = PathBuf::from("/home/user/.forge/skills");
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_local_skills_path() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture.cwd(PathBuf::from("/projects/my-app"));
+
+        let actual = fixture.local_skills_path();
+        let expected = PathBuf::from("/projects/my-app/.forge/skills");
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_skills_paths_independent() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture
+            .cwd(PathBuf::from("/projects/my-app"))
+            .base_path(PathBuf::from("/home/user/.forge"));
+
+        let global_path = fixture.global_skills_path();
+        let local_path = fixture.local_skills_path();
+
+        let expected_global = PathBuf::from("/home/user/.forge/skills");
+        let expected_local = PathBuf::from("/projects/my-app/.forge/skills");
+
+        // Verify global path uses base_path
+        assert_eq!(global_path, expected_global);
+
+        // Verify local path uses cwd
+        assert_eq!(local_path, expected_local);
+
+        // Verify they are different paths
+        assert_ne!(global_path, local_path);
+    }
 }
 
 #[test]
@@ -214,10 +278,12 @@ fn test_command_path() {
         max_file_size: 104857600,
         tool_timeout: 300,
         auto_open_dump: false,
-        debug_requests: false,
+        debug_requests: None,
         custom_history_path: None,
         max_conversations: 100,
         max_image_size: 262144,
+        override_model: None,
+        override_provider: None,
     };
 
     let actual = fixture.command_path();
@@ -248,10 +314,12 @@ fn test_command_cwd_path() {
         max_file_size: 104857600,
         tool_timeout: 300,
         auto_open_dump: false,
-        debug_requests: false,
+        debug_requests: None,
         custom_history_path: None,
         max_conversations: 100,
         max_image_size: 262144,
+        override_model: None,
+        override_provider: None,
     };
 
     let actual = fixture.command_cwd_path();
@@ -282,10 +350,12 @@ fn test_command_cwd_path_independent_from_command_path() {
         max_file_size: 104857600,
         tool_timeout: 300,
         auto_open_dump: false,
-        debug_requests: false,
+        debug_requests: None,
         custom_history_path: None,
         max_conversations: 100,
         max_image_size: 262144,
+        override_model: None,
+        override_provider: None,
     };
 
     let command_path = fixture.command_path();

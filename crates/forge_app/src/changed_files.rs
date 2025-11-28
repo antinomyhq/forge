@@ -65,10 +65,9 @@ impl<S: FsReadService + EnvironmentService> ChangedFiles<S> {
 
         let context = conversation.context.take().unwrap_or_default();
 
-        let mut message = TextMessage::new(Role::User, notification).droppable(true);
-        if let Some(model) = self.agent.model.clone() {
-            message = message.model(model);
-        }
+        let message = TextMessage::new(Role::User, notification)
+            .droppable(true)
+            .model(self.agent.model.clone());
 
         conversation = conversation.context(context.add_message(ContextMessage::from(message)));
 
@@ -83,13 +82,13 @@ mod tests {
 
     use forge_domain::{
         Agent, AgentId, Context, Conversation, ConversationId, Environment, FileOperation, Metrics,
-        ModelId, ToolKind,
+        ModelId, ProviderId, ToolKind,
     };
     use pretty_assertions::assert_eq;
 
     use super::*;
     use crate::services::Content;
-    use crate::{EnvironmentService, FsReadService, ReadOutput};
+    use crate::{EnvironmentService, FsReadService, ReadOutput, compute_hash};
 
     #[derive(Clone, Default)]
     struct TestServices {
@@ -107,11 +106,15 @@ mod tests {
         ) -> anyhow::Result<ReadOutput> {
             self.files
                 .get(&path)
-                .map(|content| ReadOutput {
-                    content: Content::File(content.clone()),
-                    start_line: 1,
-                    end_line: 1,
-                    total_lines: 1,
+                .map(|content| {
+                    let hash = compute_hash(content);
+                    ReadOutput {
+                        content: Content::file(content.clone()),
+                        start_line: 1,
+                        end_line: 1,
+                        total_lines: 1,
+                        content_hash: hash,
+                    }
                 })
                 .ok_or_else(|| anyhow::anyhow!(std::io::Error::from(std::io::ErrorKind::NotFound)))
         }
@@ -123,6 +126,9 @@ mod tests {
             let mut env: Environment = Faker.fake();
             if let Some(cwd) = &self.cwd {
                 env.cwd = cwd.clone();
+            } else {
+                // Use a deterministic cwd that won't match any test paths
+                env.cwd = PathBuf::from("/deterministic/test/cwd");
             }
             env
         }
@@ -141,7 +147,11 @@ mod tests {
         cwd: Option<PathBuf>,
     ) -> (ChangedFiles<TestServices>, Conversation) {
         let services = Arc::new(TestServices { files, cwd });
-        let agent = Agent::new(AgentId::new("test")).model(ModelId::new("test-model"));
+        let agent = Agent::new(
+            AgentId::new("test"),
+            ProviderId::ANTHROPIC,
+            ModelId::new("test-model"),
+        );
         let changed_files = ChangedFiles::new(services, agent);
 
         let mut metrics = Metrics::default();
@@ -239,8 +249,8 @@ mod tests {
             .content()
             .unwrap()
             .to_string();
-        assert!(message.contains("/test/file1.txt"));
-        assert!(message.contains("/test/file2.txt"));
+
+        insta::assert_snapshot!(message);
     }
 
     #[tokio::test]

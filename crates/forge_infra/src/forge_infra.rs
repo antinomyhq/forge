@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::ExitStatus;
 use std::sync::Arc;
@@ -57,15 +58,18 @@ impl ForgeInfra {
 
         let file_write_service = Arc::new(ForgeFileWriteService::new());
         let http_service = Arc::new(ForgeHttpInfra::new(env.clone(), file_write_service.clone()));
+        let file_read_service = Arc::new(ForgeFileReadService::new());
+        let file_meta_service = Arc::new(ForgeFileMetaService);
+        let directory_reader_service = Arc::new(ForgeDirectoryReaderService);
 
         Self {
-            file_read_service: Arc::new(ForgeFileReadService::new()),
+            file_read_service,
             file_write_service,
             file_remove_service: Arc::new(ForgeFileRemoveService::new()),
             environment_service,
-            file_meta_service: Arc::new(ForgeFileMetaService),
+            file_meta_service,
             create_dirs_service: Arc::new(ForgeCreateDirsService),
-            directory_reader_service: Arc::new(ForgeDirectoryReaderService),
+            directory_reader_service,
             command_executor_service: Arc::new(ForgeCommandExecutorService::new(
                 restricted,
                 env.clone(),
@@ -86,6 +90,10 @@ impl EnvironmentInfra for ForgeInfra {
 
     fn get_env_var(&self, key: &str) -> Option<String> {
         self.environment_service.get_env_var(key)
+    }
+
+    fn get_env_vars(&self) -> BTreeMap<String, String> {
+        self.environment_service.get_env_vars()
     }
 }
 
@@ -209,8 +217,12 @@ impl UserInfra for ForgeInfra {
 impl McpServerInfra for ForgeInfra {
     type Client = ForgeMcpClient;
 
-    async fn connect(&self, config: McpServerConfig) -> anyhow::Result<Self::Client> {
-        self.mcp_server.connect(config).await
+    async fn connect(
+        &self,
+        config: McpServerConfig,
+        env_vars: &BTreeMap<String, String>,
+    ) -> anyhow::Result<Self::Client> {
+        self.mcp_server.connect(config, env_vars).await
     }
 }
 

@@ -47,7 +47,7 @@ where
 
         // Get required services and data
         let provider = self.services.get_default_provider().await?;
-        let model = self.services.get_default_model(&provider.id).await?;
+        let model = self.services.get_provider_model(Some(&provider.id)).await?;
 
         // Build user prompt with task and recent commands
         let user_content = format!("<task>{}</task>", prompt.as_str());
@@ -159,14 +159,14 @@ mod tests {
 
         async fn get_provider(&self, _id: ProviderId) -> Result<Provider<Url>> {
             Ok(Provider {
-                id: ProviderId::OpenAI,
+                id: ProviderId::OPENAI,
                 response: ProviderResponse::OpenAI,
                 url: Url::parse("https://api.test.com").unwrap(),
                 models: Models::Url(Url::parse("https://api.test.com/models").unwrap()),
                 auth_methods: vec![AuthMethod::ApiKey],
                 url_params: vec![],
                 credential: Some(AuthCredential {
-                    id: ProviderId::OpenAI,
+                    id: ProviderId::OPENAI,
                     auth_details: AuthDetails::ApiKey("test-key".to_string().into()),
                     url_params: Default::default(),
                 }),
@@ -184,23 +184,30 @@ mod tests {
         async fn remove_credential(&self, _id: &ProviderId) -> Result<()> {
             Ok(())
         }
+
+        async fn migrate_env_credentials(&self) -> anyhow::Result<Option<MigrationResult>> {
+            Ok(None)
+        }
     }
 
     #[async_trait::async_trait]
     impl AppConfigService for MockServices {
         async fn get_default_provider(&self) -> Result<Provider<Url>> {
-            self.get_provider(ProviderId::OpenAI).await
+            self.get_provider(ProviderId::OPENAI).await
         }
 
         async fn set_default_provider(&self, _provider_id: ProviderId) -> Result<()> {
             Ok(())
         }
 
-        async fn get_default_model(&self, _provider_id: &ProviderId) -> Result<ModelId> {
+        async fn get_provider_model(
+            &self,
+            _provider_id: Option<&ProviderId>,
+        ) -> anyhow::Result<ModelId> {
             Ok(ModelId::new("test-model"))
         }
 
-        async fn set_default_model(&self, _model: ModelId, _provider_id: ProviderId) -> Result<()> {
+        async fn set_default_model(&self, _model: ModelId) -> Result<()> {
             Ok(())
         }
     }

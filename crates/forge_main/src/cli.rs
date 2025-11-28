@@ -1,14 +1,14 @@
+//! NOTE: Always use singular names for commands and subcommands.
+//! For example: `forge provider login` instead of `forge providers login`.
+//!
+//! NOTE: With every change to this CLI structure, verify that the ZSH plugin
+//! remains compatible. The plugin at `shell-plugin/forge.plugin.zsh` implements
+//! shell completion and command shortcuts that depend on the CLI structure.
+
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
 use forge_domain::{AgentId, ProviderId};
-
-/// NOTE: Always use singular names for commands and subcommands.
-/// For example: `forge provider login` instead of `forge providers login`.
-///
-/// NOTE: With every change to this CLI structure, verify that the ZSH plugin
-/// remains compatible. The plugin at `shell-plugin/forge.plugin.zsh` implements
-/// shell completion and command shortcuts that depend on the CLI structure.
 
 #[derive(Parser)]
 #[command(version = env!("CARGO_PKG_VERSION"))]
@@ -20,6 +20,14 @@ pub struct Cli {
     /// forge`.
     #[arg(long, short = 'p')]
     pub prompt: Option<String>,
+
+    /// Piped input from stdin (populated internally)
+    ///
+    /// This field is automatically populated when content is piped to forge
+    /// via stdin. It's kept separate from the prompt to allow proper handling
+    /// as a droppable message.
+    #[arg(skip)]
+    pub piped_input: Option<String>,
 
     /// Path to a JSON file containing the conversation to execute.
     #[arg(long)]
@@ -70,15 +78,18 @@ pub struct Cli {
 impl Cli {
     /// Determines whether the CLI should start in interactive mode.
     ///
-    /// Returns true when no prompt or subcommand is provided, indicating
-    /// the user wants to enter interactive mode.
+    /// Returns true when no prompt, piped input, or subcommand is provided,
+    /// indicating the user wants to enter interactive mode.
     pub fn is_interactive(&self) -> bool {
-        self.prompt.is_none() && self.subcommands.is_none()
+        self.prompt.is_none() && self.piped_input.is_none() && self.subcommands.is_none()
     }
 }
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum TopLevelCommand {
+    /// Manage agents.
+    Agent(AgentCommandGroup),
+
     /// Generate shell extension scripts.
     #[command(hide = true)]
     Extension(ExtensionCommandGroup),
@@ -154,6 +165,25 @@ pub enum CmdCommand {
     Execute(Vec<String>),
 }
 
+/// Command group for agent management.
+#[derive(Parser, Debug, Clone)]
+pub struct AgentCommandGroup {
+    #[command(subcommand)]
+    pub command: AgentCommand,
+
+    /// Output in machine-readable format.
+    #[arg(long, global = true)]
+    pub porcelain: bool,
+}
+
+/// Agent management commands.
+#[derive(Subcommand, Debug, Clone)]
+pub enum AgentCommand {
+    /// List available agents.
+    #[command(alias = "ls")]
+    List,
+}
+
 /// Command group for listing resources.
 #[derive(Parser, Debug, Clone)]
 pub struct ListCommandGroup {
@@ -205,6 +235,10 @@ pub enum ListCommand {
     /// List custom commands.
     #[command(alias = "cmds")]
     Cmd,
+
+    /// List available skills.
+    #[command(alias = "skills")]
+    Skill,
 }
 
 /// Command group for generating shell extensions.
@@ -458,12 +492,12 @@ pub struct CommitCommandGroup {
     #[arg(long)]
     pub preview: bool,
 
-    /// Maximum git diff size in bytes (unlimited by default)
+    /// Maximum git diff size in bytes (default: 100k)
     ///
     /// Limits the size of the git diff sent to the AI model. Large diffs are
-    /// truncated to save tokens and reduce API costs. Omit for unlimited size.
-    /// Minimum value is 5000 bytes.
-    #[arg(long = "max-diff", value_parser = clap::builder::RangedI64ValueParser::<usize>::new().range(5000..))]
+    /// truncated to save tokens and reduce API costs. Minimum value is 5000
+    /// bytes.
+    #[arg(long = "max-diff", default_value = "100000", value_parser = clap::builder::RangedI64ValueParser::<usize>::new().range(5000..))]
     pub max_diff_size: Option<usize>,
 
     /// Git diff content (used internally for piped input)
@@ -473,6 +507,13 @@ pub struct CommitCommandGroup {
     /// diff content: `git diff | forge commit --preview`
     #[arg(skip)]
     pub diff: Option<String>,
+
+    /// Additional text to customize the commit message
+    ///
+    /// Provide additional context or instructions for the AI to use when
+    /// generating the commit message. Multiple words can be provided without
+    /// quotes: `forge commit fix typo in readme`
+    pub text: Vec<String>,
 }
 
 #[cfg(test)]
@@ -481,6 +522,28 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
+
+    #[test]
+    fn test_commit_default_max_diff_size() {
+        let fixture = Cli::parse_from(["forge", "commit", "--preview"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Commit(commit)) => commit.max_diff_size,
+            _ => panic!("Expected Commit command"),
+        };
+        let expected = Some(100000);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_commit_custom_max_diff_size() {
+        let fixture = Cli::parse_from(["forge", "commit", "--preview", "--max-diff", "50000"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Commit(commit)) => commit.max_diff_size,
+            _ => panic!("Expected Commit command"),
+        };
+        let expected = Some(50000);
+        assert_eq!(actual, expected);
+    }
 
     #[test]
     fn test_config_set_with_model() {
@@ -956,6 +1019,90 @@ mod tests {
     fn test_is_interactive_without_flags() {
         let fixture = Cli::parse_from(["forge"]);
         let actual = fixture.is_interactive();
+        let expected = true;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_commit_with_custom_text() {
+        let fixture = Cli::parse_from(["forge", "commit", "fix", "typo", "in", "readme"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Commit(commit)) => commit.text,
+            _ => panic!("Expected Commit command"),
+        };
+        let expected = ["fix", "typo", "in", "readme"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect::<Vec<String>>();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_commit_without_custom_text() {
+        let fixture = Cli::parse_from(["forge", "commit", "--preview"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Commit(commit)) => commit.text,
+            _ => panic!("Expected Commit command"),
+        };
+        let expected: Vec<String> = vec![];
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_commit_with_text_and_flags() {
+        let fixture = Cli::parse_from([
+            "forge",
+            "commit",
+            "--preview",
+            "--max-diff",
+            "50000",
+            "update",
+            "docs",
+        ]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Commit(commit)) => {
+                (commit.preview, commit.max_diff_size, commit.text)
+            }
+            _ => panic!("Expected Commit command"),
+        };
+        let expected = (
+            true,
+            Some(50000),
+            ["update", "docs"]
+                .iter()
+                .map(|s| s.to_string())
+                .collect::<Vec<String>>(),
+        );
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_list_skill_command() {
+        let fixture = Cli::parse_from(["forge", "list", "skill"]);
+        let is_skill_list = match fixture.subcommands {
+            Some(TopLevelCommand::List(list)) => matches!(list.command, ListCommand::Skill),
+            _ => false,
+        };
+        assert_eq!(is_skill_list, true);
+    }
+
+    #[test]
+    fn test_list_skills_alias_command() {
+        let fixture = Cli::parse_from(["forge", "list", "skills"]);
+        let is_skill_list = match fixture.subcommands {
+            Some(TopLevelCommand::List(list)) => matches!(list.command, ListCommand::Skill),
+            _ => false,
+        };
+        assert_eq!(is_skill_list, true);
+    }
+
+    #[test]
+    fn test_list_skill_with_porcelain() {
+        let fixture = Cli::parse_from(["forge", "list", "skill", "--porcelain"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::List(list)) => list.porcelain,
+            _ => false,
+        };
         let expected = true;
         assert_eq!(actual, expected);
     }

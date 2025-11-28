@@ -40,7 +40,7 @@ impl AuthStrategy for ApiKeyStrategy {
     ) -> anyhow::Result<AuthCredential> {
         match context_response {
             AuthContextResponse::ApiKey(ctx) => Ok(AuthCredential::new_api_key(
-                self.provider_id,
+                self.provider_id.clone(),
                 ctx.response.api_key,
             )
             .url_params(ctx.response.url_params)),
@@ -74,7 +74,7 @@ impl<T: OAuthHttpProvider> AuthStrategy for OAuthCodeStrategy<T> {
             .adapter
             .build_auth_url(&self.config)
             .await
-            .map_err(|e| AuthError::InitiationFailed(format!("Failed to build auth URL: {}", e)))?;
+            .map_err(|e| AuthError::InitiationFailed(format!("Failed to build auth URL: {e}")))?;
 
         Ok(AuthContextRequest::Code(CodeRequest {
             authorization_url: Url::parse(&auth_params.auth_url)?,
@@ -100,13 +100,12 @@ impl<T: OAuthHttpProvider> AuthStrategy for OAuthCodeStrategy<T> {
                     .await
                     .map_err(|e| {
                         AuthError::CompletionFailed(format!(
-                            "Failed to exchange authorization code: {}",
-                            e
+                            "Failed to exchange authorization code: {e}"
                         ))
                     })?;
 
                 build_oauth_credential(
-                    self.provider_id,
+                    self.provider_id.clone(),
                     token_response,
                     &self.config,
                     chrono::Duration::hours(1), // Code flow default
@@ -146,12 +145,11 @@ impl AuthStrategy for OAuthDeviceStrategy {
         let client = BasicClient::new(ClientId::new(self.config.client_id.to_string()))
             .set_device_authorization_url(
                 DeviceAuthorizationUrl::new(self.config.auth_url.to_string())
-                    .map_err(|e| AuthError::InitiationFailed(format!("Invalid auth_url: {}", e)))?,
+                    .map_err(|e| AuthError::InitiationFailed(format!("Invalid auth_url: {e}")))?,
             )
             .set_token_uri(
-                TokenUrl::new(self.config.token_url.to_string()).map_err(|e| {
-                    AuthError::InitiationFailed(format!("Invalid token_url: {}", e))
-                })?,
+                TokenUrl::new(self.config.token_url.to_string())
+                    .map_err(|e| AuthError::InitiationFailed(format!("Invalid token_url: {e}")))?,
             );
 
         // Request device authorization
@@ -162,14 +160,14 @@ impl AuthStrategy for OAuthDeviceStrategy {
 
         // Build HTTP client with custom headers
         let http_client = build_http_client(self.config.custom_headers.as_ref()).map_err(|e| {
-            AuthError::InitiationFailed(format!("Failed to build HTTP client: {}", e))
+            AuthError::InitiationFailed(format!("Failed to build HTTP client: {e}"))
         })?;
 
         let http_fn = |req| github_compliant_http_request(http_client.clone(), req);
 
         let device_auth_response: oauth2::StandardDeviceAuthorizationResponse =
             request.request_async(&http_fn).await.map_err(|e| {
-                AuthError::InitiationFailed(format!("Device authorization request failed: {}", e))
+                AuthError::InitiationFailed(format!("Device authorization request failed: {e}"))
             })?;
 
         // Build the type-safe context
@@ -205,7 +203,7 @@ impl AuthStrategy for OAuthDeviceStrategy {
                 .await?;
 
                 build_oauth_credential(
-                    self.provider_id,
+                    self.provider_id.clone(),
                     token_response,
                     &self.config,
                     chrono::Duration::days(365), // Device flow default
@@ -251,12 +249,11 @@ impl AuthStrategy for OAuthWithApiKeyStrategy {
         let client = BasicClient::new(ClientId::new(self.oauth_config.client_id.to_string()))
             .set_device_authorization_url(
                 DeviceAuthorizationUrl::new(self.oauth_config.auth_url.to_string())
-                    .map_err(|e| AuthError::InitiationFailed(format!("Invalid auth_url: {}", e)))?,
+                    .map_err(|e| AuthError::InitiationFailed(format!("Invalid auth_url: {e}")))?,
             )
             .set_token_uri(
-                TokenUrl::new(self.oauth_config.token_url.to_string()).map_err(|e| {
-                    AuthError::InitiationFailed(format!("Invalid token_url: {}", e))
-                })?,
+                TokenUrl::new(self.oauth_config.token_url.to_string())
+                    .map_err(|e| AuthError::InitiationFailed(format!("Invalid token_url: {e}")))?,
             );
 
         let mut request = client.exchange_device_code();
@@ -266,14 +263,14 @@ impl AuthStrategy for OAuthWithApiKeyStrategy {
 
         let http_client =
             build_http_client(self.oauth_config.custom_headers.as_ref()).map_err(|e| {
-                AuthError::InitiationFailed(format!("Failed to build HTTP client: {}", e))
+                AuthError::InitiationFailed(format!("Failed to build HTTP client: {e}"))
             })?;
 
         let http_fn = |req| github_compliant_http_request(http_client.clone(), req);
 
         let device_auth_response: oauth2::StandardDeviceAuthorizationResponse =
             request.request_async(&http_fn).await.map_err(|e| {
-                AuthError::InitiationFailed(format!("Device authorization request failed: {}", e))
+                AuthError::InitiationFailed(format!("Device authorization request failed: {e}"))
             })?;
 
         Ok(AuthContextRequest::DeviceCode(DeviceCodeRequest {
@@ -323,7 +320,7 @@ impl AuthStrategy for OAuthWithApiKeyStrategy {
                 );
 
                 Ok(AuthCredential::new_oauth_with_api_key(
-                    self.provider_id,
+                    self.provider_id.clone(),
                     oauth_tokens,
                     api_key,
                     self.oauth_config.clone(),
@@ -392,14 +389,14 @@ async fn refresh_oauth_credential(
     // Build appropriate credential type
     if let Some(key) = api_key {
         Ok(AuthCredential::new_oauth_with_api_key(
-            credential.id,
+            credential.id.clone(),
             new_tokens,
             key,
             config.clone(),
         ))
     } else {
         Ok(AuthCredential::new_oauth(
-            credential.id,
+            credential.id.clone(),
             new_tokens,
             config.clone(),
         ))
@@ -414,7 +411,7 @@ async fn poll_for_tokens(
     github_compatible: bool,
 ) -> anyhow::Result<OAuthTokenResponse> {
     let http_client = build_http_client(config.custom_headers.as_ref())
-        .map_err(|e| AuthError::PollFailed(format!("Failed to build HTTP client: {}", e)))?;
+        .map_err(|e| AuthError::PollFailed(format!("Failed to build HTTP client: {e}")))?;
 
     let start_time = tokio::time::Instant::now();
     let interval = Duration::from_secs(5);
@@ -441,7 +438,7 @@ async fn poll_for_tokens(
         ];
 
         let body = serde_urlencoded::to_string(&params)
-            .map_err(|e| AuthError::PollFailed(format!("Failed to encode request: {}", e)))?;
+            .map_err(|e| AuthError::PollFailed(format!("Failed to encode request: {e}")))?;
 
         // Make HTTP request with headers
         let mut headers = HeaderMap::new();
@@ -459,13 +456,13 @@ async fn poll_for_tokens(
             .body(body)
             .send()
             .await
-            .map_err(|e| AuthError::PollFailed(format!("HTTP request failed: {}", e)))?;
+            .map_err(|e| AuthError::PollFailed(format!("HTTP request failed: {e}")))?;
 
         let status = response.status();
         let body_text = response
             .text()
             .await
-            .map_err(|e| AuthError::PollFailed(format!("Failed to read response: {}", e)))?;
+            .map_err(|e| AuthError::PollFailed(format!("Failed to read response: {e}")))?;
 
         // GitHub-compatible: HTTP 200 can contain either success or error
         if github_compatible && status.is_success() {
@@ -522,7 +519,7 @@ async fn poll_for_tokens(
         }
 
         // Unknown error
-        return Err(AuthError::PollFailed(format!("HTTP {}: {}", status, body_text)).into());
+        return Err(AuthError::PollFailed(format!("HTTP {status}: {body_text}")).into());
     }
 }
 
@@ -536,22 +533,22 @@ async fn exchange_oauth_for_api_key(
     let mut headers = reqwest::header::HeaderMap::new();
     headers.insert(
         reqwest::header::AUTHORIZATION,
-        reqwest::header::HeaderValue::from_str(&format!("Bearer {}", oauth_token)).map_err(
-            |e| AuthError::CompletionFailed(format!("Invalid authorization header: {}", e)),
-        )?,
+        reqwest::header::HeaderValue::from_str(&format!("Bearer {oauth_token}")).map_err(|e| {
+            AuthError::CompletionFailed(format!("Invalid authorization header: {e}"))
+        })?,
     );
 
     // Add custom headers from config
     inject_custom_headers(&mut headers, &config.custom_headers);
 
     let response = build_http_client(config.custom_headers.as_ref())
-        .map_err(|e| AuthError::CompletionFailed(format!("Failed to build HTTP client: {}", e)))?
+        .map_err(|e| AuthError::CompletionFailed(format!("Failed to build HTTP client: {e}")))?
         .get(api_key_exchange_url.as_str())
         .headers(headers)
         .send()
         .await
         .map_err(|e| {
-            AuthError::CompletionFailed(format!("API key exchange request failed: {}", e))
+            AuthError::CompletionFailed(format!("API key exchange request failed: {e}"))
         })?;
 
     let status = response.status();
@@ -572,7 +569,7 @@ async fn exchange_oauth_for_api_key(
 
     let OAuthTokenResponse { access_token, expires_at, .. } =
         response.json().await.map_err(|e| {
-            AuthError::CompletionFailed(format!("Failed to parse API key response: {}", e))
+            AuthError::CompletionFailed(format!("Failed to parse API key response: {e}"))
         })?;
 
     Ok((
@@ -662,7 +659,7 @@ impl StrategyFactory for ForgeAuthStrategyFactory {
                 required_params,
             ))),
             forge_domain::AuthMethod::OAuthCode(config) => {
-                if let ProviderId::ClaudeCode = provider_id {
+                if provider_id == ProviderId::CLAUDE_CODE {
                     return Ok(AnyAuthStrategy::OAuthCodeAnthropic(OAuthCodeStrategy::new(
                         AnthropicHttpProvider,
                         provider_id,
@@ -670,7 +667,7 @@ impl StrategyFactory for ForgeAuthStrategyFactory {
                     )));
                 }
 
-                if let ProviderId::GithubCopilot = provider_id {
+                if provider_id == ProviderId::GITHUB_COPILOT {
                     return Ok(AnyAuthStrategy::OAuthCodeGithub(OAuthCodeStrategy::new(
                         GithubHttpProvider,
                         provider_id,
@@ -709,7 +706,7 @@ mod tests {
     fn test_create_auth_strategy_api_key() {
         let factory = ForgeAuthStrategyFactory::new();
         let strategy = factory.create_auth_strategy(
-            ProviderId::OpenAI,
+            ProviderId::OPENAI,
             forge_domain::AuthMethod::ApiKey,
             vec![],
         );
@@ -732,7 +729,7 @@ mod tests {
 
         let factory = ForgeAuthStrategyFactory::new();
         let strategy = factory.create_auth_strategy(
-            ProviderId::OpenAI,
+            ProviderId::OPENAI,
             forge_domain::AuthMethod::OAuthCode(config),
             vec![],
         );
@@ -755,7 +752,7 @@ mod tests {
 
         let factory = ForgeAuthStrategyFactory::new();
         let strategy = factory.create_auth_strategy(
-            ProviderId::OpenAI,
+            ProviderId::OPENAI,
             forge_domain::AuthMethod::OAuthDevice(config),
             vec![],
         );
@@ -778,7 +775,7 @@ mod tests {
 
         let factory = ForgeAuthStrategyFactory::new();
         let strategy = factory.create_auth_strategy(
-            ProviderId::GithubCopilot,
+            ProviderId::GITHUB_COPILOT,
             forge_domain::AuthMethod::OAuthDevice(config),
             vec![],
         );
