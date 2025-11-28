@@ -12,6 +12,7 @@ use forge_domain::{
 
 use crate::ForgeProviderAuthService;
 use crate::agent_registry::ForgeAgentRegistryService;
+use crate::app_config::ForgeAppConfigService;
 use crate::attachment::ForgeChatRequest;
 use crate::auth::ForgeAuthService;
 use crate::command_loader::CommandLoaderService as ForgeCommandLoaderService;
@@ -21,7 +22,6 @@ use crate::discovery::ForgeDiscoveryService;
 use crate::env::ForgeEnvironmentService;
 use crate::mcp::{ForgeMcpManager, ForgeMcpService};
 use crate::policy::ForgePolicyService;
-use crate::preferences::ForgeAppConfigService;
 use crate::provider::ForgeProviderService;
 use crate::template::ForgeTemplateService;
 use crate::tool_services::{

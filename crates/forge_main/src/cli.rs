@@ -78,10 +78,10 @@ pub struct Cli {
 impl Cli {
     /// Determines whether the CLI should start in interactive mode.
     ///
-    /// Returns true when no prompt or subcommand is provided, indicating
-    /// the user wants to enter interactive mode.
+    /// Returns true when no prompt, piped input, or subcommand is provided,
+    /// indicating the user wants to enter interactive mode.
     pub fn is_interactive(&self) -> bool {
-        self.prompt.is_none() && self.subcommands.is_none()
+        self.prompt.is_none() && self.piped_input.is_none() && self.subcommands.is_none()
     }
 }
 

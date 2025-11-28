@@ -280,6 +280,14 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             return Ok(());
         }
 
+        // Handle piped input if provided (treat it like --prompt)
+        let piped_input = self.cli.piped_input.clone();
+        if let Some(piped) = piped_input {
+            self.spinner.start(None)?;
+            self.on_message(Some(piped)).await?;
+            return Ok(());
+        }
+
         // Get initial input from prompt
         let mut command = self.prompt().await;
 
@@ -2165,6 +2173,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
 
         let _ = self.handle_migrate_credentials().await;
+        let _ = self.install_vscode_extension().await;
 
         // Ensure we have a model selected before proceeding with initialization
         if self
@@ -2239,8 +2248,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     async fn on_message(&mut self, content: Option<String>) -> Result<()> {
         let conversation_id = self.init_conversation().await?;
 
-        // Get piped input from CLI if available
-        let piped_input = self.cli.piped_input.clone();
+        // Track if content was provided to decide whether to use piped input as
+        // additional context
+        let has_content = content.is_some();
 
         // Create a ChatRequest with the appropriate event type
         let mut event = match content {
@@ -2248,9 +2258,16 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             None => Event::empty(),
         };
 
-        // Set piped input if present
+        // Only use CLI piped_input as additional context if it wasn't already passed as
+        // content This handles cases where piped input is used alongside
+        // explicit prompts
+        let piped_input = self.cli.piped_input.clone();
         if let Some(piped) = piped_input {
-            event = event.additional_context(piped);
+            // Only add as additional context if content is provided separately (e.g., via
+            // --prompt)
+            if has_content {
+                event = event.additional_context(piped);
+            }
         }
 
         // Create the chat request with the event
@@ -2678,6 +2695,18 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 format!("Migrated {count} providers from environment variables")
             };
             self.writeln_title(TitleFormat::info(message))?;
+        }
+        Ok(())
+    }
+
+    /// Silently install VS Code extension if in VS Code and extension not
+    /// installed
+    async fn install_vscode_extension(&mut self) -> Result<()> {
+        if crate::vscode::should_install_extension() {
+            // Spawn installation in background to avoid blocking startup
+            tokio::task::spawn_blocking(|| {
+                let _ = crate::vscode::install_extension();
+            });
         }
         Ok(())
     }

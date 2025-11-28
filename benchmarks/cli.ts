@@ -164,7 +164,10 @@ async function main() {
       const command = generateCommand(task.run.command, row);
 
       const logFile = path.join(debugDir, `task_run_${i + 1}.log`);
-      logger.info({ command, task_id: i + 1, log_file: logFile }, "Executing task");
+      logger.info(
+        { command, task_id: i + 1, log_file: logFile },
+        "Executing task"
+      );
 
       // Execute the task
       const executionResult = await executeTask(
@@ -172,9 +175,7 @@ async function main() {
         i + 1,
         logFile,
         evalDir,
-        task.run.timeout,
-        task.run.early_exit,
-        task.validations,
+        task,
         row
       );
 
@@ -217,7 +218,7 @@ async function main() {
       const logMessage = executionResult.earlyExit
         ? "Task completed (early exit)"
         : "Task completed successfully";
-      
+
       logger.info(
         {
           task_id: executionResult.index,
