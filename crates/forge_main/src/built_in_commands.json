@@ -70,5 +70,9 @@
   {
     "command": "clone",
     "description": "Clone and manage conversation context"
+  },
+  {
+    "command": "rename",
+    "description": "Rename a conversation [alias: rn]"
   }
 ]
