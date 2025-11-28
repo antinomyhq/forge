@@ -12,6 +12,7 @@
 # Environment Variables (direct access):
 # - $_FORGE_ACTIVE_AGENT     : Current agent ID (e.g., "forge", "sage")
 # - $_FORGE_CONVERSATION_ID  : Current conversation UUID (empty if no conversation)
+# - $FORGE_PROMPT_ICON       : Icon displayed before agent name (default: 󰚩 U+F06A9)
 #
 # Usage Examples:
 #
@@ -36,17 +37,21 @@
 #    format = "[$output]($style) "
 #    style = "bold white"
 
-# Returns unstyled left prompt content (agent name)
-# Returns just the agent name in uppercase without any styling
+# Returns unstyled left prompt content (agent name with icon)
+# Returns the agent name in uppercase with an icon prefix without any styling
 #
-# Example output: "FORGE" or "" (empty if no agent)
+# Example output: "󰚩 FORGE" or "" (empty if no agent)
 #
 # Example:
 #   agent=$(prompt_forge_agent_unstyled)
 #   PROMPT="%F{yellow}${agent} %f%~ %# "
 function prompt_forge_agent_unstyled() {
     if [[ -n "$_FORGE_ACTIVE_AGENT" ]]; then
-        echo "${(U)_FORGE_ACTIVE_AGENT}"
+        if [[ -n "$FORGE_PROMPT_ICON" ]]; then
+            echo "${FORGE_PROMPT_ICON} ${(U)_FORGE_ACTIVE_AGENT}"
+        else
+            echo "${(U)_FORGE_ACTIVE_AGENT}"
+        fi
     fi
 }
 
