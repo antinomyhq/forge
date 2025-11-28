@@ -87,9 +87,7 @@ impl ForgeEnvironmentInfra {
             workspace_server_url: parse_env::<String>("FORGE_WORKSPACE_SERVER_URL")
                 .as_ref()
                 .and_then(|url| Url::parse(url.as_str()).ok())
-                .unwrap_or_else(|| {
-                    Url::parse("https://api.forgecode.dev/").unwrap()
-                }),
+                .unwrap_or_else(|| Url::parse("https://api.forgecode.dev/").unwrap()),
         }
     }
 

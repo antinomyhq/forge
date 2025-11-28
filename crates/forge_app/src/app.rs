@@ -135,9 +135,9 @@ impl<S: Services> ForgeApp<S> {
         .add_user_prompt(conversation)
         .await?;
 
-        // Detect and render externally changed files notification
+        // Detect and handle externally changed files
         let conversation = ChangedFiles::new(services.clone(), agent.clone())
-            .update_file_stats(conversation)
+            .handle_external_changes(conversation)
             .await;
 
         let conversation = InitConversationMetrics::new(current_time).apply(conversation);

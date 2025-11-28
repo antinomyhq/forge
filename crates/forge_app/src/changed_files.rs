@@ -4,7 +4,7 @@ use forge_domain::{Agent, ContextMessage, Conversation, Role, TextMessage};
 use forge_template::Element;
 
 use crate::utils::format_display_path;
-use crate::{EnvironmentService, FsReadService};
+use crate::{ContextEngineService, EnvironmentService, FsReadService};
 
 /// Service responsible for detecting externally changed files and rendering
 /// notifications
@@ -20,11 +20,11 @@ impl<S> ChangedFiles<S> {
     }
 }
 
-impl<S: FsReadService + EnvironmentService> ChangedFiles<S> {
+impl<S: FsReadService + EnvironmentService + ContextEngineService + 'static> ChangedFiles<S> {
     /// Detects externally changed files and renders a notification if changes
     /// are found. Updates file hashes in conversation metrics to prevent
     /// duplicate notifications.
-    pub async fn update_file_stats(&self, mut conversation: Conversation) -> Conversation {
+    pub async fn handle_external_changes(&self, mut conversation: Conversation) -> Conversation {
         use crate::file_tracking::FileChangeDetector;
         let changes = FileChangeDetector::new(self.services.clone())
             .detect(&conversation.metrics)
@@ -70,6 +70,16 @@ impl<S: FsReadService + EnvironmentService> ChangedFiles<S> {
             .model(self.agent.model.clone());
 
         conversation = conversation.context(context.add_message(ContextMessage::from(message)));
+
+        // Re-index the codebase if external changes were detected and codebase is
+        // already indexed
+        let services = self.services.clone();
+        tokio::spawn(async move {
+            if services.is_indexed(&cwd).await.unwrap_or(false) {
+                tracing::info!("Re-indexing codebase after detecting external file changes");
+                let _ = services.sync_codebase(cwd.clone(), 20).await;
+            }
+        });
 
         conversation
     }
@@ -134,6 +144,64 @@ mod tests {
         }
     }
 
+    #[async_trait::async_trait]
+    impl ContextEngineService for TestServices {
+        async fn sync_codebase(
+            &self,
+            _path: PathBuf,
+            _batch_size: usize,
+        ) -> anyhow::Result<forge_domain::FileUploadResponse> {
+            use forge_domain::{FileUploadInfo, WorkspaceId};
+            Ok(forge_domain::FileUploadResponse::new(
+                WorkspaceId::generate(),
+                0,
+                FileUploadInfo::default(),
+            ))
+        }
+
+        async fn query_codebase(
+            &self,
+            _path: PathBuf,
+            _params: forge_domain::SearchParams<'_>,
+        ) -> anyhow::Result<Vec<forge_domain::CodeSearchResult>> {
+            Ok(vec![])
+        }
+
+        async fn list_codebase(&self) -> anyhow::Result<Vec<forge_domain::WorkspaceInfo>> {
+            Ok(vec![])
+        }
+
+        async fn get_workspace_info(
+            &self,
+            _path: PathBuf,
+        ) -> anyhow::Result<Option<forge_domain::WorkspaceInfo>> {
+            Ok(None)
+        }
+
+        async fn delete_codebase(
+            &self,
+            _workspace_id: &forge_domain::WorkspaceId,
+        ) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn is_indexed(&self, _path: &std::path::Path) -> anyhow::Result<bool> {
+            Ok(false)
+        }
+
+        async fn is_authenticated(&self) -> anyhow::Result<bool> {
+            Ok(false)
+        }
+
+        async fn create_auth_credentials(&self) -> anyhow::Result<forge_domain::WorkspaceAuth> {
+            use forge_domain::UserId;
+            Ok(forge_domain::WorkspaceAuth::new(
+                UserId::generate(),
+                "test-key".to_string().into(),
+            ))
+        }
+    }
+
     fn fixture(
         files: HashMap<String, String>,
         tracked_files: HashMap<String, Option<String>>,
@@ -181,7 +249,7 @@ mod tests {
             Some(ModelId::new("test")),
         )));
 
-        let actual = service.update_file_stats(conversation.clone()).await;
+        let actual = service.handle_external_changes(conversation.clone()).await;
 
         assert_eq!(actual.context.clone().unwrap_or_default().messages.len(), 1);
         assert_eq!(actual.context, conversation.context);
@@ -197,7 +265,7 @@ mod tests {
             [("/test/file.txt".into(), Some(old_hash))].into(),
         );
 
-        let actual = service.update_file_stats(conversation).await;
+        let actual = service.handle_external_changes(conversation).await;
 
         let messages = &actual.context.unwrap().messages;
         assert_eq!(messages.len(), 1);
@@ -217,7 +285,7 @@ mod tests {
             [("/test/file.txt".into(), Some(old_hash))].into(),
         );
 
-        let actual = service.update_file_stats(conversation).await;
+        let actual = service.handle_external_changes(conversation).await;
 
         let updated_hash = actual
             .metrics
@@ -243,7 +311,7 @@ mod tests {
             .into(),
         );
 
-        let actual = service.update_file_stats(conversation).await;
+        let actual = service.handle_external_changes(conversation).await;
 
         let message = actual.context.unwrap().messages[0]
             .content()
@@ -266,7 +334,7 @@ mod tests {
             Some(cwd),
         );
 
-        let actual = service.update_file_stats(conversation).await;
+        let actual = service.handle_external_changes(conversation).await;
 
         let message = actual.context.unwrap().messages[0]
             .content()
