@@ -16,8 +16,8 @@
 # Usage Examples:
 #
 # 1. Simple ZSH integration:
-#    PROMPT='$(forge_prompt_left)%F{blue}%~%f %# '
-#    RPROMPT='$(forge_prompt_right)'
+#    PROMPT='$(prompt_forge_agent)%F{blue}%~%f %# '
+#    RPROMPT='$(prompt_forge_model)'
 #
 # 2. Custom ZSH (using environment variables):
 #    PROMPT='%B${(U)_FORGE_ACTIVE_AGENT}%b %F{blue}%~%f %# '
@@ -42,9 +42,9 @@
 # Example output: "FORGE " or "" (empty if no agent)
 #
 # Example:
-#   agent=$(forge_prompt_left_unstyled)
+#   agent=$(prompt_forge_agent_unstyled)
 #   PROMPT="%F{yellow}${agent}%f%~ %# "
-function forge_prompt_left_unstyled() {
+function prompt_forge_agent_unstyled() {
     if [[ -n "$_FORGE_ACTIVE_AGENT" ]]; then
         echo "${(U)_FORGE_ACTIVE_AGENT} "
     fi
@@ -58,9 +58,9 @@ function forge_prompt_left_unstyled() {
 # Example output: "○ claude-3-5-sonnet" or "● claude-3-5-sonnet" or "" (empty if no model)
 #
 # Example:
-#   model=$(forge_prompt_right_unstyled)
+#   model=$(prompt_forge_model_unstyled)
 #   RPROMPT="%F{blue}${model}%f"
-function forge_prompt_right_unstyled() {
+function prompt_forge_model_unstyled() {
     local forge_cmd="${_FORGE_BIN:-${FORGE_BIN:-forge}}"
     local model_output=$($forge_cmd config get model 2>/dev/null)
     
@@ -82,9 +82,9 @@ function forge_prompt_right_unstyled() {
 # - Bold white when conversation is active
 #
 # Example:
-#   PROMPT='$(forge_prompt_left)%F{blue}%~%f %# '
-function forge_prompt_left() {
-    local content=$(forge_prompt_left_unstyled)
+#   PROMPT='$(prompt_forge_agent)%F{blue}%~%f %# '
+function prompt_forge_agent() {
+    local content=$(prompt_forge_agent_unstyled)
     if [[ -n "$content" ]]; then
         if [[ -n "$_FORGE_CONVERSATION_ID" ]]; then
             # Active: bold white
@@ -108,9 +108,9 @@ function forge_prompt_left() {
 # - Cyan when conversation is active
 #
 # Example:
-#   RPROMPT='$(forge_prompt_right)'
-function forge_prompt_right() {
-    local content=$(forge_prompt_right_unstyled)
+#   RPROMPT='$(prompt_forge_model)'
+function prompt_forge_model() {
+    local content=$(prompt_forge_model_unstyled)
     if [[ -n "$content" ]]; then
         if [[ -n "$_FORGE_CONVERSATION_ID" ]]; then
             # Active: cyan
@@ -147,19 +147,10 @@ function forge_prompt_right() {
 #
 # Usage: Add 'forge_agent' to POWERLEVEL9K_LEFT_PROMPT_ELEMENTS
 function prompt_forge_agent_p9k() {
-    local content=$(forge_prompt_left_unstyled)
-    if [[ -n "$content" ]]; then
+    local styled=$(prompt_forge_agent)
+    if [[ -n "$styled" ]]; then
         # Remove trailing space for segments
-        content="${content% }"
-        
-        # Apply consistent styling for both P10k and P9k
-        if [[ -n "$_FORGE_CONVERSATION_ID" ]]; then
-            # Active: bold white
-            local styled="%B%F{white}${content}%f%b"
-        else
-            # Idle: bold dark grey
-            local styled="%B%F{8}${content}%f%b"
-        fi
+        styled="${styled% }"
         
         # Check if p10k is available
         if (( $+functions[p10k] )); then
@@ -177,17 +168,8 @@ function prompt_forge_agent_p9k() {
 #
 # Usage: Add 'forge_model' to POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS
 function prompt_forge_model_p9k() {
-    local content=$(forge_prompt_right_unstyled)
-    if [[ -n "$content" ]]; then
-        # Apply consistent styling for both P10k and P9k
-        if [[ -n "$_FORGE_CONVERSATION_ID" ]]; then
-            # Active: cyan
-            local styled="%F{cyan}${content}%f"
-        else
-            # Idle: dark grey
-            local styled="%F{8}${content}%f"
-        fi
-        
+    local styled=$(prompt_forge_model)
+    if [[ -n "$styled" ]]; then
         # Check if p10k is available
         if (( $+functions[p10k] )); then
             # Powerlevel10k - use p10k segment with our styling
