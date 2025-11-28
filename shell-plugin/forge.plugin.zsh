@@ -48,7 +48,7 @@ ZSH_HIGHLIGHT_HIGHLIGHTERS+=(pattern)
 # Loads the commands list only when first needed, avoiding startup cost
 function _forge_get_commands() {
     if [[ -z "$_FORGE_COMMANDS" ]]; then
-        _FORGE_COMMANDS="$(CLICOLOR_FORCE=0 $_FORGE_BIN list commands --porcelain 2>/dev/null)"
+        _FORGE_COMMANDS="$(CLICOLOR_FORCE=0 $_FORGE_BIN list commands --porcelain 2>/dev/null | sort -k1,1)"
     fi
     echo "$_FORGE_COMMANDS"
 }
