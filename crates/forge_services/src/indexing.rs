@@ -1173,7 +1173,7 @@ mod tests {
         assert!(actual.files_to_delete.contains(&"c.rs".to_string()));
         assert!(actual.files_to_upload.iter().any(|f| f.path == "b.rs"));
         assert!(actual.files_to_upload.iter().any(|f| f.path == "d.rs"));
-        assert!(actual.modified_files.contains(&"b.rs".to_string()));
+        assert!(actual.modified_files.contains("b.rs"));
     }
 
     #[tokio::test]
