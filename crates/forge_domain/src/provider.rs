@@ -82,6 +82,7 @@ impl ProviderId {
             ProviderId::GITHUB_COPILOT,
             ProviderId::OPENAI_COMPATIBLE,
             ProviderId::ANTHROPIC_COMPATIBLE,
+            ProviderId::FORGE_SERVICES,
         ]
     }
 
@@ -137,6 +138,7 @@ impl std::str::FromStr for ProviderId {
             "github_copilot" => ProviderId::GITHUB_COPILOT,
             "openai_compatible" => ProviderId::OPENAI_COMPATIBLE,
             "anthropic_compatible" => ProviderId::ANTHROPIC_COMPATIBLE,
+            "forge_services" => ProviderId::FORGE_SERVICES,
             // For custom providers, use Cow::Owned to avoid memory leaks
             custom => ProviderId(Cow::Owned(custom.to_string())),
         };
