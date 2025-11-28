@@ -1,48 +1,38 @@
 use anyhow::Result;
-use console::{strip_ansi_codes, style};
-use dialoguer::theme::ColorfulTheme;
-use dialoguer::{Confirm, FuzzySelect, Input, MultiSelect};
+use console::strip_ansi_codes;
 
 use crate::{ApplicationCursorKeysGuard, BracketedPasteGuard};
 
-/// Check if a dialoguer error is an interrupted error (CTRL+C)
-fn is_interrupted_error(err: &dialoguer::Error) -> bool {
-    match err {
-        dialoguer::Error::IO(error) => error.kind() == std::io::ErrorKind::Interrupted,
-    }
-}
-
-/// Centralized dialoguer select functionality with consistent error handling
+/// Centralized cliclack select functionality with consistent error handling
 pub struct ForgeSelect;
 
 /// Builder for select prompts with fuzzy search
+#[derive(derive_setters::Setters)]
 pub struct SelectBuilder<T> {
     message: String,
     options: Vec<T>,
+    #[setters(strip_option)]
     starting_cursor: Option<usize>,
+    #[setters(strip_option)]
     default: Option<bool>,
+    #[setters(strip_option)]
     help_message: Option<&'static str>,
-    initial_text: Option<String>,
+    #[setters(strip_option)]
+    max_rows: Option<usize>,
 }
 
 /// Builder for select prompts that takes ownership (doesn't require Clone)
+#[derive(derive_setters::Setters)]
 pub struct SelectBuilderOwned<T> {
     message: String,
     options: Vec<T>,
+    #[setters(strip_option)]
     starting_cursor: Option<usize>,
-    initial_text: Option<String>,
+    #[setters(strip_option)]
+    max_rows: Option<usize>,
 }
 
 impl ForgeSelect {
-    /// Create a consistent theme for all select operations without prompt
-    /// suffix arrow
-    fn default_theme() -> ColorfulTheme {
-        ColorfulTheme {
-            prompt_suffix: style("".to_string()),
-            ..ColorfulTheme::default()
-        }
-    }
-
     /// Entry point for select operations with fuzzy search
     pub fn select<T>(message: impl Into<String>, options: Vec<T>) -> SelectBuilder<T> {
         SelectBuilder {
@@ -51,7 +41,7 @@ impl ForgeSelect {
             starting_cursor: None,
             default: None,
             help_message: None,
-            initial_text: None,
+            max_rows: None,
         }
     }
 
@@ -62,7 +52,7 @@ impl ForgeSelect {
             message: message.into(),
             options,
             starting_cursor: None,
-            initial_text: None,
+            max_rows: None,
         }
     }
 
@@ -74,7 +64,7 @@ impl ForgeSelect {
             starting_cursor: None,
             default: None,
             help_message: None,
-            initial_text: None,
+            max_rows: None,
         }
     }
 
@@ -90,36 +80,12 @@ impl ForgeSelect {
 }
 
 impl<T: 'static> SelectBuilder<T> {
-    /// Set starting cursor position
-    pub fn with_starting_cursor(mut self, cursor: usize) -> Self {
-        self.starting_cursor = Some(cursor);
-        self
-    }
-
-    /// Set default for confirm (only works with bool options)
-    pub fn with_default(mut self, default: bool) -> Self {
-        self.default = Some(default);
-        self
-    }
-
-    /// Set help message
-    pub fn with_help_message(mut self, message: &'static str) -> Self {
-        self.help_message = Some(message);
-        self
-    }
-
-    /// Set initial search text for fuzzy search
-    pub fn with_initial_text(mut self, text: impl Into<String>) -> Self {
-        self.initial_text = Some(text.into());
-        self
-    }
-
     /// Execute select prompt with fuzzy search
     ///
     /// # Returns
     ///
     /// - `Ok(Some(T))` - User selected an option
-    /// - `Ok(None)` - No options available or user cancelled (CTRL+C)
+    /// - `Ok(None)` - No options available or user cancelled (ESC)
     ///
     /// # Errors
     ///
@@ -129,36 +95,30 @@ impl<T: 'static> SelectBuilder<T> {
     where
         T: std::fmt::Display + Clone,
     {
+        // Disable bracketed paste mode to prevent ~0 and ~1 markers
+        let _paste_guard = BracketedPasteGuard::new()?;
+        // Disable application cursor keys to ensure arrow keys work correctly
+        let _cursor_guard = ApplicationCursorKeysGuard::new()?;
         // Handle confirm case (bool options)
         if std::any::TypeId::of::<T>() == std::any::TypeId::of::<bool>() {
-            let theme = ForgeSelect::default_theme();
-            let mut confirm = Confirm::with_theme(&theme).with_prompt(&self.message);
+            let mut confirm = cliclack::confirm(&self.message);
 
             if let Some(default) = self.default {
-                confirm = confirm.default(default);
+                confirm = confirm.initial_value(default);
             }
 
-            let result = match confirm.interact_opt() {
-                Ok(value) => value,
-                Err(e) if is_interrupted_error(&e) => return Ok(None),
-                Err(e) => return Err(e.into()),
+            let result = match confirm.interact() {
+                Ok(value) => Some(value),
+                Err(_) => return Ok(None), // User cancelled (ESC)
             };
             // Safe cast since we checked the type
             return Ok(result.map(|b| unsafe { std::mem::transmute_copy(&b) }));
         }
 
-        // FuzzySelect for regular options
+        // Select for regular options
         if self.options.is_empty() {
             return Ok(None);
         }
-
-        // Disable bracketed paste mode to prevent ~0 and ~1 markers during
-        // fuzzy search input
-        let _paste_guard = BracketedPasteGuard::new()?;
-        // Disable application cursor keys to ensure arrow keys work correctly
-        let _cursor_guard = ApplicationCursorKeysGuard::new()?;
-
-        let theme = ForgeSelect::default_theme();
 
         // Strip ANSI codes from display strings for better fuzzy search experience
         let display_options: Vec<String> = self
@@ -167,48 +127,43 @@ impl<T: 'static> SelectBuilder<T> {
             .map(|item| strip_ansi_codes(&item.to_string()).to_string())
             .collect();
 
-        let mut select = FuzzySelect::with_theme(&theme)
-            .with_prompt(&self.message)
-            .items(&display_options);
+        let mut select = cliclack::select(&self.message).filter_mode();
 
+        // Limit visible rows to prevent scrolling in long lists
+        if let Some(max_rows) = self.max_rows {
+            select = select.max_rows(max_rows);
+        }
+
+        // Add all items
+        for (idx, display) in display_options.iter().enumerate() {
+            select = select.item(idx, display, "");
+        }
+
+        // Set initial value if starting cursor is provided
+        // Note: In filter mode with long lists, this causes scrolling to that
+        // position Consider using max_rows() to limit scrolling
         if let Some(cursor) = self.starting_cursor {
-            select = select.default(cursor);
-        } else {
-            select = select.default(0);
+            if cursor < self.options.len() {
+                select = select.initial_value(cursor);
+            }
         }
 
-        if let Some(text) = self.initial_text {
-            select = select.with_initial_text(text);
-        }
-
-        let idx_opt = match select.interact_opt() {
-            Ok(value) => value,
-            Err(e) if is_interrupted_error(&e) => return Ok(None),
-            Err(e) => return Err(e.into()),
+        let idx_opt = match select.interact() {
+            Ok(idx) => Some(idx),
+            Err(_) => return Ok(None), // User cancelled (ESC)
         };
+
         Ok(idx_opt.and_then(|idx| self.options.get(idx).cloned()))
     }
 }
 
 impl<T> SelectBuilderOwned<T> {
-    /// Set starting cursor position
-    pub fn with_starting_cursor(mut self, cursor: usize) -> Self {
-        self.starting_cursor = Some(cursor);
-        self
-    }
-
-    /// Set initial search text for fuzzy search
-    pub fn with_initial_text(mut self, text: impl Into<String>) -> Self {
-        self.initial_text = Some(text.into());
-        self
-    }
-
     /// Execute select prompt with fuzzy search and owned values
     ///
     /// # Returns
     ///
     /// - `Ok(Some(T))` - User selected an option
-    /// - `Ok(None)` - No options available or user cancelled (CTRL+C)
+    /// - `Ok(None)` - No options available or user cancelled (ESC)
     ///
     /// # Errors
     ///
@@ -228,8 +183,6 @@ impl<T> SelectBuilderOwned<T> {
         // Disable application cursor keys to ensure arrow keys work correctly
         let _cursor_guard = ApplicationCursorKeysGuard::new()?;
 
-        let theme = ForgeSelect::default_theme();
-
         // Strip ANSI codes from display strings for better fuzzy search experience
         let display_options: Vec<String> = self
             .options
@@ -237,25 +190,32 @@ impl<T> SelectBuilderOwned<T> {
             .map(|item| strip_ansi_codes(&item.to_string()).to_string())
             .collect();
 
-        let mut select = FuzzySelect::with_theme(&theme)
-            .with_prompt(&self.message)
-            .items(&display_options);
+        let mut select = cliclack::select(&self.message).filter_mode();
 
+        // Limit visible rows to prevent scrolling in long lists
+        if let Some(max_rows) = self.max_rows {
+            select = select.max_rows(max_rows);
+        }
+
+        // Add all items
+        for (idx, display) in display_options.iter().enumerate() {
+            select = select.item(idx, display, "");
+        }
+
+        // Set initial value if starting cursor is provided
+        // Note: In filter mode with long lists, this causes scrolling to that
+        // position Consider using max_rows() to limit scrolling
         if let Some(cursor) = self.starting_cursor {
-            select = select.default(cursor);
-        } else {
-            select = select.default(0);
+            if cursor < self.options.len() {
+                select = select.initial_value(cursor);
+            }
         }
 
-        if let Some(text) = self.initial_text {
-            select = select.with_initial_text(text);
-        }
-
-        let idx_opt = match select.interact_opt() {
-            Ok(value) => value,
-            Err(e) if is_interrupted_error(&e) => return Ok(None),
-            Err(e) => return Err(e.into()),
+        let idx_opt = match select.interact() {
+            Ok(idx) => Some(idx),
+            Err(_) => return Ok(None), // User cancelled (ESC)
         };
+
         Ok(idx_opt.and_then(|idx| self.options.into_iter().nth(idx)))
     }
 }
@@ -285,7 +245,7 @@ impl InputBuilder {
     /// # Returns
     ///
     /// - `Ok(Some(String))` - User provided input
-    /// - `Ok(None)` - User cancelled (CTRL+C)
+    /// - `Ok(None)` - User cancelled (ESC)
     ///
     /// # Errors
     ///
@@ -297,19 +257,32 @@ impl InputBuilder {
         // Disable application cursor keys to ensure arrow keys work correctly
         let _cursor_guard = ApplicationCursorKeysGuard::new()?;
 
-        let theme = ForgeSelect::default_theme();
-        let mut input = Input::with_theme(&theme)
-            .with_prompt(&self.message)
-            .allow_empty(self.allow_empty);
+        let mut input = cliclack::input(&self.message);
 
-        if let Some(default) = self.default {
-            input = input.default(default);
+        if let Some(default) = &self.default {
+            input = input.placeholder(default);
         }
 
-        match input.interact_text() {
-            Ok(value) => Ok(Some(value)),
-            Err(e) if is_interrupted_error(&e) => Ok(None),
-            Err(e) => Err(e.into()),
+        if !self.allow_empty {
+            input = input.validate(|value: &String| {
+                if value.is_empty() {
+                    Err("Input cannot be empty")
+                } else {
+                    Ok(())
+                }
+            });
+        }
+
+        match input.interact::<String>() {
+            Ok(value) => {
+                // If value is empty and we have a default, use the default
+                if value.is_empty() && self.default.is_some() {
+                    Ok(self.default)
+                } else {
+                    Ok(Some(value))
+                }
+            }
+            Err(_) => Ok(None), // User cancelled (ESC)
         }
     }
 }
@@ -326,7 +299,7 @@ impl<T> MultiSelectBuilder<T> {
     /// # Returns
     ///
     /// - `Ok(Some(Vec<T>))` - User selected one or more options
-    /// - `Ok(None)` - No options available or user cancelled (CTRL+C)
+    /// - `Ok(None)` - No options available or user cancelled (ESC)
     ///
     /// # Errors
     ///
@@ -345,15 +318,16 @@ impl<T> MultiSelectBuilder<T> {
         // Disable application cursor keys to ensure arrow keys work correctly
         let _cursor_guard = ApplicationCursorKeysGuard::new()?;
 
-        let theme = ForgeSelect::default_theme();
-        let multi_select = MultiSelect::with_theme(&theme)
-            .with_prompt(&self.message)
-            .items(&self.options);
+        let mut multi_select = cliclack::multiselect(&self.message).filter_mode();
 
-        let indices_opt = match multi_select.interact_opt() {
-            Ok(value) => value,
-            Err(e) if is_interrupted_error(&e) => return Ok(None),
-            Err(e) => return Err(e.into()),
+        // Add all items
+        for (idx, option) in self.options.iter().enumerate() {
+            multi_select = multi_select.item(idx, option.to_string(), "");
+        }
+
+        let indices_opt = match multi_select.interact() {
+            Ok(indices) => Some(indices),
+            Err(_) => return Ok(None), // User cancelled (ESC)
         };
 
         Ok(indices_opt.map(|indices| {
@@ -400,17 +374,16 @@ mod tests {
     }
 
     #[test]
-    fn test_select_builder_with_initial_text() {
-        let builder =
-            ForgeSelect::select("Test", vec!["apple", "banana", "cherry"]).with_initial_text("app");
-        assert_eq!(builder.initial_text, Some("app".to_string()));
+    fn test_select_builder_with_max_rows() {
+        let builder = ForgeSelect::select("Test", vec!["apple", "banana", "cherry"]).max_rows(10);
+        assert_eq!(builder.max_rows, Some(10));
     }
 
     #[test]
-    fn test_select_owned_builder_with_initial_text() {
-        let builder = ForgeSelect::select_owned("Test", vec!["apple", "banana", "cherry"])
-            .with_initial_text("ban");
-        assert_eq!(builder.initial_text, Some("ban".to_string()));
+    fn test_select_owned_builder_with_max_rows() {
+        let builder =
+            ForgeSelect::select_owned("Test", vec!["apple", "banana", "cherry"]).max_rows(15);
+        assert_eq!(builder.max_rows, Some(15));
     }
 
     #[test]
