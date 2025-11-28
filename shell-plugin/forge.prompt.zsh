@@ -39,14 +39,14 @@
 # Returns unstyled left prompt content (agent name)
 # Returns just the agent name in uppercase without any styling
 #
-# Example output: "FORGE " or "" (empty if no agent)
+# Example output: "FORGE" or "" (empty if no agent)
 #
 # Example:
 #   agent=$(prompt_forge_agent_unstyled)
-#   PROMPT="%F{yellow}${agent}%f%~ %# "
+#   PROMPT="%F{yellow}${agent} %f%~ %# "
 function prompt_forge_agent_unstyled() {
     if [[ -n "$_FORGE_ACTIVE_AGENT" ]]; then
-        echo "${(U)_FORGE_ACTIVE_AGENT} "
+        echo "${(U)_FORGE_ACTIVE_AGENT}"
     fi
 }
 
