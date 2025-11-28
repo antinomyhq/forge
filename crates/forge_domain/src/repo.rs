@@ -77,6 +77,16 @@ pub trait ConversationRepository: Send + Sync {
     /// # Errors
     /// Returns an error if the operation fails
     async fn get_last_conversation(&self) -> Result<Option<Conversation>>;
+
+    /// Renames a conversation with a new title
+    ///
+    /// # Arguments
+    /// * `conversation_id` - The ID of conversation to rename
+    /// * `new_title` - The new title for the conversation
+    ///
+    /// # Errors
+    /// Returns an error if operation fails
+    async fn rename_conversation(&self, conversation_id: &ConversationId, new_title: &str) -> Result<()>;
 }
 
 #[async_trait::async_trait]

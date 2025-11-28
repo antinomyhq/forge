@@ -116,6 +116,10 @@ impl<F: Send + Sync> ConversationRepository for ForgeRepo<F> {
     async fn get_last_conversation(&self) -> anyhow::Result<Option<Conversation>> {
         self.conversation_repository.get_last_conversation().await
     }
+
+    async fn rename_conversation(&self, conversation_id: &ConversationId, new_title: &str) -> anyhow::Result<()> {
+        self.conversation_repository.rename_conversation(conversation_id, new_title).await
+    }
 }
 
 #[async_trait::async_trait]
