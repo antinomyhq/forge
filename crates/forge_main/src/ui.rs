@@ -1685,12 +1685,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         self.spinner.stop(None)?;
 
         // Extract existing API key and URL params for prefilling
-        let existing_url_params =
-            if let Some(ref cred) = request.existing_credential {
-                Some(&cred.url_params)
-            } else {
-                None
-            };
+        let existing_url_params = request.existing_credential.as_ref().map(|cred| &cred.url_params);
 
         // Collect URL parameters if required
         let url_params = request
@@ -1701,9 +1696,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
                 // Add default value if it exists in the credential
                 if let Some(params) = existing_url_params
-                    && let Some(default_value) = params.get(param) {
-                        input = input.with_default(default_value.as_str());
-                    }
+                    && let Some(default_value) = params.get(param)
+                {
+                    input = input.with_default(default_value.as_str());
+                }
 
                 let param_value = input.prompt()?.context("Parameter input cancelled")?;
 
