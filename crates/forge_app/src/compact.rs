@@ -326,6 +326,82 @@ mod tests {
             .unwrap()
     }
 
+    #[test]
+    fn test_template_engine_renders_summary_frame() {
+        use forge_domain::{ContextSummary, Role, SummaryBlock, SummaryMessage, SummaryToolCall};
+
+        // Create test data with various tool calls and text content
+        let messages = vec![
+            SummaryBlock::new(
+                Role::User,
+                vec![SummaryMessage::content("Please read the config file")],
+            ),
+            SummaryBlock::new(
+                Role::Assistant,
+                vec![
+                    SummaryToolCall::read("config.toml")
+                        .id("call_1")
+                        .is_success(false)
+                        .into(),
+                ],
+            ),
+            SummaryBlock::new(
+                Role::User,
+                vec![SummaryMessage::content("Now update the version number")],
+            ),
+            SummaryBlock::new(
+                Role::Assistant,
+                vec![SummaryToolCall::update("Cargo.toml").id("call_2").into()],
+            ),
+            SummaryBlock::new(
+                Role::User,
+                vec![SummaryMessage::content("Search for TODO comments")],
+            ),
+            SummaryBlock::new(
+                Role::Assistant,
+                vec![
+                    SummaryToolCall::search("TODO")
+                        .id("call_3")
+                        .is_success(false)
+                        .into(),
+                ],
+            ),
+            SummaryBlock::new(
+                Role::Assistant,
+                vec![
+                    SummaryToolCall::codebase_search(
+                        "authentication logic",
+                        "Find authentication implementation",
+                        Some(".rs".to_string()),
+                    )
+                    .id("call_4")
+                    .is_success(false)
+                    .into(),
+                ],
+            ),
+            SummaryBlock::new(
+                Role::Assistant,
+                vec![
+                    SummaryToolCall::shell("cargo test")
+                        .id("call_5")
+                        .is_success(false)
+                        .into(),
+                ],
+            ),
+            SummaryBlock::new(
+                Role::User,
+                vec![SummaryMessage::content("Great! Everything looks good.")],
+            ),
+        ];
+
+        let context_summary = ContextSummary { messages };
+        let data = serde_json::json!({"messages": context_summary.messages});
+
+        let actual = render_template(&data);
+
+        insta::assert_snapshot!(actual);
+    }
+
     #[tokio::test]
     async fn test_render_summary_frame_snapshot() {
         // Load the conversation fixture

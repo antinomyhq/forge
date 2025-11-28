@@ -1,3 +1,4 @@
+import { execSync } from "child_process";
 import Handlebars from "handlebars";
 import type { Validation } from "./model.js";
 
@@ -31,6 +32,47 @@ function validateRegex(output: string, regex: string, name: string): ValidationR
   };
 }
 
+
+/**
+ * Validates output using a shell command
+ */
+function validateShellCommand(
+  output: string,
+  command: string,
+  expectedExitCode: number,
+  name: string
+): ValidationResult {
+  try {
+    execSync(command, {
+      input: output,
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+
+    // Command succeeded (exit code 0)
+    const passed = expectedExitCode === 0;
+    return {
+      name,
+      passed,
+      message: passed
+        ? `Command succeeded with exit code 0`
+        : `Expected exit code ${expectedExitCode}, got 0`,
+    };
+  } catch (error: any) {
+    // Command failed with non-zero exit code
+    const actualExitCode = error.status ?? 1;
+    const passed = actualExitCode === expectedExitCode;
+
+    return {
+      name,
+      passed,
+      message: passed
+        ? `Command exited with expected code ${expectedExitCode}`
+        : `Expected exit code ${expectedExitCode}, got ${actualExitCode}`,
+    };
+  }
+}
+
 /**
  * Runs all validations on output and returns results
  */
@@ -42,7 +84,7 @@ export function runValidations(
   const results: ValidationResult[] = [];
 
   for (const validation of validations) {
-    if (validation.type === "matches_regex") {
+    if (validation.type === "regex") {
       // Interpolate regex with context if provided
       let regex = validation.regex;
       if (context) {
@@ -50,6 +92,15 @@ export function runValidations(
         regex = template(context);
       }
       results.push(validateRegex(output, regex, validation.name));
+    } else if (validation.type === "shell") {
+      // Interpolate command with context if provided
+      let command = validation.command;
+      if (context) {
+        const template = Handlebars.compile(command, { strict: true });
+        command = template(context);
+      }
+      const expectedExitCode = validation.exit_code ?? 0;
+      results.push(validateShellCommand(output, command, expectedExitCode, validation.name));
     }
   }
 

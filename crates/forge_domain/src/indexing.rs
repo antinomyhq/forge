@@ -214,7 +214,7 @@ impl<'a> From<&'a crate::SemanticSearch> for SearchParams<'a> {
         Self {
             query: &search.query,
             limit: None,
-            top_k: Some(search.top_k),
+            top_k: None,
             use_case: search.use_case.clone(),
             starts_with: None,
             ends_with: search.file_extension.clone(),
@@ -520,12 +520,11 @@ mod tests {
     fn test_search_params_from_semantic_search() {
         let search = crate::SemanticSearch {
             query: "retry mechanism".to_string(),
-            top_k: 15,
             use_case: "find retry logic".to_string(),
             file_extension: Some(".rs".to_string()),
         };
 
-        let actual = SearchParams::from(&search).limit(20usize);
+        let actual = SearchParams::from(&search).limit(20usize).top_k(15u32);
 
         let expected = SearchParams {
             query: "retry mechanism",
@@ -543,12 +542,11 @@ mod tests {
     fn test_search_params_from_semantic_search_without_extension() {
         let search = crate::SemanticSearch {
             query: "auth logic".to_string(),
-            top_k: 10,
             use_case: "authentication implementation".to_string(),
             file_extension: None,
         };
 
-        let actual = SearchParams::from(&search).limit(5usize);
+        let actual = SearchParams::from(&search).limit(5usize).top_k(10u32);
 
         let expected = SearchParams {
             query: "auth logic",
