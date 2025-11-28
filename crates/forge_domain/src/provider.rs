@@ -1,4 +1,4 @@
-use std::borrow::Cow;
+use std::{borrow::Cow, fmt::Display};
 use std::collections::HashMap;
 
 use derive_more::{AsRef, Deref, From};
@@ -19,6 +19,16 @@ pub enum ProviderType {
     /// Context engine providers for code indexing and search
     ContextEngine,
 }
+
+impl Display for ProviderType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ProviderType::ContextEngine => write!(f, "context_engine"),
+            ProviderType::Llm => write!(f, "llm"),
+        }
+    }
+}
+
 
 /// --- IMPORTANT ---
 /// The order of providers is important because that would be order in which the
@@ -219,6 +229,13 @@ impl AnyProvider {
         match self {
             AnyProvider::Url(p) => p.is_configured(),
             AnyProvider::Template(p) => p.is_configured(),
+        }
+    }
+
+    pub fn provider_type(&self) -> &ProviderType {
+        match self {
+            AnyProvider::Url(p) => &p.provider_type,
+            AnyProvider::Template(t) => &t.provider_type,
         }
     }
 
