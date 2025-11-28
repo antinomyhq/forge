@@ -31,7 +31,7 @@ mod tests {
     #[test]
     fn test_migration_result() {
         let path = PathBuf::from("/test/.credentials.json");
-        let providers = vec![ProviderId::OpenAI, ProviderId::Anthropic];
+        let providers = vec![ProviderId::OPENAI, ProviderId::ANTHROPIC];
 
         let actual = MigrationResult::new(path.clone(), providers.clone());
 

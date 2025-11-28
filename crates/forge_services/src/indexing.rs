@@ -78,7 +78,7 @@ impl<F> ForgeIndexingService<F> {
         );
 
         AuthCredential {
-            id: ProviderId::ForgeServices,
+            id: ProviderId::FORGE_SERVICES,
             auth_details: auth.clone().into(),
             url_params,
         }
@@ -267,7 +267,7 @@ impl<
         // Get auth token (must already exist - caller should call ensure_auth first)
         let credential = self
             .infra
-            .get_credential(&ProviderId::ForgeServices)
+            .get_credential(&ProviderId::FORGE_SERVICES)
             .await?
             .context("No authentication credentials found. Please authenticate first.")?;
 
@@ -383,7 +383,7 @@ impl<
         // Step 3: Get auth token
         let credential = self
             .infra
-            .get_credential(&ProviderId::ForgeServices)
+            .get_credential(&ProviderId::FORGE_SERVICES)
             .await?
             .ok_or(forge_domain::Error::AuthTokenNotFound)?;
 
@@ -410,7 +410,7 @@ impl<
         // Get auth token
         let credential = self
             .infra
-            .get_credential(&ProviderId::ForgeServices)
+            .get_credential(&ProviderId::FORGE_SERVICES)
             .await?
             .ok_or(forge_domain::Error::AuthTokenNotFound)?;
 
@@ -436,7 +436,7 @@ impl<
         // Get auth token
         let credential = self
             .infra
-            .get_credential(&ProviderId::ForgeServices)
+            .get_credential(&ProviderId::FORGE_SERVICES)
             .await?
             .ok_or(forge_domain::Error::AuthTokenNotFound)?;
 
@@ -462,7 +462,7 @@ impl<
         // Get auth token
         let credential = self
             .infra
-            .get_credential(&ProviderId::ForgeServices)
+            .get_credential(&ProviderId::FORGE_SERVICES)
             .await?
             .ok_or(forge_domain::Error::AuthTokenNotFound)?;
 
@@ -504,7 +504,7 @@ impl<
     async fn is_authenticated(&self) -> Result<bool> {
         Ok(self
             .infra
-            .get_credential(&ProviderId::ForgeServices)
+            .get_credential(&ProviderId::FORGE_SERVICES)
             .await?
             .is_some())
     }
@@ -567,7 +567,7 @@ where
     /// Returns an error if deletion fails
     pub async fn logout(&self) -> Result<()> {
         self.infra
-            .remove_credential(&ProviderId::ForgeServices)
+            .remove_credential(&ProviderId::FORGE_SERVICES)
             .await
             .context("Failed to logout from indexing service")?;
 
@@ -702,7 +702,7 @@ mod tests {
         }
 
         async fn get_credential(&self, id: &ProviderId) -> Result<Option<AuthCredential>> {
-            if *id == ProviderId::ForgeServices && self.authenticated {
+            if *id == ProviderId::FORGE_SERVICES && self.authenticated {
                 let user_id = self
                     .workspace
                     .as_ref()
@@ -713,7 +713,7 @@ mod tests {
                 url_params.insert("user_id".to_string().into(), user_id.to_string().into());
 
                 Ok(Some(AuthCredential {
-                    id: ProviderId::ForgeServices,
+                    id: ProviderId::FORGE_SERVICES,
                     auth_details: forge_domain::AuthDetails::ApiKey(
                         "test_token".to_string().into(),
                     ),

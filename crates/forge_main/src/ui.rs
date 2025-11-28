@@ -24,7 +24,6 @@ use forge_select::ForgeSelect;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
 use merge::Merge;
-use strum::IntoEnumIterator;
 use tokio_stream::StreamExt;
 use tracing::debug;
 use url::Url;
@@ -353,6 +352,14 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     async fn handle_subcommands(&mut self, subcommand: TopLevelCommand) -> anyhow::Result<()> {
         match subcommand {
+            TopLevelCommand::Agent(agent_group) => {
+                match agent_group.command {
+                    crate::cli::AgentCommand::List => {
+                        self.on_show_agents(agent_group.porcelain).await?;
+                    }
+                }
+                return Ok(());
+            }
             TopLevelCommand::List(list_group) => {
                 let porcelain = list_group.porcelain;
                 match list_group.command {
@@ -932,7 +939,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 Porcelain::from(&info)
                     .skip(1)
                     .drop_col(0)
-                    .map_col(4, |text| match text.as_deref() {
+                    .map_col(5, |text| match text.as_deref() {
                         Some("ENABLED") => Some("Reasoning".to_string()),
                         Some("DISABLED") => Some("Non-Reasoning".to_string()),
                         _ => None,
@@ -956,7 +963,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let mut info = Info::new();
 
         for provider in providers.iter() {
-            let id = provider.id().to_string();
+            let id: &str = &provider.id();
+            let display_name = provider.id().to_string();
             let domain = if let Some(url) = provider.url() {
                 url.domain().map(|d| d.to_string()).unwrap_or_default()
             } else {
@@ -965,6 +973,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             let configured = provider.is_configured();
             info = info
                 .add_title(id.to_case(Case::UpperSnake))
+                .add_key_value("name", display_name)
                 .add_key_value("id", id)
                 .add_key_value("host", domain);
             if configured {
@@ -1052,43 +1061,25 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     async fn on_show_commands(&mut self, porcelain: bool) -> anyhow::Result<()> {
         let mut info = Info::new();
 
-        // Define base commands with their descriptions and type
-        let built_in_commands = [
-            ("info", "Print session information [alias: i]"),
-            ("env", "Display environment information [alias: e]"),
-            ("provider", "Switch the providers [alias: p]"),
-            ("model", "Switch the models [alias: m]"),
-            ("new", "Start new conversation [alias: n]"),
-            (
-                "dump",
-                "Save conversation as JSON or HTML (use /dump html for HTML format) [alias: d]",
-            ),
-            (
-                "conversation",
-                "List all conversations for the active workspace [alias: c]",
-            ),
-            ("retry", "Retry the last command [alias: r]"),
-            ("compact", "Compact the conversation context"),
-            (
-                "tools",
-                "List all available tools with their descriptions and schema [alias: t]",
-            ),
-            ("skill", "List all available skills"),
-            ("commit", "Generate AI commit message and commit changes."),
-            (
-                "suggest",
-                "Generate shell commands without executing them [alias: s]",
-            ),
-            ("sync", "Sync the current workspace for codebase search"),
-            ("login", "Login to a provider"),
-            ("logout", "Logout from a provider"),
-        ];
+        // Load built-in commands from JSON
+        // NOTE: When adding a new command, update built_in_commands.json AND
+        //       shell-plugin/forge.plugin.zsh (case statement around line 745)
+        const COMMANDS_JSON: &str = include_str!("built_in_commands.json");
 
-        for (name, description) in built_in_commands {
+        #[derive(serde::Deserialize)]
+        struct Command<'a> {
+            command: &'a str,
+            description: &'a str,
+        }
+
+        let built_in_commands: Vec<Command> =
+            serde_json::from_str(COMMANDS_JSON).expect("Failed to parse built_in_commands.json");
+
+        for cmd in &built_in_commands {
             info = info
-                .add_title(name)
+                .add_title(cmd.command)
                 .add_key_value("type", "command")
-                .add_key_value("description", description);
+                .add_key_value("description", cmd.description);
         }
 
         // Add agent aliases
@@ -1970,7 +1961,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         provider_id: ProviderId,
         auth_methods: Vec<AuthMethod>,
     ) -> Result<Option<Provider<Url>>> {
-        if provider_id == ProviderId::ForgeServices {
+        if provider_id == ProviderId::FORGE_SERVICES {
             let auth = self.api.create_auth_credentials().await?;
             self.writeln_title(
                 TitleFormat::info("Forge API key created").sub_title(auth.token.as_str()),
@@ -1978,7 +1969,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             return Ok(None);
         }
         // Select auth method (or use the only one available)
-        let auth_method = match self.select_auth_method(provider_id, &auth_methods).await? {
+        let auth_method = match self
+            .select_auth_method(provider_id.clone(), &auth_methods)
+            .await?
+        {
             Some(method) => method,
             None => return Ok(None), // User cancelled
         };
@@ -1988,23 +1982,25 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Initiate the authentication flow
         let auth_request = self
             .api
-            .init_provider_auth(provider_id, auth_method)
+            .init_provider_auth(provider_id.clone(), auth_method)
             .await?;
 
         // Handle the specific authentication flow based on the request type
         match auth_request {
             AuthContextRequest::ApiKey(request) => {
-                self.handle_api_key_input(provider_id, &request).await?;
+                self.handle_api_key_input(provider_id.clone(), &request)
+                    .await?;
             }
             AuthContextRequest::DeviceCode(request) => {
-                self.handle_device_flow(provider_id, &request).await?;
+                self.handle_device_flow(provider_id.clone(), &request)
+                    .await?;
             }
             AuthContextRequest::Code(request) => {
-                self.handle_code_flow(provider_id, &request).await?;
+                self.handle_code_flow(provider_id.clone(), &request).await?;
             }
         }
 
-        let should_set_active = self.display_credential_success(provider_id).await?;
+        let should_set_active = self.display_credential_success(provider_id.clone()).await?;
 
         if !should_set_active {
             return Ok(None);
@@ -2121,7 +2117,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     /// a compatible model is selected.
     async fn finalize_provider_activation(&mut self, provider: Provider<Url>) -> Result<()> {
         // Set the provider via API
-        self.api.set_default_provider(provider.id).await?;
+        self.api.set_default_provider(provider.id.clone()).await?;
 
         self.writeln_title(TitleFormat::action(format!(
             "Switched to provider: {}",
@@ -2229,23 +2225,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         title.push_str(format!(" {}", id.into_string()).as_str());
 
-        let mut sub_title = String::new();
-        sub_title.push('[');
-
-        if let Some(ref agent) = self.api.get_active_agent().await {
-            sub_title.push_str(format!("via {agent}").as_str());
-        }
-
-        if let Some(ref model) = self
-            .get_agent_model(self.api.get_active_agent().await)
-            .await
-        {
-            sub_title.push_str(format!("/{}", model.as_str()).as_str());
-        }
-
-        sub_title.push(']');
-
-        self.writeln_title(TitleFormat::debug(title).sub_title(sub_title.bold().to_string()))?;
+        self.writeln_title(TitleFormat::debug(title))?;
         Ok(())
     }
 
@@ -2255,6 +2235,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
 
         let _ = self.handle_migrate_credentials().await;
+        let _ = self.install_vscode_extension().await;
 
         // Ensure we have a model selected before proceeding with initialization
         if self
@@ -2643,14 +2624,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Set the specified field
         match args.field {
             ConfigField::Provider => {
-                // Parse and validate provider ID
-                let provider_id = ProviderId::from_str(&args.value).with_context(|| {
-                    format!(
-                        "Invalid provider: '{}'. Valid providers are: {}",
-                        args.value,
-                        get_valid_provider_names().join(", ")
-                    )
-                })?;
+                // Parse provider ID (any string is valid for custom providers)
+                let provider_id =
+                    ProviderId::from_str(&args.value).expect("from_str is infallible");
 
                 // Get the provider
                 let provider = self.api.get_provider(&provider_id).await?;
@@ -2971,9 +2947,16 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
         Ok(())
     }
-}
 
-/// Get list of valid provider names
-fn get_valid_provider_names() -> Vec<String> {
-    ProviderId::iter().map(|p| p.to_string()).collect()
+    /// Silently install VS Code extension if in VS Code and extension not
+    /// installed
+    async fn install_vscode_extension(&mut self) -> Result<()> {
+        if crate::vscode::should_install_extension() {
+            // Spawn installation in background to avoid blocking startup
+            tokio::task::spawn_blocking(|| {
+                let _ = crate::vscode::install_extension();
+            });
+        }
+        Ok(())
+    }
 }
