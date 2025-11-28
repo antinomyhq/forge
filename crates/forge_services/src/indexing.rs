@@ -40,6 +40,8 @@ struct SyncPlan {
     files_to_delete: Vec<String>,
     /// Files to upload (new or changed)
     files_to_upload: Vec<forge_domain::FileRead>,
+    /// Files that are modified (hash doesn't match)
+    modified_files: Vec<String>,
 }
 
 impl SyncPlan {
@@ -71,42 +73,69 @@ impl SyncPlan {
             .map(|f| forge_domain::FileRead::new(f.path, f.content))
             .collect();
 
-        Self { files_to_delete, files_to_upload }
+        // Modified files: paths that appear in both delete and upload lists
+        let delete_paths: std::collections::HashSet<&str> =
+            files_to_delete.iter().map(|s| s.as_str()).collect();
+        let modified_files: Vec<String> = files_to_upload
+            .iter()
+            .filter(|f| delete_paths.contains(f.path.as_str()))
+            .map(|f| f.path.clone())
+            .collect();
+
+        Self { files_to_delete, files_to_upload, modified_files }
     }
 
-    /// Returns the total number of operations (deletions + uploads).
+    /// Returns the total file count. Modified files count as 1 (not 2
+    /// operations).
     fn total(&self) -> usize {
-        self.files_to_delete.len() + self.files_to_upload.len()
+        self.files_to_delete.len() + self.files_to_upload.len() - self.modified_files.len()
     }
 
     /// Executes the sync plan in batches, consuming self.
+    /// Progress is reported as (current_score, total) where modified files
+    /// contribute 0.5 for delete and 0.5 for upload.
     async fn execute<'a>(
         self,
         batch_size: usize,
         delete: impl Fn(Vec<String>) -> BoxFuture<'a, Result<()>>,
         upload: impl Fn(Vec<forge_domain::FileRead>) -> BoxFuture<'a, Result<()>>,
-        on_progress: impl Fn(usize, usize) -> BoxFuture<'a, ()>,
+        on_progress: impl Fn(f64, usize) -> BoxFuture<'a, ()>,
     ) -> Result<()> {
         let total = self.total();
         if total == 0 {
             return Ok(());
         }
 
-        let mut processed = 0;
-        on_progress(0, total).await;
+        let modified_paths: std::collections::HashSet<&str> =
+            self.modified_files.iter().map(|s| s.as_str()).collect();
+
+        let mut current_score = 0.0;
+        on_progress(current_score, total).await;
 
         // Delete outdated/orphaned files
         for batch in self.files_to_delete.chunks(batch_size) {
             delete(batch.to_vec()).await?;
-            processed += batch.len();
-            on_progress(processed, total).await;
+            for path in batch {
+                if modified_paths.contains(path.as_str()) {
+                    current_score += 0.5; // Modified file: 0.5 for delete
+                } else {
+                    current_score += 1.0; // Pure delete: 1.0
+                }
+            }
+            on_progress(current_score, total).await;
         }
 
         // Upload new/changed files
         for batch in self.files_to_upload.chunks(batch_size) {
             upload(batch.to_vec()).await?;
-            processed += batch.len();
-            on_progress(processed, total).await;
+            for file in batch {
+                if modified_paths.contains(file.path.as_str()) {
+                    current_score += 0.5; // Modified file: 0.5 for upload
+                } else {
+                    current_score += 1.0; // Pure upload: 1.0
+                }
+            }
+            on_progress(current_score, total).await;
         }
 
         Ok(())
@@ -1131,25 +1160,31 @@ mod tests {
 
         let actual = SyncPlan::new(local, remote);
 
-        assert_eq!(actual.total(), 4);
+        // b.rs is modified (in both delete and upload), c.rs is orphaned, d.rs is new
+        // total = 2 deletes + 2 uploads - 1 modified = 3 files
+        assert_eq!(actual.total(), 3);
         assert_eq!(actual.files_to_delete.len(), 2);
         assert_eq!(actual.files_to_upload.len(), 2);
+        assert_eq!(actual.modified_files.len(), 1);
         assert!(actual.files_to_delete.contains(&"b.rs".to_string()));
         assert!(actual.files_to_delete.contains(&"c.rs".to_string()));
         assert!(actual.files_to_upload.iter().any(|f| f.path == "b.rs"));
         assert!(actual.files_to_upload.iter().any(|f| f.path == "d.rs"));
+        assert!(actual.modified_files.contains(&"b.rs".to_string()));
     }
 
     #[tokio::test]
     async fn test_sync_plan_execute_batches_and_tracks_progress() {
         use std::sync::Mutex;
 
+        // No modified files: 3 pure deletes + 2 pure uploads = 5 total files
         let plan = SyncPlan {
             files_to_delete: vec!["a.rs".into(), "b.rs".into(), "c.rs".into()],
             files_to_upload: vec![
                 forge_domain::FileRead::new("d.rs".into(), "content_d".into()),
                 forge_domain::FileRead::new("e.rs".into(), "content_e".into()),
             ],
+            modified_files: vec![],
         };
 
         let progress = Arc::new(Mutex::new(Vec::new()));
@@ -1170,7 +1205,62 @@ mod tests {
         .unwrap();
 
         let actual = progress.lock().unwrap().clone();
-        let expected = vec![(0, 5), (2, 5), (3, 5), (5, 5)];
+        // Batch 1: delete a.rs, b.rs -> score 2.0
+        // Batch 2: delete c.rs -> score 3.0
+        // Batch 3: upload d.rs, e.rs -> score 5.0
+        let expected = vec![(0.0, 5), (2.0, 5), (3.0, 5), (5.0, 5)];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_sync_plan_execute_with_modified_files() {
+        use std::sync::Mutex;
+
+        // Scenario:
+        // - a.rs: modified (delete old + upload new) -> 0.5 + 0.5 = 1.0
+        // - b.rs: pure delete (orphaned) -> 1.0
+        // - c.rs: pure upload (new file) -> 1.0
+        // Total files: 2 deletes + 2 uploads - 1 modified = 3
+        let plan = SyncPlan {
+            files_to_delete: vec!["a.rs".into(), "b.rs".into()],
+            files_to_upload: vec![
+                forge_domain::FileRead::new("a.rs".into(), "new_content".into()),
+                forge_domain::FileRead::new("c.rs".into(), "content_c".into()),
+            ],
+            modified_files: vec!["a.rs".into()],
+        };
+
+        let progress = Arc::new(Mutex::new(Vec::new()));
+        let progress_clone = progress.clone();
+
+        plan.execute(
+            1, // batch size 1 to see each operation
+            |_| Box::pin(async { Ok(()) }),
+            |_| Box::pin(async { Ok(()) }),
+            move |score, total| {
+                let progress = progress_clone.clone();
+                Box::pin(async move {
+                    progress.lock().unwrap().push((score, total));
+                })
+            },
+        )
+        .await
+        .unwrap();
+
+        let actual = progress.lock().unwrap().clone();
+        // Initial: 0.0
+        // Delete a.rs (modified): +0.5 -> 0.5
+        // Delete b.rs (pure): +1.0 -> 1.5
+        // Upload a.rs (modified): +0.5 -> 2.0
+        // Upload c.rs (pure): +1.0 -> 3.0
+        let expected = vec![
+            (0.0, 3), // initial
+            (0.5, 3), // after delete a.rs (modified)
+            (1.5, 3), // after delete b.rs (pure)
+            (2.0, 3), // after upload a.rs (modified)
+            (3.0, 3), // after upload c.rs (pure)
+        ];
 
         assert_eq!(actual, expected);
     }

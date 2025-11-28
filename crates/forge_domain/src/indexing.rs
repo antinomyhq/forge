@@ -6,7 +6,7 @@ use uuid::Uuid;
 use crate::WorkspaceId;
 
 /// Progress events emitted during codebase indexing
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum IndexProgress {
     /// Sync operation is starting
     Starting,
@@ -29,9 +29,10 @@ pub enum IndexProgress {
     ComparingFiles,
     /// Syncing files (deleting outdated + uploading new/changed)
     Syncing {
-        /// Number of files processed so far
-        current: usize,
-        /// Total number of files to process (deletions + uploads)
+        /// Current progress score (modified files contribute 0.5 for delete +
+        /// 0.5 for upload)
+        current: f64,
+        /// Total number of files to sync
         total: usize,
     },
     /// Sync operation completed successfully
@@ -45,23 +46,23 @@ pub enum IndexProgress {
 
 impl IndexProgress {
     /// Progress weight allocation:
-    /// - 0-20%: Discovery phase (guaranteed events)
-    /// - 20-100%: Syncing phase (file operations)
-    const DISCOVERY_WEIGHT: u64 = 20;
-    const SYNC_WEIGHT: u64 = 80;
+    /// - 0-10%: Discovery phase (guaranteed events)
+    /// - 10-100%: Syncing phase (file operations)
+    const DISCOVERY_WEIGHT: u64 = 10;
+    const SYNC_WEIGHT: u64 = 90;
 
     /// Returns the progress weight (0-100) for this event.
     pub fn weight(&self) -> Option<u64> {
         match self {
             Self::Starting => Some(0),
-            Self::DiscoveringFiles { .. } => Some(5),
-            Self::FilesDiscovered { .. } => Some(10),
-            Self::ComparingFiles => Some(Self::DISCOVERY_WEIGHT),
+            Self::DiscoveringFiles { .. } => Some(2),
+            Self::FilesDiscovered { .. } => Some(3),
+            Self::ComparingFiles => Some(5),
             Self::Completed { .. } => Some(100),
             Self::WorkspaceCreated { .. } => None,
             Self::Syncing { current, total } => {
                 let sync_progress = if *total > 0 {
-                    (*current as u64 * Self::SYNC_WEIGHT) / *total as u64
+                    (*current * Self::SYNC_WEIGHT as f64 / *total as f64) as u64
                 } else {
                     0
                 };
@@ -82,12 +83,15 @@ impl IndexProgress {
             }
             Self::FilesDiscovered { count } => format!("Found {} files", count),
             Self::ComparingFiles => "Comparing...".to_string(),
-            Self::Syncing { .. } => "Syncing...".to_string(),
-            Self::Completed { uploaded_files, total_files } => {
+            Self::Syncing { current, total } => {
+                format!("Syncing {:.1}/{}", current, total)
+            }
+            Self::Completed { uploaded_files, total_files: _ } => {
                 if *uploaded_files == 0 {
-                    format!("{} files up to date", total_files)
+                    "Already up to date".to_string()
                 } else {
-                    format!("Synced {} files", uploaded_files)
+                    let file_word = if *uploaded_files == 1 { "file" } else { "files" };
+                    format!("{} {} changed", uploaded_files, file_word)
                 }
             }
         }
