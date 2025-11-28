@@ -67,14 +67,14 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + AppConf
     }
 
     async fn get_models(&self) -> Result<Vec<Model>> {
-        Ok(self
-            .services
-            .models(
-                self.get_default_provider()
-                    .await
-                    .context("Failed to fetch models")?,
-            )
-            .await?)
+        // Use AgentProviderResolver to ensure OAuth tokens are refreshed if needed
+        let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
+        let provider = agent_provider_resolver
+            .get_provider(None)
+            .await
+            .context("Failed to fetch models")?;
+
+        Ok(self.services.models(provider).await?)
     }
     async fn get_agents(&self) -> Result<Vec<Agent>> {
         self.services.get_agents().await
