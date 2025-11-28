@@ -87,6 +87,7 @@ impl Default for TestContext {
                 sem_search_top_k: 10,
                 max_image_size: 262144,
                 workspace_server_url: Url::parse("http://localhost:8080").unwrap(),
+                sync_batch_size: 10,
             },
             title: Some("test-conversation".into()),
             agent: Agent::new(

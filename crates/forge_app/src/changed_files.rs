@@ -74,10 +74,11 @@ impl<S: FsReadService + EnvironmentService + ContextEngineService + 'static> Cha
         // Re-index the codebase if external changes were detected and codebase is
         // already indexed
         let services = self.services.clone();
+        let batch_size = self.services.get_environment().sync_batch_size;
         tokio::spawn(async move {
             if services.is_indexed(&cwd).await.unwrap_or(false) {
                 tracing::info!("Re-indexing codebase after detecting external file changes");
-                let _ = services.sync_codebase(cwd.clone(), 20).await;
+                let _ = services.sync_codebase(cwd.clone(), batch_size).await;
             }
         });
 

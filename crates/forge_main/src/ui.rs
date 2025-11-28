@@ -1654,8 +1654,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
             SlashCommand::Index => {
                 let working_dir = self.state.cwd.clone();
-                // Use default batch size of 10 for slash command
-                self.on_index(working_dir, 10).await?;
+                let batch_size = self.api.environment().sync_batch_size;
+                self.on_index(working_dir, batch_size).await?;
             }
             SlashCommand::AgentSwitch(agent_id) => {
                 // Validate that the agent exists by checking against loaded agents

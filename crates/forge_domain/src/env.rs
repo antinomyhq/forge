@@ -81,6 +81,10 @@ pub struct Environment {
     /// Controlled by FORGE_WORKSPACE_SERVER_URL environment variable.
     #[dummy(expr = "url::Url::parse(\"http://localhost:8080\").unwrap()")]
     pub workspace_server_url: Url,
+
+    /// Number of files to upload per batch during workspace sync.
+    /// Controlled by FORGE_SYNC_BATCH_SIZE environment variable.
+    pub sync_batch_size: usize,
 }
 
 impl Environment {
@@ -232,6 +236,7 @@ fn test_command_path() {
         sem_search_top_k: 10,
         max_image_size: 262144,
         workspace_server_url: "http://localhost:8080".parse().unwrap(),
+        sync_batch_size: 10,
     };
 
     let actual = fixture.command_path();
@@ -269,6 +274,7 @@ fn test_command_cwd_path() {
         sem_search_top_k: 10,
         max_image_size: 262144,
         workspace_server_url: "http://localhost:8080".parse().unwrap(),
+        sync_batch_size: 10,
     };
 
     let actual = fixture.command_cwd_path();
@@ -306,6 +312,7 @@ fn test_command_cwd_path_independent_from_command_path() {
         sem_search_top_k: 10,
         max_image_size: 262144,
         workspace_server_url: "http://localhost:8080".parse().unwrap(),
+        sync_batch_size: 10,
     };
 
     let command_path = fixture.command_path();

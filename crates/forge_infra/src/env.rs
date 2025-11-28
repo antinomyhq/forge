@@ -88,6 +88,8 @@ impl ForgeEnvironmentInfra {
                 .as_ref()
                 .and_then(|url| Url::parse(url.as_str()).ok())
                 .unwrap_or_else(|| Url::parse("https://api.forgecode.dev/").unwrap()),
+
+            sync_batch_size: parse_env::<usize>("FORGE_SYNC_BATCH_SIZE").unwrap_or(20),
         }
     }
 
