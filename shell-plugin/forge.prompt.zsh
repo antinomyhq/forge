@@ -50,12 +50,10 @@ function prompt_forge_agent_unstyled() {
     fi
 }
 
-# Returns unstyled right prompt content (indicator + model name)
-# Returns indicator and model without any styling
-# - ○ (empty circle) when idle (no conversation)
-# - ● (filled circle) when active (conversation in progress)
+# Returns unstyled right prompt content (model name)
+# Returns model without any styling
 #
-# Example output: "○ claude-3-5-sonnet" or "● claude-3-5-sonnet" or "" (empty if no model)
+# Example output: "claude-3-5-sonnet" or "" (empty if no model)
 #
 # Example:
 #   model=$(prompt_forge_model_unstyled)
@@ -65,11 +63,7 @@ function prompt_forge_model_unstyled() {
     local model_output=$($forge_cmd config get model 2>/dev/null)
     
     if [[ -n "$model_output" ]]; then
-        local indicator="○"
-        if [[ -n "$_FORGE_CONVERSATION_ID" ]]; then
-            indicator="●"
-        fi
-        echo "${indicator} ${model_output}"
+        echo "${model_output}"
     fi
 }
 
@@ -96,12 +90,10 @@ function prompt_forge_agent() {
     fi
 }
 
-# Returns a styled right prompt segment (model name with indicator)
+# Returns a styled right prompt segment (model name)
 # This is a ready-to-use function for ZSH prompts
 #
-# Format: indicator + model name
-# - ○ (empty circle) when idle (no conversation)
-# - ● (filled circle) when active (conversation in progress)
+# Format: model name
 #
 # Colors:
 # - Dark grey when no conversation is active
@@ -132,7 +124,7 @@ function prompt_forge_model() {
 #
 # To use, add these segment names to your prompt elements:
 # - 'forge_agent' for the left prompt (agent name)
-# - 'forge_model' for the right prompt (model with indicator)
+# - 'forge_model' for the right prompt (model name)
 #
 # Example in your .p10k.zsh or .zshrc:
 #   POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=(... forge_agent ...)
@@ -163,7 +155,7 @@ function prompt_forge_agent_p9k() {
     fi
 }
 
-# Powerlevel segment for model name with indicator (right prompt)
+# Powerlevel segment for model name (right prompt)
 # Applies consistent styling across P10k and P9k
 #
 # Usage: Add 'forge_model' to POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS
