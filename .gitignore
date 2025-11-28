@@ -35,7 +35,6 @@ Cargo.lock
 *.rs.bak
 .tasks
 *.new
-.vscode/
 .fastembed_cache/
 *.log*
 *-dump.json

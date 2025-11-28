@@ -1,0 +1,42 @@
+[package]
+name = "forge_app_server"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "forge-app-server"
+path = "src/main.rs"
+
+[dependencies]
+forge_api = { path = "../forge_api" }
+forge_domain = { path = "../forge_domain" }
+forge_stream = { path = "../forge_stream" }
+
+# Async runtime
+tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7", features = ["codec"] }
+futures = "0.3"
+
+# JSON-RPC and serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# UUID
+uuid = { version = "1.0", features = ["serde", "v4"] }
+
+# Type generation for TypeScript
+ts-rs = "8.1"
+
+[build-dependencies]
+ts-rs = "8.1"
+
+[dev-dependencies]
+pretty_assertions = "1.4"

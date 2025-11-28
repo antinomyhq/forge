@@ -1,0 +1,8 @@
+{
+  "forge.serverPath": "/Users/amit/code-forge/target/debug/forge-app-server",
+  "forge.cliPath": "/Users/amit/code-forge/target/debug/forge",
+  "forge.autoStart": true,
+  "forge.logLevel": "debug",
+  "forge.maxConversations": 100,
+  "forge.defaultAgent": "forge"
+}

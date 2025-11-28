@@ -1,0 +1,187 @@
+{
+  "name": "forgecode",
+  "displayName": "ForgeCode",
+  "description": "AI-powered coding assistant",
+  "version": "0.1.0",
+  "publisher": "forgecode",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "forgecode",
+          "title": "ForgeCode",
+          "icon": "$(comment-discussion)"
+        }
+      ]
+    },
+    "views": {
+      "forgecode": [
+        {
+          "type": "webview",
+          "id": "forgecode.chatView",
+          "name": "Chat"
+        },
+        {
+          "id": "forgecode.conversations",
+          "name": "Conversations"
+        },
+        {
+          "type": "webview",
+          "id": "forgecode.settings",
+          "name": "Settings"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "forgecode.focusChat",
+        "title": "Focus Chat",
+        "category": "ForgeCode",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "forgecode.sendMessage",
+        "title": "Send Message",
+        "category": "ForgeCode"
+      },
+      {
+        "command": "forgecode.newConversation",
+        "title": "New Conversation",
+        "category": "ForgeCode",
+        "icon": "$(add)"
+      },
+      {
+        "command": "forgecode.openConversation",
+        "title": "Open Conversation",
+        "category": "ForgeCode"
+      },
+      {
+        "command": "forgecode.deleteConversation",
+        "title": "Delete Conversation",
+        "category": "ForgeCode",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "forgecode.tagFile",
+        "title": "Tag File for Chat Context",
+        "category": "ForgeCode"
+      },
+      {
+        "command": "forgecode.showTaggedFiles",
+        "title": "Show Tagged Files",
+        "category": "ForgeCode"
+      },
+      {
+        "command": "forgecode.clearTaggedFiles",
+        "title": "Clear All Tagged Files",
+        "category": "ForgeCode"
+      },
+      {
+        "command": "forgecode.discoverFiles",
+        "title": "Discover Files",
+        "category": "ForgeCode"
+      },
+      {
+        "command": "forgecode.selectAgent",
+        "title": "Select Agent",
+        "category": "ForgeCode",
+        "icon": "$(person)"
+      },
+      {
+        "command": "forgecode.selectModel",
+        "title": "Select Model",
+        "category": "ForgeCode",
+        "icon": "$(circuit-board)"
+      },
+      {
+        "command": "forgecode.selectProvider",
+        "title": "Select Provider",
+        "category": "ForgeCode"
+      },
+      {
+        "command": "forgecode.listProviders",
+        "title": "List Configured Providers",
+        "category": "ForgeCode"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "forgecode.newConversation",
+          "when": "view == forgecode.conversations",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "forgecode.deleteConversation",
+          "when": "view == forgecode.conversations && viewItem == conversation",
+          "group": "inline"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "forgecode.tagFile",
+          "group": "forgecode"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "ForgeCode",
+      "properties": {
+        "forgecode.serverPath": {
+          "type": "string",
+          "default": "forge-app-server",
+          "description": "Path to the forge-app-server binary"
+        },
+        "forgecode.autoStart": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically start server on activation"
+        },
+        "forgecode.defaultAgent": {
+          "type": "string",
+          "default": "",
+          "description": "Default agent to use for new conversations (leave empty to prompt)"
+        },
+        "forgecode.defaultModel": {
+          "type": "string",
+          "default": "",
+          "description": "Default model to use for new conversations (leave empty to use server default)"
+        },
+        "forgecode.logLevel": {
+          "type": "string",
+          "enum": ["error", "warn", "info", "debug"],
+          "default": "info",
+          "description": "Log level for ForgeCode extension"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts",
+    "generate-types": "cd .. && cargo test --package forge_app_server export_typescript_types"
+  },
+  "devDependencies": {
+    "@types/node": "^18.x",
+    "@types/vscode": "^1.80.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.40.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {}
+}
