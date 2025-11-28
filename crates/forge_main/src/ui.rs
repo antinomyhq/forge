@@ -1687,8 +1687,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Extract existing API key and URL params for prefilling
         let existing_url_params = request
             .existing_credential
-            .as_ref()
-            .map(|cred| &cred.url_params);
+            .as_ref();
 
         // Collect URL parameters if required
         let url_params = request
