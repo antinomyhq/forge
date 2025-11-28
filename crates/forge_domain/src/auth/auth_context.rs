@@ -13,6 +13,7 @@ use super::{
 #[derive(Debug, Clone)]
 pub struct ApiKeyRequest {
     pub required_params: Vec<URLParam>,
+    pub existing_credential: Option<super::AuthCredential>,
 }
 
 /// Response containing API key and URL parameters
