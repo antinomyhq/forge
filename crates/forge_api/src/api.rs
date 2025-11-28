@@ -65,7 +65,11 @@ pub trait API: Sync + Send {
     async fn conversation(&self, conversation_id: &ConversationId) -> Result<Option<Conversation>>;
 
     /// Renames a conversation with the given ID
-    async fn rename_conversation(&self, conversation_id: &ConversationId, new_title: &str) -> Result<()>;
+    async fn rename_conversation(
+        &self,
+        conversation_id: &ConversationId,
+        new_title: &str,
+    ) -> Result<()>;
 
     /// Lists all conversations for the active workspace
     async fn get_conversations(&self, limit: Option<usize>) -> Result<Vec<Conversation>>;

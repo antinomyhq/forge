@@ -14,22 +14,26 @@ pub struct ConversationTitle {
 impl ConversationTitle {
     pub fn new(title: String) -> Result<Self> {
         let trimmed = title.trim();
-        
+
         if trimmed.is_empty() {
-            return Err(Error::InvalidConversationTitle("Title cannot be empty".to_string()));
+            return Err(Error::InvalidConversationTitle(
+                "Title cannot be empty".to_string(),
+            ));
         }
-        
+
         if trimmed.len() > 255 {
-            return Err(Error::InvalidConversationTitle("Title too long (max 255 characters)".to_string()));
+            return Err(Error::InvalidConversationTitle(
+                "Title too long (max 255 characters)".to_string(),
+            ));
         }
-        
+
         if contains_control_characters(trimmed) {
-            return Err(Error::InvalidConversationTitle("Title contains invalid characters".to_string()));
+            return Err(Error::InvalidConversationTitle(
+                "Title contains invalid characters".to_string(),
+            ));
         }
-        
-        Ok(Self {
-            value: trimmed.to_string(),
-        })
+
+        Ok(Self { value: trimmed.to_string() })
     }
 }
 
@@ -37,7 +41,7 @@ fn contains_control_characters(s: &str) -> bool {
     s.chars().any(|c| {
         c == '\0' ||           // Null byte
         (c < ' ' && c != '\t' && c != '\n' && c != '\r') || // Control characters except tab, newline, carriage return
-        c == '\x1b'          // ANSI escape sequences
+        c == '\x1b' // ANSI escape sequences
     })
 }
 
@@ -55,14 +59,20 @@ mod conversation_title_tests {
     fn test_empty_title() {
         let result = ConversationTitle::new("".to_string());
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), Error::InvalidConversationTitle(_)));
+        assert!(matches!(
+            result.unwrap_err(),
+            Error::InvalidConversationTitle(_)
+        ));
     }
 
     #[test]
     fn test_whitespace_only_title() {
         let result = ConversationTitle::new("   \t\n   ".to_string());
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), Error::InvalidConversationTitle(_)));
+        assert!(matches!(
+            result.unwrap_err(),
+            Error::InvalidConversationTitle(_)
+        ));
     }
 
     #[test]
@@ -70,7 +80,10 @@ mod conversation_title_tests {
         let long_title = "a".repeat(256);
         let result = ConversationTitle::new(long_title);
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), Error::InvalidConversationTitle(_)));
+        assert!(matches!(
+            result.unwrap_err(),
+            Error::InvalidConversationTitle(_)
+        ));
     }
 
     #[test]
@@ -84,21 +97,30 @@ mod conversation_title_tests {
     fn test_title_with_null_byte() {
         let result = ConversationTitle::new("Invalid\x00Title".to_string());
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), Error::InvalidConversationTitle(_)));
+        assert!(matches!(
+            result.unwrap_err(),
+            Error::InvalidConversationTitle(_)
+        ));
     }
 
     #[test]
     fn test_title_with_ansi_escape() {
         let result = ConversationTitle::new("Invalid\x1b[31mTitle".to_string());
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), Error::InvalidConversationTitle(_)));
+        assert!(matches!(
+            result.unwrap_err(),
+            Error::InvalidConversationTitle(_)
+        ));
     }
 
     #[test]
     fn test_title_with_control_character() {
         let result = ConversationTitle::new("Invalid\x01Title".to_string());
         assert!(result.is_err());
-        assert!(matches!(result.unwrap_err(), Error::InvalidConversationTitle(_)));
+        assert!(matches!(
+            result.unwrap_err(),
+            Error::InvalidConversationTitle(_)
+        ));
     }
 
     #[test]

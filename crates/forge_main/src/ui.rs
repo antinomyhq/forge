@@ -729,12 +729,15 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 };
 
                 self.spinner.start(Some("Renaming"))?;
-                self.api.rename_conversation(&conversation_id, &final_title).await?;
+                self.api
+                    .rename_conversation(&conversation_id, &final_title)
+                    .await?;
                 self.spinner.stop(None)?;
 
-                self.writeln_title(TitleFormat::action(
-                    format!("Conversation renamed to '{}'", final_title)
-                ))?;
+                self.writeln_title(TitleFormat::action(format!(
+                    "Conversation renamed to '{}'",
+                    final_title
+                )))?;
             }
         }
 
@@ -3111,20 +3114,20 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     async fn prompt_for_new_title(&mut self, current_title: &str) -> Result<String> {
         self.spinner.stop(None)?;
-        
+
         let new_title = ForgeSelect::input(format!("Rename '{}' to:", current_title))
             .with_default(current_title)
             .prompt()?
             .context("Rename cancelled")?;
-        
+
         if new_title.trim().is_empty() {
             anyhow::bail!("Title cannot be empty");
         }
-        
+
         if new_title == current_title {
             anyhow::bail!("Title unchanged");
         }
-        
+
         Ok(new_title.trim().to_string())
     }
 }
