@@ -27,6 +27,15 @@ pub enum IndexProgress {
     },
     /// Comparing local files with server state
     ComparingFiles,
+    /// Diff computed showing breakdown of changes
+    DiffComputed {
+        /// Number of files to delete (orphaned on server)
+        to_delete: usize,
+        /// Number of files to upload (new files)
+        to_upload: usize,
+        /// Number of modified files (delete + upload same path)
+        modified: usize,
+    },
     /// Syncing files (deleting outdated + uploading new/changed)
     Syncing {
         /// Current progress score (modified files contribute 0.5 for delete +
@@ -58,6 +67,7 @@ impl IndexProgress {
             Self::DiscoveringFiles { .. } => Some(2),
             Self::FilesDiscovered { .. } => Some(3),
             Self::ComparingFiles => Some(5),
+            Self::DiffComputed { .. } => Some(Self::DISCOVERY_WEIGHT),
             Self::Completed { .. } => Some(100),
             Self::WorkspaceCreated { .. } => None,
             Self::Syncing { current, total } => {
@@ -83,6 +93,20 @@ impl IndexProgress {
             }
             Self::FilesDiscovered { count } => format!("Found {} files", count),
             Self::ComparingFiles => "Comparing...".to_string(),
+            Self::DiffComputed { to_delete, to_upload, modified } => {
+                let total = to_delete + to_upload - modified;
+                if total == 0 {
+                    "No changes detected".to_string()
+                } else {
+                    format!(
+                        "{} files to sync ({} delete, {} upload, {} modified)",
+                        total,
+                        to_delete - modified,
+                        to_upload - modified,
+                        modified
+                    )
+                }
+            }
             Self::Syncing { current, total } => {
                 format!("Syncing {:.1}/{}", current, total)
             }

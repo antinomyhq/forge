@@ -383,9 +383,17 @@ impl<F> ForgeIndexingService<F> {
                 .await
         };
 
-        // Execute sync plan with unified progress
         let plan = SyncPlan::new(local_files, remote_files);
         let uploaded_files = plan.total();
+
+        // Emit diff computed event with breakdown
+        emit(IndexProgress::DiffComputed {
+            to_delete: plan.files_to_delete.len(),
+            to_upload: plan.files_to_upload.len(),
+            modified: plan.modified_files.len(),
+        })
+        .await;
+
         plan.execute(
             batch_size,
             |paths| {
