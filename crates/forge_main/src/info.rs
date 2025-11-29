@@ -759,8 +759,8 @@ mod tests {
         // Verify it contains the task completed section
         assert!(expected_display.contains("TASK COMPLETED"));
 
-        // Verify it contains the files with bullet points
-        assert!(expected_display.contains("⦿ main.rs"));
+        // Verify it contains the files as keys with colons
+        assert!(expected_display.contains("main.rs"));
         assert!(expected_display.contains("−3 +12"));
         assert!(expected_display.contains("mod.rs"));
         assert!(expected_display.contains("−2 +8"));
@@ -1048,8 +1048,8 @@ mod tests {
         // Verify it contains the task completed section
         assert!(expected_display.contains("TASK COMPLETED"));
 
-        // Verify it contains files with changes
-        assert!(expected_display.contains("⦿ main.rs"));
+        // Verify it contains files with changes as keys
+        assert!(expected_display.contains("main.rs"));
         assert!(expected_display.contains("−3 +12"));
         assert!(expected_display.contains("mod.rs"));
         assert!(expected_display.contains("−2 +8"));
