@@ -317,7 +317,7 @@ impl fmt::Display for Info {
             match section {
                 Section::Title(title) => {
                     writeln!(f)?;
-                    writeln!(f, "{}", title.to_case(Case::Upper).bold().dimmed())?;
+                    writeln!(f, "{}", title.bold().dimmed())?;
 
                     // Calculate max key width for items under this title
                     width = self
