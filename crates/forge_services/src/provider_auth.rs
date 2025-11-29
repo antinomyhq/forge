@@ -49,7 +49,16 @@ where
         let strategy =
             self.infra
                 .create_auth_strategy(provider_id.clone(), auth_method, required_params)?;
-        strategy.init().await
+        let mut request = strategy.init().await?;
+
+        // For API key flow, attach existing credential if available
+        if let AuthContextRequest::ApiKey(ref mut api_key_request) = request
+            && let Ok(Some(existing_credential)) = self.infra.get_credential(&provider_id).await
+        {
+            api_key_request.existing_params = Some(existing_credential.url_params.into());
+        }
+
+        Ok(request)
     }
 
     /// Complete authentication flow for a provider
