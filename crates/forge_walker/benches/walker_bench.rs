@@ -50,7 +50,7 @@ fn create_large_nested_structure() -> TempDir {
             *total_files += 1;
 
             // Progress indicator every 10,000 files
-            if *total_files % 10000 == 0 {
+            if (*total_files).is_multiple_of(10000) {
                 println!("  Created {} files...", *total_files);
             }
         }
