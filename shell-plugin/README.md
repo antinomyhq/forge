@@ -118,6 +118,36 @@ This displays:
 - Current configuration
 
 #### Cloning Conversations
+#### Renaming Conversations
+
+Rename an existing conversation with interactive selection:
+
+```bash
+:rename
+# or use alias
+:rn
+```
+
+This will:
+- Display an interactive list of all conversations with preview
+- Allow you to select a conversation to rename
+- Prompt for a new title interactively
+- Update the conversation title
+- Show confirmation message with new title
+
+You can also rename a specific conversation by providing its ID:
+
+```bash
+:rename <conversation_id>
+```
+
+This is useful when you want to:
+- Give conversations more descriptive names for easier identification
+- Organize conversations by project or topic
+- Update titles after conversation scope changes
+- Create better context for conversation searching
+
+#### Cloning Conversations
 
 Create a copy of an existing conversation with interactive selection:
 
@@ -206,6 +236,14 @@ All transformed commands are properly saved to ZSH history, allowing you to:
 - **Enter**: Transform and execute `:commands`
 - **Ctrl+C**: Interrupt running forge commands
 
+#### Command Aliases
+
+The plugin provides convenient aliases for commonly used commands:
+
+- `:n` - Alias for `:new` (start new session)
+- `:i` - Alias for `:info` (show system information)  
+- `:rn` - Alias for `:rename` (rename conversation)
+
 ## Examples
 
 ### Basic Usage
@@ -230,6 +268,8 @@ All transformed commands are properly saved to ZSH history, allowing you to:
 : What are the best practices for error handling?
 : Show me an example with @[src/errors.rs]
 :info
+:rn
+:rename <conversation_id>
 :new
 : New conversation starts here
 ```
