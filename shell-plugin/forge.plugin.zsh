@@ -9,7 +9,7 @@ typeset -h _FORGE_BIN="${FORGE_BIN:-forge}"
 typeset -h _FORGE_CONVERSATION_PATTERN=":"
 typeset -h _FORGE_MAX_COMMIT_DIFF="${FORGE_MAX_COMMIT_DIFF:-100000}"
 typeset -h _FORGE_DELIMITER='\s\s+'
-typeset -h _FORGE_PREVIEW_WINDOW="--preview-window=top:40%:wrap:border-sharp"
+typeset -h _FORGE_PREVIEW_WINDOW="--preview-window=top:75%:wrap:border-sharp"
 
 # Detect fd command - Ubuntu/Debian use 'fdfind', others use 'fd'
 typeset -h _FORGE_FD_CMD="$(command -v fdfind 2>/dev/null || command -v fd 2>/dev/null || echo 'fd')"
@@ -736,7 +736,7 @@ function _forge_action_clone() {
         --delimiter="$_FORGE_DELIMITER"
         --with-nth="2,3"
         --preview="CLICOLOR_FORCE=1 $_FORGE_BIN conversation info {1}; echo; CLICOLOR_FORCE=1 $_FORGE_BIN conversation show {1}"
-        --preview-window=right:60%:wrap:border-sharp
+        $_FORGE_PREVIEW_WINDOW
     )
 
     # Position cursor on current conversation if available
