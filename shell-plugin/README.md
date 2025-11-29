@@ -117,7 +117,6 @@ This displays:
 
 - Current configuration
 
-#### Cloning Conversations
 #### Renaming Conversations
 
 Rename an existing conversation with interactive selection:
@@ -258,8 +257,6 @@ The plugin provides convenient aliases for commonly used commands:
 : What are the best practices for error handling?
 : Show me an example with @[src/errors.rs]
 :info
-:rn
-:rename <conversation_id>
 :new
 : New conversation starts here
 ```
