@@ -129,13 +129,11 @@ function prompt_forge_model() {
 # Returns unstyled token count for the current conversation
 # Returns the token count in human-readable format (e.g., "10k", "1.2M")
 #
-# Example output: "42k" or "" (empty if no conversation)
+# Example output: "42k" or "0" (when no conversation)
 #
 # Example:
 #   count=$(prompt_forge_message_count_unstyled)
-#   if [[ -n "$count" ]]; then
-#     RPROMPT="%F{blue}Tokens: ${count}%f"
-#   fi
+#   RPROMPT="%F{blue}Tokens: ${count}%f"
 function prompt_forge_message_count_unstyled() {
     if [[ -n "$_FORGE_CONVERSATION_ID" ]]; then
         local stats_output=$($(_prompt_forge_cmd) conversation stats "$_FORGE_CONVERSATION_ID" --porcelain 2>/dev/null)
@@ -156,9 +154,13 @@ function prompt_forge_message_count_unstyled() {
                     # Less than 1000, show as-is
                     echo "$tokens"
                 fi
+                return
             fi
         fi
     fi
+    
+    # No conversation or no tokens - show 0
+    echo "0"
 }
 
 # Returns the token count for the current conversation
@@ -168,17 +170,20 @@ function prompt_forge_message_count_unstyled() {
 #
 # Colors:
 # - Green when conversation is active
-# - Empty when no conversation is active
+# - Dark grey when no conversation is active (shows "0")
 #
-# Example output: "42k" (in green) or "" (empty if no conversation)
+# Example output: "42k" (in green) or "0" (in dark grey when no conversation)
 #
 # Example:
 #   RPROMPT='$(prompt_forge_model) [$(prompt_forge_message_count)]'
 function prompt_forge_message_count() {
     local content=$(prompt_forge_message_count_unstyled)
-    if [[ -n "$content" ]]; then
-        # Active: green
+    if [[ -n "$_FORGE_CONVERSATION_ID" ]]; then
+        # Active conversation: green
         echo "%F{green}${content}%f"
+    else
+        # No conversation: dark grey
+        echo "%F{8}${content}%f"
     fi
 }
 
