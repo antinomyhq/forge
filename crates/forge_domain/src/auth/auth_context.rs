@@ -17,7 +17,7 @@ pub struct URLParameters(HashMap<URLParam, URLParamValue>);
 #[derive(Debug, Clone)]
 pub struct ApiKeyRequest {
     pub required_params: Vec<URLParam>,
-    pub existing_credential: Option<URLParameters>,
+    pub existing_params: Option<URLParameters>,
 }
 
 /// Response containing API key and URL parameters
