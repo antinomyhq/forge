@@ -3,7 +3,6 @@ use std::path::Path;
 use std::time::Duration;
 
 use colored::Colorize;
-use convert_case::{Case, Casing};
 use forge_api::{Conversation, Environment, LoginInfo, Metrics, Role, Usage, UserUsage};
 use forge_app::utils::truncate_key;
 use forge_tracker::VERSION;
