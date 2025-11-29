@@ -1,8 +1,10 @@
+mod progress;
 use std::time::Instant;
 
 use anyhow::Result;
 use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
+pub use progress::ProgressBarManager;
 use rand::seq::IndexedRandom;
 use tokio::task::JoinHandle;
 

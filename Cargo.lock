@@ -1539,6 +1539,7 @@ dependencies = [
  "forge_domain",
  "forge_fs",
  "forge_snaps",
+ "forge_stream",
  "forge_test_kit",
  "futures",
  "glob",
@@ -1620,6 +1621,7 @@ dependencies = [
  "anyhow",
  "colored",
  "indicatif",
+ "pretty_assertions",
  "rand 0.9.2",
  "tokio",
 ]
