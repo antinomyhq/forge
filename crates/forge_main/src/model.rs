@@ -354,6 +354,7 @@ impl ForgeCommandManager {
             "/logout" => Ok(SlashCommand::Logout),
             "/retry" => Ok(SlashCommand::Retry),
             "/conversation" | "/conversations" => Ok(SlashCommand::Conversations),
+            "/delete" => Ok(SlashCommand::Delete),
             "/commit" => {
                 // Support flexible syntax:
                 // /commit              -> commit with AI message
@@ -495,6 +496,10 @@ pub enum SlashCommand {
     #[strum(props(usage = "List all conversations for the active workspace"))]
     Conversations,
 
+    /// Delete a conversation permanently
+    #[strum(props(usage = "Delete a conversation permanently"))]
+    Delete,
+
     /// Switch directly to a specific agent by ID
     #[strum(props(usage = "Switch directly to a specific agent"))]
     AgentSwitch(String),
@@ -537,6 +542,7 @@ impl SlashCommand {
             SlashCommand::Logout => "logout",
             SlashCommand::Retry => "retry",
             SlashCommand::Conversations => "conversation",
+            SlashCommand::Delete => "delete",
             SlashCommand::AgentSwitch(agent_id) => agent_id,
         }
     }

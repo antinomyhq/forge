@@ -7,12 +7,6 @@ pub enum CompactionStrategy {
     Evict(f64),
     /// Retention based on fixed tokens
     Retain(usize),
-
-    /// Selects the strategy with minimum retention
-    Min(Box<CompactionStrategy>, Box<CompactionStrategy>),
-
-    /// Selects the strategy with maximum retention
-    Max(Box<CompactionStrategy>, Box<CompactionStrategy>),
 }
 
 impl CompactionStrategy {
@@ -24,14 +18,6 @@ impl CompactionStrategy {
     /// Create a preserve-last-N compaction strategy
     pub fn retain(preserve_last_n: usize) -> Self {
         Self::Retain(preserve_last_n)
-    }
-
-    pub fn min(self, other: CompactionStrategy) -> Self {
-        CompactionStrategy::Min(Box::new(self), Box::new(other))
-    }
-
-    pub fn max(self, other: CompactionStrategy) -> Self {
-        CompactionStrategy::Max(Box::new(self), Box::new(other))
     }
 
     /// Convert percentage-based strategy to preserve_last_n equivalent
@@ -63,8 +49,6 @@ impl CompactionStrategy {
                 }
             }
             CompactionStrategy::Retain(fixed) => *fixed,
-            CompactionStrategy::Min(a, b) => a.to_fixed(context).min(b.to_fixed(context)),
-            CompactionStrategy::Max(a, b) => a.to_fixed(context).max(b.to_fixed(context)),
         }
     }
 

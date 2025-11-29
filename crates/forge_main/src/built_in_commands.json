@@ -28,6 +28,10 @@
     "description": "List all conversations for the active workspace [alias: c]"
   },
   {
+    "command": "delete",
+    "description": "Permanently delete a conversation"
+  },
+  {
     "command": "retry",
     "description": "Retry the last command [alias: r]"
   },

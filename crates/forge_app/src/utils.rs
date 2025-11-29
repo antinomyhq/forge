@@ -76,7 +76,7 @@ pub fn format_match(matched: &Match, base_dir: &Path) -> String {
 /// * `content` - The content string to hash
 ///
 /// # Returns
-/// * A hexadecimal string representation of the SHA-256 hash
+/// * A hexadecimal string representation of the SHA-256 hash.
 pub fn compute_hash(content: &str) -> String {
     use sha2::{Digest, Sha256};
     let mut hasher = Sha256::new();
