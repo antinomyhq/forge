@@ -20,7 +20,6 @@ import { AIModel } from "@domain/models";
 interface ModelPickerProps {
   models: ReadonlyArray<AIModel>;
   selectedModelId: string;
-  selectedModelName: string;
   onModelChange: (modelId: string) => void;
   disabled?: boolean;
   compact?: boolean; // New prop for icon-only mode
@@ -30,12 +29,18 @@ interface ModelPickerProps {
 export const ModelPicker: React.FC<ModelPickerProps> = ({
   models,
   selectedModelId,
-  selectedModelName,
   onModelChange,
   disabled = false,
   compact = false,
 }) => {
   const [open, setOpen] = React.useState(false);
+
+  // Derive selected model name from models array to prevent sync issues
+  const selectedModel = React.useMemo(
+    () => models.find((m) => m.id === selectedModelId),
+    [models, selectedModelId]
+  );
+  const selectedModelName = selectedModel?.name || selectedModel?.id || "Select model...";
 
   const handleSelect = (modelId: string) => {
     onModelChange(modelId);
@@ -75,7 +80,7 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({
         )}
       </PopoverTrigger>
       <PopoverContent className="w-[300px] p-0" align="start">
-        <Command>
+        <Command key={`${selectedModelId}-${open}`}>
           <CommandInput placeholder="Search models..." />
           <CommandList>
             <CommandEmpty>

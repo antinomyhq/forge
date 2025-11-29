@@ -80,7 +80,6 @@ function App() {
           models={chatState.models}
           agents={chatState.agents}
           selectedModelId={chatState.modelId}
-          selectedModelName={chatState.modelName}
           selectedAgentId={chatState.agentId}
           selectedAgentName={chatState.agentName}
           onModelChange={changeModel}

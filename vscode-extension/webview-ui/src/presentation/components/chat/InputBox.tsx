@@ -15,7 +15,6 @@ interface InputBoxProps {
   models: ReadonlyArray<AIModel>;
   agents: ReadonlyArray<Agent>;
   selectedModelId: string;
-  selectedModelName: string;
   selectedAgentId: string;
   selectedAgentName: string;
   onModelChange: (modelId: string) => void;
@@ -31,7 +30,6 @@ export const InputBox: React.FC<InputBoxProps> = ({
   models,
   agents,
   selectedModelId,
-  selectedModelName,
   selectedAgentId,
   selectedAgentName,
   onModelChange,
@@ -149,7 +147,6 @@ export const InputBox: React.FC<InputBoxProps> = ({
             <ModelPicker
               models={models}
               selectedModelId={selectedModelId}
-              selectedModelName={selectedModelName}
               onModelChange={onModelChange}
               disabled={isStreaming}
               compact={true}
