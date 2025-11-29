@@ -13,6 +13,7 @@
 # - $_FORGE_ACTIVE_AGENT     : Current agent ID (e.g., "forge", "sage")
 # - $_FORGE_CONVERSATION_ID  : Current conversation UUID (empty if no conversation)
 # - $FORGE_PROMPT_ICON       : Icon displayed before agent name (default: 󰚩 U+F06A9)
+# - $_FORGE_PROVIDER         : Current provider name (e.g., "openai", "anthropic")
 #
 # Usage Examples:
 #
@@ -39,6 +40,16 @@
 #
 # 5. Show token count in your prompt:
 #    RPROMPT='$(prompt_forge_model) [$(prompt_forge_message_count)]'
+#
+# 6. Show model@provider information:
+#    RPROMPT='$(prompt_forge_model_provider)'
+#
+# 7. Powerlevel10k model@provider integration:
+#    function prompt_forge_model_provider() {
+#      local model_provider="$(prompt_forge_model_provider_unstyled)"
+#      [[ -n "$model_provider" ]] && p10k segment -t "$model_provider"
+#    }
+#    # Then add 'forge_model_provider' to POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS
 
 #################################################################################
 # INTERNAL HELPERS
@@ -87,6 +98,22 @@ function prompt_forge_model_unstyled() {
     fi
 }
 
+# Returns unstyled right prompt content (provider name)
+# Returns provider without any styling
+#
+# Example output: "openai" or "" (empty if no provider)
+#
+# Example:
+#   provider=$(prompt_forge_provider_unstyled)
+#   RPROMPT="%F{blue}${provider}%f"
+function prompt_forge_provider_unstyled() {
+    local provider_output=$($(_prompt_forge_cmd) config get provider --porcelain 2>/dev/null)
+    
+    if [[ -n "$provider_output" ]]; then
+        echo "${provider_output}"
+    fi
+}
+
 # Returns a styled left prompt segment (agent name)
 # This is a ready-to-use function for ZSH prompts
 #
@@ -120,6 +147,22 @@ function prompt_forge_agent() {
 #   RPROMPT='$(prompt_forge_model)'
 function prompt_forge_model() {
     local content=$(prompt_forge_model_unstyled)
+    if [[ -n "$content" ]]; then
+        # Always cyan regardless of conversation state
+        echo "%F{cyan}${content}%f"
+    fi
+}
+
+# Returns a styled right prompt segment (provider name)
+# This is a ready-to-use function for ZSH prompts
+#
+# Format: provider name
+# Color: Cyan (consistent with model)
+#
+# Example:
+#   RPROMPT='$(prompt_forge_provider)'
+function prompt_forge_provider() {
+    local content=$(prompt_forge_provider_unstyled)
     if [[ -n "$content" ]]; then
         # Always cyan regardless of conversation state
         echo "%F{cyan}${content}%f"
@@ -187,6 +230,41 @@ function prompt_forge_message_count() {
     fi
 }
 
+# Returns unstyled model@provider combination
+# Returns model and provider combined without any styling
+#
+# Example output: "claude-3-5-sonnet@openai" or "" (empty if no model/provider)
+#
+# Example:
+#   model_provider=$(prompt_forge_model_provider_unstyled)
+#   RPROMPT="%F{blue}${model_provider}%f"
+function prompt_forge_model_provider_unstyled() {
+    local model=$(prompt_forge_model_unstyled)
+    local provider=$(prompt_forge_provider_unstyled)
+    
+    if [[ -n "$model" && -n "$provider" ]]; then
+        echo "${model}@${provider}"
+    elif [[ -n "$model" ]]; then
+        echo "$model"
+    fi
+}
+
+# Returns a styled right prompt segment (model@provider)
+# This is a ready-to-use function for ZSH prompts
+#
+# Format: model@provider or model alone if no provider
+# Color: Cyan (consistent with individual segments)
+#
+# Example:
+#   RPROMPT='$(prompt_forge_model_provider)'
+function prompt_forge_model_provider() {
+    local content=$(prompt_forge_model_provider_unstyled)
+    if [[ -n "$content" ]]; then
+        # Always cyan regardless of conversation state
+        echo "%F{cyan}${content}%f"
+    fi
+}
+
 # End of Public API
 #################################################################################
 
@@ -198,15 +276,17 @@ function prompt_forge_message_count() {
 # To use, add these segment names to your prompt elements:
 # - 'forge_agent' for the left prompt (agent name)
 # - 'forge_model' for the right prompt (model name)
+# - 'forge_provider' for the right prompt (provider name)
+# - 'forge_model_provider' for the right prompt (model@provider)
 # - 'forge_message_count' for the right prompt (token count)
 #
 # Example in your .p10k.zsh or .zshrc:
 #   POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=(... forge_agent ...)
-#   POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=(... forge_model forge_message_count ...)
+#   POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=(... forge_model forge_provider forge_model_provider forge_message_count ...)
 #
 # Or for Powerlevel9k:
 #   POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=(context ... forge_agent dir vcs)
-#   POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=(status forge_model forge_message_count time)
+#   POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=(status forge_model forge_provider forge_model_provider forge_message_count time)
 
 # Powerlevel segment for agent name (left prompt)
 # Applies consistent styling across P10k and P9k
@@ -235,6 +315,42 @@ function prompt_forge_agent_p9k() {
 # Usage: Add 'forge_model' to POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS
 function prompt_forge_model_p9k() {
     local styled=$(prompt_forge_model)
+    if [[ -n "$styled" ]]; then
+        # Check if p10k is available
+        if (( $+functions[p10k] )); then
+            # Powerlevel10k - use p10k segment with our styling
+            p10k segment -t "$styled"
+        else
+            # Powerlevel9k - output directly
+            echo -n "$styled"
+        fi
+    fi
+}
+
+# Powerlevel segment for provider name (right prompt)
+# Applies consistent styling across P10k and P9k
+#
+# Usage: Add 'forge_provider' to POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS
+function prompt_forge_provider_p9k() {
+    local styled=$(prompt_forge_provider)
+    if [[ -n "$styled" ]]; then
+        # Check if p10k is available
+        if (( $+functions[p10k] )); then
+            # Powerlevel10k - use p10k segment with our styling
+            p10k segment -t "$styled"
+        else
+            # Powerlevel9k - output directly
+            echo -n "$styled"
+        fi
+    fi
+}
+
+# Powerlevel segment for model@provider (right prompt)
+# Applies consistent styling across P10k and P9k
+#
+# Usage: Add 'forge_model_provider' to POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS
+function prompt_forge_model_provider_p9k() {
+    local styled=$(prompt_forge_model_provider)
     if [[ -n "$styled" ]]; then
         # Check if p10k is available
         if (( $+functions[p10k] )); then
