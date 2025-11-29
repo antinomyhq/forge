@@ -46,8 +46,15 @@ export class ServerManager extends EventEmitter {
         this.outputChannel.appendLine(`Starting forge-app-server: ${this.config.serverPath}`);
 
         try {
+            // Get workspace folder as cwd, fallback to user's home directory
+            const workspaceFolder = vscode.workspace.workspaceFolders?.[0];
+            const cwd = workspaceFolder?.uri.fsPath || process.env.HOME || process.cwd();
+
+            this.outputChannel.appendLine(`Working directory: ${cwd}`);
+
             this.process = spawn(this.config.serverPath, [], {
                 stdio: ['pipe', 'pipe', 'pipe'],
+                cwd: cwd,
                 env: {
                     ...process.env,
                     RUST_LOG: this.config.logLevel,
