@@ -2525,7 +2525,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 Porcelain::from(&info)
                     .into_long()
                     .skip(1)
-                    .to_case(&[0, 1], Case::Snake).sort_by(&[0, 1]),
+                    .to_case(&[0, 1], Case::Snake)
+                    .sort_by(&[0, 1]),
             )?;
         } else {
             self.writeln(info)?;
