@@ -4,6 +4,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Bot, Loader2 } from "lucide-react";
+import { MarkdownRenderer } from "./MarkdownRenderer";
 
 interface StreamingIndicatorProps {
   delta: string;
@@ -40,12 +41,10 @@ export const StreamingIndicator: React.FC<StreamingIndicatorProps> = ({ delta })
         >
           <CardContent className="p-4">
             {delta ? (
-              <div 
-                className="whitespace-pre-wrap text-sm" 
-                style={{ color: 'var(--vscode-editor-foreground)' }}
-              >
-                {delta}
-              </div>
+              <MarkdownRenderer 
+                content={delta} 
+                className="text-sm"
+              />
             ) : (
               <div className="space-y-2">
                 <Skeleton className="h-4 w-full" />

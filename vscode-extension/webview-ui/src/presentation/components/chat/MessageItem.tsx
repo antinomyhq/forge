@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { User, Bot, AlertCircle } from "lucide-react";
 import { Message, ToolExecution } from "@domain/models";
+import { MarkdownRenderer } from "./MarkdownRenderer";
 
 interface MessageItemProps {
   message: Message | ToolExecution | {
@@ -65,12 +66,12 @@ export const MessageItem: React.FC<MessageItemProps> = ({ message }) => {
           }}
         >
           <CardContent className="p-4">
-            <div 
-              className="whitespace-pre-wrap text-sm"
-              style={{ color: 'var(--vscode-editor-foreground)' }}
-            >
-              {content || ''}
-            </div>
+            {content && (
+              <MarkdownRenderer 
+                content={content} 
+                className="text-sm"
+              />
+            )}
             
             {/* Status indicators */}
             {'status' in message && message.status === "running" && (

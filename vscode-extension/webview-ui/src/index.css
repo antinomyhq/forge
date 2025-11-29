@@ -201,3 +201,142 @@ pre code {
   color: var(--vscode-descriptionForeground) !important;
   opacity: 0.9;
 }
+
+/* Syntax highlighting for code blocks - VSCode Dark+ theme inspired */
+.markdown-content pre code.hljs {
+  display: block;
+  overflow-x: auto;
+  padding: 0;
+}
+
+/* Base highlighting styles using VSCode theme colors */
+.hljs {
+  color: var(--vscode-editor-foreground);
+  background: transparent;
+}
+
+.hljs-comment,
+.hljs-quote {
+  color: var(--vscode-terminal-ansiGreen);
+  font-style: italic;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-subst {
+  color: var(--vscode-terminal-ansiMagenta);
+}
+
+.hljs-number,
+.hljs-literal,
+.hljs-variable,
+.hljs-template-variable {
+  color: var(--vscode-terminal-ansiCyan);
+}
+
+.hljs-string,
+.hljs-doctag {
+  color: var(--vscode-terminal-ansiRed);
+}
+
+.hljs-title,
+.hljs-section,
+.hljs-selector-id {
+  color: var(--vscode-terminal-ansiYellow);
+  font-weight: bold;
+}
+
+.hljs-type,
+.hljs-class .hljs-title {
+  color: var(--vscode-terminal-ansiYellow);
+}
+
+.hljs-tag,
+.hljs-name,
+.hljs-attribute {
+  color: var(--vscode-terminal-ansiBlue);
+  font-weight: normal;
+}
+
+.hljs-regexp,
+.hljs-link {
+  color: var(--vscode-terminal-ansiRed);
+}
+
+.hljs-symbol,
+.hljs-bullet {
+  color: var(--vscode-terminal-ansiCyan);
+}
+
+.hljs-built_in,
+.hljs-builtin-name {
+  color: var(--vscode-terminal-ansiYellow);
+}
+
+.hljs-meta {
+  color: var(--vscode-terminal-ansiGreen);
+}
+
+.hljs-deletion {
+  background: var(--vscode-diffEditor-removedTextBackground);
+}
+
+.hljs-addition {
+  background: var(--vscode-diffEditor-insertedTextBackground);
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-strong {
+  font-weight: bold;
+}
+
+/* Markdown-specific styles for better readability */
+.markdown-content {
+  line-height: 1.6;
+}
+
+.markdown-content > *:first-child {
+  margin-top: 0 !important;
+}
+
+.markdown-content > *:last-child {
+  margin-bottom: 0 !important;
+}
+
+/* Fix list indentation in markdown */
+.markdown-content ul ul,
+.markdown-content ol ul,
+.markdown-content ul ol,
+.markdown-content ol ol {
+  margin-left: 1.5rem;
+  margin-top: 0.25rem;
+  margin-bottom: 0.25rem;
+}
+
+/* Task list styling (from remark-gfm) */
+.markdown-content input[type="checkbox"] {
+  margin-right: 0.5rem;
+}
+
+/* Table responsiveness */
+.markdown-content table {
+  display: block;
+  width: 100%;
+  overflow: auto;
+}
+
+/* Improve inline code readability */
+.markdown-content p code,
+.markdown-content li code {
+  white-space: nowrap;
+}
+
+/* Ensure code blocks don't overflow */
+.markdown-content pre {
+  max-width: 100%;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+}
