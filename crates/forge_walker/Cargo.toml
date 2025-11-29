@@ -8,7 +8,18 @@ ignore.workspace = true
 tokio.workspace = true
 anyhow.workspace = true
 derive_setters.workspace = true
+once_cell.workspace = true
+num_cpus = "1.16"
 
 [dev-dependencies]
 pretty_assertions.workspace = true
 tempfile.workspace = true
+criterion = "0.5"
+
+
+[lib]
+bench = false
+
+[[bench]]
+name = "walker_bench"
+harness = false
