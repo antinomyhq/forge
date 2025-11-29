@@ -66,5 +66,9 @@
   {
     "command": "agent",
     "description": "Select and switch between agents [alias: a]"
+  },
+  {
+    "command": "clone",
+    "description": "Clone and manage conversation context"
   }
 ]

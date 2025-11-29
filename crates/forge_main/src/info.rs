@@ -331,14 +331,19 @@ impl fmt::Display for Info {
                 Section::Items(key, value) => {
                     if let Some(key) = key {
                         if let Some(width) = width {
-                            writeln!(f, "  {} {}", format!("{key:<width$}:").cyan().bold(), value)?;
+                            writeln!(
+                                f,
+                                "  {} {}",
+                                format!("{key:<width$}:").green().bold(),
+                                value
+                            )?;
                         } else {
                             // No section width (items without a title)
-                            writeln!(f, "  {}: {}", key.cyan().bold(), value)?;
+                            writeln!(f, "  {}: {}", key.green().bold(), value)?;
                         }
                     } else {
                         // Show value-only items
-                        writeln!(f, "    {} {}", "⦿".cyan(), value)?;
+                        writeln!(f, "    {} {}", "⦿".green(), value)?;
                     }
                 }
             }
