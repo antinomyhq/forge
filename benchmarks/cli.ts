@@ -163,10 +163,10 @@ async function main() {
       const logFile = path.join(debugDir, `task_run_${i + 1}.log`);
       const debugRequestFile = path.join(debugDir, `request_${i + 1}.json`);
 
-      // Add request_file to context for command interpolation and validations
-      const context = { ...row, request_file: debugRequestFile };
+      // Add context_input to context for command interpolation and validations
+      const context = { ...row, context_input: debugRequestFile };
 
-      // Generate command using context (including request_file)
+      // Generate command using context (including context_input)
       const command = generateCommand(task.run.command, context);
 
       logger.info(
