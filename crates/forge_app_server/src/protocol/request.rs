@@ -173,8 +173,7 @@ mod tests {
     #[test]
     fn test_env_info_request_with_empty_params() {
         let json = serde_json::json!({
-            "method": "env/info",
-            "params": {}
+            "method": "env/info"
         });
         let request: ClientRequest = serde_json::from_value(json).unwrap();
 

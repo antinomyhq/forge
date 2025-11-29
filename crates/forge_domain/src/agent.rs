@@ -1,5 +1,7 @@
 use derive_setters::Setters;
 use merge::Merge;
+use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
 use crate::{
     AgentDefinition, AgentId, Compact, Context, Error, EventContext, MaxTokens, ModelId,
@@ -9,7 +11,8 @@ use crate::{
 
 /// Runtime agent representation with required model and provider
 /// Created by converting AgentDefinition with resolved defaults
-#[derive(Debug, Clone, Setters)]
+#[derive(Debug, Clone, Setters, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../../vscode-extension/src/generated/")]
 #[setters(strip_option, into)]
 pub struct Agent {
     /// Flag to enable/disable tool support for this agent.
@@ -34,12 +37,15 @@ pub struct Agent {
     pub description: Option<String>,
 
     // Template for the system prompt provided to the agent
+    #[ts(skip)]
     pub system_prompt: Option<Template<SystemContext>>,
 
     // Template for the user prompt provided to the agent
+    #[ts(skip)]
     pub user_prompt: Option<Template<EventContext>>,
 
     /// Tools that the agent can use
+    #[ts(skip)]
     pub tools: Option<Vec<ToolName>>,
 
     /// Maximum number of turns the agent can take
@@ -49,24 +55,30 @@ pub struct Agent {
     pub max_walker_depth: Option<usize>,
 
     /// Configuration for automatic context compaction
+    #[ts(skip)]
     pub compact: Option<Compact>,
 
     /// A set of custom rules that the agent should follow
     pub custom_rules: Option<String>,
 
     /// Temperature used for agent
+    #[ts(skip)]
     pub temperature: Option<Temperature>,
 
     /// Top-p (nucleus sampling) used for agent
+    #[ts(skip)]
     pub top_p: Option<TopP>,
 
     /// Top-k used for agent
+    #[ts(skip)]
     pub top_k: Option<TopK>,
 
     /// Maximum number of tokens the model can generate
+    #[ts(skip)]
     pub max_tokens: Option<MaxTokens>,
 
     /// Reasoning configuration for the agent.
+    #[ts(skip)]
     pub reasoning: Option<ReasoningConfig>,
 
     /// Maximum number of times a tool can fail before sending the response back

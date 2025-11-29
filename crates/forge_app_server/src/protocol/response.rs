@@ -37,6 +37,14 @@ pub struct JsonRpcNotification {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "method", content = "params", rename_all = "camelCase")]
 pub enum ServerNotification {
+    /// Chat response event from the agent (replaces item-based events)
+    #[serde(rename = "chat/event")]
+    ChatEvent {
+        thread_id: ThreadId,
+        turn_id: TurnId,
+        event: forge_domain::ChatResponse,
+    },
+
     /// Thread has started
     #[serde(rename = "thread/started")]
     ThreadStarted { thread_id: ThreadId },
@@ -56,7 +64,7 @@ pub enum ServerNotification {
         status: TurnStatus,
     },
 
-    /// Item has started
+    /// Item has started (DEPRECATED - use ChatEvent instead)
     #[serde(rename = "item/started")]
     ItemStarted {
         thread_id: ThreadId,
@@ -65,7 +73,7 @@ pub enum ServerNotification {
         item_type: ItemType,
     },
 
-    /// Item has completed
+    /// Item has completed (DEPRECATED - use ChatEvent instead)
     #[serde(rename = "item/completed")]
     ItemCompleted {
         thread_id: ThreadId,
@@ -74,7 +82,7 @@ pub enum ServerNotification {
         status: ItemStatus,
     },
 
-    /// Agent message delta (streaming)
+    /// Agent message delta (streaming) (DEPRECATED - use ChatEvent instead)
     #[serde(rename = "item/agentMessage/delta")]
     AgentMessageDelta {
         thread_id: ThreadId,
@@ -83,7 +91,7 @@ pub enum ServerNotification {
         delta: String,
     },
 
-    /// Agent reasoning (thinking process)
+    /// Agent reasoning (thinking process) (DEPRECATED - use ChatEvent instead)
     #[serde(rename = "item/agentReasoning/delta")]
     AgentReasoningDelta {
         thread_id: ThreadId,
@@ -101,7 +109,8 @@ pub enum ServerNotification {
         output: String,
     },
 
-    /// Token usage update
+    /// Token usage update (DEPRECATED - use ChatEvent with Usage variant
+    /// instead)
     #[serde(rename = "turn/usage")]
     TurnUsage {
         thread_id: ThreadId,
@@ -228,7 +237,8 @@ mod tests {
             serde_json::to_string_pretty(&json).unwrap()
         );
 
-        // ItemType::AgentMessage should serialize as string "AgentMessage"
-        assert_eq!(json["params"]["itemType"], "AgentMessage");
+        // ItemType::AgentMessage serializes as {"type": "agentMessage"} (internally
+        // tagged enum)
+        assert_eq!(json["params"]["item_type"]["type"], "agentMessage");
     }
 }

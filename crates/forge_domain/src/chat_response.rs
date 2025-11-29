@@ -2,10 +2,13 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use chrono::Local;
+use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
 use crate::{ToolCallFull, ToolName, ToolResult, Usage};
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../../vscode-extension/src/generated/")]
 pub enum ChatResponseContent {
     Title(TitleFormat),
     PlainText(String),
@@ -44,16 +47,27 @@ impl ChatResponseContent {
 
 /// Events that are emitted by the agent for external consumption. This includes
 /// events for all internal state changes.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../../vscode-extension/src/generated/")]
 pub enum ChatResponse {
-    TaskMessage { content: ChatResponseContent },
-    TaskReasoning { content: String },
+    TaskMessage {
+        content: ChatResponseContent,
+    },
+    TaskReasoning {
+        content: String,
+    },
     TaskComplete,
     ToolCallStart(ToolCallFull),
     ToolCallEnd(ToolResult),
     Usage(Usage),
-    RetryAttempt { cause: Cause, duration: Duration },
-    Interrupt { reason: InterruptionReason },
+    RetryAttempt {
+        cause: Cause,
+        #[ts(type = "number")]
+        duration: Duration,
+    },
+    Interrupt {
+        reason: InterruptionReason,
+    },
 }
 
 impl ChatResponse {
@@ -75,10 +89,12 @@ impl ChatResponse {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../../vscode-extension/src/generated/")]
 pub enum InterruptionReason {
     MaxToolFailurePerTurnLimitReached {
         limit: u64,
+        #[ts(skip)]
         errors: HashMap<ToolName, usize>,
     },
     MaxRequestPerTurnLimitReached {
@@ -86,7 +102,8 @@ pub enum InterruptionReason {
     },
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../../vscode-extension/src/generated/")]
 pub struct Cause(String);
 
 impl Cause {
@@ -111,7 +128,8 @@ impl From<&anyhow::Error> for Cause {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../../vscode-extension/src/generated/")]
 pub enum Category {
     Action,
     Info,
@@ -121,7 +139,8 @@ pub enum Category {
     Warning,
 }
 
-#[derive(Clone, derive_setters::Setters, Debug, PartialEq)]
+#[derive(Clone, derive_setters::Setters, Debug, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../../vscode-extension/src/generated/")]
 #[setters(into, strip_option)]
 pub struct TitleFormat {
     pub title: String,

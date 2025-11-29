@@ -4,12 +4,14 @@ use derive_getters::Getters;
 use derive_more::derive::From;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
 use crate::xml::extract_tag_content;
 use crate::{Error, Result, ToolCallArguments, ToolName, ToolResult};
 
 /// Unique identifier for a using a tool
-#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Serialize, TS)]
+#[ts(export, export_to = "../../../../../vscode-extension/src/generated/")]
 #[serde(transparent)]
 pub struct ToolCallId(pub(crate) String);
 
@@ -73,12 +75,14 @@ impl ToolCall {
 
 /// Contains the full information about using a tool. This is received as a part
 /// of the response from the model when streaming is disabled.
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, Setters)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, Setters, TS)]
+#[ts(export, export_to = "../../../../../vscode-extension/src/generated/")]
 #[setters(strip_option, into)]
 #[serde(rename_all = "snake_case")]
 pub struct ToolCallFull {
     pub name: ToolName,
     pub call_id: Option<ToolCallId>,
+    #[ts(type = "any")]
     pub arguments: ToolCallArguments,
 }
 

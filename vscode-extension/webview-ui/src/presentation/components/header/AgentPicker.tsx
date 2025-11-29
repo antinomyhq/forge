@@ -77,11 +77,10 @@ export function AgentPicker({
             <CommandEmpty>No agent found.</CommandEmpty>
             <CommandGroup>
               {agents.map((agent) => {
-                const displayName = agent.name || agent.id;
                 return (
                   <CommandItem
                     key={agent.id}
-                    value={displayName}
+                    value={agent.id}  // Search by ID
                     onSelect={() => handleSelect(agent.id)}
                     className="flex items-start gap-2"
                   >
@@ -94,8 +93,15 @@ export function AgentPicker({
                       )}
                     />
                     <div className="flex-1 space-y-0.5">
-                      <div className="font-medium">
-                        {displayName}
+                      <div className="flex items-baseline gap-2">
+                        <span className="font-mono text-sm font-medium">
+                          {agent.id}
+                        </span>
+                        {agent.title && (
+                          <span className="text-xs text-muted-foreground">
+                            {agent.title}
+                          </span>
+                        )}
                       </div>
                       {agent.description && (
                         <p className="text-xs text-muted-foreground line-clamp-2">

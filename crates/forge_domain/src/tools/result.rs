@@ -1,13 +1,15 @@
 use derive_setters::Setters;
 use forge_template::Element;
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
 use crate::{Image, ToolCallFull, ToolCallId, ToolName};
 
 const REFLECTION_PROMPT: &str =
     include_str!("../../../../templates/forge-partial-tool-error-reflection.md");
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, Setters)]
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, Setters, TS)]
+#[ts(export, export_to = "../../../../../vscode-extension/src/generated/")]
 #[setters(into)]
 pub struct ToolResult {
     pub name: ToolName,
@@ -79,7 +81,8 @@ impl From<ToolCallFull> for ToolResult {
     }
 }
 
-#[derive(Default, Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Setters)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Setters, TS)]
+#[ts(export, export_to = "../../../../../vscode-extension/src/generated/")]
 #[setters(into, strip_option)]
 pub struct ToolOutput {
     pub is_error: bool,
@@ -125,7 +128,8 @@ where
 
 /// Like serde_json::Value, ToolValue represents all the primitive values that
 /// tools can produce.
-#[derive(Default, Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash, TS)]
+#[ts(export, export_to = "../../../../../vscode-extension/src/generated/")]
 #[serde(rename_all = "camelCase")]
 pub enum ToolValue {
     Text(String),

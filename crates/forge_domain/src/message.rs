@@ -2,12 +2,14 @@ use derive_more::derive::From;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use strum_macros::{EnumString, IntoStaticStr};
+use ts_rs::TS;
 
 use super::{ToolCall, ToolCallFull};
 use crate::TokenCount;
 use crate::reasoning::{Reasoning, ReasoningFull};
 
-#[derive(Default, Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Default, Clone, Debug, Serialize, Deserialize, PartialEq, TS)]
+#[ts(export, export_to = "../../../vscode-extension/src/generated/")]
 pub struct Usage {
     pub prompt_tokens: TokenCount,
     pub completion_tokens: TokenCount,
@@ -104,7 +106,8 @@ impl<T: AsRef<str>> From<T> for Content {
 
 /// The reason why the model stopped generating output.
 /// Read more: https://platform.openai.com/docs/guides/function-calling#edge-cases
-#[derive(Clone, Debug, Deserialize, Serialize, EnumString, IntoStaticStr, PartialEq, Eq)]
+#[derive(Clone, Debug, Deserialize, Serialize, EnumString, IntoStaticStr, PartialEq, Eq, TS)]
+#[ts(export, export_to = "../../../vscode-extension/src/generated/")]
 pub enum FinishReason {
     /// The model stopped generating output because it reached the maximum
     /// allowed length.

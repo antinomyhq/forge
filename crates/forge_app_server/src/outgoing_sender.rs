@@ -87,6 +87,7 @@ impl<W: AsyncWrite + Unpin + Send> OutgoingMessageSender<W> {
     /// Extracts the method name from a ServerNotification
     fn get_notification_method(notification: &ServerNotification) -> String {
         match notification {
+            ServerNotification::ChatEvent { .. } => "chat/event",
             ServerNotification::ThreadStarted { .. } => "thread/started",
             ServerNotification::TurnStarted { .. } => "turn/started",
             ServerNotification::TurnCompleted { .. } => "turn/completed",

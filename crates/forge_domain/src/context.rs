@@ -6,6 +6,7 @@ use derive_setters::Setters;
 use forge_template::Element;
 use serde::{Deserialize, Serialize};
 use tracing::debug;
+use ts_rs::TS;
 
 use super::{ToolCallFull, ToolResult};
 
@@ -551,7 +552,8 @@ impl Context {
     }
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, TS)]
+#[ts(export, export_to = "../../../vscode-extension/src/generated/")]
 pub enum TokenCount {
     Actual(usize),
     Approx(usize),

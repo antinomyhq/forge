@@ -4,6 +4,7 @@ use std::collections::HashMap;
 use derive_more::{AsRef, Deref, From};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 use url::Url;
 
 use crate::{ApiKey, AuthCredential, AuthDetails, Model, Template};
@@ -27,7 +28,9 @@ use crate::{ApiKey, AuthCredential, AuthDetails, Model, Template};
     Deref,
     Serialize,
     Deserialize,
+    TS,
 )]
+#[ts(export, export_to = "../../../vscode-extension/src/generated/")]
 #[schemars(with = "String")]
 #[serde(from = "String")]
 pub struct ProviderId(Cow<'static, str>);
@@ -140,10 +143,25 @@ impl From<String> for ProviderId {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../../vscode-extension/src/generated/")]
 pub enum ProviderResponse {
     OpenAI,
     Anthropic,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../../vscode-extension/src/generated/")]
+pub struct ProviderInfo {
+    pub id: ProviderId,
+    #[serde(rename = "isActive")]
+    pub is_active: bool,
+}
+
+impl ProviderInfo {
+    pub fn new(id: ProviderId, is_active: bool) -> Self {
+        Self { id, is_active }
+    }
 }
 
 /// Represents the source of models for a provider
@@ -192,7 +210,7 @@ impl Provider<Url> {
 
 /// Enum for viewing providers in listings where both configured and
 /// unconfigured.
-#[derive(Debug, Clone, PartialEq, From)]
+#[derive(Debug, Clone, PartialEq, From, Serialize, Deserialize)]
 pub enum AnyProvider {
     Url(Provider<Url>),
     Template(Provider<Template<HashMap<crate::URLParam, crate::URLParamValue>>>),

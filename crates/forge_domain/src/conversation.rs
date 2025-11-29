@@ -2,11 +2,13 @@ use chrono::{DateTime, Utc};
 use derive_more::derive::Display;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 use uuid::Uuid;
 
 use crate::{Context, Error, Metrics, Result};
 
-#[derive(Debug, Default, Display, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Default, Display, Serialize, Deserialize, Clone, PartialEq, Eq, Hash, TS)]
+#[ts(export, export_to = "../../../vscode-extension/src/generated/")]
 #[serde(transparent)]
 pub struct ConversationId(Uuid);
 
@@ -28,18 +30,21 @@ impl ConversationId {
     }
 }
 
-#[derive(Debug, Setters, Serialize, Deserialize, Clone)]
+#[derive(Debug, Setters, Serialize, Deserialize, Clone, TS)]
+#[ts(export, export_to = "../../../vscode-extension/src/generated/")]
 #[setters(into)]
 pub struct Conversation {
     pub id: ConversationId,
 
     pub title: Option<String>,
+    #[ts(skip)]
     pub context: Option<Context>,
     pub metrics: Metrics,
     pub metadata: MetaData,
 }
 
-#[derive(Debug, Setters, Serialize, Deserialize, Clone)]
+#[derive(Debug, Setters, Serialize, Deserialize, Clone, TS)]
+#[ts(export, export_to = "../../../vscode-extension/src/generated/")]
 #[setters(into)]
 pub struct MetaData {
     pub created_at: DateTime<Utc>,

@@ -3,6 +3,7 @@ use lazy_static::lazy_static;
 use merge::Merge;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
 use crate::temperature::Temperature;
 use crate::update::Update;
@@ -136,7 +137,8 @@ impl Default for Workflow {
     }
 }
 
-#[derive(Default, Debug, Clone, Serialize, Deserialize, Merge, Setters, JsonSchema)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, Merge, Setters, JsonSchema, TS)]
+#[ts(export, export_to = "../../../vscode-extension/src/generated/")]
 #[setters(strip_option, into)]
 pub struct Command {
     #[merge(strategy = crate::merge::std::overwrite)]

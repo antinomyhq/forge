@@ -3,9 +3,11 @@ use std::path::PathBuf;
 use derive_setters::Setters;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
 /// Represents a reusable skill with a name, file path, and prompt content
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Setters, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Setters, JsonSchema, TS)]
+#[ts(export, export_to = "../../../vscode-extension/src/generated/")]
 #[setters(strip_option, into)]
 pub struct Skill {
     /// Name of the skill

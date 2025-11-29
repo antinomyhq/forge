@@ -16,7 +16,17 @@ impl EventTranslator {
         Self { thread_id, turn_id, current_item_id: None }
     }
 
+    /// Forwards ChatResponse as-is (new approach - matches terminal UI pattern)
+    pub fn forward(&self, response: ChatResponse) -> ServerNotification {
+        ServerNotification::ChatEvent {
+            thread_id: self.thread_id,
+            turn_id: self.turn_id,
+            event: response,
+        }
+    }
+
     /// Translates a ChatResponse into zero or more ServerNotifications
+    /// (DEPRECATED) Use `forward()` instead for direct event forwarding
     pub fn translate(&mut self, response: ChatResponse) -> Vec<ServerNotification> {
         match response {
             ChatResponse::TaskMessage { content } => self.translate_task_message(content),

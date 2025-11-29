@@ -107,7 +107,8 @@ export class JsonRpcClient extends EventEmitter {
                 const message = JSON.parse(line);
                 this.handleMessage(message);
             } catch (error) {
-                this.emit('error', new Error(`Failed to parse JSON: ${line}`));
+                const errorMsg = error instanceof Error ? error.message : String(error);
+                this.emit('error', new Error(`Failed to parse JSON (${errorMsg}): ${line.substring(0, 200)}...`));
             }
         }
     }

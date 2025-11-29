@@ -1,9 +1,12 @@
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
 /// Contains metrics related to context compaction
 /// This struct provides information about the compaction operation
 /// such as the original and compacted token counts.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../../vscode-extension/src/generated/")]
+#[serde(rename_all = "camelCase")]
 pub struct CompactionResult {
     /// Number of tokens in the original context
     pub original_tokens: usize,

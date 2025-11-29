@@ -149,6 +149,44 @@ export function useChatStateUpdater() {
           yield* chatState.clearCurrentTurn();
           break;
         
+        case 'toolCallStart':
+          // New tool call starting (from chat/event ToolCallStart)
+          console.log('[useChatStateUpdater] toolCallStart received:', {
+            tool: message.tool,
+            callId: message.callId
+          });
+          
+          // Commit current streaming message before tool call
+          const toolStartState = yield* chatState.getState;
+          if (toolStartState.streamingContent) {
+            console.log('[useChatStateUpdater] Committing streaming message before tool');
+            yield* chatState.addAssistantMessage(toolStartState.streamingContent);
+          }
+          yield* chatState.updateStreaming('', false); // Clear streaming state
+          
+          // Add tool call to active list
+          yield* chatState.addToolCall(
+            message.callId || 'unknown',
+            message.tool,
+            message.arguments || {}
+          );
+          break;
+        
+        case 'toolCallEnd':
+          // Tool call completed (from chat/event ToolCallEnd)
+          console.log('[useChatStateUpdater] toolCallEnd received:', {
+            tool: message.tool,
+            callId: message.callId,
+            isError: message.isError
+          });
+          
+          // Mark tool call as completed
+          yield* chatState.completeToolCall(
+            message.callId || 'unknown',
+            message.isError ? 'failed' : 'completed'
+          );
+          break;
+        
         case 'updateHeader':
           yield* chatState.updateHeader(message.data);
           break;

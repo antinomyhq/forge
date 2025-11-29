@@ -2,8 +2,10 @@ use derive_more::derive::Display;
 use derive_setters::Setters;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
-#[derive(Clone, Debug, PartialEq, Deserialize, Serialize, Setters)]
+#[derive(Clone, Debug, PartialEq, Deserialize, Serialize, Setters, TS)]
+#[ts(export, export_to = "../../../vscode-extension/src/generated/")]
 pub struct Model {
     pub id: ModelId,
     pub name: Option<String>,
@@ -28,7 +30,8 @@ impl Parameters {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, Hash, Eq, Display, JsonSchema)]
+#[derive(Clone, Debug, Deserialize, PartialEq, Serialize, Hash, Eq, Display, JsonSchema, TS)]
+#[ts(export, export_to = "../../../vscode-extension/src/generated/")]
 #[serde(transparent)]
 pub struct ModelId(String);
 

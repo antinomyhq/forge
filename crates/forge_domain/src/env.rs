@@ -4,16 +4,18 @@ use std::path::PathBuf;
 use derive_more::Display;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 use url::Url;
 
-use crate::{HttpConfig, ModelId, ProviderId, RetryConfig};
+use crate::{AgentId, HttpConfig, ModelId, ProviderId, RetryConfig};
 
 const VERSION: &str = match option_env!("APP_VERSION") {
     Some(val) => val,
     None => env!("CARGO_PKG_VERSION"),
 };
 
-#[derive(Debug, Setters, Clone, Serialize, Deserialize, fake::Dummy)]
+#[derive(Debug, Setters, Clone, Serialize, Deserialize, fake::Dummy, TS)]
+#[ts(export, export_to = "../../../vscode-extension/src/generated/")]
 #[serde(rename_all = "camelCase")]
 #[setters(strip_option)]
 /// Represents the environment in which the application is running.
@@ -32,8 +34,10 @@ pub struct Environment {
     pub base_path: PathBuf,
     /// Base URL for Forge's backend APIs
     #[dummy(expr = "url::Url::parse(\"https://example.com\").unwrap()")]
+    #[ts(type = "string")]
     pub forge_api_url: Url,
     /// Configuration for the retry mechanism
+    #[ts(skip)]
     pub retry_config: RetryConfig,
     /// The maximum number of lines returned for FSSearch.
     pub max_search_lines: usize,
@@ -50,6 +54,7 @@ pub struct Environment {
     /// Maximum number of lines to read from a file
     pub max_read_size: u64,
     /// Http configuration
+    #[ts(skip)]
     pub http: HttpConfig,
     /// Maximum file size in bytes for operations
     pub max_file_size: u64,
@@ -79,6 +84,36 @@ pub struct Environment {
     /// If set, this provider will be used as default.
     #[dummy(default)]
     pub override_provider: Option<ProviderId>,
+}
+
+/// Response type for environment info endpoint
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../../vscode-extension/src/generated/")]
+#[serde(rename_all = "camelCase")]
+pub struct EnvironmentInfo {
+    pub cwd: PathBuf,
+    pub os: String,
+    pub shell: String,
+    pub home: Option<PathBuf>,
+    pub active_agent: Option<AgentId>,
+    pub default_model: Option<ModelId>,
+}
+
+impl EnvironmentInfo {
+    pub fn new(
+        env: &Environment,
+        active_agent: Option<AgentId>,
+        default_model: Option<ModelId>,
+    ) -> Self {
+        Self {
+            cwd: env.cwd.clone(),
+            os: env.os.clone(),
+            shell: env.shell.clone(),
+            home: env.home.clone(),
+            active_agent,
+            default_model,
+        }
+    }
 }
 
 impl Environment {

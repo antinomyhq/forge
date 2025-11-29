@@ -2,8 +2,20 @@ import * as vscode from 'vscode';
 import { randomUUID } from 'crypto';
 import { JsonRpcClient } from './server/client';
 import { ChatWebviewProvider } from './webview/provider';
-import { ConversationTreeProvider, ConversationItem } from './conversation/treeProvider';
+import { ConversationTreeProvider } from './conversation/treeProvider';
 import { FileContextManager } from './file/contextManager';
+import {
+    ConversationId,
+    Agent,
+    Model,
+    EnvironmentInfo,
+    ChatResponseContent,
+    Usage,
+    TokenCount,
+    TitleFormat,
+    ToolCallFull,
+    ToolResult
+} from './generated';
 
 /**
  * Controller orchestrates communication between:
@@ -152,16 +164,16 @@ export class Controller {
         this.outputChannel.appendLine('[Controller] Starting new thread');
         
         try {
-            const response = await this.rpcClient.request<{ threadId: string }>(
+            // Returns ConversationId (string)
+            const conversationId = await this.rpcClient.request<ConversationId>(
                 'thread/start',
                 {}
             );
 
             this.outputChannel.appendLine(`[Controller] Thread started successfully`);
-            this.outputChannel.appendLine(`[Controller] Thread ID: ${response.threadId}`);
-            this.outputChannel.appendLine(`[Controller] Full response: ${JSON.stringify(response)}`);
+            this.outputChannel.appendLine(`[Controller] Thread ID: ${conversationId}`);
             
-            return response.threadId;
+            return conversationId;
         } catch (error) {
             this.outputChannel.appendLine(`[Controller] Thread start failed: ${error}`);
             throw error;
@@ -199,32 +211,11 @@ export class Controller {
         this.outputChannel.appendLine(`[Controller] Notification: ${method}`);
 
         switch (method) {
-            case 'thread/started':
-                this.handleThreadStarted(params);
+            case 'chat/event':
+                this.handleChatEvent(params);
                 break;
             case 'turn/started':
                 this.handleTurnStarted(params);
-                break;
-            case 'item/started':
-                this.handleItemStarted(params);
-                break;
-            case 'item/completed':
-                this.handleItemCompleted(params);
-                break;
-            case 'item/agentMessage/delta':
-                this.handleAgentMessageDelta(params);
-                break;
-            case 'item/agentReasoning/delta':
-                this.handleReasoningDelta(params);
-                break;
-            case 'tool/started':
-                this.handleToolStarted(params);
-                break;
-            case 'tool/completed':
-                this.handleToolCompleted(params);
-                break;
-            case 'turn/usage':
-                this.handleUsage(params);
                 break;
             case 'turn/completed':
                 this.handleTurnCompleted(params);
@@ -233,6 +224,228 @@ export class Controller {
                 this.handleError(params);
                 break;
         }
+    }
+
+    /**
+     * Handle chat/event notification (NEW - mirrors terminal UI pattern)
+     * Reference: crates/forge_main/src/ui.rs:2349-2390
+     */
+    private handleChatEvent(params: unknown): void {
+        if (!params || typeof params !== 'object') {
+            this.outputChannel.appendLine('[Controller] Invalid chat/event params');
+            return;
+        }
+
+        const eventData = params as { thread_id: string; turn_id: string; event: any };
+        const { turn_id, event } = eventData;
+
+        this.outputChannel.appendLine(`[Controller] Chat event for turn ${turn_id}: ${JSON.stringify(event)}`);
+
+        // Pattern match on ChatResponse variants (TypeScript discriminated union)
+        if (typeof event === 'object' && event !== null) {
+            if ('TaskMessage' in event) {
+                this.handleTaskMessage(event.TaskMessage.content);
+            } else if ('TaskReasoning' in event) {
+                this.handleTaskReasoning(event.TaskReasoning.content);
+            } else if ('ToolCallStart' in event) {
+                this.handleToolCallStart(event.ToolCallStart);
+            } else if ('ToolCallEnd' in event) {
+                this.handleToolCallEnd(event.ToolCallEnd);
+            } else if ('Usage' in event) {
+                this.handleUsageEvent(event.Usage);
+            } else if ('RetryAttempt' in event) {
+                this.handleRetryAttempt(event.RetryAttempt.cause, event.RetryAttempt.duration);
+            } else if ('Interrupt' in event) {
+                this.handleInterrupt(event.Interrupt.reason);
+            }
+        } else if (event === 'TaskComplete') {
+            this.handleTaskComplete();
+        }
+    }
+
+    /**
+     * Handle TaskMessage event
+     */
+    private handleTaskMessage(content: ChatResponseContent): void {
+        // Start streaming on first message
+        if (!this.isStreamingStarted) {
+            this.isStreamingStarted = true;
+            this.webviewProvider.streamStart();
+        }
+
+        // Handle different content types
+        if ('Title' in content) {
+            this.handleTitle(content.Title);
+        } else if ('PlainText' in content) {
+            this.webviewProvider.postMessage({
+                type: 'streamDelta',
+                delta: content.PlainText
+            });
+        } else if ('Markdown' in content) {
+            this.webviewProvider.postMessage({
+                type: 'streamDelta',
+                delta: content.Markdown
+            });
+        }
+    }
+
+    /**
+     * Handle Title format
+     */
+    private handleTitle(titleFormat: TitleFormat): void {
+        // Title can be PlainText or WithTimestamp
+        if ('PlainText' in titleFormat) {
+            const title = titleFormat.PlainText;
+            this.outputChannel.appendLine(`[Controller] Title: ${title}`);
+            // Could update conversation title here
+        } else if ('WithTimestamp' in titleFormat) {
+            // TypeScript discriminated union - WithTimestamp is an object with fields
+            const data = (titleFormat as any).WithTimestamp;
+            this.outputChannel.appendLine(`[Controller] Title: ${data.title} (${data.timestamp})`);
+            // Could update conversation title here
+        }
+    }
+
+    /**
+     * Handle TaskReasoning event
+     */
+    private handleTaskReasoning(content: ChatResponseContent): void {
+        if ('PlainText' in content) {
+            this.webviewProvider.showReasoning(content.PlainText);
+        } else if ('Markdown' in content) {
+            this.webviewProvider.showReasoning(content.Markdown);
+        }
+    }
+
+    /**
+     * Handle ToolCallStart event
+     */
+    private handleToolCallStart(toolCall: ToolCallFull): void {
+        // toolCall: { name: ToolName, call_id: ToolCallId | null, arguments: any }
+        const toolName = toolCall.name;
+        const callId = toolCall.call_id || 'unknown';
+        
+        this.outputChannel.appendLine(`[Controller] Tool call started: ${toolName} (${callId})`);
+        
+        // Show tool call in UI
+        this.webviewProvider.postMessage({
+            type: 'toolCallStart',
+            tool: toolName,
+            callId: callId,
+            arguments: toolCall.arguments
+        });
+    }
+
+    /**
+     * Handle ToolCallEnd event
+     */
+    private handleToolCallEnd(result: ToolResult): void {
+        // result: { name: ToolName, call_id: ToolCallId | null, output: ToolOutput }
+        // ToolOutput: { is_error: boolean, values: Array<ToolValue> }
+        const toolName = result.name;
+        const callId = result.call_id || 'unknown';
+        const isError = result.output.is_error;
+        
+        // Extract text from ToolValue array
+        let outputText = '';
+        if (result.output.values && result.output.values.length > 0) {
+            for (const value of result.output.values) {
+                if (typeof value === 'object' && value !== null) {
+                    if ('text' in value) {
+                        outputText += value.text;
+                    } else if ('image' in value) {
+                        outputText += `[Image: ${value.image.mime_type}]`;
+                    }
+                }
+                // Skip "empty" variant
+            }
+        }
+        
+        this.outputChannel.appendLine(`[Controller] Tool call ended: ${toolName} (${callId}) - ${isError ? 'ERROR' : 'SUCCESS'}`);
+        
+        // Show tool result in UI
+        this.webviewProvider.postMessage({
+            type: 'toolCallEnd',
+            tool: toolName,
+            callId: callId,
+            output: outputText,
+            isError: isError
+        });
+    }
+
+    /**
+     * Handle TaskComplete event
+     */
+    private handleTaskComplete(): void {
+        this.outputChannel.appendLine('[Controller] Task complete');
+        
+        // Reset streaming state
+        this.isStreamingStarted = false;
+        
+        // End streaming - this finalizes the message in the UI
+        this.webviewProvider.streamEnd();
+    }
+
+    /**
+     * Handle Usage event (from chat/event)
+     */
+    private handleUsageEvent(usage: Usage): void {
+        // Format token counts with Actual vs Approx
+        // Note: Usage uses snake_case fields (prompt_tokens, completion_tokens, etc.)
+        const inputTokens = this.formatTokenCount(usage.prompt_tokens);
+        const outputTokens = this.formatTokenCount(usage.completion_tokens);
+        
+        let totalUsed = parseInt(inputTokens) + parseInt(outputTokens);
+        
+        // Use total_tokens if available
+        if (usage.total_tokens) {
+            const total = this.formatTokenCount(usage.total_tokens);
+            totalUsed = parseInt(total);
+        }
+        
+        this.tokens.used = totalUsed;
+        
+        // Update header with usage info
+        let tokensDisplay = `${inputTokens} in / ${outputTokens} out`;
+        
+        if (usage.cached_tokens) {
+            const cached = this.formatTokenCount(usage.cached_tokens);
+            tokensDisplay += ` (${cached} cached)`;
+        }
+        
+        this.webviewProvider.updateHeader({
+            tokens: tokensDisplay
+        });
+        
+        this.outputChannel.appendLine(`[Controller] Usage: ${tokensDisplay}`);
+    }
+
+    /**
+     * Format TokenCount enum (Actual vs Approx)
+     */
+    private formatTokenCount(tokenCount: TokenCount): string {
+        if ('Actual' in tokenCount) {
+            return tokenCount.Actual.toString();
+        } else if ('Approx' in tokenCount) {
+            return `~${tokenCount.Approx}`;
+        }
+        return '0';
+    }
+
+    /**
+     * Handle RetryAttempt event
+     */
+    private handleRetryAttempt(cause: any, duration: number): void {
+        this.outputChannel.appendLine(`[Controller] Retry attempt: ${JSON.stringify(cause)}, duration: ${duration}ms`);
+        // Could show retry notification in UI
+    }
+
+    /**
+     * Handle Interrupt event
+     */
+    private handleInterrupt(reason: any): void {
+        this.outputChannel.appendLine(`[Controller] Interrupted: ${JSON.stringify(reason)}`);
+        // Could show interruption notification in UI
     }
 
     /**
@@ -312,25 +525,6 @@ export class Controller {
         return context;
     }
 
-        /**
-     * Handle thread started notification
-     */
-    private handleThreadStarted(params: any): void {
-        if (params.threadId) {
-            this.currentThreadId = params.threadId;
-            
-            // Add to conversation tree
-            const conversation: ConversationItem = {
-                id: params.threadId,
-                title: `Conversation ${new Date().toLocaleTimeString()}`,
-                messageCount: 0,
-                timestamp: Date.now()
-            };
-            this.conversationTree.addConversation(conversation);
-            this.conversationTree.setActiveConversation(params.threadId);
-        }
-    }
-
     /**
      * Handle turn started notification
      */
@@ -343,110 +537,6 @@ export class Controller {
             threadId: params.thread_id,
             turnId: params.turn_id,
         });
-    }
-
-    /**
-     * Handle item started notification
-     */
-    private handleItemStarted(params: any): void {
-        this.outputChannel.appendLine(`[Controller] Item started: ${JSON.stringify(params)}`);
-        
-        // Forward to webview for display (tool calls, reasoning, etc.)
-        this.webviewProvider?.postMessage({
-            type: 'ItemStarted',
-            itemId: params.item_id,
-            itemType: params.item_type,
-        });
-        
-        // Don't start streaming here - wait for first delta
-        // Reasoning and message deltas share the same ItemStarted (AgentMessage)
-        // So we can't distinguish them here
-    }
-
-    /**
-     * Handle item completed notification
-     */
-    private handleItemCompleted(params: any): void {
-        this.outputChannel.appendLine(`[Controller] Item completed: ${JSON.stringify(params)}`);
-        
-        // Forward to webview for display
-        this.webviewProvider?.postMessage({
-            type: 'ItemCompleted',
-            itemId: params.item_id,
-        });
-    }
-
-    /**
-     * Handle agent message delta (streaming)
-     */
-    private handleAgentMessageDelta(params: any): void {
-        this.outputChannel.appendLine(`[Controller] Agent message delta: ${JSON.stringify(params)}`);
-        
-        const delta = params?.delta || '';
-        const itemId = params?.item_id;
-
-        // Start streaming on first delta
-        if (!this.isStreamingStarted) {
-            this.isStreamingStarted = true;
-            this.webviewProvider.streamStart();
-        }
-
-        // Pass both delta and item_id to webview so it can filter tool-related deltas
-        this.webviewProvider.postMessage({
-            type: 'streamDelta',
-            delta: delta,
-            itemId: itemId
-        });
-    }
-
-    /**
-     * Handle reasoning delta
-     */
-    private handleReasoningDelta(params: any): void {
-        const text = params.delta || '';
-        this.webviewProvider.showReasoning(text);
-    }
-
-    /**
-     * Handle tool started notification
-     */
-    private handleToolStarted(params: any): void {
-        this.webviewProvider.showTool({
-            name: params.name || 'Tool',
-            type: params.type || 'unknown',
-            status: 'Running'
-        });
-    }
-
-    /**
-     * Handle tool completed notification
-     */
-    private handleToolCompleted(params: any): void {
-        this.webviewProvider.showTool({
-            name: params.name || 'Tool',
-            type: params.type || 'unknown',
-            status: 'Completed',
-            result: params.result || ''
-        });
-    }
-
-    /**
-     * Handle usage notification
-     */
-    private handleUsage(params: any): void {
-        if (params.input_tokens !== undefined && params.output_tokens !== undefined) {
-            this.tokens.used = params.input_tokens + params.output_tokens;
-            this.webviewProvider.updateHeader({
-                tokens: `${this.tokens.used} / ${this.tokens.total} tokens`
-            });
-        }
-
-        if (params.total_cost !== undefined) {
-            this.cost = params.total_cost;
-            this.webviewProvider.updateHeader({
-                cost: `$${this.cost.toFixed(2)}`
-            });
-        }
     }
 
     /**
@@ -489,6 +579,10 @@ export class Controller {
         this.webviewProvider.streamEnd();
     }
 
+    // ========================================================================
+    // REQUEST HANDLERS (Updated to use domain types with snake_case fields)
+    // ========================================================================
+
     /**
      * Send models list to webview
      */
@@ -496,20 +590,24 @@ export class Controller {
         try {
             this.outputChannel.appendLine('[Controller] Fetching models list');
             
-            const response = await this.rpcClient.request<{ models: ModelInfo[] }>(
+            // Returns Model[] directly
+            const models = await this.rpcClient.request<Model[]>(
                 'model/list',
                 undefined
             );
             
-            const models = response.models.map(model => ({
+            const modelsForWebview = models.map(model => ({
                 id: model.id,
-                name: model.name || model.id,
-                provider: model.provider || 'Unknown',
-                contextWindow: model.contextLength || 0
+                name: model.name || undefined,
+                description: model.description || undefined,
+                context_length: model.context_length ? Number(model.context_length) : undefined,
+                tools_supported: model.tools_supported || undefined,
+                supports_parallel_tool_calls: model.supports_parallel_tool_calls || undefined,
+                supports_reasoning: model.supports_reasoning || undefined,
             }));
             
             this.outputChannel.appendLine(`[Controller] Sending ${models.length} models to webview`);
-            this.webviewProvider.sendModelsList(models);
+            this.webviewProvider.sendModelsList(modelsForWebview);
             
         } catch (error) {
             this.outputChannel.appendLine(`[Controller] Failed to fetch models list: ${error}`);
@@ -546,21 +644,22 @@ export class Controller {
         try {
             this.outputChannel.appendLine('[Controller] Fetching agents list');
             
-            const response = await this.rpcClient.request<{ agents: AgentInfo[] }>(
+            // Returns Agent[] directly
+            const agents = await this.rpcClient.request<Agent[]>(
                 'agent/list',
                 undefined
             );
             
-            const agents = response.agents.map(agent => ({
+            const agentsForWebview = agents.map(agent => ({
                 id: agent.id,
-                name: agent.name || agent.id,
+                name: agent.title || agent.id, // Agent uses 'title' not 'name'
                 description: agent.description,
-                provider: agent.provider,
-                model: agent.model,
+                provider: agent.provider, // Agent has provider field
+                model: agent.model, // Agent has model field
             }));
             
             this.outputChannel.appendLine(`[Controller] Sending ${agents.length} agents to webview`);
-            this.webviewProvider.sendAgentsList(agents);
+            this.webviewProvider.sendAgentsList(agentsForWebview);
             
         } catch (error) {
             this.outputChannel.appendLine(`[Controller] Failed to fetch agents list: ${error}`);
@@ -597,42 +696,44 @@ export class Controller {
         try {
             this.outputChannel.appendLine('[Controller] Fetching current agent and model from server');
             
-            const response = await this.rpcClient.request<EnvInfoResponse>(
+            // Returns EnvironmentInfo directly (snake_case fields!)
+            const envInfo = await this.rpcClient.request<EnvironmentInfo>(
                 'env/info',
                 undefined
             );
             
-            this.outputChannel.appendLine(`[Controller] Environment info: ${JSON.stringify(response)}`);
+            this.outputChannel.appendLine(`[Controller] Environment info: ${JSON.stringify(envInfo)}`);
             
             // Fetch agent list to get display names
-            const agentListResponse = await this.rpcClient.request<{ agents: AgentInfo[] }>(
+            const agents = await this.rpcClient.request<Agent[]>(
                 'agent/list',
                 undefined
             );
             
             // Fetch model list to get display names  
-            const modelListResponse = await this.rpcClient.request<{ models: ModelInfo[] }>(
+            const models = await this.rpcClient.request<Model[]>(
                 'model/list',
                 undefined
             );
             
             // Store agent and model IDs
-            let agentId = response.activeAgent || '';
-            let modelId = response.defaultModel || '';
+            // Note: EnvironmentInfo uses camelCase fields (activeAgent, defaultModel)
+            let agentId = envInfo.activeAgent || '';
+            let modelId = envInfo.defaultModel || '';
             
             // Update agent if available
-            if (response.activeAgent) {
+            if (envInfo.activeAgent) {
                 // Find agent display name
-                const agent = agentListResponse.agents.find(a => a.id === response.activeAgent);
-                this.agent = agent?.name || response.activeAgent;
+                const agent = agents.find(a => a.id === envInfo.activeAgent);
+                this.agent = agent?.title || envInfo.activeAgent;
                 this.outputChannel.appendLine(`[Controller] Updated agent: ${this.agent}`);
             }
             
             // Update model if available
-            if (response.defaultModel) {
+            if (envInfo.defaultModel) {
                 // Find model display name
-                const model = modelListResponse.models.find(m => m.id === response.defaultModel);
-                this.model = model?.name || model?.id || response.defaultModel;
+                const model = models.find(m => m.id === envInfo.defaultModel);
+                this.model = model?.name || model?.id || envInfo.defaultModel;
                 this.outputChannel.appendLine(`[Controller] Updated model: ${this.model}`);
             }
             
@@ -662,29 +763,4 @@ interface Message {
     role: 'user' | 'assistant';
     content: string;
     timestamp: number;
-}
-
-
-interface EnvInfoResponse {
-    cwd: string;
-    os: string;
-    shell: string;
-    home: string;
-    activeAgent?: string;
-    defaultModel?: string;
-}
-
-interface AgentInfo {
-    id: string;
-    name: string;
-    description?: string;
-    provider?: string;
-    model?: string;
-}
-
-interface ModelInfo {
-    id: string;
-    name?: string;
-    provider?: string;
-    contextLength?: number;
 }

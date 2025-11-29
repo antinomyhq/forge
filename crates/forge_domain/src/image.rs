@@ -1,8 +1,10 @@
 use base64::Engine;
 use derive_getters::Getters;
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
-#[derive(Default, Clone, Debug, Serialize, Deserialize, Getters, PartialEq, Eq, Hash)]
+#[derive(Default, Clone, Debug, Serialize, Deserialize, Getters, PartialEq, Eq, Hash, TS)]
+#[ts(export, export_to = "../../../vscode-extension/src/generated/")]
 pub struct Image {
     url: String,
     mime_type: String,

@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { JsonRpcClient } from '../server/client';
 import { EventEmitter } from 'events';
+import { Agent, Model } from '../generated';
 
 /**
  * Agent and Model selector
@@ -37,6 +38,17 @@ export class AgentModelSelector extends EventEmitter {
     }
 
     /**
+     * Convert ID to UpperCamelCase for display
+     * Examples: "forge" -> "Forge", "code-reviewer" -> "CodeReviewer"
+     */
+    private toUpperCamelCase(id: string): string {
+        return id
+            .split(/[-_]/)
+            .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+            .join('');
+    }
+
+    /**
      * Update status bar display
      */
     private updateStatusBar(): void {
@@ -59,9 +71,9 @@ export class AgentModelSelector extends EventEmitter {
 
             // Show quick pick
             const items = agents.map(agent => ({
-                label: agent.name,
-                description: agent.description,
-                detail: agent.capabilities?.join(', '),
+                label: agent.id,  // ID is the main label
+                description: agent.title || undefined,  // Title as subtext
+                detail: `${agent.description || ''}\nProvider: ${agent.provider}, Model: ${agent.model}`,
                 agent: agent
             }));
 
@@ -77,11 +89,11 @@ export class AgentModelSelector extends EventEmitter {
                     agent_id: selected.agent.id
                 });
 
-                this.currentAgent = selected.agent.name;
+                this.currentAgent = this.toUpperCamelCase(selected.agent.id);
                 this.updateStatusBar();
 
-                this.outputChannel.appendLine(`[AgentSelector] Selected: ${selected.agent.name}`);
-                vscode.window.showInformationMessage(`Agent: ${selected.agent.name}`);
+                this.outputChannel.appendLine(`[AgentSelector] Selected: ${selected.agent.id}`);
+                vscode.window.showInformationMessage(`Agent: ${this.toUpperCamelCase(selected.agent.id)}`);
                 
                 // Emit event for controller to refresh
                 this.emit('agentChanged', selected.agent.id);
@@ -108,9 +120,9 @@ export class AgentModelSelector extends EventEmitter {
 
             // Show quick pick
             const items = models.map(model => ({
-                label: model.id,
-                description: model.provider,
-                detail: `Context: ${model.contextWindow || 'Unknown'}`,
+                label: model.id,  // ID is the main label
+                description: model.name || undefined,  // Name as subtext
+                detail: `${model.description || ''}\nContext: ${model.context_length || 'Unknown'}, Tools: ${model.tools_supported ? 'Yes' : 'No'}`,
                 model: model
             }));
 
@@ -126,11 +138,11 @@ export class AgentModelSelector extends EventEmitter {
                     model_id: selected.model.id
                 });
 
-                this.currentModel = selected.model.id;
+                this.currentModel = this.toUpperCamelCase(selected.model.id);
                 this.updateStatusBar();
 
                 this.outputChannel.appendLine(`[ModelSelector] Selected: ${selected.model.id}`);
-                vscode.window.showInformationMessage(`Model: ${selected.model.id}`);
+                vscode.window.showInformationMessage(`Model: ${this.toUpperCamelCase(selected.model.id)}`);
                 
                 // Emit event for controller to refresh
                 this.emit('modelChanged', selected.model.id);
@@ -163,17 +175,4 @@ export class AgentModelSelector extends EventEmitter {
         this.statusBarAgent.dispose();
         this.statusBarModel.dispose();
     }
-}
-
-interface Agent {
-    id: string;
-    name: string;
-    description: string;
-    capabilities?: string[];
-}
-
-interface Model {
-    id: string;
-    provider: string;
-    contextWindow?: number;
 }

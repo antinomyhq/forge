@@ -3,8 +3,10 @@ use std::fmt::Display;
 use regex::Regex;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema, TS)]
+#[ts(export, export_to = "../../../../../vscode-extension/src/generated/")]
 #[serde(transparent)]
 pub struct ToolName(String);
 

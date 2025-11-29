@@ -5,6 +5,7 @@ use derive_setters::Setters;
 use merge::Merge;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
 use crate::compact::Compact;
 use crate::temperature::Temperature;
@@ -12,7 +13,8 @@ use crate::template::Template;
 use crate::{EventContext, MaxTokens, ModelId, ProviderId, SystemContext, ToolName, TopK, TopP};
 
 // Unique identifier for an agent
-#[derive(Debug, Display, Eq, PartialEq, Hash, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Display, Eq, PartialEq, Hash, Clone, Serialize, Deserialize, JsonSchema, TS)]
+#[ts(export, export_to = "../../../vscode-extension/src/generated/")]
 #[serde(transparent)]
 pub struct AgentId(Cow<'static, str>);
 

@@ -4,15 +4,18 @@ use std::time::Duration;
 use chrono::{DateTime, Utc};
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 
 pub use crate::file_operation::FileOperation;
 
-#[derive(Debug, Clone, Default, Setters, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Setters, Serialize, Deserialize, TS)]
+#[ts(export, export_to = "../../../vscode-extension/src/generated/")]
 #[setters(into, strip_option)]
 pub struct Metrics {
     pub started_at: Option<DateTime<Utc>>,
 
     /// Holds the last file operation for each file
+    #[ts(skip)]
     pub file_operations: HashMap<String, FileOperation>,
 }
 

@@ -179,13 +179,8 @@ impl<A: API + 'static, W: AsyncWrite + Unpin + Send + 'static> MessageProcessor<
             })
             .await?;
 
-        // Send success response
-        self.sender
-            .send_response(
-                id,
-                serde_json::json!({"threadId": conversation_id.into_string()}),
-            )
-            .await
+        // Send success response with ConversationId
+        self.sender.send_response(id, conversation_id).await
     }
 
     async fn handle_thread_list(&self, id: i64, limit: Option<usize>) -> Result<()> {
@@ -195,22 +190,7 @@ impl<A: API + 'static, W: AsyncWrite + Unpin + Send + 'static> MessageProcessor<
             .await
             .context("Failed to get conversations")?;
 
-        let threads: Vec<serde_json::Value> = conversations
-            .iter()
-            .map(|conv| {
-                serde_json::json!({
-                    "threadId": conv.id,
-                    "title": conv.title,
-                    "createdAt": conv.metadata.created_at,
-                    "updatedAt": conv.metadata.updated_at,
-                    "messageCount": conv.context.as_ref().map(|c| c.messages.len()).unwrap_or(0),
-                })
-            })
-            .collect();
-
-        self.sender
-            .send_response(id, serde_json::json!({"threads": threads}))
-            .await
+        self.sender.send_response(id, conversations).await
     }
 
     async fn handle_thread_get(&self, id: i64, thread_id: Uuid) -> Result<()> {
@@ -222,18 +202,7 @@ impl<A: API + 'static, W: AsyncWrite + Unpin + Send + 'static> MessageProcessor<
             .context("Failed to get conversation")?;
 
         if let Some(conv) = conversation {
-            self.sender
-                .send_response(
-                    id,
-                    serde_json::json!({
-                        "threadId": conv.id,
-                        "title": conv.title,
-                        "createdAt": conv.metadata.created_at,
-                        "updatedAt": conv.metadata.updated_at,
-                        "messageCount": conv.context.as_ref().map(|c| c.messages.len()).unwrap_or(0),
-                    }),
-                )
-                .await
+            self.sender.send_response(id, conv).await
         } else {
             self.sender.send_error(id, -32602, "Thread not found").await
         }
@@ -302,8 +271,8 @@ impl<A: API + 'static, W: AsyncWrite + Unpin + Send + 'static> MessageProcessor<
         // Get chat stream
         let mut stream = api.chat(chat_request).await?;
 
-        // Create translator
-        let mut translator = EventTranslator::new(thread_id, turn_id);
+        // Create translator for event forwarding
+        let translator = EventTranslator::new(thread_id, turn_id);
 
         // Process stream with cancellation support
         loop {
@@ -312,11 +281,10 @@ impl<A: API + 'static, W: AsyncWrite + Unpin + Send + 'static> MessageProcessor<
                 response_result = stream.next() => {
                     match response_result {
                         Some(Ok(response)) => {
-                            let notifications = translator.translate(response);
-                            for notification in notifications {
-                                if let Err(e) = sender.send_notification(notification).await {
-                                    tracing::error!("Failed to send notification: {}", e);
-                                }
+                            // Forward ChatResponse event directly (matches terminal UI pattern)
+                            let notification = translator.forward(response);
+                            if let Err(e) = sender.send_notification(notification).await {
+                                tracing::error!("Failed to send notification: {}", e);
                             }
                         }
                         Some(Err(e)) => {
@@ -396,17 +364,7 @@ impl<A: API + 'static, W: AsyncWrite + Unpin + Send + 'static> MessageProcessor<
             .await
             .context("Failed to compact conversation")?;
 
-        self.sender
-            .send_response(
-                id,
-                serde_json::json!({
-                    "originalTokens": result.original_tokens,
-                    "compactedTokens": result.compacted_tokens,
-                    "originalMessages": result.original_messages,
-                    "compactedMessages": result.compacted_messages,
-                }),
-            )
-            .await
+        self.sender.send_response(id, result).await
     }
 
     async fn handle_agent_set(&self, id: i64, agent_id: String) -> Result<()> {
@@ -427,27 +385,7 @@ impl<A: API + 'static, W: AsyncWrite + Unpin + Send + 'static> MessageProcessor<
             .await
             .context("Failed to get agents")?;
 
-        let agent_list: Vec<serde_json::Value> = agents
-            .iter()
-            .map(|agent| {
-                // Use agent ID (capitalized) as the display name
-                let name = agent.id.as_str().chars().next()
-                    .map(|c| c.to_uppercase().collect::<String>() + &agent.id.as_str()[1..])
-                    .unwrap_or_else(|| agent.id.to_string());
-                
-                serde_json::json!({
-                    "id": agent.id,
-                    "name": name,
-                    "description": agent.title,  // Title is the description
-                    "provider": agent.provider,
-                    "model": agent.model,
-                })
-            })
-            .collect();
-
-        self.sender
-            .send_response(id, serde_json::json!({"agents": agent_list}))
-            .await
+        self.sender.send_response(id, agents).await
     }
 
     async fn handle_model_list(&self, id: i64) -> Result<()> {
@@ -457,20 +395,7 @@ impl<A: API + 'static, W: AsyncWrite + Unpin + Send + 'static> MessageProcessor<
             .await
             .context("Failed to get models")?;
 
-        let model_list: Vec<serde_json::Value> = models
-            .iter()
-            .map(|model| {
-                serde_json::json!({
-                    "id": model.id,
-                    "name": model.name,
-                    "contextLength": model.context_length,
-                })
-            })
-            .collect();
-
-        self.sender
-            .send_response(id, serde_json::json!({"models": model_list}))
-            .await
+        self.sender.send_response(id, models).await
     }
 
     async fn handle_model_set(&self, id: i64, model_id: String) -> Result<()> {
@@ -491,28 +416,18 @@ impl<A: API + 'static, W: AsyncWrite + Unpin + Send + 'static> MessageProcessor<
             .await
             .context("Failed to get providers")?;
 
-        let active_provider = self
-            .api
-            .get_default_provider()
-            .await
-            .ok()
-            .map(|p| p.id.to_string());
+        let active_provider = self.api.get_default_provider().await.ok().map(|p| p.id);
 
-        let provider_list: Vec<serde_json::Value> = providers
+        let provider_list: Vec<forge_domain::ProviderInfo> = providers
             .iter()
             .map(|provider| {
-                let provider_id = provider.id().to_string();
+                let provider_id = provider.id();
                 let is_active = active_provider.as_ref() == Some(&provider_id);
-                serde_json::json!({
-                    "id": provider_id,
-                    "isActive": is_active,
-                })
+                forge_domain::ProviderInfo::new(provider_id, is_active)
             })
             .collect();
 
-        self.sender
-            .send_response(id, serde_json::json!({"providers": provider_list}))
-            .await
+        self.sender.send_response(id, provider_list).await
     }
 
     async fn handle_provider_set(&self, id: i64, provider_id: String) -> Result<()> {
@@ -573,19 +488,7 @@ impl<A: API + 'static, W: AsyncWrite + Unpin + Send + 'static> MessageProcessor<
             .await
             .context("Failed to get skills")?;
 
-        let skill_list: Vec<serde_json::Value> = skills
-            .iter()
-            .map(|skill| {
-                serde_json::json!({
-                    "name": skill.name,
-                    "description": skill.description,
-                })
-            })
-            .collect();
-
-        self.sender
-            .send_response(id, serde_json::json!({"skills": skill_list}))
-            .await
+        self.sender.send_response(id, skills).await
     }
 
     async fn handle_command_list(&self, id: i64) -> Result<()> {
@@ -595,19 +498,7 @@ impl<A: API + 'static, W: AsyncWrite + Unpin + Send + 'static> MessageProcessor<
             .await
             .context("Failed to get commands")?;
 
-        let command_list: Vec<serde_json::Value> = commands
-            .iter()
-            .map(|cmd| {
-                serde_json::json!({
-                    "name": cmd.name,
-                    "description": cmd.description,
-                })
-            })
-            .collect();
-
-        self.sender
-            .send_response(id, serde_json::json!({"commands": command_list}))
-            .await
+        self.sender.send_response(id, commands).await
     }
 
     async fn handle_env_info(&self, id: i64) -> Result<()> {
@@ -615,18 +506,8 @@ impl<A: API + 'static, W: AsyncWrite + Unpin + Send + 'static> MessageProcessor<
         let active_agent = self.api.get_active_agent().await;
         let default_model = self.api.get_default_model().await;
 
-        self.sender
-            .send_response(
-                id,
-                serde_json::json!({
-                    "cwd": env.cwd,
-                    "os": env.os,
-                    "shell": env.shell,
-                    "home": env.home,
-                    "activeAgent": active_agent,
-                    "defaultModel": default_model,
-                }),
-            )
-            .await
+        let env_info = forge_domain::EnvironmentInfo::new(&env, active_agent, default_model);
+
+        self.sender.send_response(id, env_info).await
     }
 }

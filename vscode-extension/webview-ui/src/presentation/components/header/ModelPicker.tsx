@@ -13,8 +13,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Check, ChevronsUpDown, Cpu } from "lucide-react";
+import { Check, ChevronsUpDown, Cpu, Wrench, Zap, Brain } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { AIModel } from "@domain/models";
 
@@ -84,13 +83,12 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({
             </CommandEmpty>
             <CommandGroup>
               {models.map((model) => {
-                const displayName = model.label || model.name || model.id;
                 const isSelected = model.id === selectedModelId;
                 
                 return (
                   <CommandItem
                     key={model.id}
-                    value={model.id}
+                    value={model.id}  // Search by ID
                     onSelect={() => handleSelect(model.id)}
                     className="flex flex-col items-start gap-1 py-2"
                   >
@@ -101,21 +99,39 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({
                           isSelected ? "opacity-100" : "opacity-0"
                         )}
                       />
-                      <span className="font-medium truncate flex-1">{displayName}</span>
+                      <div className="flex flex-col flex-1 min-w-0">
+                        <div className="flex items-baseline gap-2">
+                          <span className="font-medium truncate">
+                            {model.name || model.id}
+                          </span>
+                        </div>
+                      </div>
                     </div>
                     
-                    {(model.provider || model.contextWindow) && (
-                      <div className="flex items-center gap-2 ml-6 text-xs text-muted-foreground">
-                        {model.provider && (
-                          <Badge variant="outline" className="text-xs">
-                            {model.provider}
-                          </Badge>
-                        )}
-                        {model.contextWindow && (
-                          <span>{model.contextWindow.toLocaleString()} tokens</span>
-                        )}
-                      </div>
-                    )}
+                    {/* Model metadata */}
+                    <div className="flex items-center gap-2 ml-6 text-xs text-muted-foreground">
+                      {model.context_length && (
+                        <span>{Number(model.context_length).toLocaleString()} tokens</span>
+                      )}
+                      {model.tools_supported && (
+                        <div className="flex items-center gap-1" title="Supports tool calls">
+                          <Wrench className="h-3 w-3" />
+                          <span>Tools</span>
+                        </div>
+                      )}
+                      {model.supports_parallel_tool_calls && (
+                        <div className="flex items-center gap-1" title="Supports parallel tool calls">
+                          <Zap className="h-3 w-3" />
+                          <span>Parallel</span>
+                        </div>
+                      )}
+                      {model.supports_reasoning && (
+                        <div className="flex items-center gap-1" title="Supports extended thinking">
+                          <Brain className="h-3 w-3" />
+                          <span>Reasoning</span>
+                        </div>
+                      )}
+                    </div>
                   </CommandItem>
                 );
               })}
