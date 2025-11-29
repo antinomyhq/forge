@@ -60,8 +60,18 @@ export function useChatStateUpdater() {
   const runtime = useRuntime();
   
   const updateFromMessage = useCallback((message: any) => {
+    console.log('[useChatStateUpdater] ====== MESSAGE RECEIVED ======');
+    console.log('[useChatStateUpdater] Type:', message.type);
+    console.log('[useChatStateUpdater] Full message:', JSON.stringify(message, null, 2));
+    
     const program = Effect.gen(function* () {
       const chatState = yield* ChatStateService;
+      const stateBefore = yield* chatState.getState;
+      console.log('[useChatStateUpdater] State before:', {
+        messagesCount: stateBefore.messages.length,
+        isStreaming: stateBefore.isStreaming,
+        streamingContent: stateBefore.streamingContent?.substring(0, 50) + '...'
+      });
       
       switch (message.type) {
         case 'state':
@@ -110,14 +120,23 @@ export function useChatStateUpdater() {
           break;
         
         case 'streamEnd':
+          console.log('[useChatStateUpdater] streamEnd received');
           const endState = yield* chatState.getState;
+          console.log('[useChatStateUpdater] streamEnd - streamingContent:', endState.streamingContent?.substring(0, 100));
+          
           if (endState.streamingContent) {
+            console.log('[useChatStateUpdater] Adding assistant message from streaming content');
             yield* chatState.addAssistantMessage(endState.streamingContent);
+            yield* chatState.updateStreaming('', false);  // Clear streaming state
           } else if (message.content) {
+            console.log('[useChatStateUpdater] Adding assistant message from message.content');
             yield* chatState.addAssistantMessage(message.content);
           }
           // Reset loading state when stream ends
           yield* chatState.setLoading(false);
+          
+          const stateAfter = yield* chatState.getState;
+          console.log('[useChatStateUpdater] streamEnd complete - messages count:', stateAfter.messages.length);
           break;
         
         case 'turn/completed':
@@ -183,7 +202,21 @@ export function useChatStateUpdater() {
         
         case 'ItemCompleted':
           console.log('[useChatStateUpdater] Item completed:', message.itemId);
-          yield* chatState.completeToolCall(message.itemId, 'completed');
+          
+          // Check if this is a tool item
+          const completedState = yield* chatState.getState;
+          if (completedState.activeToolItemIds.has(message.itemId)) {
+            // Tool call completed
+            yield* chatState.completeToolCall(message.itemId, 'completed');
+          } else {
+            // Agent message completed - commit streaming content
+            console.log('[useChatStateUpdater] Agent message completed, committing streaming content');
+            if (completedState.streamingContent) {
+              yield* chatState.addAssistantMessage(completedState.streamingContent);
+              yield* chatState.updateStreaming('', false);
+              console.log('[useChatStateUpdater] ✓ Message committed and streaming cleared');
+            }
+          }
           break;
         
         case 'ItemFailed':

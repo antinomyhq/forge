@@ -1,12 +1,24 @@
 import React from "react";
-import { Message } from "@domain/models";
 import { MessageItem } from "./MessageItem";
+import { ToolCallCard } from "./ToolCallCard";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
-interface MessageListProps {
-  messages: ReadonlyArray<Message>;
+// Simplified message type matching ChatState
+export interface SimpleMessage {
+  role?: 'user' | 'assistant';
+  content?: string;
+  timestamp: number;
+  type?: 'tool';
+  toolName?: string;
+  args?: Record<string, any>;
+  status?: 'running' | 'completed' | 'failed';
 }
 
-/// MessageList displays a list of messages in a conversation
+interface MessageListProps {
+  messages: ReadonlyArray<SimpleMessage>;
+}
+
+/// MessageList displays a list of messages in a conversation using shadcn ScrollArea
 export const MessageList: React.FC<MessageListProps> = ({ messages }) => {
   const scrollRef = React.useRef<HTMLDivElement>(null);
 
@@ -15,11 +27,29 @@ export const MessageList: React.FC<MessageListProps> = ({ messages }) => {
   }, [messages]);
 
   return (
-    <div className="flex-1 overflow-y-auto p-4 space-y-4">
-      {messages.map((message) => (
-        <MessageItem key={message.id.value} message={message} />
-      ))}
-      <div ref={scrollRef} />
-    </div>
+    <ScrollArea className="h-full w-full">
+      <div className="space-y-2 p-4">
+        {messages.map((message, idx) => {
+          // Show ToolCallCard for tool messages
+          if (message.type === 'tool' && message.toolName) {
+            return (
+              <ToolCallCard
+                key={idx}
+                toolCall={{
+                  id: `tool-${idx}`,
+                  name: message.toolName,
+                  status: (message.status as any) || 'pending',
+                  ...(message.args ? { arguments: message.args } : {}),
+                }}
+              />
+            );
+          }
+          
+          // Show MessageItem for regular messages
+          return <MessageItem key={idx} message={message} />;
+        })}
+        <div ref={scrollRef} />
+      </div>
+    </ScrollArea>
   );
 };
