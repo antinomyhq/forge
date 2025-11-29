@@ -51,6 +51,13 @@ pub enum ClientRequest {
     #[serde(rename = "turn/retry")]
     TurnRetry { thread_id: ThreadId },
 
+    /// Cancel an ongoing turn
+    #[serde(rename = "turn/cancel")]
+    TurnCancel {
+        thread_id: ThreadId,
+        turn_id: TurnId,
+    },
+
     /// Compact a thread
     #[serde(rename = "thread/compact")]
     ThreadCompact { thread_id: ThreadId },

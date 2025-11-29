@@ -168,6 +168,24 @@ body {
     cursor: not-allowed;
 }
 
+.cancel-button {
+    padding: 10px 16px;
+    border: none;
+    border-radius: 6px;
+    background-color: var(--vscode-button-secondaryBackground);
+    color: var(--vscode-button-secondaryForeground);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.cancel-button:hover {
+    background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
 .input-footer {
     display: flex;
     justify-content: space-between;

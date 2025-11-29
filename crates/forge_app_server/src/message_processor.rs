@@ -1,9 +1,11 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use forge_api::{ChatRequest, API};
 use futures::StreamExt;
 use tokio::io::AsyncWrite;
+use tokio::sync::{oneshot, Mutex};
 use uuid::Uuid;
 
 use crate::protocol::{
@@ -12,16 +14,25 @@ use crate::protocol::{
 };
 use crate::{EventTranslator, OutgoingMessageSender};
 
+/// Type alias for active task tracking
+type ActiveTasks = Arc<Mutex<HashMap<(Uuid, Uuid), oneshot::Sender<()>>>>;
+
 /// Processes incoming JSON-RPC messages and dispatches to ForgeAPI
 pub struct MessageProcessor<A, W: AsyncWrite + Unpin + Send> {
     api: Arc<A>,
     sender: OutgoingMessageSender<W>,
+    /// Track active tasks for cancellation (sender for cancellation signal)
+    active_tasks: ActiveTasks,
 }
 
 impl<A: API + 'static, W: AsyncWrite + Unpin + Send + 'static> MessageProcessor<A, W> {
     /// Creates a new MessageProcessor
     pub fn new(api: Arc<A>, sender: OutgoingMessageSender<W>) -> Self {
-        Self { api, sender }
+        Self {
+            api,
+            sender,
+            active_tasks: Arc::new(Mutex::new(HashMap::new())),
+        }
     }
 
     /// Processes a JSON-RPC message line
@@ -92,6 +103,9 @@ impl<A: API + 'static, W: AsyncWrite + Unpin + Send + 'static> MessageProcessor<
                     .await
             }
             ClientRequest::TurnRetry { thread_id } => self.handle_turn_retry(id, thread_id).await,
+            ClientRequest::TurnCancel { thread_id, turn_id } => {
+                self.handle_turn_cancel(id, thread_id, turn_id).await
+            }
             ClientRequest::ThreadCompact { thread_id } => {
                 self.handle_thread_compact(id, thread_id).await
             }
@@ -233,6 +247,15 @@ impl<A: API + 'static, W: AsyncWrite + Unpin + Send + 'static> MessageProcessor<
         message: String,
         _files: Option<Vec<String>>,
     ) -> Result<()> {
+        // Create cancellation channel for this turn
+        let (cancel_tx, cancel_rx) = oneshot::channel();
+
+        // Store the cancellation sender
+        self.active_tasks
+            .lock()
+            .await
+            .insert((thread_id, turn_id), cancel_tx);
+
         // Send turn started notification
         self.sender
             .send_notification(ServerNotification::TurnStarted { thread_id, turn_id })
@@ -246,9 +269,15 @@ impl<A: API + 'static, W: AsyncWrite + Unpin + Send + 'static> MessageProcessor<
         // Start chat in background
         let api = self.api.clone();
         let sender = self.sender.clone();
+        let active_tasks = self.active_tasks.clone();
 
         tokio::spawn(async move {
-            let result = Self::execute_chat(api, sender, thread_id, turn_id, message).await;
+            let result =
+                Self::execute_chat(api, sender, thread_id, turn_id, message, cancel_rx).await;
+
+            // Cleanup: remove the task from active_tasks
+            active_tasks.lock().await.remove(&(thread_id, turn_id));
+
             if let Err(e) = result {
                 tracing::error!("Chat execution failed: {}", e);
             }
@@ -263,6 +292,7 @@ impl<A: API + 'static, W: AsyncWrite + Unpin + Send + 'static> MessageProcessor<
         thread_id: Uuid,
         turn_id: Uuid,
         message: String,
+        mut cancel_rx: oneshot::Receiver<()>,
     ) -> Result<()> {
         // Create chat request
         let conversation_id = forge_domain::ConversationId::parse(thread_id.to_string())?;
@@ -275,25 +305,49 @@ impl<A: API + 'static, W: AsyncWrite + Unpin + Send + 'static> MessageProcessor<
         // Create translator
         let mut translator = EventTranslator::new(thread_id, turn_id);
 
-        // Process stream
-        while let Some(response_result) = stream.next().await {
-            match response_result {
-                Ok(response) => {
-                    let notifications = translator.translate(response);
-                    for notification in notifications {
-                        if let Err(e) = sender.send_notification(notification).await {
-                            tracing::error!("Failed to send notification: {}", e);
+        // Process stream with cancellation support
+        loop {
+            tokio::select! {
+                // Wait for stream events
+                response_result = stream.next() => {
+                    match response_result {
+                        Some(Ok(response)) => {
+                            let notifications = translator.translate(response);
+                            for notification in notifications {
+                                if let Err(e) = sender.send_notification(notification).await {
+                                    tracing::error!("Failed to send notification: {}", e);
+                                }
+                            }
+                        }
+                        Some(Err(e)) => {
+                            tracing::error!("Chat stream error: {}", e);
+                            // Send turn failed notification
+                            sender
+                                .send_notification(ServerNotification::TurnCompleted {
+                                    thread_id,
+                                    turn_id,
+                                    status: TurnStatus::Failed,
+                                })
+                                .await?;
+                            break;
+                        }
+                        None => {
+                            // Stream completed normally
+                            break;
                         }
                     }
                 }
-                Err(e) => {
-                    tracing::error!("Chat stream error: {}", e);
-                    // Send turn failed notification
+                // Wait for cancellation
+                _ = &mut cancel_rx => {
+                    tracing::info!("Chat cancelled for turn {}", turn_id);
+                    // Drop the stream to abort the underlying task
+                    drop(stream);
+                    // Send turn cancelled notification
                     sender
                         .send_notification(ServerNotification::TurnCompleted {
                             thread_id,
                             turn_id,
-                            status: TurnStatus::Failed,
+                            status: TurnStatus::Cancelled,
                         })
                         .await?;
                     break;
@@ -309,6 +363,29 @@ impl<A: API + 'static, W: AsyncWrite + Unpin + Send + 'static> MessageProcessor<
         self.sender
             .send_error(id, -32601, "Retry not yet implemented")
             .await
+    }
+
+    async fn handle_turn_cancel(&self, id: i64, thread_id: Uuid, turn_id: Uuid) -> Result<()> {
+        let mut tasks = self.active_tasks.lock().await;
+
+        if let Some(cancel_tx) = tasks.remove(&(thread_id, turn_id)) {
+            // Trigger cancellation by sending signal
+            let _ = cancel_tx.send(());
+
+            tracing::info!(
+                "Cancellation requested for turn {} in thread {}",
+                turn_id,
+                thread_id
+            );
+
+            self.sender
+                .send_response(id, serde_json::json!({"cancelled": true}))
+                .await
+        } else {
+            self.sender
+                .send_error(id, -32602, "Turn not found or already completed")
+                .await
+        }
     }
 
     async fn handle_thread_compact(&self, id: i64, thread_id: Uuid) -> Result<()> {

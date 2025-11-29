@@ -20,6 +20,7 @@ export class Controller {
     
     // State
     private currentThreadId: string | null = null;
+    private currentTurnId: string | null = null;
     private messages: Message[] = [];
     private agent = 'Forge';
     private model = 'Claude 3.5 Sonnet';
@@ -103,6 +104,31 @@ export class Controller {
     }
 
     /**
+     * Handle cancel from webview
+     */
+    public async handleCancel(): Promise<void> {
+        this.outputChannel.appendLine('[Controller] Cancelling current turn');
+
+        try {
+            if (!this.currentThreadId || !this.currentTurnId) {
+                this.outputChannel.appendLine('[Controller] No active turn to cancel');
+                return;
+            }
+
+            await this.rpcClient.request('turn/cancel', {
+                thread_id: this.currentThreadId,
+                turn_id: this.currentTurnId
+            });
+
+            this.outputChannel.appendLine('[Controller] Turn cancelled');
+
+        } catch (error) {
+            this.outputChannel.appendLine(`[Controller] Error cancelling: ${error}`);
+            vscode.window.showErrorMessage(`Failed to cancel: ${error}`);
+        }
+    }
+
+    /**
      * Handle approval response from webview
      */
     public async handleApproval(id: string, decision: 'accept' | 'reject'): Promise<void> {
@@ -149,6 +175,7 @@ export class Controller {
         
         // Generate a unique turn ID
         const turnId = randomUUID();
+        this.currentTurnId = turnId;
         
         const response = await this.rpcClient.request<{ turnId: string }>(
             'turn/start',
@@ -306,8 +333,15 @@ export class Controller {
     /**
      * Handle turn started notification
      */
-    private handleTurnStarted(_params: any): void {
-        // Turn started - UI will be prepared when item starts
+    private handleTurnStarted(params: any): void {
+        this.outputChannel.appendLine(`[Controller] Turn started: ${JSON.stringify(params)}`);
+        
+        // Forward to webview so it can track the turn ID for cancellation
+        this.webviewProvider?.postMessage({
+            type: 'turn/started',
+            threadId: params.thread_id,
+            turnId: params.turn_id,
+        });
     }
 
     /**
@@ -417,11 +451,22 @@ export class Controller {
     /**
      * Handle turn completed notification
      */
-    private handleTurnCompleted(_params: any): void {
-        this.outputChannel.appendLine('[Controller] Turn completed');
+    private handleTurnCompleted(params: any): void {
+        this.outputChannel.appendLine(`[Controller] Turn completed with status: ${params.status}`);
         
         // Reset streaming state
         this.isStreamingStarted = false;
+        
+        // Clear current turn
+        this.currentTurnId = null;
+        
+        // Forward to webview
+        this.webviewProvider.postMessage({
+            type: 'turn/completed',
+            threadId: params.thread_id,
+            turnId: params.turn_id,
+            status: params.status,
+        });
         
         // End streaming
         this.webviewProvider.streamEnd();

@@ -33,12 +33,22 @@ export function useChatState(): ChatState {
       });
       
       Runtime.runPromise(runtime)(program)
-        .then(setState)
+        .then((newState) => {
+          // Log state changes for debugging
+          if (newState.isLoading !== state.isLoading || newState.isStreaming !== state.isStreaming) {
+            console.log('[useChatState] State changed:', {
+              isLoading: newState.isLoading,
+              isStreaming: newState.isStreaming,
+              currentTurnId: newState.currentTurnId,
+            });
+          }
+          setState(newState);
+        })
         .catch(console.error);
     }, 100);
     
     return () => clearInterval(interval);
-  }, [runtime]);
+  }, [runtime, state.isLoading, state.isStreaming]);
   
   return state;
 }
@@ -64,6 +74,11 @@ export function useChatStateUpdater() {
               cost: message.cost,
             });
           }
+          break;
+        
+        case 'turn/started':
+          // Store the turn ID when a turn starts
+          yield* chatState.setCurrentTurn(message.threadId, message.turnId);
           break;
         
         case 'streamStart':
@@ -101,6 +116,15 @@ export function useChatStateUpdater() {
           } else if (message.content) {
             yield* chatState.addAssistantMessage(message.content);
           }
+          // Reset loading state when stream ends
+          yield* chatState.setLoading(false);
+          break;
+        
+        case 'turn/completed':
+          // Turn completed - reset loading/streaming state
+          yield* chatState.updateStreaming('', false);
+          yield* chatState.setLoading(false);
+          yield* chatState.clearCurrentTurn();
           break;
         
         case 'updateHeader':

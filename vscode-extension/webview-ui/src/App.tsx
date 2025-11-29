@@ -6,12 +6,23 @@ import './index.css';
 function App() {
   const chatState = useChatState();
   const { updateFromMessage } = useChatStateUpdater();
-  const { sendMessage, changeModel, initialize } = useChatActions();
+  const { sendMessage, changeModel, initialize, cancelMessage } = useChatActions();
   
   const [showModelPicker, setShowModelPicker] = useState(false);
   const [modelSearch, setModelSearch] = useState('');
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  
+  // Log button state changes
+  useEffect(() => {
+    const showCancel = chatState.isStreaming || chatState.isLoading || !!chatState.currentTurnId;
+    console.log('[App] Button state:', {
+      showCancel,
+      isLoading: chatState.isLoading,
+      isStreaming: chatState.isStreaming,
+      currentTurnId: chatState.currentTurnId,
+    });
+  }, [chatState.isLoading, chatState.isStreaming, chatState.currentTurnId]);
 
   // Initialize and listen for messages
   useEffect(() => {
@@ -47,6 +58,11 @@ function App() {
   const handleSend = () => {
     if (!input.trim() || chatState.isStreaming) return;
     console.log('[App] Sending message via Effect:', input);
+    console.log('[App] Current state before send:', {
+      isLoading: chatState.isLoading,
+      isStreaming: chatState.isStreaming,
+      currentTurnId: chatState.currentTurnId,
+    });
     sendMessage(input);
     setInput('');
   };
@@ -241,14 +257,25 @@ function App() {
             disabled={chatState.isStreaming}
             rows={1}
           />
-          <button
-            className="send-button"
-            onClick={handleSend}
-            disabled={!input.trim() || chatState.isStreaming}
-          >
-            <span className="codicon codicon-send"></span>
-            <span>Send</span>
-          </button>
+          {chatState.isStreaming || chatState.isLoading || chatState.currentTurnId ? (
+            <button
+              className="cancel-button"
+              onClick={cancelMessage}
+              title="Cancel current operation"
+            >
+              <span className="codicon codicon-close"></span>
+              <span>Cancel</span>
+            </button>
+          ) : (
+            <button
+              className="send-button"
+              onClick={handleSend}
+              disabled={!input.trim()}
+            >
+              <span className="codicon codicon-send"></span>
+              <span>Send</span>
+            </button>
+          )}
         </div>
         <div className="input-footer">
           <span>Press Ctrl+Enter to send</span>

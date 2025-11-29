@@ -25,6 +25,8 @@ export interface ChatState {
     args?: Record<string, any>;
   }>;
   activeToolItemIds: Set<string>;  // NEW: Track item IDs of active tool calls to filter their deltas
+  currentThreadId?: string;  // NEW: Track current thread ID
+  currentTurnId?: string;    // NEW: Track current turn ID for cancellation
 }
 
 export interface ChatStateService {
@@ -39,6 +41,8 @@ export interface ChatStateService {
   readonly addToolCall: (id: string, toolName: string, args?: Record<string, any>) => Effect.Effect<void>;
   readonly completeToolCall: (id: string, status: 'completed' | 'failed') => Effect.Effect<void>;
   readonly setLoading: (isLoading: boolean) => Effect.Effect<void>;
+  readonly setCurrentTurn: (threadId: string, turnId: string) => Effect.Effect<void>;  // NEW
+  readonly clearCurrentTurn: () => Effect.Effect<void>;  // NEW
 }
 
 export const ChatStateService = Context.GenericTag<ChatStateService>('ChatStateService');
@@ -178,6 +182,19 @@ export const ChatStateServiceLive = Layer.effect(
           ...state,
           isLoading,
         })),
+      
+      setCurrentTurn: (threadId: string, turnId: string) =>
+        Ref.update(stateRef, (state) => ({
+          ...state,
+          currentThreadId: threadId,
+          currentTurnId: turnId,
+        })),
+      
+      clearCurrentTurn: () =>
+        Ref.update(stateRef, (state) => {
+          const { currentThreadId, currentTurnId, ...rest } = state;
+          return rest as ChatState;
+        }),
     });
   })
 );

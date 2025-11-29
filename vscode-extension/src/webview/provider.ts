@@ -15,6 +15,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
     private onSendMessageCallback?: (text: string) => void;
     private onApprovalCallback?: (data: any) => void;
     private onModelChangeCallback?: (modelId: string) => void;
+    private onCancelCallback?: () => void;
 
     constructor(extensionUri: vscode.Uri, outputChannel: vscode.OutputChannel) {
         this.extensionUri = extensionUri;
@@ -47,6 +48,13 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
      */
     public onModelChange(callback: (modelId: string) => void): void {
         this.onModelChangeCallback = callback;
+    }
+
+    /**
+     * Set callback for cancel event
+     */
+    public onCancel(callback: () => void): void {
+        this.onCancelCallback = callback;
     }
 
     /**
@@ -181,6 +189,12 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
                 this.outputChannel.appendLine(`[Webview] Calling onSendMessage callback with: ${message.text}`);
                 if (this.onSendMessageCallback) {
                     this.onSendMessageCallback(message.text);
+                }
+                break;
+            case 'cancel':
+                this.outputChannel.appendLine('[Webview] Calling onCancel callback');
+                if (this.onCancelCallback) {
+                    this.onCancelCallback();
                 }
                 break;
             case 'approval':

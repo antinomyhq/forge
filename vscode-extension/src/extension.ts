@@ -157,6 +157,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             });
         });
 
+        webviewProvider.onCancel(() => {
+            controller?.handleCancel().catch((error) => {
+                outputChannel?.appendLine(`Error handling cancel: ${error}`);
+            });
+        });
+
         webviewProvider.onModelChange((modelId: string) => {
             controller?.handleModelChange(modelId).catch((error) => {
                 outputChannel?.appendLine(`Error handling model change: ${error}`);

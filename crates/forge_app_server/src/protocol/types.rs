@@ -38,14 +38,18 @@ pub type ItemId = Uuid;
 pub enum ItemType {
     UserMessage,
     AgentMessage,
-    ToolCall { 
+    ToolCall {
         tool_name: String,
         #[serde(skip_serializing_if = "Option::is_none")]
         #[ts(type = "Record<string, any> | undefined")]
         arguments: Option<serde_json::Value>,
     },
-    FileChange { file_path: String },
-    CommandExecution { command: String },
+    FileChange {
+        file_path: String,
+    },
+    CommandExecution {
+        command: String,
+    },
 }
 
 /// Item status
@@ -66,6 +70,7 @@ pub enum TurnStatus {
     Started,
     Completed,
     Failed,
+    Cancelled,
 }
 
 /// File change details for approval

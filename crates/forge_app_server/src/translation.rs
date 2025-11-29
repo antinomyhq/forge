@@ -148,10 +148,7 @@ impl EventTranslator {
             thread_id: self.thread_id,
             turn_id: self.turn_id,
             item_id,
-            item_type: ItemType::ToolCall { 
-                tool_name: tool_call.name.to_string(),
-                arguments,
-            },
+            item_type: ItemType::ToolCall { tool_name: tool_call.name.to_string(), arguments },
         });
 
         notifications

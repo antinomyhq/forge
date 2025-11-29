@@ -58,3 +58,20 @@ export const getThread = (threadId: string): Effect.Effect<
     const rpc = yield* JsonRpcService;
     return yield* rpc.request<{ threadId: string; messages: Array<unknown> }>("thread/get", { threadId });
   });
+
+/// Cancels an ongoing turn in a conversation
+///
+/// # Arguments
+/// - threadId: The ID of the thread
+/// - turnId: The ID of the turn to cancel
+export const cancelTurn = (
+  threadId: string,
+  turnId: string
+): Effect.Effect<void, RpcError, JsonRpcService> =>
+  Effect.gen(function* () {
+    const rpc = yield* JsonRpcService;
+    yield* rpc.request("turn/cancel", {
+      threadId,
+      turnId,
+    });
+  });

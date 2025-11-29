@@ -18,6 +18,7 @@ export interface VscodeRpcService {
   readonly requestModels: Effect.Effect<void>;
   readonly sendMessage: (text: string) => Effect.Effect<void>;
   readonly changeModel: (modelId: string) => Effect.Effect<void>;
+  readonly cancelTurn: (threadId: string, turnId: string) => Effect.Effect<void>;
 }
 
 export const VscodeRpcService = Context.GenericTag<VscodeRpcService>('VscodeRpcService');
@@ -45,6 +46,12 @@ export const VscodeRpcServiceLive = Layer.succeed(
       Effect.sync(() => {
         console.log('[VscodeRpc] Changing model:', modelId);
         getVscodeApi().postMessage({ type: 'modelChange', modelId });
+      }),
+    
+    cancelTurn: (threadId: string, turnId: string) =>
+      Effect.sync(() => {
+        console.log('[VscodeRpc] Cancelling turn:', threadId, turnId);
+        getVscodeApi().postMessage({ type: 'cancel', threadId, turnId });
       }),
   })
 );
