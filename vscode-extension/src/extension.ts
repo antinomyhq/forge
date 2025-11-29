@@ -169,6 +169,13 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             });
         });
 
+
+        webviewProvider.onAgentChange((agentId: string) => {
+            controller?.handleAgentChange(agentId).catch((error) => {
+                outputChannel?.appendLine(`Error handling agent change: ${error}`);
+            });
+        });
+
         webviewProvider.onApproval((data: any) => {
             controller?.handleApproval(data.id, data.decision).catch((error) => {
                 outputChannel?.appendLine(`Error handling approval: ${error}`);

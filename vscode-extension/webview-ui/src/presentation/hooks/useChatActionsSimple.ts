@@ -42,11 +42,21 @@ export function useChatActions() {
     Runtime.runPromise(runtime)(program).catch(console.error);
   }, [runtime]);
   
+  const changeAgent = useCallback((agentId: string) => {
+    const program = Effect.gen(function* () {
+      const vscode = yield* VscodeRpcService;
+      yield* vscode.changeAgent(agentId);
+    });
+    
+    Runtime.runPromise(runtime)(program).catch(console.error);
+  }, [runtime]);
+  
   const initialize = useCallback(() => {
     const program = Effect.gen(function* () {
       const vscode = yield* VscodeRpcService;
       yield* vscode.sendReady;
       yield* vscode.requestModels;
+      yield* vscode.requestAgents;
     });
     
     Runtime.runPromise(runtime)(program).catch(console.error);
@@ -77,6 +87,7 @@ export function useChatActions() {
   return {
     sendMessage,
     changeModel,
+    changeAgent,
     initialize,
     cancelMessage,
   };

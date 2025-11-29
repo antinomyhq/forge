@@ -15,6 +15,7 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
     private onSendMessageCallback?: (text: string) => void;
     private onApprovalCallback?: (data: any) => void;
     private onModelChangeCallback?: (modelId: string) => void;
+    private onAgentChangeCallback?: (agentId: string) => void;
     private onCancelCallback?: () => void;
 
     constructor(extensionUri: vscode.Uri, outputChannel: vscode.OutputChannel) {
@@ -48,6 +49,13 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
      */
     public onModelChange(callback: (modelId: string) => void): void {
         this.onModelChangeCallback = callback;
+    }
+
+    /**
+     * Set callback for agent change event
+     */
+    public onAgentChange(callback: (agentId: string) => void): void {
+        this.onAgentChangeCallback = callback;
     }
 
     /**
@@ -172,6 +180,13 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
     }
 
     /**
+     * Send agents list to webview
+     */
+    public sendAgentsList(agents: unknown[]): void {
+        this.postMessage({ type: 'agentsList', agents });
+    }
+
+    /**
      * Handle messages from webview (JSON-RPC requests)
      */
     private handleWebviewMessage(message: any): void {
@@ -212,8 +227,18 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
                     this.onModelChangeCallback(message.modelId);
                 }
                 break;
+            case 'agentChange':
+                this.outputChannel.appendLine(`[Webview] Agent change requested: ${message.agentId}`);
+                if (this.onAgentChangeCallback) {
+                    this.onAgentChangeCallback(message.agentId);
+                }
+                break;
             case 'requestModels':
                 this.outputChannel.appendLine('[Webview] Requesting models list');
+                // This will be handled by controller
+                break;
+            case 'requestAgents':
+                this.outputChannel.appendLine('[Webview] Requesting agents list');
                 // This will be handled by controller
                 break;
         }

@@ -16,8 +16,10 @@ function getVscodeApi() {
 export interface VscodeRpcService {
   readonly sendReady: Effect.Effect<void>;
   readonly requestModels: Effect.Effect<void>;
+  readonly requestAgents: Effect.Effect<void>;
   readonly sendMessage: (text: string) => Effect.Effect<void>;
   readonly changeModel: (modelId: string) => Effect.Effect<void>;
+  readonly changeAgent: (agentId: string) => Effect.Effect<void>;
   readonly cancelTurn: (threadId: string, turnId: string) => Effect.Effect<void>;
 }
 
@@ -36,6 +38,11 @@ export const VscodeRpcServiceLive = Layer.succeed(
       getVscodeApi().postMessage({ type: 'requestModels' });
     }),
     
+    requestAgents: Effect.sync(() => {
+      console.log('[VscodeRpc] Requesting agents');
+      getVscodeApi().postMessage({ type: 'requestAgents' });
+    }),
+    
     sendMessage: (text: string) =>
       Effect.sync(() => {
         console.log('[VscodeRpc] Sending message:', text);
@@ -46,6 +53,12 @@ export const VscodeRpcServiceLive = Layer.succeed(
       Effect.sync(() => {
         console.log('[VscodeRpc] Changing model:', modelId);
         getVscodeApi().postMessage({ type: 'modelChange', modelId });
+      }),
+    
+    changeAgent: (agentId: string) =>
+      Effect.sync(() => {
+        console.log('[VscodeRpc] Changing agent:', agentId);
+        getVscodeApi().postMessage({ type: 'agentChange', agentId });
       }),
     
     cancelTurn: (threadId: string, turnId: string) =>

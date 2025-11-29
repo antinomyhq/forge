@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Send, Loader2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ModelPicker } from "@/presentation/components/header/ModelPicker";
-import { AIModel } from "@domain/models";
+import { AgentPicker } from "@/presentation/components/header/AgentPicker";
+import { AIModel, Agent } from "@domain/models";
 
 interface InputBoxProps {
   onSend: (message: string) => void;
@@ -12,9 +13,13 @@ interface InputBoxProps {
   disabled?: boolean;
   isStreaming?: boolean;
   models: ReadonlyArray<AIModel>;
+  agents: ReadonlyArray<Agent>;
   selectedModelId: string;
   selectedModelName: string;
+  selectedAgentId: string;
+  selectedAgentName: string;
   onModelChange: (modelId: string) => void;
+  onAgentChange: (agentId: string) => void;
 }
 
 /// InputBox provides a text input for sending messages using shadcn components
@@ -24,9 +29,13 @@ export const InputBox: React.FC<InputBoxProps> = ({
   disabled = false,
   isStreaming = false,
   models,
+  agents,
   selectedModelId,
   selectedModelName,
+  selectedAgentId,
+  selectedAgentName,
   onModelChange,
+  onAgentChange,
 }) => {
   const [message, setMessage] = React.useState("");
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
@@ -121,8 +130,21 @@ export const InputBox: React.FC<InputBoxProps> = ({
             </div>
           </div>
 
-          {/* Bottom row: Model Picker */}
-          <div className="flex items-center">
+          {/* Bottom row: Agent and Model Pickers */}
+          <div className="flex items-center gap-2">
+            {/* Agent Picker */}
+            <AgentPicker
+              agents={agents}
+              selectedAgentId={selectedAgentId}
+              selectedAgentName={selectedAgentName}
+              onAgentChange={onAgentChange}
+              disabled={isStreaming}
+              compact={true}
+            />
+            
+            {/* Separator */}
+            <div className="h-4 w-px bg-border" />
+            
             {/* Model Picker */}
             <ModelPicker
               models={models}

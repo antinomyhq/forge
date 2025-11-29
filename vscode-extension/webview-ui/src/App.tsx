@@ -13,7 +13,7 @@ import './index.css';
 function App() {
   const chatState = useChatState();
   const { updateFromMessage } = useChatStateUpdater();
-  const { sendMessage, changeModel, initialize, cancelMessage } = useChatActions();
+  const { sendMessage, changeModel, changeAgent, initialize, cancelMessage } = useChatActions();
 
   // Initialize VSCode theme
   useEffect(() => {
@@ -78,9 +78,13 @@ function App() {
           disabled={chatState.isLoading}
           isStreaming={chatState.isStreaming}
           models={chatState.models}
-          selectedModelId={''}
+          agents={chatState.agents}
+          selectedModelId={chatState.modelId}
           selectedModelName={chatState.modelName}
+          selectedAgentId={chatState.agentId}
+          selectedAgentName={chatState.agentName}
           onModelChange={changeModel}
+          onAgentChange={changeAgent}
         />
       }
       isEmpty={isEmpty}

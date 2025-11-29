@@ -64,8 +64,9 @@ export class Controller {
         // Fetch current agent and model from server
         await this.refreshAgentAndModel();
         
-        // Send models list to webview
+        // Send models and agents lists to webview
         await this.sendModelsList();
+        await this.sendAgentsList();
         
         // Send current state to webview
         this.webviewProvider.updateState({
@@ -539,6 +540,57 @@ export class Controller {
     }
 
     /**
+     * Send agents list to webview
+     */
+    public async sendAgentsList(): Promise<void> {
+        try {
+            this.outputChannel.appendLine('[Controller] Fetching agents list');
+            
+            const response = await this.rpcClient.request<{ agents: AgentInfo[] }>(
+                'agent/list',
+                undefined
+            );
+            
+            const agents = response.agents.map(agent => ({
+                id: agent.id,
+                name: agent.name || agent.id,
+                description: agent.description,
+                provider: agent.provider,
+                model: agent.model,
+            }));
+            
+            this.outputChannel.appendLine(`[Controller] Sending ${agents.length} agents to webview`);
+            this.webviewProvider.sendAgentsList(agents);
+            
+        } catch (error) {
+            this.outputChannel.appendLine(`[Controller] Failed to fetch agents list: ${error}`);
+        }
+    }
+
+    /**
+     * Handle agent change from webview
+     */
+    public async handleAgentChange(agentId: string): Promise<void> {
+        try {
+            this.outputChannel.appendLine(`[Controller] Changing agent to: ${agentId}`);
+            
+            // Set active agent on server
+            await this.rpcClient.request('agent/set', {
+                agent_id: agentId
+            });
+            
+            // Refresh agent and model to update display
+            await this.refreshAgentAndModel();
+            
+            this.outputChannel.appendLine(`[Controller] Agent changed successfully`);
+            
+        } catch (error) {
+            this.outputChannel.appendLine(`[Controller] Failed to change agent: ${error}`);
+            vscode.window.showErrorMessage(`Failed to change agent: ${error}`);
+        }
+    }
+
+    /**
      * Refresh agent and model from server
      */
     public async refreshAgentAndModel(): Promise<void> {
@@ -564,6 +616,10 @@ export class Controller {
                 undefined
             );
             
+            // Store agent and model IDs
+            let agentId = response.activeAgent || '';
+            let modelId = response.defaultModel || '';
+            
             // Update agent if available
             if (response.activeAgent) {
                 // Find agent display name
@@ -580,10 +636,12 @@ export class Controller {
                 this.outputChannel.appendLine(`[Controller] Updated model: ${this.model}`);
             }
             
-            // Update header in webview
+            // Update header in webview with both names and IDs
             this.webviewProvider.updateHeader({
                 agent: this.agent,
-                model: this.model
+                agent_id: agentId,
+                model: this.model,
+                model_id: modelId
             });
             
         } catch (error) {

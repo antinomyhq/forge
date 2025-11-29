@@ -430,9 +430,15 @@ impl<A: API + 'static, W: AsyncWrite + Unpin + Send + 'static> MessageProcessor<
         let agent_list: Vec<serde_json::Value> = agents
             .iter()
             .map(|agent| {
+                // Use agent ID (capitalized) as the display name
+                let name = agent.id.as_str().chars().next()
+                    .map(|c| c.to_uppercase().collect::<String>() + &agent.id.as_str()[1..])
+                    .unwrap_or_else(|| agent.id.to_string());
+                
                 serde_json::json!({
                     "id": agent.id,
-                    "name": agent.title.as_deref().unwrap_or(agent.id.as_str()),
+                    "name": name,
+                    "description": agent.title,  // Title is the description
                     "provider": agent.provider,
                     "model": agent.model,
                 })

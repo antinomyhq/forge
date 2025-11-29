@@ -11,8 +11,11 @@ export interface ChatState {
     status?: 'running' | 'completed' | 'failed';
   }>;
   models: Array<{ id: string; name?: string; label?: string; provider?: string; contextWindow?: number }>;
+  agents: Array<{ id: string; name?: string; description?: string; provider?: string; model?: string; capabilities?: string[] }>;
   agentName: string;
+  agentId: string;
   modelName: string;
+  modelId: string;
   tokenCount: string;
   cost: string;
   isLoading: boolean;  // NEW: Shows spinner before stream starts
@@ -37,6 +40,7 @@ export interface ChatStateService {
   readonly updateStreaming: (content: string, isStreaming: boolean) => Effect.Effect<void>;
   readonly updateHeader: (data: any) => Effect.Effect<void>;
   readonly setModels: (models: any[]) => Effect.Effect<void>;
+  readonly setAgents: (agents: any[]) => Effect.Effect<void>;
   readonly setMessages: (messages: any[]) => Effect.Effect<void>;
   readonly addToolCall: (id: string, toolName: string, args?: Record<string, any>) => Effect.Effect<void>;
   readonly completeToolCall: (id: string, status: 'completed' | 'failed') => Effect.Effect<void>;
@@ -50,9 +54,12 @@ export const ChatStateService = Context.GenericTag<ChatStateService>('ChatStateS
 const initialState: ChatState = {
   messages: [],
   models: [],
+  agents: [],
   agentName: 'Forge',
+  agentId: 'forge',
   isLoading: false,
   modelName: 'Claude 3.5 Sonnet',
+  modelId: '',
   tokenCount: '0 / 200K tokens',
   cost: '$0.00',
   isStreaming: false,
@@ -98,7 +105,9 @@ export const ChatStateServiceLive = Layer.effect(
         Ref.update(stateRef, (state) => ({
           ...state,
           agentName: data?.agent ?? state.agentName,
+          agentId: data?.agent_id ?? state.agentId,
           modelName: data?.model ?? state.modelName,
+          modelId: data?.model_id ?? state.modelId,
           tokenCount: data?.tokens ?? state.tokenCount,
           cost: data?.cost ?? state.cost,
         })),
@@ -107,6 +116,12 @@ export const ChatStateServiceLive = Layer.effect(
         Ref.update(stateRef, (state) => ({
           ...state,
           models: models || [],
+        })),
+      
+      setAgents: (agents: any[]) =>
+        Ref.update(stateRef, (state) => ({
+          ...state,
+          agents: agents || [],
         })),
       
       setMessages: (messages: any[]) =>

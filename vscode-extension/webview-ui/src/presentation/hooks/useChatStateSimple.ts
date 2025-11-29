@@ -12,8 +12,11 @@ export function useChatState(): ChatState {
   const [state, setState] = useState<ChatState>({
     messages: [],
     models: [],
+    agents: [],
     agentName: 'Forge',
+    agentId: 'forge',
     modelName: 'Claude 3.5 Sonnet',
+    modelId: '',
     tokenCount: '0 / 200K tokens',
     cost: '$0.00',
     isLoading: false,
@@ -152,6 +155,10 @@ export function useChatStateUpdater() {
         
         case 'modelsList':
           yield* chatState.setModels(message.models || []);
+          break;
+        
+        case 'agentsList':
+          yield* chatState.setAgents(message.agents || []);
           break;
         
         case 'ItemStarted':
