@@ -391,16 +391,16 @@ pub struct ConfigGetArgs {
 pub struct ConversationCommandGroup {
     #[command(subcommand)]
     pub command: ConversationCommand,
-
-    /// Output in machine-readable format.
-    #[arg(long, global = true)]
-    pub porcelain: bool,
 }
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum ConversationCommand {
     /// List conversation history.
-    List,
+    List {
+        /// Output in machine-readable format.
+        #[arg(long)]
+        porcelain: bool,
+    },
 
     /// Create a new conversation.
     New,
@@ -445,10 +445,24 @@ pub enum ConversationCommand {
         id: String,
     },
 
+    /// Show conversation statistics.
+    Stats {
+        /// Conversation ID.
+        id: String,
+
+        /// Output in machine-readable format.
+        #[arg(long)]
+        porcelain: bool,
+    },
+
     /// Clone conversation with a new ID.
     Clone {
         /// Conversation ID to clone.
         id: String,
+
+        /// Output in machine-readable format.
+        #[arg(long)]
+        porcelain: bool,
     },
 }
 
