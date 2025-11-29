@@ -36,6 +36,22 @@
 #    when = '[ -n "$_FORGE_ACTIVE_AGENT" ]'
 #    format = "[$output]($style) "
 #    style = "bold white"
+#
+# 5. Show token count in your prompt:
+#    RPROMPT='$(prompt_forge_model) [$(prompt_forge_message_count)]'
+
+#################################################################################
+# INTERNAL HELPERS
+#################################################################################
+
+# Returns the forge command to use (private helper)
+function _prompt_forge_cmd() {
+    echo "${_FORGE_BIN:-${FORGE_BIN:-forge}}"
+}
+
+#################################################################################
+# PUBLIC API FUNCTIONS
+#################################################################################
 
 # Returns unstyled left prompt content (agent name with icon)
 # Returns the agent name in uppercase with an icon prefix without any styling
@@ -64,8 +80,7 @@ function prompt_forge_agent_unstyled() {
 #   model=$(prompt_forge_model_unstyled)
 #   RPROMPT="%F{blue}${model}%f"
 function prompt_forge_model_unstyled() {
-    local forge_cmd="${_FORGE_BIN:-${FORGE_BIN:-forge}}"
-    local model_output=$($forge_cmd config get model 2>/dev/null)
+    local model_output=$($(_prompt_forge_cmd) config get model 2>/dev/null)
     
     if [[ -n "$model_output" ]]; then
         echo "${model_output}"
@@ -99,23 +114,71 @@ function prompt_forge_agent() {
 # This is a ready-to-use function for ZSH prompts
 #
 # Format: model name
-#
-# Colors:
-# - Dark grey when no conversation is active
-# - Cyan when conversation is active
+# Color: Cyan (consistent, not context-dependent)
 #
 # Example:
 #   RPROMPT='$(prompt_forge_model)'
 function prompt_forge_model() {
     local content=$(prompt_forge_model_unstyled)
     if [[ -n "$content" ]]; then
-        if [[ -n "$_FORGE_CONVERSATION_ID" ]]; then
-            # Active: cyan
-            echo "%F{cyan}${content}%f"
-        else
-            # Idle: dark grey
-            echo "%F{8}${content}%f"
+        # Always cyan regardless of conversation state
+        echo "%F{cyan}${content}%f"
+    fi
+}
+
+# Returns unstyled token count for the current conversation
+# Returns the token count in human-readable format (e.g., "10k", "1.2M")
+#
+# Example output: "42k" or "" (empty if no conversation)
+#
+# Example:
+#   count=$(prompt_forge_message_count_unstyled)
+#   if [[ -n "$count" ]]; then
+#     RPROMPT="%F{blue}Tokens: ${count}%f"
+#   fi
+function prompt_forge_message_count_unstyled() {
+    if [[ -n "$_FORGE_CONVERSATION_ID" ]]; then
+        local stats_output=$($(_prompt_forge_cmd) conversation stats "$_FORGE_CONVERSATION_ID" --porcelain 2>/dev/null)
+        
+        if [[ -n "$stats_output" ]]; then
+            # Extract total_tokens from porcelain output (format: "token  total_tokens      36000")
+            local tokens=$(echo "$stats_output" | awk '/^token[[:space:]]+total_tokens/ {print $3}')
+            
+            if [[ -n "$tokens" ]]; then
+                # Format tokens in human-readable format
+                if (( tokens >= 1000000 )); then
+                    # Format as millions (e.g., 1.2M, 0.7M)
+                    printf "%.1fM" $(( tokens / 100000.0 / 10.0 ))
+                elif (( tokens >= 1000 )); then
+                    # Format as thousands (e.g., 10k, 100k)
+                    printf "%dk" $(( tokens / 1000 ))
+                else
+                    # Less than 1000, show as-is
+                    echo "$tokens"
+                fi
+            fi
         fi
+    fi
+}
+
+# Returns the token count for the current conversation
+# This is a ready-to-use function for ZSH prompts
+#
+# Format: token count in human-readable format (e.g., "10k", "1.2M")
+#
+# Colors:
+# - Green when conversation is active
+# - Empty when no conversation is active
+#
+# Example output: "42k" (in green) or "" (empty if no conversation)
+#
+# Example:
+#   RPROMPT='$(prompt_forge_model) [$(prompt_forge_message_count)]'
+function prompt_forge_message_count() {
+    local content=$(prompt_forge_message_count_unstyled)
+    if [[ -n "$content" ]]; then
+        # Active: green
+        echo "%F{green}${content}%f"
     fi
 }
 
@@ -130,14 +193,15 @@ function prompt_forge_model() {
 # To use, add these segment names to your prompt elements:
 # - 'forge_agent' for the left prompt (agent name)
 # - 'forge_model' for the right prompt (model name)
+# - 'forge_message_count' for the right prompt (token count)
 #
 # Example in your .p10k.zsh or .zshrc:
 #   POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=(... forge_agent ...)
-#   POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=(... forge_model ...)
+#   POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=(... forge_model forge_message_count ...)
 #
 # Or for Powerlevel9k:
 #   POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=(context ... forge_agent dir vcs)
-#   POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=(status forge_model time)
+#   POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=(status forge_model forge_message_count time)
 
 # Powerlevel segment for agent name (left prompt)
 # Applies consistent styling across P10k and P9k
@@ -166,6 +230,24 @@ function prompt_forge_agent_p9k() {
 # Usage: Add 'forge_model' to POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS
 function prompt_forge_model_p9k() {
     local styled=$(prompt_forge_model)
+    if [[ -n "$styled" ]]; then
+        # Check if p10k is available
+        if (( $+functions[p10k] )); then
+            # Powerlevel10k - use p10k segment with our styling
+            p10k segment -t "$styled"
+        else
+            # Powerlevel9k - output directly
+            echo -n "$styled"
+        fi
+    fi
+}
+
+# Powerlevel segment for token count (right prompt)
+# Applies consistent styling across P10k and P9k
+#
+# Usage: Add 'forge_message_count' to POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS
+function prompt_forge_message_count_p9k() {
+    local styled=$(prompt_forge_message_count)
     if [[ -n "$styled" ]]; then
         # Check if p10k is available
         if (( $+functions[p10k] )); then
