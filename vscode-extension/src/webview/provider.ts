@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
+import * as fs from 'fs';
 
 /**
- * Webview provider for the chat interface
+ * Webview provider for the React-based chat interface
  * Manages webview lifecycle, CSP, and messaging
  */
 export class ChatWebviewProvider implements vscode.WebviewViewProvider {
@@ -13,7 +14,6 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
     private onReadyCallback?: () => void;
     private onSendMessageCallback?: (text: string) => void;
     private onApprovalCallback?: (data: any) => void;
-
     private onModelChangeCallback?: (modelId: string) => void;
 
     constructor(extensionUri: vscode.Uri, outputChannel: vscode.OutputChannel) {
@@ -42,7 +42,6 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
         this.onApprovalCallback = callback;
     }
 
-
     /**
      * Set callback for model change event
      */
@@ -64,12 +63,11 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
         webviewView.webview.options = {
             enableScripts: true,
             localResourceRoots: [
-                vscode.Uri.joinPath(this.extensionUri, 'webview'),
-                vscode.Uri.joinPath(this.extensionUri, 'node_modules', '@vscode', 'codicons', 'dist')
+                vscode.Uri.joinPath(this.extensionUri, 'webview-ui', 'dist')
             ]
         };
 
-        // Set HTML content
+        // Set HTML content from React build
         webviewView.webview.html = this.getHtmlContent(webviewView.webview);
 
         // Handle messages from webview
@@ -91,18 +89,12 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
      * Post message to webview
      */
     public postMessage(message: unknown): void {
-        console.log('[WebviewProvider] ========== POSTING MESSAGE ==========');
-        console.log('[WebviewProvider] Message:', JSON.stringify(message));
-        console.log('[WebviewProvider] View exists:', !!this.view);
-        console.log('[WebviewProvider] Webview exists:', !!this.view?.webview);
-        
         if (this.view) {
             this.view.webview.postMessage(message);
-            console.log('[WebviewProvider] Message posted successfully');
+            this.outputChannel.appendLine(`[WebviewProvider] Posted message: ${JSON.stringify(message).substring(0, 100)}`);
         } else {
-            console.log('[WebviewProvider] ERROR: View is null, message not sent!');
+            this.outputChannel.appendLine('[WebviewProvider] ERROR: View is null, message not sent!');
         }
-        console.log('[WebviewProvider] =========================================');
     }
 
     /**
@@ -119,7 +111,6 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
      * Show streaming message
      */
     public streamStart(): void {
-        console.log('[WebviewProvider] streamStart called');
         this.postMessage({ type: 'streamStart' });
     }
 
@@ -127,7 +118,6 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
      * Add delta to streaming message
      */
     public streamDelta(delta: string): void {
-        console.log(`[WebviewProvider] streamDelta called: ${delta.substring(0, 50)}...`);
         this.postMessage({ type: 'streamDelta', delta });
     }
 
@@ -135,7 +125,6 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
      * End streaming
      */
     public streamEnd(): void {
-        console.log('[WebviewProvider] streamEnd called');
         this.postMessage({ type: 'streamEnd' });
     }
 
@@ -167,7 +156,6 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
         this.postMessage({ type: 'updateHeader', data });
     }
 
-
     /**
      * Send models list to webview
      */
@@ -176,12 +164,12 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
     }
 
     /**
-     * Handle messages from webview
+     * Handle messages from webview (JSON-RPC requests)
      */
     private handleWebviewMessage(message: any): void {
-        this.outputChannel.appendLine(`[Webview] ${message.type}`);
+        this.outputChannel.appendLine(`[Webview] Received message: ${JSON.stringify(message).substring(0, 200)}`);
 
-        // Call callbacks
+        // Handle messages based on type
         switch (message.type) {
             case 'ready':
                 this.outputChannel.appendLine('[Webview] Calling onReady callback');
@@ -218,109 +206,48 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
     }
 
     /**
-     * Get HTML content for webview
+     * Get HTML content for webview from React build
      */
     private getHtmlContent(webview: vscode.Webview): string {
-        // Get URIs for resources
-        const styleUri = webview.asWebviewUri(
-            vscode.Uri.joinPath(this.extensionUri, 'webview', 'style.css')
-        );
-        const scriptUri = webview.asWebviewUri(
-            vscode.Uri.joinPath(this.extensionUri, 'webview', 'main.js')
-        );
+        // Path to React build
+        const distPath = vscode.Uri.joinPath(this.extensionUri, 'webview-ui', 'dist');
+        const indexPath = vscode.Uri.joinPath(distPath, 'index.html');
 
-        // Get codicon font URI from VS Code
-        const codiconUri = webview.asWebviewUri(
-            vscode.Uri.joinPath(this.extensionUri, 'node_modules', '@vscode/codicons', 'dist', 'codicon.css')
+        // Read the built index.html
+        let html = fs.readFileSync(indexPath.fsPath, 'utf8');
+
+        // Replace asset paths with webview URIs
+        const assetsPath = vscode.Uri.joinPath(distPath, 'assets');
+        html = html.replace(
+            /src="\/assets\//g,
+            `src="${webview.asWebviewUri(assetsPath)}/`
+        );
+        html = html.replace(
+            /href="\/assets\//g,
+            `href="${webview.asWebviewUri(assetsPath)}/`
         );
 
         // Generate nonce for CSP
         const nonce = getNonce();
 
-        // CSP source
+        // Update CSP to allow scripts with nonce
         const cspSource = webview.cspSource;
-        
-        // For now, inline the HTML (in production, would load from file)
-        return `<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; font-src ${cspSource};">
-    <link rel="stylesheet" href="${codiconUri}">
-    <link rel="stylesheet" href="${styleUri}">
-    <title>ForgeCode Chat</title>
-</head>
-<body>
-    <div class="chat-container">
-        <div class="chat-header">
-            <div class="header-info">
-                <span class="header-item">
-                    <span class="codicon codicon-person"></span>
-                    <span id="agent-name">Forge</span>
-                </span>
-                <span class="header-separator">|</span>
-                <span class="header-item">
-                    <span class="codicon codicon-circuit-board"></span>
-                    <div class="model-picker">
-                        <button class="model-button" id="model-button" title="Click to change model">
-                            <span id="model-name">Claude 3.5 Sonnet</span>
-                            <span class="codicon codicon-chevron-down"></span>
-                        </button>
-                        <div class="model-dropdown hidden" id="model-dropdown">
-                            <input 
-                                type="text" 
-                                class="model-search" 
-                                id="model-search" 
-                                placeholder="Search models..."
-                            />
-                            <div class="model-list" id="model-list">
-                                <div class="no-models">Loading models...</div>
-                            </div>
-                        </div>
-                    </div>
-                </span>
-            </div>
-            <div class="header-stats">
-                <span class="header-item" id="token-count">0 / 200K tokens</span>
-                <span class="header-separator">|</span>
-                <span class="header-item" id="cost-display">$0.00</span>
-            </div>
-        </div>
+        const csp = `default-src 'none'; 
+            style-src ${cspSource} 'unsafe-inline'; 
+            script-src 'nonce-${nonce}'; 
+            font-src ${cspSource}; 
+            img-src ${cspSource} data:;`;
 
-        <div class="messages-container" id="messages">
-            <div class="welcome-screen" id="welcome">
-                <div class="welcome-logo">
-                    <span class="codicon codicon-sparkle"></span>
-                </div>
-                <h2>Welcome to ForgeCode</h2>
-                <p>Start a conversation to get help with your code.</p>
-            </div>
-        </div>
+        // Add nonce to all script tags
+        html = html.replace(/<script/g, `<script nonce="${nonce}"`);
 
-        <div class="input-container">
-            <div class="input-wrapper">
-                <textarea 
-                    id="message-input" 
-                    class="message-input" 
-                    placeholder="Ask ForgeCode anything..."
-                    rows="1"
-                ></textarea>
-                <button id="send-button" class="send-button" title="Send message (Ctrl+Enter)">
-                    <span class="codicon codicon-send"></span>
-                    <span class="button-text">Send</span>
-                </button>
-            </div>
-            <div class="input-footer">
-                <span class="input-hint">Press Ctrl+Enter to send</span>
-                <span id="char-counter" class="char-counter">0</span>
-            </div>
-        </div>
-    </div>
+        // Add CSP meta tag
+        html = html.replace(
+            '<head>',
+            `<head>\n    <meta http-equiv="Content-Security-Policy" content="${csp}">`
+        );
 
-    <script nonce="${nonce}" src="${scriptUri}"></script>
-</body>
-</html>`;
+        return html;
     }
 }
 

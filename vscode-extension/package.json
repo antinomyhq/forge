@@ -174,9 +174,11 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
+    "vscode:prepublish": "npm run compile && npm run compile:webview",
     "compile": "tsc -p ./",
+    "compile:webview": "cd webview-ui && npm run build",
     "watch": "tsc -watch -p ./",
+    "watch:webview": "cd webview-ui && npm run dev",
     "lint": "eslint src --ext ts",
     "generate-types": "cd .. && cargo test --package forge_app_server export_typescript_types"
   },

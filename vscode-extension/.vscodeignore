@@ -9,3 +9,9 @@ src/**
 tsconfig.json
 node_modules/**
 *.vsix
+webview-ui/src/**
+webview-ui/node_modules/**
+webview-ui/*.json
+webview-ui/*.ts
+webview-ui/*.js
+!webview-ui/dist/**

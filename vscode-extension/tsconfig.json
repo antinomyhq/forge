@@ -16,5 +16,5 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true
   },
-  "exclude": ["node_modules", "out", "webview", "scripts"]
+  "exclude": ["node_modules", "out", "webview", "webview-ui", "scripts"]
 }
