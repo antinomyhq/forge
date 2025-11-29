@@ -925,17 +925,17 @@ mod tests {
     }
 
     #[test]
-    fn test_conversation_info_with_porcelain() {
-        let fixture = Cli::parse_from(["forge", "conversation", "info", "test123", "--porcelain"]);
-        let (id, _porcelain) = match fixture.subcommands {
+    fn test_conversation_stats_with_porcelain() {
+        let fixture = Cli::parse_from(["forge", "conversation", "stats", "test123", "--porcelain"]);
+        let (id, porcelain) = match fixture.subcommands {
             Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
-                ConversationCommand::Info { id } => (id, false),
+                ConversationCommand::Stats { id, porcelain } => (id, porcelain),
                 _ => (String::new(), false),
             },
             _ => (String::new(), false),
         };
         assert_eq!(id, "test123");
-        // Note: Info command does not have a porcelain flag
+        assert_eq!(porcelain, true);
     }
 
     #[test]
