@@ -38,7 +38,12 @@ pub type ItemId = Uuid;
 pub enum ItemType {
     UserMessage,
     AgentMessage,
-    ToolCall { tool_name: String },
+    ToolCall { 
+        tool_name: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        #[ts(type = "Record<string, any> | undefined")]
+        arguments: Option<serde_json::Value>,
+    },
     FileChange { file_path: String },
     CommandExecution { command: String },
 }

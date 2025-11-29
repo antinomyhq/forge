@@ -1,4 +1,4 @@
-import { Effect, Context, Stream, Layer } from 'effect';
+import { Effect, Context, Layer } from 'effect';
 import { getVscodeApi } from './VscodeApi';
 
 /**
@@ -10,11 +10,6 @@ export interface VscodeRpcService {
    * Send a message to the extension host
    */
   readonly postMessage: (message: any) => Effect.Effect<void>;
-  
-  /**
-   * Subscribe to incoming messages from extension host
-   */
-  readonly messages: Stream.Stream<any>;
   
   /**
    * Send ready message to extension host
@@ -39,11 +34,10 @@ export interface VscodeRpcService {
 
 export const VscodeRpcService = Context.GenericTag<VscodeRpcService>('VscodeRpcService');
 
-// Store message handlers globally
-const messageHandlers: Array<(message: any) => void> = [];
-
 /**
- * Live implementation of VscodeRpcService
+ * Live implementation of VscodeRpcService  
+ * Note: Message listening is handled by App.tsx useEffect with window.addEventListener
+ * We don't set up a global listener here to avoid duplicate message processing
  */
 export const VscodeRpcServiceLive = Layer.succeed(
   VscodeRpcService,
@@ -53,25 +47,6 @@ export const VscodeRpcServiceLive = Layer.succeed(
         console.log('[VscodeRpcService] Sending message:', message);
         getVscodeApi().postMessage(message);
       }),
-    
-    messages: Stream.async<any>((emit) => {
-      console.log('[VscodeRpcService] Stream subscriber attached');
-      
-      const handler = (message: any) => {
-        console.log('[VscodeRpcService] Emitting to stream:', message);
-        emit.single(message);
-      };
-      
-      messageHandlers.push(handler);
-      
-      return Effect.sync(() => {
-        console.log('[VscodeRpcService] Stream subscriber detached');
-        const index = messageHandlers.indexOf(handler);
-        if (index > -1) {
-          messageHandlers.splice(index, 1);
-        }
-      });
-    }),
     
     sendReady: () =>
       Effect.sync(() => {
@@ -98,19 +73,3 @@ export const VscodeRpcServiceLive = Layer.succeed(
       }),
   })
 );
-
-// Set up global message listener once
-if (typeof window !== 'undefined') {
-  window.addEventListener('message', (event: MessageEvent) => {
-    console.log('[VscodeRpcService] Window received message:', event.data);
-    // Notify all handlers
-    messageHandlers.forEach(handler => {
-      try {
-        handler(event.data);
-      } catch (error) {
-        console.error('[VscodeRpcService] Handler error:', error);
-      }
-    });
-  });
-  console.log('[VscodeRpcService] Global message listener attached');
-}

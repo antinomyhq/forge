@@ -15,6 +15,9 @@ export function useChatActions() {
       // Add user message to state
       yield* chatState.addUserMessage(text);
       
+      // Show loading spinner (like Rust CLI spinner.start())
+      yield* chatState.setLoading(true);
+      
       // Send to extension
       yield* vscode.sendMessage(text);
     });

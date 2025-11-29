@@ -16,8 +16,11 @@ export function useChatState(): ChatState {
     modelName: 'Claude 3.5 Sonnet',
     tokenCount: '0 / 200K tokens',
     cost: '$0.00',
+    isLoading: false,
     isStreaming: false,
     streamingContent: '',
+    activeToolCalls: new Map(),
+    activeToolItemIds: new Set(),
   });
   
   useEffect(() => {
@@ -69,7 +72,26 @@ export function useChatStateUpdater() {
         
         case 'streamDelta':
           const state = yield* chatState.getState;
-          yield* chatState.updateStreaming(state.streamingContent + message.delta, true);
+          const delta = message.delta || '';
+          const itemId = message.itemId;
+          
+          console.log('[useChatStateUpdater] streamDelta received:', {
+            delta: delta.substring(0, 50),
+            itemId,
+            activeToolItemIds: Array.from(state.activeToolItemIds),
+            willFilter: itemId && state.activeToolItemIds.has(itemId)
+          });
+          
+          // Filter out deltas from tool call items (like "Execute [/bin/zsh]")
+          if (itemId && state.activeToolItemIds.has(itemId)) {
+            console.log('[useChatStateUpdater] ✓ Filtering delta from tool item:', itemId);
+            break;  // Skip this delta - it's tool commentary
+          }
+          
+          console.log('[useChatStateUpdater] ✓ Appending delta to streaming content');
+          if (delta) {
+            yield* chatState.updateStreaming(state.streamingContent + delta, true);
+          }
           break;
         
         case 'streamEnd':
@@ -87,6 +109,62 @@ export function useChatStateUpdater() {
         
         case 'modelsList':
           yield* chatState.setModels(message.models || []);
+          break;
+        
+        case 'ItemStarted':
+          // Track the current item type and ID
+          console.log('[useChatStateUpdater] ItemStarted received:', {
+            itemId: message.itemId,
+            itemType: message.itemType
+          });
+          
+          if (message.itemType?.type === 'toolCall') {
+            console.log('[useChatStateUpdater] ✓ Tool started:', {
+              itemId: message.itemId,
+              toolName: message.itemType.tool_name,
+              args: message.itemType.arguments
+            });
+            
+            // Commit current streaming message before tool call
+            const toolState = yield* chatState.getState;
+            if (toolState.streamingContent) {
+              console.log('[useChatStateUpdater] Committing streaming message before tool');
+              yield* chatState.addAssistantMessage(toolState.streamingContent);
+            }
+            yield* chatState.updateStreaming('', false); // Clear streaming state
+            
+            // Add tool call to active list with arguments
+            yield* chatState.addToolCall(
+              message.itemId,
+              message.itemType.tool_name,
+              message.itemType.arguments
+            );
+            
+            const updatedState = yield* chatState.getState;
+            console.log('[useChatStateUpdater] ✓ Tool added to activeToolItemIds:', {
+              itemId: message.itemId,
+              activeToolItemIds: Array.from(updatedState.activeToolItemIds)
+            });
+          } else if (message.itemType?.type === 'agentMessage') {
+            console.log('[useChatStateUpdater] Agent message item started:', message.itemId);
+            // New agent message item - ensure streaming is ready for new content
+            const state = yield* chatState.getState;
+            if (state.streamingContent) {
+              // Commit any existing content first
+              yield* chatState.addAssistantMessage(state.streamingContent);
+            }
+            yield* chatState.updateStreaming('', true); // Start fresh streaming
+          }
+          break;
+        
+        case 'ItemCompleted':
+          console.log('[useChatStateUpdater] Item completed:', message.itemId);
+          yield* chatState.completeToolCall(message.itemId, 'completed');
+          break;
+        
+        case 'ItemFailed':
+          console.log('[useChatStateUpdater] Item failed:', message.itemId);
+          yield* chatState.completeToolCall(message.itemId, 'failed');
           break;
       }
     });

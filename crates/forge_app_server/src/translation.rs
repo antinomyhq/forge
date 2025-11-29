@@ -141,11 +141,17 @@ impl EventTranslator {
         let item_id = Uuid::new_v4();
         self.current_item_id = Some(item_id);
 
+        // Serialize tool call arguments to JSON
+        let arguments = serde_json::to_value(&tool_call.arguments).ok();
+
         notifications.push(ServerNotification::ItemStarted {
             thread_id: self.thread_id,
             turn_id: self.turn_id,
             item_id,
-            item_type: ItemType::ToolCall { tool_name: tool_call.name.to_string() },
+            item_type: ItemType::ToolCall { 
+                tool_name: tool_call.name.to_string(),
+                arguments,
+            },
         });
 
         notifications

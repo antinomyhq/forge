@@ -47,11 +47,9 @@ export class Controller {
      * Set up event handlers
      */
     private setupEventHandlers(): void {
-        // Listen to RPC notifications
-        this.rpcClient.on('notification', (method: string, params: unknown) => {
-            this.handleServerNotification(method, params);
-        });
-
+        // Note: RPC notification handling is done by extension.ts which forwards to handleServerNotification()
+        // We don't attach a listener here to avoid duplicate processing
+        
         // Listen to webview events (handled through provider for now)
         // In production, would use proper event emitter pattern
     }
@@ -318,6 +316,13 @@ export class Controller {
     private handleItemStarted(params: any): void {
         this.outputChannel.appendLine(`[Controller] Item started: ${JSON.stringify(params)}`);
         
+        // Forward to webview for display (tool calls, reasoning, etc.)
+        this.webviewProvider?.postMessage({
+            type: 'ItemStarted',
+            itemId: params.item_id,
+            itemType: params.item_type,
+        });
+        
         // Don't start streaming here - wait for first delta
         // Reasoning and message deltas share the same ItemStarted (AgentMessage)
         // So we can't distinguish them here
@@ -326,31 +331,37 @@ export class Controller {
     /**
      * Handle item completed notification
      */
-    private handleItemCompleted(_params: any): void {
-        // Item completed
+    private handleItemCompleted(params: any): void {
+        this.outputChannel.appendLine(`[Controller] Item completed: ${JSON.stringify(params)}`);
+        
+        // Forward to webview for display
+        this.webviewProvider?.postMessage({
+            type: 'ItemCompleted',
+            itemId: params.item_id,
+        });
     }
 
     /**
      * Handle agent message delta (streaming)
      */
     private handleAgentMessageDelta(params: any): void {
-        this.outputChannel.appendLine(`[Controller] ========== AGENT MESSAGE DELTA ==========`);
-        this.outputChannel.appendLine(`[Controller] Raw params: ${JSON.stringify(params)}`);
-        this.outputChannel.appendLine(`[Controller] params.delta: ${params?.delta}`);
-        this.outputChannel.appendLine(`[Controller] params.text: ${params?.text}`);
+        this.outputChannel.appendLine(`[Controller] Agent message delta: ${JSON.stringify(params)}`);
         
         const delta = params?.delta || '';
-        this.outputChannel.appendLine(`[Controller] Extracted delta (${delta.length} chars): ${delta.substring(0, 50)}...`);
-        this.outputChannel.appendLine(`[Controller] =============================================`);
-        
+        const itemId = params?.item_id;
+
         // Start streaming on first delta
         if (!this.isStreamingStarted) {
-            this.outputChannel.appendLine('[Controller] Starting stream on first message delta');
             this.isStreamingStarted = true;
             this.webviewProvider.streamStart();
         }
-        
-        this.webviewProvider.streamDelta(delta);
+
+        // Pass both delta and item_id to webview so it can filter tool-related deltas
+        this.webviewProvider.postMessage({
+            type: 'streamDelta',
+            delta: delta,
+            itemId: itemId
+        });
     }
 
     /**

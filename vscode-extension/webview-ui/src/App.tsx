@@ -75,6 +75,54 @@ function App() {
            m.provider?.toLowerCase().includes(searchLower);
   });
 
+  // Render message content
+  const renderMessageContent = (msg: any) => {
+    // Tool call log message
+    if (msg.type === 'tool') {
+      return (
+        <div className="tool-call-log">
+          <div className="tool-call-header">
+            <span className="codicon codicon-tools"></span>
+            <span className="tool-name">Execute {msg.toolName}</span>
+            {msg.status === 'running' && (
+              <span className="tool-status running">
+                <span className="codicon codicon-loading codicon-modifier-spin"></span>
+                Running...
+              </span>
+            )}
+            {msg.status === 'completed' && (
+              <span className="tool-status completed">
+                <span className="codicon codicon-check"></span>
+                Completed
+              </span>
+            )}
+            {msg.status === 'failed' && (
+              <span className="tool-status failed">
+                <span className="codicon codicon-error"></span>
+                Failed
+              </span>
+            )}
+          </div>
+          {msg.args && Object.keys(msg.args).length > 0 && (
+            <div className="tool-arguments">
+              {Object.entries(msg.args).map(([key, value]) => (
+                <div key={key} className="tool-arg">
+                  <span className="arg-key">{key}:</span>
+                  <span className="arg-value">
+                    {typeof value === 'string' ? value : JSON.stringify(value)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+    
+    // Regular message
+    return <div className="message-content">{msg.content}</div>;
+  };
+
   return (
     <div className="chat-container">
       {/* Header */}
@@ -142,7 +190,7 @@ function App() {
 
       {/* Messages */}
       <div className="messages-container">
-        {chatState.messages.length === 0 && !chatState.isStreaming ? (
+        {chatState.messages.length === 0 && !chatState.isStreaming && !chatState.isLoading ? (
           <div className="welcome-screen">
             <h2>Welcome to ForgeCode</h2>
             <p>Start a conversation to get help with your code.</p>
@@ -150,14 +198,29 @@ function App() {
         ) : (
           <>
             {chatState.messages.map((msg: any, idx: number) => (
-              <div key={idx} className={`message ${msg.role}`}>
-                <div className="message-content">{msg.content}</div>
+              <div key={idx} className={`message ${msg.role || ''} ${msg.type === 'tool' ? 'tool-message' : ''}`}>
+                {renderMessageContent(msg)}
               </div>
             ))}
+            
+            {/* Loading spinner (shown before stream starts) */}
+            {chatState.isLoading && !chatState.isStreaming && (
+              <div className="loading-indicator">
+                <span className="codicon codicon-loading codicon-modifier-spin"></span>
+                <span>Thinking...</span>
+              </div>
+            )}
+            
+            {/* Streaming message */}
             {chatState.isStreaming && (
-              <div className="message assistant">
+              <div className="message assistant streaming">
                 <div className="message-content">
-                  {chatState.streamingContent || 'Thinking...'}
+                  {chatState.streamingContent || (
+                    <span className="thinking-indicator">
+                      <span className="codicon codicon-loading codicon-modifier-spin"></span>
+                      <span>Thinking...</span>
+                    </span>
+                  )}
                 </div>
               </div>
             )}

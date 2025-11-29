@@ -266,3 +266,134 @@ body {
     opacity: 0.6;
     font-size: 12px;
 }
+
+/* Tool call log styling */
+.message.tool-log {
+    background: transparent;
+    border: none;
+    padding: 0.5rem 1rem;
+    margin: 0.25rem 0;
+}
+
+.message.tool-message {
+    background: transparent;
+    padding: 0;
+}
+
+.message.tool-message .tool-call-log {
+    margin: 0;
+}
+
+.tool-call-log {
+    padding: 8px 12px;
+    background: var(--vscode-editor-background);
+    border-left: 3px solid var(--vscode-terminal-ansiBrightBlue);
+    font-family: var(--vscode-font-family);
+    font-size: 13px;
+    margin: 4px 0;
+    border-radius: 3px;
+}
+
+.tool-call-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.tool-call-log .codicon {
+    color: var(--vscode-textLink-foreground);
+    font-size: 1.1em;
+}
+
+.tool-arguments {
+    margin-left: 24px;
+    padding-left: 12px;
+    border-left: 1px solid var(--vscode-panel-border);
+}
+
+.tool-arg {
+    display: flex;
+    gap: 8px;
+    padding: 2px 0;
+    font-size: 12px;
+    font-family: var(--vscode-editor-font-family);
+}
+
+.arg-key {
+    color: var(--vscode-symbolIcon-keywordForeground);
+    font-weight: 500;
+    min-width: 80px;
+}
+
+.arg-value {
+    color: var(--vscode-symbolIcon-stringForeground);
+    font-family: var(--vscode-editor-font-family);
+    word-break: break-all;
+}
+
+.tool-name {
+    font-weight: 500;
+    color: var(--vscode-editor-foreground);
+    font-family: var(--vscode-editor-font-family);
+}
+
+.tool-status {
+    margin-left: auto;
+    font-size: 0.85em;
+    padding: 0.1rem 0.5rem;
+    border-radius: 3px;
+}
+
+.tool-status.running {
+    color: var(--vscode-textLink-activeForeground);
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+.tool-status.completed {
+    color: var(--vscode-testing-iconPassed);
+    font-weight: bold;
+}
+
+.tool-status.failed {
+    color: var(--vscode-testing-iconFailed);
+    font-weight: bold;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* Thinking indicator */
+.thinking-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--vscode-descriptionForeground);
+    font-style: italic;
+}
+
+.thinking-indicator .codicon {
+    font-size: 14px;
+}
+
+.message.streaming {
+    opacity: 0.9;
+}
+
+/* Loading indicator (shown before stream starts) */
+.loading-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px;
+    margin: 8px 0;
+    color: var(--vscode-descriptionForeground);
+    font-style: italic;
+}
+
+/* Tool calls section */
+.tool-calls-section {
+    margin: 8px 0;
+}
