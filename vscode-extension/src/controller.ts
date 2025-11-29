@@ -65,6 +65,9 @@ export class Controller {
         // Fetch current agent and model from server
         await this.refreshAgentAndModel();
         
+        // Send models list to webview
+        await this.sendModelsList();
+        
         // Send current state to webview
         this.webviewProvider.updateState({
             messages: this.messages,
@@ -430,6 +433,56 @@ export class Controller {
     }
 
     /**
+     * Send models list to webview
+     */
+    public async sendModelsList(): Promise<void> {
+        try {
+            this.outputChannel.appendLine('[Controller] Fetching models list');
+            
+            const response = await this.rpcClient.request<{ models: ModelInfo[] }>(
+                'model/list',
+                undefined
+            );
+            
+            const models = response.models.map(model => ({
+                id: model.id,
+                name: model.name || model.id,
+                provider: model.provider || 'Unknown',
+                contextWindow: model.contextLength || 0
+            }));
+            
+            this.outputChannel.appendLine(`[Controller] Sending ${models.length} models to webview`);
+            this.webviewProvider.sendModelsList(models);
+            
+        } catch (error) {
+            this.outputChannel.appendLine(`[Controller] Failed to fetch models list: ${error}`);
+        }
+    }
+
+    /**
+     * Handle model change from webview
+     */
+    public async handleModelChange(modelId: string): Promise<void> {
+        try {
+            this.outputChannel.appendLine(`[Controller] Changing model to: ${modelId}`);
+            
+            // Set active model on server
+            await this.rpcClient.request('model/set', {
+                model_id: modelId
+            });
+            
+            // Refresh agent and model to update display
+            await this.refreshAgentAndModel();
+            
+            this.outputChannel.appendLine(`[Controller] Model changed successfully`);
+            
+        } catch (error) {
+            this.outputChannel.appendLine(`[Controller] Failed to change model: ${error}`);
+            vscode.window.showErrorMessage(`Failed to change model: ${error}`);
+        }
+    }
+
+    /**
      * Refresh agent and model from server
      */
     public async refreshAgentAndModel(): Promise<void> {
@@ -518,5 +571,6 @@ interface AgentInfo {
 interface ModelInfo {
     id: string;
     name?: string;
+    provider?: string;
     contextLength?: number;
 }

@@ -484,3 +484,121 @@ body {
 .hidden {
     display: none !important;
 }
+
+
+
+/* Model Picker */
+.model-picker {
+    position: relative;
+    display: inline-block;
+}
+
+.model-button {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 6px;
+    border: none;
+    background: transparent;
+    color: var(--foreground);
+    cursor: pointer;
+    border-radius: 4px;
+    font-size: 12px;
+    transition: background-color 0.2s;
+}
+
+.model-button:hover {
+    background-color: var(--list-hover-bg);
+}
+
+.model-button .codicon-chevron-down {
+    font-size: 10px;
+    opacity: 0.7;
+}
+
+.model-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    min-width: 300px;
+    max-width: 400px;
+    background-color: var(--vscode-dropdown-background);
+    border: 1px solid var(--vscode-dropdown-border);
+    border-radius: 4px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    z-index: 1000;
+    margin-top: 4px;
+}
+
+.model-dropdown.hidden {
+    display: none;
+}
+
+.model-search {
+    width: 100%;
+    padding: 8px 12px;
+    border: none;
+    border-bottom: 1px solid var(--vscode-dropdown-border);
+    background-color: var(--input-bg);
+    color: var(--input-fg);
+    font-family: var(--font-family);
+    font-size: 12px;
+    outline: none;
+}
+
+.model-search:focus {
+    border-bottom-color: var(--focus-border);
+}
+
+.model-list {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.model-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    border-bottom: 1px solid var(--vscode-panel-border);
+}
+
+.model-item:last-child {
+    border-bottom: none;
+}
+
+.model-item:hover {
+    background-color: var(--list-hover-bg);
+}
+
+.model-item.selected {
+    background-color: var(--list-active-bg);
+}
+
+.model-item-label {
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.model-item-details {
+    font-size: 11px;
+    opacity: 0.7;
+    display: flex;
+    gap: 8px;
+}
+
+.model-item-provider {
+    color: var(--vscode-descriptionForeground);
+}
+
+.model-item-context {
+    color: var(--vscode-descriptionForeground);
+}
+
+.no-models {
+    padding: 16px;
+    text-align: center;
+    opacity: 0.6;
+    font-size: 12px;
+}

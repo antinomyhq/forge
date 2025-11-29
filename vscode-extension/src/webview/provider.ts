@@ -14,6 +14,8 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
     private onSendMessageCallback?: (text: string) => void;
     private onApprovalCallback?: (data: any) => void;
 
+    private onModelChangeCallback?: (modelId: string) => void;
+
     constructor(extensionUri: vscode.Uri, outputChannel: vscode.OutputChannel) {
         this.extensionUri = extensionUri;
         this.outputChannel = outputChannel;
@@ -38,6 +40,14 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
      */
     public onApproval(callback: (data: any) => void): void {
         this.onApprovalCallback = callback;
+    }
+
+
+    /**
+     * Set callback for model change event
+     */
+    public onModelChange(callback: (modelId: string) => void): void {
+        this.onModelChangeCallback = callback;
     }
 
     /**
@@ -157,6 +167,14 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
         this.postMessage({ type: 'updateHeader', data });
     }
 
+
+    /**
+     * Send models list to webview
+     */
+    public sendModelsList(models: unknown[]): void {
+        this.postMessage({ type: 'modelsList', models });
+    }
+
     /**
      * Handle messages from webview
      */
@@ -185,6 +203,16 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
                         decision: message.decision
                     });
                 }
+                break;
+            case 'modelChange':
+                this.outputChannel.appendLine(`[Webview] Model change requested: ${message.modelId}`);
+                if (this.onModelChangeCallback) {
+                    this.onModelChangeCallback(message.modelId);
+                }
+                break;
+            case 'requestModels':
+                this.outputChannel.appendLine('[Webview] Requesting models list');
+                // This will be handled by controller
                 break;
         }
     }
@@ -234,7 +262,23 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
                 <span class="header-separator">|</span>
                 <span class="header-item">
                     <span class="codicon codicon-circuit-board"></span>
-                    <span id="model-name">Claude 3.5 Sonnet</span>
+                    <div class="model-picker">
+                        <button class="model-button" id="model-button" title="Click to change model">
+                            <span id="model-name">Claude 3.5 Sonnet</span>
+                            <span class="codicon codicon-chevron-down"></span>
+                        </button>
+                        <div class="model-dropdown hidden" id="model-dropdown">
+                            <input 
+                                type="text" 
+                                class="model-search" 
+                                id="model-search" 
+                                placeholder="Search models..."
+                            />
+                            <div class="model-list" id="model-list">
+                                <div class="no-models">Loading models...</div>
+                            </div>
+                        </div>
+                    </div>
                 </span>
             </div>
             <div class="header-stats">

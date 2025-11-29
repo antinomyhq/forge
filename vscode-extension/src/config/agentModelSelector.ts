@@ -74,7 +74,7 @@ export class AgentModelSelector extends EventEmitter {
             if (selected) {
                 // Set active agent on server
                 await this.rpcClient.request('agent/set', {
-                    agentId: selected.agent.id
+                    agent_id: selected.agent.id
                 });
 
                 this.currentAgent = selected.agent.name;
@@ -123,7 +123,7 @@ export class AgentModelSelector extends EventEmitter {
             if (selected) {
                 // Set active model on server
                 await this.rpcClient.request('model/set', {
-                    modelId: selected.model.id
+                    model_id: selected.model.id
                 });
 
                 this.currentModel = selected.model.id;
