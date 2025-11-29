@@ -9,6 +9,7 @@ typeset -h _FORGE_BIN="${FORGE_BIN:-forge}"
 typeset -h _FORGE_CONVERSATION_PATTERN=":"
 typeset -h _FORGE_MAX_COMMIT_DIFF="${FORGE_MAX_COMMIT_DIFF:-100000}"
 typeset -h _FORGE_DELIMITER='\s\s+'
+typeset -h _FORGE_PREVIEW_WINDOW="--preview-window=top:40%:wrap:border-sharp"
 
 # Detect fd command - Ubuntu/Debian use 'fdfind', others use 'fd'
 typeset -h _FORGE_FD_CMD="$(command -v fdfind 2>/dev/null || command -v fd 2>/dev/null || echo 'fd')"
@@ -55,7 +56,7 @@ function _forge_get_commands() {
 
 # Private fzf function with common options for consistent UX
 function _forge_fzf() {
-    fzf --exact --cycle --select-1 --height 100% --reverse --no-scrollbar "$@"
+    fzf --exact --cycle --select-1 --height 100% --no-scrollbar "$@"
 }
 
 # Helper function to execute forge commands consistently
@@ -118,6 +119,7 @@ function _forge_log() {
             ;;
     esac
 }
+
 
 # Helper function to find the index of a value in a list (1-based)
 # Returns the index if found, 1 otherwise
@@ -271,7 +273,7 @@ function forge-completion() {
         local selected
         local fzf_args=(
             --preview="if [ -d {} ]; then ls -la --color=always {} 2>/dev/null || ls -la {}; else $_FORGE_CAT_CMD {}; fi"
-            --preview-window=right:60%:wrap:border-sharp
+            $_FORGE_PREVIEW_WINDOW
         )
         
         if [[ -n "$filter_text" ]]; then
@@ -414,7 +416,7 @@ function _forge_action_conversation() {
             --delimiter="$_FORGE_DELIMITER"
             --with-nth="2,3"
             --preview="CLICOLOR_FORCE=1 $_FORGE_BIN conversation info {1}; echo; CLICOLOR_FORCE=1 $_FORGE_BIN conversation show {1}"
-            --preview-window=right:60%:wrap:border-sharp
+            $_FORGE_PREVIEW_WINDOW
         )
 
         # If there's a current conversation, position cursor on it
@@ -914,227 +916,3 @@ bindkey '^J' forge-accept-line
 # Update the Tab binding to use the new completion widget
 bindkey '^I' forge-completion  # Tab for both @ and :command completion
 
-#################################################################################
-# POWERLEVEL10K INTEGRATION
-#################################################################################
-# Automatically configure Powerlevel10k prompt segments for Forge
-# This section only runs if Powerlevel10k is detected (p10k command exists)
-
-if (( $+functions[p10k] )) || [[ -n "$POWERLEVEL9K_MODE" ]]; then
-
-  #################################[ forge_agent: forge active agent ]#################################
-  # Custom segment to display the currently active Forge agent
-  # This function runs on every prompt render to show which agent is handling tasks
-  #
-  # POSITIONING:
-  # - Added to POWERLEVEL9K_LEFT_PROMPT_ELEMENTS as the FIRST item
-  # - Appears on the far LEFT of your prompt in BOLD UPPERCASE
-  #
-  # COLOR:
-  # - DIMMED GRAY (242) when no active conversation (_FORGE_CONVERSATION_ID is empty)
-  # - WHITE (231) when there's an active conversation
-  function prompt_forge_agent() {
-    # Check if $_FORGE_ACTIVE_AGENT environment variable is set
-    if [[ -n "$_FORGE_ACTIVE_AGENT" ]]; then
-      # Convert the agent name to UPPERCASE using ${(U)variable} syntax
-      local agent_upper="${(U)_FORGE_ACTIVE_AGENT}"
-      
-      # Determine color based on conversation state:
-      # - 242 (dimmed gray) = no active conversation
-      # - 231 (white) = active conversation
-      local segment_color=242
-      if [[ -n "$_FORGE_CONVERSATION_ID" ]]; then
-        segment_color=231
-      fi
-      
-      # Display the prompt segment using p10k:
-      # -f $segment_color : Set foreground color based on conversation state
-      # -t "$agent_upper" : Set the text content to the uppercase agent name
-      p10k segment -f $segment_color -t "$agent_upper"
-    fi
-  }
-
-  # Instant prompt version of forge_agent
-  # This enables the segment to appear in instant prompt (fast startup mode)
-  function instant_prompt_forge_agent() {
-    prompt_forge_agent
-  }
-
-  # Customization: Make the forge_agent text BOLD
-  # %B = Start bold, %b = End bold
-  # Color is handled dynamically by prompt_forge_agent function
-  typeset -g POWERLEVEL9K_FORGE_AGENT_CONTENT_EXPANSION='%B${(U)_FORGE_ACTIVE_AGENT}%b'
-
-  #################################[ forge_model: forge current model ]#################################
-  # Custom segment to display the current forge model configuration
-  # This function runs on every prompt render to show which AI model is currently active
-  #
-  # POSITIONING:
-  # - Added to POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS as the FIRST item
-  # - Appears on the far RIGHT of your prompt
-  #
-  # COLOR:
-  # - DIMMED GRAY (242) when no active conversation (_FORGE_CONVERSATION_ID is empty)
-  # - CYAN (39) when there's an active conversation
-  #
-  # INDICATOR:
-  # - ○ (empty circle) when idle (no conversation)
-  # - ● (filled circle) when active (conversation in progress)
-  function prompt_forge_model() {
-    local model_output
-    
-    # Determine which forge binary to use:
-    # 1. First try _FORGE_BIN (plugin internal variable)
-    # 2. Then try FORGE_BIN environment variable (for development/debugging)
-    # 3. Fall back to 'forge' command in PATH (for production)
-    local forge_cmd="${_FORGE_BIN:-${FORGE_BIN:-forge}}"
-    
-    # Execute 'forge config get model' to retrieve the current model
-    # Suppress errors (2>/dev/null) to avoid cluttering the prompt if forge isn't available
-    model_output=$($forge_cmd config get model 2>/dev/null)
-    
-    # Only display the segment if we successfully got a model name
-    if [[ -n "$model_output" ]]; then
-      # Determine color and indicator based on conversation state:
-      # - 242 (dimmed gray) + ○ = no active conversation (idle)
-      # - 39 (cyan) + ● = active conversation
-      local segment_color=242
-      local indicator="○"
-      if [[ -n "$_FORGE_CONVERSATION_ID" ]]; then
-        segment_color=39
-        indicator="●"
-      fi
-      
-      # Display the prompt segment using p10k:
-      # -f $segment_color : Set foreground color based on conversation state
-      # -i '$indicator'   : Display conversation indicator (○ idle or ● active)
-      # -t "$model_output" : Set the text content to the model name
-      p10k segment -f $segment_color -i "$indicator" -t "$model_output"
-    fi
-  }
-
-  # Instant prompt version of forge_model
-  # This enables the segment to appear in instant prompt (fast startup mode)
-  function instant_prompt_forge_model() {
-    prompt_forge_model
-  }
-
-  #################################[ Update Prompt Elements ]#################################
-  # Prepend forge_agent to LEFT prompt (appears first/leftmost)
-  # Only add if not already present
-  if [[ ! " ${POWERLEVEL9K_LEFT_PROMPT_ELEMENTS[*]} " =~ " forge_agent " ]]; then
-    POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=(forge_agent "${POWERLEVEL9K_LEFT_PROMPT_ELEMENTS[@]}")
-  fi
-
-  # Prepend forge_model to RIGHT prompt (appears first/rightmost)
-  # Only add if not already present
-  if [[ ! " ${POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS[*]} " =~ " forge_model " ]]; then
-    POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=(forge_model "${POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS[@]}")
-  fi
-
-fi
-# End of Powerlevel10k integration
-
-#################################################################################
-# PLAIN ZSH PROMPT INTEGRATION
-#################################################################################
-# Automatically configure zsh prompt for Forge (for users without Powerlevel10k)
-# This section only runs if Powerlevel10k is NOT detected
-
-if ! (( $+functions[p10k] )) && [[ -z "$POWERLEVEL9K_MODE" ]]; then
-
-  # Store original prompts to preserve user's existing configuration
-  # We'll prepend/append our forge info to these
-  typeset -g _FORGE_ORIGINAL_PROMPT="${PROMPT}"
-  typeset -g _FORGE_ORIGINAL_RPROMPT="${RPROMPT}"
-
-  #################################[ _forge_zsh_prompt_agent ]#################################
-  # Returns the active agent formatted for display in PROMPT
-  # Format: BOLD UPPERCASE agent name
-  #
-  # COLOR:
-  # - DIMMED GRAY (242) when no active conversation (_FORGE_CONVERSATION_ID is empty)
-  # - WHITE (231) when there's an active conversation
-  function _forge_zsh_prompt_agent() {
-    if [[ -n "$_FORGE_ACTIVE_AGENT" ]]; then
-      # Determine color based on conversation state:
-      # - 242 (dimmed gray) = no active conversation
-      # - 231 (white) = active conversation
-      local agent_color=242
-      if [[ -n "$_FORGE_CONVERSATION_ID" ]]; then
-        agent_color=231
-      fi
-      
-      # %B = bold, %F{color} = set color, %f = reset foreground, %b = reset bold
-      # ${(U)var} = uppercase the variable
-      echo "%B%F{$agent_color}${(U)_FORGE_ACTIVE_AGENT}%f%b "
-    fi
-  }
-
-  #################################[ _forge_zsh_prompt_model ]#################################
-  # Returns the current model formatted for display in RPROMPT
-  # Format: Indicator + model name
-  #
-  # COLOR:
-  # - DIMMED GRAY (242) when no active conversation (_FORGE_CONVERSATION_ID is empty)
-  # - CYAN (39) when there's an active conversation
-  #
-  # INDICATOR:
-  # - ○ (empty circle) when idle (no conversation)
-  # - ● (filled circle) when active (conversation in progress)
-  function _forge_zsh_prompt_model() {
-    local forge_cmd="${_FORGE_BIN:-${FORGE_BIN:-forge}}"
-    local model_output
-    model_output=$($forge_cmd config get model 2>/dev/null)
-    
-    if [[ -n "$model_output" ]]; then
-      # Determine color and indicator based on conversation state:
-      # - 242 (dimmed gray) + ○ = no active conversation (idle)
-      # - 39 (cyan) + ● = active conversation
-      local segment_color=242
-      local indicator="○"
-      if [[ -n "$_FORGE_CONVERSATION_ID" ]]; then
-        segment_color=39
-        indicator="●"
-      fi
-      
-      # %F{color} = set foreground color, %f = reset foreground
-      echo "%F{$segment_color}${indicator} ${model_output}%f"
-    fi
-  }
-
-  #################################[ _forge_zsh_precmd ]#################################
-  # Precmd hook that updates PROMPT and RPROMPT before each prompt display
-  # This ensures the agent and model are always current
-  function _forge_zsh_precmd() {
-    # Build LEFT prompt: [AGENT] + original prompt
-    # Only add agent prefix if _FORGE_ACTIVE_AGENT is set
-    if [[ -n "$_FORGE_ACTIVE_AGENT" ]]; then
-      PROMPT="$(_forge_zsh_prompt_agent)${_FORGE_ORIGINAL_PROMPT}"
-    else
-      PROMPT="${_FORGE_ORIGINAL_PROMPT}"
-    fi
-    
-    # Build RIGHT prompt: original rprompt + [MODEL]
-    local model_segment="$(_forge_zsh_prompt_model)"
-    if [[ -n "$model_segment" ]]; then
-      if [[ -n "$_FORGE_ORIGINAL_RPROMPT" ]]; then
-        RPROMPT="${_FORGE_ORIGINAL_RPROMPT} ${model_segment}"
-      else
-        RPROMPT="${model_segment}"
-      fi
-    else
-      RPROMPT="${_FORGE_ORIGINAL_RPROMPT}"
-    fi
-  }
-
-  # Register the precmd hook
-  # Using add-zsh-hook if available (from zsh/hooks), otherwise append to precmd_functions
-  if (( $+functions[add-zsh-hook] )); then
-    add-zsh-hook precmd _forge_zsh_precmd
-  else
-    precmd_functions+=(_forge_zsh_precmd)
-  fi
-
-fi
-# End of Plain ZSH integration

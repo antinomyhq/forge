@@ -31,6 +31,7 @@ impl AuthStrategy for ApiKeyStrategy {
     async fn init(&self) -> anyhow::Result<AuthContextRequest> {
         Ok(AuthContextRequest::ApiKey(ApiKeyRequest {
             required_params: self.required_params.clone(),
+            existing_params: None,
         }))
     }
 
