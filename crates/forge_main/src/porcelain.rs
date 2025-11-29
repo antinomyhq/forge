@@ -88,6 +88,96 @@ impl Porcelain {
                 .collect(),
         )
     }
+
+    /// Sorts rows based on multiple columns
+    ///
+    /// Preserves the header row (first row) and sorts all subsequent rows.
+    /// Columns are sorted in the order specified in `cols`. None values are
+    /// sorted after Some values.
+    ///
+    /// # Arguments
+    /// * `cols` - Column indices to sort by, in order of precedence
+    ///
+    /// # Example
+    /// ```ignore
+    /// porcelain.sort_by(&[1, 2]) // Sort by column 1, then by column 2
+    /// ```
+    pub fn sort_by(self, cols: &[usize]) -> Self {
+        if self.0.is_empty() || cols.is_empty() {
+            return self;
+        }
+
+        let mut rows = self.0;
+        let header = if !rows.is_empty() {
+            Some(rows.remove(0))
+        } else {
+            None
+        };
+
+        rows.sort_by(|a, b| {
+            for &col in cols {
+                let a_val = a.get(col);
+                let b_val = b.get(col);
+
+                let ordering = match (a_val, b_val) {
+                    (Some(Some(a)), Some(Some(b))) => a.cmp(b),
+                    (Some(Some(_)), Some(None)) => std::cmp::Ordering::Less,
+                    (Some(None), Some(Some(_))) => std::cmp::Ordering::Greater,
+                    (Some(None), Some(None)) => std::cmp::Ordering::Equal,
+                    (Some(_), None) => std::cmp::Ordering::Less,
+                    (None, Some(_)) => std::cmp::Ordering::Greater,
+                    (None, None) => std::cmp::Ordering::Equal,
+                };
+
+                if ordering != std::cmp::Ordering::Equal {
+                    return ordering;
+                }
+            }
+            std::cmp::Ordering::Equal
+        });
+
+        if let Some(header) = header {
+            rows.insert(0, header);
+        }
+
+        Porcelain(rows)
+    }
+
+    /// Applies case transformation to specified columns
+    ///
+    /// # Arguments
+    /// * `cols` - Column indices to transform
+    /// * `case` - The case to apply (e.g., Case::Snake, Case::Kebab)
+    ///
+    /// # Example
+    /// ```ignore
+    /// use convert_case::Case;
+    ///
+    /// porcelain.to_case(&[0, 1], Case::Snake)
+    /// ```
+    #[allow(clippy::wrong_self_convention)]
+    pub fn to_case(self, cols: &[usize], case: convert_case::Case) -> Self {
+        use convert_case::Casing;
+
+        Porcelain(
+            self.0
+                .into_iter()
+                .map(|row| {
+                    row.into_iter()
+                        .enumerate()
+                        .map(|(i, col)| {
+                            if cols.contains(&i) {
+                                col.map(|v| v.to_case(case))
+                            } else {
+                                col
+                            }
+                        })
+                        .collect()
+                })
+                .collect(),
+        )
+    }
+
     #[allow(unused)]
     pub fn into_body(self) -> Vec<Vec<Option<String>>> {
         // Skip headers and return
@@ -609,11 +699,243 @@ mod tests {
     }
 
     #[test]
+    fn test_to_case() {
+        use convert_case::Case;
+
+        let info = Porcelain(vec![
+            vec![
+                Some("$ID".into()),
+                Some("user_name".into()),
+                Some("user_age".into()),
+            ],
+            vec![
+                Some("user1".into()),
+                Some("Alice Smith".into()),
+                Some("30".into()),
+            ],
+            vec![
+                Some("user2".into()),
+                Some("Bob Jones".into()),
+                Some("25".into()),
+            ],
+        ]);
+
+        let actual = info.to_case(&[1], Case::Snake).into_rows();
+
+        let expected = vec![
+            vec![
+                Some("$ID".into()),
+                Some("user_name".into()),
+                Some("user_age".into()),
+            ],
+            vec![
+                Some("user1".into()),
+                Some("alice_smith".into()),
+                Some("30".into()),
+            ],
+            vec![
+                Some("user2".into()),
+                Some("bob_jones".into()),
+                Some("25".into()),
+            ],
+        ];
+
+        assert_eq!(actual, expected)
+    }
+
+    #[test]
+    fn test_to_case_multiple_cols() {
+        use convert_case::Case;
+
+        let info = Porcelain(vec![
+            vec![
+                Some("FirstName".into()),
+                Some("LastName".into()),
+                Some("Age".into()),
+            ],
+            vec![
+                Some("Alice".into()),
+                Some("Smith".into()),
+                Some("30".into()),
+            ],
+        ]);
+
+        let actual = info.to_case(&[0, 1, 2], Case::Kebab).into_rows();
+
+        let expected = vec![
+            vec![
+                Some("first-name".into()),
+                Some("last-name".into()),
+                Some("age".into()),
+            ],
+            vec![
+                Some("alice".into()),
+                Some("smith".into()),
+                Some("30".into()),
+            ],
+        ];
+
+        assert_eq!(actual, expected)
+    }
+
+    #[test]
     fn test_display_empty() {
         let info = Porcelain::new();
 
         let actual = info.to_string();
         let expected = "";
+
+        assert_eq!(actual, expected)
+    }
+
+    #[test]
+    fn test_sort_by_single_col() {
+        let fixture = Porcelain(vec![
+            vec![Some("$ID".into()), Some("name".into()), Some("age".into())],
+            vec![
+                Some("user3".into()),
+                Some("Charlie".into()),
+                Some("35".into()),
+            ],
+            vec![
+                Some("user1".into()),
+                Some("Alice".into()),
+                Some("30".into()),
+            ],
+            vec![Some("user2".into()), Some("Bob".into()), Some("25".into())],
+        ]);
+
+        let actual = fixture.sort_by(&[1]).into_rows();
+
+        let expected = vec![
+            vec![Some("$ID".into()), Some("name".into()), Some("age".into())],
+            vec![
+                Some("user1".into()),
+                Some("Alice".into()),
+                Some("30".into()),
+            ],
+            vec![Some("user2".into()), Some("Bob".into()), Some("25".into())],
+            vec![
+                Some("user3".into()),
+                Some("Charlie".into()),
+                Some("35".into()),
+            ],
+        ];
+
+        assert_eq!(actual, expected)
+    }
+
+    #[test]
+    fn test_sort_by_multiple_cols() {
+        let fixture = Porcelain(vec![
+            vec![Some("$ID".into()), Some("city".into()), Some("name".into())],
+            vec![
+                Some("user3".into()),
+                Some("NYC".into()),
+                Some("Charlie".into()),
+            ],
+            vec![
+                Some("user1".into()),
+                Some("NYC".into()),
+                Some("Alice".into()),
+            ],
+            vec![Some("user2".into()), Some("LA".into()), Some("Bob".into())],
+            vec![Some("user4".into()), Some("NYC".into()), Some("Bob".into())],
+        ]);
+
+        let actual = fixture.sort_by(&[1, 2]).into_rows();
+
+        let expected = vec![
+            vec![Some("$ID".into()), Some("city".into()), Some("name".into())],
+            vec![Some("user2".into()), Some("LA".into()), Some("Bob".into())],
+            vec![
+                Some("user1".into()),
+                Some("NYC".into()),
+                Some("Alice".into()),
+            ],
+            vec![Some("user4".into()), Some("NYC".into()), Some("Bob".into())],
+            vec![
+                Some("user3".into()),
+                Some("NYC".into()),
+                Some("Charlie".into()),
+            ],
+        ];
+
+        assert_eq!(actual, expected)
+    }
+
+    #[test]
+    fn test_sort_by_with_none_values() {
+        let fixture = Porcelain(vec![
+            vec![Some("$ID".into()), Some("name".into()), Some("age".into())],
+            vec![Some("user3".into()), None, Some("35".into())],
+            vec![
+                Some("user1".into()),
+                Some("Alice".into()),
+                Some("30".into()),
+            ],
+            vec![Some("user2".into()), Some("Bob".into()), None],
+        ]);
+
+        let actual = fixture.sort_by(&[1]).into_rows();
+
+        let expected = vec![
+            vec![Some("$ID".into()), Some("name".into()), Some("age".into())],
+            vec![
+                Some("user1".into()),
+                Some("Alice".into()),
+                Some("30".into()),
+            ],
+            vec![Some("user2".into()), Some("Bob".into()), None],
+            vec![Some("user3".into()), None, Some("35".into())],
+        ];
+
+        assert_eq!(actual, expected)
+    }
+
+    #[test]
+    fn test_sort_by_empty_cols() {
+        let fixture = Porcelain(vec![
+            vec![Some("$ID".into()), Some("name".into())],
+            vec![Some("user2".into()), Some("Bob".into())],
+            vec![Some("user1".into()), Some("Alice".into())],
+        ]);
+
+        let actual = fixture.sort_by(&[]).into_rows();
+
+        let expected = vec![
+            vec![Some("$ID".into()), Some("name".into())],
+            vec![Some("user2".into()), Some("Bob".into())],
+            vec![Some("user1".into()), Some("Alice".into())],
+        ];
+
+        assert_eq!(actual, expected)
+    }
+
+    #[test]
+    fn test_sort_by_empty_porcelain() {
+        let fixture = Porcelain::new();
+        let actual = fixture.sort_by(&[0, 1]).into_rows();
+        let expected: Vec<Vec<Option<String>>> = vec![];
+
+        assert_eq!(actual, expected)
+    }
+
+    #[test]
+    fn test_sort_by_preserves_header() {
+        let fixture = Porcelain(vec![
+            vec![Some("HEADER".into()), Some("COL1".into())],
+            vec![Some("z".into()), Some("value".into())],
+            vec![Some("a".into()), Some("value".into())],
+        ]);
+
+        let actual = fixture.sort_by(&[0]).into_rows();
+
+        let expected = vec![
+            vec![Some("HEADER".into()), Some("COL1".into())],
+            vec![Some("a".into()), Some("value".into())],
+            vec![Some("z".into()), Some("value".into())],
+        ];
 
         assert_eq!(actual, expected)
     }
