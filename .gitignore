@@ -45,3 +45,4 @@ Cargo.lock
 *.js
 *.map
 **/.forge/request.body.json
+node_modules/
