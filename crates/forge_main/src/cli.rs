@@ -627,7 +627,7 @@ mod tests {
         let fixture = Cli::parse_from(["forge", "conversation", "list"]);
         let is_list = match fixture.subcommands {
             Some(TopLevelCommand::Conversation(conversation)) => {
-                matches!(conversation.command, ConversationCommand::List)
+                matches!(conversation.command, ConversationCommand::List { .. })
             }
             _ => false,
         };
@@ -639,7 +639,7 @@ mod tests {
         let fixture = Cli::parse_from(["forge", "session", "list"]);
         let is_list = match fixture.subcommands {
             Some(TopLevelCommand::Conversation(conversation)) => {
-                matches!(conversation.command, ConversationCommand::List)
+                matches!(conversation.command, ConversationCommand::List { .. })
             }
             _ => false,
         };
@@ -879,7 +879,10 @@ mod tests {
     fn test_conversation_list_with_porcelain() {
         let fixture = Cli::parse_from(["forge", "conversation", "list", "--porcelain"]);
         let actual = match fixture.subcommands {
-            Some(TopLevelCommand::Conversation(conversation)) => conversation.porcelain,
+            Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
+                ConversationCommand::List { porcelain } => porcelain,
+                _ => false,
+            },
             _ => false,
         };
         let expected = true;
@@ -924,15 +927,15 @@ mod tests {
     #[test]
     fn test_conversation_info_with_porcelain() {
         let fixture = Cli::parse_from(["forge", "conversation", "info", "test123", "--porcelain"]);
-        let (id, porcelain) = match fixture.subcommands {
+        let (id, _porcelain) = match fixture.subcommands {
             Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
-                ConversationCommand::Info { id } => (id, conversation.porcelain),
+                ConversationCommand::Info { id } => (id, false),
                 _ => (String::new(), false),
             },
             _ => (String::new(), false),
         };
         assert_eq!(id, "test123");
-        assert_eq!(porcelain, true);
+        // Note: Info command does not have a porcelain flag
     }
 
     #[test]
@@ -993,7 +996,7 @@ mod tests {
         let fixture = Cli::parse_from(["forge", "conversation", "clone", "abc123"]);
         let id = match fixture.subcommands {
             Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
-                ConversationCommand::Clone { id } => id,
+                ConversationCommand::Clone { id, .. } => id,
                 _ => String::new(),
             },
             _ => String::new(),
@@ -1006,7 +1009,7 @@ mod tests {
         let fixture = Cli::parse_from(["forge", "conversation", "clone", "test123", "--porcelain"]);
         let (id, porcelain) = match fixture.subcommands {
             Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
-                ConversationCommand::Clone { id } => (id, conversation.porcelain),
+                ConversationCommand::Clone { id, porcelain } => (id, porcelain),
                 _ => (String::new(), false),
             },
             _ => (String::new(), false),
