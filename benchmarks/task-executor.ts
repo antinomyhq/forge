@@ -107,7 +107,9 @@ export async function executeTask(
       child.stdout?.on("data", (data) => {
         const text = data.toString();
         stdout += text;
-        logStream.write(text);
+        if (logStream.writable) {
+          logStream.write(text);
+        }
         checkValidations();
       });
 
@@ -115,7 +117,9 @@ export async function executeTask(
       child.stderr?.on("data", (data) => {
         const text = data.toString();
         stderr += text;
-        logStream.write(text);
+        if (logStream.writable) {
+          logStream.write(text);
+        }
         checkValidations();
       });
 
