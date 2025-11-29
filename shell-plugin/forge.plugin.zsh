@@ -54,6 +54,49 @@ function _forge_get_commands() {
     echo "$_FORGE_COMMANDS"
 }
 
+
+# Verify that all required dependencies are installed
+# Returns 0 if all dependencies are present, 1 if any are missing
+function forge_verify_dependencies() {
+    local missing_deps=()
+    
+    # Check forge binary
+    command -v "$_FORGE_BIN" &>/dev/null || missing_deps+=("forge")
+    
+    
+    # Check zsh-syntax-highlighting
+    if [[ -z "$ZSH_HIGHLIGHT_VERSION" ]]; then
+        missing_deps+=("zsh-syntax-highlighting")
+    fi
+    
+
+    # Check zsh-autocomplete (optional but recommended)
+    # zsh-autocomplete sets _autocomplete__funcfiletrace when loaded
+    if [[ ! -v _autocomplete__funcfiletrace ]]; then
+        missing_deps+=("zsh-autocomplete")
+    fi
+    
+    command -v fzf &>/dev/null || missing_deps+=("fzf")
+    command -v fd &>/dev/null || command -v fdfind &>/dev/null || missing_deps+=("fd")
+    command -v bat &>/dev/null || missing_deps+=("bat")
+    
+    # Report results
+    if [[ ${#missing_deps[@]} -eq 0 ]]; then
+        echo "\033[32m✓\033[0m All dependencies verified:"
+        echo "  • forge: $($_FORGE_BIN --version 2>/dev/null | head -1)"
+        echo "  • zsh-syntax-highlighting: v$ZSH_HIGHLIGHT_VERSION"
+        echo "  • zsh-autocomplete: installed"
+        command -v fzf &>/dev/null && echo "  • fzf: $(fzf --version 2>/dev/null)"
+        command -v fd &>/dev/null && echo "  • fd: $(fd --version 2>/dev/null | head -1)"
+        command -v fdfind &>/dev/null && echo "  • fd: $(fdfind --version 2>/dev/null | head -1)"
+        command -v bat &>/dev/null && echo "  • bat: $(bat --version 2>/dev/null | head -1)"
+        return 0
+    else
+        echo "\033[31m✗\033[0m Missing dependencies: ${missing_deps[*]}"
+        return 1
+    fi
+}
+
 # Private fzf function with common options for consistent UX
 function _forge_fzf() {
     fzf --exact --cycle --select-1 --height 100% --no-scrollbar "$@"
