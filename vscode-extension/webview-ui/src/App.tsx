@@ -59,13 +59,8 @@ function App() {
       header={
         <ChatHeader
           agentName={chatState.agentName}
-          models={chatState.models}
-          selectedModelId={''}
-          selectedModelName={chatState.modelName}
           tokenCount={chatState.tokenCount}
           cost={chatState.cost}
-          onModelChange={changeModel}
-          isStreaming={chatState.isStreaming}
         />
       }
       messages={
@@ -82,6 +77,10 @@ function App() {
           onCancel={cancelMessage}
           disabled={chatState.isLoading}
           isStreaming={chatState.isStreaming}
+          models={chatState.models}
+          selectedModelId={''}
+          selectedModelName={chatState.modelName}
+          onModelChange={changeModel}
         />
       }
       isEmpty={isEmpty}

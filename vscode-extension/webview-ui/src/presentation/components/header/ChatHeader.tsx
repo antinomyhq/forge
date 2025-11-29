@@ -1,39 +1,26 @@
 import React from "react";
-import { ModelPicker } from "./ModelPicker";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { User, Coins, Hash } from "lucide-react";
-import { AIModel } from "@domain/models";
 
 interface ChatHeaderProps {
   agentName: string;
-  models: ReadonlyArray<AIModel>;
-  selectedModelId: string;
-  selectedModelName: string;
   tokenCount: string;
   cost: string;
-  onModelChange: (modelId: string) => void;
-  isStreaming?: boolean;
 }
 
-/// ChatHeader displays agent info, model picker, and usage statistics
+/// ChatHeader displays agent info and usage statistics
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
   agentName,
-  models,
-  selectedModelId,
-  selectedModelName,
   tokenCount,
   cost,
-  onModelChange,
-  isStreaming = false,
 }) => {
   return (
     <div className="border-b bg-background">
-      <div className="flex items-center justify-between px-4 py-3">
-        {/* Left: Agent and Model */}
+      <div className="flex items-center justify-between px-4 py-3 gap-4">
+        {/* Left: Agent */}
         <div className="flex items-center gap-3">
-          {/* Agent Name */}
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>
@@ -47,17 +34,6 @@ export const ChatHeader: React.FC<ChatHeaderProps> = ({
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-
-          <Separator orientation="vertical" className="h-6" />
-
-          {/* Model Picker */}
-          <ModelPicker
-            models={models}
-            selectedModelId={selectedModelId}
-            selectedModelName={selectedModelName}
-            onModelChange={onModelChange}
-            disabled={isStreaming}
-          />
         </div>
 
         {/* Right: Stats */}

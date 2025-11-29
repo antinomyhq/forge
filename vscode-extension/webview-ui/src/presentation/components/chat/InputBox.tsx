@@ -3,12 +3,18 @@ import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Send, Loader2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ModelPicker } from "@/presentation/components/header/ModelPicker";
+import { AIModel } from "@domain/models";
 
 interface InputBoxProps {
   onSend: (message: string) => void;
   onCancel?: () => void;
   disabled?: boolean;
   isStreaming?: boolean;
+  models: ReadonlyArray<AIModel>;
+  selectedModelId: string;
+  selectedModelName: string;
+  onModelChange: (modelId: string) => void;
 }
 
 /// InputBox provides a text input for sending messages using shadcn components
@@ -17,6 +23,10 @@ export const InputBox: React.FC<InputBoxProps> = ({
   onCancel,
   disabled = false,
   isStreaming = false,
+  models,
+  selectedModelId,
+  selectedModelName,
+  onModelChange,
 }) => {
   const [message, setMessage] = React.useState("");
   const textareaRef = React.useRef<HTMLTextAreaElement>(null);
@@ -47,7 +57,6 @@ export const InputBox: React.FC<InputBoxProps> = ({
     }
   };
 
-  const characterCount = message.length;
   const hasContent = message.trim().length > 0;
 
   return (
@@ -59,78 +68,70 @@ export const InputBox: React.FC<InputBoxProps> = ({
       }}
     >
       <form onSubmit={handleSubmit} className="p-4">
-        <div className="flex flex-col gap-2">
-          {/* Character counter (optional) */}
-          {characterCount > 0 && (
-            <div 
-              className="text-xs text-right"
-              style={{ color: 'var(--vscode-descriptionForeground)' }}
-            >
-              {characterCount} character{characterCount !== 1 ? "s" : ""}
-            </div>
-          )}
-          
-          <div className="flex gap-2 items-end">
-            {/* Textarea */}
+        <div className="flex flex-col gap-3">
+          {/* Textarea with embedded button */}
+          <div className="relative">
             <Textarea
               ref={textareaRef}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Type a message... (Enter to send, Shift+Enter for new line)"
+              placeholder="Ask Forge to do anything..."
               disabled={disabled}
               className={cn(
-                "min-h-[80px] max-h-[200px] resize-none",
+                "min-h-[80px] max-h-[200px] resize-none pr-12",
                 disabled && "opacity-50 cursor-not-allowed"
               )}
               rows={3}
             />
             
-            {/* Cancel Button (shown when streaming) */}
-            {isStreaming && onCancel && (
-              <Button
-                type="button"
-                onClick={handleCancel}
-                variant="destructive"
-                size="icon"
-                className="h-10 w-10 shrink-0"
-              >
-                <X className="h-4 w-4" />
-                <span className="sr-only">Cancel</span>
-              </Button>
-            )}
-            
-            {/* Send Button (shown when not streaming) */}
-            {!isStreaming && (
-              <Button
-                type="submit"
-                disabled={disabled || !hasContent}
-                size="icon"
-                className="h-10 w-10 shrink-0"
-              >
-                {disabled ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4" />
-                )}
-                <span className="sr-only">Send message</span>
-              </Button>
-            )}
+            {/* Send/Cancel Button - Positioned inside textarea */}
+            <div className="absolute bottom-2 right-2">
+              {isStreaming && onCancel ? (
+                <Button
+                  type="button"
+                  onClick={handleCancel}
+                  variant="destructive"
+                  size="icon"
+                  className="h-9 w-9 rounded-full shadow-sm"
+                >
+                  <X className="h-4 w-4" />
+                  <span className="sr-only">Cancel</span>
+                </Button>
+              ) : (
+                <Button
+                  type="submit"
+                  disabled={disabled || !hasContent}
+                  size="icon"
+                  className={cn(
+                    "h-9 w-9 rounded-full shadow-sm transition-all",
+                    hasContent && !disabled 
+                      ? "opacity-100" 
+                      : "opacity-50"
+                  )}
+                >
+                  {disabled ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
+                  <span className="sr-only">Send message</span>
+                </Button>
+              )}
+            </div>
           </div>
 
-          {/* Hint text */}
-          <div 
-            className="text-xs"
-            style={{ color: 'var(--vscode-descriptionForeground)' }}
-          >
-            Press <kbd className="px-1 py-0.5 rounded border" style={{ 
-              backgroundColor: 'var(--vscode-input-background)',
-              borderColor: 'var(--vscode-input-border)',
-            }}>Enter</kbd> to send, 
-            <kbd className="px-1 py-0.5 rounded border ml-1" style={{ 
-              backgroundColor: 'var(--vscode-input-background)',
-              borderColor: 'var(--vscode-input-border)',
-            }}>Shift+Enter</kbd> for new line
+          {/* Bottom row: Model Picker */}
+          <div className="flex items-center">
+            {/* Model Picker */}
+            <ModelPicker
+              models={models}
+              selectedModelId={selectedModelId}
+              selectedModelName={selectedModelName}
+              onModelChange={onModelChange}
+              disabled={isStreaming}
+              compact={true}
+            />
           </div>
         </div>
       </form>

@@ -340,3 +340,17 @@ pre code {
   word-wrap: break-word;
   white-space: pre-wrap;
 }
+
+
+/* Fix command input focus outline */
+[cmdk-input] {
+  box-shadow: none !important;
+  border: none !important;
+}
+
+[cmdk-input]:focus,
+[cmdk-input]:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+  border: none !important;
+}
