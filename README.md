@@ -696,34 +696,21 @@ For comprehensive documentation on all features and capabilities, please visit t
 
 Forge provides comprehensive conversation management capabilities to help you organize and maintain your chat history:
 
-#### Listing Conversations
 ```bash
 # List all conversations
 forge conversation list
 
 # List in machine-readable format
 forge conversation list --porcelain
-```
 
-#### Renaming Conversations
-```bash
 # Rename a conversation with new title
 forge conversation rename <conversation-id> "New Title"
 
 # Interactive rename - prompts for new title
 forge conversation rename <conversation-id>
 
-# ZSH plugin integration - select conversation interactively
-:rename
-```
-
-#### Other Conversation Operations
-```bash
 # Show conversation details
 forge conversation info <conversation-id>
-
-# Switch to conversation (ZSH plugin)
-:conversation <conversation-id>
 
 # Create new conversation
 forge conversation new
@@ -731,12 +718,6 @@ forge conversation new
 # Clone existing conversation
 forge conversation clone <conversation-id>
 ```
-
-**ZSH Plugin Shortcuts:**
-- `:rename` - Interactive conversation renaming with preview
-- `:rn` - Alias for `:rename`
-- `:conversation` - Switch between conversations
-- `Alt+;` (Linux/Windows) or `Option+;` (macOS) - Quick command prefix
 
 ---
 
