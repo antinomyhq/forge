@@ -10,9 +10,11 @@ pub use crate::file_operation::FileOperation;
 #[derive(Debug, Clone, Default, Setters, Serialize, Deserialize)]
 #[setters(into, strip_option)]
 pub struct Metrics {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub started_at: Option<DateTime<Utc>>,
 
     /// Holds the last file operation for each file
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub file_operations: HashMap<String, FileOperation>,
 }
 

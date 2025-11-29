@@ -280,6 +280,14 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             return Ok(());
         }
 
+        // Handle piped input if provided (treat it like --prompt)
+        let piped_input = self.cli.piped_input.clone();
+        if let Some(piped) = piped_input {
+            self.spinner.start(None)?;
+            self.on_message(Some(piped)).await?;
+            return Ok(());
+        }
+
         // Get initial input from prompt
         let mut command = self.prompt().await;
 
@@ -555,9 +563,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         use forge_domain::ConversationId;
 
         match conversation_group.command {
-            ConversationCommand::List => {
-                self.on_show_conversations(conversation_group.porcelain)
-                    .await?;
+            ConversationCommand::List { porcelain } => {
+                self.on_show_conversations(porcelain).await?;
             }
             ConversationCommand::New => {
                 self.handle_generate_conversation_id().await?;
@@ -630,15 +637,22 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
                 self.on_show_conv_info(conversation).await?;
             }
-            ConversationCommand::Clone { id } => {
+            ConversationCommand::Stats { id, porcelain } => {
+                let conversation_id =
+                    ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
+
+                let conversation = self.validate_conversation_exists(&conversation_id).await?;
+
+                self.on_show_conv_stats(conversation, porcelain).await?;
+            }
+            ConversationCommand::Clone { id, porcelain } => {
                 let conversation_id =
                     ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
 
                 let conversation = self.validate_conversation_exists(&conversation_id).await?;
 
                 self.spinner.start(Some("Cloning"))?;
-                self.on_clone_conversation(conversation, conversation_group.porcelain)
-                    .await?;
+                self.on_clone_conversation(conversation, porcelain).await?;
                 self.spinner.stop(None)?;
             }
             ConversationCommand::Delete { id, force } => {
@@ -1686,14 +1700,25 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     ) -> anyhow::Result<()> {
         use anyhow::Context;
         self.spinner.stop(None)?;
+
+        // Extract existing API key and URL params for prefilling
+        let existing_url_params = request.existing_params.as_ref();
+
         // Collect URL parameters if required
         let url_params = request
             .required_params
             .iter()
             .map(|param| {
-                let param_value = ForgeSelect::input(format!("Enter {param}:"))
-                    .prompt()?
-                    .context("Parameter input cancelled")?;
+                let mut input = ForgeSelect::input(format!("Enter {param}:"));
+
+                // Add default value if it exists in the credential
+                if let Some(params) = existing_url_params
+                    && let Some(default_value) = params.get(param)
+                {
+                    input = input.with_default(default_value.as_str());
+                }
+
+                let param_value = input.prompt()?.context("Parameter input cancelled")?;
 
                 anyhow::ensure!(!param_value.trim().is_empty(), "{param} cannot be empty");
 
@@ -1738,11 +1763,28 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             "→".blue(),
             display_uri.blue().underline()
         ))?;
-        self.writeln(format!(
-            "{} Enter code: {}",
-            "→".blue(),
-            user_code.bold().yellow()
-        ))?;
+        // Try to copy code to clipboard automatically (not available on Android)
+        #[cfg(not(target_os = "android"))]
+        let clipboard_copied = arboard::Clipboard::new()
+            .and_then(|mut clipboard| clipboard.set_text(user_code))
+            .is_ok();
+
+        #[cfg(target_os = "android")]
+        let clipboard_copied = false;
+
+        if clipboard_copied {
+            self.writeln(format!(
+                "{} Code copied to clipboard: {}",
+                "✓".green().bold(),
+                user_code.bold().yellow()
+            ))?;
+        } else {
+            self.writeln(format!(
+                "{} Enter code: {}",
+                "→".blue(),
+                user_code.bold().yellow()
+            ))?;
+        }
         self.writeln("")?;
 
         // Try to open browser automatically
@@ -2251,8 +2293,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     async fn on_message(&mut self, content: Option<String>) -> Result<()> {
         let conversation_id = self.init_conversation().await?;
 
-        // Get piped input from CLI if available
-        let piped_input = self.cli.piped_input.clone();
+        // Track if content was provided to decide whether to use piped input as
+        // additional context
+        let has_content = content.is_some();
 
         // Create a ChatRequest with the appropriate event type
         let mut event = match content {
@@ -2260,9 +2303,16 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             None => Event::empty(),
         };
 
-        // Set piped input if present
+        // Only use CLI piped_input as additional context if it wasn't already passed as
+        // content This handles cases where piped input is used alongside
+        // explicit prompts
+        let piped_input = self.cli.piped_input.clone();
         if let Some(piped) = piped_input {
-            event = event.additional_context(piped);
+            // Only add as additional context if content is provided separately (e.g., via
+            // --prompt)
+            if has_content {
+                event = event.additional_context(piped);
+            }
         }
 
         // Create the chat request with the event
@@ -2432,9 +2482,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         self.spinner.start(Some("Loading Summary"))?;
 
         let info = Info::default().extend(&conversation);
-
         self.writeln(info)?;
-
         self.spinner.stop(None)?;
 
         // Only prompt for new conversation if in interactive mode and prompt is enabled
@@ -2453,6 +2501,74 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             if should_start_new_chat {
                 self.on_new().await?;
             }
+        }
+
+        Ok(())
+    }
+
+    async fn on_show_conv_stats(
+        &mut self,
+        conversation: Conversation,
+        porcelain: bool,
+    ) -> anyhow::Result<()> {
+        let mut info = Info::new().add_title("CONVERSATION");
+
+        // Add conversation ID
+        info = info.add_key_value("ID", conversation.id.to_string());
+
+        // Calculate duration
+        let created_at = conversation.metadata.created_at;
+        let updated_at = conversation.metadata.updated_at.unwrap_or(created_at);
+        let duration = updated_at.signed_duration_since(created_at);
+
+        // Format duration
+        let duration_str = if duration.num_hours() > 0 {
+            format!("{}h {}m", duration.num_hours(), duration.num_minutes() % 60)
+        } else if duration.num_minutes() > 0 {
+            format!(
+                "{}m {}s",
+                duration.num_minutes(),
+                duration.num_seconds() % 60
+            )
+        } else {
+            format!("{}s", duration.num_seconds())
+        };
+
+        info = info.add_key_value("Total Duration", duration_str);
+
+        // Add message statistics if context exists
+        if let Some(context) = &conversation.context {
+            info = info
+                .add_key_value("Total Messages", context.total_messages())
+                .add_key_value("User Messages", context.user_message_count())
+                .add_key_value("Assistant Messages", context.assistant_message_count())
+                .add_key_value("Tool Calls", context.tool_call_count());
+        }
+
+        // Add token usage if available
+        if let Some(usage) = conversation.context.as_ref().and_then(|c| c.usage.as_ref()) {
+            info = info
+                .add_title("TOKEN")
+                .add_key_value("Prompt Tokens", usage.prompt_tokens.to_string())
+                .add_key_value("Completion Tokens", usage.completion_tokens.to_string())
+                .add_key_value("Total Tokens", usage.total_tokens.to_string());
+
+            if let Some(cost) = usage.cost {
+                info = info.add_key_value("Cost", format!("${cost:.4}"));
+            }
+        }
+
+        if porcelain {
+            use convert_case::Case;
+            self.writeln(
+                Porcelain::from(&info)
+                    .into_long()
+                    .skip(1)
+                    .to_case(&[0, 1], Case::Snake)
+                    .sort_by(&[0, 1]),
+            )?;
+        } else {
+            self.writeln(info)?;
         }
 
         Ok(())

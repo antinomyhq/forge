@@ -59,6 +59,9 @@ async-trait.workspace = true
 dirs.workspace = true
 regex.workspace = true
 
+[target.'cfg(not(target_os = "android"))'.dependencies]
+arboard = "3.4"
+
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt", "time", "test-util"] }
 insta.workspace = true

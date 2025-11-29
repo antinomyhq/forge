@@ -258,7 +258,7 @@ impl From<&Metrics> for Info {
                     file_metrics.lines_removed, file_metrics.lines_added
                 );
 
-                info = info.add_key_value(format!("⦿ {filename}"), changes);
+                info = info.add_key_value(filename, changes);
             }
         }
 
@@ -331,14 +331,19 @@ impl fmt::Display for Info {
                 Section::Items(key, value) => {
                     if let Some(key) = key {
                         if let Some(width) = width {
-                            writeln!(f, "  {} {}", format!("{key:<width$}:").cyan().bold(), value)?;
+                            writeln!(
+                                f,
+                                "  {} {}",
+                                format!("{key:<width$}:").green().bold(),
+                                value
+                            )?;
                         } else {
                             // No section width (items without a title)
-                            writeln!(f, "  {}: {}", key.cyan().bold(), value)?;
+                            writeln!(f, "  {}: {}", key.green().bold(), value)?;
                         }
                     } else {
                         // Show value-only items
-                        writeln!(f, "    {} {}", "⦿".cyan(), value)?;
+                        writeln!(f, "    {} {}", "⦿".green(), value)?;
                     }
                 }
             }
@@ -759,8 +764,8 @@ mod tests {
         // Verify it contains the task completed section
         assert!(expected_display.contains("TASK COMPLETED"));
 
-        // Verify it contains the files with bullet points
-        assert!(expected_display.contains("⦿ main.rs"));
+        // Verify it contains the files as keys with colons
+        assert!(expected_display.contains("main.rs"));
         assert!(expected_display.contains("−3 +12"));
         assert!(expected_display.contains("mod.rs"));
         assert!(expected_display.contains("−2 +8"));
@@ -1048,8 +1053,8 @@ mod tests {
         // Verify it contains the task completed section
         assert!(expected_display.contains("TASK COMPLETED"));
 
-        // Verify it contains files with changes
-        assert!(expected_display.contains("⦿ main.rs"));
+        // Verify it contains files with changes as keys
+        assert!(expected_display.contains("main.rs"));
         assert!(expected_display.contains("−3 +12"));
         assert!(expected_display.contains("mod.rs"));
         assert!(expected_display.contains("−2 +8"));

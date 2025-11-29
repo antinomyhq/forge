@@ -78,10 +78,10 @@ pub struct Cli {
 impl Cli {
     /// Determines whether the CLI should start in interactive mode.
     ///
-    /// Returns true when no prompt or subcommand is provided, indicating
-    /// the user wants to enter interactive mode.
+    /// Returns true when no prompt, piped input, or subcommand is provided,
+    /// indicating the user wants to enter interactive mode.
     pub fn is_interactive(&self) -> bool {
-        self.prompt.is_none() && self.subcommands.is_none()
+        self.prompt.is_none() && self.piped_input.is_none() && self.subcommands.is_none()
     }
 }
 
@@ -391,16 +391,16 @@ pub struct ConfigGetArgs {
 pub struct ConversationCommandGroup {
     #[command(subcommand)]
     pub command: ConversationCommand,
-
-    /// Output in machine-readable format.
-    #[arg(long, global = true)]
-    pub porcelain: bool,
 }
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum ConversationCommand {
     /// List conversation history.
-    List,
+    List {
+        /// Output in machine-readable format.
+        #[arg(long)]
+        porcelain: bool,
+    },
 
     /// Create a new conversation.
     New,
@@ -445,10 +445,24 @@ pub enum ConversationCommand {
         id: String,
     },
 
+    /// Show conversation statistics.
+    Stats {
+        /// Conversation ID.
+        id: String,
+
+        /// Output in machine-readable format.
+        #[arg(long)]
+        porcelain: bool,
+    },
+
     /// Clone conversation with a new ID.
     Clone {
         /// Conversation ID to clone.
         id: String,
+
+        /// Output in machine-readable format.
+        #[arg(long)]
+        porcelain: bool,
     },
 
     /// Delete a conversation permanently.
@@ -623,7 +637,7 @@ mod tests {
         let fixture = Cli::parse_from(["forge", "conversation", "list"]);
         let is_list = match fixture.subcommands {
             Some(TopLevelCommand::Conversation(conversation)) => {
-                matches!(conversation.command, ConversationCommand::List)
+                matches!(conversation.command, ConversationCommand::List { .. })
             }
             _ => false,
         };
@@ -635,7 +649,7 @@ mod tests {
         let fixture = Cli::parse_from(["forge", "session", "list"]);
         let is_list = match fixture.subcommands {
             Some(TopLevelCommand::Conversation(conversation)) => {
-                matches!(conversation.command, ConversationCommand::List)
+                matches!(conversation.command, ConversationCommand::List { .. })
             }
             _ => false,
         };
@@ -875,7 +889,10 @@ mod tests {
     fn test_conversation_list_with_porcelain() {
         let fixture = Cli::parse_from(["forge", "conversation", "list", "--porcelain"]);
         let actual = match fixture.subcommands {
-            Some(TopLevelCommand::Conversation(conversation)) => conversation.porcelain,
+            Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
+                ConversationCommand::List { porcelain } => porcelain,
+                _ => false,
+            },
             _ => false,
         };
         let expected = true;
@@ -918,11 +935,11 @@ mod tests {
     }
 
     #[test]
-    fn test_conversation_info_with_porcelain() {
-        let fixture = Cli::parse_from(["forge", "conversation", "info", "test123", "--porcelain"]);
+    fn test_conversation_stats_with_porcelain() {
+        let fixture = Cli::parse_from(["forge", "conversation", "stats", "test123", "--porcelain"]);
         let (id, porcelain) = match fixture.subcommands {
             Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
-                ConversationCommand::Info { id } => (id, conversation.porcelain),
+                ConversationCommand::Stats { id, porcelain } => (id, porcelain),
                 _ => (String::new(), false),
             },
             _ => (String::new(), false),
@@ -989,7 +1006,7 @@ mod tests {
         let fixture = Cli::parse_from(["forge", "conversation", "clone", "abc123"]);
         let id = match fixture.subcommands {
             Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
-                ConversationCommand::Clone { id } => id,
+                ConversationCommand::Clone { id, .. } => id,
                 _ => String::new(),
             },
             _ => String::new(),
@@ -1002,7 +1019,7 @@ mod tests {
         let fixture = Cli::parse_from(["forge", "conversation", "clone", "test123", "--porcelain"]);
         let (id, porcelain) = match fixture.subcommands {
             Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
-                ConversationCommand::Clone { id } => (id, conversation.porcelain),
+                ConversationCommand::Clone { id, porcelain } => (id, porcelain),
                 _ => (String::new(), false),
             },
             _ => (String::new(), false),
