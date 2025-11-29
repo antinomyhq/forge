@@ -12,7 +12,7 @@ use forge_domain::{
     AnyProvider, AppConfig, AppConfigRepository, AuthCredential, CommandOutput, Conversation,
     ConversationId, ConversationRepository, Environment, FileInfo, McpServerConfig,
     MigrationResult, Provider, ProviderId, ProviderRepository, Skill, SkillRepository, Snapshot,
-    SnapshotRepository,
+    SnapshotRepository, WorkspaceRepository,
 };
 // Re-export CacacheStorage from forge_infra
 pub use forge_infra::CacacheStorage;
@@ -25,7 +25,7 @@ use crate::fs_snap::ForgeFileSnapshotService;
 use crate::provider::ForgeProviderRepository;
 use crate::{
     AppConfigRepositoryImpl, ConversationRepositoryImpl, DatabasePool, ForgeAgentRepository,
-    ForgeSkillRepository, PoolConfig,
+    ForgeSkillRepository, PoolConfig, WorkspaceRepositoryImpl,
 };
 
 /// Repository layer that implements all domain repository traits
@@ -37,6 +37,7 @@ pub struct ForgeRepo<F> {
     infra: Arc<F>,
     file_snapshot_service: Arc<ForgeFileSnapshotService>,
     conversation_repository: Arc<ConversationRepositoryImpl>,
+    workspace_repository: Arc<WorkspaceRepositoryImpl>,
     app_config_repository: Arc<AppConfigRepositoryImpl<F>>,
     mcp_cache_repository: Arc<CacacheStorage>,
     provider_repository: Arc<ForgeProviderRepository<F>>,
@@ -50,8 +51,14 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
         let db_pool =
             Arc::new(DatabasePool::try_from(PoolConfig::new(env.database_path())).unwrap());
-        let conversation_repository =
-            Arc::new(ConversationRepositoryImpl::new(db_pool, env.workspace_id()));
+
+        let workspace_repository = Arc::new(WorkspaceRepositoryImpl::new(db_pool.clone()));
+
+        let conversation_repository = Arc::new(ConversationRepositoryImpl::with_workspace_repository(
+            db_pool.clone(), 
+            env.workspace_id(),
+            workspace_repository.clone()
+        ));
 
         let app_config_repository = Arc::new(AppConfigRepositoryImpl::new(infra.clone()));
 
@@ -67,6 +74,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
             infra,
             file_snapshot_service,
             conversation_repository,
+            workspace_repository,
             app_config_repository,
             mcp_cache_repository,
             provider_repository,
@@ -115,6 +123,25 @@ impl<F: Send + Sync> ConversationRepository for ForgeRepo<F> {
 
     async fn get_last_conversation(&self) -> anyhow::Result<Option<Conversation>> {
         self.conversation_repository.get_last_conversation().await
+    }
+}
+
+#[async_trait::async_trait]
+impl<F: Send + Sync> WorkspaceRepository for ForgeRepo<F> {
+    fn create_or_update_workspace(&self, workspace_id: forge_domain::WorkspaceId, folder_path: &std::path::Path) -> anyhow::Result<forge_domain::Workspace> {
+        self.workspace_repository.create_or_update_workspace(workspace_id, folder_path)
+    }
+
+    fn get_workspace_by_id(&self, workspace_id: forge_domain::WorkspaceId) -> anyhow::Result<Option<forge_domain::Workspace>> {
+        self.workspace_repository.get_workspace_by_id(workspace_id)
+    }
+
+    fn update_last_accessed(&self, workspace_id: forge_domain::WorkspaceId) -> anyhow::Result<()> {
+        self.workspace_repository.update_last_accessed(workspace_id)
+    }
+
+    fn mark_inactive(&self, workspace_id: forge_domain::WorkspaceId) -> anyhow::Result<()> {
+        self.workspace_repository.mark_inactive(workspace_id)
     }
 }
 

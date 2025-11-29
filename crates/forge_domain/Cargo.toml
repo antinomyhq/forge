@@ -9,6 +9,7 @@ async-trait.workspace = true
 chrono.workspace = true
 derive_more.workspace = true
 derive_setters.workspace = true
+diesel.workspace = true
 fnv_rs.workspace = true
 indexmap.workspace = true
 nom.workspace = true

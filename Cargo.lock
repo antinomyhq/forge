@@ -1332,6 +1332,7 @@ dependencies = [
  "derive-getters",
  "derive_more",
  "derive_setters",
+ "diesel",
  "eserde",
  "fake",
  "fnv_rs",

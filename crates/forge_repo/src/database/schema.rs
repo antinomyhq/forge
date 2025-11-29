@@ -11,3 +11,14 @@ diesel::table! {
         metrics -> Nullable<Text>,
     }
 }
+
+diesel::table! {
+    workspaces (id) {
+        id -> Integer,
+        workspace_id -> BigInt,
+        folder_path -> Text,
+        created_at -> Timestamp,
+        last_accessed_at -> Nullable<Timestamp>,
+        is_active -> Bool,
+    }
+}

@@ -6,7 +6,7 @@ use derive_more::From;
 use diesel::prelude::*;
 use forge_domain::{
     Context, Conversation, ConversationId, ConversationRepository, FileOperation, MetaData,
-    Metrics, ToolKind, WorkspaceId,
+    Metrics, ToolKind, WorkspaceId, WorkspaceRepository,
 };
 use serde::{Deserialize, Serialize};
 
@@ -173,11 +173,44 @@ impl TryFrom<ConversationRecord> for Conversation {
 pub struct ConversationRepositoryImpl {
     pool: Arc<DatabasePool>,
     wid: WorkspaceId,
+    workspace_repository: Option<Arc<dyn WorkspaceRepository>>,
 }
 
 impl ConversationRepositoryImpl {
     pub fn new(pool: Arc<DatabasePool>, workspace_id: WorkspaceId) -> Self {
-        Self { pool, wid: workspace_id }
+        Self { 
+            pool, 
+            wid: workspace_id,
+            workspace_repository: None,
+        }
+    }
+
+    pub fn with_workspace_repository(
+        pool: Arc<DatabasePool>, 
+        workspace_id: WorkspaceId,
+        workspace_repository: Arc<dyn WorkspaceRepository>
+    ) -> Self {
+        Self { 
+            pool, 
+            wid: workspace_id,
+            workspace_repository: Some(workspace_repository),
+        }
+    }
+
+    /// Update workspace last_accessed timestamp when conversations are accessed
+    fn update_workspace_access(&self) {
+        if let Some(workspace_repo) = &self.workspace_repository {
+            let _ = workspace_repo.update_last_accessed(self.wid);
+        }
+    }
+
+    /// Create or update workspace entry when conversation is created
+    async fn ensure_workspace_exists(&self, folder_path: &std::path::Path) {
+        if let Some(workspace_repo) = &self.workspace_repository {
+            if let Err(e) = workspace_repo.create_or_update_workspace(self.wid, folder_path) {
+                tracing::warn!("Failed to ensure workspace exists: {}", e);
+            }
+        }
     }
 }
 
@@ -185,6 +218,9 @@ impl ConversationRepositoryImpl {
 impl ConversationRepository for ConversationRepositoryImpl {
     async fn upsert_conversation(&self, conversation: Conversation) -> anyhow::Result<()> {
         let mut connection = self.pool.get_connection()?;
+
+        // Ensure workspace exists (we'll use current directory as fallback)
+        self.ensure_workspace_exists(&std::env::current_dir().unwrap_or_default()).await;
 
         let wid = self.wid;
         let record = ConversationRecord::new(conversation, wid);
@@ -223,6 +259,9 @@ impl ConversationRepository for ConversationRepositoryImpl {
         &self,
         limit: Option<usize>,
     ) -> anyhow::Result<Option<Vec<Conversation>>> {
+        // Update workspace last_accessed timestamp
+        self.update_workspace_access();
+
         let mut connection = self.pool.get_connection()?;
 
         let workspace_id = self.wid.id() as i64;
@@ -248,6 +287,9 @@ impl ConversationRepository for ConversationRepositoryImpl {
     }
 
     async fn get_last_conversation(&self) -> anyhow::Result<Option<Conversation>> {
+        // Update workspace last_accessed timestamp
+        self.update_workspace_access();
+
         let mut connection = self.pool.get_connection()?;
         let workspace_id = self.wid.id() as i64;
         let record: Option<ConversationRecord> = conversations::table
@@ -270,11 +312,22 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::database::DatabasePool;
+    use crate::{WorkspaceRepositoryImpl, ConversationRepositoryImpl, database::DatabasePool};
 
     fn repository() -> anyhow::Result<ConversationRepositoryImpl> {
         let pool = Arc::new(DatabasePool::in_memory()?);
         Ok(ConversationRepositoryImpl::new(pool, WorkspaceId::new(0)))
+    }
+
+    fn repository_with_workspace() -> anyhow::Result<(ConversationRepositoryImpl, Arc<dyn WorkspaceRepository>)> {
+        let pool = Arc::new(DatabasePool::in_memory()?);
+        let workspace_repo = Arc::new(WorkspaceRepositoryImpl::new(pool.clone()));
+        let conversation_repo = ConversationRepositoryImpl::with_workspace_repository(
+            pool.clone(), 
+            WorkspaceId::new(0),
+            workspace_repo.clone()
+        );
+        Ok((conversation_repo, workspace_repo))
     }
 
     #[tokio::test]
@@ -804,5 +857,44 @@ mod tests {
         assert!(json.contains("\"lines_added\":10"));
         assert!(json.contains("\"lines_removed\":5"));
         assert!(json.contains("\"content_hash\":\"abc123\""));
+    }
+
+    #[tokio::test]
+    async fn test_workspace_integration() -> Result<(), anyhow::Error> {
+        let (repo, workspace_repo) = repository_with_workspace()?;
+        let workspace_id = WorkspaceId::new(0); // Use the same ID as in repository_with_workspace
+        let folder_path = PathBuf::from("/test/workspace");
+        
+        // Test creating workspace when saving conversation
+        let fixture = Conversation::new(ConversationId::generate())
+            .title(Some("Test Conversation".to_string()));
+        repo.upsert_conversation(fixture.clone()).await?;
+
+        // Verify workspace was created
+        let workspace = workspace_repo.get_workspace_by_id(workspace_id)?
+            .expect("Workspace should be created");
+        
+        assert_eq!(workspace.workspace_id, workspace_id);
+        assert_eq!(workspace.is_active, true);
+
+        // Test updating last accessed when retrieving conversations
+        let original_last_accessed = workspace.last_accessed_at;
+        
+        // Wait a bit to ensure different timestamp
+        tokio::time::sleep(Duration::from_millis(10)).await;
+        
+        let _conversations = repo.get_all_conversations(Some(10)).await?;
+        
+        // Verify last accessed was updated
+        let updated_workspace = workspace_repo.get_workspace_by_id(workspace_id)?
+            .expect("Workspace should still exist");
+        
+        assert!(updated_workspace.last_accessed_at > original_last_accessed);
+
+        // Test workspace creation with explicit folder path
+        let explicit_workspace = workspace_repo.create_or_update_workspace(workspace_id, &folder_path)?;
+        assert_eq!(explicit_workspace.folder_path, folder_path);
+
+        Ok(())
     }
 }
