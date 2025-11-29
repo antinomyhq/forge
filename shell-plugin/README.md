@@ -171,6 +171,8 @@ export FORGE_BIN="/path/to/custom/forge"
 ### Available Configuration Variables
 
 - `FORGE_BIN`: Path to the forge executable (default: `forge`)
+- `FORGE_MAX_COMMIT_DIFF`: Maximum commit diff size for preview (default: `100000`)
+- `FORGE_EDITMSG`: Name of the temporary file used by `:edit` command (default: `FORGE_EDITMSG`)
 - Internal pattern matching for conversation syntax (`:`)
 - New session command keyword: `:new` or `:n`
 
@@ -178,9 +180,72 @@ export FORGE_BIN="/path/to/custom/forge"
 
 The plugin creates a `.forge` directory in your current working directory (similar to `.git`) for temporary files:
 
-- `FORGE_EDITMSG`: Temporary file used when opening an external editor with `:edit`
+- `FORGE_EDITMSG`: Temporary file used when opening an external editor with `:edit` (configurable via `FORGE_EDITMSG` environment variable)
 
 ## Advanced Features
+
+### External Editor Integration
+
+Open an external editor for composing complex commands using the `:edit` command:
+
+```bash
+:edit
+```
+
+This will:
+
+1. **Open your configured editor** (in order of preference: `FORGE_EDITOR` > `EDITOR` > `nano`)
+2. **Create a temporary file** in `.forge/` directory (default: `FORGE_EDITMSG`)
+3. **Pre-populate with initial text** if provided (e.g., `:edit Initial command text`)
+4. **Wait for you to edit and save** the file
+5. **Read the content** and insert it as a command with `:` prefix
+6. **Automatically clean up** the temporary file
+
+#### Editor Configuration
+
+Set your preferred editor using environment variables:
+
+```bash
+# Preferred: Forge-specific editor
+export FORGE_EDITOR="vim"
+
+# Fallback: System editor
+export EDITOR="code --wait"
+
+# If neither is set, defaults to nano
+```
+
+#### Custom Temporary File Name
+
+Customize the temporary file name used by `:edit`:
+
+```bash
+# Default behavior
+:edit  # Uses .forge/FORGE_EDITMSG
+
+# Custom filename
+export FORGE_EDITMSG="my_edit_file.txt"
+:edit  # Uses .forge/my_edit_file.txt
+
+# Git-style naming
+export FORGE_EDITMSG="FORGE_EDITMSG"
+:edit  # Uses .forge/FORGE_EDITMSG
+```
+
+#### Examples
+
+```bash
+# Basic usage
+:edit
+
+# With initial content
+:edit Review the authentication flow in @[src/auth.rs]
+
+# Using custom editor and filename
+export FORGE_EDITOR="vim"
+export FORGE_EDITMSG="forge_command.txt"
+:edit Implement error handling for API calls
+```
 
 ### Command History
 
@@ -213,13 +278,28 @@ All transformed commands are properly saved to ZSH history, allowing you to:
 : Debug the issue in @[logs/error.log] @[config/app.yml]
 ```
 
+```bash
+# Basic usage
+:edit
+
+# With initial content
+:edit Review the authentication flow in @[src/auth.rs]
+
+# Using custom editor and filename
+export FORGE_EDITOR="vim"
+export FORGE_EDITMSG="forge_command.txt"
+:edit Implement error handling for API calls
+```
+
 ### Session Flow
 
 ```bash
+:edit  # Compose complex command in editor
 : I'm working on a Rust web API
 : What are the best practices for error handling?
 : Show me an example with @[src/errors.rs]
 :info
 :new
+:edit  # Compose another complex command
 : New conversation starts here
 ```
