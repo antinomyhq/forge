@@ -56,6 +56,8 @@ forge
 
 That's it! Forge is now ready to assist you with your development tasks.
 
+> **💡 Pro Tip**: Forge includes smart keyboard shortcuts available in ZSH! Use `Alt+;` (Linux/Windows) or `Option+;` (macOS) to quickly add the `:` prefix to your commands, and `Ctrl+e` to open an editor with your current buffer.
+
 ## Usage Examples
 
 Forge can be used in different ways depending on your needs. Here are some common usage patterns:
