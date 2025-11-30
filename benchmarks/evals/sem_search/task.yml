@@ -3,7 +3,7 @@ before_run:
 run:
   command: ../../target/debug/forge -C ../../ -p '{{task}}'
   parallelism: 20
-  timeout: 60
+  timeout: 180
   early_exit: true
 validations:
   - type: matches_regex

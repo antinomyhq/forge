@@ -1,0 +1,65 @@
+# Multi-stage Dockerfile for code-forge evaluations
+# Stage 1: Build the Rust binary with edition 2024 support
+FROM rust:1.91-bookworm AS builder
+
+WORKDIR /build
+
+# Install build dependencies including protobuf compiler
+RUN apt-get update && apt-get install -y \
+    protobuf-compiler \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy only dependency files first to cache dependencies
+COPY Cargo.toml Cargo.lock ./
+COPY crates/ ./crates/
+
+# Remove source files but keep Cargo.toml files
+RUN find crates -name "*.rs" -delete && \
+    find crates -type f ! -name "Cargo.toml" -delete
+
+# Create dummy source files to cache dependencies
+RUN for crate in crates/*/; do \
+      if [ -f "$crate/Cargo.toml" ]; then \
+        mkdir -p "$crate/src"; \
+        if grep -q '\[\[bin\]\]' "$crate/Cargo.toml" || grep -q 'name = "forge"' "$crate/Cargo.toml"; then \
+          echo "fn main() {}" > "$crate/src/main.rs"; \
+        else \
+          echo "pub fn dummy() {}" > "$crate/src/lib.rs"; \
+        fi; \
+      fi; \
+    done
+
+# Build dependencies (this layer will be cached)
+RUN cargo build --bin forge || true
+
+# Now copy the actual source code
+COPY . .
+
+# Force rebuild with actual source (touch to invalidate cache of target/)
+RUN touch src/main.rs crates/*/src/lib.rs crates/*/src/main.rs 2>/dev/null || true
+
+# Build the actual binary (dependencies are already cached)
+RUN cargo build --bin forge
+
+# Strip debug symbols to reduce size
+RUN strip /build/target/debug/forge
+
+# Stage 2: Runtime image with just the binary
+FROM debian:bookworm-slim
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy the compiled binary from builder
+COPY --from=builder /build/target/debug/forge /usr/local/bin/forge
+
+# Make it executable
+RUN chmod +x /usr/local/bin/forge
+
+# Set working directory
+WORKDIR /workspace
+
+# Default command
+CMD ["/bin/bash"]

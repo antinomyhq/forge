@@ -10,6 +10,7 @@
     "eval": "tsx cli.ts"
   },
   "dependencies": {
+    "@daytonaio/sdk": "^0.119.0",
     "@types/handlebars": "^4.0.40",
     "@types/node": "^24.10.1",
     "@types/yargs": "^17.0.35",
