@@ -86,6 +86,7 @@ impl Default for TestContext {
                 max_image_size: 262144,
                 override_model: None,
                 override_provider: None,
+                max_workspace_depth: Some(10),
             },
             title: Some("test-conversation".into()),
             agent: Agent::new(

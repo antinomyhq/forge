@@ -1,5 +1,5 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use derive_more::Display;
 use derive_setters::Setters;
@@ -79,17 +79,37 @@ pub struct Environment {
     /// If set, this provider will be used as default.
     #[dummy(default)]
     pub override_provider: Option<ProviderId>,
+    /// Maximum number of parent directories to traverse when finding workspace
+    /// root. Default: 10 (reasonable limit to prevent infinite loops)
+    #[dummy(expr = "Some(10)")]
+    pub max_workspace_depth: Option<usize>,
 }
 
 impl Environment {
+    /// Find workspace root by traversing up the directory tree looking for
+    /// workspace markers
+    pub fn workspace_root(&self) -> PathBuf {
+        find_workspace_root(&self.cwd, self.max_workspace_depth)
+    }
+
     pub fn log_path(&self) -> PathBuf {
         self.base_path.join("logs")
     }
 
     pub fn history_path(&self) -> PathBuf {
-        self.custom_history_path
-            .clone()
-            .unwrap_or(self.base_path.join(".forge_history"))
+        if let Some(custom_path) = &self.custom_history_path {
+            return custom_path.clone();
+        }
+
+        let workspace_root = self.workspace_root();
+        let forge_dir = workspace_root.join(".forge");
+
+        // Create .forge directory if it doesn't exist
+        if let Err(e) = std::fs::create_dir_all(&forge_dir) {
+            eprintln!("Warning: Failed to create .forge directory: {}", e);
+        }
+
+        forge_dir.join(".forge_history")
     }
     pub fn snapshot_path(&self) -> PathBuf {
         self.base_path.join("snapshots")
@@ -151,9 +171,9 @@ impl Environment {
     }
 
     pub fn workspace_id(&self) -> WorkspaceId {
+        let workspace_root = self.workspace_root();
         let mut hasher = DefaultHasher::default();
-        self.cwd.hash(&mut hasher);
-
+        workspace_root.hash(&mut hasher);
         WorkspaceId(hasher.finish())
     }
 }
@@ -168,6 +188,44 @@ impl WorkspaceId {
     pub fn id(&self) -> u64 {
         self.0
     }
+}
+
+fn find_workspace_root(cwd: &Path, max_depth: Option<usize>) -> PathBuf {
+    let markers_str = std::env::var("FORGE_WORKSPACE_MARKERS")
+        .unwrap_or_else(|_| ".git,forge.yaml,.forge,forge/.config.json".to_string());
+
+    let markers = markers_str
+        .split(',')
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>();
+
+    let mut current = cwd.to_path_buf();
+    let mut depth = 0;
+
+    loop {
+        for marker in &markers {
+            if current.join(marker).exists() {
+                return current;
+            }
+        }
+
+        if let Some(max_depth) = max_depth
+            && depth >= max_depth
+        {
+            break;
+        }
+
+        match current.parent() {
+            Some(parent) => {
+                current = parent.to_path_buf();
+                depth += 1;
+            }
+            None => break,
+        }
+    }
+
+    cwd.to_path_buf()
 }
 
 #[cfg(test)]
@@ -284,6 +342,7 @@ fn test_command_path() {
         max_image_size: 262144,
         override_model: None,
         override_provider: None,
+        max_workspace_depth: Some(10),
     };
 
     let actual = fixture.command_path();
@@ -320,6 +379,7 @@ fn test_command_cwd_path() {
         max_image_size: 262144,
         override_model: None,
         override_provider: None,
+        max_workspace_depth: Some(10),
     };
 
     let actual = fixture.command_cwd_path();
@@ -356,6 +416,7 @@ fn test_command_cwd_path_independent_from_command_path() {
         max_image_size: 262144,
         override_model: None,
         override_provider: None,
+        max_workspace_depth: Some(10),
     };
 
     let command_path = fixture.command_path();
