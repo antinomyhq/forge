@@ -88,6 +88,9 @@ impl ForgeEnvironmentInfra {
             max_conversations: parse_env::<usize>("FORGE_MAX_CONVERSATIONS").unwrap_or(100),
             override_model,
             override_provider,
+            title_format: parse_env::<String>("FORGE_TITLE_FORMAT").unwrap_or_else(|| {
+                "[{timestamp} {input}/{output} {cost} {cache_pct}] {title} {subtitle}".to_string()
+            }),
         }
     }
 
