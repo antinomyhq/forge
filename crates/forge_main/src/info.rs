@@ -253,10 +253,17 @@ impl From<&Metrics> for Info {
                     .and_then(|name| name.to_str())
                     .unwrap_or(path);
 
-                let changes = format!(
-                    "−{} +{}",
-                    file_metrics.lines_removed, file_metrics.lines_added
-                );
+                let removed = if file_metrics.lines_removed == 0 {
+                    "0".to_string()
+                } else {
+                    format!("−{}", file_metrics.lines_removed)
+                };
+                let added = if file_metrics.lines_added == 0 {
+                    "0".to_string()
+                } else {
+                    format!("+{}", file_metrics.lines_added)
+                };
+                let changes = format!("{} {}", removed, added);
 
                 info = info.add_key_value(filename, changes);
             }
@@ -770,7 +777,7 @@ mod tests {
         assert!(expected_display.contains("mod.rs"));
         assert!(expected_display.contains("−2 +8"));
         assert!(expected_display.contains("test_agent.rs"));
-        assert!(expected_display.contains("−0 +5"));
+        assert!(expected_display.contains("0 +5"));
     }
 
     #[test]
