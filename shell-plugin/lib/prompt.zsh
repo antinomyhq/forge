@@ -14,6 +14,8 @@
 # - $_FORGE_CONVERSATION_ID  : Current conversation UUID (empty if no conversation)
 # - $FORGE_PROMPT_ICON       : Icon displayed before agent name (default: 󰚩 U+F06A9)
 # - $_FORGE_PROVIDER         : Current provider name (e.g., "openai", "anthropic")
+# - $_FORGE_ACTIVE_MODEL     : Current model name (e.g., "claude-3-5-sonnet")
+# - $_FORGE_MESSAGE_COUNT    : Message count for current conversation (human-readable, e.g., "42k", "1.2M")
 #
 # Usage Examples:
 #
@@ -23,6 +25,7 @@
 #
 # 2. Custom ZSH (using environment variables):
 #    PROMPT='%B${(U)_FORGE_ACTIVE_AGENT}%b %F{blue}%~%f %# '
+#    RPROMPT='%F{cyan}${_FORGE_ACTIVE_MODEL}%f %F{green}${_FORGE_MESSAGE_COUNT}%f'
 #
 # 3. Powerlevel10k (add to your .p10k.zsh):
 #    function prompt_forge_agent() {
@@ -302,3 +305,12 @@ function prompt_forge_message_count_p9k() {
 
 # End of Powerlevel Integration
 #################################################################################
+
+
+
+update_forge_variables() {
+    export _FORGE_ACTIVE_MODEL=$($_FORGE_BIN config get model)
+    export _FORGE_CONVERSATION_MESSAGE_COUNT=$(prompt_forge_message_count_unstyled)
+}
+
+precmd_functions+=(update_forge_variables)
