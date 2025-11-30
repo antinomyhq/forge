@@ -8,6 +8,7 @@
 typeset -h _FORGE_BIN="${FORGE_BIN:-forge}"
 typeset -h _FORGE_CONVERSATION_PATTERN=":"
 typeset -h _FORGE_MAX_COMMIT_DIFF="${FORGE_MAX_COMMIT_DIFF:-100000}"
+typeset -h _FORGE_EDITMSG="${FORGE_EDITMSG:-FORGE_EDITMSG}"
 typeset -h _FORGE_DELIMITER='\s\s+'
 typeset -h _FORGE_PREVIEW_WINDOW="--preview-window=top:75%:wrap:border-sharp"
 
@@ -624,8 +625,8 @@ function _forge_action_editor() {
         }
     fi
     
-    # Create temporary file with git-like naming: FORGE_EDITMSG
-    local temp_file="${forge_dir}/FORGE_EDITMSG"
+    # Create temporary file with configurable naming (default: FORGE_EDITMSG)
+    local temp_file="${forge_dir}/$_FORGE_EDITMSG"
     touch "$temp_file" || {
         _forge_log error "Failed to create temporary file"
         _forge_reset
