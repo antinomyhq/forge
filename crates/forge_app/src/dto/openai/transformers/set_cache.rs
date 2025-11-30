@@ -85,6 +85,7 @@ mod tests {
             top_k: None,
             reasoning: None,
             usage: None,
+            accumulated_usage: None,
         };
 
         let request = Request::from(context);
