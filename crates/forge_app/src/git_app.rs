@@ -250,7 +250,7 @@ where
             agent_provider_resolver.get_provider(agent_id.clone()),
             agent_provider_resolver.get_model(agent_id)
         )?;
-
+        let provider = self.services.refresh_provider_credential(provider).await?;
         // Build git diff content with optional truncation notice
         // Build user message using Element
         let mut user_message = Element::new("user_message")
