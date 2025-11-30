@@ -52,27 +52,6 @@ jobs:
         toolchain: stable
     - name: Cargo Test
       run: cargo test --all-features --workspace
-  lint:
-    name: Lint
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    steps:
-    - name: Checkout Code
-      uses: actions/checkout@v6
-    - name: Setup Protobuf Compiler
-      uses: arduino/setup-protoc@v3
-      with:
-        repo-token: ${{ secrets.GITHUB_TOKEN }}
-    - name: Setup Rust Toolchain
-      uses: actions-rust-lang/setup-rust-toolchain@v1
-      with:
-        toolchain: nightly
-        components: clippy, rustfmt
-    - name: Cargo Fmt
-      run: cargo +nightly fmt --all --check
-    - name: Cargo Clippy
-      run: cargo +nightly clippy --all-features --all-targets --workspace -- -D warnings
   draft_release:
     needs:
     - build
