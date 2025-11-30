@@ -156,9 +156,14 @@ impl Environment {
 
         WorkspaceId(hasher.finish())
     }
+
+    /// Get the current working directory path
+    pub fn current_dir(&self) -> &std::path::Path {
+        &self.cwd
+    }
 }
 
-#[derive(Clone, Copy, Display)]
+#[derive(Clone, Copy, Display, Debug, PartialEq, Serialize, Deserialize)]
 pub struct WorkspaceId(u64);
 impl WorkspaceId {
     pub fn new(id: u64) -> Self {
