@@ -1,6 +1,5 @@
 use std::pin::Pin;
 
-use derive_more::From;
 use forge_json_repair::JsonRepairError;
 use thiserror::Error;
 
@@ -10,7 +9,7 @@ use crate::{AgentId, ConversationId, ProviderId};
 // up converting errors incorrectly without much context. For eg: You don't want
 // all serde error to be treated as the same. Instead we want to know exactly
 // where that serde failure happened and for what kind of value.
-#[derive(Debug, Error, From)]
+#[derive(Debug, Error)]
 pub enum Error {
     #[error("Missing tool name")]
     ToolCallMissingName,
@@ -95,6 +94,9 @@ pub enum Error {
     #[error("No default model configured for provider: {0}")]
     #[from(skip)]
     NoDefaultModel(ProviderId),
+
+    #[error("Invalid conversation title: {0}")]
+    InvalidConversationTitle(String),
 }
 
 pub type Result<A> = std::result::Result<A, Error>;
@@ -138,6 +140,18 @@ impl Error {
 
     pub fn no_default_model(provider: ProviderId) -> Self {
         Self::NoDefaultModel(provider)
+    }
+}
+
+impl From<uuid::Error> for Error {
+    fn from(err: uuid::Error) -> Self {
+        Self::ConversationId(err)
+    }
+}
+
+impl From<ToolCallArgumentError> for Error {
+    fn from(err: ToolCallArgumentError) -> Self {
+        Self::EToolCallArgument(err)
     }
 }
 
