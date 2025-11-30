@@ -1380,7 +1380,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     }
 
     async fn on_zsh_prompt(&self) -> anyhow::Result<()> {
-        println!("{}", include_str!("../../../shell-plugin/forge.plugin.zsh"));
+        let plugin = crate::zsh_plugin::generate_zsh_plugin()?;
+        println!("{plugin}");
         Ok(())
     }
 

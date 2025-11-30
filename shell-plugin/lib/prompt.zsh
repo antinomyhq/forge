@@ -13,6 +13,7 @@
 # - $_FORGE_ACTIVE_AGENT     : Current agent ID (e.g., "forge", "sage")
 # - $_FORGE_CONVERSATION_ID  : Current conversation UUID (empty if no conversation)
 # - $FORGE_PROMPT_ICON       : Icon displayed before agent name (default: 󰚩 U+F06A9)
+# - $_FORGE_PROVIDER         : Current provider name (e.g., "openai", "anthropic")
 #
 # Usage Examples:
 #
@@ -39,6 +40,8 @@
 #
 # 5. Show token count in your prompt:
 #    RPROMPT='$(prompt_forge_model) [$(prompt_forge_message_count)]'
+#
+# 6. Powerlevel10k integration:
 
 #################################################################################
 # INTERNAL HELPERS
@@ -47,6 +50,30 @@
 # Returns the forge command to use (private helper)
 function _prompt_forge_cmd() {
     echo "${_FORGE_BIN:-${FORGE_BIN:-forge}}"
+}
+
+
+# Internal helper for Powerlevel9k/10k segment rendering
+# Takes styled content and renders it appropriately for P10k or P9k
+#
+# Args:
+#   $1 - styled content to display
+function _prompt_forge_p9k_segment() {
+    local styled="$1"
+    # Strip leading and trailing whitespace
+    styled="${styled#"${styled%%[![:space:]]*}"}"
+    styled="${styled%"${styled##*[![:space:]]}"}"
+    
+    if [[ -n "$styled" ]]; then
+        # Check if p10k is available
+        if (( $+functions[p10k] )); then
+            # Powerlevel10k - use p10k segment with our styling
+            p10k segment -t "$styled"
+        else
+            # Powerlevel9k - output directly
+            echo -n "$styled"
+        fi
+    fi
 }
 
 #################################################################################
@@ -87,6 +114,22 @@ function prompt_forge_model_unstyled() {
     fi
 }
 
+# Returns unstyled right prompt content (provider name)
+# Returns provider without any styling
+#
+# Example output: "openai" or "" (empty if no provider)
+#
+# Example:
+#   provider=$(prompt_forge_provider_unstyled)
+#   RPROMPT="%F{blue}${provider}%f"
+function prompt_forge_provider_unstyled() {
+    local provider_output=$($(_prompt_forge_cmd) config get provider --porcelain 2>/dev/null)
+    
+    if [[ -n "$provider_output" ]]; then
+        echo "${provider_output}"
+    fi
+}
+
 # Returns a styled left prompt segment (agent name)
 # This is a ready-to-use function for ZSH prompts
 #
@@ -120,6 +163,22 @@ function prompt_forge_agent() {
 #   RPROMPT='$(prompt_forge_model)'
 function prompt_forge_model() {
     local content=$(prompt_forge_model_unstyled)
+    if [[ -n "$content" ]]; then
+        # Always cyan regardless of conversation state
+        echo "%F{cyan}${content}%f"
+    fi
+}
+
+# Returns a styled right prompt segment (provider name)
+# This is a ready-to-use function for ZSH prompts
+#
+# Format: provider name
+# Color: Cyan (consistent with model)
+#
+# Example:
+#   RPROMPT='$(prompt_forge_provider)'
+function prompt_forge_provider() {
+    local content=$(prompt_forge_provider_unstyled)
     if [[ -n "$content" ]]; then
         # Always cyan regardless of conversation state
         echo "%F{cyan}${content}%f"
@@ -198,35 +257,23 @@ function prompt_forge_message_count() {
 # To use, add these segment names to your prompt elements:
 # - 'forge_agent' for the left prompt (agent name)
 # - 'forge_model' for the right prompt (model name)
+# - 'forge_provider' for the right prompt (provider name)
 # - 'forge_message_count' for the right prompt (token count)
 #
 # Example in your .p10k.zsh or .zshrc:
 #   POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=(... forge_agent ...)
-#   POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=(... forge_model forge_message_count ...)
+#   POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=(... forge_model forge_provider forge_message_count ...)
 #
 # Or for Powerlevel9k:
 #   POWERLEVEL9K_LEFT_PROMPT_ELEMENTS=(context ... forge_agent dir vcs)
-#   POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=(status forge_model forge_message_count time)
+#   POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS=(status forge_model forge_provider forge_message_count time)
 
 # Powerlevel segment for agent name (left prompt)
 # Applies consistent styling across P10k and P9k
 #
 # Usage: Add 'forge_agent' to POWERLEVEL9K_LEFT_PROMPT_ELEMENTS
 function prompt_forge_agent_p9k() {
-    local styled=$(prompt_forge_agent)
-    if [[ -n "$styled" ]]; then
-        # Remove trailing space for segments
-        styled="${styled% }"
-        
-        # Check if p10k is available
-        if (( $+functions[p10k] )); then
-            # Powerlevel10k - use p10k segment with our styling
-            p10k segment -t "$styled"
-        else
-            # Powerlevel9k - output directly
-            echo -n "$styled"
-        fi
-    fi
+    _prompt_forge_p9k_segment "$(prompt_forge_agent)"
 }
 
 # Powerlevel segment for model name (right prompt)
@@ -234,17 +281,15 @@ function prompt_forge_agent_p9k() {
 #
 # Usage: Add 'forge_model' to POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS
 function prompt_forge_model_p9k() {
-    local styled=$(prompt_forge_model)
-    if [[ -n "$styled" ]]; then
-        # Check if p10k is available
-        if (( $+functions[p10k] )); then
-            # Powerlevel10k - use p10k segment with our styling
-            p10k segment -t "$styled"
-        else
-            # Powerlevel9k - output directly
-            echo -n "$styled"
-        fi
-    fi
+    _prompt_forge_p9k_segment "$(prompt_forge_model)"
+}
+
+# Powerlevel segment for provider name (right prompt)
+# Applies consistent styling across P10k and P9k
+#
+# Usage: Add 'forge_provider' to POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS
+function prompt_forge_provider_p9k() {
+    _prompt_forge_p9k_segment "$(prompt_forge_provider)"
 }
 
 # Powerlevel segment for token count (right prompt)
@@ -252,17 +297,7 @@ function prompt_forge_model_p9k() {
 #
 # Usage: Add 'forge_message_count' to POWERLEVEL9K_RIGHT_PROMPT_ELEMENTS
 function prompt_forge_message_count_p9k() {
-    local styled=$(prompt_forge_message_count)
-    if [[ -n "$styled" ]]; then
-        # Check if p10k is available
-        if (( $+functions[p10k] )); then
-            # Powerlevel10k - use p10k segment with our styling
-            p10k segment -t "$styled"
-        else
-            # Powerlevel9k - output directly
-            echo -n "$styled"
-        fi
-    fi
+    _prompt_forge_p9k_segment "$(prompt_forge_message_count)"
 }
 
 # End of Powerlevel Integration
