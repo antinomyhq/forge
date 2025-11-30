@@ -1,6 +1,7 @@
 import React from "react";
 import { MessageItem } from "./MessageItem";
 import { ToolCallCard } from "./ToolCallCard";
+import { ReasoningBlock } from "./ReasoningBlock";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 // Simplified message type matching ChatState
@@ -8,10 +9,11 @@ export interface SimpleMessage {
   role?: 'user' | 'assistant';
   content?: string;
   timestamp: number;
-  type?: 'tool';
+  type?: 'tool' | 'reasoning';
   toolName?: string;
   args?: Record<string, any>;
   status?: 'running' | 'completed' | 'failed';
+  reasoning?: string;
 }
 
 interface MessageListProps {
@@ -30,6 +32,16 @@ export const MessageList: React.FC<MessageListProps> = ({ messages }) => {
     <ScrollArea className="h-full w-full">
       <div className="space-y-2 p-4">
         {messages.map((message, idx) => {
+          // Show ReasoningBlock for reasoning messages
+          if (message.type === 'reasoning' && message.reasoning) {
+            return (
+              <ReasoningBlock
+                key={idx}
+                reasoning={{ content: message.reasoning }}
+              />
+            );
+          }
+          
           // Show ToolCallCard for tool messages
           if (message.type === 'tool' && message.toolName) {
             return (

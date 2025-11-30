@@ -77,10 +77,20 @@ export function AgentPicker({
             <CommandEmpty>No agent found.</CommandEmpty>
             <CommandGroup>
               {agents.map((agent) => {
+                // Create searchable value combining ID, title, and description
+                const searchValue = [
+                  agent.id,
+                  agent.title,
+                  agent.description,
+                ]
+                  .filter(Boolean)
+                  .join(' ');
+                
                 return (
                   <CommandItem
                     key={agent.id}
-                    value={agent.id}  // Search by ID
+                    value={searchValue}  // Search by combined text
+                    keywords={[agent.id, agent.title].filter(Boolean) as string[]}
                     onSelect={() => handleSelect(agent.id)}
                     className="flex items-start gap-2"
                   >

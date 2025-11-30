@@ -1,14 +1,15 @@
 import { useCallback } from 'react';
-import { Effect, Runtime } from 'effect';
-import { VscodeRpcService } from '@/infrastructure/vscode/VscodeRpcServiceSimple';
-import { ChatStateService } from '@/application/state/ChatStateServiceSimple';
-import { useRuntime } from './useRuntimeSimple';
+import { Effect } from 'effect';
+import { VscodeRpcService } from '@/infrastructure/vscode/VscodeRpcService';
+import { ChatStateService } from '@/application/state/ChatStateService';
+import { useEffectCallback } from './useEffectBridge';
 
+/**
+ * Hook for chat actions using Effect-TS with proper cancellation
+ */
 export function useChatActions() {
-  const runtime = useRuntime();
-  
-  const sendMessage = useCallback((text: string) => {
-    const program = Effect.gen(function* () {
+  const sendMessage = useEffectCallback((text: string) =>
+    Effect.gen(function* () {
       const vscode = yield* VscodeRpcService;
       const chatState = yield* ChatStateService;
       
@@ -17,7 +18,7 @@ export function useChatActions() {
       // Add user message to state
       yield* chatState.addUserMessage(text);
       
-      // Show loading spinner (like Rust CLI spinner.start())
+      // Show loading spinner
       yield* chatState.setLoading(true);
       
       console.log('[useChatActions] Loading state set, sending to extension');
@@ -26,44 +27,34 @@ export function useChatActions() {
       yield* vscode.sendMessage(text);
       
       console.log('[useChatActions] Message sent to extension');
-    });
-    
-    Runtime.runPromise(runtime)(program).catch((error) => {
-      console.error('[useChatActions] Error sending message:', error);
-    });
-  }, [runtime]);
+    })
+  );
   
-  const changeModel = useCallback((modelId: string) => {
-    const program = Effect.gen(function* () {
+  const changeModel = useEffectCallback((modelId: string) =>
+    Effect.gen(function* () {
       const vscode = yield* VscodeRpcService;
       yield* vscode.changeModel(modelId);
-    });
-    
-    Runtime.runPromise(runtime)(program).catch(console.error);
-  }, [runtime]);
+    })
+  );
   
-  const changeAgent = useCallback((agentId: string) => {
-    const program = Effect.gen(function* () {
+  const changeAgent = useEffectCallback((agentId: string) =>
+    Effect.gen(function* () {
       const vscode = yield* VscodeRpcService;
       yield* vscode.changeAgent(agentId);
-    });
-    
-    Runtime.runPromise(runtime)(program).catch(console.error);
-  }, [runtime]);
+    })
+  );
   
-  const initialize = useCallback(() => {
-    const program = Effect.gen(function* () {
+  const initialize = useEffectCallback(() =>
+    Effect.gen(function* () {
       const vscode = yield* VscodeRpcService;
       yield* vscode.sendReady;
       yield* vscode.requestModels;
       yield* vscode.requestAgents;
-    });
-    
-    Runtime.runPromise(runtime)(program).catch(console.error);
-  }, [runtime]);
+    })
+  );
   
-  const cancelMessage = useCallback(() => {
-    const program = Effect.gen(function* () {
+  const cancelMessage = useEffectCallback(() =>
+    Effect.gen(function* () {
       const chatState = yield* ChatStateService;
       const state = yield* chatState.getState;
       
@@ -79,16 +70,20 @@ export function useChatActions() {
         yield* chatState.updateStreaming('', false);
         yield* chatState.setLoading(false);
       }
-    });
-    
-    Runtime.runPromise(runtime)(program).catch(console.error);
-  }, [runtime]);
+    })
+  );
+  
+  const [sendMessageFn] = sendMessage;
+  const [changeModelFn] = changeModel;
+  const [changeAgentFn] = changeAgent;
+  const [initializeFn] = initialize;
+  const [cancelMessageFn] = cancelMessage;
   
   return {
-    sendMessage,
-    changeModel,
-    changeAgent,
-    initialize,
-    cancelMessage,
+    sendMessage: useCallback((text: string) => sendMessageFn(text), [sendMessageFn]),
+    changeModel: useCallback((modelId: string) => changeModelFn(modelId), [changeModelFn]),
+    changeAgent: useCallback((agentId: string) => changeAgentFn(agentId), [changeAgentFn]),
+    initialize: useCallback(() => initializeFn(), [initializeFn]),
+    cancelMessage: useCallback(() => cancelMessageFn(), [cancelMessageFn]),
   };
 }

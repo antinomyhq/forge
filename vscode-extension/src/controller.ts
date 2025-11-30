@@ -277,15 +277,9 @@ export class Controller {
         if ('Title' in content) {
             this.handleTitle(content.Title);
         } else if ('PlainText' in content) {
-            this.webviewProvider.postMessage({
-                type: 'streamDelta',
-                delta: content.PlainText
-            });
+            this.webviewProvider.streamDelta(content.PlainText);
         } else if ('Markdown' in content) {
-            this.webviewProvider.postMessage({
-                type: 'streamDelta',
-                delta: content.Markdown
-            });
+            this.webviewProvider.streamDelta(content.Markdown);
         }
     }
 
@@ -309,12 +303,8 @@ export class Controller {
     /**
      * Handle TaskReasoning event
      */
-    private handleTaskReasoning(content: ChatResponseContent): void {
-        if ('PlainText' in content) {
-            this.webviewProvider.showReasoning(content.PlainText);
-        } else if ('Markdown' in content) {
-            this.webviewProvider.showReasoning(content.Markdown);
-        }
+    private handleTaskReasoning(content: string): void {
+        this.webviewProvider.showReasoning(content);
     }
 
     /**
@@ -329,10 +319,13 @@ export class Controller {
         
         // Show tool call in UI
         this.webviewProvider.postMessage({
-            type: 'toolCallStart',
-            tool: toolName,
-            callId: callId,
-            arguments: toolCall.arguments
+            jsonrpc: '2.0',
+            method: 'tool/callStart',
+            params: {
+                tool: toolName,
+                callId: callId,
+                arguments: toolCall.arguments
+            }
         });
     }
 
@@ -365,11 +358,14 @@ export class Controller {
         
         // Show tool result in UI
         this.webviewProvider.postMessage({
-            type: 'toolCallEnd',
-            tool: toolName,
-            callId: callId,
-            output: outputText,
-            isError: isError
+            jsonrpc: '2.0',
+            method: 'tool/callEnd',
+            params: {
+                tool: toolName,
+                callId: callId,
+                output: outputText,
+                isError: isError
+            }
         });
     }
 
@@ -533,9 +529,12 @@ export class Controller {
         
         // Forward to webview so it can track the turn ID for cancellation
         this.webviewProvider?.postMessage({
-            type: 'turn/started',
-            threadId: params.thread_id,
-            turnId: params.turn_id,
+            jsonrpc: '2.0',
+            method: 'turn/started',
+            params: {
+                threadId: params.thread_id,
+                turnId: params.turn_id,
+            }
         });
     }
 
@@ -553,10 +552,13 @@ export class Controller {
         
         // Forward to webview
         this.webviewProvider.postMessage({
-            type: 'turn/completed',
-            threadId: params.thread_id,
-            turnId: params.turn_id,
-            status: params.status,
+            jsonrpc: '2.0',
+            method: 'turn/completed',
+            params: {
+                threadId: params.thread_id,
+                turnId: params.turn_id,
+                status: params.status,
+            }
         });
         
         // End streaming

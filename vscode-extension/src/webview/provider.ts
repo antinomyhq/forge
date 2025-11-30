@@ -118,8 +118,9 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
      */
     public updateState(state: any): void {
         this.postMessage({
-            type: 'state',
-            ...state
+            jsonrpc: '2.0',
+            method: 'state/update',
+            params: state
         });
     }
 
@@ -127,63 +128,99 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
      * Show streaming message
      */
     public streamStart(): void {
-        this.postMessage({ type: 'streamStart' });
+        this.postMessage({ 
+            jsonrpc: '2.0',
+            method: 'stream/start',
+            params: {}
+        });
     }
 
     /**
      * Add delta to streaming message
      */
     public streamDelta(delta: string): void {
-        this.postMessage({ type: 'streamDelta', delta });
+        this.postMessage({ 
+            jsonrpc: '2.0',
+            method: 'stream/delta',
+            params: { delta }
+        });
     }
 
     /**
      * End streaming
      */
     public streamEnd(): void {
-        this.postMessage({ type: 'streamEnd' });
+        this.postMessage({ 
+            jsonrpc: '2.0',
+            method: 'stream/end',
+            params: {}
+        });
     }
 
     /**
      * Show tool execution
      */
     public showTool(tool: unknown): void {
-        this.postMessage({ type: 'tool', data: tool });
+        this.postMessage({ 
+            jsonrpc: '2.0',
+            method: 'tool/show',
+            params: { tool }
+        });
     }
 
     /**
      * Show reasoning
      */
     public showReasoning(text: string): void {
-        this.postMessage({ type: 'reasoning', text });
+        this.postMessage({ 
+            jsonrpc: '2.0',
+            method: 'reasoning/show',
+            params: { text }
+        });
     }
 
     /**
      * Request approval
      */
     public requestApproval(approval: unknown): void {
-        this.postMessage({ type: 'approval', data: approval });
+        this.postMessage({ 
+            jsonrpc: '2.0',
+            method: 'approval/request',
+            params: { approval }
+        });
     }
 
     /**
      * Update header info
      */
     public updateHeader(data: unknown): void {
-        this.postMessage({ type: 'updateHeader', data });
+        this.postMessage({ 
+            jsonrpc: '2.0',
+            method: 'header/update',
+            params: data
+        });
     }
 
     /**
      * Send models list to webview
      */
     public sendModelsList(models: unknown[]): void {
-        this.postMessage({ type: 'modelsList', models });
+        this.postMessage({ 
+            jsonrpc: '2.0',
+            method: 'models/list',
+            params: { models }
+        });
     }
 
     /**
      * Send agents list to webview
      */
     public sendAgentsList(agents: unknown[]): void {
-        this.postMessage({ type: 'agentsList', agents });
+        this.postMessage({ 
+            jsonrpc: '2.0',
+            method: 'agents/list',
+            params: { agents }
+        });
     }
 
     /**
@@ -192,20 +229,27 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
     private handleWebviewMessage(message: any): void {
         this.outputChannel.appendLine(`[Webview] Received message: ${JSON.stringify(message).substring(0, 200)}`);
 
-        // Handle messages based on type
-        switch (message.type) {
+        // Support both legacy (type) and JSON-RPC (method) formats
+        const method = message.method || message.type;
+        const params = message.params || message;
+
+        // Handle messages based on method
+        switch (method) {
+            case 'webview/ready':
             case 'ready':
                 this.outputChannel.appendLine('[Webview] Calling onReady callback');
                 if (this.onReadyCallback) {
                     this.onReadyCallback();
                 }
                 break;
+            case 'chat/sendMessage':
             case 'sendMessage':
-                this.outputChannel.appendLine(`[Webview] Calling onSendMessage callback with: ${message.text}`);
+                this.outputChannel.appendLine(`[Webview] Calling onSendMessage callback with: ${params.text || message.text}`);
                 if (this.onSendMessageCallback) {
-                    this.onSendMessageCallback(message.text);
+                    this.onSendMessageCallback(params.text || message.text);
                 }
                 break;
+            case 'turn/cancel':
             case 'cancel':
                 this.outputChannel.appendLine('[Webview] Calling onCancel callback');
                 if (this.onCancelCallback) {
@@ -216,27 +260,31 @@ export class ChatWebviewProvider implements vscode.WebviewViewProvider {
                 this.outputChannel.appendLine('[Webview] Calling onApproval callback');
                 if (this.onApprovalCallback) {
                     this.onApprovalCallback({
-                        id: message.id,
-                        decision: message.decision
+                        id: params.id || message.id,
+                        decision: params.decision || message.decision
                     });
                 }
                 break;
+            case 'model/change':
             case 'modelChange':
-                this.outputChannel.appendLine(`[Webview] Model change requested: ${message.modelId}`);
+                this.outputChannel.appendLine(`[Webview] Model change requested: ${params.modelId || message.modelId}`);
                 if (this.onModelChangeCallback) {
-                    this.onModelChangeCallback(message.modelId);
+                    this.onModelChangeCallback(params.modelId || message.modelId);
                 }
                 break;
+            case 'agent/change':
             case 'agentChange':
-                this.outputChannel.appendLine(`[Webview] Agent change requested: ${message.agentId}`);
+                this.outputChannel.appendLine(`[Webview] Agent change requested: ${params.agentId || message.agentId}`);
                 if (this.onAgentChangeCallback) {
-                    this.onAgentChangeCallback(message.agentId);
+                    this.onAgentChangeCallback(params.agentId || message.agentId);
                 }
                 break;
+            case 'models/request':
             case 'requestModels':
                 this.outputChannel.appendLine('[Webview] Requesting models list');
                 // This will be handled by controller
                 break;
+            case 'agents/request':
             case 'requestAgents':
                 this.outputChannel.appendLine('[Webview] Requesting agents list');
                 // This will be handled by controller

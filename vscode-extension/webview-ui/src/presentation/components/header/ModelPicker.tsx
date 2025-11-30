@@ -90,10 +90,20 @@ export const ModelPicker: React.FC<ModelPickerProps> = ({
               {models.map((model) => {
                 const isSelected = model.id === selectedModelId;
                 
+                // Create searchable value combining ID, name, and description
+                const searchValue = [
+                  model.id,
+                  model.name,
+                  model.description,
+                ]
+                  .filter(Boolean)
+                  .join(' ');
+                
                 return (
                   <CommandItem
                     key={model.id}
-                    value={model.id}  // Search by ID
+                    value={searchValue}  // Search by combined text
+                    keywords={[model.id, model.name].filter(Boolean) as string[]}
                     onSelect={() => handleSelect(model.id)}
                     className="flex flex-col items-start gap-1 py-2"
                   >

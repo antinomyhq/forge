@@ -12,10 +12,11 @@ interface MessageItemProps {
     role?: 'user' | 'assistant';
     content?: string;
     timestamp: number;
-    type?: 'tool';
+    type?: 'tool' | 'reasoning';
     toolName?: string;
     args?: Record<string, any>;
     status?: 'running' | 'completed' | 'failed';
+    reasoning?: string;
   };
 }
 

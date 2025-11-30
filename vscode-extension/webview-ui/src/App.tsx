@@ -1,16 +1,23 @@
 import { useEffect } from 'react';
-import { useChatState, useChatStateUpdater } from './presentation/hooks/useChatStateSimple';
-import { useChatActions } from './presentation/hooks/useChatActionsSimple';
+import { Effect, Runtime, Stream, Fiber } from 'effect';
+import { JsonRpcService } from '@/infrastructure/rpc/JsonRpcService';
+import { useChatState } from './presentation/hooks/useChatState';
+import { useChatStateUpdater } from './presentation/hooks/useChatStateUpdater';
+import { useChatActions } from './presentation/hooks/useChatActions';
+import { useRuntime } from './presentation/hooks/useRuntime';
 import { ChatLayout } from './presentation/components/layout/ChatLayout';
 import { ChatHeader } from './presentation/components/header/ChatHeader';
 import { WelcomeScreen } from './presentation/components/layout/WelcomeScreen';
 import { MessageList } from './presentation/components/chat/MessageList';
 import { InputBox } from './presentation/components/chat/InputBox';
 import { StreamingIndicator } from './presentation/components/chat/StreamingIndicator';
+import { EffectErrorBoundary } from './presentation/components/error/EffectErrorBoundary';
 import { initVSCodeTheme, watchVSCodeTheme } from './lib/vscode-theme';
 import './index.css';
 
 function App() {
+  console.log('[App] ===== FORGE WEBVIEW LOADED (v2 - JSON-RPC ONLY) =====');
+  const runtime = useRuntime();
   const chatState = useChatState();
   const { updateFromMessage } = useChatStateUpdater();
   const { sendMessage, changeModel, changeAgent, initialize, cancelMessage } = useChatActions();
@@ -22,30 +29,42 @@ function App() {
     watchVSCodeTheme();
   }, []);
 
-  // Initialize Effect-TS and listen for messages
+  // Initialize Effect-TS and listen for messages using Effect streams
   useEffect(() => {
-    console.log('[App] Initializing with Effect-TS...');
-    
-    // Initialize (send ready + request models)
-    initialize();
+    console.log('[App] Initializing with Effect-TS streams...');
 
-    // Listen for messages from extension
-    const handleMessage = (event: MessageEvent) => {
-      const message = event.data;
-      console.log('[App] Received message:', message);
+    // Subscribe to message stream from JsonRpcService FIRST, then initialize
+    const program = Effect.gen(function* () {
+      const rpc = yield* JsonRpcService;
       
-      // Update Effect state
-      updateFromMessage(message);
-    };
+      console.log('[App] Subscribing to JsonRpcService.notifications stream');
+      
+      // Subscribe to all notifications and update state
+      yield* Effect.forkDaemon(
+        Stream.runForEach(rpc.notifications, (message) =>
+          Effect.sync(() => {
+            console.log('[App] Received message via stream:', message);
+            updateFromMessage(message);
+          })
+        )
+      );
+      
+      // NOW send ready + request models/agents (after listener is set up)
+      console.log('[App] JsonRpcService ready, sending initialization messages...');
+      yield* Effect.sync(() => initialize());
+    });
 
-    window.addEventListener('message', handleMessage);
-    console.log('[App] Message listener attached');
+    // Use runFork for async operations, returns RuntimeFiber
+    const runningFiber = Runtime.runFork(runtime)(program);
+    console.log('[App] Message stream subscription active');
 
     return () => {
-      window.removeEventListener('message', handleMessage);
-      console.log('[App] Message listener detached');
+      console.log('[App] Cleaning up message stream subscription');
+      // Interrupt the running fiber asynchronously (fire and forget)
+      Runtime.runPromise(runtime)(Fiber.interrupt(runningFiber)).catch(console.error);
     };
-  }, [initialize, updateFromMessage]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runtime]); // Only depend on runtime - initialize and updateFromMessage are stable
 
   // Handle quick action from welcome screen
   const handleQuickAction = (action: string) => {
@@ -55,7 +74,17 @@ function App() {
   const isEmpty = chatState.messages.length === 0 && !chatState.isStreaming && !chatState.isLoading;
 
   return (
-    <ChatLayout
+    <EffectErrorBoundary
+      fallback={(error, reset) => (
+        <div style={{ padding: '20px', color: 'var(--vscode-errorForeground)' }}>
+          <h3>Application Error</h3>
+          <p>{error.message}</p>
+          <button onClick={reset}>Try Again</button>
+          <button onClick={() => window.location.reload()}>Reload</button>
+        </div>
+      )}
+    >
+      <ChatLayout
       header={
         <ChatHeader
           agentName={chatState.agentName}
@@ -90,7 +119,8 @@ function App() {
       welcome={
         <WelcomeScreen onQuickAction={handleQuickAction} />
       }
-    />
+      />
+    </EffectErrorBoundary>
   );
 }
 
