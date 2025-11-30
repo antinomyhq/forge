@@ -4,11 +4,10 @@ use std::time::Duration;
 use bytes::Bytes;
 use derive_setters::Setters;
 use forge_domain::{
-    AgentId, AnyProvider, Attachment, AuthContextRequest, AuthContextResponse, AuthCredential,
-    AuthMethod, ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId,
-    Environment, File, Image, InitAuth, LoginInfo, McpConfig, McpServers, Model, ModelId,
-    PatchOperation, Provider, ProviderId, ResultStream, Scope, Template, ToolCallFull, ToolOutput,
-    Workflow,
+    AgentId, AnyProvider, Attachment, AuthContextRequest, AuthContextResponse, AuthMethod,
+    ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId, Environment, File,
+    Image, InitAuth, LoginInfo, McpConfig, McpServers, Model, ModelId, PatchOperation, Provider,
+    ProviderId, ResultStream, Scope, Template, ToolCallFull, ToolOutput, Workflow,
 };
 use merge::Merge;
 use reqwest::Response;
@@ -474,11 +473,16 @@ pub trait ProviderAuthService: Send + Sync {
         context: AuthContextResponse,
         timeout: Duration,
     ) -> anyhow::Result<()>;
+
+    /// Refreshes provider credentials if they're about to expire.
+    /// Checks if credential needs refresh (5 minute buffer before expiry),
+    /// iterates through provider's auth methods, and attempts to refresh.
+    /// Returns the provider with updated credentials, or original if refresh
+    /// fails or isn't needed.
     async fn refresh_provider_credential(
         &self,
-        provider: &Provider<Url>,
-        method: AuthMethod,
-    ) -> anyhow::Result<AuthCredential>;
+        provider: Provider<Url>,
+    ) -> anyhow::Result<Provider<Url>>;
 }
 
 /// Core app trait providing access to services and repositories.
@@ -986,11 +990,10 @@ impl<I: Services> ProviderAuthService for I {
     }
     async fn refresh_provider_credential(
         &self,
-        provider: &Provider<Url>,
-        method: AuthMethod,
-    ) -> anyhow::Result<AuthCredential> {
+        provider: Provider<Url>,
+    ) -> anyhow::Result<Provider<Url>> {
         self.provider_auth_service()
-            .refresh_provider_credential(provider, method)
+            .refresh_provider_credential(provider)
             .await
     }
 }
