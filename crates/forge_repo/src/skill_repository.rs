@@ -108,10 +108,10 @@ impl<I: FileInfoInfra + EnvironmentInfra + FileReaderInfra + WalkerInfra> ForgeS
             return Ok(vec![]);
         }
 
-        // Walk the directory with max_depth=1 to get only direct subdirectories
         let walker = Walker::unlimited()
             .cwd(dir.to_path_buf())
-            .max_depth(1_usize);
+            .max_depth(1_usize)
+            .max_breadth(usize::MAX); // Override breadth limit to see all skill directories
         let entries = self
             .infra
             .walk(walker)
