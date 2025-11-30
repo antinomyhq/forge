@@ -1,8 +1,8 @@
 use anyhow::Result;
+use diesel::prelude::*;
 use diesel::r2d2::{ConnectionManager, Pool, PooledConnection};
 use diesel::sqlite::SqliteConnection;
 use diesel_migrations::{embed_migrations, EmbeddedMigrations, MigrationHarness};
-use diesel::prelude::*;
 use tracing::debug;
 
 pub type DbPool = Pool<ConnectionManager<SqliteConnection>>;
@@ -15,9 +15,9 @@ pub struct DatabasePool {
 
 impl DatabasePool {
     pub fn get_connection(&self) -> Result<PooledSqliteConnection, anyhow::Error> {
-        self.pool.get().map_err(|e| {
-            anyhow::anyhow!("Failed to get connection from pool: {e}")
-        })
+        self.pool
+            .get()
+            .map_err(|e| anyhow::anyhow!("Failed to get connection from pool: {e}"))
     }
 
     pub fn in_memory() -> Result<Self, anyhow::Error> {
@@ -47,7 +47,9 @@ impl TryFrom<PoolConfig> for DatabasePool {
 
         let pool = DbPool::builder()
             .max_size(config.max_connections)
-            .build(ConnectionManager::new(config.database_path.to_string_lossy().to_string()))
+            .build(ConnectionManager::new(
+                config.database_path.to_string_lossy().to_string(),
+            ))
             .map_err(|e| anyhow::anyhow!("Failed to create database pool: {e}"))?;
 
         let mut conn = pool.get()?;
@@ -61,14 +63,10 @@ impl TryFrom<PoolConfig> for DatabasePool {
 impl DatabasePool {
     fn setup_connection(conn: &mut SqliteConnection) -> Result<(), anyhow::Error> {
         debug!("Setting up database connection");
-        diesel::sql_query("PRAGMA busy_timeout = 30000;")
-            .execute(conn)?;
-        diesel::sql_query("PRAGMA journal_mode = WAL;")
-            .execute(conn)?;
-        diesel::sql_query("PRAGMA synchronous = NORMAL;")
-            .execute(conn)?;
-        diesel::sql_query("PRAGMA wal_autocheckpoint = 1000;")
-            .execute(conn)?;
+        diesel::sql_query("PRAGMA busy_timeout = 30000;").execute(conn)?;
+        diesel::sql_query("PRAGMA journal_mode = WAL;").execute(conn)?;
+        diesel::sql_query("PRAGMA synchronous = NORMAL;").execute(conn)?;
+        diesel::sql_query("PRAGMA wal_autocheckpoint = 1000;").execute(conn)?;
         Ok(())
     }
 
@@ -89,9 +87,6 @@ pub struct PoolConfig {
 
 impl PoolConfig {
     pub fn new(database_path: std::path::PathBuf) -> Self {
-        Self {
-            database_path,
-            max_connections: 10,
-        }
+        Self { database_path, max_connections: 10 }
     }
 }

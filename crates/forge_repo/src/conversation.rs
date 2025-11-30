@@ -178,20 +178,16 @@ pub struct ConversationRepositoryImpl {
 
 impl ConversationRepositoryImpl {
     pub fn new(pool: Arc<DatabasePool>, workspace_id: WorkspaceId) -> Self {
-        Self { 
-            pool, 
-            wid: workspace_id,
-            workspace_repository: None,
-        }
+        Self { pool, wid: workspace_id, workspace_repository: None }
     }
 
     pub fn with_workspace_repository(
-        pool: Arc<DatabasePool>, 
+        pool: Arc<DatabasePool>,
         workspace_id: WorkspaceId,
-        workspace_repository: Arc<dyn WorkspaceRepository>
+        workspace_repository: Arc<dyn WorkspaceRepository>,
     ) -> Self {
-        Self { 
-            pool, 
+        Self {
+            pool,
             wid: workspace_id,
             workspace_repository: Some(workspace_repository),
         }
@@ -220,7 +216,8 @@ impl ConversationRepository for ConversationRepositoryImpl {
         let mut connection = self.pool.get_connection()?;
 
         // Ensure workspace exists (we'll use current directory as fallback)
-        self.ensure_workspace_exists(&std::env::current_dir().unwrap_or_default()).await;
+        self.ensure_workspace_exists(&std::env::current_dir().unwrap_or_default())
+            .await;
 
         let wid = self.wid;
         let record = ConversationRecord::new(conversation, wid);
@@ -308,11 +305,18 @@ impl ConversationRepository for ConversationRepositoryImpl {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{ContextMessage, Conversation, ConversationId, Context, WorkspaceId, Metrics, FileOperation, ToolKind, ConversationRepository};
-    use pretty_assertions::assert_eq;
     use std::sync::Arc;
+
     use chrono::Utc;
-    use crate::{ConversationRepositoryImpl, database::DatabasePool, conversation::{ConversationRecord, MetricsRecord}};
+    use forge_domain::{
+        Context, ContextMessage, Conversation, ConversationId, ConversationRepository,
+        FileOperation, Metrics, ToolKind, WorkspaceId,
+    };
+    use pretty_assertions::assert_eq;
+
+    use crate::conversation::{ConversationRecord, MetricsRecord};
+    use crate::database::DatabasePool;
+    use crate::ConversationRepositoryImpl;
 
     fn repository() -> anyhow::Result<ConversationRepositoryImpl> {
         let pool = Arc::new(DatabasePool::in_memory()?);

@@ -54,11 +54,12 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
 
         let workspace_repository = Arc::new(WorkspaceRepositoryImpl::new(db_pool.clone()));
 
-        let conversation_repository = Arc::new(ConversationRepositoryImpl::with_workspace_repository(
-            db_pool.clone(), 
-            env.workspace_id(),
-            workspace_repository.clone()
-        ));
+        let conversation_repository =
+            Arc::new(ConversationRepositoryImpl::with_workspace_repository(
+                db_pool.clone(),
+                env.workspace_id(),
+                workspace_repository.clone(),
+            ));
 
         let app_config_repository = Arc::new(AppConfigRepositoryImpl::new(infra.clone()));
 
@@ -128,11 +129,19 @@ impl<F: Send + Sync> ConversationRepository for ForgeRepo<F> {
 
 #[async_trait::async_trait]
 impl<F: Send + Sync> WorkspaceRepository for ForgeRepo<F> {
-    fn create_or_update_workspace(&self, workspace_id: forge_domain::WorkspaceId, folder_path: &std::path::Path) -> anyhow::Result<forge_domain::Workspace> {
-        self.workspace_repository.create_or_update_workspace(workspace_id, folder_path)
+    fn create_or_update_workspace(
+        &self,
+        workspace_id: forge_domain::WorkspaceId,
+        folder_path: &std::path::Path,
+    ) -> anyhow::Result<forge_domain::Workspace> {
+        self.workspace_repository
+            .create_or_update_workspace(workspace_id, folder_path)
     }
 
-    fn get_workspace_by_id(&self, workspace_id: forge_domain::WorkspaceId) -> anyhow::Result<Option<forge_domain::Workspace>> {
+    fn get_workspace_by_id(
+        &self,
+        workspace_id: forge_domain::WorkspaceId,
+    ) -> anyhow::Result<Option<forge_domain::Workspace>> {
         self.workspace_repository.get_workspace_by_id(workspace_id)
     }
 

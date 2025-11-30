@@ -35,7 +35,11 @@ impl Workspace {
 /// Repository trait for workspace operations
 pub trait WorkspaceRepository: Send + Sync {
     /// Create or update a workspace entry
-    fn create_or_update_workspace(&self, workspace_id: WorkspaceId, folder_path: &std::path::Path) -> Result<Workspace>;
+    fn create_or_update_workspace(
+        &self,
+        workspace_id: WorkspaceId,
+        folder_path: &std::path::Path,
+    ) -> Result<Workspace>;
 
     /// Get workspace by workspace_id
     fn get_workspace_by_id(&self, workspace_id: WorkspaceId) -> Result<Option<Workspace>>;
@@ -49,8 +53,9 @@ pub trait WorkspaceRepository: Send + Sync {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use pretty_assertions::assert_eq;
+
+    use super::*;
 
     #[test]
     fn test_workspace_new() {
