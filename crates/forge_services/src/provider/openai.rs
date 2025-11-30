@@ -71,16 +71,13 @@ impl<H: HttpClientService> OpenAIProvider<H> {
     fn get_headers_with_request(&self, request: &Request) -> Vec<(String, String)> {
         let mut headers = self.get_headers();
         // Add Session-Id header for zai and zai_coding providers
-        if (self.provider.id == ProviderId::ZAI || self.provider.id == ProviderId::ZAI_CODING)
-            && request.session_id.is_some()
+        if let Some(session_id) = &request.session_id
+            && (self.provider.id == ProviderId::ZAI || self.provider.id == ProviderId::ZAI_CODING)
         {
-            headers.push((
-                "Session-Id".to_string(),
-                request.session_id.clone().unwrap(),
-            ));
+            headers.push(("Session-Id".to_string(), session_id.clone()));
             debug!(
                 provider = %self.provider.url,
-                session_id = %request.session_id.as_ref().unwrap(),
+                session_id = %session_id,
                 "Added Session-Id header for zai provider"
             );
         }
