@@ -96,11 +96,18 @@ export const ChatStateServiceLive = Layer.effect(
     const state$ = stateRef.changes;
     
     // Fine-grained streams - only emit when specific properties change
-    const messages$ = Stream.map(state$, (state: ChatState) => state.messages);
+    // Using Stream.changes to deduplicate consecutive identical values
+    const messages$ = Stream.map(state$, (state: ChatState) => state.messages).pipe(
+      Stream.changes
+    );
     
-    const isStreaming$ = Stream.map(state$, (state: ChatState) => state.isStreaming);
+    const isStreaming$ = Stream.map(state$, (state: ChatState) => state.isStreaming).pipe(
+      Stream.changes
+    );
     
-    const isLoading$ = Stream.map(state$, (state: ChatState) => state.isLoading);
+    const isLoading$ = Stream.map(state$, (state: ChatState) => state.isLoading).pipe(
+      Stream.changes
+    );
     
     console.log('[ChatStateService] Initialized with SubscriptionRef - fine-grained reactivity enabled');
     
