@@ -60,6 +60,10 @@ function _prompt_forge_cmd() {
 #   $1 - styled content to display
 function _prompt_forge_p9k_segment() {
     local styled="$1"
+    # Strip leading and trailing whitespace
+    styled="${styled#"${styled%%[![:space:]]*}"}"
+    styled="${styled%"${styled##*[![:space:]]}"}"
+    
     if [[ -n "$styled" ]]; then
         # Check if p10k is available
         if (( $+functions[p10k] )); then
