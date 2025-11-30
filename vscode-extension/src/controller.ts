@@ -2,7 +2,6 @@ import * as vscode from 'vscode';
 import { randomUUID } from 'crypto';
 import { JsonRpcClient } from './server/client';
 import { ChatWebviewProvider } from './webview/provider';
-import { ConversationTreeProvider } from './conversation/treeProvider';
 import { FileContextManager } from './file/contextManager';
 import {
     ConversationId,
@@ -26,7 +25,6 @@ import {
 export class Controller {
     private rpcClient: JsonRpcClient;
     private webviewProvider: ChatWebviewProvider;
-    private conversationTree: ConversationTreeProvider;
     private fileContext: FileContextManager;
     private outputChannel: vscode.OutputChannel;
     
@@ -43,13 +41,11 @@ export class Controller {
     constructor(
         rpcClient: JsonRpcClient,
         webviewProvider: ChatWebviewProvider,
-        conversationTree: ConversationTreeProvider,
         fileContext: FileContextManager,
         outputChannel: vscode.OutputChannel
     ) {
         this.rpcClient = rpcClient;
         this.webviewProvider = webviewProvider;
-        this.conversationTree = conversationTree;
         this.fileContext = fileContext;
         this.outputChannel = outputChannel;
 
@@ -474,7 +470,6 @@ export class Controller {
         
         // Set active conversation
         this.currentThreadId = threadId;
-        this.conversationTree.setActiveConversation(threadId);
         
         // TODO: Load conversation history from server
         // For now, just clear and start fresh
@@ -493,9 +488,6 @@ export class Controller {
      */
     public async deleteConversation(threadId: string): Promise<void> {
         this.outputChannel.appendLine(`[Controller] Deleting conversation: ${threadId}`);
-        
-        // Remove from tree
-        this.conversationTree.deleteConversation(threadId);
         
         // If it's the active conversation, clear it
         if (this.currentThreadId === threadId) {

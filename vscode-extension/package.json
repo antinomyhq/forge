@@ -30,15 +30,6 @@
           "type": "webview",
           "id": "forgecode.chatView",
           "name": "Chat"
-        },
-        {
-          "id": "forgecode.conversations",
-          "name": "Conversations"
-        },
-        {
-          "type": "webview",
-          "id": "forgecode.settings",
-          "name": "Settings"
         }
       ]
     },

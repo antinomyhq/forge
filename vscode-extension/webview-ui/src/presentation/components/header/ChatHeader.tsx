@@ -1,26 +1,51 @@
 import React from "react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { User, Coins, Hash } from "lucide-react";
+import { User, Coins, Hash, Plus } from "lucide-react";
 
 interface ChatHeaderProps {
   agentName: string;
   tokenCount: string;
   cost: string;
+  onNewConversation?: () => void;
 }
 
-/// ChatHeader displays agent info and usage statistics
+/// ChatHeader displays agent info, usage statistics, and conversation controls
 export const ChatHeader: React.FC<ChatHeaderProps> = ({
   agentName,
   tokenCount,
   cost,
+  onNewConversation,
 }) => {
   return (
     <div className="border-b bg-background">
       <div className="flex items-center justify-between px-4 py-3 gap-4">
-        {/* Left: Agent */}
+        {/* Left: New Conversation + Agent */}
         <div className="flex items-center gap-3">
+          {/* New Conversation Button */}
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={onNewConversation}
+                  className="h-8 w-8 shrink-0"
+                >
+                  <Plus className="h-4 w-4" />
+                  <span className="sr-only">New Conversation</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>New Conversation</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+
+          <Separator orientation="vertical" className="h-6" />
+
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>

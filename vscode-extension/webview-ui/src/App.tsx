@@ -71,6 +71,12 @@ function App() {
     sendMessage(action);
   };
 
+  // Handle new conversation
+  const handleNewConversation = () => {
+    // TODO: Implement new conversation logic
+    console.log('[App] New conversation requested');
+  };
+
   const isEmpty = chatState.messages.length === 0 && !chatState.isStreaming && !chatState.isLoading;
 
   return (
@@ -90,6 +96,7 @@ function App() {
           agentName={chatState.agentName}
           tokenCount={chatState.tokenCount}
           cost={chatState.cost}
+          onNewConversation={handleNewConversation}
         />
       }
       messages={

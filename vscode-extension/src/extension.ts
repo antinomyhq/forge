@@ -3,9 +3,7 @@ import { ServerManager } from './server/manager';
 import { JsonRpcClient } from './server/client';
 import { ChatWebviewProvider } from './webview/provider';
 import { Controller } from './controller';
-import { ConversationTreeProvider } from './conversation/treeProvider';
 import { FileContextManager } from './file/contextManager';
-import { SettingsWebviewProvider } from './settings/webviewProvider';
 import { AgentModelSelector } from './config/agentModelSelector';
 import { ProviderManager } from './config/providerManager';
 import { ErrorHandler } from './error/errorHandler';
@@ -14,9 +12,7 @@ import { ClientInfo, ServerCapabilities } from './generated';
 let serverManager: ServerManager | null = null;
 let rpcClient: JsonRpcClient | null = null;
 let webviewProvider: ChatWebviewProvider | null = null;
-let conversationTree: ConversationTreeProvider | null = null;
 let fileContext: FileContextManager | null = null;
-let settingsProvider: SettingsWebviewProvider | null = null;
 let agentModelSelector: AgentModelSelector | null = null;
 let providerManager: ProviderManager | null = null;
 let controller: Controller | null = null;
@@ -96,24 +92,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
             )
         );
 
-        // Create conversation tree provider
-        conversationTree = new ConversationTreeProvider(outputChannel);
-        context.subscriptions.push(
-            vscode.window.registerTreeDataProvider('forgecode.conversations', conversationTree)
-        );
-
         // Create file context manager
         fileContext = new FileContextManager(context, outputChannel);
         context.subscriptions.push(fileContext);
-
-        // Create settings provider
-        settingsProvider = new SettingsWebviewProvider(context.extensionUri, outputChannel);
-        context.subscriptions.push(
-            vscode.window.registerWebviewViewProvider(
-                SettingsWebviewProvider.viewType,
-                settingsProvider
-            )
-        );
 
         // Create agent/model selector
         agentModelSelector = new AgentModelSelector(rpcClient, outputChannel);
@@ -126,7 +107,6 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
         controller = new Controller(
             rpcClient,
             webviewProvider,
-            conversationTree,
             fileContext,
             outputChannel
         );
