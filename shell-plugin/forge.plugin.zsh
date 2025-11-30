@@ -31,19 +31,8 @@ typeset -h _FORGE_ACTIVE_AGENT="forge"
 # Store conversation ID in a temporary variable (local to plugin)
 typeset -h _FORGE_CONVERSATION_ID=""
 
-# Style the conversation pattern with appropriate highlighting
-# Keywords in yellow, rest in default white
-
-# Style tagged files
-ZSH_HIGHLIGHT_PATTERNS+=('@\[[^]]#\]' 'fg=cyan,bold')
-
-# Highlight colon + command name (supports letters, numbers, hyphens, underscores) in yellow
-ZSH_HIGHLIGHT_PATTERNS+=('(#s):[a-zA-Z0-9_-]#' 'fg=yellow,bold')
-
-# Highlight everything after the command name + space in white
-ZSH_HIGHLIGHT_PATTERNS+=('(#s):[a-zA-Z0-9_-]# [[:graph:]]*' 'fg=white')
-
-ZSH_HIGHLIGHT_HIGHLIGHTERS+=(pattern)
+# Source all plugin modules
+source "${0:A:h}/forge.main.zsh"
 
 # Lazy loader for commands cache
 # Loads the commands list only when first needed, avoiding startup cost
@@ -83,43 +72,6 @@ function _forge_reset() {
    zle reset-prompt 
     
 }
-
-# Helper function to print messages with consistent formatting based on log level
-# Usage: _forge_log <level> <message>
-# Levels: error, info, success, warning, debug
-# Color scheme matches crates/forge_main/src/title_display.rs
-function _forge_log() {
-    local level="$1"
-    local message="$2"
-    local timestamp="\033[90m[$(date '+%H:%M:%S')]\033[0m"
-    
-    case "$level" in
-        error)
-            # Category::Error - Red ❌
-            echo "\033[31m❌\033[0m ${timestamp} \033[31m${message}\033[0m"
-            ;;
-        info)
-            # Category::Info - White ⏺
-            echo "\033[37m⏺\033[0m ${timestamp} \033[37m${message}\033[0m"
-            ;;
-        success)
-            # Category::Action/Completion - Yellow ⏺
-            echo "\033[33m⏺\033[0m ${timestamp} \033[37m${message}\033[0m"
-            ;;
-        warning)
-            # Category::Warning - Bright yellow ⚠️
-            echo "\033[93m⚠️\033[0m ${timestamp} \033[93m${message}\033[0m"
-            ;;
-        debug)
-            # Category::Debug - Cyan ⏺ with dimmed text
-            echo "\033[36m⏺\033[0m ${timestamp} \033[90m${message}\033[0m"
-            ;;
-        *)
-            echo "${message}"
-            ;;
-    esac
-}
-
 
 # Helper function to find the index of a value in a list (1-based)
 # Returns the index if found, 1 otherwise
