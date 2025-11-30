@@ -4,7 +4,7 @@ use std::time::Duration;
 use bytes::Bytes;
 use derive_setters::Setters;
 use forge_domain::{
-    AgentId, AnyProvider, Attachment, AuthContextRequest, AuthContextResponse, AuthCredential,
+    AgentId, AnyProvider, Attachment, AuthContextRequest, AuthContextResponse,
     AuthMethod, ChatCompletionMessage, CodeSearchResult, CommandOutput, Context, Conversation,
     ConversationId, Environment, File, FileUploadResponse, Image, InitAuth, LoginInfo, McpConfig,
     McpServers, Model, ModelId, PatchOperation, Provider, ProviderId, ResultStream, Scope,
