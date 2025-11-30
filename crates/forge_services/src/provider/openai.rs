@@ -74,10 +74,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
         if (self.provider.id == ProviderId::ZAI || self.provider.id == ProviderId::ZAI_CODING)
             && let Some(session_id) = &request.session_id
         {
-            headers.push((
-                "Session-Id".to_string(),
-                session_id.clone(),
-            ));
+            headers.push(("Session-Id".to_string(), session_id.clone()));
             debug!(
                 provider = %self.provider.url,
                 session_id = %session_id,
