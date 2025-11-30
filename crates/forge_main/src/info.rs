@@ -197,6 +197,7 @@ impl From<&Environment> for Info {
             )
             .add_title("API CONFIGURATION")
             .add_key_value("Forge API URL", env.forge_api_url.to_string())
+            .add_key_value("Workspace Server URL", env.workspace_server_url.to_string())
             .add_title("TOOL CONFIGURATION")
             .add_key_value("Tool Timeout", format!("{}s", env.tool_timeout))
             .add_key_value("Max Image Size", format!("{} bytes", env.max_image_size))

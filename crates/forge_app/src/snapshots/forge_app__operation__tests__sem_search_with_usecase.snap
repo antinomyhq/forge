@@ -1,0 +1,15 @@
+---
+source: crates/forge_app/src/operation.rs
+expression: to_value(actual)
+---
+<sem_search_results
+  results="1"
+>
+<file_chunk
+  file_path="src/auth.rs"
+  lines="10-12"
+><![CDATA[fn authenticate_user(token: &str) -> Result<User> {
+    verify_jwt(token)
+}]]>
+</file_chunk>
+</sem_search_results>

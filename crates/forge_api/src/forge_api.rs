@@ -6,9 +6,9 @@ use anyhow::Result;
 use forge_app::dto::ToolsOverview;
 use forge_app::{
     AgentProviderResolver, AgentRegistry, AppConfigService, AuthService, CommandInfra,
-    CommandLoaderService, ConversationService, EnvironmentInfra, EnvironmentService,
-    FileDiscoveryService, ForgeApp, GitApp, McpConfigManager, McpService, ProviderAuthService,
-    ProviderService, Services, User, UserUsage, Walker, WorkflowService,
+    CommandLoaderService, ContextEngineService, ConversationService, EnvironmentInfra,
+    EnvironmentService, FileDiscoveryService, ForgeApp, GitApp, McpConfigManager, McpService,
+    ProviderAuthService, ProviderService, Services, User, UserUsage, Walker, WorkflowService,
 };
 use forge_domain::{Agent, InitAuth, LoginInfo, *};
 use forge_infra::ForgeInfra;
@@ -337,7 +337,46 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + AppConf
     }
 
     async fn remove_provider(&self, provider_id: &ProviderId) -> Result<()> {
-        Ok(self.services.remove_credential(provider_id).await?)
+        self.services.remove_credential(provider_id).await
+    }
+
+    async fn sync_codebase(
+        &self,
+        path: PathBuf,
+        batch_size: usize,
+    ) -> Result<forge_domain::FileUploadResponse> {
+        self.services.sync_codebase(path, batch_size).await
+    }
+
+    async fn query_codebase(
+        &self,
+        path: PathBuf,
+        params: forge_domain::SearchParams<'_>,
+    ) -> Result<Vec<forge_domain::CodeSearchResult>> {
+        self.services.query_codebase(path, params).await
+    }
+
+    async fn list_codebases(&self) -> Result<Vec<forge_domain::WorkspaceInfo>> {
+        self.services.list_codebase().await
+    }
+
+    async fn get_workspace_info(
+        &self,
+        path: PathBuf,
+    ) -> Result<Option<forge_domain::WorkspaceInfo>> {
+        self.services.get_workspace_info(path).await
+    }
+
+    async fn delete_codebase(&self, workspace_id: forge_domain::WorkspaceId) -> Result<()> {
+        self.services.delete_codebase(&workspace_id).await
+    }
+
+    async fn is_authenticated(&self) -> Result<bool> {
+        self.services.is_authenticated().await
+    }
+
+    async fn create_auth_credentials(&self) -> Result<forge_domain::WorkspaceAuth> {
+        self.services.create_auth_credentials().await
     }
 
     async fn migrate_env_credentials(&self) -> Result<Option<forge_domain::MigrationResult>> {

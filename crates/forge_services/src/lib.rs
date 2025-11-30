@@ -11,6 +11,7 @@ mod env;
 mod error;
 mod forge_services;
 mod http;
+mod indexing;
 mod mcp;
 mod policy;
 mod provider;
@@ -28,6 +29,7 @@ pub use custom_instructions::*;
 pub use discovery::*;
 pub use error::*;
 pub use forge_services::*;
+pub use indexing::*;
 pub use policy::*;
 pub use provider_auth::*;
 

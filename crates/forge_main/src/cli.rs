@@ -138,6 +138,9 @@ pub enum TopLevelCommand {
 
     /// Run or list custom commands.
     Cmd(CmdCommandGroup),
+
+    /// Manage workspaces for semantic search.
+    Workspace(WorkspaceCommandGroup),
 }
 
 /// Command group for custom command management.
@@ -182,6 +185,78 @@ pub enum AgentCommand {
     /// List available agents.
     #[command(alias = "ls")]
     List,
+}
+
+/// Command group for codebase management.
+#[derive(Parser, Debug, Clone)]
+pub struct WorkspaceCommandGroup {
+    #[command(subcommand)]
+    pub command: WorkspaceCommand,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum WorkspaceCommand {
+    /// Synchronize a directory for semantic search.
+    Sync {
+        /// Path to the directory to sync
+        #[arg(default_value = ".")]
+        path: PathBuf,
+
+        /// Number of files to upload per batch. Reduce this if you encounter
+        /// token limit errors.
+        #[arg(long, default_value = "10")]
+        batch_size: usize,
+    },
+    /// List all workspaces.
+    List {
+        /// Output in machine-readable format
+        #[arg(short, long)]
+        porcelain: bool,
+    },
+
+    /// Query the codebase.
+    Query {
+        /// Search query.
+        query: String,
+
+        /// Path to the directory to index (used when no subcommand is
+        /// provided).
+        #[arg(default_value = ".")]
+        path: PathBuf,
+
+        /// Maximum number of results to return.
+        #[arg(short, long, default_value = "10")]
+        limit: usize,
+
+        /// Number of highest probability tokens to consider (1-1000).
+        #[arg(long)]
+        top_k: Option<u32>,
+
+        /// Describe your intent or goal to filter results for relevance.
+        #[arg(long, short = 'r')]
+        use_case: String,
+
+        /// Filter results to files starting with this prefix.
+        #[arg(long)]
+        starts_with: Option<String>,
+
+        /// Filter results to files ending with this suffix.
+        #[arg(long)]
+        ends_with: Option<String>,
+    },
+
+    /// Show workspace information for an indexed directory.
+    Info {
+        /// Path to the directory to get information for
+        #[arg(default_value = ".")]
+        path: PathBuf,
+    },
+
+    /// Delete a workspace.
+    Delete {
+        /// Workspace ID to delete
+        workspace_id: String,
+    },
 }
 
 /// Command group for listing resources.

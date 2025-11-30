@@ -5,8 +5,8 @@ use console::strip_ansi_codes;
 use derive_setters::Setters;
 use forge_display::DiffFormat;
 use forge_domain::{
-    Environment, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite, FileOperation, Metrics,
-    NetFetch, PlanCreate, ToolKind,
+    CodebaseQueryResult, Environment, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite,
+    FileOperation, Metrics, NetFetch, PlanCreate, ToolKind,
 };
 use forge_template::Element;
 
@@ -47,6 +47,9 @@ pub enum ToolOperation {
     FsSearch {
         input: FSSearch,
         output: Option<SearchResult>,
+    },
+    CodebaseSearch {
+        output: CodebaseQueryResult,
     },
     FsPatch {
         input: FSPatch,
@@ -327,6 +330,20 @@ impl ToolOperation {
                     forge_domain::ToolOutput::text(elm)
                 }
             },
+            ToolOperation::CodebaseSearch { output } => {
+                let mut root =
+                    Element::new("sem_search_results").attr("results", output.results.len());
+
+                if output.results.is_empty() {
+                    root = root.text("No results found for query. Try refining your search with more specific terms or different keywords.")
+                } else {
+                    for result in &output.results {
+                        root = root.append(result.node.to_element());
+                    }
+                }
+
+                forge_domain::ToolOutput::text(root)
+            }
             ToolOperation::FsPatch { input, output } => {
                 let diff_result = DiffFormat::format(&output.before, &output.after);
                 let diff = console::strip_ansi_codes(diff_result.diff()).to_string();
@@ -1575,6 +1592,84 @@ mod tests {
 
         let actual = fixture.into_tool_output(
             ToolKind::Followup,
+            TempContentFiles::default(),
+            &env,
+            &mut Metrics::default(),
+        );
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_sem_search_with_results() {
+        use forge_domain::{CodeNode, CodeSearchResult, CodebaseQueryResult};
+
+        let fixture = ToolOperation::CodebaseSearch {
+            output: CodebaseQueryResult {
+                query: "retry mechanism with exponential backoff".to_string(),
+                use_case: "where is the retrying logic written".to_string(),
+                results: vec![
+                    CodeSearchResult {
+                        node: CodeNode::FileChunk {
+                            node_id: "node1".to_string(),
+                            file_path: "src/retry.rs".to_string(),
+                            content: "fn retry_with_backoff(max_attempts: u32) {\n    let mut delay = 100;\n    for attempt in 0..max_attempts {\n        if try_operation().is_ok() {\n            return;\n        }\n        thread::sleep(Duration::from_millis(delay));\n        delay *= 2;\n    }\n}".to_string(),
+                            start_line: 10,
+                            end_line: 19,
+                        },
+                        similarity: 0.9534,
+                    },
+                    CodeSearchResult {
+                        node: CodeNode::FileChunk {
+                            node_id: "node2".to_string(),
+                            file_path: "src/http/client.rs".to_string(),
+                            content: "async fn request_with_retry(&self, url: &str) -> Result<Response> {\n    const MAX_RETRIES: usize = 3;\n    let mut backoff = ExponentialBackoff::default();\n    // Implementation...\n}".to_string(),
+                            start_line: 45,
+                            end_line: 50,
+                        },
+                        similarity: 0.9201,
+                    },
+                ],
+            },
+        };
+
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(
+            ToolKind::SemSearch,
+            TempContentFiles::default(),
+            &env,
+            &mut Metrics::default(),
+        );
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_sem_search_with_usecase() {
+        use forge_domain::{CodeNode, CodeSearchResult, CodebaseQueryResult};
+
+        let fixture = ToolOperation::CodebaseSearch {
+            output: CodebaseQueryResult {
+                query: "authentication logic".to_string(),
+                use_case: "need to add similar auth to my endpoint".to_string(),
+                results: vec![CodeSearchResult {
+                    node: CodeNode::FileChunk {
+                        node_id: "node1".to_string(),
+                        file_path: "src/auth.rs".to_string(),
+                        content: "fn authenticate_user(token: &str) -> Result<User> {\n    verify_jwt(token)\n}".to_string(),
+                        start_line: 10,
+                        end_line: 12,
+                    },
+                    similarity: 0.95,
+                }],
+            },
+        };
+
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(
+            ToolKind::SemSearch,
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),

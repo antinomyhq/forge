@@ -9,7 +9,12 @@ pub fn generate_ci_workflow() {
     // Create a basic build job for CI
     let build_job = Job::new("Build and Test")
         .permissions(Permissions::default().contents(Level::Read))
-        .add_step(Step::new("Checkout Code").uses("actions", "checkout", "v6"))
+        .add_step(Step::checkout())
+        .add_step(
+            Step::new("Setup Protobuf Compiler")
+                .uses("arduino", "setup-protoc", "v3")
+                .with(("repo-token", "${{ secrets.GITHUB_TOKEN }}")),
+        )
         .add_step(Step::toolchain().add_stable())
         .add_step(Step::new("Cargo Test").run("cargo test --all-features --workspace"));
 
@@ -17,6 +22,11 @@ pub fn generate_ci_workflow() {
     let lint_job = Job::new("Lint")
         .permissions(Permissions::default().contents(Level::Read))
         .add_step(Step::new("Checkout Code").uses("actions", "checkout", "v6"))
+        .add_step(
+            Step::new("Setup Protobuf Compiler")
+                .uses("arduino", "setup-protoc", "v3")
+                .with(("repo-token", "${{ secrets.GITHUB_TOKEN }}")),
+        )
         .add_step(
             Step::toolchain()
                 .add_nightly()

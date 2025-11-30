@@ -160,6 +160,9 @@ function forge-accept-line() {
         clone)
             _forge_action_clone "$input_text"
         ;;
+        sync)
+            _forge_action_sync
+        ;;
         login)
             _forge_action_login
         ;;

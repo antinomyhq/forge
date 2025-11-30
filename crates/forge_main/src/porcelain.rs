@@ -14,7 +14,7 @@ use crate::info::{Info, Section};
 ///   - Index 0, 2, 4... are keys
 ///   - Index 1, 3, 5... are values
 ///   - None = missing value
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Porcelain(Vec<Vec<Option<String>>>);
 
 impl Porcelain {
@@ -37,6 +37,31 @@ impl Porcelain {
                     row.into_iter()
                         .enumerate()
                         .filter_map(|(i, col)| if i == c { None } else { Some(col) })
+                        .collect()
+                })
+                .collect(),
+        )
+    }
+
+    /// Drops multiple columns at once
+    ///
+    /// # Arguments
+    /// * `cols` - A slice of column indices to drop
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// let porcelain = Porcelain::new();
+    /// let result = porcelain.drop_cols(&[0, 2, 4]);
+    /// ```
+    #[allow(unused)]
+    pub fn drop_cols(self, cols: &[usize]) -> Self {
+        Porcelain(
+            self.0
+                .into_iter()
+                .map(|row| {
+                    row.into_iter()
+                        .enumerate()
+                        .filter_map(|(i, col)| if cols.contains(&i) { None } else { Some(col) })
                         .collect()
                 })
                 .collect(),
@@ -430,6 +455,64 @@ mod tests {
             vec![Some("user1".into()), Some("30".into())],
             vec![Some("user2".into()), Some("25".into())],
         ];
+
+        assert_eq!(actual, expected)
+    }
+
+    #[test]
+    fn test_drop_cols() {
+        let fixture = Porcelain(vec![
+            vec![
+                Some("user1".into()),
+                Some("Alice".into()),
+                Some("30".into()),
+                Some("Engineer".into()),
+            ],
+            vec![
+                Some("user2".into()),
+                Some("Bob".into()),
+                Some("25".into()),
+                Some("Designer".into()),
+            ],
+        ]);
+
+        let actual = fixture.drop_cols(&[1, 3]).into_rows();
+
+        let expected = vec![
+            vec![Some("user1".into()), Some("30".into())],
+            vec![Some("user2".into()), Some("25".into())],
+        ];
+
+        assert_eq!(actual, expected)
+    }
+
+    #[test]
+    fn test_drop_cols_equivalent_to_chained() {
+        // Test that drop_cols(&[0, 4, 5]) is equivalent to
+        // drop_col(0).drop_col(3).drop_col(3)
+        let fixture = Porcelain(vec![
+            vec![
+                Some("col0".into()),
+                Some("col1".into()),
+                Some("col2".into()),
+                Some("col3".into()),
+                Some("col4".into()),
+                Some("col5".into()),
+                Some("col6".into()),
+            ],
+            vec![
+                Some("row2_0".into()),
+                Some("row2_1".into()),
+                Some("row2_2".into()),
+                Some("row2_3".into()),
+                Some("row2_4".into()),
+                Some("row2_5".into()),
+                Some("row2_6".into()),
+            ],
+        ]);
+
+        let actual = fixture.clone().drop_cols(&[0, 4, 5]).into_rows();
+        let expected = fixture.drop_col(0).drop_col(3).drop_col(3).into_rows();
 
         assert_eq!(actual, expected)
     }

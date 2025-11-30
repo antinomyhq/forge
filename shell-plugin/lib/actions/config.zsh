@@ -99,6 +99,13 @@ function _forge_action_model() {
     _forge_reset
 }
 
+# Action handler: Sync workspace for codebase search
+function _forge_action_sync() {
+    echo
+    _forge_exec workspace sync
+    _forge_reset
+}
+
 # Helper function to select and set config values with fzf
 function _forge_select_and_set_config() {
     local show_command="$1"

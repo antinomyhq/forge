@@ -314,5 +314,11 @@
     "url": "https://{{AZURE_RESOURCE_NAME}}.openai.azure.com/openai/deployments/{{AZURE_DEPLOYMENT_NAME}}/chat/completions?api-version={{AZURE_API_VERSION}}",
     "models": "https://{{AZURE_RESOURCE_NAME}}.openai.azure.com/openai/models?api-version={{AZURE_API_VERSION}}",
     "auth_methods": ["api_key"]
+  },
+  {
+    "id": "forge_services",
+    "provider_type": "context_engine",
+    "url": "https://api.forgecode.dev/",
+    "auth_methods": ["api_key"]
   }
 ]

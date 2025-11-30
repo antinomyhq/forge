@@ -6,7 +6,7 @@ use derive_more::From;
 use diesel::prelude::*;
 use forge_domain::{
     Context, Conversation, ConversationId, ConversationRepository, FileOperation, MetaData,
-    Metrics, ToolKind, WorkspaceId,
+    Metrics, ToolKind, WorkspaceHash,
 };
 use serde::{Deserialize, Serialize};
 
@@ -122,7 +122,7 @@ struct ConversationRecord {
 }
 
 impl ConversationRecord {
-    fn new(conversation: Conversation, workspace_id: WorkspaceId) -> Self {
+    fn new(conversation: Conversation, workspace_id: WorkspaceHash) -> Self {
         let context = conversation
             .context
             .as_ref()
@@ -172,11 +172,11 @@ impl TryFrom<ConversationRecord> for Conversation {
 
 pub struct ConversationRepositoryImpl {
     pool: Arc<DatabasePool>,
-    wid: WorkspaceId,
+    wid: WorkspaceHash,
 }
 
 impl ConversationRepositoryImpl {
-    pub fn new(pool: Arc<DatabasePool>, workspace_id: WorkspaceId) -> Self {
+    pub fn new(pool: Arc<DatabasePool>, workspace_id: WorkspaceHash) -> Self {
         Self { pool, wid: workspace_id }
     }
 }
@@ -292,7 +292,7 @@ mod tests {
 
     fn repository() -> anyhow::Result<ConversationRepositoryImpl> {
         let pool = Arc::new(DatabasePool::in_memory()?);
-        Ok(ConversationRepositoryImpl::new(pool, WorkspaceId::new(0)))
+        Ok(ConversationRepositoryImpl::new(pool, WorkspaceHash::new(0)))
     }
 
     #[tokio::test]
@@ -456,7 +456,7 @@ mod tests {
         let fixture = Conversation::new(ConversationId::generate())
             .title(Some("Test Conversation".to_string()));
 
-        let actual = ConversationRecord::new(fixture.clone(), WorkspaceId::new(0));
+        let actual = ConversationRecord::new(fixture.clone(), WorkspaceHash::new(0));
 
         assert_eq!(actual.conversation_id, fixture.id.into_string());
         assert_eq!(actual.title, Some("Test Conversation".to_string()));
@@ -472,7 +472,7 @@ mod tests {
             .title(Some("Conversation with Context".to_string()))
             .context(Some(context));
 
-        let actual = ConversationRecord::new(fixture.clone(), WorkspaceId::new(0));
+        let actual = ConversationRecord::new(fixture.clone(), WorkspaceHash::new(0));
 
         assert_eq!(actual.conversation_id, fixture.id.into_string());
         assert_eq!(actual.title, Some("Conversation with Context".to_string()));
@@ -487,7 +487,7 @@ mod tests {
             .title(Some("Conversation with Empty Context".to_string()))
             .context(Some(Context::default()));
 
-        let actual = ConversationRecord::new(fixture.clone(), WorkspaceId::new(0));
+        let actual = ConversationRecord::new(fixture.clone(), WorkspaceHash::new(0));
 
         assert_eq!(actual.conversation_id, fixture.id.into_string());
         assert_eq!(

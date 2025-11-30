@@ -32,6 +32,16 @@ derive_more.workspace = true
 gray_matter = { workspace = true }
 dirs.workspace = true
 
+# gRPC for codebase client
+tonic = { version = "0.14.2", features = ["tls-native-roots"] }
+prost = "0.14.1"
+
+prost-types = "0.14.1"
+tonic-prost = "0.14.2"
+
+[build-dependencies]
+tonic-prost-build = "0.14.2"
+
 [dev-dependencies]
 forge_test_kit.workspace = true
 tokio = { workspace = true, features = ["macros", "rt", "time", "test-util"] }
