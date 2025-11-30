@@ -45,7 +45,15 @@ pub struct ForgeRepo<F> {
     skill_repository: Arc<dyn forge_domain::SkillRepository>,
 }
 
-impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + forge_app::FileInfoInfra + forge_app::WalkerInfra + 'static> ForgeRepo<F> {
+impl<
+        F: EnvironmentInfra
+            + FileReaderInfra
+            + FileWriterInfra
+            + forge_app::FileInfoInfra
+            + forge_app::WalkerInfra
+            + 'static,
+    > ForgeRepo<F>
+{
     pub fn new(infra: Arc<F>) -> Self {
         let env = infra.get_environment();
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
@@ -54,11 +62,10 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + forge_app::FileIn
 
         let workspace_repository = Arc::new(WorkspaceRepositoryImpl::new(db_pool.clone()));
 
-        let conversation_repository =
-            Arc::new(ConversationRepositoryImpl::new(
-                db_pool.clone(),
-                env.workspace_id(),
-            ));
+        let conversation_repository = Arc::new(ConversationRepositoryImpl::new(
+            db_pool.clone(),
+            env.workspace_id(),
+        ));
 
         let app_config_repository = Arc::new(AppConfigRepositoryImpl::new(infra.clone()));
 
@@ -69,7 +76,8 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + forge_app::FileIn
 
         let provider_repository = Arc::new(ForgeProviderRepository::new(infra.clone()));
         let agent_repository = Arc::new(ForgeAgentRepository::new(infra.clone()));
-        let skill_repository: Arc<dyn forge_domain::SkillRepository> = Arc::new(ForgeSkillRepository::new(infra.clone()));
+        let skill_repository: Arc<dyn forge_domain::SkillRepository> =
+            Arc::new(ForgeSkillRepository::new(infra.clone()));
         Self {
             infra,
             file_snapshot_service,
