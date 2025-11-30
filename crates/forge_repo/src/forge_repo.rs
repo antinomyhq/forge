@@ -41,6 +41,9 @@ pub struct ForgeRepo<F> {
     app_config_repository: Arc<AppConfigRepositoryImpl<F>>,
     mcp_cache_repository: Arc<CacacheStorage>,
     provider_repository: Arc<ForgeProviderRepository<F>>,
+    // indexing_repository: Arc<crate::indexing::IndexingRepositoryImpl>, // temporarily removed
+    // during merge codebase_repo: Arc<crate::ForgeContextEngineRepository>, // temporarily
+    // removed during merge
     agent_repository: Arc<ForgeAgentRepository<F>>,
     skill_repository: Arc<dyn forge_domain::SkillRepository>,
 }
@@ -75,6 +78,15 @@ impl<
         )); // 1 hour TTL
 
         let provider_repository = Arc::new(ForgeProviderRepository::new(infra.clone()));
+
+        // let indexing_repository =
+        // Arc::new(crate::indexing::IndexingRepositoryImpl::new(     db_pool.
+        // clone(), ));
+
+        // let codebase_repo = Arc::new(
+        //     crate::ForgeContextEngineRepository::new(&env.workspace_server_url)
+        //         .expect("Failed to create codebase repository"),
+        // );
         let agent_repository = Arc::new(ForgeAgentRepository::new(infra.clone()));
         let skill_repository: Arc<dyn forge_domain::SkillRepository> =
             Arc::new(ForgeSkillRepository::new(infra.clone()));
@@ -86,6 +98,8 @@ impl<
             app_config_repository,
             mcp_cache_repository,
             provider_repository,
+            // indexing_repository,
+            // codebase_repo,
             agent_repository,
             skill_repository,
         }
@@ -159,6 +173,15 @@ impl<F: Send + Sync> WorkspaceRepository for ForgeRepo<F> {
     fn mark_inactive(&self, workspace_id: forge_domain::WorkspaceId) -> anyhow::Result<()> {
         self.workspace_repository.mark_inactive(workspace_id)
     }
+
+    fn ensure_workspace_metadata(
+        &self,
+        workspace_id: forge_domain::WorkspaceId,
+        folder_path: &std::path::Path,
+    ) -> anyhow::Result<WorkspaceDomain> {
+        self.workspace_repository
+            .ensure_workspace_metadata(workspace_id, folder_path)
+    }
 }
 
 #[async_trait::async_trait]
@@ -174,6 +197,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Send + Sync> Prov
     }
 
     async fn upsert_credential(&self, credential: AuthCredential) -> anyhow::Result<()> {
+        // All providers now use file-based credentials
         self.provider_repository.upsert_credential(credential).await
     }
 
@@ -182,6 +206,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Send + Sync> Prov
     }
 
     async fn remove_credential(&self, id: &ProviderId) -> anyhow::Result<()> {
+        // All providers now use file-based credentials
         self.provider_repository.remove_credential(id).await
     }
 
@@ -477,5 +502,122 @@ impl<F: StrategyFactory> StrategyFactory for ForgeRepo<F> {
     ) -> anyhow::Result<Self::Strategy> {
         self.infra
             .create_auth_strategy(provider_id, auth_method, required_params)
+    }
+}
+
+// Second implementation removed due to conflicts with indexing removal during
+// merge #[async_trait::async_trait]
+// impl<F: Send + Sync> forge_domain::WorkspaceRepository for ForgeRepo<F> {
+//     async fn upsert(
+//         &self,
+//         workspace_id: &forge_domain::WorkspaceId,
+//         user_id: &forge_domain::UserId,
+//         path: &std::path::Path,
+//     ) -> anyhow::Result<()> {
+//         self.indexing_repository
+//             .upsert(workspace_id, user_id, path)
+//             .await
+//     }
+//
+//     async fn find_by_path(
+//         &self,
+//         path: &std::path::Path,
+//     ) -> anyhow::Result<Option<forge_domain::Workspace>> {
+//         self.indexing_repository.find_by_path(path).await
+//     }
+//
+//     async fn get_user_id(&self) ->
+// anyhow::Result<Option<forge_domain::UserId>> {         self.
+// indexing_repository.get_user_id().await     }
+//
+//     async fn delete(&self, workspace_id: &forge_domain::WorkspaceId) ->
+// anyhow::Result<()> {         self.indexing_repository.delete(workspace_id).
+// await     }
+// }
+
+#[async_trait::async_trait]
+impl<F: Send + Sync> forge_domain::ContextEngineRepository for ForgeRepo<F> {
+    async fn authenticate(&self) -> anyhow::Result<forge_domain::WorkspaceAuth> {
+        // self.codebase_repo.authenticate().await // temporarily removed during merge
+        todo!("ContextEngineRepository temporarily disabled during merge")
+    }
+
+    async fn create_workspace(
+        &self,
+        _working_dir: &std::path::Path,
+        _auth_token: &forge_domain::ApiKey,
+    ) -> anyhow::Result<forge_domain::WorkspaceId> {
+        // self.codebase_repo
+        //     .create_workspace(working_dir, auth_token)
+        //     .await
+        todo!("ContextEngineRepository temporarily disabled during merge")
+    }
+
+    async fn upload_files(
+        &self,
+        _upload: &forge_domain::FileUpload,
+        _auth_token: &forge_domain::ApiKey,
+    ) -> anyhow::Result<forge_domain::FileUploadInfo> {
+        // self.codebase_repo.upload_files(upload, auth_token).await
+        todo!("ContextEngineRepository temporarily disabled during merge")
+    }
+
+    async fn search(
+        &self,
+        _query: &forge_domain::CodeSearchQuery<'_>,
+        _auth_token: &forge_domain::ApiKey,
+    ) -> anyhow::Result<Vec<forge_domain::CodeSearchResult>> {
+        // self.codebase_repo.search(query, auth_token).await
+        todo!("ContextEngineRepository temporarily disabled during merge")
+    }
+
+    async fn list_workspaces(
+        &self,
+        _auth_token: &forge_domain::ApiKey,
+    ) -> anyhow::Result<Vec<forge_domain::WorkspaceInfo>> {
+        // self.codebase_repo.list_workspaces(auth_token).await
+        todo!("ContextEngineRepository temporarily disabled during merge")
+    }
+
+    async fn get_workspace(
+        &self,
+        _workspace_id: &forge_domain::WorkspaceId,
+        _auth_token: &forge_domain::ApiKey,
+    ) -> anyhow::Result<Option<forge_domain::WorkspaceInfo>> {
+        // self.codebase_repo
+        //     .get_workspace(workspace_id, auth_token)
+        //     .await
+        todo!("ContextEngineRepository temporarily disabled during merge")
+    }
+
+    async fn list_workspace_files(
+        &self,
+        _workspace: &forge_domain::WorkspaceFiles,
+        _auth_token: &forge_domain::ApiKey,
+    ) -> anyhow::Result<Vec<forge_domain::FileHash>> {
+        // self.codebase_repo
+        //     .list_workspace_files(workspace, auth_token)
+        //     .await
+        todo!("ContextEngineRepository temporarily disabled during merge")
+    }
+
+    async fn delete_files(
+        &self,
+        _deletion: &forge_domain::FileDeletion,
+        _auth_token: &forge_domain::ApiKey,
+    ) -> anyhow::Result<()> {
+        // self.codebase_repo.delete_files(deletion, auth_token).await
+        todo!("ContextEngineRepository temporarily disabled during merge")
+    }
+
+    async fn delete_workspace(
+        &self,
+        _workspace_id: &forge_domain::WorkspaceId,
+        _auth_token: &forge_domain::ApiKey,
+    ) -> anyhow::Result<()> {
+        // self.codebase_repo
+        //     .delete_workspace(workspace_id, auth_token)
+        //     .await
+        todo!("ContextEngineRepository temporarily disabled during merge")
     }
 }

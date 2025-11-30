@@ -22,3 +22,5 @@ diesel::table! {
         is_active -> Bool,
     }
 }
+
+diesel::allow_tables_to_appear_in_same_query!(conversations, workspaces);

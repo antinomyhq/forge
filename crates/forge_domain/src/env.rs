@@ -1,6 +1,7 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::path::PathBuf;
 
+use anyhow::Context;
 use derive_more::Display;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
@@ -70,6 +71,17 @@ pub struct Environment {
     /// Maximum number of conversations to show in list.
     /// Controlled by FORGE_MAX_CONVERSATIONS environment variable.
     pub max_conversations: usize,
+    /// Maximum number of results to return from initial vector search.
+    /// Controlled by FORGE_SEM_SEARCH_LIMIT environment variable.
+    pub sem_search_limit: usize,
+    /// Top-k parameter for relevance filtering during semantic search.
+    /// Controls the number of nearest neighbors to consider.
+    /// Controlled by FORGE_SEM_SEARCH_TOP_K environment variable.
+    pub sem_search_top_k: usize,
+    /// URL for the indexing server.
+    /// Controlled by FORGE_WORKSPACE_SERVER_URL environment variable.
+    #[dummy(expr = "url::Url::parse(\"http://localhost:8080\").unwrap()")]
+    pub workspace_server_url: Url,
     /// Override model for all providers from FORGE_OVERRIDE_MODEL environment
     /// variable. If set, this model will be used instead of configured
     /// models.
@@ -163,11 +175,32 @@ impl Environment {
     }
 }
 
-#[derive(Clone, Copy, Display, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Display, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WorkspaceId(u64);
 impl WorkspaceId {
     pub fn new(id: u64) -> Self {
         WorkspaceId(id)
+    }
+
+    pub fn generate() -> Self {
+        use std::collections::hash_map::DefaultHasher;
+        use std::hash::{Hash, Hasher};
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        let mut hasher = DefaultHasher::new();
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+            .hash(&mut hasher);
+        WorkspaceId(hasher.finish())
+    }
+
+    pub fn from_string(s: &str) -> anyhow::Result<Self> {
+        let id = s
+            .parse::<u64>()
+            .context("Failed to parse workspace ID as u64")?;
+        Ok(WorkspaceId(id))
     }
 
     pub fn id(&self) -> u64 {
@@ -286,7 +319,10 @@ fn test_command_path() {
         debug_requests: None,
         custom_history_path: None,
         max_conversations: 100,
+        sem_search_limit: 100,
+        sem_search_top_k: 10,
         max_image_size: 262144,
+        workspace_server_url: "http://localhost:8080".parse().unwrap(),
         override_model: None,
         override_provider: None,
     };
@@ -322,7 +358,10 @@ fn test_command_cwd_path() {
         debug_requests: None,
         custom_history_path: None,
         max_conversations: 100,
+        sem_search_limit: 100,
+        sem_search_top_k: 10,
         max_image_size: 262144,
+        workspace_server_url: "http://localhost:8080".parse().unwrap(),
         override_model: None,
         override_provider: None,
     };
@@ -358,7 +397,10 @@ fn test_command_cwd_path_independent_from_command_path() {
         debug_requests: None,
         custom_history_path: None,
         max_conversations: 100,
+        sem_search_limit: 100,
+        sem_search_top_k: 10,
         max_image_size: 262144,
+        workspace_server_url: "http://localhost:8080".parse().unwrap(),
         override_model: None,
         override_provider: None,
     };

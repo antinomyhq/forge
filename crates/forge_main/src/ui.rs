@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fmt::Display;
+use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -42,6 +43,7 @@ use crate::state::UIState;
 use crate::title_display::TitleDisplayExt;
 use crate::tools_display::format_tools;
 use crate::update::on_update;
+use crate::utils::humanize_time;
 use crate::{TRACKER, banner, tracker};
 
 /// Formats an MCP server config for display, redacting sensitive information.
@@ -248,8 +250,17 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             Ok(_) => {}
             Err(error) => {
                 tracing::error!(error = ?error);
-                let _ = self
-                    .writeln_to_stderr(TitleFormat::error(error.to_string()).display().to_string());
+
+                // Display the full error chain for better debugging
+                let mut error_message = error.to_string();
+                let mut source = error.source();
+                while let Some(err) = source {
+                    error_message.push_str(&format!("\n    Caused by: {}", err));
+                    source = err.source();
+                }
+
+                let _ =
+                    self.writeln_to_stderr(TitleFormat::error(error_message).display().to_string());
             }
         }
     }
@@ -544,6 +555,47 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 return Ok(());
             }
 
+            TopLevelCommand::Workspace(index_group) => {
+                match index_group.command {
+                    crate::cli::WorkspaceCommand::Sync { path, batch_size } => {
+                        self.on_index(path, batch_size).await?;
+                    }
+                    crate::cli::WorkspaceCommand::List { porcelain } => {
+                        self.on_list_workspaces(porcelain).await?;
+                    }
+                    crate::cli::WorkspaceCommand::Query {
+                        query,
+                        path,
+                        limit,
+                        top_k,
+                        use_case,
+                        starts_with,
+                        ends_with,
+                    } => {
+                        let mut params =
+                            forge_domain::SearchParams::new(&query, &use_case).limit(limit);
+                        if let Some(k) = top_k {
+                            params = params.top_k(k);
+                        }
+                        if let Some(prefix) = starts_with {
+                            params = params.starts_with(prefix);
+                        }
+                        if let Some(suffix) = ends_with {
+                            params = params.ends_with(suffix);
+                        }
+                        self.on_query(path, params).await?;
+                    }
+
+                    crate::cli::WorkspaceCommand::Info { path } => {
+                        self.on_workspace_info(path).await?;
+                    }
+                    crate::cli::WorkspaceCommand::Delete { workspace_id } => {
+                        self.on_delete_workspace(workspace_id).await?;
+                    }
+                }
+                return Ok(());
+            }
+
             TopLevelCommand::Commit(commit_group) => {
                 let preview = commit_group.preview;
                 let result = self.handle_commit_command(commit_group).await?;
@@ -756,7 +808,6 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             if !provider.is_configured() {
                 return Err(anyhow::anyhow!("Provider '{id}' is not configured"));
             }
-
             self.api.remove_provider(id).await?;
             self.writeln_title(TitleFormat::completion(format!(
                 "Successfully logged out from {id}"
@@ -933,12 +984,14 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             } else {
                 "<unset>".to_string()
             };
+            let provider_type = provider.provider_type().to_string();
             let configured = provider.is_configured();
             info = info
                 .add_title(id.to_case(Case::UpperSnake))
                 .add_key_value("name", display_name)
                 .add_key_value("id", id)
-                .add_key_value("host", domain);
+                .add_key_value("host", domain)
+                .add_key_value("type", provider_type);
             if configured {
                 info = info.add_key_value("status", "available");
             };
@@ -1355,7 +1408,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     }
 
     async fn on_zsh_prompt(&self) -> anyhow::Result<()> {
-        println!("{}", include_str!("../../../shell-plugin/forge.plugin.zsh"));
+        let plugin = crate::zsh_plugin::generate_zsh_plugin()?;
+        println!("{plugin}");
         Ok(())
     }
 
@@ -1605,6 +1659,11 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             SlashCommand::Retry => {
                 self.spinner.start(None)?;
                 self.on_message(None).await?;
+            }
+            SlashCommand::Index => {
+                let working_dir = self.state.cwd.clone();
+                // Use default batch size of 10 for slash command
+                self.on_index(working_dir, 10).await?;
             }
             SlashCommand::AgentSwitch(agent_id) => {
                 // Validate that the agent exists by checking against loaded agents
@@ -1947,6 +2006,13 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         provider_id: ProviderId,
         auth_methods: Vec<AuthMethod>,
     ) -> Result<Option<Provider<Url>>> {
+        if provider_id == ProviderId::FORGE_SERVICES {
+            let auth = self.api.create_auth_credentials().await?;
+            self.writeln_title(
+                TitleFormat::info("Forge API key created").sub_title(auth.token.as_str()),
+            )?;
+            return Ok(None);
+        }
         // Select auth method (or use the only one available)
         let auth_method = match self
             .select_auth_method(provider_id.clone(), &auth_methods)
@@ -1998,6 +2064,13 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .get_providers()
             .await?
             .into_iter()
+            .filter(|p| {
+                let filter = forge_domain::ProviderType::Llm;
+                match &p {
+                    AnyProvider::Url(provider) => provider.provider_type == filter,
+                    AnyProvider::Template(provider) => provider.provider_type == filter,
+                }
+            })
             .map(CliProvider)
             .collect::<Vec<_>>();
 
@@ -2772,6 +2845,220 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         Ok(())
+    }
+
+    async fn on_index(
+        &mut self,
+        path: std::path::PathBuf,
+        batch_size: usize,
+    ) -> anyhow::Result<()> {
+        // Check if auth already exists and create if needed
+        if !self.api.is_authenticated().await? {
+            let auth = self.api.create_auth_credentials().await?;
+            self.writeln_title(
+                TitleFormat::info("Forge API key created").sub_title(auth.token.as_str()),
+            )?;
+        }
+
+        self.spinner.start(Some("Syncing codebase..."))?;
+
+        match self.api.sync_codebase(path.clone(), batch_size).await {
+            Ok(stats) => {
+                self.spinner.stop(None)?;
+
+                // Display workspace creation info
+                if stats.is_new_workspace {
+                    self.writeln_title(
+                        TitleFormat::action("Workspace created")
+                            .sub_title(stats.workspace_id.to_string()),
+                    )?;
+                }
+
+                self.writeln_title(TitleFormat::completion(format!(
+                    "Successfully synced: {}",
+                    path.display()
+                )))?;
+                Ok(())
+            }
+            Err(e) => {
+                self.spinner.stop(None)?;
+                Err(e)
+            }
+        }
+    }
+
+    async fn on_query(
+        &mut self,
+        path: PathBuf,
+        params: forge_domain::SearchParams<'_>,
+    ) -> anyhow::Result<()> {
+        self.spinner.start(Some("Searching codebase..."))?;
+
+        let results = match self.api.query_codebase(path.clone(), params).await {
+            Ok(results) => results,
+            Err(e) => {
+                self.spinner.stop(None)?;
+                return Err(e);
+            }
+        };
+
+        self.spinner.stop(None)?;
+
+        let mut info = Info::new().add_title(format!("FILES [{} RESULTS]", results.len()));
+
+        for result in results.iter() {
+            match &result.node {
+                forge_domain::CodeNode::FileChunk { file_path, start_line, end_line, .. } => {
+                    info = info.add_key_value(
+                        "File",
+                        format!("{}:{}-{}", file_path, start_line, end_line),
+                    );
+                }
+                forge_domain::CodeNode::File { file_path, .. } => {
+                    info = info.add_key_value("File", format!("{} (full file)", file_path));
+                }
+                forge_domain::CodeNode::FileRef { file_path, .. } => {
+                    info = info.add_key_value("File", format!("{} (reference)", file_path));
+                }
+                forge_domain::CodeNode::Note { content, .. } => {
+                    info = info.add_key_value("Note", content);
+                }
+                forge_domain::CodeNode::Task { task, .. } => {
+                    info = info.add_key_value("Task", task);
+                }
+            }
+        }
+
+        self.writeln(info)?;
+
+        Ok(())
+    }
+
+    /// Helper function to format workspace information consistently
+    fn format_workspace_info(workspace: &forge_domain::WorkspaceInfo, is_active: bool) -> Info {
+        let updated_time = workspace
+            .last_updated
+            .map_or("NEVER".to_string(), humanize_time);
+
+        let mut info = Info::new();
+
+        let timestamp = workspace
+            .created_at
+            .with_timezone(&chrono::Local)
+            .format("%Y-%m-%d %H:%M:%S %Z")
+            .to_string();
+
+        let title = if is_active {
+            "Workspace [ACTIVE]".to_string()
+        } else {
+            format!("Workspace [{}]", timestamp)
+        };
+        info = info.add_title(title);
+
+        info.add_key_value("ID", workspace.workspace_id.to_string())
+            .add_key_value("Path", workspace.working_dir.to_string())
+            .add_key_value("File", workspace.node_count.to_string())
+            .add_key_value("Relations", workspace.relation_count.to_string())
+            .add_key_value("Created At", humanize_time(workspace.created_at))
+            .add_key_value("Updated At", updated_time)
+    }
+
+    async fn on_list_workspaces(&mut self, porcelain: bool) -> anyhow::Result<()> {
+        if !porcelain {
+            self.spinner.start(Some("Fetching workspaces..."))?;
+        }
+
+        // Fetch workspaces and current workspace info in parallel
+        let env = self.api.environment();
+        let (workspaces_result, current_workspace_result) = tokio::join!(
+            self.api.list_codebases(),
+            self.api.get_workspace_info(env.cwd)
+        );
+
+        match workspaces_result {
+            Ok(workspaces) => {
+                if !porcelain {
+                    self.spinner.stop(None)?;
+                }
+
+                // Get active workspace ID if current workspace info is available
+                let current_workspace = current_workspace_result.ok().flatten();
+                let active_workspace_id = current_workspace.as_ref().map(|ws| &ws.workspace_id);
+
+                // Build Info object once
+                let mut info = Info::new();
+
+                for workspace in &workspaces {
+                    let is_active = active_workspace_id == Some(&workspace.workspace_id);
+                    info = info.extend(Self::format_workspace_info(workspace, is_active));
+                }
+
+                // Output based on mode
+                if porcelain {
+                    // Skip header row in porcelain mode (consistent with conversation list)
+                    self.writeln(Porcelain::from(info).skip(1).drop_cols(&[0, 4, 5]))?;
+                } else {
+                    self.writeln(info)?;
+                }
+
+                Ok(())
+            }
+            Err(e) => {
+                self.spinner.stop(None)?;
+                Err(e)
+            }
+        }
+    }
+
+    /// Displays workspace information for a given path.
+    async fn on_workspace_info(&mut self, path: std::path::PathBuf) -> anyhow::Result<()> {
+        self.spinner.start(Some("Fetching workspace info..."))?;
+
+        match self.api.get_workspace_info(path).await {
+            Ok(Some(workspace)) => {
+                self.spinner.stop(None)?;
+
+                // When viewing a specific workspace's info, it's implicitly the active one
+                let info = Self::format_workspace_info(&workspace, true);
+
+                self.writeln(info)
+            }
+            Ok(None) => {
+                self.spinner.stop(None)?;
+                self.writeln_to_stderr(
+                    TitleFormat::error("No workspace found")
+                        .display()
+                        .to_string(),
+                )
+            }
+            Err(e) => {
+                self.spinner.stop(None)?;
+                Err(e)
+            }
+        }
+    }
+
+    async fn on_delete_workspace(&mut self, workspace_id: String) -> anyhow::Result<()> {
+        // Parse workspace ID
+        let workspace_id = forge_domain::WorkspaceId::from_string(&workspace_id)
+            .context("Invalid workspace ID format")?;
+
+        self.spinner.start(Some("Deleting workspace..."))?;
+
+        match self.api.delete_codebase(workspace_id).await {
+            Ok(()) => {
+                self.spinner.stop(None)?;
+                self.writeln_title(TitleFormat::completion(format!(
+                    "Successfully deleted workspace {}",
+                    workspace_id
+                )))?;
+                Ok(())
+            }
+            Err(e) => {
+                self.spinner.stop(None)?;
+                Err(e)
+            }
+        }
     }
 
     /// Handle credential migration

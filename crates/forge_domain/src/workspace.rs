@@ -49,6 +49,15 @@ pub trait WorkspaceRepository: Send + Sync {
 
     /// Mark workspace as inactive (when folder is deleted)
     fn mark_inactive(&self, workspace_id: WorkspaceId) -> Result<()>;
+
+    /// Ensure workspace metadata is complete and up-to-date
+    /// Updates folder_path if missing, and sets dates based on conversation
+    /// data
+    fn ensure_workspace_metadata(
+        &self,
+        workspace_id: WorkspaceId,
+        folder_path: &std::path::Path,
+    ) -> Result<Workspace>;
 }
 
 #[cfg(test)]
