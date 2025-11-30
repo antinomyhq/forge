@@ -12,7 +12,7 @@ use forge_domain::{
     AnyProvider, AppConfig, AppConfigRepository, AuthCredential, CommandOutput, Conversation,
     ConversationId, ConversationRepository, Environment, FileInfo, McpServerConfig,
     MigrationResult, Provider, ProviderId, ProviderRepository, Skill, SkillRepository, Snapshot,
-    SnapshotRepository, WorkspaceRepository,
+    SnapshotRepository, Workspace as WorkspaceDomain, WorkspaceRepository,
 };
 // Re-export CacacheStorage from forge_infra
 pub use forge_infra::CacacheStorage;
@@ -42,10 +42,10 @@ pub struct ForgeRepo<F> {
     mcp_cache_repository: Arc<CacacheStorage>,
     provider_repository: Arc<ForgeProviderRepository<F>>,
     agent_repository: Arc<ForgeAgentRepository<F>>,
-    skill_repository: Arc<ForgeSkillRepository<F>>,
+    skill_repository: Arc<dyn forge_domain::SkillRepository>,
 }
 
-impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
+impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + forge_app::FileInfoInfra + forge_app::WalkerInfra + 'static> ForgeRepo<F> {
     pub fn new(infra: Arc<F>) -> Self {
         let env = infra.get_environment();
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
@@ -55,10 +55,9 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
         let workspace_repository = Arc::new(WorkspaceRepositoryImpl::new(db_pool.clone()));
 
         let conversation_repository =
-            Arc::new(ConversationRepositoryImpl::with_workspace_repository(
+            Arc::new(ConversationRepositoryImpl::new(
                 db_pool.clone(),
                 env.workspace_id(),
-                workspace_repository.clone(),
             ));
 
         let app_config_repository = Arc::new(AppConfigRepositoryImpl::new(infra.clone()));
@@ -70,7 +69,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
 
         let provider_repository = Arc::new(ForgeProviderRepository::new(infra.clone()));
         let agent_repository = Arc::new(ForgeAgentRepository::new(infra.clone()));
-        let skill_repository = Arc::new(ForgeSkillRepository::new(infra.clone()));
+        let skill_repository: Arc<dyn forge_domain::SkillRepository> = Arc::new(ForgeSkillRepository::new(infra.clone()));
         Self {
             infra,
             file_snapshot_service,
@@ -133,7 +132,7 @@ impl<F: Send + Sync> WorkspaceRepository for ForgeRepo<F> {
         &self,
         workspace_id: forge_domain::WorkspaceId,
         folder_path: &std::path::Path,
-    ) -> anyhow::Result<forge_domain::Workspace> {
+    ) -> anyhow::Result<WorkspaceDomain> {
         self.workspace_repository
             .create_or_update_workspace(workspace_id, folder_path)
     }
@@ -141,7 +140,7 @@ impl<F: Send + Sync> WorkspaceRepository for ForgeRepo<F> {
     fn get_workspace_by_id(
         &self,
         workspace_id: forge_domain::WorkspaceId,
-    ) -> anyhow::Result<Option<forge_domain::Workspace>> {
+    ) -> anyhow::Result<Option<WorkspaceDomain>> {
         self.workspace_repository.get_workspace_by_id(workspace_id)
     }
 
