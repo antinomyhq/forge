@@ -12,7 +12,9 @@ use crate::changed_files::ChangedFiles;
 use crate::dto::ToolsOverview;
 use crate::init_conversation_metrics::InitConversationMetrics;
 use crate::orch::Orchestrator;
-use crate::services::{AgentRegistry, CustomInstructionsService, TemplateService};
+use crate::services::{
+    AgentRegistry, CustomInstructionsService, ProviderAuthService, TemplateService,
+};
 use crate::set_conversation_id::SetConversationId;
 use crate::system_prompt::SystemPrompt;
 use crate::tool_registry::ToolRegistry;
@@ -104,6 +106,12 @@ impl<S: Services> ForgeApp<S> {
         let agent_provider = agent_provider_resolver
             .get_provider(Some(agent.id.clone()))
             .await?;
+        let agent_provider = self
+            .services
+            .provider_auth_service()
+            .refresh_provider_credential(agent_provider)
+            .await?;
+
         let models = services.models(agent_provider).await?;
 
         // Get system and mcp tool definitions and resolve them for the agent
@@ -264,6 +272,20 @@ impl<S: Services> ForgeApp<S> {
 
     pub async fn list_tools(&self) -> Result<ToolsOverview> {
         self.tool_registry.tools_overview().await
+    }
+
+    /// Gets available models for the default provider with automatic credential
+    /// refresh.
+    pub async fn get_models(&self) -> Result<Vec<Model>> {
+        let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
+        let provider = agent_provider_resolver.get_provider(None).await?;
+        let provider = self
+            .services
+            .provider_auth_service()
+            .refresh_provider_credential(provider)
+            .await?;
+
+        self.services.models(provider).await
     }
     pub async fn login(&self, init_auth: &InitAuth) -> Result<()> {
         self.authenticator.login(init_auth).await
