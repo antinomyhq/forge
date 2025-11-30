@@ -13,16 +13,15 @@
 
 <tool_usage_instructions>
 {{#if (not tool_supported)}}
-
 - You have access to set of tools as described in the <available_tools> tag.
 - You can use one tool per message, and will receive the result of that tool use in the user's response.
 - You use tools step-by-step to accomplish a given task, with each tool use informed by the result of the previous tool use.
-  {{else}}
+{{else}}
 - For maximum efficiency, whenever you need to perform multiple independent operations, invoke all relevant tools (for eg: `patch`, `read`) simultaneously rather than sequentially.
-  {{/if}}
+{{/if}}
 - NEVER ever refer to tool names when speaking to the USER even when user has asked for it. For example, instead of saying 'I need to use the edit_file tool to edit your file', just say 'I will edit your file'.
 - If you need to read a file, prefer to read larger sections of the file at once over multiple smaller calls.
-  </tool_usage_instructions>
+</tool_usage_instructions>
 
 {{#if custom_rules}}
 <project_guidelines>
