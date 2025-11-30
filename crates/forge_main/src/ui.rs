@@ -2834,7 +2834,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     }
 
     /// Helper function to format workspace information consistently
-    fn format_workspace_info(workspace: &forge_domain::WorkspaceInfo) -> Info {
+    fn format_workspace_info(workspace: &forge_domain::WorkspaceInfo, is_active: bool) -> Info {
         let updated_time = workspace
             .last_updated
             .map_or("NEVER".to_string(), humanize_time);
@@ -2846,7 +2846,13 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .with_timezone(&chrono::Local)
             .format("%Y-%m-%d %H:%M:%S %Z")
             .to_string();
-        info = info.add_title(format!("Workspace [{}]", timestamp));
+
+        let title = if is_active {
+            format!("Workspace [ACTIVE]")
+        } else {
+            format!("Workspace [{}]", timestamp)
+        };
+        info = info.add_title(title);
 
         info.add_key_value("ID", workspace.workspace_id.to_string())
             .add_key_value("Path", workspace.working_dir.to_string())
@@ -2861,17 +2867,29 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             self.spinner.start(Some("Fetching workspaces..."))?;
         }
 
-        match self.api.list_codebases().await {
+        // Fetch workspaces and current workspace info in parallel
+        let env = self.api.environment();
+        let (workspaces_result, current_workspace_result) = tokio::join!(
+            self.api.list_codebases(),
+            self.api.get_workspace_info(env.cwd)
+        );
+
+        match workspaces_result {
             Ok(workspaces) => {
                 if !porcelain {
                     self.spinner.stop(None)?;
                 }
 
+                // Get active workspace ID if current workspace info is available
+                let current_workspace = current_workspace_result.ok().flatten();
+                let active_workspace_id = current_workspace.as_ref().map(|ws| &ws.workspace_id);
+
                 // Build Info object once
                 let mut info = Info::new();
 
                 for workspace in &workspaces {
-                    info = info.extend(Self::format_workspace_info(workspace));
+                    let is_active = active_workspace_id == Some(&workspace.workspace_id);
+                    info = info.extend(Self::format_workspace_info(workspace, is_active));
                 }
 
                 // Output based on mode
@@ -2899,7 +2917,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             Ok(Some(workspace)) => {
                 self.spinner.stop(None)?;
 
-                let info = Self::format_workspace_info(&workspace);
+                // When viewing a specific workspace's info, it's implicitly the active one
+                let info = Self::format_workspace_info(&workspace, true);
 
                 self.writeln(info)
             }
