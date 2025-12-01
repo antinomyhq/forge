@@ -176,3 +176,87 @@ function _forge_clone_and_switch() {
         _forge_log error "Failed to clone conversation: $clone_output"
     fi
 }
+
+}
+
+# Action handler: Rename conversation
+function _forge_action_rename() {
+    local input_text="$1"
+    
+    echo
+    
+    # If an ID is provided directly, use it
+    if [[ -n "$input_text" ]]; then
+        local conversation_id="$input_text"
+        
+        # Rename conversation with interactive title prompt
+        _forge_rename_conversation "$conversation_id"
+        
+        _forge_reset
+        return 0
+    fi
+    
+    # Get conversations list for fzf selection
+    local conversations_output
+    conversations_output=$($_FORGE_BIN conversation list --porcelain 2>/dev/null)
+    
+    if [[ -z "$conversations_output" ]]; then
+        _forge_log error "No conversations found"
+        _forge_reset
+        return 0
+    fi
+    
+    # Get current conversation ID if set
+    local current_id="$_FORGE_CONVERSATION_ID"
+    
+    # Create fzf interface similar to :conversation
+    local prompt_text="Rename Conversation ❯ "
+    local fzf_args=(
+        --prompt="$prompt_text"
+        --delimiter="$_FORGE_DELIMITER"
+        --with-nth="2,3"
+        --preview="CLICOLOR_FORCE=1 $_FORGE_BIN conversation info {1}; echo; CLICOLOR_FORCE=1 $_FORGE_BIN conversation show {1}"
+        $_FORGE_PREVIEW_WINDOW
+    )
+
+    # Position cursor on current conversation if available
+    if [[ -n "$current_id" ]]; then
+        local index=$(_forge_find_index "$conversations_output" "$current_id" 1)
+        fzf_args+=(--bind="start:pos($index)")
+    fi
+
+    local selected_conversation
+    selected_conversation=$(echo "$conversations_output" | _forge_fzf "${fzf_args[@]}")
+    
+    if [[ -n "$selected_conversation" ]]; then
+        # Extract conversation ID
+        local conversation_id=$(echo "$selected_conversation" | sed -E 's/  .*//' | tr -d '\n')
+        _forge_rename_conversation "$conversation_id"
+    fi
+    
+    _forge_reset
+}
+
+# Helper function to rename a conversation
+function _forge_rename_conversation() {
+    local conversation_id="$1"
+    
+    # Get current conversation title for default
+    local conversation_info
+    conversation_info=$($_FORGE_BIN conversation info "$conversation_id" 2>/dev/null)
+    local current_title=$(echo "$conversation_info" | grep "Title:" | sed 's/Title: //' || echo "<untitled>")
+    
+    # Execute rename command with interactive prompt
+    _forge_log info "Renaming conversation \033[1m${conversation_id}\033[0m"
+    local rename_output
+    rename_output=$($_FORGE_BIN conversation rename "$conversation_id" 2>&1)
+    local rename_exit_code=$?
+    
+    if [[ $rename_exit_code -eq 0 ]]; then
+        # Extract new title from output or show success message
+        local new_title=$(echo "$rename_output" | grep -o "renamed to '[^']*'" | sed "s/renamed to '//" || echo "Successfully renamed")
+        _forge_log success "Conversation \033[1m${conversation_id}\033[0m renamed to '\033[1m${new_title}\033[0m'"
+    else
+        _forge_log error "Failed to rename conversation: $rename_output"
+    fi
+}
