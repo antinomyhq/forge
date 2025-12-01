@@ -55,6 +55,14 @@ impl Info {
         self.add_item(Some(normalized_key), value)
     }
 
+    pub fn add_key_value_when(self, key: impl ToString, value: Option<impl ToString>) -> Self {
+        if let Some(value) = value {
+            self.add_key_value(key, value)
+        } else {
+            self
+        }
+    }
+
     fn add_item(mut self, key: Option<impl ToString>, value: impl ToString) -> Self {
         self.sections.push(Section::Items(
             key.map(|a| a.to_string()),
@@ -194,7 +202,10 @@ impl From<&Environment> for Info {
             .add_key_value("Tool Timeout", format!("{}s", env.tool_timeout))
             .add_key_value("Max Image Size", format!("{} bytes", env.max_image_size))
             .add_key_value("Auto Open Dump", env.auto_open_dump.to_string())
-            .add_key_value("Debug Requests", env.debug_requests.to_string())
+            .add_key_value_when(
+                "Debug Requests",
+                env.debug_requests.as_ref().map(|p| p.display().to_string()),
+            )
             .add_key_value(
                 "Stdout Max Line Length",
                 env.stdout_max_line_length.to_string(),
@@ -243,12 +254,19 @@ impl From<&Metrics> for Info {
                     .and_then(|name| name.to_str())
                     .unwrap_or(path);
 
-                let changes = format!(
-                    "−{} +{}",
-                    file_metrics.lines_removed, file_metrics.lines_added
-                );
+                let removed = if file_metrics.lines_removed == 0 {
+                    "0".to_string()
+                } else {
+                    format!("−{}", file_metrics.lines_removed)
+                };
+                let added = if file_metrics.lines_added == 0 {
+                    "0".to_string()
+                } else {
+                    format!("+{}", file_metrics.lines_added)
+                };
+                let changes = format!("{} {}", removed, added);
 
-                info = info.add_key_value(format!("⦿ {filename}"), changes);
+                info = info.add_key_value(filename, changes);
             }
         }
 
@@ -321,14 +339,19 @@ impl fmt::Display for Info {
                 Section::Items(key, value) => {
                     if let Some(key) = key {
                         if let Some(width) = width {
-                            writeln!(f, "  {} {}", format!("{key:<width$}:").cyan().bold(), value)?;
+                            writeln!(
+                                f,
+                                "  {} {}",
+                                format!("{key:<width$}:").green().bold(),
+                                value
+                            )?;
                         } else {
                             // No section width (items without a title)
-                            writeln!(f, "  {}: {}", key.cyan().bold(), value)?;
+                            writeln!(f, "  {}: {}", key.green().bold(), value)?;
                         }
                     } else {
                         // Show value-only items
-                        writeln!(f, "    {} {}", "⦿".cyan(), value)?;
+                        writeln!(f, "    {} {}", "⦿".green(), value)?;
                     }
                 }
             }
@@ -749,13 +772,13 @@ mod tests {
         // Verify it contains the task completed section
         assert!(expected_display.contains("TASK COMPLETED"));
 
-        // Verify it contains the files with bullet points
-        assert!(expected_display.contains("⦿ main.rs"));
+        // Verify it contains the files as keys with colons
+        assert!(expected_display.contains("main.rs"));
         assert!(expected_display.contains("−3 +12"));
         assert!(expected_display.contains("mod.rs"));
         assert!(expected_display.contains("−2 +8"));
         assert!(expected_display.contains("test_agent.rs"));
-        assert!(expected_display.contains("−0 +5"));
+        assert!(expected_display.contains("0 +5"));
     }
 
     #[test]
@@ -1038,8 +1061,8 @@ mod tests {
         // Verify it contains the task completed section
         assert!(expected_display.contains("TASK COMPLETED"));
 
-        // Verify it contains files with changes
-        assert!(expected_display.contains("⦿ main.rs"));
+        // Verify it contains files with changes as keys
+        assert!(expected_display.contains("main.rs"));
         assert!(expected_display.contains("−3 +12"));
         assert!(expected_display.contains("mod.rs"));
         assert!(expected_display.contains("−2 +8"));

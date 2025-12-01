@@ -115,6 +115,34 @@ This displays:
 - Project details
 - Current configuration
 
+- Current configuration
+
+#### Cloning Conversations
+
+Create a copy of an existing conversation with interactive selection:
+
+```bash
+:clone
+```
+
+This will:
+- Display an interactive list of all conversations with preview
+- Allow you to select a conversation to clone
+- Create a new conversation with the same content
+- Automatically switch to the cloned conversation
+- Show the cloned conversation content and details
+
+You can also clone a specific conversation by providing its ID:
+
+```bash
+:clone <conversation_id>
+```
+
+This is useful when you want to:
+- Create a backup before making significant changes
+- Start a new conversation branch from an existing context
+- Experiment with different approaches while preserving the original
+
 #### Session Status
 
 The plugin automatically displays session information including:
@@ -171,6 +199,12 @@ Index a directory for semantic search:
 # or
 :index /path/to/directory
 ```
+
+### .forge Directory
+
+The plugin creates a `.forge` directory in your current working directory (similar to `.git`) for temporary files:
+
+- `FORGE_EDITMSG`: Temporary file used when opening an external editor with `:edit`
 
 ## Advanced Features
 

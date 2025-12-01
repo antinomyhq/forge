@@ -24,7 +24,6 @@ use forge_select::ForgeSelect;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
 use merge::Merge;
-use strum::IntoEnumIterator;
 use tokio_stream::StreamExt;
 use tracing::debug;
 use url::Url;
@@ -292,6 +291,14 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             return Ok(());
         }
 
+        // Handle piped input if provided (treat it like --prompt)
+        let piped_input = self.cli.piped_input.clone();
+        if let Some(piped) = piped_input {
+            self.spinner.start(None)?;
+            self.on_message(Some(piped)).await?;
+            return Ok(());
+        }
+
         // Get initial input from prompt
         let mut command = self.prompt().await;
 
@@ -353,6 +360,14 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     async fn handle_subcommands(&mut self, subcommand: TopLevelCommand) -> anyhow::Result<()> {
         match subcommand {
+            TopLevelCommand::Agent(agent_group) => {
+                match agent_group.command {
+                    crate::cli::AgentCommand::List => {
+                        self.on_show_agents(agent_group.porcelain).await?;
+                    }
+                }
+                return Ok(());
+            }
             TopLevelCommand::List(list_group) => {
                 let porcelain = list_group.porcelain;
                 match list_group.command {
@@ -600,9 +615,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         use forge_domain::ConversationId;
 
         match conversation_group.command {
-            ConversationCommand::List => {
-                self.on_show_conversations(conversation_group.porcelain)
-                    .await?;
+            ConversationCommand::List { porcelain } => {
+                self.on_show_conversations(porcelain).await?;
             }
             ConversationCommand::New => {
                 self.handle_generate_conversation_id().await?;
@@ -675,15 +689,22 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
                 self.on_show_conv_info(conversation).await?;
             }
-            ConversationCommand::Clone { id } => {
+            ConversationCommand::Stats { id, porcelain } => {
+                let conversation_id =
+                    ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
+
+                let conversation = self.validate_conversation_exists(&conversation_id).await?;
+
+                self.on_show_conv_stats(conversation, porcelain).await?;
+            }
+            ConversationCommand::Clone { id, porcelain } => {
                 let conversation_id =
                     ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
 
                 let conversation = self.validate_conversation_exists(&conversation_id).await?;
 
                 self.spinner.start(Some("Cloning"))?;
-                self.on_clone_conversation(conversation, conversation_group.porcelain)
-                    .await?;
+                self.on_clone_conversation(conversation, porcelain).await?;
                 self.spinner.stop(None)?;
             }
         }
@@ -932,7 +953,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 Porcelain::from(&info)
                     .skip(1)
                     .drop_col(0)
-                    .map_col(4, |text| match text.as_deref() {
+                    .map_col(5, |text| match text.as_deref() {
                         Some("ENABLED") => Some("Reasoning".to_string()),
                         Some("DISABLED") => Some("Non-Reasoning".to_string()),
                         _ => None,
@@ -956,17 +977,21 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let mut info = Info::new();
 
         for provider in providers.iter() {
-            let id = provider.id().to_string();
+            let id: &str = &provider.id();
+            let display_name = provider.id().to_string();
             let domain = if let Some(url) = provider.url() {
                 url.domain().map(|d| d.to_string()).unwrap_or_default()
             } else {
                 "<unset>".to_string()
             };
+            let provider_type = provider.provider_type().to_string();
             let configured = provider.is_configured();
             info = info
                 .add_title(id.to_case(Case::UpperSnake))
+                .add_key_value("name", display_name)
                 .add_key_value("id", id)
-                .add_key_value("host", domain);
+                .add_key_value("host", domain)
+                .add_key_value("type", provider_type);
             if configured {
                 info = info.add_key_value("status", "available");
             };
@@ -1052,43 +1077,25 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     async fn on_show_commands(&mut self, porcelain: bool) -> anyhow::Result<()> {
         let mut info = Info::new();
 
-        // Define base commands with their descriptions and type
-        let built_in_commands = [
-            ("info", "Print session information [alias: i]"),
-            ("env", "Display environment information [alias: e]"),
-            ("provider", "Switch the providers [alias: p]"),
-            ("model", "Switch the models [alias: m]"),
-            ("new", "Start new conversation [alias: n]"),
-            (
-                "dump",
-                "Save conversation as JSON or HTML (use /dump html for HTML format) [alias: d]",
-            ),
-            (
-                "conversation",
-                "List all conversations for the active workspace [alias: c]",
-            ),
-            ("retry", "Retry the last command [alias: r]"),
-            ("compact", "Compact the conversation context"),
-            (
-                "tools",
-                "List all available tools with their descriptions and schema [alias: t]",
-            ),
-            ("skill", "List all available skills"),
-            ("commit", "Generate AI commit message and commit changes."),
-            (
-                "suggest",
-                "Generate shell commands without executing them [alias: s]",
-            ),
-            ("sync", "Sync the current workspace for codebase search"),
-            ("login", "Login to a provider"),
-            ("logout", "Logout from a provider"),
-        ];
+        // Load built-in commands from JSON
+        // NOTE: When adding a new command, update built_in_commands.json AND
+        //       shell-plugin/forge.plugin.zsh (case statement around line 745)
+        const COMMANDS_JSON: &str = include_str!("built_in_commands.json");
 
-        for (name, description) in built_in_commands {
+        #[derive(serde::Deserialize)]
+        struct Command<'a> {
+            command: &'a str,
+            description: &'a str,
+        }
+
+        let built_in_commands: Vec<Command> =
+            serde_json::from_str(COMMANDS_JSON).expect("Failed to parse built_in_commands.json");
+
+        for cmd in &built_in_commands {
             info = info
-                .add_title(name)
+                .add_title(cmd.command)
                 .add_key_value("type", "command")
-                .add_key_value("description", description);
+                .add_key_value("description", cmd.description);
         }
 
         // Add agent aliases
@@ -1401,7 +1408,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     }
 
     async fn on_zsh_prompt(&self) -> anyhow::Result<()> {
-        println!("{}", include_str!("../../../shell-plugin/forge.plugin.zsh"));
+        let plugin = crate::zsh_plugin::generate_zsh_plugin()?;
+        println!("{plugin}");
         Ok(())
     }
 
@@ -1740,14 +1748,25 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     ) -> anyhow::Result<()> {
         use anyhow::Context;
         self.spinner.stop(None)?;
+
+        // Extract existing API key and URL params for prefilling
+        let existing_url_params = request.existing_params.as_ref();
+
         // Collect URL parameters if required
         let url_params = request
             .required_params
             .iter()
             .map(|param| {
-                let param_value = ForgeSelect::input(format!("Enter {param}:"))
-                    .prompt()?
-                    .context("Parameter input cancelled")?;
+                let mut input = ForgeSelect::input(format!("Enter {param}:"));
+
+                // Add default value if it exists in the credential
+                if let Some(params) = existing_url_params
+                    && let Some(default_value) = params.get(param)
+                {
+                    input = input.with_default(default_value.as_str());
+                }
+
+                let param_value = input.prompt()?.context("Parameter input cancelled")?;
 
                 anyhow::ensure!(!param_value.trim().is_empty(), "{param} cannot be empty");
 
@@ -1792,11 +1811,28 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             "→".blue(),
             display_uri.blue().underline()
         ))?;
-        self.writeln(format!(
-            "{} Enter code: {}",
-            "→".blue(),
-            user_code.bold().yellow()
-        ))?;
+        // Try to copy code to clipboard automatically (not available on Android)
+        #[cfg(not(target_os = "android"))]
+        let clipboard_copied = arboard::Clipboard::new()
+            .and_then(|mut clipboard| clipboard.set_text(user_code))
+            .is_ok();
+
+        #[cfg(target_os = "android")]
+        let clipboard_copied = false;
+
+        if clipboard_copied {
+            self.writeln(format!(
+                "{} Code copied to clipboard: {}",
+                "✓".green().bold(),
+                user_code.bold().yellow()
+            ))?;
+        } else {
+            self.writeln(format!(
+                "{} Enter code: {}",
+                "→".blue(),
+                user_code.bold().yellow()
+            ))?;
+        }
         self.writeln("")?;
 
         // Try to open browser automatically
@@ -1970,7 +2006,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         provider_id: ProviderId,
         auth_methods: Vec<AuthMethod>,
     ) -> Result<Option<Provider<Url>>> {
-        if provider_id == ProviderId::ForgeServices {
+        if provider_id == ProviderId::FORGE_SERVICES {
             let auth = self.api.create_auth_credentials().await?;
             self.writeln_title(
                 TitleFormat::info("Forge API key created").sub_title(auth.token.as_str()),
@@ -1978,7 +2014,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             return Ok(None);
         }
         // Select auth method (or use the only one available)
-        let auth_method = match self.select_auth_method(provider_id, &auth_methods).await? {
+        let auth_method = match self
+            .select_auth_method(provider_id.clone(), &auth_methods)
+            .await?
+        {
             Some(method) => method,
             None => return Ok(None), // User cancelled
         };
@@ -1988,23 +2027,25 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Initiate the authentication flow
         let auth_request = self
             .api
-            .init_provider_auth(provider_id, auth_method)
+            .init_provider_auth(provider_id.clone(), auth_method)
             .await?;
 
         // Handle the specific authentication flow based on the request type
         match auth_request {
             AuthContextRequest::ApiKey(request) => {
-                self.handle_api_key_input(provider_id, &request).await?;
+                self.handle_api_key_input(provider_id.clone(), &request)
+                    .await?;
             }
             AuthContextRequest::DeviceCode(request) => {
-                self.handle_device_flow(provider_id, &request).await?;
+                self.handle_device_flow(provider_id.clone(), &request)
+                    .await?;
             }
             AuthContextRequest::Code(request) => {
-                self.handle_code_flow(provider_id, &request).await?;
+                self.handle_code_flow(provider_id.clone(), &request).await?;
             }
         }
 
-        let should_set_active = self.display_credential_success(provider_id).await?;
+        let should_set_active = self.display_credential_success(provider_id.clone()).await?;
 
         if !should_set_active {
             return Ok(None);
@@ -2121,7 +2162,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     /// a compatible model is selected.
     async fn finalize_provider_activation(&mut self, provider: Provider<Url>) -> Result<()> {
         // Set the provider via API
-        self.api.set_default_provider(provider.id).await?;
+        self.api.set_default_provider(provider.id.clone()).await?;
 
         self.writeln_title(TitleFormat::action(format!(
             "Switched to provider: {}",
@@ -2229,23 +2270,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         title.push_str(format!(" {}", id.into_string()).as_str());
 
-        let mut sub_title = String::new();
-        sub_title.push('[');
-
-        if let Some(ref agent) = self.api.get_active_agent().await {
-            sub_title.push_str(format!("via {agent}").as_str());
-        }
-
-        if let Some(ref model) = self
-            .get_agent_model(self.api.get_active_agent().await)
-            .await
-        {
-            sub_title.push_str(format!("/{}", model.as_str()).as_str());
-        }
-
-        sub_title.push(']');
-
-        self.writeln_title(TitleFormat::debug(title).sub_title(sub_title.bold().to_string()))?;
+        self.writeln_title(TitleFormat::debug(title))?;
         Ok(())
     }
 
@@ -2255,6 +2280,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
 
         let _ = self.handle_migrate_credentials().await;
+        let _ = self.install_vscode_extension().await;
 
         // Ensure we have a model selected before proceeding with initialization
         if self
@@ -2329,8 +2355,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     async fn on_message(&mut self, content: Option<String>) -> Result<()> {
         let conversation_id = self.init_conversation().await?;
 
-        // Get piped input from CLI if available
-        let piped_input = self.cli.piped_input.clone();
+        // Track if content was provided to decide whether to use piped input as
+        // additional context
+        let has_content = content.is_some();
 
         // Create a ChatRequest with the appropriate event type
         let mut event = match content {
@@ -2338,9 +2365,16 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             None => Event::empty(),
         };
 
-        // Set piped input if present
+        // Only use CLI piped_input as additional context if it wasn't already passed as
+        // content This handles cases where piped input is used alongside
+        // explicit prompts
+        let piped_input = self.cli.piped_input.clone();
         if let Some(piped) = piped_input {
-            event = event.additional_context(piped);
+            // Only add as additional context if content is provided separately (e.g., via
+            // --prompt)
+            if has_content {
+                event = event.additional_context(piped);
+            }
         }
 
         // Create the chat request with the event
@@ -2510,9 +2544,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         self.spinner.start(Some("Loading Summary"))?;
 
         let info = Info::default().extend(&conversation);
-
         self.writeln(info)?;
-
         self.spinner.stop(None)?;
 
         // Only prompt for new conversation if in interactive mode and prompt is enabled
@@ -2531,6 +2563,74 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             if should_start_new_chat {
                 self.on_new().await?;
             }
+        }
+
+        Ok(())
+    }
+
+    async fn on_show_conv_stats(
+        &mut self,
+        conversation: Conversation,
+        porcelain: bool,
+    ) -> anyhow::Result<()> {
+        let mut info = Info::new().add_title("CONVERSATION");
+
+        // Add conversation ID
+        info = info.add_key_value("ID", conversation.id.to_string());
+
+        // Calculate duration
+        let created_at = conversation.metadata.created_at;
+        let updated_at = conversation.metadata.updated_at.unwrap_or(created_at);
+        let duration = updated_at.signed_duration_since(created_at);
+
+        // Format duration
+        let duration_str = if duration.num_hours() > 0 {
+            format!("{}h {}m", duration.num_hours(), duration.num_minutes() % 60)
+        } else if duration.num_minutes() > 0 {
+            format!(
+                "{}m {}s",
+                duration.num_minutes(),
+                duration.num_seconds() % 60
+            )
+        } else {
+            format!("{}s", duration.num_seconds())
+        };
+
+        info = info.add_key_value("Total Duration", duration_str);
+
+        // Add message statistics if context exists
+        if let Some(context) = &conversation.context {
+            info = info
+                .add_key_value("Total Messages", context.total_messages())
+                .add_key_value("User Messages", context.user_message_count())
+                .add_key_value("Assistant Messages", context.assistant_message_count())
+                .add_key_value("Tool Calls", context.tool_call_count());
+        }
+
+        // Add token usage if available
+        if let Some(usage) = conversation.context.as_ref().and_then(|c| c.usage.as_ref()) {
+            info = info
+                .add_title("TOKEN")
+                .add_key_value("Prompt Tokens", usage.prompt_tokens.to_string())
+                .add_key_value("Completion Tokens", usage.completion_tokens.to_string())
+                .add_key_value("Total Tokens", usage.total_tokens.to_string());
+
+            if let Some(cost) = usage.cost {
+                info = info.add_key_value("Cost", format!("${cost:.4}"));
+            }
+        }
+
+        if porcelain {
+            use convert_case::Case;
+            self.writeln(
+                Porcelain::from(&info)
+                    .into_long()
+                    .skip(1)
+                    .to_case(&[0, 1], Case::Snake)
+                    .sort_by(&[0, 1]),
+            )?;
+        } else {
+            self.writeln(info)?;
         }
 
         Ok(())
@@ -2643,14 +2743,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Set the specified field
         match args.field {
             ConfigField::Provider => {
-                // Parse and validate provider ID
-                let provider_id = ProviderId::from_str(&args.value).with_context(|| {
-                    format!(
-                        "Invalid provider: '{}'. Valid providers are: {}",
-                        args.value,
-                        get_valid_provider_names().join(", ")
-                    )
-                })?;
+                // Parse provider ID (any string is valid for custom providers)
+                let provider_id =
+                    ProviderId::from_str(&args.value).expect("from_str is infallible");
 
                 // Get the provider
                 let provider = self.api.get_provider(&provider_id).await?;
@@ -2840,7 +2935,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     }
 
     /// Helper function to format workspace information consistently
-    fn format_workspace_info(workspace: &forge_domain::WorkspaceInfo) -> Info {
+    fn format_workspace_info(workspace: &forge_domain::WorkspaceInfo, is_active: bool) -> Info {
         let updated_time = workspace
             .last_updated
             .map_or("NEVER".to_string(), humanize_time);
@@ -2852,7 +2947,13 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .with_timezone(&chrono::Local)
             .format("%Y-%m-%d %H:%M:%S %Z")
             .to_string();
-        info = info.add_title(format!("Workspace [{}]", timestamp));
+
+        let title = if is_active {
+            "Workspace [ACTIVE]".to_string()
+        } else {
+            format!("Workspace [{}]", timestamp)
+        };
+        info = info.add_title(title);
 
         info.add_key_value("ID", workspace.workspace_id.to_string())
             .add_key_value("Path", workspace.working_dir.to_string())
@@ -2867,17 +2968,29 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             self.spinner.start(Some("Fetching workspaces..."))?;
         }
 
-        match self.api.list_codebases().await {
+        // Fetch workspaces and current workspace info in parallel
+        let env = self.api.environment();
+        let (workspaces_result, current_workspace_result) = tokio::join!(
+            self.api.list_codebases(),
+            self.api.get_workspace_info(env.cwd)
+        );
+
+        match workspaces_result {
             Ok(workspaces) => {
                 if !porcelain {
                     self.spinner.stop(None)?;
                 }
 
+                // Get active workspace ID if current workspace info is available
+                let current_workspace = current_workspace_result.ok().flatten();
+                let active_workspace_id = current_workspace.as_ref().map(|ws| &ws.workspace_id);
+
                 // Build Info object once
                 let mut info = Info::new();
 
                 for workspace in &workspaces {
-                    info = info.extend(Self::format_workspace_info(workspace));
+                    let is_active = active_workspace_id == Some(&workspace.workspace_id);
+                    info = info.extend(Self::format_workspace_info(workspace, is_active));
                 }
 
                 // Output based on mode
@@ -2905,7 +3018,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             Ok(Some(workspace)) => {
                 self.spinner.stop(None)?;
 
-                let info = Self::format_workspace_info(&workspace);
+                // When viewing a specific workspace's info, it's implicitly the active one
+                let info = Self::format_workspace_info(&workspace, true);
 
                 self.writeln(info)
             }
@@ -2971,9 +3085,16 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
         Ok(())
     }
-}
 
-/// Get list of valid provider names
-fn get_valid_provider_names() -> Vec<String> {
-    ProviderId::iter().map(|p| p.to_string()).collect()
+    /// Silently install VS Code extension if in VS Code and extension not
+    /// installed
+    async fn install_vscode_extension(&mut self) -> Result<()> {
+        if crate::vscode::should_install_extension() {
+            // Spawn installation in background to avoid blocking startup
+            tokio::task::spawn_blocking(|| {
+                let _ = crate::vscode::install_extension();
+            });
+        }
+        Ok(())
+    }
 }

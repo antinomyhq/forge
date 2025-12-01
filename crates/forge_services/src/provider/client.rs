@@ -262,7 +262,7 @@ mod tests {
 
     fn make_test_credential() -> Option<forge_domain::AuthCredential> {
         Some(forge_domain::AuthCredential {
-            id: ProviderId::OpenAI,
+            id: ProviderId::OPENAI,
             auth_details: forge_domain::AuthDetails::ApiKey(forge_domain::ApiKey::from(
                 "test-key".to_string(),
             )),
@@ -273,7 +273,7 @@ mod tests {
     #[tokio::test]
     async fn test_cache_initialization() {
         let provider = forge_domain::Provider {
-            id: ProviderId::OpenAI,
+            id: ProviderId::OPENAI,
             provider_type: Default::default(),
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
@@ -296,7 +296,7 @@ mod tests {
     #[tokio::test]
     async fn test_refresh_models_method_exists() {
         let provider = forge_domain::Provider {
-            id: ProviderId::OpenAI,
+            id: ProviderId::OPENAI,
             provider_type: Default::default(),
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
@@ -321,7 +321,7 @@ mod tests {
     #[tokio::test]
     async fn test_builder_pattern_api() {
         let provider = forge_domain::Provider {
-            id: ProviderId::OpenAI,
+            id: ProviderId::OPENAI,
             provider_type: Default::default(),
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
@@ -349,7 +349,7 @@ mod tests {
     #[tokio::test]
     async fn test_builder_with_defaults() {
         let provider = forge_domain::Provider {
-            id: ProviderId::OpenAI,
+            id: ProviderId::OPENAI,
             provider_type: forge_domain::ProviderType::Llm,
             response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
