@@ -88,8 +88,6 @@ Clear the current conversation context and start fresh:
 
 ```bash
 :new
-# or use the alias
-:n
 ```
 
 This will:
@@ -105,8 +103,6 @@ View system and project information:
 
 ```bash
 :info
-# or use the alias
-:i
 ```
 
 This displays:
@@ -143,6 +139,8 @@ This is useful when you want to:
 - Start a new conversation branch from an existing context
 - Experiment with different approaches while preserving the original
 
+\n#### Renaming Conversations\n\nRename an existing conversation with interactive selection:\n\n```bash\n:rename\n# or use the alias\n:rn\n```\n\nThis will:\n- Display an interactive list of all conversations with preview\n- Allow you to select a conversation to rename\n- Prompt for a new title for conversation\n- Update conversation with the new title\n- Show a confirmation message with the new title\n\nYou can also rename a specific conversation by providing its ID:\n\n```bash\n:rename <conversation_id>\n# or\n:rn <conversation_id>\n```\n\nThis is useful when you want to:\n- Give conversations more descriptive names for better organization\n- Update conversation titles to reflect their content or purpose\n- Make conversations easier to identify in lists\n
+
 #### Session Status
 
 The plugin automatically displays session information including:
@@ -172,7 +170,7 @@ export FORGE_BIN="/path/to/custom/forge"
 
 - `FORGE_BIN`: Path to the forge executable (default: `forge`)
 - Internal pattern matching for conversation syntax (`:`)
-- New session command keyword: `:new` or `:n`
+- New session command keyword: `:new`
 
 ### Codebase Indexing
 
