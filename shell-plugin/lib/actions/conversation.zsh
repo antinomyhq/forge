@@ -12,7 +12,7 @@ function _forge_action_conversation() {
     if [[ -n "$input_text" ]]; then
         local conversation_id="$input_text"
         
-        # Set as active conversation
+        # Set conversation as active
         _FORGE_CONVERSATION_ID="$conversation_id"
         
         # Show conversation content
@@ -49,20 +49,20 @@ function _forge_action_conversation() {
 
         # If there's a current conversation, position cursor on it
         if [[ -n "$current_id" ]]; then
-            # For conversations, compare against to first field (conversation_id)
+            # For conversations, compare against the first field (conversation_id)
             local index=$(_forge_find_index "$conversations_output" "$current_id" 1)
             fzf_args+=(--bind="start:pos($index)")
         fi
 
         local selected_conversation
-        # Use fzf with preview showing to last message from conversation
+        # Use fzf with preview showing the last message from the conversation
         selected_conversation=$(echo "$conversations_output" | _forge_fzf "${fzf_args[@]}")
         
         if [[ -n "$selected_conversation" ]]; then
-            # Extract to first field (UUID) - everything before to first multi-space delimiter
+            # Extract the first field (UUID) - everything before the first multi-space delimiter
             local conversation_id=$(echo "$selected_conversation" | sed -E 's/  .*//' | tr -d '\n')
             
-            # Set selected conversation as active (in parent shell)
+            # Set the selected conversation as active (in parent shell)
             _FORGE_CONVERSATION_ID="$conversation_id"
             # Show conversation content
             echo
