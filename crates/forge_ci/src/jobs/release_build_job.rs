@@ -38,6 +38,14 @@ impl From<ReleaseBuilderJob> for Job {
                     .pull_requests(Level::Write),
             )
             .add_step(Step::new("Checkout Code").uses("actions", "checkout", "v6"))
+            // Install protobuf compiler for non-cross builds
+            // Cross builds install protoc via Cross.toml pre-build commands
+            .add_step(
+                Step::new("Setup Protobuf Compiler")
+                    .uses("arduino", "setup-protoc", "v3")
+                    .with(("repo-token", "${{ secrets.GITHUB_TOKEN }}"))
+                    .if_condition(Expression::new("${{ matrix.cross == 'false' }}")),
+            )
             // Install Rust with cross-compilation target
             .add_step(
                 Step::new("Setup Cross Toolchain")
