@@ -2874,6 +2874,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     )?;
                 }
 
+                let path = path.canonicalize().unwrap_or(path);
                 self.writeln_title(TitleFormat::completion(format!(
                     "Successfully synced: {}",
                     path.display()
