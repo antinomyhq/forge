@@ -82,7 +82,12 @@ function forge-accept-line() {
     if [[ "$BUFFER" =~ "^:([a-zA-Z][a-zA-Z0-9_-]*)( (.*))?$" ]]; then
         # Action with or without parameters: :foo or :foo bar baz
         user_action="${match[1]}"
-        input_text="${match[3]:-}"  # Use empty string if no parameters
+        # Only use match[3] if the second group (space + params) was actually matched
+        if [[ -n "${match[2]}" ]]; then
+            input_text="${match[3]}"
+        else
+            input_text=""
+        fi
     elif [[ "$BUFFER" =~ "^: (.*)$" ]]; then
         # Default action with parameters: : something
         user_action=""
