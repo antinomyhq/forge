@@ -6,8 +6,8 @@ run:
   timeout: 60
   early_exit: true
 validations:
-  - type: matches_regex
-    name: "Uses create-skill tool"
-    regex: .*\[[0-9:]*\].*Skill.*create-skill
+  - name: "Uses create-skill tool"
+    type: shell
+    command: "jq -e '[.messages[]?.tool_calls[]? | select(.function.name == \"skill\") | .function.arguments | fromjson | .name == \"create-skill\"] | any' {{context_input}}"
 sources:
   - csv: create_skill_tasks.csv
