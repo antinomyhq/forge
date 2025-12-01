@@ -86,8 +86,7 @@ impl Default for TestContext {
                 max_image_size: 262144,
                 override_model: None,
                 override_provider: None,
-                title_format: "[{timestamp} {input}/{total} {cost} {cache_pct}] {title} {subtitle}"
-                    .to_string(),
+                title_format: r#"{{#if (eq level "error")}}{{red icon}}{{else if (eq level "warning")}}{{bright_yellow icon}}{{else if (eq level "debug")}}{{cyan icon}}{{else if (eq level "completion")}}{{yellow icon}}{{else if (eq level "action")}}{{yellow icon}}{{else}}{{white icon}}{{/if}} {{#if (is_not_empty has_usage)}}{{dimmed "["}}{{white timestamp}} {{white input}}{{#if (is_not_empty output)}}/{{white output}}{{/if}}{{#if (is_not_empty cost)}} {{white cost}}{{/if}}{{#if (is_not_empty cache_pct)}} {{white cache_pct}}{{/if}}{{dimmed "]"}}{{else}}{{dimmed "["}}{{white timestamp}}{{dimmed "]"}}{{/if}} {{white title}}{{#if (is_not_empty subtitle)}} {{dimmed subtitle}}{{/if}}"#.to_string(),
             },
             title: Some("test-conversation".into()),
             agent: Agent::new(

@@ -21,6 +21,7 @@ forge_tracker.workspace = true
 
 forge_spinner.workspace = true
 forge_select.workspace = true
+forge_template.workspace = true
 
 merge.workspace = true
 forge_fs.workspace = true

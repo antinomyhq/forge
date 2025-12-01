@@ -183,6 +183,29 @@ impl MustacheTemplateEngine {
                 },
             ),
         );
+
+        // Register 'is_not_empty' helper to check if a string is not empty
+        handlebars.register_helper(
+            "is_not_empty",
+            Box::new(
+                |h: &Helper,
+                 _: &Handlebars,
+                 _: &Context,
+                 _: &mut RenderContext,
+                 out: &mut dyn Output|
+                 -> HelperResult {
+                    let param = h.param(0).and_then(|v| v.value().as_str());
+
+                    let result = match param {
+                        Some(s) => !s.is_empty(),
+                        None => false,
+                    };
+
+                    out.write(if result { "true" } else { "" })?;
+                    Ok(())
+                },
+            ),
+        );
     }
 }
 
@@ -370,6 +393,44 @@ mod tests {
         let template = "Hello {{name}}!";
         let actual = engine.render(template, &data).unwrap();
         let expected = "Hello !";
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_is_not_empty_helper_with_value() {
+        let mut engine = MustacheTemplateEngine::new(false);
+        let mut data = HashMap::new();
+        data.insert("name".to_string(), "Alice".to_string());
+
+        let template = "{{#if (is_not_empty name)}}Hello {{name}}!{{/if}}";
+        let actual = engine.render(template, &data).unwrap();
+        let expected = "Hello Alice!";
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_is_not_empty_helper_with_empty_string() {
+        let mut engine = MustacheTemplateEngine::new(false);
+        let mut data = HashMap::new();
+        data.insert("name".to_string(), String::new());
+
+        let template = "{{#if (is_not_empty name)}}Hello {{name}}!{{else}}No name{{/if}}";
+        let actual = engine.render(template, &data).unwrap();
+        let expected = "No name";
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_is_not_empty_helper_with_missing_variable() {
+        let mut engine = MustacheTemplateEngine::new(false);
+        let data = HashMap::new();
+
+        let template = "{{#if (is_not_empty name)}}Hello {{name}}!{{else}}No name{{/if}}";
+        let actual = engine.render(template, &data).unwrap();
+        let expected = "No name";
 
         assert_eq!(actual, expected);
     }

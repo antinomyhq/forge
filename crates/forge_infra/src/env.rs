@@ -89,7 +89,7 @@ impl ForgeEnvironmentInfra {
             override_model,
             override_provider,
             title_format: parse_env::<String>("FORGE_TITLE_FORMAT").unwrap_or_else(|| {
-                "[{timestamp} {input}/{output} {cost} {cache_pct}] {title} {subtitle}".to_string()
+                r#"{{#if (eq level "error")}}{{red icon}}{{else if (eq level "warning")}}{{bright_yellow icon}}{{else if (eq level "debug")}}{{cyan icon}}{{else if (eq level "completion")}}{{yellow icon}}{{else if (eq level "action")}}{{yellow icon}}{{else}}{{white icon}}{{/if}} {{#if (is_not_empty has_usage)}}{{dimmed "["}}{{white timestamp}} {{white input}}{{#if (is_not_empty output)}}/{{white output}}{{/if}}{{#if (is_not_empty cost)}} {{white cost}}{{/if}}{{#if (is_not_empty cache_pct)}} {{white cache_pct}}{{/if}}{{dimmed "]"}}{{else}}{{dimmed "["}}{{white timestamp}}{{dimmed "]"}}{{/if}} {{white title}}{{#if (is_not_empty subtitle)}} {{dimmed subtitle}}{{/if}}"#.to_string()
             }),
         }
     }

@@ -1,8 +1,10 @@
+use std::collections::HashMap;
 use std::fmt;
 
 use chrono::Local;
 use colored::Colorize;
 use forge_domain::{Category, Environment, TitleFormat, Usage};
+use forge_template::MustacheTemplateEngine;
 
 /// Implementation of Display for TitleFormat in the presentation layer
 pub struct TitleDisplay {
@@ -26,104 +28,69 @@ impl TitleDisplay {
         self
     }
 
-    /// Format the title with optional usage and token limit data
-    pub fn format_with_data(&self, usage: Option<&Usage>, token_limit: Option<usize>) -> String {
-        // Get format template from environment or use default
-        let format_template = self
-            .env
-            .as_ref()
-            .map(|e| e.title_format.as_str())
-            .unwrap_or("[{timestamp} {input}/{output} {cost} {cache_pct}] {title} {subtitle}");
+    /// Get icon string based on category with appropriate coloring
+    fn get_icon(&self, colored: bool) -> String {
+        let (icon, color_fn): (&str, fn(&str) -> colored::ColoredString) = match self.inner.category
+        {
+            Category::Action => ("⏺", |s| s.yellow()),
+            Category::Info => ("⏺", |s| s.white()),
+            Category::Debug => ("⏺", |s| s.cyan()),
+            Category::Error => ("❌", |s| s.red()),
+            Category::Completion => ("⏺", |s| s.yellow()),
+            Category::Warning => ("⚠️", |s| s.bright_yellow()),
+        };
 
-        let result = self.apply_format(format_template, self.with_colors, usage, token_limit);
-
-        // Prepend icon if not in template
-        if !format_template.contains("{icon}") {
-            if self.with_colors {
-                let icon = match self.inner.category {
-                    Category::Action => "⏺".yellow(),
-                    Category::Info => "⏺".white(),
-                    Category::Debug => "⏺".cyan(),
-                    Category::Error => "⏺".red(),
-                    Category::Completion => "⏺".yellow(),
-                    Category::Warning => "⏺".bright_yellow(),
-                };
-                format!("{} {}", icon, result.trim()).trim().to_string()
-            } else {
-                format!("⏺ {}", result.trim())
-            }
+        if colored {
+            color_fn(icon).to_string()
         } else {
-            result.trim().to_string()
+            icon.to_string()
         }
     }
 
-    /// Replaces all placeholders in the format template with actual values
-    fn apply_format(
+    /// Get formatted timestamp
+    fn get_timestamp(&self) -> String {
+        let local_time: chrono::DateTime<Local> = self.inner.timestamp.into();
+        format!("{}", local_time.format("%H:%M:%S"))
+    }
+
+    /// Build template data map with common fields
+    fn build_template_data(
         &self,
-        template: &str,
-        with_colors: bool,
         usage: Option<&Usage>,
         token_limit: Option<usize>,
-    ) -> String {
-        let mut result = template.to_string();
+    ) -> HashMap<String, String> {
+        let mut data = HashMap::new();
 
-        // Replace timestamp
-        let timestamp = {
-            let local_time: chrono::DateTime<Local> = self.inner.timestamp.into();
-            format!("{}", local_time.format("%H:%M:%S"))
-        };
-        result = result.replace("{timestamp}", &timestamp);
+        // Add level
+        let level = self.inner.category.to_string().to_ascii_lowercase();
+        data.insert("level".to_string(), level);
 
-        // Replace title and subtitle
-        let title = if with_colors {
-            match self.inner.category {
-                Category::Action => self.inner.title.white().to_string(),
-                Category::Info => self.inner.title.white().to_string(),
-                Category::Debug => self.inner.title.dimmed().to_string(),
-                Category::Error => format!("{} {}", "ERROR:".bold(), self.inner.title)
-                    .red()
-                    .to_string(),
-                Category::Completion => self.inner.title.white().bold().to_string(),
-                Category::Warning => format!("{} {}", "WARNING:".bold(), self.inner.title)
-                    .bright_yellow()
-                    .to_string(),
-            }
-        } else {
-            self.inner.title.clone()
-        };
+        // Add timestamp
+        data.insert("timestamp".to_string(), self.get_timestamp());
 
-        let subtitle = self
-            .inner
-            .sub_title
-            .as_ref()
-            .map(|s| {
-                if with_colors {
-                    s.dimmed().to_string()
-                } else {
-                    s.clone()
-                }
-            })
-            .unwrap_or_default();
+        // Add title and subtitle
+        data.insert("title".to_string(), self.inner.title.clone());
+        data.insert(
+            "subtitle".to_string(),
+            self.inner.sub_title.as_ref().cloned().unwrap_or_default(),
+        );
 
-        result = result.replace("{title}", &title);
-        result = result.replace("{subtitle}", &subtitle);
+        // Add icon
+        data.insert("icon".to_string(), self.get_icon(self.with_colors));
 
-        // Replace icon
-        let icon = if with_colors {
-            match self.inner.category {
-                Category::Action => "⏺".yellow().to_string(),
-                Category::Info => "⏺".white().to_string(),
-                Category::Debug => "⏺".cyan().to_string(),
-                Category::Error => "⏺".red().to_string(),
-                Category::Completion => "⏺".yellow().to_string(),
-                Category::Warning => "⏺".bright_yellow().to_string(),
-            }
-        } else {
-            "⏺".to_string()
-        };
-        result = result.replace("{icon}", &icon);
+        // Add usage/token info based on available data
+        self.add_usage_data(&mut data, usage, token_limit);
 
-        // Replace usage/token info based on available data
+        data
+    }
+
+    /// Add usage data to the template data map
+    fn add_usage_data(
+        &self,
+        data: &mut HashMap<String, String>,
+        usage: Option<&Usage>,
+        token_limit: Option<usize>,
+    ) {
         if let Some(usage) = usage {
             let input = *usage.prompt_tokens;
             let output = *usage.completion_tokens;
@@ -136,73 +103,64 @@ impl TitleDisplay {
             };
             let cost = usage.cost.map(|c| format!("${:.4}", c)).unwrap_or_default();
 
-            result = result.replace("{input}", &input.to_string());
-            result = result.replace("{output}", &output.to_string());
-            result = result.replace("{total}", &total.to_string());
-            result = result.replace("{cached}", &cached.to_string());
-            result = result.replace("{cache_pct}", &format!("{}%", cache_pct));
-            result = result.replace("{cost}", &cost);
-        } else if let Some(limit) = token_limit {
-            // Fallback to token limit when no usage available
-            result = result.replace("{total}", &limit.to_string());
-            result = result.replace("{input}", "0");
-            result = result.replace("{output}", "");
-            result = result.replace("{cached}", "");
-            result = result.replace("{cache_pct}", "");
-            result = result.replace("{cost}", "");
+            data.insert("input".to_string(), input.to_string());
+            data.insert("output".to_string(), output.to_string());
+            data.insert("total".to_string(), total.to_string());
+            data.insert("cached".to_string(), cached.to_string());
+            data.insert("cache_pct".to_string(), format!("{}%", cache_pct));
+            data.insert("cost".to_string(), cost);
+            data.insert("has_usage".to_string(), "true".to_string());
         } else {
-            // No usage or token limit - replace with empty strings
-            result = result.replace("{input}", "");
-            result = result.replace("{output}", "");
-            result = result.replace("{total}", "");
-            result = result.replace("{cached}", "");
-            result = result.replace("{cache_pct}", "");
-            result = result.replace("{cost}", "");
+            // Set empty strings for all usage fields
+            data.insert("input".to_string(), String::new());
+            data.insert("output".to_string(), String::new());
+            data.insert("cached".to_string(), String::new());
+            data.insert("cache_pct".to_string(), String::new());
+            data.insert("cost".to_string(), String::new());
+            data.insert("has_usage".to_string(), String::new());
+
+            // Set total from token_limit if available
+            if let Some(limit) = token_limit {
+                data.insert("total".to_string(), limit.to_string());
+            } else {
+                data.insert("total".to_string(), String::new());
+            }
         }
+    }
 
-        // Clean up extra spaces, brackets, and slashes left from empty replacements
-        // First pass: clean up spaces and slashes within brackets
-        result = result
-            .replace("[ ", "[")
-            .replace(" ]", "]")
-            .replace("[/", "[")
-            .replace("/]", "]")
-            .replace("/ ", "");
+    /// Format the title with optional usage and token limit data using Mustache
+    /// templates
+    pub fn format_with_data(&self, usage: Option<&Usage>, token_limit: Option<usize>) -> String {
+        // Get format template from environment or use default
+        let format_template = self.env.as_ref().map(|e| e.title_format.as_str()).unwrap_or(
+            r#"{{#if (is_not_empty has_usage)}}{{dimmed "["}}{{white timestamp}} {{white input}}{{#if (is_not_empty output)}}/{{white output}}{{/if}}{{#if (is_not_empty cost)}} {{white cost}}{{/if}}{{#if (is_not_empty cache_pct)}} {{white cache_pct}}{{/if}}{{dimmed "]"}} {{/if}}{{white title}}{{#if (is_not_empty subtitle)}} {{dimmed subtitle}}{{/if}}"#,
+        );
 
-        // Then normalize multiple spaces and slashes to single space
-        let mut result = result
-            .split_whitespace()
-            .filter(|s| !s.is_empty() && *s != "/")
-            .collect::<Vec<_>>()
-            .join(" ");
+        // Build data map for template
+        let data = self.build_template_data(usage, token_limit);
 
-        // Second pass: clean up any remaining space-bracket combinations
-        result = result.replace(" ]", "]").replace("[ ", "[");
-
-        // Finally, clean up empty brackets completely
-        result = result.replace("[]", "");
-
-        result
+        // Create template engine and render
+        let mut engine = MustacheTemplateEngine::new(self.with_colors);
+        engine.render(format_template, &data).unwrap_or_else(|_| {
+            format!(
+                "⏺ {} {}",
+                self.inner.title,
+                self.inner.sub_title.as_deref().unwrap_or("")
+            )
+        })
     }
 
     fn format_with_colors(&self) -> String {
         let mut buf = String::new();
 
-        let icon = match self.inner.category {
-            Category::Action => "⏺".yellow(),
-            Category::Info => "⏺".white(),
-            Category::Debug => "⏺".cyan(),
-            Category::Error => "❌".red(),
-            Category::Completion => "⏺".yellow(),
-            Category::Warning => "⚠️".bright_yellow(),
-        };
+        // Add icon
+        buf.push_str(&format!("{} ", self.get_icon(true)));
 
-        buf.push_str(format!("{icon} ").as_str());
+        // Add timestamp
+        let timestamp_str = format!("[{}] ", self.get_timestamp());
+        buf.push_str(&timestamp_str.dimmed().to_string());
 
-        let local_time: chrono::DateTime<Local> = self.inner.timestamp.into();
-        let timestamp_str = format!("[{}] ", local_time.format("%H:%M:%S"));
-        buf.push_str(timestamp_str.dimmed().to_string().as_str());
-
+        // Add title with appropriate styling
         let title = match self.inner.category {
             Category::Action => self.inner.title.white(),
             Category::Info => self.inner.title.white(),
@@ -214,10 +172,11 @@ impl TitleDisplay {
             }
         };
 
-        buf.push_str(title.to_string().as_str());
+        buf.push_str(&title.to_string());
 
+        // Add subtitle if present
         if let Some(ref sub_title) = self.inner.sub_title {
-            buf.push_str(&format!(" {}", sub_title.dimmed()).to_string());
+            buf.push_str(&format!(" {}", sub_title.dimmed()));
         }
 
         buf
@@ -226,14 +185,16 @@ impl TitleDisplay {
     fn format_plain(&self) -> String {
         let mut buf = String::new();
 
-        buf.push_str("⏺ ");
+        // Add icon (plain)
+        buf.push_str(&format!("{} ", self.get_icon(false)));
 
-        let local_time: chrono::DateTime<Local> = self.inner.timestamp.into();
-        let timestamp_str = format!("[{}] ", local_time.format("%H:%M:%S"));
-        buf.push_str(&timestamp_str);
+        // Add timestamp
+        buf.push_str(&format!("[{}] ", self.get_timestamp()));
 
+        // Add title
         buf.push_str(&self.inner.title);
 
+        // Add subtitle if present
         if let Some(ref sub_title) = self.inner.sub_title {
             buf.push(' ');
             buf.push_str(sub_title);
@@ -285,80 +246,111 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_title_display_without_usage_cleans_empty_brackets() {
+    fn test_title_display_with_template_error_level() {
         let title = TitleFormat {
-            title: "Test Title".to_string(),
+            title: "Connection Failed".to_string(),
+            sub_title: Some("Timeout".to_string()),
+            category: Category::Error,
+            timestamp: chrono::Utc::now(),
+        };
+
+        let env = Environment { title_format: r#"{{#if (eq level "error")}}{{red "[ERROR]"}} {{bold title}} {{dimmed subtitle}}{{/if}}"#.to_string(), ..fake::Faker.fake() };
+
+        let display = title.display_with_env(env).with_colors(false);
+        let result = display.format_with_data(None, None);
+
+        assert!(result.contains("[ERROR]"));
+        assert!(result.contains("Connection Failed"));
+        assert!(result.contains("Timeout"));
+    }
+
+    #[test]
+    fn test_title_display_with_template_warning_level() {
+        let title = TitleFormat {
+            title: "High Memory Usage".to_string(),
             sub_title: None,
-            category: Category::Info,
+            category: Category::Warning,
             timestamp: chrono::Utc::now(),
         };
 
         let env = Environment {
-            title_format: "[{timestamp} {input}/{total} {cost}] {title}".to_string(),
+            title_format:
+                r#"{{#if (eq level "warning")}}{{bright_yellow "[WARNING]"}} {{bold title}}{{/if}}"#
+                    .to_string(),
             ..fake::Faker.fake()
         };
 
         let display = title.display_with_env(env).with_colors(false);
-
         let result = display.format_with_data(None, None);
 
-        // Should not have empty brackets or trailing spaces
-        assert!(!result.contains("[]"));
-        assert!(!result.contains(" ]"));
-        assert!(result.contains("Test Title"));
+        assert!(result.contains("[WARNING]"));
+        assert!(result.contains("High Memory Usage"));
     }
 
     #[test]
-    fn test_title_display_with_usage_shows_all_fields() {
+    fn test_title_display_with_usage_in_template() {
         let title = TitleFormat {
-            title: "Test Title".to_string(),
+            title: "Task Complete".to_string(),
             sub_title: None,
             category: Category::Info,
             timestamp: chrono::Utc::now(),
         };
 
         let usage = Usage {
-            prompt_tokens: TokenCount::Actual(100),
-            completion_tokens: TokenCount::Actual(50),
-            total_tokens: TokenCount::Actual(150),
-            cached_tokens: TokenCount::Actual(20),
+            prompt_tokens: TokenCount::Actual(1024),
+            completion_tokens: TokenCount::Actual(2048),
+            total_tokens: TokenCount::Actual(3072),
+            cached_tokens: TokenCount::Actual(512),
             cost: Some(0.05),
         };
 
         let env = Environment {
-            title_format: "[{input}/{total} {cost}] {title}".to_string(),
+            title_format: "{{input}}/{{output}} {{cost}} {{title}}".to_string(),
             ..fake::Faker.fake()
         };
 
         let display = title.display_with_env(env).with_colors(false);
-
         let result = display.format_with_data(Some(&usage), None);
 
-        assert!(result.contains("100/150"));
+        assert!(result.contains("1024/2048"));
         assert!(result.contains("$0.0500"));
-        assert!(result.contains("Test Title"));
-        assert!(!result.contains(" ]")); // No trailing space before bracket
+        assert!(result.contains("Task Complete"));
     }
 
     #[test]
-    fn test_title_display_with_subtitle() {
+    fn test_title_display_with_conditional_template() {
         let title = TitleFormat {
-            title: "Test Title".to_string(),
-            sub_title: Some("Subtitle".to_string()),
+            title: "Debug Info".to_string(),
+            sub_title: None,
             category: Category::Debug,
             timestamp: chrono::Utc::now(),
         };
 
         let env = Environment {
-            title_format: "{title} {subtitle}".to_string(),
+            title_format:
+                r#"{{#if (eq level "debug")}}{{dimmed title}}{{else}}{{white title}}{{/if}}"#
+                    .to_string(),
             ..fake::Faker.fake()
         };
 
         let display = title.display_with_env(env).with_colors(false);
-
         let result = display.format_with_data(None, None);
 
-        assert!(result.contains("Test Title"));
-        assert!(result.contains("Subtitle"));
+        assert!(result.contains("Debug Info"));
+    }
+
+    #[test]
+    fn test_title_display_without_env_uses_default() {
+        let title = TitleFormat {
+            title: "Test".to_string(),
+            sub_title: None,
+            category: Category::Info,
+            timestamp: chrono::Utc::now(),
+        };
+
+        let display = title.display().with_colors(false);
+        let result = format!("{}", display);
+
+        assert!(result.contains("Test"));
     }
 }
