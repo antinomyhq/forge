@@ -1,7 +1,7 @@
 before_run:
   - cargo build
 run:
-  command: ../../target/debug/forge -C ../../ -p '{{task}}'
+  command: FORGE_DEBUG_REQUESTS='{{context_input}}' ../../target/debug/forge -C ../../ -p '{{task}}'
   parallelism: 20
   timeout: 60
   early_exit: true
