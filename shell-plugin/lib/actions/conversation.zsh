@@ -12,7 +12,7 @@ function _forge_action_conversation() {
     if [[ -n "$input_text" ]]; then
         local conversation_id="$input_text"
         
-        # Set the conversation as active
+        # Set conversation as active
         _FORGE_CONVERSATION_ID="$conversation_id"
         
         # Show conversation content
@@ -175,8 +175,6 @@ function _forge_clone_and_switch() {
     else
         _forge_log error "Failed to clone conversation: $clone_output"
     fi
-}
-
 }
 
 # Action handler: Rename conversation
