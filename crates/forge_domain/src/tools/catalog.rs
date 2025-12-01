@@ -209,9 +209,9 @@ impl SearchQuery {
 /// AI-powered semantic code search - YOUR DEFAULT TOOL for "where is"
 /// questions. Use this FIRST when user asks about code location or
 /// functionality: "where is X", "find the code that does Y", "locate Z
-/// implementation", "how does X work", "understand the Y strategy". Always use
-/// this tool as your first step for code discovery before considering deeper
-/// investigation with research agents. This tool understands CONCEPTS and
+/// implementation", "how does X work", "understand the Y strategy". For code
+/// location and discovery questions, always use this tool first before
+/// delegating to research agents. This tool understands CONCEPTS and
 /// BEHAVIOR, not just keywords. Finds code even when exact terms differ.
 /// Finding the right code is always the first step to understanding it -
 /// sem_search locates relevant code quickly, then read the results to
