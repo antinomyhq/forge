@@ -44,8 +44,6 @@ jobs:
       uses: actions/checkout@v5
     - name: Setup Protobuf Compiler
       uses: arduino/setup-protoc@v3
-      with:
-        repo-token: ${{ secrets.GITHUB_TOKEN }}
     - name: Setup Rust Toolchain
       uses: actions-rust-lang/setup-rust-toolchain@v1
       with:
@@ -150,6 +148,8 @@ jobs:
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
+    - name: Setup Protobuf Compiler
+      uses: arduino/setup-protoc@v3
     - name: Setup Cross Toolchain
       if: ${{ matrix.cross == 'false' }}
       uses: taiki-e/setup-cross-toolchain-action@v1
@@ -240,6 +240,8 @@ jobs:
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
+    - name: Setup Protobuf Compiler
+      uses: arduino/setup-protoc@v3
     - name: Setup Cross Toolchain
       if: ${{ matrix.cross == 'false' }}
       uses: taiki-e/setup-cross-toolchain-action@v1
