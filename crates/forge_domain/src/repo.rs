@@ -5,7 +5,7 @@ use url::Url;
 
 use crate::{
     AnyProvider, AppConfig, AuthCredential, Conversation, ConversationId, MigrationResult,
-    Provider, ProviderId, Skill, Snapshot,
+    Provider, ProviderId, Skill, Snapshot, UserId, Workspace, WorkspaceAuth, WorkspaceId,
 };
 
 /// Repository for managing file snapshots
@@ -93,6 +93,89 @@ pub trait ProviderRepository: Send + Sync {
     async fn get_credential(&self, id: &ProviderId) -> anyhow::Result<Option<AuthCredential>>;
     async fn remove_credential(&self, id: &ProviderId) -> anyhow::Result<()>;
     async fn migrate_env_credentials(&self) -> anyhow::Result<Option<MigrationResult>>;
+}
+
+/// Repository for managing workspace metadata in local database
+#[async_trait::async_trait]
+pub trait WorkspaceRepository: Send + Sync {
+    /// Save or update a workspace
+    async fn upsert(
+        &self,
+        workspace_id: &WorkspaceId,
+        user_id: &UserId,
+        path: &std::path::Path,
+    ) -> anyhow::Result<()>;
+
+    /// Find workspace by path
+    async fn find_by_path(&self, path: &std::path::Path) -> anyhow::Result<Option<Workspace>>;
+
+    /// Get user ID from any workspace, or None if no workspaces exist
+    async fn get_user_id(&self) -> anyhow::Result<Option<UserId>>;
+
+    /// Delete workspace from local database
+    async fn delete(&self, workspace_id: &WorkspaceId) -> anyhow::Result<()>;
+}
+
+/// Repository for managing codebase indexing and search operations
+#[async_trait::async_trait]
+pub trait ContextEngineRepository: Send + Sync {
+    /// Authenticate with the indexing service via gRPC API
+    async fn authenticate(&self) -> anyhow::Result<WorkspaceAuth>;
+
+    /// Create a new workspace on the indexing server
+    async fn create_workspace(
+        &self,
+        working_dir: &std::path::Path,
+        auth_token: &crate::ApiKey,
+    ) -> anyhow::Result<WorkspaceId>;
+
+    /// Upload files to be indexed
+    async fn upload_files(
+        &self,
+        upload: &crate::FileUpload,
+        auth_token: &crate::ApiKey,
+    ) -> anyhow::Result<crate::FileUploadInfo>;
+
+    /// Search the indexed codebase using semantic search
+    async fn search(
+        &self,
+        query: &crate::CodeSearchQuery<'_>,
+        auth_token: &crate::ApiKey,
+    ) -> anyhow::Result<Vec<crate::CodeSearchResult>>;
+
+    /// List all workspaces for a user
+    async fn list_workspaces(
+        &self,
+        auth_token: &crate::ApiKey,
+    ) -> anyhow::Result<Vec<crate::WorkspaceInfo>>;
+
+    /// Get workspace information by workspace ID
+    async fn get_workspace(
+        &self,
+        workspace_id: &WorkspaceId,
+        auth_token: &crate::ApiKey,
+    ) -> anyhow::Result<Option<crate::WorkspaceInfo>>;
+
+    /// List all files in a workspace with their hashes
+    async fn list_workspace_files(
+        &self,
+        workspace: &crate::WorkspaceFiles,
+        auth_token: &crate::ApiKey,
+    ) -> anyhow::Result<Vec<crate::FileHash>>;
+
+    /// Delete files from a workspace
+    async fn delete_files(
+        &self,
+        deletion: &crate::FileDeletion,
+        auth_token: &crate::ApiKey,
+    ) -> anyhow::Result<()>;
+
+    /// Delete a workspace and all its indexed data
+    async fn delete_workspace(
+        &self,
+        workspace_id: &WorkspaceId,
+        auth_token: &crate::ApiKey,
+    ) -> anyhow::Result<()>;
 }
 
 /// Repository for managing skills

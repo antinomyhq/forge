@@ -9,6 +9,15 @@
     "auth_methods": ["api_key"]
   },
   {
+    "id": "deepseek",
+    "api_key_vars": "DEEPSEEK_API_KEY",
+    "url_param_vars": [],
+    "response_type": "OpenAI",
+    "url": "https://api.deepseek.com/chat/completions",
+    "models": "https://api.deepseek.com/models",
+    "auth_methods": ["api_key"]
+  },
+  {
     "id": "github_copilot",
     "api_key_vars": "GITHUB_COPILOT_API_KEY",
     "url_param_vars": [],
@@ -304,6 +313,12 @@
     "response_type": "OpenAI",
     "url": "https://{{AZURE_RESOURCE_NAME}}.openai.azure.com/openai/deployments/{{AZURE_DEPLOYMENT_NAME}}/chat/completions?api-version={{AZURE_API_VERSION}}",
     "models": "https://{{AZURE_RESOURCE_NAME}}.openai.azure.com/openai/models?api-version={{AZURE_API_VERSION}}",
+    "auth_methods": ["api_key"]
+  },
+  {
+    "id": "forge_services",
+    "provider_type": "context_engine",
+    "url": "https://api.forgecode.dev/",
     "auth_methods": ["api_key"]
   }
 ]

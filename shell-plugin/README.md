@@ -115,6 +115,34 @@ This displays:
 - Project details
 - Current configuration
 
+- Current configuration
+
+#### Cloning Conversations
+
+Create a copy of an existing conversation with interactive selection:
+
+```bash
+:clone
+```
+
+This will:
+- Display an interactive list of all conversations with preview
+- Allow you to select a conversation to clone
+- Create a new conversation with the same content
+- Automatically switch to the cloned conversation
+- Show the cloned conversation content and details
+
+You can also clone a specific conversation by providing its ID:
+
+```bash
+:clone <conversation_id>
+```
+
+This is useful when you want to:
+- Create a backup before making significant changes
+- Start a new conversation branch from an existing context
+- Experiment with different approaches while preserving the original
+
 #### Session Status
 
 The plugin automatically displays session information including:
@@ -145,6 +173,32 @@ export FORGE_BIN="/path/to/custom/forge"
 - `FORGE_BIN`: Path to the forge executable (default: `forge`)
 - Internal pattern matching for conversation syntax (`:`)
 - New session command keyword: `:new` or `:n`
+
+### Codebase Indexing
+
+Manage semantic search indexes for your codebase:
+
+#### List Workspaces
+
+View all indexed workspaces:
+
+```bash
+:workspace
+```
+
+#### Sync Directory
+
+Index a directory for semantic search:
+
+```bash
+:sync
+# or 
+:index
+# or specify a path
+:sync /path/to/directory
+# or
+:index /path/to/directory
+```
 
 ### .forge Directory
 
@@ -194,4 +248,16 @@ All transformed commands are properly saved to ZSH history, allowing you to:
 :info
 :new
 : New conversation starts here
+```
+
+
+### Codebase Indexing
+
+```bash
+# List all workspaces
+:workspace
+
+# Index current directory
+:sync
+:index
 ```

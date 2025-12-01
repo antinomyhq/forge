@@ -10,9 +10,10 @@ use crate::operation::{TempContentFiles, ToolOperation};
 use crate::services::ShellService;
 use crate::utils::format_display_path;
 use crate::{
-    ConversationService, EnvironmentService, FollowUpService, FsCreateService, FsPatchService,
-    FsReadService, FsRemoveService, FsSearchService, FsUndoService, ImageReadService,
-    NetFetchService, PlanCreateService, PolicyService, SkillFetchService,
+    ContextEngineService, ConversationService, EnvironmentService, FollowUpService,
+    FsCreateService, FsPatchService, FsReadService, FsRemoveService, FsSearchService,
+    FsUndoService, ImageReadService, NetFetchService, PlanCreateService, PolicyService,
+    SkillFetchService,
 };
 
 pub struct ToolExecutor<S> {
@@ -24,6 +25,7 @@ impl<
         + ImageReadService
         + FsCreateService
         + FsSearchService
+        + ContextEngineService
         + NetFetchService
         + FsRemoveService
         + FsPatchService
@@ -198,6 +200,22 @@ impl<
                     )
                     .await?;
                 (input, output).into()
+            }
+            ToolCatalog::SemSearch(input) => {
+                let env = self.services.get_environment();
+                let services = self.services.clone();
+                let cwd = env.cwd.clone();
+                let query = input.query.clone();
+                let use_case = input.use_case.clone();
+
+                let params = forge_domain::SearchParams::from(&input)
+                    .limit(env.sem_search_limit)
+                    .top_k(env.sem_search_top_k as u32);
+
+                let results = services.query_codebase(cwd, params).await?;
+                let output = forge_domain::CodebaseQueryResult { query, use_case, results };
+
+                ToolOperation::CodebaseSearch { output }
             }
             ToolCatalog::Remove(input) => {
                 let normalized_path = self.normalize_path(input.path.clone());

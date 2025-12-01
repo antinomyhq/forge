@@ -40,6 +40,8 @@ pub struct ForgeRepo<F> {
     app_config_repository: Arc<AppConfigRepositoryImpl<F>>,
     mcp_cache_repository: Arc<CacacheStorage>,
     provider_repository: Arc<ForgeProviderRepository<F>>,
+    indexing_repository: Arc<crate::indexing::IndexingRepositoryImpl>,
+    codebase_repo: Arc<crate::ForgeContextEngineRepository>,
     agent_repository: Arc<ForgeAgentRepository<F>>,
     skill_repository: Arc<ForgeSkillRepository<F>>,
 }
@@ -50,8 +52,10 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
         let db_pool =
             Arc::new(DatabasePool::try_from(PoolConfig::new(env.database_path())).unwrap());
-        let conversation_repository =
-            Arc::new(ConversationRepositoryImpl::new(db_pool, env.workspace_id()));
+        let conversation_repository = Arc::new(ConversationRepositoryImpl::new(
+            db_pool.clone(),
+            env.workspace_hash(),
+        ));
 
         let app_config_repository = Arc::new(AppConfigRepositoryImpl::new(infra.clone()));
 
@@ -61,6 +65,15 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
         )); // 1 hour TTL
 
         let provider_repository = Arc::new(ForgeProviderRepository::new(infra.clone()));
+
+        let indexing_repository = Arc::new(crate::indexing::IndexingRepositoryImpl::new(
+            db_pool.clone(),
+        ));
+
+        let codebase_repo = Arc::new(
+            crate::ForgeContextEngineRepository::new(&env.workspace_server_url)
+                .expect("Failed to create codebase repository"),
+        );
         let agent_repository = Arc::new(ForgeAgentRepository::new(infra.clone()));
         let skill_repository = Arc::new(ForgeSkillRepository::new(infra.clone()));
         Self {
@@ -70,6 +83,8 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
             app_config_repository,
             mcp_cache_repository,
             provider_repository,
+            indexing_repository,
+            codebase_repo,
             agent_repository,
             skill_repository,
         }
@@ -131,6 +146,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Send + Sync> Prov
     }
 
     async fn upsert_credential(&self, credential: AuthCredential) -> anyhow::Result<()> {
+        // All providers now use file-based credentials
         self.provider_repository.upsert_credential(credential).await
     }
 
@@ -139,6 +155,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Send + Sync> Prov
     }
 
     async fn remove_credential(&self, id: &ProviderId) -> anyhow::Result<()> {
+        // All providers now use file-based credentials
         self.provider_repository.remove_credential(id).await
     }
 
@@ -434,5 +451,112 @@ impl<F: StrategyFactory> StrategyFactory for ForgeRepo<F> {
     ) -> anyhow::Result<Self::Strategy> {
         self.infra
             .create_auth_strategy(provider_id, auth_method, required_params)
+    }
+}
+
+#[async_trait::async_trait]
+impl<F: Send + Sync> forge_domain::WorkspaceRepository for ForgeRepo<F> {
+    async fn upsert(
+        &self,
+        workspace_id: &forge_domain::WorkspaceId,
+        user_id: &forge_domain::UserId,
+        path: &std::path::Path,
+    ) -> anyhow::Result<()> {
+        self.indexing_repository
+            .upsert(workspace_id, user_id, path)
+            .await
+    }
+
+    async fn find_by_path(
+        &self,
+        path: &std::path::Path,
+    ) -> anyhow::Result<Option<forge_domain::Workspace>> {
+        self.indexing_repository.find_by_path(path).await
+    }
+
+    async fn get_user_id(&self) -> anyhow::Result<Option<forge_domain::UserId>> {
+        self.indexing_repository.get_user_id().await
+    }
+
+    async fn delete(&self, workspace_id: &forge_domain::WorkspaceId) -> anyhow::Result<()> {
+        self.indexing_repository.delete(workspace_id).await
+    }
+}
+
+#[async_trait::async_trait]
+impl<F: Send + Sync> forge_domain::ContextEngineRepository for ForgeRepo<F> {
+    async fn authenticate(&self) -> anyhow::Result<forge_domain::WorkspaceAuth> {
+        self.codebase_repo.authenticate().await
+    }
+
+    async fn create_workspace(
+        &self,
+        working_dir: &std::path::Path,
+        auth_token: &forge_domain::ApiKey,
+    ) -> anyhow::Result<forge_domain::WorkspaceId> {
+        self.codebase_repo
+            .create_workspace(working_dir, auth_token)
+            .await
+    }
+
+    async fn upload_files(
+        &self,
+        upload: &forge_domain::FileUpload,
+        auth_token: &forge_domain::ApiKey,
+    ) -> anyhow::Result<forge_domain::FileUploadInfo> {
+        self.codebase_repo.upload_files(upload, auth_token).await
+    }
+
+    async fn search(
+        &self,
+        query: &forge_domain::CodeSearchQuery<'_>,
+        auth_token: &forge_domain::ApiKey,
+    ) -> anyhow::Result<Vec<forge_domain::CodeSearchResult>> {
+        self.codebase_repo.search(query, auth_token).await
+    }
+
+    async fn list_workspaces(
+        &self,
+        auth_token: &forge_domain::ApiKey,
+    ) -> anyhow::Result<Vec<forge_domain::WorkspaceInfo>> {
+        self.codebase_repo.list_workspaces(auth_token).await
+    }
+
+    async fn get_workspace(
+        &self,
+        workspace_id: &forge_domain::WorkspaceId,
+        auth_token: &forge_domain::ApiKey,
+    ) -> anyhow::Result<Option<forge_domain::WorkspaceInfo>> {
+        self.codebase_repo
+            .get_workspace(workspace_id, auth_token)
+            .await
+    }
+
+    async fn list_workspace_files(
+        &self,
+        workspace: &forge_domain::WorkspaceFiles,
+        auth_token: &forge_domain::ApiKey,
+    ) -> anyhow::Result<Vec<forge_domain::FileHash>> {
+        self.codebase_repo
+            .list_workspace_files(workspace, auth_token)
+            .await
+    }
+
+    async fn delete_files(
+        &self,
+        deletion: &forge_domain::FileDeletion,
+        auth_token: &forge_domain::ApiKey,
+    ) -> anyhow::Result<()> {
+        self.codebase_repo.delete_files(deletion, auth_token).await
+    }
+
+    async fn delete_workspace(
+        &self,
+        workspace_id: &forge_domain::WorkspaceId,
+        auth_token: &forge_domain::ApiKey,
+    ) -> anyhow::Result<()> {
+        self.codebase_repo
+            .delete_workspace(workspace_id, auth_token)
+            .await
     }
 }

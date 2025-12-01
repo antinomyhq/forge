@@ -1,0 +1,36 @@
+before_run:
+  - cargo build
+run:
+  command: ../../target/debug/forge -C ../../ -p '{{task}}'
+  parallelism: 20
+  timeout: 60
+  early_exit: true
+validations:
+  - type: matches_regex
+    name: "Uses codebase search tool"
+    regex: .*\[[0-9:]*\].*Codebase Search
+sources:
+  - value:
+      # Original 10 tests
+      - task: "Where is the code that transforms messages between different AI provider formats?"
+      - task: "I need to find retry logic with exponential backoff for API calls"
+      - task: "Show me where authentication tokens are validated and refreshed"
+      - task: "Where is the error handling code for network failures?"
+      - task: "Find the code that caches API responses to reduce costs"
+      - task: "I need to understand how streaming responses from LLM APIs work"
+      - task: "Where is file upload validation and size checking implemented?"
+      - task: "Show me the code that handles rate limiting for API requests"
+      - task: "Find where tool definitions are registered and made available to the AI"
+      - task: "I need to see how conversation history is truncated when context is too large"
+
+      # New challenging tests - edge cases
+      - task: "Show me the code that compacts conversation context when tokens exceed limits"
+      - task: "How does the system handle differences between OpenAI and Anthropic APIs?"
+      - task: "I want to understand the caching strategy for semantic search embeddings"
+      - task: "Where are environment variables parsed and configuration loaded?"
+      - task: "Find the code that manages API keys, tokens, and credentials securely"
+      - task: "Show me how the system handles request timeouts and cancellation"
+      - task: "Where is the logic for selecting which AI model to use for a task?"
+      - task: "How does the tool execution pipeline process and validate tool calls?"
+      - task: "Find where Git operations like commit, diff, and status are implemented"
+      - task: "Show me the permission checking and security policy enforcement code"

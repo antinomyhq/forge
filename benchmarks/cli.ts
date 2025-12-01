@@ -160,11 +160,19 @@ async function main() {
   // Create promises for all tasks
   const taskPromises = data.map((row, i) => {
     return limit(async () => {
-      // Generate command using pure function
-      const command = generateCommand(task.run.command, row);
-
       const logFile = path.join(debugDir, `task_run_${i + 1}.log`);
-      logger.info({ command, task_id: i + 1, log_file: logFile }, "Executing task");
+      const debugRequestFile = path.join(debugDir, `request_${i + 1}.json`);
+
+      // Add context_input to context for command interpolation and validations
+      const context = { ...row, context_input: debugRequestFile };
+
+      // Generate command using context (including context_input)
+      const command = generateCommand(task.run.command, context);
+
+      logger.info(
+        { command, task_id: i + 1, log_file: logFile },
+        "Executing task",
+      );
 
       // Execute the task
       const executionResult = await executeTask(
@@ -172,10 +180,8 @@ async function main() {
         i + 1,
         logFile,
         evalDir,
-        task.run.timeout,
-        task.run.early_exit,
-        task.validations,
-        row
+        task,
+        context,
       );
 
       // If execution failed or timed out, still run validations if output is available
@@ -188,7 +194,7 @@ async function main() {
             error: executionResult.error,
             is_timeout: executionResult.isTimeout,
           },
-          executionResult.isTimeout ? "Task timed out" : "Task failed"
+          executionResult.isTimeout ? "Task timed out" : "Task failed",
         );
 
         // Run validations on available output even if task failed/timed out
@@ -199,7 +205,7 @@ async function main() {
           executionResult.index,
           executionResult.duration,
           logFile,
-          row
+          context,
         );
 
         return {
@@ -217,14 +223,14 @@ async function main() {
       const logMessage = executionResult.earlyExit
         ? "Task completed (early exit)"
         : "Task completed successfully";
-      
+
       logger.info(
         {
           task_id: executionResult.index,
           duration: executionResult.duration,
           early_exit: executionResult.earlyExit || undefined,
         },
-        logMessage
+        logMessage,
       );
 
       // Run validations on the output
@@ -236,7 +242,7 @@ async function main() {
           executionResult.index,
           executionResult.duration,
           logFile,
-          row
+          context,
         );
 
       return {
@@ -258,27 +264,27 @@ async function main() {
 
   // Calculate summary statistics
   const successCount = results.filter(
-    (r) => r.status === TaskStatus.Passed
+    (r) => r.status === TaskStatus.Passed,
   ).length;
   const warningCount = results.filter(
-    (r) => r.status === TaskStatus.ValidationFailed
+    (r) => r.status === TaskStatus.ValidationFailed,
   ).length;
   const timeoutCount = results.filter(
-    (r) => r.status === TaskStatus.Timeout
+    (r) => r.status === TaskStatus.Timeout,
   ).length;
   const failCount = results.filter(
-    (r) => r.status === TaskStatus.Failed
+    (r) => r.status === TaskStatus.Failed,
   ).length;
   const totalDuration = results.reduce((sum, r) => sum + r.duration, 0);
 
   // Calculate validation statistics
   const totalValidations = results.reduce(
     (sum, r) => sum + r.validationResults.length,
-    0
+    0,
   );
   const passedValidations = results.reduce(
     (sum, r) => sum + r.validationResults.filter((v) => v.passed).length,
-    0
+    0,
   );
 
   // Print summary
@@ -296,7 +302,7 @@ async function main() {
         failed: totalValidations - passedValidations,
       },
     },
-    "Evaluation completed"
+    "Evaluation completed",
   );
 
   // Exit with error code if any task failed (excluding timeouts and validation failures)

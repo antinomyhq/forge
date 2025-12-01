@@ -78,10 +78,10 @@ pub struct Cli {
 impl Cli {
     /// Determines whether the CLI should start in interactive mode.
     ///
-    /// Returns true when no prompt or subcommand is provided, indicating
-    /// the user wants to enter interactive mode.
+    /// Returns true when no prompt, piped input, or subcommand is provided,
+    /// indicating the user wants to enter interactive mode.
     pub fn is_interactive(&self) -> bool {
-        self.prompt.is_none() && self.subcommands.is_none()
+        self.prompt.is_none() && self.piped_input.is_none() && self.subcommands.is_none()
     }
 }
 
@@ -138,6 +138,9 @@ pub enum TopLevelCommand {
 
     /// Run or list custom commands.
     Cmd(CmdCommandGroup),
+
+    /// Manage workspaces for semantic search.
+    Workspace(WorkspaceCommandGroup),
 }
 
 /// Command group for custom command management.
@@ -182,6 +185,78 @@ pub enum AgentCommand {
     /// List available agents.
     #[command(alias = "ls")]
     List,
+}
+
+/// Command group for codebase management.
+#[derive(Parser, Debug, Clone)]
+pub struct WorkspaceCommandGroup {
+    #[command(subcommand)]
+    pub command: WorkspaceCommand,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum WorkspaceCommand {
+    /// Synchronize a directory for semantic search.
+    Sync {
+        /// Path to the directory to sync
+        #[arg(default_value = ".")]
+        path: PathBuf,
+
+        /// Number of files to upload per batch. Reduce this if you encounter
+        /// token limit errors.
+        #[arg(long, default_value = "10")]
+        batch_size: usize,
+    },
+    /// List all workspaces.
+    List {
+        /// Output in machine-readable format
+        #[arg(short, long)]
+        porcelain: bool,
+    },
+
+    /// Query the codebase.
+    Query {
+        /// Search query.
+        query: String,
+
+        /// Path to the directory to index (used when no subcommand is
+        /// provided).
+        #[arg(default_value = ".")]
+        path: PathBuf,
+
+        /// Maximum number of results to return.
+        #[arg(short, long, default_value = "10")]
+        limit: usize,
+
+        /// Number of highest probability tokens to consider (1-1000).
+        #[arg(long)]
+        top_k: Option<u32>,
+
+        /// Describe your intent or goal to filter results for relevance.
+        #[arg(long, short = 'r')]
+        use_case: String,
+
+        /// Filter results to files starting with this prefix.
+        #[arg(long)]
+        starts_with: Option<String>,
+
+        /// Filter results to files ending with this suffix.
+        #[arg(long)]
+        ends_with: Option<String>,
+    },
+
+    /// Show workspace information for an indexed directory.
+    Info {
+        /// Path to the directory to get information for
+        #[arg(default_value = ".")]
+        path: PathBuf,
+    },
+
+    /// Delete a workspace.
+    Delete {
+        /// Workspace ID to delete
+        workspace_id: String,
+    },
 }
 
 /// Command group for listing resources.
@@ -391,16 +466,16 @@ pub struct ConfigGetArgs {
 pub struct ConversationCommandGroup {
     #[command(subcommand)]
     pub command: ConversationCommand,
-
-    /// Output in machine-readable format.
-    #[arg(long, global = true)]
-    pub porcelain: bool,
 }
 
 #[derive(Subcommand, Debug, Clone)]
 pub enum ConversationCommand {
     /// List conversation history.
-    List,
+    List {
+        /// Output in machine-readable format.
+        #[arg(long)]
+        porcelain: bool,
+    },
 
     /// Create a new conversation.
     New,
@@ -445,10 +520,24 @@ pub enum ConversationCommand {
         id: String,
     },
 
+    /// Show conversation statistics.
+    Stats {
+        /// Conversation ID.
+        id: String,
+
+        /// Output in machine-readable format.
+        #[arg(long)]
+        porcelain: bool,
+    },
+
     /// Clone conversation with a new ID.
     Clone {
         /// Conversation ID to clone.
         id: String,
+
+        /// Output in machine-readable format.
+        #[arg(long)]
+        porcelain: bool,
     },
 }
 
@@ -613,7 +702,7 @@ mod tests {
         let fixture = Cli::parse_from(["forge", "conversation", "list"]);
         let is_list = match fixture.subcommands {
             Some(TopLevelCommand::Conversation(conversation)) => {
-                matches!(conversation.command, ConversationCommand::List)
+                matches!(conversation.command, ConversationCommand::List { .. })
             }
             _ => false,
         };
@@ -625,7 +714,7 @@ mod tests {
         let fixture = Cli::parse_from(["forge", "session", "list"]);
         let is_list = match fixture.subcommands {
             Some(TopLevelCommand::Conversation(conversation)) => {
-                matches!(conversation.command, ConversationCommand::List)
+                matches!(conversation.command, ConversationCommand::List { .. })
             }
             _ => false,
         };
@@ -865,7 +954,10 @@ mod tests {
     fn test_conversation_list_with_porcelain() {
         let fixture = Cli::parse_from(["forge", "conversation", "list", "--porcelain"]);
         let actual = match fixture.subcommands {
-            Some(TopLevelCommand::Conversation(conversation)) => conversation.porcelain,
+            Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
+                ConversationCommand::List { porcelain } => porcelain,
+                _ => false,
+            },
             _ => false,
         };
         let expected = true;
@@ -908,11 +1000,11 @@ mod tests {
     }
 
     #[test]
-    fn test_conversation_info_with_porcelain() {
-        let fixture = Cli::parse_from(["forge", "conversation", "info", "test123", "--porcelain"]);
+    fn test_conversation_stats_with_porcelain() {
+        let fixture = Cli::parse_from(["forge", "conversation", "stats", "test123", "--porcelain"]);
         let (id, porcelain) = match fixture.subcommands {
             Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
-                ConversationCommand::Info { id } => (id, conversation.porcelain),
+                ConversationCommand::Stats { id, porcelain } => (id, porcelain),
                 _ => (String::new(), false),
             },
             _ => (String::new(), false),
@@ -979,7 +1071,7 @@ mod tests {
         let fixture = Cli::parse_from(["forge", "conversation", "clone", "abc123"]);
         let id = match fixture.subcommands {
             Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
-                ConversationCommand::Clone { id } => id,
+                ConversationCommand::Clone { id, .. } => id,
                 _ => String::new(),
             },
             _ => String::new(),
@@ -992,7 +1084,7 @@ mod tests {
         let fixture = Cli::parse_from(["forge", "conversation", "clone", "test123", "--porcelain"]);
         let (id, porcelain) = match fixture.subcommands {
             Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
-                ConversationCommand::Clone { id } => (id, conversation.porcelain),
+                ConversationCommand::Clone { id, porcelain } => (id, porcelain),
                 _ => (String::new(), false),
             },
             _ => (String::new(), false),

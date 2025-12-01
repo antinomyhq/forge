@@ -42,6 +42,7 @@ pub enum ToolCatalog {
     ReadImage(ReadImage),
     Write(FSWrite),
     Search(FSSearch),
+    SemSearch(SemanticSearch),
     Remove(FSRemove),
     Patch(FSPatch),
     Undo(FSUndo),
@@ -170,6 +171,49 @@ pub struct FSSearch {
     /// If not provided, it will search all files (*).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub file_pattern: Option<String>,
+}
+
+/// AI-powered semantic code search - YOUR DEFAULT TOOL for "where is"
+/// questions. Use this FIRST when user asks about code location or
+/// functionality: "where is X", "find the code that does Y", "locate Z
+/// implementation". This tool understands CONCEPTS and BEHAVIOR, not just
+/// keywords. Finds code even when exact terms differ. DO NOT skip this tool
+/// just because you see obvious file paths in the file list - ALWAYS use
+/// sem_search first for "where is" questions, then read the results it
+/// provides. Examples: "where is retry logic" finds exponential backoff code,
+/// "authentication handling" finds OAuth and JWT code, "message transformation"
+/// finds serialization/DTOs, "tool registration" finds tool setup code. Returns
+/// ranked results with code snippets. ONLY use regex search tool for exact name
+/// matches like "all functions named execute" or "TODO comments". When in doubt
+/// between search and sem_search, choose sem_search.
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+pub struct SemanticSearch {
+    /// Describe WHAT the code does or its purpose. Include domain-specific
+    /// terms and technical context. Good: "retry mechanism with exponential
+    /// backoff", "streaming responses from LLM API", "OAuth token refresh
+    /// flow". Bad: generic terms like "retry" or "auth" without context. Think
+    /// about the behavior and functionality you're looking for.
+    pub query: String,
+
+    /// A short natural-language description of what you are trying to find.
+    /// This is the query used for document reranking.
+    /// The query MUST:
+    /// - express a single, focused information need
+    /// - describe exactly what the agent is searching for
+    /// - should not be the query verbatim
+    /// - be concise (1–2 sentences)
+    ///
+    /// Examples:
+    /// - "Why is `select_model()` returning a Pin<Box<Result>> in Rust?"
+    /// - "How to fix error E0277 for the ? operator on a pinned boxed result?"
+    /// - "Steps to run Diesel migrations in Rust without exposing the DB."
+    /// - "How to design a clean architecture service layer with typed errors?"
+    pub use_case: String,
+
+    /// Optional file extension filter (e.g., ".rs", ".ts", ".py"). If provided,
+    /// only files with this extension will be included in the search results.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_extension: Option<String>,
 }
 
 /// Request to remove a file at the specified path. Use this when you need to
@@ -481,6 +525,7 @@ impl ToolDescription for ToolCatalog {
             ToolCatalog::Followup(v) => v.description(),
             ToolCatalog::Fetch(v) => v.description(),
             ToolCatalog::Search(v) => v.description(),
+            ToolCatalog::SemSearch(v) => v.description(),
             ToolCatalog::Read(v) => v.description(),
             ToolCatalog::ReadImage(v) => v.description(),
             ToolCatalog::Remove(v) => v.description(),
@@ -517,6 +562,7 @@ impl ToolCatalog {
             ToolCatalog::Followup(_) => r#gen.into_root_schema_for::<Followup>(),
             ToolCatalog::Fetch(_) => r#gen.into_root_schema_for::<NetFetch>(),
             ToolCatalog::Search(_) => r#gen.into_root_schema_for::<FSSearch>(),
+            ToolCatalog::SemSearch(_) => r#gen.into_root_schema_for::<SemanticSearch>(),
             ToolCatalog::Read(_) => r#gen.into_root_schema_for::<FSRead>(),
             ToolCatalog::ReadImage(_) => r#gen.into_root_schema_for::<ReadImage>(),
             ToolCatalog::Remove(_) => r#gen.into_root_schema_for::<FSRemove>(),
@@ -618,7 +664,8 @@ impl ToolCatalog {
                 message: format!("Fetch content from URL: {}", input.url),
             }),
             // Operations that don't require permission checks
-            ToolCatalog::Undo(_)
+            ToolCatalog::SemSearch(_)
+            | ToolCatalog::Undo(_)
             | ToolCatalog::Followup(_)
             | ToolCatalog::Plan(_)
             | ToolCatalog::Skill(_) => None,
@@ -683,6 +730,20 @@ impl ToolCatalog {
             path: path.to_string(),
             regex: regex.map(|r| r.to_string()),
             ..Default::default()
+        }))
+    }
+
+    /// Creates a Semantic Search tool call with the specified query and
+    /// use_case
+    pub fn tool_call_semantic_search(
+        query: &str,
+        use_case: &str,
+        file_ext: Option<String>,
+    ) -> ToolCallFull {
+        ToolCallFull::from(ToolCatalog::SemSearch(SemanticSearch {
+            query: query.to_string(),
+            use_case: use_case.to_string(),
+            file_extension: file_ext,
         }))
     }
 
