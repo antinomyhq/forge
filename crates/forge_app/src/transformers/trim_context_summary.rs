@@ -23,7 +23,7 @@ enum Operation<'a> {
     Search(&'a str),
     /// Codebase search operation with queries
     CodebaseSearch {
-        queries: Vec<forge_domain::SearchQuery>,
+        queries: &'a Vec<forge_domain::SearchQuery>,
         file_extension: Option<&'a str>,
     },
     /// Fetch operation for a specific URL
@@ -49,7 +49,7 @@ fn to_op(tool: &SummaryTool) -> Operation<'_> {
         SummaryTool::Shell { command } => Operation::Shell(command),
         SummaryTool::Search { pattern } => Operation::Search(pattern),
         SummaryTool::SemSearch { queries, file_extension } => Operation::CodebaseSearch {
-            queries: queries.clone(),
+            queries,
             file_extension: file_extension.as_deref(),
         },
         SummaryTool::Fetch { url } => Operation::Fetch(url),
