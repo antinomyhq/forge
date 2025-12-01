@@ -48,10 +48,9 @@ fn to_op(tool: &SummaryTool) -> Operation<'_> {
         SummaryTool::Undo { path } => Operation::File(path),
         SummaryTool::Shell { command } => Operation::Shell(command),
         SummaryTool::Search { pattern } => Operation::Search(pattern),
-        SummaryTool::SemSearch { queries, file_extension } => Operation::CodebaseSearch {
-            queries,
-            file_extension: file_extension.as_deref(),
-        },
+        SummaryTool::SemSearch { queries, file_extension } => {
+            Operation::CodebaseSearch { queries, file_extension: file_extension.as_deref() }
+        }
         SummaryTool::Fetch { url } => Operation::Fetch(url),
         SummaryTool::Followup { question } => Operation::Followup(question),
         SummaryTool::Plan { plan_name } => Operation::Plan(plan_name),
