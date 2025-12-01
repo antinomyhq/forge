@@ -24,7 +24,7 @@ typeset -h _FORGE_COMMANDS=""
 
 # Store active agent ID in a local variable (session-scoped)
 # Default to "forge" agent
-typeset -h _FORGE_ACTIVE_AGENT="forge"
+export _FORGE_ACTIVE_AGENT=forge
 
 # Store conversation ID in a temporary variable (local to plugin)
-typeset -h _FORGE_CONVERSATION_ID=""
+export _FORGE_CONVERSATION_ID=""
