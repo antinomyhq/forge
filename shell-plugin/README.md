@@ -1,102 +1,16 @@
-# Forge ZSH Plugin
-
-A powerful ZSH plugin that provides intelligent command transformation, file tagging, and conversation management for the Forge AI assistant.
-
-## Features
-
-- **Smart Command Transformation**: Convert `:command` syntax into forge executions
-- **Agent Selection**: Tab completion for available agents using `:agent_name`
-- **File Tagging**: Interactive file selection with `@[filename]` syntax
-- **Syntax Highlighting**: Visual feedback for commands and tagged files
-- **Conversation Continuity**: Automatic session management across commands
-- **Interactive Completion**: Fuzzy finding for files and agents
-
-## Prerequisites
-
-Before using this plugin, ensure you have the following tools installed:
-
-- **fzf** - Command-line fuzzy finder
-- **fd** - Fast file finder (alternative to find)
-- **forge** - The Forge CLI tool
-
-### Installation of Prerequisites
-
-```bash
-# macOS (using Homebrew)
-brew install fzf fd
-
-# Ubuntu/Debian
-sudo apt install fzf fd-find
-
-# Arch Linux
-sudo pacman -S fzf fd
-```
-
-## Usage
-
-### Starting a Conversation
-
-Begin any command with `:` followed by your prompt:
-
-```bash
-: Get the current time
-```
-
-This automatically starts a new conversation with the default Forge agent.
-
-### Using Specific Agents
-
-Specify an agent by name after the colon:
-
-```bash
-:sage How does caching work in this system?
-:muse Create a deployment strategy for my app
-```
-
-**Tab Completion**: Type `:` followed by partial agent name and press `TAB` for interactive selection.
-
-### File Tagging
-
-Tag files in your commands using the `@[filename]` syntax:
-
-```bash
-: Review this code @[src/main.rs]
-: Explain the configuration in @[config.yaml]
-```
-
-**Interactive Selection**: Type `@` and press `TAB` to search and select files interactively using fuzzy finder.
-
-### Conversation Continuity
-
-Commands within the same session maintain context:
-
-```bash
-# First command
-: My project uses React and TypeScript
-
-# Second command (remembers previous context)
-: How can I optimize the build process?
-```
-
-The plugin automatically manages conversation IDs to maintain context across related commands.
-
-### Session Management
-
 #### Starting New Sessions
 
-Clear the current conversation context and start fresh:
+Clear current conversation context and start fresh:
 
 ```bash
 :new
-# or use the alias
-:n
 ```
 
 This will:
 
-- Clear the current conversation ID
-- Show the banner with helpful information
-- Reset the session state
+- Clear current conversation ID
+- Show banner with helpful information
+- Reset session state
 - Display a confirmation message with timestamp
 
 #### System Information
@@ -105,16 +19,12 @@ View system and project information:
 
 ```bash
 :info
-# or use the alias
-:i
 ```
 
 This displays:
 
 - System information
 - Project details
-- Current configuration
-
 - Current configuration
 
 #### Renaming Conversations
@@ -128,10 +38,11 @@ Rename an existing conversation with interactive selection:
 ```
 
 This will:
+
 - Display an interactive list of all conversations with preview
 - Allow you to select a conversation to rename
 - Prompt for a new title interactively
-- Update the conversation title
+- Update conversation title
 - Show confirmation message with new title
 
 You can also rename a specific conversation by providing its ID:
@@ -141,6 +52,7 @@ You can also rename a specific conversation by providing its ID:
 ```
 
 This is useful when you want to:
+
 - Give conversations more descriptive names for easier identification
 - Organize conversations by project or topic
 - Update titles after conversation scope changes
@@ -155,6 +67,7 @@ Create a copy of an existing conversation with interactive selection:
 ```
 
 This will:
+
 - Display an interactive list of all conversations with preview
 - Allow you to select a conversation to clone
 - Create a new conversation with the same content
@@ -168,6 +81,7 @@ You can also clone a specific conversation by providing its ID:
 ```
 
 This is useful when you want to:
+
 - Create a backup before making significant changes
 - Start a new conversation branch from an existing context
 - Experiment with different approaches while preserving the original
@@ -190,7 +104,7 @@ The plugin provides visual feedback through syntax highlighting:
 
 ## Configuration
 
-Customize the plugin behavior by setting these variables before loading the plugin:
+Customize plugin behavior by setting these variables before loading the plugin:
 
 ```bash
 # Custom forge binary location
@@ -199,7 +113,7 @@ export FORGE_BIN="/path/to/custom/forge"
 
 ### Available Configuration Variables
 
-- `FORGE_BIN`: Path to the forge executable (default: `forge`)
+- `FORGE_BIN`: Path to forge executable (default: `forge`)
 - Internal pattern matching for conversation syntax (`:`)
 - New session command keyword: `:new` or `:n`
 
@@ -249,7 +163,7 @@ The plugin provides convenient aliases for commonly used commands:
 
 ```bash
 : What's the weather like?
-:sage Explain the MVC pattern
+:sage Explain MVC pattern
 :planner Help me structure this project
 ```
 
@@ -270,7 +184,6 @@ The plugin provides convenient aliases for commonly used commands:
 :new
 : New conversation starts here
 ```
-
 
 ### Codebase Indexing
 
