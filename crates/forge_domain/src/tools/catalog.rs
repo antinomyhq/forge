@@ -209,17 +209,18 @@ impl SearchQuery {
 /// AI-powered semantic code search - YOUR DEFAULT TOOL for "where is"
 /// questions. Use this FIRST when user asks about code location or
 /// functionality: "where is X", "find the code that does Y", "locate Z
-/// implementation", "how does X work", "understand the Y strategy". This tool
-/// understands CONCEPTS and BEHAVIOR, not just keywords. Finds code even when
-/// exact terms differ. Finding the right code is always the first step to
-/// understanding it - sem_search locates relevant code quickly, then read the
-/// results to understand. Examples: "where is retry logic" finds exponential
-/// backoff code, "understand caching strategy" finds cache implementation,
-/// "message transformation" finds serialization/DTOs, "tool registration"
-/// finds tool setup code. Returns ranked results with code snippets. ONLY use
-/// regex search tool for exact name matches like "all functions named execute"
-/// or "TODO comments". When in doubt between search and sem_search, choose
-/// sem_search.
+/// implementation", "how does X work", "understand the Y strategy". Always use
+/// this tool as your first step for code discovery before considering deeper
+/// investigation with research agents. This tool understands CONCEPTS and
+/// BEHAVIOR, not just keywords. Finds code even when exact terms differ.
+/// Finding the right code is always the first step to understanding it -
+/// sem_search locates relevant code quickly, then read the results to
+/// understand. Examples: "where is retry logic" finds exponential backoff code,
+/// "understand caching strategy" finds cache implementation, "message
+/// transformation" finds serialization/DTOs, "tool registration" finds tool
+/// setup code. Returns ranked results with code snippets. ONLY use regex search
+/// tool for exact name matches like "all functions named execute" or "TODO
+/// comments". When in doubt between search and sem_search, choose sem_search.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct SemanticSearch {
     /// List of search queries to execute in parallel. It's ALWAYS a good idea
