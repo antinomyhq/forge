@@ -23,7 +23,7 @@ enum Operation<'a> {
     Search(&'a str),
     /// Codebase search operation with queries
     CodebaseSearch {
-        queries: &'a Vec<forge_domain::SearchQuery>,
+        queries: &'a [forge_domain::SearchQuery],
         file_extension: Option<&'a str>,
     },
     /// Fetch operation for a specific URL
