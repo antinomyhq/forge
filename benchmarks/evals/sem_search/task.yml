@@ -6,7 +6,7 @@ run:
   timeout: 60
   early_exit: true
 validations:
-  - type: matches_regex
+  - type: regex
     name: "Uses codebase search tool"
     regex: .*\[[0-9:]*\].*Codebase Search
 sources:
