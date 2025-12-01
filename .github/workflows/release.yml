@@ -81,6 +81,8 @@ jobs:
     steps:
     - name: Checkout Code
       uses: actions/checkout@v6
+    - name: Setup Protobuf Compiler
+      uses: arduino/setup-protoc@v3
     - name: Setup Cross Toolchain
       if: ${{ matrix.cross == 'false' }}
       uses: taiki-e/setup-cross-toolchain-action@v1
