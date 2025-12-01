@@ -7,7 +7,10 @@ export type CliArgs = {
   evalDir: string;
   taskFile: string;
   distributed: boolean;
+  cloudrun: boolean;
   daytonaApiKey: string | undefined;
+  gcpProject: string | undefined;
+  gcpRegion: string | undefined;
   parallelism: number | undefined;
   apiKey: string | undefined;
   provider: string | undefined;
@@ -30,6 +33,21 @@ export async function parseCliArgs(dirname: string): Promise<CliArgs> {
       type: "boolean",
       description: "Run evaluation on remote Daytona workspaces",
       default: false,
+    })
+    .option("cloudrun", {
+      alias: "c",
+      type: "boolean",
+      description: "Run evaluation on Google Cloud Run",
+      default: false,
+    })
+    .option("gcp-project", {
+      type: "string",
+      description: "Google Cloud project ID (or set GCP_PROJECT env var)",
+    })
+    .option("gcp-region", {
+      type: "string",
+      description: "Google Cloud region (default: us-central1)",
+      default: "us-east5",
     })
     .option("daytona-api-key", {
       type: "string",
@@ -81,12 +99,20 @@ export async function parseCliArgs(dirname: string): Promise<CliArgs> {
   const daytonaApiKey =
     (argv["daytona-api-key"] as string) || process.env.DAYTONA_API_KEY;
 
+  // Get GCP configuration from CLI or environment
+  const gcpProject =
+    (argv["gcp-project"] as string) || process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT;
+  const gcpRegion = (argv["gcp-region"] as string) || "us-central1";
+
   return {
     evalName,
     evalDir,
     taskFile,
     distributed: argv.distributed as boolean,
+    cloudrun: argv.cloudrun as boolean,
     daytonaApiKey,
+    gcpProject,
+    gcpRegion,
     parallelism: argv.parallelism as number | undefined,
     apiKey: argv["api-key"] as string | undefined,
     provider: argv.provider as string | undefined,

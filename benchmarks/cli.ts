@@ -80,7 +80,7 @@ async function main() {
     process.exit(1);
   }
 
-  const { evalName, evalDir, taskFile, distributed, daytonaApiKey, parallelism, apiKey, provider, model } = args;
+  const { evalName, evalDir, taskFile, distributed, cloudrun, daytonaApiKey, gcpProject, gcpRegion, parallelism, apiKey, provider, model } = args;
 
   // Check if eval directory and task file exist
   if (!fs.existsSync(evalDir)) {
@@ -96,6 +96,9 @@ async function main() {
   // Read and parse task.yml
   const taskContent = fs.readFileSync(taskFile, "utf-8");
   const task: Task = parseYaml(taskContent);
+  
+  // Set eval_dir on task for later use
+  task.eval_dir = evalDir;
 
   // Display header
   const displayName = path.relative(__dirname, evalDir) || evalName;
@@ -105,16 +108,20 @@ async function main() {
   const debugDir = path.join(evalDir, "debug", timestamp);
   fs.mkdirSync(debugDir, { recursive: true });
 
-  // Execute before_run commands
-  if (task.before_run && task.before_run.length > 0) {
+  // Execute before_run commands (only for local execution)
+  if (task.before_run && task.before_run.length > 0 && !args.cloudrun && !args.distributed) {
+    logger.info("Executing before_run commands");
     for (const cmd of task.before_run) {
       try {
-        execSync(cmd, { stdio: "pipe", cwd: path.dirname(evalDir) });
+        logger.info({ command: cmd }, "Running setup command");
+        execSync(cmd, { stdio: "inherit", cwd: path.dirname(evalDir) });
       } catch (error) {
         logger.error({ command: cmd }, "Setup command failed");
         process.exit(1);
       }
     }
+  } else if (task.before_run && task.before_run.length > 0) {
+    logger.info("Skipping before_run commands (using pre-built container image)");
   }
 
   // Load data from sources and create cross product
@@ -146,6 +153,160 @@ async function main() {
   if (sourcesData.length === 0) {
     logger.error("No sources configured");
     process.exit(1);
+  }
+
+  // Handle Cloud Run execution
+  if (cloudrun) {
+    // Try to get project from ADC if not provided
+    let projectId = gcpProject;
+    
+    if (!projectId) {
+      try {
+        // Get project from gcloud config
+        const { execSync } = await import("child_process");
+        projectId = execSync("gcloud config get-value project", { 
+          encoding: "utf-8" 
+        }).trim();
+        
+        if (projectId && projectId !== "(unset)") {
+          logger.info({ project: projectId }, "Using GCP project from ADC/gcloud config");
+        } else {
+          projectId = undefined;
+        }
+      } catch (error) {
+        // ADC not configured
+      }
+    }
+
+    if (!projectId) {
+      logger.error(
+        "GCP project ID is required for Cloud Run execution. Either:\n" +
+        "  1. Set GCP_PROJECT env var\n" +
+        "  2. Use --gcp-project flag\n" +
+        "  3. Run: gcloud config set project YOUR_PROJECT_ID"
+      );
+      process.exit(1);
+    }
+
+    logger.info("Running evaluation on Google Cloud Run");
+
+    const { CloudRunRunner } = await import("./cloudrun-runner.js");
+    
+    // Build environment overrides
+    const envOverrides: Record<string, string> = {};
+    
+    // Add API key
+    if (apiKey) {
+      if (provider?.toLowerCase().includes("openrouter")) {
+        envOverrides.OPENROUTER_API_KEY = apiKey;
+      } else if (provider?.toLowerCase() === "anthropic") {
+        envOverrides.ANTHROPIC_API_KEY = apiKey;
+      } else if (provider?.toLowerCase() === "openai") {
+        envOverrides.OPENAI_API_KEY = apiKey;
+      } else {
+        // Default to provider-specific key
+        envOverrides[`${provider?.toUpperCase()}_API_KEY`] = apiKey;
+      }
+    }
+
+    // Add provider and model overrides
+    if (provider) {
+      envOverrides.FORGE_OVERRIDE_PROVIDER = provider;
+    }
+    if (model) {
+      envOverrides.FORGE_OVERRIDE_MODEL = model;
+    }
+
+    logger.info({ envOverrides }, "Environment overrides configured for Cloud Run");
+
+    // Build and push Docker image to Artifact Registry
+    const region = gcpRegion || "us-central1";
+    const imageTag = `${region}-docker.pkg.dev/${projectId}/forge-eval/forge-eval:latest`;
+    const localTag = "forge-eval:latest";
+    
+    logger.info({ image: imageTag }, "Building Docker image for Cloud Run...");
+    
+    // Get the root directory (parent of benchmarks directory)
+    // evalDir is like /path/to/benchmarks/evals/create_skill
+    // We need to go up to /path/to/code-forge
+    const rootDir = path.resolve(evalDir, "../../..");
+    
+    try {
+      // Build the image locally for linux/amd64
+      logger.info({ tag: localTag }, "Building Docker image for linux/amd64...");
+      execSync(
+        `docker build --platform linux/amd64 -f Dockerfile.eval -t ${localTag} .`,
+        {
+          cwd: rootDir,
+          stdio: "inherit",
+        }
+      );
+
+      // Tag for Artifact Registry
+      logger.info({ artifact_registry_image: imageTag }, "Tagging for Artifact Registry...");
+      execSync(`docker tag ${localTag} ${imageTag}`, { stdio: "inherit" });
+
+      // Authenticate with Artifact Registry
+      logger.info("Authenticating with Artifact Registry...");
+      execSync(`gcloud auth configure-docker ${region}-docker.pkg.dev --quiet`, {
+        stdio: "pipe",
+      });
+
+      // Push to Artifact Registry
+      logger.info({ image: imageTag }, "Pushing image to Artifact Registry...");
+      execSync(`docker push ${imageTag}`, { stdio: "inherit" });
+
+      logger.info({ image: imageTag }, "Image successfully pushed to Artifact Registry");
+    } catch (error: any) {
+      logger.error({ error: error.message }, "Failed to build or push Docker image");
+      process.exit(1);
+    }
+
+    const runner = new CloudRunRunner(
+      {
+        cloudRun: {
+          projectId: projectId, // Use detected or provided project ID
+          region: region,
+          image: imageTag,
+        },
+        maxConcurrency: parallelism ?? task.run.parallelism ?? 3,
+        debugDir,
+        envOverrides,
+      },
+      logger
+    );
+
+    try {
+      const summary = await runner.run(task, sourcesData);
+
+      logger.info(
+        {
+          total: summary.total,
+          passed: summary.passed,
+          validation_failed: summary.validation_failed,
+          timeout: summary.timeout,
+          failed: summary.failed,
+          total_duration: summary.total_duration_ms,
+          validations: summary.validations,
+        },
+        "Evaluation completed"
+      );
+
+      // Exit with error code if any task failed
+      if (summary.failed > 0) {
+        process.exit(1);
+      }
+
+      return;
+    } catch (error) {
+      logger.error(
+        {
+          error: error instanceof Error ? error.message : String(error),
+        },
+        "Cloud Run execution failed"
+      );
+      process.exit(1);
+    }
   }
 
   // Handle distributed execution
