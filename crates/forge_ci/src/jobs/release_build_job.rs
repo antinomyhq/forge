@@ -60,6 +60,9 @@ impl From<ReleaseBuilderJob> for Job {
                     )),
             )
             // Build release binary
+            // Note: protoc is installed via:
+            // - arduino/setup-protoc action for non-cross builds
+            // - Cross.toml pre-build commands for cross builds (apt-get install protobuf-compiler)
             .add_step(
                 Step::new("Build Binary")
                     .uses("ClementTsang", "cargo-action", "v0.0.7")
