@@ -14,10 +14,11 @@ function forge-completion() {
             $_FORGE_PREVIEW_WINDOW
         )
         
+        local file_list=$($_FORGE_FD_CMD --type f --type d --hidden --exclude .git)
         if [[ -n "$filter_text" ]]; then
-            selected=$($_FORGE_FD_CMD --type f --type d --hidden --exclude .git | _forge_fzf --query "$filter_text" "${fzf_args[@]}")
+            selected=$(echo "$file_list" | _forge_fzf --query "$filter_text" "${fzf_args[@]}")
         else
-            selected=$($_FORGE_FD_CMD --type f --type d --hidden --exclude .git | _forge_fzf "${fzf_args[@]}")
+            selected=$(echo "$file_list" | _forge_fzf "${fzf_args[@]}")
         fi
         
         if [[ -n "$selected" ]]; then
