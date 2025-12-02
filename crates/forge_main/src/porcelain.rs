@@ -237,6 +237,23 @@ impl Porcelain {
     /// Row 3:   [conversation, id, 000-000-000]
     /// Row 4:   [conversation, title, make agents great again]
     /// ```
+    /// Converts all headers (first row) to uppercase
+    pub fn uppercase_headers(self) -> Self {
+        if self.0.is_empty() {
+            return self;
+        }
+
+        let mut rows = self.0;
+        if let Some(header_row) = rows.first_mut() {
+            *header_row = header_row
+                .iter()
+                .map(|col| col.as_ref().map(|s| s.to_uppercase()))
+                .collect();
+        }
+
+        Porcelain(rows)
+    }
+
     pub fn into_long(self) -> Self {
         if self.0.is_empty() {
             return self;
