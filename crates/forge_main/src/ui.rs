@@ -809,7 +809,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 return Err(anyhow::anyhow!("Provider '{id}' is not configured"));
             }
             self.api.remove_provider(id).await?;
-            self.writeln_title(TitleFormat::completion(format!(
+            self.writeln_title(TitleFormat::debug(format!(
                 "Successfully logged out from {id}"
             )))?;
             return Ok(true);
@@ -835,7 +835,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             Some(provider) => {
                 let provider_id = provider.0.id();
                 self.api.remove_provider(&provider_id).await?;
-                self.writeln_title(TitleFormat::completion(format!(
+                self.writeln_title(TitleFormat::debug(format!(
                     "Successfully logged out from {provider_id}"
                 )))?;
                 return Ok(true);
@@ -2875,7 +2875,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
 
                 let path = path.canonicalize().unwrap_or(path);
-                self.writeln_title(TitleFormat::completion(format!(
+                self.writeln_title(TitleFormat::debug(format!(
                     "Successfully synced: {}",
                     path.display()
                 )))?;
@@ -3049,7 +3049,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         match self.api.delete_codebase(workspace_id.clone()).await {
             Ok(()) => {
                 self.spinner.stop(None)?;
-                self.writeln_title(TitleFormat::completion(format!(
+                self.writeln_title(TitleFormat::debug(format!(
                     "Successfully deleted workspace {}",
                     workspace_id
                 )))?;
