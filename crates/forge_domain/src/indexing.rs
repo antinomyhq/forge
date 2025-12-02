@@ -120,7 +120,7 @@ impl IndexProgress {
                     } else {
                         "files"
                     };
-                    format!("{} {} changed", uploaded_files, file_word)
+                    format!("{} {} synced", uploaded_files, file_word)
                 }
             }
         }
