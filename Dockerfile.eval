@@ -1,31 +1,17 @@
-# Multi-stage Dockerfile for code-forge evaluations
-# Stage 1: Build the Rust binary with edition 2024 support
-FROM rust:1.91-bookworm AS builder
-
-WORKDIR /build
-
-# Install build dependencies including protobuf compiler
-RUN apt-get update && apt-get install -y \
-    protobuf-compiler \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy all source files (needed for rust-embed to embed templates)
-COPY . .
-
-# Build the forge binary specifically (templates will be embedded via rust-embed)
-# Note: Do NOT strip the binary as it may remove embedded template data
-RUN cargo build --release --bin forge
-
-# Stage 2: Runtime image with just the binary
+# Dockerfile for code-forge evaluations
+# Uses cross-compiled binary from host machine
 FROM debian:bookworm-slim
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
     ca-certificates \
+    libssl3 \
+    libgcc-s1 \
+    libc6 \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy the compiled binary from builder (templates are embedded in the binary via rust-embed)
-COPY --from=builder /build/target/release/forge /usr/local/bin/forge
+# Copy the cross-compiled binary (templates are embedded via rust-embed)
+COPY target/x86_64-unknown-linux-gnu/release/forge /usr/local/bin/forge
 
 # Make it executable
 RUN chmod +x /usr/local/bin/forge

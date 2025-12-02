@@ -232,15 +232,50 @@ async function main() {
     const rootDir = path.resolve(evalDir, "../../..");
     
     try {
-      // Build the image locally for linux/amd64
-      logger.info({ tag: localTag }, "Building Docker image for linux/amd64...");
+      // Build the binary using cross for linux/amd64
+      logger.info("Building forge binary with cross for x86_64-unknown-linux-gnu...");
       execSync(
-        `docker build --platform linux/amd64 -f Dockerfile.eval -t ${localTag} .`,
+        `cross build --release --bin forge --target x86_64-unknown-linux-gnu`,
         {
           cwd: rootDir,
           stdio: "inherit",
         }
       );
+
+      // Build the Docker image with the cross-compiled binary
+      // Use a custom dockerignore that allows the target directory
+      logger.info({ tag: localTag }, "Building Docker image with cross-compiled binary for linux/amd64...");
+      
+      // Temporarily rename .dockerignore and use .dockerignore.eval
+      const fs = await import("fs");
+      const dockerignoreBackup = path.join(rootDir, ".dockerignore.backup");
+      const dockerignoreOriginal = path.join(rootDir, ".dockerignore");
+      const dockerignoreEval = path.join(rootDir, ".dockerignore.eval");
+      
+      try {
+        // Backup original .dockerignore if it exists
+        if (fs.existsSync(dockerignoreOriginal)) {
+          execSync(`cp ${dockerignoreOriginal} ${dockerignoreBackup}`, { cwd: rootDir });
+        }
+        
+        // Use .dockerignore.eval as .dockerignore
+        if (fs.existsSync(dockerignoreEval)) {
+          execSync(`cp ${dockerignoreEval} ${dockerignoreOriginal}`, { cwd: rootDir });
+        }
+        
+        execSync(
+          `docker build --platform linux/amd64 -f Dockerfile.eval -t ${localTag} .`,
+          {
+            cwd: rootDir,
+            stdio: "inherit",
+          }
+        );
+      } finally {
+        // Restore original .dockerignore
+        if (fs.existsSync(dockerignoreBackup)) {
+          execSync(`mv ${dockerignoreBackup} ${dockerignoreOriginal}`, { cwd: rootDir });
+        }
+      }
 
       // Tag for Artifact Registry
       logger.info({ artifact_registry_image: imageTag }, "Tagging for Artifact Registry...");

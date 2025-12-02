@@ -68,7 +68,8 @@ export class CloudRunOrchestrator {
     env: Record<string, string>,
     timeout: number = 3600
   ): Promise<string> {
-    const jobName = `forge-eval-${taskId.replace(/[^a-z0-9-]/g, "-").toLowerCase()}`;
+    const timestamp = Date.now();
+    const jobName = `forge-eval-${taskId.replace(/[^a-z0-9-]/g, "-")}-${timestamp}`.toLowerCase();
     
     this.logger.info(
       { task_id: taskId, job_name: jobName },
