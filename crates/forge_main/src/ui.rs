@@ -2291,6 +2291,13 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             self.on_model_selection().await?;
         }
 
+        // Validate provider is configured before loading agents
+        // If provider is set in config but not configured (no credentials), prompt user
+        // to login
+        if self.api.get_default_provider().await.is_err() {
+            self.on_provider_selection().await?;
+        }
+
         // Create base workflow and trigger updates if this is the first initialization
         let mut base_workflow = Workflow::default();
         base_workflow.merge(workflow.clone());
