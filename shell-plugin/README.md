@@ -213,7 +213,6 @@ You can also manage log levels interactively using the ZSH plugin commands:
 :log-level          # Display current log level
 :log-level debug    # Set log level to debug
 :log-level error    # Set log level to error
-:info               # Shows current log level in system status
 ```
 
 The default level is "info" to maintain backward compatibility while reducing noise by hiding debug messages that are primarily for troubleshooting.

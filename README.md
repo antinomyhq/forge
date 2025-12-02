@@ -505,52 +505,6 @@ The `FORGE_BIN` environment variable allows you to customize the command used by
 </details>
 
 <details>
-<summary><strong>Log Level Configuration</strong></summary>
-
-Configure the ZSH plugin log level to control message verbosity:
-
-```bash
-# .env
-FORGE_LOG_LEVEL=info                 # Control log message verbosity (default: "info")
-```
-
-The `FORGE_LOG_LEVEL` environment variable controls which messages are displayed by the ZSH plugin. The hierarchy is:
-
-- **debug**: 0 - Show all messages including verbose troubleshooting information
-- **info**: 1 - Show general information, warnings, errors, and success (default)
-- **warning**: 2 - Show warnings, errors, and success messages
-- **error**: 3 - Show only error and success messages
-- **success**: 4 - Show only success messages
-
-**Examples:**
-
-```bash
-# Show all messages (useful for troubleshooting)
-FORGE_LOG_LEVEL=debug
-
-# Default behavior - hide debug messages, show everything else
-FORGE_LOG_LEVEL=info
-
-# Minimal output - only errors and successes
-FORGE_LOG_LEVEL=error
-```
-
-**Interactive Control:**
-
-You can also manage log levels interactively using the ZSH plugin commands:
-
-```bash
-:log-level          # Display current log level
-:log-level debug    # Set log level to debug
-:log-level error    # Set log level to error
-:info               # Shows current log level in system status
-```
-
-The default level is "info" to maintain backward compatibility while reducing noise by hiding debug messages that are primarily for troubleshooting.
-
-</details>
-
-<details>
 <summary><strong>System Configuration</strong></summary>
 
 System-level environment variables (usually set automatically):
