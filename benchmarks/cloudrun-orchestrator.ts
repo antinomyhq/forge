@@ -347,7 +347,17 @@ export class CloudRunOrchestrator {
         }
       }
 
-      const exitCode = executionInfo.status?.completionTime ? 0 : -1;
+      // Extract exit code from execution status
+      // Check if all tasks succeeded
+      const taskCount = executionInfo.status?.taskCount || 0;
+      const succeededCount = executionInfo.status?.succeededCount || 0;
+      const failedCount = executionInfo.status?.failedCount || 0;
+      
+      // Exit code 0 if execution succeeded (succeededCount > 0 and no failures)
+      // or if all tasks succeeded when taskCount is available
+      const exitCode = 
+        (succeededCount > 0 && failedCount === 0) ? 0 :
+        (taskCount > 0 && succeededCount === taskCount) ? 0 : -1;
 
       return {
         stdout: stdout.trim(),
