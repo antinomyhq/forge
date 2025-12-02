@@ -183,26 +183,4 @@ mod tests {
         // Should return the custom path unchanged
         assert_eq!(result, custom_path);
     }
-
-    #[tokio::test]
-    async fn test_read_nonexistent_file_returns_default_without_creating() {
-        // Setup - create a temporary directory without a forge.yaml file
-        let temp_dir = TempDir::new().unwrap();
-        let nonexistent_path = temp_dir.path().join("forge.yaml");
-
-        // Ensure the file doesn't exist before the test
-        assert!(!nonexistent_path.exists());
-
-        // We can't easily test this without access to ForgeInfra, but we can verify
-        // the behavior by checking that after resolve_path returns a non-existent path,
-        // read() will not create the file. This is implicitly tested by the
-        // resolve_path tests and the fact that read() now just returns Workflow::new()
-        // without calling write.
-
-        // Verify - file should still not exist after we would have called read
-        assert!(
-            !nonexistent_path.exists(),
-            "forge.yaml should not be created"
-        );
-    }
 }
