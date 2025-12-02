@@ -12,8 +12,8 @@ function _forge_action_agent() {
     if [[ -n "$input_text" ]]; then
         local agent_id="$input_text"
         
-        # Validate that the agent exists
-        local agent_exists=$($_FORGE_BIN list agents --porcelain 2>/dev/null | grep -q "^${agent_id}\b" && echo "true" || echo "false")
+        # Validate that the agent exists (skip header line)
+        local agent_exists=$($_FORGE_BIN list agents --porcelain 2>/dev/null | tail -n +2 | grep -q "^${agent_id}\b" && echo "true" || echo "false")
         if [[ "$agent_exists" == "false" ]]; then
             _forge_log error "Agent '\033[1m${agent_id}\033[0m' not found"
             _forge_reset
@@ -38,8 +38,7 @@ function _forge_action_agent() {
         # Get current agent ID
         local current_agent="$_FORGE_ACTIVE_AGENT"
         
-        # Sort agents alphabetically by name (first field)
-        local sorted_agents=$(echo "$agents_output" | sort)
+        local sorted_agents="$agents_output"
         
         # Create prompt with current agent - show agent ID, title, provider, model and reasoning
         local prompt_text="Agent ❯ "
@@ -57,7 +56,7 @@ function _forge_action_agent() {
 
         local selected_agent
         # Use fzf without preview for simple selection like provider/model
-        selected_agent=$(echo "$sorted_agents" | _forge_fzf "${fzf_args[@]}")
+        selected_agent=$(echo "$sorted_agents" | _forge_fzf --header-lines=1 "${fzf_args[@]}")
         
         if [[ -n "$selected_agent" ]]; then
             # Extract the first field (agent ID)
@@ -140,7 +139,7 @@ function _forge_select_and_set_config() {
                 fzf_args+=(--bind="start:pos($index)")
                 
             fi
-            selected=$(echo "$output" | _forge_fzf "${fzf_args[@]}")
+            selected=$(echo "$output" | _forge_fzf --header-lines=1 "${fzf_args[@]}")
 
             if [[ -n "$selected" ]]; then
                 local name="${selected%% *}"

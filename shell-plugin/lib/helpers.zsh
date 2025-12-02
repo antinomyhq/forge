@@ -45,13 +45,21 @@ function _forge_reset() {
 # Returns the index if found, 1 otherwise
 # Usage: _forge_find_index <output> <value_to_find> [field_number]
 # field_number: which field to compare (1 for first field, 2 for second field, etc.)
+# Note: This function expects porcelain output WITH headers and skips the header line
 function _forge_find_index() {
     local output="$1"
     local value_to_find="$2"
     local field_number="${3:-1}"  # Default to first field if not specified
 
     local index=1
+    local line_num=0
     while IFS= read -r line; do
+        ((line_num++))
+        # Skip the header line (first line)
+        if [[ $line_num -eq 1 ]]; then
+            continue
+        fi
+        
         # Extract the specified field for comparison
         local field_value=$(echo "$line" | awk "{print \$$field_number}")
         if [[ "$field_value" == "$value_to_find" ]]; then
