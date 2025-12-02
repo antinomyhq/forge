@@ -20,12 +20,6 @@ function _forge_action_info() {
     else
         _forge_exec info
     fi
-    
-    # Display current log level
-    echo
-    echo "Log Level: \033[1m${_FORGE_LOG_LEVEL}\033[0m"
-    echo "Use \033[1m:log-level\033[0m to change the log level"
-    
     _forge_reset
 }
 

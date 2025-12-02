@@ -25,7 +25,6 @@
     - [Deprecated: Environment Variables](#deprecated-environment-variables)
   - [forge.yaml Configuration Options](#forgeyaml-configuration-options)
   - [Environment Variables](#environment-variables)
-  - [Log Level Configuration](#log-level-configuration)
   - [MCP Configuration](#mcp-configuration)
   - [Example Use Cases](#example-use-cases)
   - [Usage in Multi-Agent Workflows](#usage-in-multi-agent-workflows)
