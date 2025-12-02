@@ -67,12 +67,39 @@ function _forge_find_index() {
 
 # Helper function to print messages with consistent formatting based on log level
 # Usage: _forge_log <level> <message>
-# Levels: error, info, success, warning, debug
+# Levels: debug, info, warning, error, success (hierarchical filtering applies)
+# 
+# Log Level Hierarchy (debug < info < warning < error < success):
+# - debug: 0 (verbose troubleshooting information, hidden by default)
+# - info: 1 (general information, default level)
+# - warning: 2 (important warnings)
+# - error: 3 (error messages)
+# - success: 4 (success messages)
+#
+# Environment Variable: FORGE_LOG_LEVEL
+# Examples:
+#   FORGE_LOG_LEVEL=debug  # Show all messages
+#   FORGE_LOG_LEVEL=info   # Show info, warning, error, success (default)
+#   FORGE_LOG_LEVEL=error  # Show only error and success messages
+#
+# Backward Compatibility: Default is "info" level, maintaining most current behavior
+# while hiding debug messages that are primarily for troubleshooting.
+#
 # Color scheme matches crates/forge_main/src/title_display.rs
 function _forge_log() {
     local level="$1"
     local message="$2"
     local timestamp="\033[90m[$(date '+%H:%M:%S')]\033[0m"
+    
+    # Level hierarchy: debug=0 < info=1 < warning=2 < error=3 < success=4
+    local -A level_mapping=(debug 0 info 1 warning 2 error 3 success 4)
+    
+    # Early return if message level is below configured threshold
+    if [[ -n "${level_mapping[$level]}" && -n "${level_mapping[$_FORGE_LOG_LEVEL]}" ]]; then
+        if [[ ${level_mapping[$level]} -lt ${level_mapping[$_FORGE_LOG_LEVEL]} ]]; then
+            return 0
+        fi
+    fi
     
     case "$level" in
         error)
