@@ -103,6 +103,22 @@ export async function parseCliArgs(dirname: string): Promise<CliArgs> {
   const gcpProject =
     (argv["gcp-project"] as string) || process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT;
   const gcpRegion = (argv["gcp-region"] as string) || "us-central1";
+  
+  // Get API key from CLI or environment (try provider-specific env vars)
+  const provider = argv.provider as string | undefined;
+  let apiKey = argv["api-key"] as string | undefined;
+  
+  if (!apiKey && provider) {
+    // Try to get API key from provider-specific environment variable
+    const providerLower = provider.toLowerCase().replace(/_/g, '');
+    if (providerLower.includes("openrouter")) {
+      apiKey = process.env.OPENROUTER_API_KEY;
+    } else if (providerLower === "anthropic") {
+      apiKey = process.env.ANTHROPIC_API_KEY;
+    } else if (providerLower === "openai") {
+      apiKey = process.env.OPENAI_API_KEY;
+    }
+  }
 
   return {
     evalName,
@@ -114,8 +130,8 @@ export async function parseCliArgs(dirname: string): Promise<CliArgs> {
     gcpProject,
     gcpRegion,
     parallelism: argv.parallelism as number | undefined,
-    apiKey: argv["api-key"] as string | undefined,
-    provider: argv.provider as string | undefined,
+    apiKey,
+    provider,
     model: argv.model as string | undefined,
   };
 }

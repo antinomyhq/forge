@@ -75,6 +75,11 @@ export class CloudRunOrchestrator {
       { task_id: taskId, job_name: jobName },
       "Creating Cloud Run Job"
     );
+    
+    this.logger.debug(
+      { task_id: taskId, env_keys: Object.keys(env), env },
+      "Environment variables for Cloud Run Job"
+    );
 
     try {
       // Get access token for authentication
@@ -250,6 +255,51 @@ export class CloudRunOrchestrator {
     }
 
     throw new Error(`Execution ${executionName} timed out after ${timeoutSeconds}s`);
+  }
+
+  /**
+   * Cancels a running execution
+   */
+  async cancelExecution(executionName: string, taskId: string): Promise<void> {
+    try {
+      const accessToken = this.getAccessToken();
+      
+      this.logger.info(
+        { task_id: taskId, execution_name: executionName },
+        "Cancelling Cloud Run execution"
+      );
+
+      // Cancel the execution
+      const cancelCommand = [
+        "gcloud run jobs executions cancel",
+        executionName,
+        `--region=${this.config.region}`,
+        `--project=${this.config.projectId}`
+      ];
+
+      execSync(cancelCommand.join(" "), {
+        encoding: "utf-8",
+        env: {
+          ...process.env,
+          CLOUDSDK_AUTH_ACCESS_TOKEN: accessToken,
+        },
+      });
+
+      this.logger.info(
+        { task_id: taskId, execution_name: executionName },
+        "Execution cancelled successfully"
+      );
+    } catch (error) {
+      this.logger.error(
+        {
+          task_id: taskId,
+          execution_name: executionName,
+          error: error instanceof Error ? error.message : String(error),
+        },
+        "Failed to cancel execution"
+      );
+      // Don't throw - execution might have completed already
+    }
   }
 
   /**

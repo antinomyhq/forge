@@ -200,11 +200,12 @@ async function main() {
     
     // Add API key
     if (apiKey) {
-      if (provider?.toLowerCase().includes("openrouter")) {
+      const providerLower = provider?.toLowerCase().replace(/_/g, '');
+      if (providerLower?.includes("openrouter")) {
         envOverrides.OPENROUTER_API_KEY = apiKey;
-      } else if (provider?.toLowerCase() === "anthropic") {
+      } else if (providerLower === "anthropic") {
         envOverrides.ANTHROPIC_API_KEY = apiKey;
-      } else if (provider?.toLowerCase() === "openai") {
+      } else if (providerLower === "openai") {
         envOverrides.OPENAI_API_KEY = apiKey;
       } else {
         // Default to provider-specific key
