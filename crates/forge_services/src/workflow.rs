@@ -55,19 +55,15 @@ impl<F: FileWriterInfra + FileReaderInfra> ForgeWorkflowService<F> {
 
     /// Loads the workflow from the given path.
     /// If the path is just "forge.yaml", searches for it in parent directories.
-    /// If the file doesn't exist anywhere, creates a new empty workflow file at
-    /// the specified path (in the current directory).
+    /// If the file doesn't exist anywhere, returns a default workflow without
+    /// creating any file.
     async fn read(&self, path: &Path) -> anyhow::Result<Workflow> {
         // First, try to find the config file in parent directories if needed
         let path = &self.resolve_path(Some(path.into())).await;
 
         if !path.exists() {
-            let workflow = Workflow::new();
-            self.infra
-                .write(path, self.serialize_workflow(&workflow)?.into())
-                .await?;
-
-            Ok(workflow)
+            // Return a default workflow without creating a file
+            Ok(Workflow::new())
         } else {
             let content = self.infra.read_utf8(path).await?;
             let workflow: Workflow = serde_yml::from_str(&content)
