@@ -38,12 +38,13 @@ export async function executeTask(
   logFile: string,
   evalDir: string,
   task: Task,
-  context?: Record<string, string>
+  context?: Record<string, string>,
+  append: boolean = false
 ): Promise<TaskExecutionResult> {
   const startTime = Date.now();
 
-  // Create log stream for this task
-  const logStream = fs.createWriteStream(logFile);
+  // Create log stream for this task (append if this is not the first command)
+  const logStream = fs.createWriteStream(logFile, { flags: append ? 'a' : 'w' });
 
   // Write command at the top of the log file
   logStream.write(`Command: ${command}\n`);
@@ -59,7 +60,7 @@ export async function executeTask(
     const output = await new Promise<string>((resolve, reject) => {
       const child = spawn(command, {
         shell: true,
-        cwd: task.run.cwd ?? path.dirname(evalDir),
+        cwd: task.cwd ?? path.dirname(evalDir),
         stdio: ["ignore", "pipe", "pipe"],
       });
 
@@ -71,7 +72,7 @@ export async function executeTask(
       const checkValidations = () => {
         if (exitedEarly || timedOut) return;
         
-        if (task.run.early_exit && task.validations && task.validations.length > 0) {
+        if (task.early_exit && task.validations && task.validations.length > 0) {
           const currentOutput = stdout + stderr;
           if (currentOutput) {
             const results = runValidations(currentOutput, task.validations, context);
@@ -90,17 +91,17 @@ export async function executeTask(
       };
 
       // Set up timeout if configured
-      if (task.run.timeout) {
+      if (task.timeout) {
         timeoutId = setTimeout(() => {
           timedOut = true;
           logStream.write(`\n${"=".repeat(80)}\n`);
-          logStream.write(`Timeout: ${task.run.timeout}s exceeded\n`);
+          logStream.write(`Timeout: ${task.timeout}s exceeded\n`);
           logStream.write(`Killing process...\n`);
           logStream.end();
           child.kill("SIGKILL");
           // Resolve with captured output so far
           resolve(stdout + stderr);
-        }, task.run.timeout * 1000);
+        }, task.timeout * 1000);
       }
 
       // Stream stdout to both log file and capture for validation

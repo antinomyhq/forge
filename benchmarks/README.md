@@ -56,12 +56,23 @@ before_run:
   - cargo build
   - npm install
 
-# Required: Command to execute for each test case
+# Required: Command(s) to execute for each test case
+# Single command
+run: ../../target/debug/forge -p '{{prompt}}'
+
+# Or multiple commands (executed sequentially)
 run:
-  command: ../../target/debug/forge -p '{{prompt}}'
-  parallelism: 10  # Number of tasks to run in parallel (default: 1)
-  timeout: 60      # Timeout in seconds (optional)
-  cwd: /path/to/working/dir  # Working directory (optional)
+  - echo "Step 1: {{task}}"
+  - ../../target/debug/forge -p '{{prompt}}'
+  - echo "Step 2: Complete"
+
+# Execution configuration
+parallelism: 10  # Number of tasks to run in parallel (default: 1)
+timeout: 60      # Timeout in seconds (optional)
+early_exit: true # Stop execution when validations pass (optional)
+
+# Optional: Working directory for command execution
+cwd: /path/to/working/dir  # Defaults to parent directory of eval
 
 # Optional: Validations to run on output
 validations:
@@ -77,14 +88,26 @@ sources:
 #### Task File Schema
 
 **`before_run`** (optional): Array of shell commands to execute before running tasks
-- Runs sequentially in the parent directory of the eval
+- Runs sequentially before the main command execution
+- Uses the same working directory as specified in `cwd` (defaults to parent directory of eval)
 - Useful for building binaries or setting up dependencies
 
-**`run`** (required): Configuration for task execution
-- `command`: Command template with placeholders (e.g., `{{variable}}`)
-- `parallelism`: Number of tasks to run concurrently (default: 1)
-- `timeout`: Maximum execution time in seconds per task (optional)
-- `cwd`: Working directory for command execution (optional, defaults to parent directory of eval)
+**`run`** (required): Command(s) to execute for each test case
+- Can be a single string or an array of strings
+- Commands support template placeholders (e.g., `{{variable}}`)
+- Multiple commands are executed sequentially
+- If any command fails, subsequent commands are skipped
+
+**`parallelism`** (optional): Number of tasks to run concurrently (default: 1)
+
+**`timeout`** (optional): Maximum execution time in seconds per task
+
+**`early_exit`** (optional): Stop command execution when all validations pass
+
+**`cwd`** (optional): Working directory for command execution
+- Defaults to parent directory of eval
+- Applies to both `before_run` commands and the main `run` command
+- All commands within the task will run in this directory
 
 **`validations`** (optional): Array of validation rules
 - `name`: Human-readable description
@@ -181,8 +204,7 @@ LOG_LEVEL=debug npm run eval ./evals/my_eval/task.yml
 ### Example 1: Simple Sequential Execution
 
 ```yaml
-run:
-  command: echo "Processing {{name}}"
+run: echo "Processing {{name}}"
 sources:
   - csv: names.csv
 ```
@@ -197,20 +219,31 @@ Charlie
 ### Example 2: Parallel Execution with Timeout
 
 ```yaml
-run:
-  command: ./slow_task --id {{task_id}}
-  parallelism: 5
-  timeout: 30
+run: ./slow_task --id {{task_id}}
+parallelism: 5
+timeout: 30
 sources:
   - csv: tasks.csv
 ```
 
-### Example 3: Shell Command Validation
+### Example 3: Multiple Commands
 
 ```yaml
 run:
-  command: echo "{{message}}"
-  parallelism: 3
+  - echo "Starting task {{id}}"
+  - ./process --input {{file}}
+  - echo "Task {{id}} complete"
+parallelism: 3
+timeout: 120
+sources:
+  - csv: tasks.csv
+```
+
+### Example 4: Shell Command Validation
+
+```yaml
+run: echo "{{message}}"
+parallelism: 3
 validations:
   # Using grep to check if output contains specific text
   - name: "Contains 'test' word"
@@ -232,11 +265,10 @@ sources:
   - csv: messages.csv
 ```
 
-### Example 4: Regex Validation
+### Example 5: Regex Validation
 
 ```yaml
-run:
-  command: cargo test {{test_name}}
+run: cargo test {{test_name}}
 validations:
   - name: "All tests passed"
     type: regex
@@ -260,14 +292,12 @@ sources:
 
 3. **Start with low parallelism**: Test with `parallelism: 1` first, then increase:
    ```yaml
-   run:
-     parallelism: 1  # Start here
+   parallelism: 1  # Start here
    ```
 
 4. **Set appropriate timeouts**: Add timeouts to prevent hanging:
    ```yaml
-   run:
-     timeout: 60  # seconds
+   timeout: 60  # seconds
    ```
 
 5. **Check debug logs**: When tasks fail, check the debug directory for full output:

@@ -219,29 +219,13 @@ The default level is "info" to maintain backward compatibility while reducing no
 
 ### Codebase Indexing
 
-Manage semantic search indexes for your codebase:
-
-#### List Workspaces
-
-View all indexed workspaces:
-
-```bash
-:workspace
-```
-
-#### Sync Directory
-
-Index a directory for semantic search:
+Sync your codebase for semantic search:
 
 ```bash
 :sync
-# or 
-:index
-# or specify a path
-:sync /path/to/directory
-# or
-:index /path/to/directory
 ```
+
+This will index the current directory for semantic code search.
 
 ### .forge Directory
 
@@ -297,10 +281,6 @@ All transformed commands are properly saved to ZSH history, allowing you to:
 ### Codebase Indexing
 
 ```bash
-# List all workspaces
-:workspace
-
-# Index current directory
+# Sync current directory for semantic search
 :sync
-:index
 ```

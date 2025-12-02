@@ -4,7 +4,8 @@ use derive_more::From;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Context, ContextMessage, Role, TextMessage, ToolCallFull, ToolCallId, ToolCatalog, ToolResult,
+    Context, ContextMessage, Role, SearchQuery, TextMessage, ToolCallFull, ToolCallId, ToolCatalog,
+    ToolResult,
 };
 
 /// A simplified summary of a context, focusing on messages and their tool calls
@@ -116,18 +117,10 @@ impl SummaryToolCall {
 
     /// Creates a CodebaseSearch tool call with default values (id: None,
     /// is_success: true)
-    pub fn codebase_search(
-        query: impl Into<String>,
-        use_case: impl Into<String>,
-        file_extension: Option<String>,
-    ) -> Self {
+    pub fn codebase_search(queries: Vec<SearchQuery>, file_extension: Option<String>) -> Self {
         Self {
             id: None,
-            tool: SummaryTool::SemSearch {
-                query: query.into(),
-                use_case: use_case.into(),
-                file_extension,
-            },
+            tool: SummaryTool::SemSearch { queries, file_extension },
             is_success: true,
         }
     }
@@ -192,8 +185,7 @@ pub enum SummaryTool {
         pattern: String,
     },
     SemSearch {
-        query: String,
-        use_case: String,
+        queries: Vec<SearchQuery>,
         file_extension: Option<String>,
     },
     Undo {
@@ -316,8 +308,7 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
             .or(input.regex)
             .map(|pattern| SummaryTool::Search { pattern }),
         ToolCatalog::SemSearch(input) => Some(SummaryTool::SemSearch {
-            query: input.query,
-            use_case: input.use_case,
+            queries: input.queries,
             file_extension: input.file_extension,
         }),
         ToolCatalog::Undo(input) => Some(SummaryTool::Undo { path: input.path }),
@@ -967,8 +958,11 @@ mod tests {
         let fixture = context(vec![assistant_with_tools(
             "Searching codebase",
             vec![
-                ToolCatalog::tool_call_semantic_search("retry mechanism", "find retry logic", None)
-                    .call_id("call_1"),
+                ToolCatalog::tool_call_semantic_search(
+                    vec![SearchQuery::new("retry mechanism", "find retry logic")],
+                    None,
+                )
+                .call_id("call_1"),
             ],
         )]);
 
@@ -978,10 +972,13 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Searching codebase"),
-                SummaryToolCall::codebase_search("retry mechanism", "find retry logic", None)
-                    .id("call_1")
-                    .is_success(false)
-                    .into(),
+                SummaryToolCall::codebase_search(
+                    vec![SearchQuery::new("retry mechanism", "find retry logic")],
+                    None,
+                )
+                .id("call_1")
+                .is_success(false)
+                .into(),
             ],
         )]);
 

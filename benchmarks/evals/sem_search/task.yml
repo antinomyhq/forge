@@ -1,14 +1,15 @@
 before_run:
-  - cargo build
+  - cargo run -- workspace sync
 run:
-  command: ../../target/debug/forge -C ../../ -p '{{task}}'
-  parallelism: 20
-  timeout: 60
-  early_exit: true
+  - FORGE_DEBUG_REQUESTS='{{context_input}}' target/debug/forge -p '{{task}}'
+parallelism: 20
+timeout: 60
+cwd: ../
+early_exit: true
 validations:
-  - type: regex
-    name: "Uses codebase search tool"
-    regex: .*\[[0-9:]*\].*Codebase Search
+  - name: "Uses codebase search tool"
+    type: shell
+    command: 'jq -e ''[.messages[]?.tool_calls[]? | select(.function.name == "sem_search")] | any'' {{context_input}}'
 sources:
   - value:
       # Original 10 tests
