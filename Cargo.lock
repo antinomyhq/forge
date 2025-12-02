@@ -1548,6 +1548,7 @@ dependencies = [
  "bytes",
  "chrono",
  "derive_more",
+ "derive_setters",
  "diesel",
  "diesel_migrations",
  "dirs",
