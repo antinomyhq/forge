@@ -50,18 +50,21 @@ export class TaskDistributor {
       const id = `task-${index + 1}`;
       // Use /tmp for remote path since it's accessible on the workspace
       const debugRequestFile = `/tmp/debug/request_${index + 1}.json`;
+      
+      // Handle both string and array command formats
+      const command = Array.isArray(task.run) ? task.run.join(" && ") : task.run;
 
       return {
         id,
         index: index + 1,
-        command: task.run.command,
+        command,
         context: {
           ...context,
           context_input: debugRequestFile, // Remote path for FORGE_DEBUG_REQUESTS
         },
         validations: task.validations || [],
-        timeout: task.run.timeout,
-        cwd: task.run.cwd,
+        timeout: task.timeout,
+        cwd: task.cwd,
         debugDir, // Keep local debugDir for result collection
       };
     });

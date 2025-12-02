@@ -224,63 +224,6 @@ export class CloudRunRunner {
       // Build environment variables
       const env = this.buildEnvironment(taskUnit);
 
-      // If provider is set, create both ~/forge/.credentials.json and ~/forge/.config.json
-      if (env.FORGE_OVERRIDE_PROVIDER) {
-        // Find the API key from environment
-        let apiKey: string | undefined;
-        const providerLower = env.FORGE_OVERRIDE_PROVIDER.toLowerCase();
-        
-        if (providerLower.includes('openrouter') || providerLower === 'open_router') {
-          apiKey = env.OPENROUTER_API_KEY || env.OPEN_ROUTER_API_KEY;
-        } else if (providerLower.includes('anthropic')) {
-          apiKey = env.ANTHROPIC_API_KEY;
-        } else if (providerLower.includes('openai')) {
-          apiKey = env.OPENAI_API_KEY;
-        }
-        
-        if (apiKey) {
-          // Create .credentials.json
-          const credentialsJson = [{
-            id: env.FORGE_OVERRIDE_PROVIDER,
-            auth_details: {
-              ApiKey: apiKey
-            }
-          }];
-          
-          const credStr = JSON.stringify(credentialsJson);
-          const credBase64 = Buffer.from(credStr).toString('base64');
-          
-          // Create .config.json
-          const configJson: any = {
-            keyInfo: null,
-            provider: env.FORGE_OVERRIDE_PROVIDER
-          };
-          
-          if (env.FORGE_OVERRIDE_MODEL) {
-            configJson.model = {};
-            configJson.model[env.FORGE_OVERRIDE_PROVIDER] = env.FORGE_OVERRIDE_MODEL;
-          }
-          
-          const configStr = JSON.stringify(configJson);
-          const configBase64 = Buffer.from(configStr).toString('base64');
-          
-          // Create both files before running the command
-          remoteCommand = `mkdir -p ~/forge && echo '${credBase64}' | base64 -d > ~/forge/.credentials.json && echo '${configBase64}' | base64 -d > ~/forge/.config.json && ${remoteCommand}`;
-          
-          this.logger.info(
-            { 
-              task_id: taskUnit.id, 
-              provider: env.FORGE_OVERRIDE_PROVIDER,
-              model: env.FORGE_OVERRIDE_MODEL,
-              has_api_key: !!apiKey,
-              credentials_json: credentialsJson,
-              config_json: configJson
-            },
-            "Creating forge credentials and config files"
-          );
-        }
-      }
-
       this.logger.info(
         {
           task_id: taskUnit.id,
