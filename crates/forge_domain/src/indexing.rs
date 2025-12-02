@@ -99,7 +99,7 @@ impl IndexProgress {
                     "No changes detected".to_string()
                 } else {
                     format!(
-                        "{} files to sync ({} delete, {} upload, {} modified)",
+                        "{} files to sync ({} deleted, {} new, {} modified)",
                         total,
                         to_delete - modified,
                         to_upload - modified,
