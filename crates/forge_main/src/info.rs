@@ -13,7 +13,7 @@ use crate::model::ForgeCommandManager;
 #[derive(Debug, PartialEq)]
 pub enum Section {
     Title(String),
-    Items(Option<String>, String), // key, value, subtitle
+    Items(Option<String>, Option<String>), // key, value, subtitle
 }
 
 impl Section {
@@ -45,28 +45,23 @@ impl Info {
         self
     }
 
-    pub fn add_value(self, value: impl ToString) -> Self {
+    pub fn add_value(self, value: impl IntoInfoValue) -> Self {
         self.add_item(None::<String>, value)
     }
 
-    pub fn add_key_value(self, key: impl ToString, value: impl ToString) -> Self {
+    pub fn add_key(self, key: impl ToString) -> Self {
+        self.add_key_value(key, None::<String>)
+    }
+
+    pub fn add_key_value(self, key: impl ToString, value: impl IntoInfoValue) -> Self {
         let key_str = key.to_string();
-        let normalized_key = key_str.to_lowercase();
-        self.add_item(Some(normalized_key), value)
+        self.add_item(Some(key_str), value)
     }
 
-    pub fn add_key_value_when(self, key: impl ToString, value: Option<impl ToString>) -> Self {
-        if let Some(value) = value {
-            self.add_key_value(key, value)
-        } else {
-            self
-        }
-    }
-
-    fn add_item(mut self, key: Option<impl ToString>, value: impl ToString) -> Self {
+    fn add_item(mut self, key: Option<impl ToString>, value: impl IntoInfoValue) -> Self {
         self.sections.push(Section::Items(
             key.map(|a| a.to_string()),
-            value.to_string(),
+            value.into_value(),
         ));
         self
     }
@@ -74,6 +69,34 @@ impl Info {
     pub fn extend(mut self, other: impl Into<Info>) -> Self {
         self.sections.extend(other.into().sections);
         self
+    }
+}
+
+pub trait IntoInfoValue {
+    fn into_value(self) -> Option<String>;
+}
+
+impl IntoInfoValue for &str {
+    fn into_value(self) -> Option<String> {
+        Some(self.to_string())
+    }
+}
+
+impl IntoInfoValue for &String {
+    fn into_value(self) -> Option<String> {
+        Some(self.to_owned())
+    }
+}
+
+impl IntoInfoValue for String {
+    fn into_value(self) -> Option<String> {
+        Some(self)
+    }
+}
+
+impl<T: IntoInfoValue> IntoInfoValue for Option<T> {
+    fn into_value(self) -> Option<String> {
+        self.and_then(|o| o.into_value())
     }
 }
 
@@ -89,7 +112,7 @@ impl From<&Environment> for Info {
             .add_title("ENVIRONMENT")
             .add_key_value("Version", VERSION)
             .add_key_value("Working Directory", format_path_for_display(env, &env.cwd))
-            .add_key_value("Shell", &env.shell)
+            .add_key_value("Shell", env.shell.as_str())
             .add_key_value("Git Branch", branch_info)
             .add_title("PATHS");
 
@@ -202,7 +225,7 @@ impl From<&Environment> for Info {
             .add_key_value("Tool Timeout", format!("{}s", env.tool_timeout))
             .add_key_value("Max Image Size", format!("{} bytes", env.max_image_size))
             .add_key_value("Auto Open Dump", env.auto_open_dump.to_string())
-            .add_key_value_when(
+            .add_key_value(
                 "Debug Requests",
                 env.debug_requests.as_ref().map(|p| p.display().to_string()),
             )
@@ -337,21 +360,25 @@ impl fmt::Display for Info {
                         .max();
                 }
                 Section::Items(key, value) => {
-                    if let Some(key) = key {
-                        if let Some(width) = width {
-                            writeln!(
-                                f,
-                                "  {} {}",
-                                format!("{key:<width$}:").green().bold(),
-                                value
-                            )?;
-                        } else {
-                            // No section width (items without a title)
-                            writeln!(f, "  {}: {}", key.green().bold(), value)?;
+                    match (key.as_ref(), width, value.as_ref()) {
+                        (Some(k), Some(w), Some(v)) => {
+                            writeln!(f, "  {} {}", format!("{k:<w$}:").green().bold(), v)?;
                         }
-                    } else {
-                        // Show value-only items
-                        writeln!(f, "    {} {}", "⦿".green(), value)?;
+                        (Some(k), Some(w), None) => {
+                            writeln!(f, "  {}", format!("{k:<w$}:").green().bold())?;
+                        }
+                        (Some(k), None, Some(v)) => {
+                            writeln!(f, "  {}: {}", k.green().bold(), v)?;
+                        }
+                        (Some(k), None, None) => {
+                            writeln!(f, "  {}:", k.green().bold())?;
+                        }
+                        (None, _, Some(v)) => {
+                            writeln!(f, "    {} {}", "⦿".green(), v)?;
+                        }
+                        (None, _, None) => {
+                            // Nothing to display
+                        }
                     }
                 }
             }
@@ -455,7 +482,7 @@ impl From<&LoginInfo> for Info {
     fn from(login_info: &LoginInfo) -> Self {
         let mut info = Info::new().add_title("ACCOUNT");
 
-        if let Some(email) = &login_info.email {
+        if let Some(email) = login_info.email.as_ref() {
             info = info.add_key_value("Login", email);
         }
 

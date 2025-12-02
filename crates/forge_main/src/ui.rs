@@ -886,7 +886,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Builds an Info structure for agents with their details
     async fn build_agents_info(&self) -> anyhow::Result<Info> {
-        let agents = self.api.get_agents().await?;
+        let mut agents = self.api.get_agents().await?;
+        // Sort agents alphabetically by ID
+        agents.sort_by(|a, b| a.id.as_str().cmp(b.id.as_str()));
         let mut info = Info::new();
 
         for agent in agents.iter() {
@@ -894,18 +896,14 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             let title = agent
                 .title
                 .as_deref()
-                .unwrap_or("<Missing agent.title>")
-                .lines()
-                .collect::<Vec<_>>()
-                .join(" ");
+                .map(|title| title.lines().collect::<Vec<_>>().join(" "));
 
             // Get provider and model for this agent
             let provider_name = self
                 .get_provider(Some(agent.id.clone()))
                 .await
                 .ok()
-                .map(|p| p.id.to_string())
-                .unwrap_or_else(|| "<unset>".to_string());
+                .map(|p| p.id.to_string());
 
             let model_name = agent.model.as_str().to_string();
 
@@ -949,15 +947,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let info = self.build_agents_info().await?;
 
         if porcelain {
-            let porcelain =
-                Porcelain::from(&info)
-                    .skip(1)
-                    .drop_col(0)
-                    .map_col(5, |text| match text.as_deref() {
-                        Some("ENABLED") => Some("Reasoning".to_string()),
-                        Some("DISABLED") => Some("Non-Reasoning".to_string()),
-                        _ => None,
-                    });
+            let porcelain = Porcelain::from(&info).drop_col(0).uppercase_headers();
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
@@ -998,7 +988,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         if porcelain {
-            let porcelain = Porcelain::from(&info).skip(1).drop_col(0);
+            let porcelain = Porcelain::from(&info).drop_col(0).uppercase_headers();
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
@@ -1056,7 +1046,6 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         if porcelain {
             self.writeln(
                 Porcelain::from(&info)
-                    .skip(1)
                     .swap_cols(0, 1)
                     .map_col(3, |col| {
                         if col == Some("Supported".to_owned()) {
@@ -1064,7 +1053,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         } else {
                             None
                         }
-                    }),
+                    })
+                    .uppercase_headers(),
             )?;
         } else {
             self.writeln(info)?;
@@ -1118,11 +1108,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         for agent in agents {
             let title = agent
                 .title
-                .as_deref()
-                .unwrap_or("<Missing agent.title>")
-                .lines()
-                .collect::<Vec<_>>()
-                .join(" ");
+                .map(|title| title.lines().collect::<Vec<_>>().join(" "));
             info = info
                 .add_title(agent.id.to_string())
                 .add_key_value("type", "agent")
@@ -1138,7 +1124,18 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         if porcelain {
-            let porcelain = Porcelain::from(&info).swap_cols(1, 2).skip(1);
+            // Original order from Info: [$ID, type, description]
+            // So the original order is fine! But $ID should become COMMAND
+            let porcelain = Porcelain::from(&info)
+                .uppercase_headers()
+                .to_case(&[1], Case::UpperSnake)
+                .map_col(0, |col| {
+                    if col.as_deref() == Some("$ID") {
+                        Some("COMMAND".to_string())
+                    } else {
+                        col
+                    }
+                });
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
@@ -1159,7 +1156,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         if porcelain {
-            let porcelain = Porcelain::from(&info).skip(2);
+            let porcelain = Porcelain::from(&info).uppercase_headers();
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
@@ -1187,7 +1184,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         if porcelain {
-            let porcelain = Porcelain::from(&info).skip(1).drop_col(3);
+            let porcelain = Porcelain::from(&info).drop_col(3).uppercase_headers();
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
@@ -1216,7 +1213,12 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .add_key_value("Default Provider", provider);
 
         if porcelain {
-            self.writeln(Porcelain::from(&info).into_long().skip(1).drop_col(0))?;
+            self.writeln(
+                Porcelain::from(&info)
+                    .into_long()
+                    .drop_col(0)
+                    .uppercase_headers(),
+            )?;
         } else {
             self.writeln(info)?;
         }
@@ -1242,7 +1244,12 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         let info = format_tools(&agent_tools, &all_tools);
         if porcelain {
-            self.writeln(Porcelain::from(&info).into_long().drop_col(1).skip(1))?;
+            self.writeln(
+                Porcelain::from(&info)
+                    .into_long()
+                    .drop_col(1)
+                    .uppercase_headers(),
+            )?;
         } else {
             self.writeln(info)?;
         }
@@ -1304,7 +1311,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         if porcelain {
-            self.writeln(Porcelain::from(&info).skip(1))?;
+            self.writeln(Porcelain::from(&info).uppercase_headers())?;
         } else {
             self.writeln(info)?;
         }
@@ -1346,26 +1353,26 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Add model information if available
         if let Some(model) = model {
-            info = info.add_key_value("Model", model);
+            info = info.add_key_value("Model", model.as_str());
         }
 
         // Add provider information
         match (default_provider, agent_provider) {
             (Some(default), Some(agent_specific)) if default.id != agent_specific.id => {
                 // Show both providers if they're different
-                info = info.add_key_value("Agent Provider (URL)", &agent_specific.url);
+                info = info.add_key_value("Agent Provider (URL)", agent_specific.url.as_str());
                 if let Some(api_key) = agent_specific.api_key() {
                     info = info.add_key_value("Agent API Key", truncate_key(api_key.as_str()));
                 }
 
-                info = info.add_key_value("Default Provider (URL)", &default.url);
+                info = info.add_key_value("Default Provider (URL)", default.url.as_str());
                 if let Some(api_key) = default.api_key() {
                     info = info.add_key_value("Default API Key", truncate_key(api_key.as_str()));
                 }
             }
             (Some(provider), _) | (_, Some(provider)) => {
                 // Show single provider (either default or agent-specific)
-                info = info.add_key_value("Provider (URL)", &provider.url);
+                info = info.add_key_value("Provider (URL)", provider.url.as_str());
                 if let Some(api_key) = provider.api_key() {
                     info = info.add_key_value("API Key", truncate_key(api_key.as_str()));
                 }
@@ -1384,11 +1391,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         if let Some(conversation) = conversation {
             info = info.extend(Info::from(&conversation));
         } else {
-            info = info.extend(
-                Info::new()
-                    .add_title("CONVERSATION")
-                    .add_key_value("ID", "<Uninitialized>".to_string()),
-            );
+            info = info.extend(Info::new().add_title("CONVERSATION").add_key("ID"));
         }
 
         if porcelain {
@@ -1506,7 +1509,11 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // In porcelain mode, skip the top-level "SESSIONS" title
         if porcelain {
-            let porcelain = Porcelain::from(&info).skip(2).drop_col(3).truncate(1, 60);
+            let porcelain = Porcelain::from(&info)
+                .skip(1)
+                .drop_col(3)
+                .truncate(1, 60)
+                .uppercase_headers();
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
@@ -1616,20 +1623,20 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 let info = self.build_agents_info().await?;
 
                 // Convert to porcelain format (same as list agents --porcelain)
-                let porcelain_output =
-                    Porcelain::from(&info)
-                        .skip(1)
-                        .drop_col(0)
-                        .map_col(4, |text| match text.as_deref() {
-                            Some("ENABLED") => Some("Reasoning".to_string()),
-                            Some("DISABLED") => Some("Non-Reasoning".to_string()),
-                            _ => None,
-                        });
+                let porcelain_output = Porcelain::from(&info)
+                    .drop_col(0)
+                    .map_col(4, |text| match text.as_deref() {
+                        Some("ENABLED") => Some("Reasoning".to_string()),
+                        Some("DISABLED") => Some("Non-Reasoning".to_string()),
+                        _ => None,
+                    })
+                    .uppercase_headers();
 
                 // Split the porcelain output into lines and create agents
                 let porcelain_lines: Vec<String> = porcelain_output
                     .to_string()
                     .lines()
+                    .skip(1) // Skip header row
                     .map(|s| s.to_string())
                     .collect();
 
@@ -2601,10 +2608,13 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Add message statistics if context exists
         if let Some(context) = &conversation.context {
             info = info
-                .add_key_value("Total Messages", context.total_messages())
-                .add_key_value("User Messages", context.user_message_count())
-                .add_key_value("Assistant Messages", context.assistant_message_count())
-                .add_key_value("Tool Calls", context.tool_call_count());
+                .add_key_value("Total Messages", context.total_messages().to_string())
+                .add_key_value("User Messages", context.user_message_count().to_string())
+                .add_key_value(
+                    "Assistant Messages",
+                    context.assistant_message_count().to_string(),
+                )
+                .add_key_value("Tool Calls", context.tool_call_count().to_string());
         }
 
         // Add token usage if available

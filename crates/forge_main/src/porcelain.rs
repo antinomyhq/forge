@@ -376,7 +376,7 @@ impl From<&Info> for Porcelain {
                 Section::Items(key, value) => {
                     let default_key = format!("$VALUE_{}", cells.len());
                     let key = key.clone().unwrap_or(default_key);
-                    cells.insert(key.clone(), Some(value.clone()));
+                    cells.insert(key.clone(), value.as_ref().cloned());
                     keys.insert(key);
                 }
             }
