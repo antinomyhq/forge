@@ -58,15 +58,16 @@ export async function executeTask(
   // Get the directory of the log file for validations to use as working directory
   const logDir = path.dirname(logFile);
 
+  // Track timeout and early exit state outside try block
+  let timedOut = false;
+  let exitedEarly = false;
+  
   // Write command at the top of the log file
   logStream.write(`Command: ${command}\n`);
   logStream.write(`Started: ${formatTimestamp(new Date())}\n`);
   logStream.write(`${"=".repeat(80)}\n\n`);
 
   try {
-    // Track timeout state outside the promise
-    let timedOut = false;
-    let exitedEarly = false;
     
     // Execute command and stream output to log file
     const output = await new Promise<string>((resolve, reject) => {
@@ -169,9 +170,13 @@ export async function executeTask(
 
     const duration = Date.now() - startTime;
     
+    // Extract actual command exit code from the log file
+    const logContents = fs.existsSync(logFile) ? fs.readFileSync(logFile, 'utf-8') : '';
+    const exitCodeMatch = logContents.match(/Exit Code: (\d+)/);
+    const commandExitCode = exitCodeMatch ? parseInt(exitCodeMatch[1], 10) : 0;
+    
     // Run validations if configured
     let validationResults: Array<{ name: string; passed: boolean; error?: string }> = [];
-    let exitCode = 0;
     
     if (task.validations && task.validations.length > 0) {
       const results = runValidations(output, task.validations, context, logDir);
@@ -180,9 +185,6 @@ export async function executeTask(
         passed: v.passed,
         message: v.message
       }));
-      
-      // Determine exit code based on validations
-      exitCode = allValidationsPassed(results) ? 0 : 1;
     }
     
     // Read log file for full logs
@@ -196,7 +198,7 @@ export async function executeTask(
       isTimeout: timedOut,
       earlyExit: exitedEarly,
       validations: validationResults,
-      exitCode,
+      exitCode: commandExitCode,
       logs,
     };
     
@@ -213,15 +215,19 @@ export async function executeTask(
     const errorMessage = error instanceof Error ? error.message : "Command failed";
     
     const logs = fs.existsSync(logFile) ? fs.readFileSync(logFile, 'utf-8') : '';
+    
+    // Extract actual command exit code from the log file
+    const exitCodeMatch = logs.match(/Exit Code: (\d+)/);
+    const commandExitCode = exitCodeMatch ? parseInt(exitCodeMatch[1], 10) : 1;
 
     const result: TaskExecutionResult = {
       index,
       command,
       duration,
       error: errorMessage,
-      isTimeout: false,
-      earlyExit: false,
-      exitCode: 1,
+      isTimeout: timedOut,
+      earlyExit: exitedEarly,
+      exitCode: commandExitCode,
       logs,
     };
     

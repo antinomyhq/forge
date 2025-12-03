@@ -1,5 +1,6 @@
 import type { Task, Validation } from "./model.js";
 import type { Logger } from "pino";
+import { generateCommand } from "./command-generator.js";
 
 /**
  * Represents a single unit of work to be executed on a Daytona workspace
@@ -13,6 +14,7 @@ export interface DistributedTaskUnit {
   timeout: number | undefined;
   cwd: string | undefined;
   debugDir: string;
+  earlyExit?: boolean;
 }
 
 /**
@@ -143,4 +145,55 @@ export class TaskDistributor {
       estimatedWorkspaces,
     };
   }
+}
+
+/**
+ * Helper function to distribute a task and sources into task units
+ * 
+ * @param task The task definition
+ * @param sources The data sources (array of rows)
+ * @param debugDir Debug directory path
+ * @returns Array of distributed task units
+ */
+export function distributeTask(
+  task: Task,
+  sources: Record<string, string>[],
+  debugDir: string
+): DistributedTaskUnit[] {
+  const units: DistributedTaskUnit[] = sources.map((context, index) => {
+    const id = `task-${index + 1}`;
+    const debugRequestFile = `/tmp/debug/request_${index + 1}.json`;
+    
+    // Handle both string and array command formats
+    const commandTemplate = Array.isArray(task.run) ? task.run.join(" && ") : task.run;
+    
+    // Generate command with context substitution
+    const command = generateCommand(commandTemplate, {
+      ...context,
+      context_input: debugRequestFile,
+    });
+
+    const unit: DistributedTaskUnit = {
+      id,
+      index: index + 1,
+      command,
+      context: {
+        ...context,
+        context_input: debugRequestFile,
+      },
+      validations: task.validations || [],
+      timeout: task.timeout,
+      cwd: task.cwd || task.eval_dir,
+      debugDir,
+    };
+    
+    // Only add earlyExit if it's explicitly set
+    if (task.early_exit !== undefined) {
+      unit.earlyExit = task.early_exit;
+    }
+    
+    return unit;
+  });
+
+  return units;
 }

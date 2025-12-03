@@ -192,7 +192,9 @@ async function main() {
 
     logger.info("Running evaluation on Google Cloud Run");
 
-    const { CloudRunRunner } = await import("./cloudrun-runner.js");
+    // Import orchestrator factory
+    const { createOrchestrator } = await import("./orchestrator-factory.js");
+    const { distributeTask } = await import("./task-distributor.js");
     
     // Build environment overrides
     const envOverrides: Record<string, string> = {};
@@ -318,38 +320,50 @@ async function main() {
       process.exit(1);
     }
 
-    const runner = new CloudRunRunner(
+    // Create Cloud Run orchestrator
+    const orchestrator = createOrchestrator(
       {
-        cloudRun: {
+        type: 'cloudrun',
+        cloudrun: {
           projectId: projectId, // Use detected or provided project ID
           region: region,
           image: imageTag,
         },
-        maxConcurrency: parallelism ?? task.parallelism ?? 3,
-        debugDir,
-        envOverrides,
       },
       logger
     );
 
     try {
-      const summary = await runner.run(task, sourcesData);
+      // Distribute task into individual task units
+      const flattenedSources = sourcesData.flat();
+      const taskUnits = distributeTask(task, flattenedSources, evalDir);
+      
+      logger.info({ task_count: taskUnits.length }, "Distributed task into units");
+
+      // Run tasks using orchestrator
+      const result = await orchestrator.runTasks({
+        tasks: taskUnits,
+        maxConcurrency: parallelism ?? task.parallelism ?? 3,
+        debugDir,
+        envOverrides,
+      });
 
       logger.info(
         {
-          total: summary.total,
-          passed: summary.passed,
-          validation_failed: summary.validation_failed,
-          timeout: summary.timeout,
-          failed: summary.failed,
-          total_duration: summary.total_duration_ms,
-          validations: summary.validations,
+          total: result.total,
+          passed: result.passed,
+          validation_failed: result.validation_failed,
+          timeout: result.timeout,
+          failed: result.failed,
+          validations_passed: result.validationsPassed,
+          validations_failed: result.validationsFailed,
+          validations_total: result.validationsTotal,
         },
-        "Evaluation completed"
+        "Cloud Run evaluation completed"
       );
 
       // Exit with error code if any task failed
-      if (summary.failed > 0) {
+      if (result.failed > 0) {
         process.exit(1);
       }
 
@@ -368,188 +382,56 @@ async function main() {
   // Local execution (default)
   logger.info("Running evaluation locally");
 
-  // Get contexts from sources using pure function
-  const data = getContextsFromSources(sourcesData);
+  // Import orchestrator factory and task distributor
+  const { createOrchestrator } = await import("./orchestrator-factory.js");
+  const { distributeTask } = await import("./task-distributor.js");
+  
+  // Create local orchestrator
+  const orchestrator = createOrchestrator({ type: 'local' }, logger);
+  
+  // Distribute task into individual task units
+  const flattenedSources = sourcesData.flat();
+  const taskUnits = distributeTask(task, flattenedSources, debugDir);
+  
+  logger.info({ task_count: taskUnits.length }, "Distributed task into units");
 
-  const results: TaskResult[] = [];
-
-  // Get parallelism setting (default to 1 for sequential execution)
-  const localParallelism = task.parallelism ?? 1;
-  const limit = pLimit(localParallelism);
-
-  // Execute run command for each data row
-  // Create promises for all tasks
-  const taskPromises = data.map((row, i) => {
-    return limit(async () => {
-      const logFile = path.join(debugDir, `task_run_${i + 1}.log`);
-      const debugRequestFile = path.join(debugDir, `request_${i + 1}.json`);
-
-      // Add context_input to context for command interpolation and validations
-      const context = { ...row, context_input: debugRequestFile };
-
-      // Support both single command and multiple commands
-      const commands = Array.isArray(task.run) ? task.run : [task.run];
-
-      let combinedOutput = "";
-      let totalDuration = 0;
-      let lastError: string | undefined;
-      let hasTimeout = false;
-      let hasEarlyExit = false;
-
-      // Execute commands sequentially
-      for (let cmdIdx = 0; cmdIdx < commands.length; cmdIdx++) {
-        const commandTemplate = commands[cmdIdx];
-        if (!commandTemplate) continue;
-
-        const command = generateCommand(commandTemplate, context);
-
-        logger.debug(
-          {
-            command,
-            task_id: i + 1,
-            command_idx: cmdIdx + 1,
-            total_commands: commands.length,
-            log_file: logFile,
-          },
-          "Launching task"
-        );
-
-        const executionResult = await executeTask(
-          command,
-          i + 1,
-          logFile,
-          evalDir,
-          task,
-          context,
-          cmdIdx > 0 // append if this is not the first command
-        );
-
-        totalDuration += executionResult.duration;
-
-        if (executionResult.output) {
-          combinedOutput += executionResult.output;
-        }
-
-        if (executionResult.earlyExit) {
-          hasEarlyExit = true;
-        }
-
-        // If execution failed or timed out, stop executing remaining commands
-        if (executionResult.error) {
-          lastError = executionResult.error;
-          hasTimeout = executionResult.isTimeout;
-
-          logger.warn(
-            {
-              task_id: executionResult.index,
-              command: executionResult.command,
-              command_idx: cmdIdx + 1,
-              duration: executionResult.duration,
-              error: executionResult.error,
-              is_timeout: executionResult.isTimeout,
-            },
-            executionResult.isTimeout ? "Task timed out" : "Task failed"
-          );
-          break;
-        }
-      }
-
-      // If any command failed, return failure result
-      if (lastError) {
-        const { validationResults } = processValidations(
-          combinedOutput,
-          task.validations,
-          logger,
-          i + 1,
-          totalDuration,
-          logFile,
-          context
-        );
-
-        return {
-          index: i + 1,
-          status: hasTimeout ? TaskStatus.Timeout : TaskStatus.Failed,
-          command: commands.join(" && "),
-          duration: totalDuration,
-          validationResults,
-        };
-      }
-
-      // Run validations on the combined output
-      const { validationResults, status: validationStatus } =
-        processValidations(
-          combinedOutput,
-          task.validations,
-          logger,
-          i + 1,
-          totalDuration,
-          logFile,
-          context
-        );
-
-      return {
-        index: i + 1,
-        status:
-          validationStatus === "passed"
-            ? TaskStatus.Passed
-            : TaskStatus.ValidationFailed,
-        command: commands.join(" && "),
-        duration: totalDuration,
-        validationResults,
-      };
+  // Run tasks using orchestrator
+  try {
+    logger.info("Calling orchestrator.runTasks...");
+    const result = await orchestrator.runTasks({
+      tasks: taskUnits,
+      maxConcurrency: parallelism ?? task.parallelism ?? 1,
+      debugDir,
     });
-  });
+    logger.info("Orchestrator.runTasks completed");
 
-  // Wait for all tasks to complete
-  const taskResults = await Promise.all(taskPromises);
-  results.push(...taskResults);
-
-  // Calculate summary statistics
-  const successCount = results.filter(
-    (r) => r.status === TaskStatus.Passed
-  ).length;
-  const warningCount = results.filter(
-    (r) => r.status === TaskStatus.ValidationFailed
-  ).length;
-  const timeoutCount = results.filter(
-    (r) => r.status === TaskStatus.Timeout
-  ).length;
-  const failCount = results.filter(
-    (r) => r.status === TaskStatus.Failed
-  ).length;
-  const totalDuration = results.reduce((sum, r) => sum + r.duration, 0);
-
-  // Calculate validation statistics
-  const totalValidations = results.reduce(
-    (sum, r) => sum + r.validationResults.length,
-    0
-  );
-  const passedValidations = results.reduce(
-    (sum, r) => sum + r.validationResults.filter((v) => v.passed).length,
-    0
-  );
-
-  // Print summary
-  logger.info(
+    // Print summary
+    logger.info(
     {
-      total: results.length,
-      passed: successCount,
-      validation_failed: warningCount,
-      timeout: timeoutCount,
-      failed: failCount,
-      total_duration: totalDuration,
-      validations: {
-        total: totalValidations,
-        passed: passedValidations,
-        failed: totalValidations - passedValidations,
-      },
+      total: result.total,
+      passed: result.passed,
+      validation_failed: result.validation_failed,
+      timeout: result.timeout,
+      failed: result.failed,
+      validations_passed: result.validationsPassed,
+      validations_failed: result.validationsFailed,
+      validations_total: result.validationsTotal,
     },
-    "Evaluation completed"
+    "Local evaluation completed"
   );
 
-  // Exit with error code if any task failed (excluding timeouts and validation failures)
-  if (failCount > 0) {
+  // Write summary file
+  const summaryFile = path.join(debugDir, 'summary.json');
+  fs.writeFileSync(summaryFile, JSON.stringify(result, null, 2), 'utf-8');
+  logger.info({ summaryFile }, "Summary written");
+
+  // Exit with error code if any task failed
+  if (result.failed > 0) {
     process.exit(1);
+  }
+  } catch (error) {
+    logger.error({ error: error.message, stack: error.stack }, "Orchestrator.runTasks failed");
+    throw error;
   }
 }
 

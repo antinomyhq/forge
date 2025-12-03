@@ -3,8 +3,6 @@ import { execSync } from "child_process";
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import { BaseOrchestrator } from './base-orchestrator.js';
-import type { CreateExecutionParams, TaskResult } from './orchestrator.js';
 
 /**
  * Configuration for Cloud Run orchestrator
@@ -34,10 +32,8 @@ export interface CloudRunExecutionResult {
  * 
  * Uses Cloud Run Jobs to execute tasks in parallel with proper isolation.
  * Each task runs in its own job execution with the forge binary from Docker image.
- * 
- * Implements ExecutionOrchestrator interface by extending BaseOrchestrator.
  */
-export class CloudRunOrchestrator extends BaseOrchestrator {
+export class CloudRunOrchestrator {
   private logger: Logger;
   private config: CloudRunConfig;
   private jobNames: Map<string, string> = new Map(); // taskId -> jobName
@@ -45,7 +41,6 @@ export class CloudRunOrchestrator extends BaseOrchestrator {
   private accessToken: string | null = null;
 
   constructor(config: CloudRunConfig, logger: Logger) {
-    super();
     this.config = {
       ...config,
       maxRetries: config.maxRetries ?? 0,
@@ -66,31 +61,9 @@ export class CloudRunOrchestrator extends BaseOrchestrator {
   }
 
   /**
-   * Creates a task execution (implements ExecutionOrchestrator interface)
-   */
-  async createExecution(params: CreateExecutionParams): Promise<string> {
-    const { taskId, command, timeout, environment, taskConfig } = params;
-    
-    // Replace local forge binary path with container path for Cloud Run
-    const containerCommand = command.replace(
-      /\.\.\/\.\.\/target\/(debug|release)\/forge/g,
-      '/usr/local/bin/forge'
-    );
-    
-    // Convert interface params to createJob params
-    const taskConfigForJob = {
-      early_exit: taskConfig.earlyExit,
-      validations: taskConfig.validations,
-      context: taskConfig.context,
-    };
-    
-    return this.createJob(taskId, containerCommand, environment, timeout, taskConfigForJob);
-  }
-
-  /**
    * Creates a Cloud Run Job for a task
    */
-  private async createJob(
+  async createJob(
     taskId: string,
     command: string,
     env: Record<string, string>,
@@ -255,34 +228,9 @@ export class CloudRunOrchestrator extends BaseOrchestrator {
   }
 
   /**
-   * Waits for an execution to complete and returns result (implements ExecutionOrchestrator interface)
+   * Waits for an execution to complete by polling its status
    */
   async waitForExecution(
-    executionId: string,
-    timeout: number
-  ): Promise<TaskResult> {
-    // Poll for completion
-    await this.waitForExecutionInternal(executionId, executionId, timeout);
-    
-    // Get the result
-    const result = await this.getExecutionResultById(executionId);
-    
-    return {
-      taskId: executionId,
-      exitCode: result.exitCode,
-      output: result.stdout,
-      logs: result.logs,
-      validations: result.jsonResult?.validations || [],
-      duration: result.jsonResult?.duration || 0,
-      isTimeout: result.jsonResult?.isTimeout || false,
-      error: result.jsonResult?.error,
-    };
-  }
-
-  /**
-   * Internal method: Waits for an execution to complete by polling its status
-   */
-  private async waitForExecutionInternal(
     executionName: string,
     taskId: string,
     timeoutSeconds: number
@@ -333,16 +281,9 @@ export class CloudRunOrchestrator extends BaseOrchestrator {
   }
 
   /**
-   * Cancels a running execution (implements ExecutionOrchestrator interface)
+   * Cancels a running execution
    */
-  async cancelExecution(executionId: string): Promise<void> {
-    return this.cancelExecutionInternal(executionId, executionId);
-  }
-
-  /**
-   * Internal method: Cancels a running execution
-   */
-  private async cancelExecutionInternal(executionName: string, taskId: string): Promise<void> {
+  async cancelExecution(executionName: string, taskId: string): Promise<void> {
     try {
       const accessToken = this.getAccessToken();
       
@@ -508,14 +449,7 @@ export class CloudRunOrchestrator extends BaseOrchestrator {
         }
       } else {
         this.logger.warn(
-          { 
-            task_id: taskId, 
-            logs_length: reversedFullLogs.length, 
-            logs_count: logs.length,
-            has_start_marker: reversedFullLogs.includes('<<<TASK_RESULT_JSON>>>'),
-            has_end_marker: reversedFullLogs.includes('<<<TASK_RESULT_JSON_END>>>'),
-            log_snippet: reversedFullLogs.slice(0, 500)
-          },
+          { task_id: taskId, logs_length: reversedFullLogs.length },
           "JSON result markers not found in container output"
         );
       }
@@ -557,25 +491,9 @@ export class CloudRunOrchestrator extends BaseOrchestrator {
   }
 
   /**
-   * Gets execution result by execution ID (for interface implementation)
-   */
-  private async getExecutionResultById(executionId: string): Promise<CloudRunExecutionResult> {
-    // For now, execution ID is the same as task ID
-    // In a real implementation, we'd need to track the mapping
-    return this.getExecutionResult(executionId);
-  }
-
-  /**
-   * Cleans up execution resources (implements ExecutionOrchestrator interface)
-   */
-  async cleanup(executionId: string): Promise<void> {
-    return this.deleteJob(executionId);
-  }
-
-  /**
    * Deletes a Cloud Run Job
    */
-  private async deleteJob(taskId: string): Promise<void> {
+  async deleteJob(taskId: string): Promise<void> {
     const jobName = this.jobNames.get(taskId);
 
     if (!jobName) {
@@ -622,4 +540,18 @@ export class CloudRunOrchestrator extends BaseOrchestrator {
     }
   }
 
+  /**
+   * Cleans up all jobs
+   */
+  async cleanup(): Promise<void> {
+    this.logger.info("Cleaning up all Cloud Run Jobs");
+
+    const taskIds = Array.from(this.jobNames.keys());
+    
+    await Promise.all(
+      taskIds.map((taskId) => this.deleteJob(taskId).catch(() => {}))
+    );
+
+    this.logger.info("Cleanup completed");
+  }
 }
