@@ -21,7 +21,11 @@ export type ValidationResult = {
 /**
  * Validates output against a regex pattern
  */
-function validateRegex(output: string, regex: string, name: string): ValidationResult {
+function validateRegex(
+  output: string,
+  regex: string,
+  name: string,
+): ValidationResult {
   const pattern = new RegExp(regex);
   const passed = pattern.test(output);
 
@@ -32,7 +36,6 @@ function validateRegex(output: string, regex: string, name: string): ValidationR
   };
 }
 
-
 /**
  * Validates output using a shell command
  */
@@ -40,7 +43,7 @@ function validateShellCommand(
   output: string,
   command: string,
   expectedExitCode: number,
-  name: string
+  name: string,
 ): ValidationResult {
   try {
     execSync(command, {
@@ -79,7 +82,7 @@ function validateShellCommand(
 export function runValidations(
   output: string,
   validations: Array<Validation>,
-  context?: Record<string, string>
+  context?: Record<string, string>,
 ): ValidationResult[] {
   const results: ValidationResult[] = [];
 
@@ -100,7 +103,14 @@ export function runValidations(
         command = template(context);
       }
       const expectedExitCode = validation.exit_code ?? 0;
-      results.push(validateShellCommand(output, command, expectedExitCode, validation.name));
+      results.push(
+        validateShellCommand(
+          output,
+          command,
+          expectedExitCode,
+          validation.name,
+        ),
+      );
     }
   }
 
@@ -121,7 +131,6 @@ export function countPassed(results: ValidationResult[]): number {
   return results.filter((result) => result.passed).length;
 }
 
-
 export type ProcessValidationsResult = {
   validationResults: ValidationResult[];
   status: "passed" | "validation_failed";
@@ -136,11 +145,12 @@ export function processValidations(
   logger: {
     info: (data: any, message: string) => void;
     warn: (data: any, message: string) => void;
+    error: (data: any, message: string) => void;
   },
   task_id: number,
   duration: number,
   logFile: string,
-  context?: Record<string, string>
+  context?: Record<string, string>,
 ): ProcessValidationsResult {
   // Run validations if configured and output is available
   const validationResults =
@@ -165,22 +175,24 @@ export function processValidations(
           context_input: context?.context_input,
           passed: validationResults.map((r) => r.name),
         },
-        "Validation Passed"
+        "Validation Passed",
       );
     } else {
-      logger.warn(
+      logger.error(
         {
           task_id,
           duration,
           log_file: logFile,
           context_input: context?.context_input,
-          failed: validationResults.filter((r) => !r.passed).map((r) => ({
-            name: r.name,
-            message: r.message,
-          })),
+          failed: validationResults
+            .filter((r) => !r.passed)
+            .map((r) => ({
+              name: r.name,
+              message: r.message,
+            })),
           summary: `${passedCount}/${totalCount} passed`,
         },
-        "Validation Failed"
+        "Validation Failed",
       );
     }
   }
