@@ -33,7 +33,7 @@ use crate::cli::{
     TopLevelCommand,
 };
 use crate::conversation_selector::ConversationSelector;
-use crate::display_constants::{CommandType, markers, status};
+use crate::display_constants::{CommandType, headers, markers, status};
 use crate::env::should_show_completion_prompt;
 use crate::info::Info;
 use crate::input::Console;
@@ -1119,7 +1119,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .uppercase_headers()
                 .to_case(&[1], Case::UpperSnake)
                 .map_col(0, |col| {
-                    if col.as_deref() == Some("$ID") {
+                    if col.as_deref() == Some(headers::ID) {
                         Some("COMMAND".to_string())
                     } else {
                         col
@@ -1136,7 +1136,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     /// Lists only custom commands (used by `forge run`)
     async fn on_show_custom_commands(&mut self, porcelain: bool) -> anyhow::Result<()> {
         let custom_commands = self.api.get_commands().await?;
-        let mut info = Info::new().add_title("CUSTOM COMMANDS");
+        let mut info = Info::new();
 
         for command in custom_commands {
             info = info
@@ -1173,7 +1173,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         if porcelain {
-            let porcelain = Porcelain::from(&info).drop_col(3).uppercase_headers();
+            let porcelain = Porcelain::from(&info).truncate(3, 60).uppercase_headers();
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
@@ -1300,7 +1300,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         if porcelain {
-            self.writeln(Porcelain::from(&info).uppercase_headers())?;
+            self.writeln(Porcelain::from(&info).uppercase_headers().truncate(3, 60))?;
         } else {
             self.writeln(info)?;
         }
@@ -1464,7 +1464,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             return Ok(());
         }
 
-        let mut info = Info::new().add_title("SESSIONS");
+        let mut info = Info::new();
 
         for conv in conversations.into_iter() {
             if conv.context.is_none() {
@@ -1499,7 +1499,6 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // In porcelain mode, skip the top-level "SESSIONS" title
         if porcelain {
             let porcelain = Porcelain::from(&info)
-                .skip(1)
                 .drop_col(3)
                 .truncate(1, 60)
                 .uppercase_headers();

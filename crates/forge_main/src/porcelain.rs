@@ -360,12 +360,13 @@ impl From<Info> for Porcelain {
 impl From<&Info> for Porcelain {
     fn from(info: &Info) -> Self {
         let mut rows = Vec::new();
-        let mut cells = HashMap::new();
+        let mut cells = HashMap::<String, Vec<String>>::new();
         let mut in_row = false;
         // Extract all unique keys
         let mut keys = IndexSet::new();
         // Track count of unnamed values separately
         let mut value_counter = 1;
+        let mut last_key: Option<String> = None;
 
         for section in info.sections() {
             match section {
@@ -377,19 +378,21 @@ impl From<&Info> for Porcelain {
                     }
 
                     in_row = true;
-                    cells.insert(headers::ID.to_owned(), Some(title.to_owned()));
+                    cells.insert(headers::ID.to_owned(), vec![title.to_owned()]);
                     keys.insert(headers::ID.to_owned());
                 }
                 Section::Items(key, value) => {
-                    let key = if let Some(k) = key.clone() {
-                        k
+                    let key = if let Some(key) = key.as_ref().cloned().or(last_key) {
+                        key
                     } else {
                         let default_key = format!("{}_{}", headers::VALUE, value_counter);
                         value_counter += 1;
                         default_key
                     };
-                    cells.insert(key.clone(), Some(value.clone()));
-                    keys.insert(key);
+                    last_key = Some(key.clone());
+
+                    cells.entry(key.to_string()).or_default().push(value.clone());
+                    keys.insert(key.to_string());
                 }
             }
         }
@@ -408,7 +411,15 @@ impl From<&Info> for Porcelain {
         // Insert Rows
         data.extend(rows.iter().map(|rows| {
             keys.iter()
-                .map(|key| rows.get(key).and_then(|value| value.as_ref().cloned()))
+                .map(|key| {
+                    rows.get(key).and_then(|value| {
+                        if value.is_empty() {
+                            None
+                        } else {
+                            Some(value.join(", "))
+                        }
+                    })
+                })
                 .collect::<Vec<Option<String>>>()
         }));
         Porcelain(data)

@@ -38,13 +38,13 @@ pub mod status {
 /// These headers use the `$` prefix to distinguish them as metadata columns.
 pub mod headers {
     /// Default ID column header
-    pub const ID: &str = "$ID";
+    pub const ID: &str = "ID";
 
     /// Field name column header
-    pub const FIELD: &str = "$FIELD";
+    pub const FIELD: &str = "FIELD";
 
     /// Field value column header
-    pub const VALUE: &str = "$VALUE";
+    pub const VALUE: &str = "VALUE";
 }
 
 /// Special markers for specific contexts.
