@@ -253,17 +253,22 @@ pub struct CodebaseSearchResults {
 
 /// A search result with its similarity score
 ///
-/// Wraps a code node with its semantic search similarity score,
-/// keeping the score separate from the node data itself.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+/// Wraps a code node with its semantic search scores,
+/// keeping the scores separate from the node data itself.
+#[derive(
+    Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, derive_setters::Setters,
+)]
+#[setters(strip_option)]
 pub struct CodeSearchResult {
     /// The node data (file, chunk, note, etc.)
     #[serde(flatten)]
     pub node: CodeNode,
-    /// Similarity score (0.0 - 1.0)
-    pub similarity: Option<f32>,
-    /// Distance score (0.0 - 1.0)
+    /// Relevance score (most important ranking metric)
+    pub relevance: Option<f32>,
+    /// Distance score (second ranking metric, lower is better)
     pub distance: Option<f32>,
+    /// Similarity score (third ranking metric, higher is better)
+    pub similarity: Option<f32>,
 }
 
 /// Result of a semantic search query
@@ -438,8 +443,9 @@ mod tests {
                     start_line: 10,
                     end_line: 15,
                 },
-                similarity: Some(0.95),
+                relevance: Some(0.95),
                 distance: Some(0.05),
+                similarity: Some(0.95),
             }],
         };
 

@@ -234,7 +234,8 @@ impl ContextEngineRepository for ForgeContextEngineRepository {
                 let node_data = node.data?;
                 let node_id = node.node_id.map(|n| n.id).unwrap_or_default();
 
-                // Extract distance and similarity from proto (both optional)
+                // Extract relevance, distance, and similarity from proto (all optional)
+                let relevance = query_item.relevance;
                 let distance = query_item.distance;
                 let similarity = query_item.similarity;
 
@@ -266,8 +267,8 @@ impl ContextEngineRepository for ForgeContextEngineRepository {
                     }
                 };
 
-                // Wrap the node with its similarity and distance scores
-                Some(CodeSearchResult { node: code_node, similarity, distance })
+                // Wrap the node with its relevance, distance, and similarity scores
+                Some(CodeSearchResult { node: code_node, relevance, distance, similarity })
             })
             .collect();
 

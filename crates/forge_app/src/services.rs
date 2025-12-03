@@ -285,37 +285,47 @@ pub trait ContextEngineService: Send + Sync {
         #[derive(Debug, Clone)]
         struct BestScore {
             query_idx: usize,
-            similarity: Option<f32>,
+            relevance: Option<f32>,
             distance: Option<f32>,
+            similarity: Option<f32>,
         }
 
         impl BestScore {
             fn new(query_idx: usize, result: &CodeSearchResult) -> Self {
                 Self {
                     query_idx,
-                    similarity: result.similarity,
+                    relevance: result.relevance,
                     distance: result.distance,
+                    similarity: result.similarity,
                 }
             }
 
             /// Check if current score is worse than the other score
-            /// Priority: similarity (higher) → distance (lower)
+            /// Priority: relevance (higher) → distance (lower) → similarity
+            /// (higher) → query index (lower)
             fn is_worse_than(&self, other: &Self) -> bool {
-                match (other.similarity, self.similarity) {
-                    (Some(other_sim), Some(curr_sim)) => match other_sim.partial_cmp(&curr_sim) {
-                        Some(std::cmp::Ordering::Greater) => true,
-                        Some(std::cmp::Ordering::Equal) => {
-                            // Tiebreaker: lower distance is better
-                            matches!(
-                                (other.distance, self.distance),
-                                (Some(o), Some(c)) if o < c
-                            )
-                        }
-                        _ => false,
-                    },
-                    (Some(_), None) => true,
-                    _ => false,
-                }
+                use std::cmp::Ordering;
+
+                // Helper to compare two Option<f32> values
+                // Returns Some(true/false) if comparison is decisive, None to continue
+                let compare = |a: Option<f32>, b: Option<f32>, higher_is_better: bool| {
+                    match (a, b) {
+                        (Some(x), Some(y)) => match x.partial_cmp(&y)? {
+                            Ordering::Greater => Some(higher_is_better),
+                            Ordering::Less => Some(!higher_is_better),
+                            Ordering::Equal => None, // Continue to next comparison
+                        },
+                        (Some(_), None) => Some(true), // Having a value is better than None
+                        (None, Some(_)) => Some(false), // None is worse than having a value
+                        (None, None) => None,          // Continue to next comparison
+                    }
+                };
+
+                // Compare in priority order: relevance → distance → similarity → query index
+                compare(other.relevance, self.relevance, true) // Higher relevance is better
+                    .or_else(|| compare(other.distance, self.distance, false)) // Lower distance is better
+                    .or_else(|| compare(other.similarity, self.similarity, true)) // Higher similarity is better
+                    .unwrap_or_else(|| other.query_idx < self.query_idx) // Lower query index wins (first query wins)
             }
         }
 
@@ -326,10 +336,10 @@ pub trait ContextEngineService: Send + Sync {
 
         let mut results = futures::future::try_join_all(futures).await?;
 
-        // Track best similarity/distance for each node_id across all queries
+        // Track best relevance/distance/similarity for each node_id across all queries
         let mut best_scores: HashMap<String, BestScore> = HashMap::new();
 
-        // First pass: find which query has the best similarity/distance for each node
+        // First pass: find which query has the best score for each node
         for (query_idx, query_results) in results.iter().enumerate() {
             for result in query_results {
                 let node_id = result.node.node_id().to_string();
@@ -348,18 +358,13 @@ pub trait ContextEngineService: Send + Sync {
             }
         }
 
-        // Second pass: remove duplicates, keeping only in the query with best
-        // similarity/distance
+        // Second pass: remove duplicates, keeping only in the query with best score
         for (query_idx, query_results) in results.iter_mut().enumerate() {
             query_results.retain(|result| {
                 best_scores
                     .get(result.node.node_id())
                     .is_none_or(|best| best.query_idx == query_idx)
             });
-        }
-
-        for result in results.iter() {
-            println!("Result set: {}", result.len());
         }
 
         Ok(results)
@@ -1171,8 +1176,9 @@ mod tests {
 
     use super::*;
 
-    /// Test fixture for creating a minimal CodeSearchResult
-    fn result(node_id: &str, similarity: f32, distance: f32) -> CodeSearchResult {
+    /// Test fixture for creating a minimal CodeSearchResult with builder
+    /// pattern
+    fn result(node_id: &str) -> CodeSearchResult {
         CodeSearchResult {
             node: CodeNode::FileChunk {
                 node_id: node_id.into(),
@@ -1181,8 +1187,9 @@ mod tests {
                 start_line: 1,
                 end_line: 1,
             },
-            similarity: Some(similarity),
-            distance: Some(distance),
+            relevance: None,
+            distance: None,
+            similarity: None,
         }
     }
 
@@ -1237,10 +1244,28 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_deduplication_keeps_highest_similarity() {
+    async fn test_deduplication_keeps_highest_relevance() {
         let fixture = MockContextEngine(vec![
-            vec![result("node_a", 0.8, 0.2), result("node_b", 0.7, 0.3)],
-            vec![result("node_a", 0.9, 0.1), result("node_c", 0.6, 0.4)],
+            vec![
+                result("node_a")
+                    .relevance(0.8)
+                    .distance(0.2)
+                    .similarity(0.8),
+                result("node_b")
+                    .relevance(0.7)
+                    .distance(0.3)
+                    .similarity(0.7),
+            ],
+            vec![
+                result("node_a")
+                    .relevance(0.9)
+                    .distance(0.1)
+                    .similarity(0.9),
+                result("node_c")
+                    .relevance(0.6)
+                    .distance(0.4)
+                    .similarity(0.6),
+            ],
         ]);
 
         let actual = fixture
@@ -1255,8 +1280,22 @@ mod tests {
             .unwrap();
 
         let expected = vec![
-            vec![result("node_b", 0.7, 0.3)],
-            vec![result("node_a", 0.9, 0.1), result("node_c", 0.6, 0.4)],
+            vec![
+                result("node_b")
+                    .relevance(0.7)
+                    .distance(0.3)
+                    .similarity(0.7),
+            ],
+            vec![
+                result("node_a")
+                    .relevance(0.9)
+                    .distance(0.1)
+                    .similarity(0.9),
+                result("node_c")
+                    .relevance(0.6)
+                    .distance(0.4)
+                    .similarity(0.6),
+            ],
         ];
 
         assert_eq!(actual, expected);
@@ -1266,14 +1305,32 @@ mod tests {
     async fn test_multiple_duplicates() {
         let fixture = MockContextEngine(vec![
             vec![
-                result("node_a", 0.8, 0.2),
-                result("node_b", 0.7, 0.3),
-                result("node_c", 0.6, 0.4),
+                result("node_a")
+                    .relevance(0.8)
+                    .distance(0.2)
+                    .similarity(0.8),
+                result("node_b")
+                    .relevance(0.7)
+                    .distance(0.3)
+                    .similarity(0.7),
+                result("node_c")
+                    .relevance(0.6)
+                    .distance(0.4)
+                    .similarity(0.6),
             ],
             vec![
-                result("node_a", 0.9, 0.1),
-                result("node_b", 0.5, 0.5),
-                result("node_d", 0.95, 0.05),
+                result("node_a")
+                    .relevance(0.9)
+                    .distance(0.1)
+                    .similarity(0.9),
+                result("node_b")
+                    .relevance(0.5)
+                    .distance(0.5)
+                    .similarity(0.5),
+                result("node_d")
+                    .relevance(0.95)
+                    .distance(0.05)
+                    .similarity(0.95),
             ],
         ]);
 
@@ -1289,18 +1346,54 @@ mod tests {
             .unwrap();
 
         let expected = vec![
-            vec![result("node_b", 0.7, 0.3), result("node_c", 0.6, 0.4)],
-            vec![result("node_a", 0.9, 0.1), result("node_d", 0.95, 0.05)],
+            vec![
+                result("node_b")
+                    .relevance(0.7)
+                    .distance(0.3)
+                    .similarity(0.7),
+                result("node_c")
+                    .relevance(0.6)
+                    .distance(0.4)
+                    .similarity(0.6),
+            ],
+            vec![
+                result("node_a")
+                    .relevance(0.9)
+                    .distance(0.1)
+                    .similarity(0.9),
+                result("node_d")
+                    .relevance(0.95)
+                    .distance(0.05)
+                    .similarity(0.95),
+            ],
         ];
 
         assert_eq!(actual, expected);
     }
 
     #[tokio::test]
-    async fn test_equal_similarity_uses_distance_tiebreaker() {
+    async fn test_equal_relevance_uses_distance_tiebreaker() {
         let fixture = MockContextEngine(vec![
-            vec![result("node_a", 0.9, 0.2), result("node_b", 0.8, 0.2)],
-            vec![result("node_a", 0.9, 0.1), result("node_c", 0.7, 0.3)],
+            vec![
+                result("node_a")
+                    .relevance(0.9)
+                    .distance(0.2)
+                    .similarity(0.9),
+                result("node_b")
+                    .relevance(0.8)
+                    .distance(0.2)
+                    .similarity(0.8),
+            ],
+            vec![
+                result("node_a")
+                    .relevance(0.9)
+                    .distance(0.1)
+                    .similarity(0.9),
+                result("node_c")
+                    .relevance(0.7)
+                    .distance(0.3)
+                    .similarity(0.7),
+            ],
         ]);
 
         let actual = fixture
@@ -1315,8 +1408,22 @@ mod tests {
             .unwrap();
 
         let expected = vec![
-            vec![result("node_b", 0.8, 0.2)],
-            vec![result("node_a", 0.9, 0.1), result("node_c", 0.7, 0.3)],
+            vec![
+                result("node_b")
+                    .relevance(0.8)
+                    .distance(0.2)
+                    .similarity(0.8),
+            ],
+            vec![
+                result("node_a")
+                    .relevance(0.9)
+                    .distance(0.1)
+                    .similarity(0.9),
+                result("node_c")
+                    .relevance(0.7)
+                    .distance(0.3)
+                    .similarity(0.7),
+            ],
         ];
 
         assert_eq!(actual, expected);
@@ -1326,19 +1433,46 @@ mod tests {
     async fn test_deduplication_across_three_queries() {
         let fixture = MockContextEngine(vec![
             vec![
-                result("node_a", 0.85, 0.15),
-                result("node_b", 0.75, 0.25),
-                result("node_e", 0.65, 0.35),
+                result("node_a")
+                    .relevance(0.85)
+                    .distance(0.15)
+                    .similarity(0.85),
+                result("node_b")
+                    .relevance(0.75)
+                    .distance(0.25)
+                    .similarity(0.75),
+                result("node_e")
+                    .relevance(0.65)
+                    .distance(0.35)
+                    .similarity(0.65),
             ],
             vec![
-                result("node_a", 0.90, 0.10),
-                result("node_c", 0.80, 0.20),
-                result("node_d", 0.70, 0.30),
+                result("node_a")
+                    .relevance(0.90)
+                    .distance(0.10)
+                    .similarity(0.90),
+                result("node_c")
+                    .relevance(0.80)
+                    .distance(0.20)
+                    .similarity(0.80),
+                result("node_d")
+                    .relevance(0.70)
+                    .distance(0.30)
+                    .similarity(0.70),
             ],
             vec![
-                result("node_a", 0.88, 0.12),
-                result("node_b", 0.78, 0.22),
-                result("node_d", 0.72, 0.28),
+                result("node_a")
+                    .relevance(0.88)
+                    .distance(0.12)
+                    .similarity(0.88),
+                result("node_b")
+                    .relevance(0.78)
+                    .distance(0.22)
+                    .similarity(0.78),
+                result("node_d")
+                    .relevance(0.72)
+                    .distance(0.28)
+                    .similarity(0.72),
             ],
         ]);
 
@@ -1355,9 +1489,73 @@ mod tests {
             .unwrap();
 
         let expected = vec![
-            vec![result("node_e", 0.65, 0.35)],
-            vec![result("node_a", 0.90, 0.10), result("node_c", 0.80, 0.20)],
-            vec![result("node_b", 0.78, 0.22), result("node_d", 0.72, 0.28)],
+            vec![
+                result("node_e")
+                    .relevance(0.65)
+                    .distance(0.35)
+                    .similarity(0.65),
+            ],
+            vec![
+                result("node_a")
+                    .relevance(0.90)
+                    .distance(0.10)
+                    .similarity(0.90),
+                result("node_c")
+                    .relevance(0.80)
+                    .distance(0.20)
+                    .similarity(0.80),
+            ],
+            vec![
+                result("node_b")
+                    .relevance(0.78)
+                    .distance(0.22)
+                    .similarity(0.78),
+                result("node_d")
+                    .relevance(0.72)
+                    .distance(0.28)
+                    .similarity(0.72),
+            ],
+        ];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_all_scores_equal_first_query_wins() {
+        let fixture = MockContextEngine(vec![
+            vec![
+                result("node_a")
+                    .relevance(0.8)
+                    .distance(0.2)
+                    .similarity(0.8),
+            ],
+            vec![
+                result("node_a")
+                    .relevance(0.8)
+                    .distance(0.2)
+                    .similarity(0.8),
+            ],
+        ]);
+
+        let actual = fixture
+            .query_codebase_batch(
+                PathBuf::from("/test"),
+                vec![
+                    SearchParams::new("0", "test"),
+                    SearchParams::new("1", "test"),
+                ],
+            )
+            .await
+            .unwrap();
+
+        let expected = vec![
+            vec![
+                result("node_a")
+                    .relevance(0.8)
+                    .distance(0.2)
+                    .similarity(0.8),
+            ],
+            vec![],
         ];
 
         assert_eq!(actual, expected);
