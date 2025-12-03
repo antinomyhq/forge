@@ -13,7 +13,7 @@ function _forge_get_commands() {
 
 # Private fzf function with common options for consistent UX
 function _forge_fzf() {
-    fzf --exact --cycle --select-1 --height 100% --no-scrollbar "$@"
+    fzf --exact --cycle --select-1 --height 100% --no-scrollbar --ansi --color="header:bold" "$@"
 }
 
 # Helper function to execute forge commands consistently
