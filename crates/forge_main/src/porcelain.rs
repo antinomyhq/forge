@@ -391,7 +391,10 @@ impl From<&Info> for Porcelain {
                     };
                     last_key = Some(key.clone());
 
-                    cells.entry(key.to_string()).or_default().push(value.clone());
+                    cells
+                        .entry(key.to_string())
+                        .or_default()
+                        .push(value.clone());
                     keys.insert(key.to_string());
                 }
             }
