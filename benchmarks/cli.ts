@@ -24,7 +24,6 @@ import {
 import { parseCliArgs } from "./parse.js";
 import { executeTask, type TaskExecutionResult } from "./task-executor.js";
 import { processValidations, type ValidationResult } from "./verification.js";
-import { DistributedRunner } from "./distributed-runner.js";
 
 export type TaskResult = {
   index: number;
@@ -80,7 +79,7 @@ async function main() {
     process.exit(1);
   }
 
-  const { evalName, evalDir, taskFile, distributed, cloudrun, daytonaApiKey, gcpProject, gcpRegion, parallelism, apiKey, provider, model } = args;
+  const { evalName, evalDir, taskFile, cloudrun, gcpProject, gcpRegion, parallelism, apiKey, provider, model } = args;
 
   // Check if eval directory and task file exist
   if (!fs.existsSync(evalDir)) {
@@ -109,7 +108,7 @@ async function main() {
   fs.mkdirSync(debugDir, { recursive: true });
 
   // Execute before_run commands (only for local execution)
-  if (task.before_run && task.before_run.length > 0 && !args.cloudrun && !args.distributed) {
+  if (task.before_run && task.before_run.length > 0 && !args.cloudrun) {
     logger.info("Executing before_run commands");
     for (const cmd of task.before_run) {
       try {
@@ -326,7 +325,7 @@ async function main() {
           region: region,
           image: imageTag,
         },
-        maxConcurrency: parallelism ?? task.run.parallelism ?? 3,
+        maxConcurrency: parallelism ?? task.parallelism ?? 3,
         debugDir,
         envOverrides,
       },
@@ -366,59 +365,8 @@ async function main() {
     }
   }
 
-  // Handle distributed execution
-  if (distributed) {
-    if (!daytonaApiKey) {
-      logger.error(
-        "Daytona API key is required for distributed execution. Set DAYTONA_API_KEY env var or use --daytona-api-key"
-      );
-      process.exit(1);
-    }
-
-    logger.info("Running evaluation in distributed mode on Daytona");
-
-    const runner = new DistributedRunner(logger);
-
-    try {
-      const summary = await runner.run(task, sourcesData, {
-        daytonaApiKey,
-        sourcePath: path.resolve(__dirname, ".."),
-        debugDir,
-        maxConcurrency: parallelism ?? task.run.parallelism ?? 3,
-        apiKey,
-        provider,
-        model,
-      });
-
-      logger.info(
-        {
-          total: summary.total,
-          passed: summary.passed,
-          validation_failed: summary.validationFailed,
-          timeout: summary.timeout,
-          failed: summary.failed,
-          total_duration: summary.totalDuration,
-          validations: summary.validations,
-        },
-        "Evaluation completed"
-      );
-
-      // Exit with error code if any task failed
-      if (summary.failed > 0) {
-        process.exit(1);
-      }
-
-      return;
-    } catch (error) {
-      logger.error(
-        {
-          error: error instanceof Error ? error.message : String(error),
-        },
-        "Distributed execution failed"
-      );
-      process.exit(1);
-    }
-  }
+  // Local execution (default)
+  logger.info("Running evaluation locally");
 
   // Get contexts from sources using pure function
   const data = getContextsFromSources(sourcesData);

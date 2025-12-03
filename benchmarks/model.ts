@@ -7,6 +7,7 @@ export type Task = {
   validations?: Array<Validation>;
   sources: Array<Source>;
   cwd?: string;
+  eval_dir?: string; // Set by CLI after loading task.yml
 };
 
 export type Validation = 
@@ -24,6 +25,12 @@ export type Validation =
 
 export type Source = { csv: string } | { cmd: string } | { value: Record<string, string>[] };
 
+export type ValidationResult = {
+  name: string;
+  passed: boolean;
+  message?: string;
+  duration?: number;
+};
 
 export enum TaskStatus {
   Passed = "passed",

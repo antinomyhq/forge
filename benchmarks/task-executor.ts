@@ -178,7 +178,7 @@ export async function executeTask(
       validationResults = results.map(v => ({
         name: v.name,
         passed: v.passed,
-        error: v.passed ? undefined : v.message
+        message: v.message
       }));
       
       // Determine exit code based on validations

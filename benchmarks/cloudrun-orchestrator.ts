@@ -96,21 +96,14 @@ export class CloudRunOrchestrator {
       const envFilePath = path.join(os.tmpdir(), `env-${jobName}.yaml`);
       
       // Add the command as TASK_COMMAND env var
-      const allEnvVars = {
+      const allEnvVars: Record<string, string> = {
         ...env,
         TASK_COMMAND: command, // Keep as plain string
         TASK_TIMEOUT: timeout.toString(),
         TASK_EARLY_EXIT: taskConfig?.early_exit ? 'true' : 'false',
+        TASK_VALIDATIONS: taskConfig?.validations ? JSON.stringify(taskConfig.validations) : '[]',
+        TASK_CONTEXT: taskConfig?.context ? JSON.stringify(taskConfig.context) : '{}',
       };
-      
-      // Add validations and context as JSON if provided
-      if (taskConfig?.validations && taskConfig.validations.length > 0) {
-        allEnvVars.TASK_VALIDATIONS = JSON.stringify(taskConfig.validations);
-      }
-      
-      if (taskConfig?.context) {
-        allEnvVars.TASK_CONTEXT = JSON.stringify(taskConfig.context);
-      }
       
       // Create YAML content for env vars
       // TASK_VALIDATIONS and TASK_CONTEXT are already JSON-stringified above
@@ -187,8 +180,10 @@ export class CloudRunOrchestrator {
         // If no execution-specific name found, use the last match
         if (executionName === jobName && executionMatches.length > 0) {
           const lastMatch = executionMatches[executionMatches.length - 1];
-          executionName = lastMatch.slice(1, -1);
-          this.logger.debug({ task_id: taskId, execution_name: executionName }, "Using last match as execution name");
+          if (lastMatch) {
+            executionName = lastMatch.slice(1, -1);
+            this.logger.debug({ task_id: taskId, execution_name: executionName }, "Using last match as execution name");
+          }
         }
       } else {
         this.logger.warn({ task_id: taskId }, "No execution name matches found in output");
