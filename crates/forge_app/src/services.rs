@@ -264,6 +264,20 @@ pub trait ContextEngineService: Send + Sync {
         params: SearchParams<'_>,
     ) -> anyhow::Result<Vec<CodeSearchResult>>;
 
+    /// Batch Query the indexed codebase with semantic search
+    async fn query_codebase_batch(
+        &self,
+        path: PathBuf,
+        params: Vec<SearchParams<'_>>,
+    ) -> anyhow::Result<Vec<Vec<CodeSearchResult>>> {
+        let futures: Vec<_> = params
+            .into_iter()
+            .map(|param| self.query_codebase(path.clone(), param))
+            .collect();
+
+        futures::future::try_join_all(futures).await
+    }
+
     /// List all workspaces indexed by the user
     async fn list_codebase(&self) -> anyhow::Result<Vec<WorkspaceInfo>>;
 
