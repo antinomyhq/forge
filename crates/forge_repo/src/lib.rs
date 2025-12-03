@@ -7,6 +7,7 @@ mod forge_repo;
 mod fs_snap;
 mod provider;
 mod skill;
+mod validation;
 mod workspace;
 
 pub use agent::*;
@@ -18,4 +19,5 @@ pub use forge_repo::*;
 pub use fs_snap::*;
 pub use provider::*;
 pub use skill::*;
+pub use validation::*;
 pub use workspace::*;
