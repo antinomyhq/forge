@@ -2,8 +2,8 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use chrono::Utc;
 use forge_domain::{
-    ApiKey, CodeSearchResult, ContextEngineRepository, FileUploadInfo, UserId, WorkspaceAuth,
-    WorkspaceId, WorkspaceInfo,
+    ApiKey, ContextEngineRepository, FileUploadInfo, Node, UserId, WorkspaceAuth, WorkspaceId,
+    WorkspaceInfo,
 };
 use tonic::transport::Channel;
 
@@ -201,7 +201,7 @@ impl ContextEngineRepository for ForgeContextEngineRepository {
         &self,
         search_query: &forge_domain::CodeSearchQuery<'_>,
         auth_token: &forge_domain::ApiKey,
-    ) -> Result<Vec<CodeSearchResult>> {
+    ) -> Result<Vec<Node>> {
         let request = tonic::Request::new(SearchRequest {
             workspace_id: Some(proto_generated::WorkspaceId {
                 id: search_query.workspace_id.to_string(),
@@ -233,38 +233,43 @@ impl ContextEngineRepository for ForgeContextEngineRepository {
                 let node = query_item.node?;
                 let node_data = node.data?;
                 let node_id = node.node_id.map(|n| n.id).unwrap_or_default();
-                let similarity = query_item.distance.unwrap_or(0.0);
+
+                // Extract relevance, distance, and similarity from proto (all optional)
+                let relevance = query_item.relevance;
+                let distance = query_item.distance;
+                let similarity = query_item.similarity;
 
                 // Convert proto node to domain CodeNode based on type
                 let code_node = match node_data.kind? {
-                    node_data::Kind::FileChunk(chunk) => forge_domain::CodeNode::FileChunk {
-                        node_id,
+                    node_data::Kind::FileChunk(chunk) => forge_domain::NodeData::FileChunk {
                         file_path: chunk.path,
                         content: chunk.content,
                         start_line: chunk.start_line,
                         end_line: chunk.end_line,
                     },
-                    node_data::Kind::File(file) => forge_domain::CodeNode::File {
-                        node_id: node_id.clone(),
+                    node_data::Kind::File(file) => forge_domain::NodeData::File {
                         file_path: file.path,
                         content: file.content,
                         hash: node.hash,
                     },
-                    node_data::Kind::FileRef(file_ref) => forge_domain::CodeNode::FileRef {
-                        node_id,
+                    node_data::Kind::FileRef(file_ref) => forge_domain::NodeData::FileRef {
                         file_path: file_ref.path,
                         file_hash: file_ref.file_hash,
                     },
                     node_data::Kind::Note(note) => {
-                        forge_domain::CodeNode::Note { node_id, content: note.content }
+                        forge_domain::NodeData::Note { content: note.content }
                     }
-                    node_data::Kind::Task(task) => {
-                        forge_domain::CodeNode::Task { node_id, task: task.task }
-                    }
+                    node_data::Kind::Task(task) => forge_domain::NodeData::Task { task: task.task },
                 };
 
-                // Wrap the node with its similarity score
-                Some(CodeSearchResult { node: code_node, similarity })
+                // Wrap the node with its relevance, distance, and similarity scores
+                Some(Node {
+                    node_id: node_id.into(),
+                    node: code_node,
+                    relevance,
+                    distance,
+                    similarity,
+                })
             })
             .collect();
 

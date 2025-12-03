@@ -366,7 +366,7 @@ impl<
         &self,
         path: PathBuf,
         params: forge_domain::SearchParams<'_>,
-    ) -> Result<Vec<forge_domain::CodeSearchResult>> {
+    ) -> Result<Vec<forge_domain::Node>> {
         // Step 1: Canonicalize path
         let canonical_path = path
             .canonicalize()
@@ -584,9 +584,8 @@ mod tests {
 
     use forge_app::WalkedFile;
     use forge_domain::{
-        ApiKey, CodeSearchQuery, CodeSearchResult, FileDeletion, FileHash, FileInfo, FileUpload,
-        FileUploadInfo, UserId, Workspace, WorkspaceAuth, WorkspaceFiles, WorkspaceId,
-        WorkspaceInfo,
+        ApiKey, CodeSearchQuery, FileDeletion, FileHash, FileInfo, FileUpload, FileUploadInfo,
+        Node, UserId, Workspace, WorkspaceAuth, WorkspaceFiles, WorkspaceId, WorkspaceInfo,
     };
     use pretty_assertions::assert_eq;
 
@@ -596,7 +595,7 @@ mod tests {
     struct MockInfra {
         files: HashMap<String, String>,
         workspace: Option<Workspace>,
-        search_results: Vec<CodeSearchResult>,
+        search_results: Vec<Node>,
         workspaces: Arc<tokio::sync::Mutex<Vec<WorkspaceInfo>>>,
         server_files: Vec<FileHash>,
         deleted_files: Arc<tokio::sync::Mutex<Vec<String>>>,
@@ -674,16 +673,18 @@ mod tests {
         }
     }
 
-    fn search_result() -> CodeSearchResult {
-        CodeSearchResult {
-            node: forge_domain::CodeNode::FileChunk {
-                node_id: "n1".into(),
+    fn search_result() -> Node {
+        Node {
+            node_id: "n1".into(),
+            node: forge_domain::NodeData::FileChunk {
                 file_path: "main.rs".into(),
                 content: "fn main() {}".into(),
                 start_line: 1,
                 end_line: 1,
             },
-            similarity: 0.95,
+            relevance: Some(0.95),
+            distance: Some(0.05),
+            similarity: Some(0.95),
         }
     }
 
@@ -769,11 +770,7 @@ mod tests {
                 .extend(upload.data.iter().map(|f| f.path.clone()));
             Ok(FileUploadInfo::new(upload.data.len(), upload.data.len()))
         }
-        async fn search(
-            &self,
-            _: &CodeSearchQuery<'_>,
-            _: &ApiKey,
-        ) -> Result<Vec<CodeSearchResult>> {
+        async fn search(&self, _: &CodeSearchQuery<'_>, _: &ApiKey) -> Result<Vec<Node>> {
             Ok(self.search_results.clone())
         }
         async fn list_workspaces(&self, _: &ApiKey) -> Result<Vec<WorkspaceInfo>> {

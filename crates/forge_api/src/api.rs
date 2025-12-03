@@ -184,7 +184,7 @@ pub trait API: Sync + Send {
         &self,
         path: PathBuf,
         params: forge_domain::SearchParams<'_>,
-    ) -> Result<Vec<forge_domain::CodeSearchResult>>;
+    ) -> Result<Vec<forge_domain::Node>>;
 
     /// List all workspaces
     async fn list_codebases(&self) -> Result<Vec<forge_domain::WorkspaceInfo>>;

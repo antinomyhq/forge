@@ -331,7 +331,7 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + AppConf
         &self,
         path: PathBuf,
         params: forge_domain::SearchParams<'_>,
-    ) -> Result<Vec<forge_domain::CodeSearchResult>> {
+    ) -> Result<Vec<forge_domain::Node>> {
         self.services.query_codebase(path, params).await
     }
 

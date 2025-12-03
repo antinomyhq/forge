@@ -2,6 +2,7 @@
 source: crates/forge_display/src/grep.rs
 expression: suite
 ---
+
 [Basic single file with two matches]
 [RAW]
 file.txt:1:first match

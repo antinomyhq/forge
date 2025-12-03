@@ -141,7 +141,7 @@ pub trait ContextEngineRepository: Send + Sync {
         &self,
         query: &crate::CodeSearchQuery<'_>,
         auth_token: &crate::ApiKey,
-    ) -> anyhow::Result<Vec<crate::CodeSearchResult>>;
+    ) -> anyhow::Result<Vec<crate::Node>>;
 
     /// List all workspaces for a user
     async fn list_workspaces(

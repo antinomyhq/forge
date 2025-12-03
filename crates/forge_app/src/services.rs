@@ -5,10 +5,10 @@ use bytes::Bytes;
 use derive_setters::Setters;
 use forge_domain::{
     AgentId, AnyProvider, Attachment, AuthContextRequest, AuthContextResponse, AuthMethod,
-    ChatCompletionMessage, CodeSearchResult, CommandOutput, Context, Conversation, ConversationId,
-    Environment, File, FileUploadResponse, Image, InitAuth, LoginInfo, McpConfig, McpServers,
-    Model, ModelId, PatchOperation, Provider, ProviderId, ResultStream, Scope, SearchParams,
-    Template, ToolCallFull, ToolOutput, Workflow, WorkspaceAuth, WorkspaceId, WorkspaceInfo,
+    ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId, Environment, File,
+    FileUploadResponse, Image, InitAuth, LoginInfo, McpConfig, McpServers, Model, ModelId, Node,
+    PatchOperation, Provider, ProviderId, ResultStream, Scope, SearchParams, Template,
+    ToolCallFull, ToolOutput, Workflow, WorkspaceAuth, WorkspaceId, WorkspaceInfo,
 };
 use merge::Merge;
 use reqwest::Response;
@@ -262,21 +262,7 @@ pub trait ContextEngineService: Send + Sync {
         &self,
         path: PathBuf,
         params: SearchParams<'_>,
-    ) -> anyhow::Result<Vec<CodeSearchResult>>;
-
-    /// Batch Query the indexed codebase with semantic search
-    async fn query_codebase_batch(
-        &self,
-        path: PathBuf,
-        params: Vec<SearchParams<'_>>,
-    ) -> anyhow::Result<Vec<Vec<CodeSearchResult>>> {
-        let futures: Vec<_> = params
-            .into_iter()
-            .map(|param| self.query_codebase(path.clone(), param))
-            .collect();
-
-        futures::future::try_join_all(futures).await
-    }
+    ) -> anyhow::Result<Vec<Node>>;
 
     /// List all workspaces indexed by the user
     async fn list_codebase(&self) -> anyhow::Result<Vec<WorkspaceInfo>>;
@@ -1040,7 +1026,7 @@ impl<I: Services> ContextEngineService for I {
         &self,
         path: PathBuf,
         params: SearchParams<'_>,
-    ) -> anyhow::Result<Vec<CodeSearchResult>> {
+    ) -> anyhow::Result<Vec<Node>> {
         self.context_engine_service()
             .query_codebase(path, params)
             .await

@@ -225,11 +225,21 @@ impl<
                     })
                     .collect();
 
-                let result = services.query_codebase_batch(cwd, params).await?;
+                // Execute all queries in parallel
+                let futures: Vec<_> = params
+                    .into_iter()
+                    .map(|param| services.query_codebase(cwd.clone(), param))
+                    .collect();
+
+                let mut results = futures::future::try_join_all(futures).await?;
+
+                // Deduplicate results across queries
+                crate::search_dedup::deduplicate_results(&mut results);
+
                 let output = input
                     .queries
                     .into_iter()
-                    .zip(result.into_iter())
+                    .zip(results.into_iter())
                     .map(|(query, results)| CodebaseQueryResult {
                         query: query.query,
                         use_case: query.use_case,
