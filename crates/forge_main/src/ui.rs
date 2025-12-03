@@ -903,11 +903,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .map(|title| title.lines().collect::<Vec<_>>().join(" "));
 
             // Get provider and model for this agent
-            let provider_name = self
-                .get_provider(Some(agent.id.clone()))
-                .await
-                .ok()
-                .map(|p| p.id.to_string());
+            let provider_name = match self.get_provider(Some(agent.id.clone())).await {
+                Ok(p) => p.id.to_string(),
+                Err(e) => format!("Error: [{}]", e),
+            };
 
             let model_name = agent.model.as_str().to_string();
 
@@ -951,7 +950,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let info = self.build_agents_info().await?;
 
         if porcelain {
-            let porcelain = Porcelain::from(&info).drop_col(0).uppercase_headers();
+            let porcelain = Porcelain::from(&info)
+                .drop_col(0)
+                .truncate(3, 60)
+                .uppercase_headers();
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
@@ -1611,7 +1613,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 let info = self.build_agents_info().await?;
 
                 // Convert to porcelain format (same as list agents --porcelain)
-                let porcelain_output = Porcelain::from(&info).drop_col(0).uppercase_headers();
+                let porcelain_output = Porcelain::from(&info)
+                    .drop_col(0)
+                    .truncate(3, 30)
+                    .uppercase_headers();
 
                 // Split the porcelain output into lines and create agents
                 let porcelain_lines: Vec<String> = porcelain_output
