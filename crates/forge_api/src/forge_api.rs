@@ -8,7 +8,7 @@ use forge_app::{
     AgentProviderResolver, AgentRegistry, AppConfigService, AuthService, CommandInfra,
     CommandLoaderService, ContextEngineService, ConversationService, EnvironmentInfra,
     EnvironmentService, FileDiscoveryService, ForgeApp, GitApp, McpConfigManager, McpService,
-    ProviderAuthService, ProviderService, Services, User, UserUsage, Walker, WorkflowService,
+    ProviderAuthService, ProviderService, Services, User, UserUsage, Walker,
 };
 use forge_domain::{Agent, InitAuth, LoginInfo, *};
 use forge_infra::ForgeInfra;
@@ -146,17 +146,6 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + AppConf
 
     async fn read_merged(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
         self.app().read_workflow_merged(path).await
-    }
-
-    async fn write_workflow(&self, path: Option<&Path>, workflow: &Workflow) -> anyhow::Result<()> {
-        self.app().write_workflow(path, workflow).await
-    }
-
-    async fn update_workflow<T>(&self, path: Option<&Path>, f: T) -> anyhow::Result<Workflow>
-    where
-        T: FnOnce(&mut Workflow) + Send,
-    {
-        self.services.update_workflow(path, f).await
     }
 
     async fn conversation(

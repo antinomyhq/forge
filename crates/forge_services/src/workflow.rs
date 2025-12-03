@@ -55,33 +55,21 @@ impl<F: FileWriterInfra + FileReaderInfra> ForgeWorkflowService<F> {
 
     /// Loads the workflow from the given path.
     /// If the path is just "forge.yaml", searches for it in parent directories.
-    /// If the file doesn't exist anywhere, creates a new empty workflow file at
-    /// the specified path (in the current directory).
+    /// If the file doesn't exist anywhere, returns a default workflow without
+    /// creating any file.
     async fn read(&self, path: &Path) -> anyhow::Result<Workflow> {
         // First, try to find the config file in parent directories if needed
         let path = &self.resolve_path(Some(path.into())).await;
 
         if !path.exists() {
-            let workflow = Workflow::new();
-            self.infra
-                .write(path, self.serialize_workflow(&workflow)?.into())
-                .await?;
-
-            Ok(workflow)
+            // Return a default workflow without creating a file
+            Ok(Workflow::new())
         } else {
             let content = self.infra.read_utf8(path).await?;
             let workflow: Workflow = serde_yml::from_str(&content)
                 .with_context(|| format!("Failed to parse workflow from {}", path.display()))?;
             Ok(workflow)
         }
-    }
-
-    // Serializes the workflow to a YAML string.
-    fn serialize_workflow(&self, workflow: &Workflow) -> anyhow::Result<String> {
-        let lsp =
-            "https://raw.githubusercontent.com/antinomyhq/forge/refs/heads/main/forge.schema.json";
-        let contents = serde_yml::to_string(workflow)?;
-        Ok(format!("# yaml-language-server: $schema={lsp}\n{contents}"))
     }
 }
 
@@ -94,35 +82,6 @@ impl<F: FileWriterInfra + FileReaderInfra> WorkflowService for ForgeWorkflowServ
     async fn read_workflow(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
         let path_to_use = path.unwrap_or_else(|| Path::new("forge.yaml"));
         self.read(path_to_use).await
-    }
-
-    async fn write_workflow(&self, path: Option<&Path>, workflow: &Workflow) -> anyhow::Result<()> {
-        // First, try to find the config file in parent directories if needed
-        let path_buf = match path {
-            Some(p) => p.to_path_buf(),
-            None => PathBuf::from("forge.yaml"),
-        };
-        let resolved_path = self.resolve_path(Some(path_buf)).await;
-
-        let content = self.serialize_workflow(workflow)?;
-        self.infra.write(&resolved_path, content.into()).await
-    }
-
-    async fn update_workflow<Func>(&self, path: Option<&Path>, f: Func) -> anyhow::Result<Workflow>
-    where
-        Func: FnOnce(&mut Workflow) + Send,
-    {
-        // Read the current workflow
-        let path_to_use = path.unwrap_or_else(|| Path::new("forge.yaml"));
-        let mut workflow = self.read(path_to_use).await?;
-
-        // Apply the closure to update the workflow
-        f(&mut workflow);
-
-        // Write the updated workflow back
-        self.write_workflow(path, &workflow).await?;
-
-        Ok(workflow)
     }
 }
 

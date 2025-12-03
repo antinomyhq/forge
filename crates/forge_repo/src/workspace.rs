@@ -8,6 +8,17 @@ use forge_domain::{UserId, Workspace, WorkspaceId, WorkspaceRepository};
 use crate::database::schema::workspace;
 use crate::database::DatabasePool;
 
+/// Repository implementation for workspace persistence in local database
+pub struct ForgeWorkspaceRepository {
+    pool: Arc<DatabasePool>,
+}
+
+impl ForgeWorkspaceRepository {
+    pub fn new(pool: Arc<DatabasePool>) -> Self {
+        Self { pool }
+    }
+}
+
 /// Database model for workspace table
 #[derive(Debug, Queryable, Selectable, Insertable, AsChangeset)]
 #[diesel(table_name = workspace)]
@@ -50,18 +61,8 @@ impl TryFrom<IndexingRecord> for Workspace {
     }
 }
 
-pub struct IndexingRepositoryImpl {
-    pool: Arc<DatabasePool>,
-}
-
-impl IndexingRepositoryImpl {
-    pub fn new(pool: Arc<DatabasePool>) -> Self {
-        Self { pool }
-    }
-}
-
 #[async_trait::async_trait]
-impl WorkspaceRepository for IndexingRepositoryImpl {
+impl WorkspaceRepository for ForgeWorkspaceRepository {
     async fn upsert(
         &self,
         workspace_id: &WorkspaceId,
@@ -119,9 +120,9 @@ mod tests {
     use super::*;
     use crate::database::DatabasePool;
 
-    fn repo_impl() -> IndexingRepositoryImpl {
+    fn repo_impl() -> ForgeWorkspaceRepository {
         let pool = Arc::new(DatabasePool::in_memory().unwrap());
-        IndexingRepositoryImpl::new(pool)
+        ForgeWorkspaceRepository::new(pool)
     }
 
     #[tokio::test]
