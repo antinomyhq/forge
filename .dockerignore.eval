@@ -1,4 +1,10 @@
 # Minimal dockerignore for eval builds
-# Include only the cross-compiled binary
+# Include only cross-compiled binary, compiled JavaScript, and package files
 *
 !target/x86_64-unknown-linux-gnu/release/forge
+!benchmarks/dist
+!benchmarks/package.json
+!benchmarks/package-lock.json
+!benchmarks/task-config-builder.js
+!benchmarks/container-entrypoint.sh
+!benchmarks/container-entrypoint-simple.sh

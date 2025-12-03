@@ -1,6 +1,6 @@
 # Dockerfile for code-forge evaluations
-# Uses cross-compiled binary from host machine
-FROM debian:bookworm-slim
+# Uses cross-compiled binary and pre-built JavaScript from host machine
+FROM node:20-slim
 
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
@@ -8,20 +8,24 @@ RUN apt-get update && apt-get install -y \
     libssl3 \
     libgcc-s1 \
     libc6 \
+    jq \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy the cross-compiled binary (templates are embedded via rust-embed)
 COPY target/x86_64-unknown-linux-gnu/release/forge /usr/local/bin/forge
-
-# Make it executable
 RUN chmod +x /usr/local/bin/forge
 
 # Set working directory
+WORKDIR /workspace/benchmarks
+
+# Copy package files and compiled JavaScript (node_modules will be installed at runtime)
+COPY benchmarks/package.json benchmarks/package-lock.json* /workspace/benchmarks/
+COPY benchmarks/dist /workspace/benchmarks/dist
+COPY benchmarks/task-config-builder.js /workspace/benchmarks/
+COPY benchmarks/container-entrypoint-simple.sh /workspace/benchmarks/container-entrypoint.sh
+
 WORKDIR /workspace
 
-# Create entrypoint script that executes TASK_COMMAND env var
-RUN echo '#!/bin/sh\nif [ -n "$TASK_COMMAND" ]; then\n  eval "$TASK_COMMAND"\nelse\n  exec "$@"\nfi' > /entrypoint.sh && chmod +x /entrypoint.sh
-
-# Use entrypoint
-ENTRYPOINT ["/entrypoint.sh"]
+# Use container entrypoint
+ENTRYPOINT ["/bin/bash", "/workspace/benchmarks/container-entrypoint.sh"]
 CMD ["/bin/sh"]

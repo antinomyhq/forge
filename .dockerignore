@@ -1,61 +1,6 @@
-# Exclude files from .gitignore
-# Cargo build artifacts
-debug/
-target/
-
-# Backup files
-**/*.rs.bk
-*.pdb
-*.bak
-*.rs.bak
-*.new
-
-# IDE and editor files
-.idea
-.vscode/
-.aider*
-
-# Environment and config
-.env
-.DS_Store
-
-# Database files
-*.db
-*.db-*
-*.db-shm
-*.db-wal
-*.sqlite
-*.sqlite3
-
-# Logs and debug files
-*.log*
-*-dump.json
-*-dump.html
-.mcp.json
-
-# Node modules
-node_modules/
-
-# Git directory
-.git/
-
-# Task files
-.tasks
-
-# TypeScript build artifacts (from benchmarks)
-*.d.ts
-*.js
-*.map
-benchmarks/*.js
-benchmarks/*.d.ts
-benchmarks/*.map
-
-# Cache directories
-.fastembed_cache/
-
-# Forge request bodies
-**/.forge/request.body.json
-
-# Docker-related
-Dockerfile*
-.dockerignore
+# Minimal dockerignore for eval builds
+# Include only cross-compiled binary and compiled JavaScript
+*
+!target/x86_64-unknown-linux-gnu/release/forge
+!benchmarks/dist
+!benchmarks/container-entrypoint.sh

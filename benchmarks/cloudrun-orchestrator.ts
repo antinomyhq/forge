@@ -24,6 +24,7 @@ export interface CloudRunExecutionResult {
   exitCode: number;
   executionName: string;
   logs: string;
+  jsonResult?: any;
 }
 
 /**
@@ -66,7 +67,12 @@ export class CloudRunOrchestrator {
     taskId: string,
     command: string,
     env: Record<string, string>,
-    timeout: number = 3600
+    timeout: number = 3600,
+    taskConfig?: {
+      early_exit?: boolean;
+      validations?: any[];
+      context?: Record<string, string>;
+    }
   ): Promise<string> {
     const timestamp = Date.now();
     const jobName = `forge-eval-${taskId.replace(/[^a-z0-9-]/g, "-")}-${timestamp}`.toLowerCase();
@@ -92,12 +98,34 @@ export class CloudRunOrchestrator {
       // Add the command as TASK_COMMAND env var
       const allEnvVars = {
         ...env,
-        TASK_COMMAND: command
+        TASK_COMMAND: command, // Keep as plain string
+        TASK_TIMEOUT: timeout.toString(),
+        TASK_EARLY_EXIT: taskConfig?.early_exit ? 'true' : 'false',
       };
       
+      // Add validations and context as JSON if provided
+      if (taskConfig?.validations && taskConfig.validations.length > 0) {
+        allEnvVars.TASK_VALIDATIONS = JSON.stringify(taskConfig.validations);
+      }
+      
+      if (taskConfig?.context) {
+        allEnvVars.TASK_CONTEXT = JSON.stringify(taskConfig.context);
+      }
+      
       // Create YAML content for env vars
+      // TASK_VALIDATIONS and TASK_CONTEXT are already JSON-stringified above
+      // Other values are plain strings that need JSON.stringify for YAML escaping
       const envYaml = Object.entries(allEnvVars)
-        .map(([key, value]) => `${key}: ${JSON.stringify(value)}`)
+        .map(([key, value]) => {
+          const stringValue = typeof value === 'string' ? value : String(value);
+          // JSON values are already stringified, just quote them for YAML
+          // Plain strings need JSON.stringify for proper escaping
+          const isAlreadyJson = key === 'TASK_VALIDATIONS' || key === 'TASK_CONTEXT';
+          const quotedValue = isAlreadyJson
+            ? `"${stringValue.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`
+            : JSON.stringify(stringValue);
+          return `${key}: ${quotedValue}`;
+        })
         .join("\n");
       fs.writeFileSync(envFilePath, envYaml);
       
@@ -342,7 +370,10 @@ export class CloudRunOrchestrator {
       );
 
       // Get logs from Cloud Logging - filter by execution name to avoid duplicates
-      // Note: Cloud Logging has a delay, so we retry a few times
+      // Note: Cloud Logging has a delay, so we wait a bit and retry
+      // Wait for logs to be available in Cloud Logging (longer delay for full output)
+      await new Promise(resolve => setTimeout(resolve, 5000));
+      
       let logs: any[] = [];
       let retries = 3;
       
@@ -396,25 +427,60 @@ export class CloudRunOrchestrator {
           stdout += text + "\n";
         }
       }
-
-      // Extract exit code from execution status
-      // Check if all tasks succeeded
-      const taskCount = executionInfo.status?.taskCount || 0;
-      const succeededCount = executionInfo.status?.succeededCount || 0;
-      const failedCount = executionInfo.status?.failedCount || 0;
       
-      // Exit code 0 if execution succeeded (succeededCount > 0 and no failures)
-      // or if all tasks succeeded when taskCount is available
-      const exitCode = 
-        (succeededCount > 0 && failedCount === 0) ? 0 :
-        (taskCount > 0 && succeededCount === taskCount) ? 0 : -1;
+      // Try to extract JSON result from logs
+      // Note: Cloud Logging returns logs in reverse chronological order, so we reverse them
+      const reversedLogs = logs.reverse();
+      let reversedFullLogs = "";
+      for (const entry of reversedLogs) {
+        const text = entry.textPayload || entry.jsonPayload?.message || "";
+        reversedFullLogs += text + "\n";
+      }
+      
+      let jsonResult: any = null;
+      const jsonMatch = reversedFullLogs.match(/<<<TASK_RESULT_JSON>>>\s*([\s\S]*?)\s*<<<TASK_RESULT_JSON_END>>>/);
+      if (jsonMatch && jsonMatch[1]) {
+        try {
+          jsonResult = JSON.parse(jsonMatch[1]);
+          this.logger.debug(
+            { task_id: taskId, has_validations: !!jsonResult.validations },
+            "Parsed JSON result from container output"
+          );
+        } catch (error) {
+          this.logger.warn(
+            { task_id: taskId, error: String(error), json_snippet: jsonMatch[1].slice(0, 200) },
+            "Failed to parse JSON result from container output"
+          );
+        }
+      } else {
+        this.logger.warn(
+          { task_id: taskId, logs_length: reversedFullLogs.length },
+          "JSON result markers not found in container output"
+        );
+      }
+
+      // Extract exit code - prefer JSON result, then execution status
+      let exitCode: number;
+      if (jsonResult && jsonResult.exitCode !== undefined) {
+        exitCode = jsonResult.exitCode;
+      } else {
+        // Fallback to execution status
+        const taskCount = executionInfo.status?.taskCount || 0;
+        const succeededCount = executionInfo.status?.succeededCount || 0;
+        const failedCount = executionInfo.status?.failedCount || 0;
+        
+        exitCode = 
+          (succeededCount > 0 && failedCount === 0) ? 0 :
+          (taskCount > 0 && succeededCount === taskCount) ? 0 : -1;
+      }
 
       return {
-        stdout: stdout.trim(),
-        stderr: stderr.trim(),
+        stdout: jsonResult?.output || stdout.trim(),
+        stderr: jsonResult?.stderr || stderr.trim(),
         exitCode,
         executionName,
-        logs: fullLogs.trim(),
+        logs: jsonResult?.logs || fullLogs.trim(),
+        jsonResult, // Include parsed JSON for caller
       };
     } catch (error) {
       this.logger.error(

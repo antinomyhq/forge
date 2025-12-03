@@ -246,6 +246,24 @@ async function main() {
         }
       );
 
+      // Install node_modules for benchmarks if not already installed
+      logger.info("Installing node_modules for benchmarks...");
+      const benchmarksDir = path.join(rootDir, "benchmarks");
+      const fsModule = await import("fs");
+      if (!fsModule.existsSync(path.join(benchmarksDir, "node_modules"))) {
+        execSync(`npm ci`, {
+          cwd: benchmarksDir,
+          stdio: "inherit",
+        });
+      }
+
+      // Build TypeScript to JavaScript
+      logger.info("Building TypeScript to JavaScript...");
+      execSync(`npx tsc --project tsconfig.container.json --skipLibCheck`, {
+        cwd: benchmarksDir,
+        stdio: "inherit",
+      });
+
       // Build the Docker image with the cross-compiled binary
       // Use a custom dockerignore that allows the target directory
       logger.info({ tag: localTag }, "Building Docker image with cross-compiled binary for linux/amd64...");

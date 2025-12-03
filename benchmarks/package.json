@@ -7,7 +7,8 @@
   "author": "Tushar Mathur <tusharmath@gmail.com>",
   "type": "module",
   "scripts": {
-    "eval": "tsx cli.ts"
+    "eval": "tsx cli.ts",
+    "build": "tsc"
   },
   "dependencies": {
     "@daytonaio/sdk": "^0.119.0",

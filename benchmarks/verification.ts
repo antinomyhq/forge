@@ -40,13 +40,16 @@ function validateShellCommand(
   output: string,
   command: string,
   expectedExitCode: number,
-  name: string
+  name: string,
+  workingDir?: string
 ): ValidationResult {
   try {
+    // Execute shell command in the specified working directory
+    // Don't pass output as stdin - let the command read files directly if needed
     execSync(command, {
-      input: output,
       encoding: "utf-8",
-      stdio: ["pipe", "pipe", "pipe"],
+      stdio: ["ignore", "pipe", "pipe"],
+      cwd: workingDir || process.cwd(),
     });
 
     // Command succeeded (exit code 0)
@@ -79,7 +82,8 @@ function validateShellCommand(
 export function runValidations(
   output: string,
   validations: Array<Validation>,
-  context?: Record<string, string>
+  context?: Record<string, string>,
+  workingDir?: string
 ): ValidationResult[] {
   const results: ValidationResult[] = [];
 
@@ -100,7 +104,7 @@ export function runValidations(
         command = template(context);
       }
       const expectedExitCode = validation.exit_code ?? 0;
-      results.push(validateShellCommand(output, command, expectedExitCode, validation.name));
+      results.push(validateShellCommand(output, command, expectedExitCode, validation.name, workingDir));
     }
   }
 

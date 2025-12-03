@@ -12,6 +12,14 @@ export type TaskExecutionResult = {
   error?: string;
   isTimeout: boolean;
   earlyExit?: boolean;
+  validations?: Array<{
+    name: string;
+    passed: boolean;
+    error?: string;
+  }>;
+  exitCode?: number;
+  logs?: string;
+  stderr?: string;
 };
 
 /**
@@ -39,12 +47,16 @@ export async function executeTask(
   evalDir: string,
   task: Task,
   context?: Record<string, string>,
-  append: boolean = false
+  append: boolean = false,
+  jsonOutput: boolean = false
 ): Promise<TaskExecutionResult> {
   const startTime = Date.now();
 
   // Create log stream for this task (append if this is not the first command)
   const logStream = fs.createWriteStream(logFile, { flags: append ? 'a' : 'w' });
+
+  // Get the directory of the log file for validations to use as working directory
+  const logDir = path.dirname(logFile);
 
   // Write command at the top of the log file
   logStream.write(`Command: ${command}\n`);
@@ -75,7 +87,8 @@ export async function executeTask(
         if (task.early_exit && task.validations && task.validations.length > 0) {
           const currentOutput = stdout + stderr;
           if (currentOutput) {
-            const results = runValidations(currentOutput, task.validations, context);
+            // Pass working directory so shell validations can access files
+            const results = runValidations(currentOutput, task.validations, context, logDir);
             if (allValidationsPassed(results)) {
               exitedEarly = true;
               if (timeoutId) clearTimeout(timeoutId);
@@ -155,26 +168,70 @@ export async function executeTask(
     });
 
     const duration = Date.now() - startTime;
-
-    return {
+    
+    // Run validations if configured
+    let validationResults: Array<{ name: string; passed: boolean; error?: string }> = [];
+    let exitCode = 0;
+    
+    if (task.validations && task.validations.length > 0) {
+      const results = runValidations(output, task.validations, context, logDir);
+      validationResults = results.map(v => ({
+        name: v.name,
+        passed: v.passed,
+        error: v.passed ? undefined : v.message
+      }));
+      
+      // Determine exit code based on validations
+      exitCode = allValidationsPassed(results) ? 0 : 1;
+    }
+    
+    // Read log file for full logs
+    const logs = fs.existsSync(logFile) ? fs.readFileSync(logFile, 'utf-8') : '';
+    
+    const result: TaskExecutionResult = {
       index,
       command,
       duration,
       output,
       isTimeout: timedOut,
       earlyExit: exitedEarly,
+      validations: validationResults,
+      exitCode,
+      logs,
     };
+    
+    // Output JSON if requested
+    if (jsonOutput) {
+      console.log('\n<<<TASK_RESULT_JSON>>>');
+      console.log(JSON.stringify(result, null, 2));
+      console.log('<<<TASK_RESULT_JSON_END>>>');
+    }
+
+    return result;
   } catch (error) {
     const duration = Date.now() - startTime;
     const errorMessage = error instanceof Error ? error.message : "Command failed";
+    
+    const logs = fs.existsSync(logFile) ? fs.readFileSync(logFile, 'utf-8') : '';
 
-    return {
+    const result: TaskExecutionResult = {
       index,
       command,
       duration,
       error: errorMessage,
       isTimeout: false,
       earlyExit: false,
+      exitCode: 1,
+      logs,
     };
+    
+    // Output JSON if requested
+    if (jsonOutput) {
+      console.log('\n<<<TASK_RESULT_JSON>>>');
+      console.log(JSON.stringify(result, null, 2));
+      console.log('<<<TASK_RESULT_JSON_END>>>');
+    }
+    
+    return result;
   }
 }

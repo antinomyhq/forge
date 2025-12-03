@@ -143,11 +143,13 @@ export class CloudRunRunner {
     const results: any[] = [];
     const executing: Promise<void>[] = [];
     let index = 0;
+    let shouldStopLaunching = false;
 
     this.logger.info(
       { 
         total_tasks: taskUnits.length,
-        max_concurrency: this.config.maxConcurrency 
+        max_concurrency: this.config.maxConcurrency,
+        early_exit: taskYml.early_exit || false
       },
       "Starting parallel task execution on Cloud Run"
     );
@@ -156,6 +158,15 @@ export class CloudRunRunner {
       try {
         const result = await this.executeTask(taskUnit, taskYml);
         results.push(result);
+        
+        // Check if early exit is enabled and this task failed validation
+        if (taskYml.early_exit && result.status === TaskStatus.ValidationFailed) {
+          this.logger.info(
+            { task_id: taskUnit.id },
+            "Early exit: Task failed validation, will stop launching new tasks"
+          );
+          shouldStopLaunching = true;
+        }
       } catch (error) {
         this.logger.error(
           {
@@ -173,11 +184,25 @@ export class CloudRunRunner {
           duration: 0,
           error: error instanceof Error ? error.message : String(error),
         });
+        
+        // Stop launching new tasks on error if early exit is enabled
+        if (taskYml.early_exit) {
+          shouldStopLaunching = true;
+        }
       }
     };
 
     // Execute tasks with concurrency limit
     for (const taskUnit of taskUnits) {
+      // Stop launching new tasks if early exit triggered
+      if (shouldStopLaunching) {
+        this.logger.info(
+          { remaining_tasks: taskUnits.length - index },
+          "Early exit: Skipping remaining tasks"
+        );
+        break;
+      }
+      
       // Wait for a slot if we're at max concurrency
       if (executing.length >= this.config.maxConcurrency) {
         await Promise.race(executing);
@@ -190,13 +215,14 @@ export class CloudRunRunner {
         }
       });
       executing.push(promise);
+      index++;
     }
 
     // Wait for remaining tasks
     await Promise.all(executing);
 
     this.logger.info(
-      { completed: results.length },
+      { completed: results.length, total: taskUnits.length },
       "All tasks completed on Cloud Run"
     );
 
@@ -243,37 +269,43 @@ export class CloudRunRunner {
           task_id: taskUnit.id,
           original_command: command,
           remote_command: remoteCommand,
+          early_exit: taskYml.early_exit || false,
         },
         "Generated remote command for Cloud Run"
       );
 
       // Create and execute Cloud Run Job (without waiting for completion)
       const timeout = taskYml.run?.timeout || taskYml.timeout || 180;
+      
+      // Prepare task config for container
+      const taskConfig = {
+        early_exit: taskYml.early_exit || false,
+        validations: taskYml.validations || [],
+        context: taskUnit.context || {},
+      };
+      
       const executionName = await this.orchestrator.createJob(
         taskUnit.id,
         remoteCommand,
         env,
-        timeout
+        timeout,
+        taskConfig
       );
 
-      // Wait for execution to complete (with early exit support)
-      if (taskYml.early_exit && taskUnit.validations && taskUnit.validations.length > 0) {
-        await this.waitForExecutionWithEarlyExit(
-          executionName,
-          taskUnit.id,
-          timeout,
-          taskUnit.validations,
-          taskUnit.context
-        );
-      } else {
-        await this.orchestrator.waitForExecution(executionName, taskUnit.id, timeout);
-      }
+      // Wait for execution to complete
+      await this.orchestrator.waitForExecution(executionName, taskUnit.id, timeout);
 
       // Get execution result
       const result = await this.orchestrator.getExecutionResult(taskUnit.id);
 
       const duration = Date.now() - startTime;
-      const output = result.stdout + result.stderr;
+      let output = result.logs || (result.stdout + result.stderr);
+      
+      // If we have JSON result, use it directly (no need for log extraction)
+      if (result.jsonResult) {
+        output = result.jsonResult.logs || result.jsonResult.output || output;
+      }
+      
       const status =
         result.exitCode === 0 ? TaskStatus.Passed : TaskStatus.Failed;
 
@@ -297,7 +329,7 @@ export class CloudRunRunner {
         output,
         stderr: result.stderr,
         duration,
-        validations: [] as ValidationResult[],
+        validations: result.jsonResult?.validations || [],
         logs: result.logs,
       };
     } catch (error) {
@@ -327,148 +359,6 @@ export class CloudRunRunner {
   }
 
   /**
-   * Waits for execution with early exit support (kills job when validations pass)
-   */
-  private async waitForExecutionWithEarlyExit(
-    executionName: string,
-    taskId: string,
-    timeout: number,
-    validations: any[],
-    context: Record<string, string>
-  ): Promise<void> {
-    const pollInterval = 2000; // Poll every 2 seconds
-    const maxWaitTime = timeout * 1000;
-    const startTime = Date.now();
-
-    this.logger.info(
-      { task_id: taskId, execution_name: executionName },
-      "Monitoring execution with early exit enabled"
-    );
-
-    while (Date.now() - startTime < maxWaitTime) {
-      try {
-        // Get current logs
-        const result = await this.orchestrator.getExecutionResult(taskId);
-        const output = result.stdout + "\n" + result.stderr;
-
-        // Check if execution is complete
-        if (result.exitCode !== undefined && result.exitCode !== -1) {
-          this.logger.info(
-            { task_id: taskId, exit_code: result.exitCode },
-            "Execution completed normally"
-          );
-          return;
-        }
-
-        // Check validations on current output
-        if (output && validations && validations.length > 0) {
-          const validationResults = this.runValidations(output, validations, context);
-          const allPassed = this.allValidationsPassed(validationResults);
-
-          if (allPassed) {
-            this.logger.info(
-              { task_id: taskId },
-              "Early exit: All validations passed, cancelling job"
-            );
-            
-            // Cancel the execution
-            await this.orchestrator.cancelExecution(executionName, taskId);
-            return;
-          }
-        }
-
-        // Wait before next poll
-        await new Promise((resolve) => setTimeout(resolve, pollInterval));
-      } catch (error) {
-        // If we get an error, the execution might have completed
-        // Let the normal flow handle it
-        this.logger.debug(
-          { 
-            task_id: taskId, 
-            error: error instanceof Error ? error.message : String(error) 
-          },
-          "Error during early exit monitoring, continuing..."
-        );
-        await new Promise((resolve) => setTimeout(resolve, pollInterval));
-      }
-    }
-
-    // Timeout reached
-    this.logger.warn({ task_id: taskId }, "Early exit monitoring timed out");
-  }
-
-  /**
-   * Runs validations on output
-   */
-  private runValidations(
-    output: string,
-    validations: any[],
-    context: Record<string, string>
-  ): any[] {
-    return validations.map((validation) => {
-      try {
-        if (validation.type === "regex") {
-          const regex = new RegExp(validation.regex);
-          const passed = regex.test(output);
-          return {
-            name: validation.name,
-            passed,
-            message: passed ? undefined : `Pattern "${validation.regex}" not found`,
-          };
-        } else if (validation.type === "shell") {
-          // For shell validations, we need to write output to a temp file
-          const tempFile = path.join(os.tmpdir(), `validation-${Date.now()}.txt`);
-          fs.writeFileSync(tempFile, output);
-          
-          // Replace {{context_input}} placeholder
-          const command = validation.command.replace(/\{\{context_input\}\}/g, context.context_input || tempFile);
-          
-          try {
-            execSync(command, { 
-              input: output,
-              encoding: "utf-8",
-              stdio: "pipe"
-            });
-            fs.unlinkSync(tempFile);
-            return {
-              name: validation.name,
-              passed: true,
-            };
-          } catch (error: any) {
-            fs.unlinkSync(tempFile);
-            const expectedExitCode = validation.exit_code ?? 0;
-            const actualExitCode = error.status ?? -1;
-            return {
-              name: validation.name,
-              passed: false,
-              message: `Expected exit code ${expectedExitCode}, got ${actualExitCode}`,
-            };
-          }
-        }
-        
-        return {
-          name: validation.name,
-          passed: false,
-          message: "Unknown validation type",
-        };
-      } catch (error) {
-        return {
-          name: validation.name,
-          passed: false,
-          message: error instanceof Error ? error.message : String(error),
-        };
-      }
-    });
-  }
-
-  /**
-   * Checks if all validations passed
-   */
-  private allValidationsPassed(results: any[]): boolean {
-    return results.length > 0 && results.every((r) => r.passed);
-  }
-
-  /**
    * Builds environment variables for task execution
    */
   private buildEnvironment(taskUnit: DistributedTaskUnit): Record<string, string> {
@@ -485,12 +375,7 @@ export class CloudRunRunner {
       }
     }
 
-    // Add task-specific environment variables
-    for (const [key, value] of Object.entries(taskUnit.context)) {
-      if (typeof value === "string") {
-        env[key] = value;
-      }
-    }
+    // Note: taskUnit.context is now passed via TASK_CONTEXT in orchestrator, not as individual env vars
 
     return env;
   }
@@ -521,24 +406,16 @@ export class CloudRunRunner {
       );
       fs.writeFileSync(logFile, result.output || result.logs || "", "utf-8");
 
-      // Process validations if any
-      if (validations.length > 0) {
-        const { validationResults, status: validationStatus } =
-          processValidations(
-            result.output || "",
-            validations,
-            this.logger,
-            index + 1,
-            result.duration,
-            logFile,
-            taskUnit.context
-          );
-
-        total_validations += validationResults.length;
-        passed_validations += validationResults.filter((v: any) => v.passed).length;
-
-        if (validationStatus === TaskStatus.ValidationFailed) {
-          validation_failed++;
+      // Use validation results from the container (already processed by task-executor)
+      if (result.validations && result.validations.length > 0) {
+        total_validations += result.validations.length;
+        passed_validations += result.validations.filter((v: any) => v.passed).length;
+        
+        // Check if any validations failed
+        const hasFailedValidations = result.validations.some((v: any) => !v.passed);
+        if (hasFailedValidations && result.exitCode === 0) {
+          // Task succeeded but validations failed
+          result.status = TaskStatus.ValidationFailed;
         }
       }
 
