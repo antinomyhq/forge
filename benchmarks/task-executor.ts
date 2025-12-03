@@ -173,7 +173,7 @@ export async function executeTask(
     // Extract actual command exit code from the log file
     const logContents = fs.existsSync(logFile) ? fs.readFileSync(logFile, 'utf-8') : '';
     const exitCodeMatch = logContents.match(/Exit Code: (\d+)/);
-    const commandExitCode = exitCodeMatch ? parseInt(exitCodeMatch[1], 10) : 0;
+    const commandExitCode = exitCodeMatch && exitCodeMatch[1] ? parseInt(exitCodeMatch[1], 10) : 0;
     
     // Run validations if configured
     let validationResults: Array<{ name: string; passed: boolean; error?: string }> = [];
@@ -218,7 +218,7 @@ export async function executeTask(
     
     // Extract actual command exit code from the log file
     const exitCodeMatch = logs.match(/Exit Code: (\d+)/);
-    const commandExitCode = exitCodeMatch ? parseInt(exitCodeMatch[1], 10) : 1;
+    const commandExitCode = exitCodeMatch && exitCodeMatch[1] ? parseInt(exitCodeMatch[1], 10) : 1;
 
     const result: TaskExecutionResult = {
       index,

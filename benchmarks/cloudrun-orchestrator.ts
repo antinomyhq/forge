@@ -38,7 +38,7 @@ export interface CloudRunExecutionResult {
  * Implements ExecutionOrchestrator interface by extending BaseOrchestrator.
  */
 export class CloudRunOrchestrator extends BaseOrchestrator {
-  private logger: Logger;
+  protected logger: Logger;
   private config: CloudRunConfig;
   private jobNames: Map<string, string> = new Map(); // taskId -> jobName
   private executionNames: Map<string, string> = new Map(); // taskId -> executionName
@@ -221,8 +221,9 @@ export class CloudRunOrchestrator extends BaseOrchestrator {
         execution_name: executionName
       }, "Cloud Run Job created and execution started");
 
-      this.jobNames.set(taskId, jobName);
-      this.executionNames.set(taskId, executionName);
+      // Store mappings by executionName (executionId) for cleanup
+      this.jobNames.set(executionName, jobName);
+      this.executionNames.set(executionName, executionName);
 
       // Clean up temp env file
       try {

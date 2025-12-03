@@ -429,8 +429,9 @@ async function main() {
   if (result.failed > 0) {
     process.exit(1);
   }
-  } catch (error) {
-    logger.error({ error: error.message, stack: error.stack }, "Orchestrator.runTasks failed");
+  } catch (error: unknown) {
+    const err = error as Error;
+    logger.error({ error: err.message, stack: err.stack }, "Orchestrator.runTasks failed");
     throw error;
   }
 }

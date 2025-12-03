@@ -22,6 +22,9 @@ import { Semaphore } from './orchestrator.js';
 import type { ValidationResult } from './model.js';
 
 export abstract class BaseOrchestrator implements ExecutionOrchestrator {
+  // Subclasses must provide a logger
+  protected abstract logger: { error: (data: unknown, message: string) => void };
+
   /**
    * Default implementation of runTasks using low-level methods
    * 
@@ -37,17 +40,18 @@ export abstract class BaseOrchestrator implements ExecutionOrchestrator {
     await Promise.all(
       tasks.map(async (task, index) => {
         await semaphore.acquire();
+        let executionId: string | undefined;
         try {
-          const executionId = await this.createExecution({
+          executionId = await this.createExecution({
             taskId: task.id,
             command: task.command,
             timeout: task.timeout || 300,
             environment: { ...envOverrides },
-            cwd: task.cwd,
             taskConfig: {
               validations: task.validations || [],
               context: task.context || {},
               earlyExit: task.earlyExit || false,
+              ...(task.cwd && { cwd: task.cwd }),
             },
           });
 
@@ -57,8 +61,6 @@ export abstract class BaseOrchestrator implements ExecutionOrchestrator {
           );
 
           results.push({ ...result, taskId: task.id });
-
-          await this.cleanup(executionId);
         } catch (error) {
           // Task failed to execute
           results.push({
@@ -72,6 +74,21 @@ export abstract class BaseOrchestrator implements ExecutionOrchestrator {
             error: error instanceof Error ? error.message : String(error),
           });
         } finally {
+          // Always cleanup, even if execution failed
+          if (executionId) {
+            try {
+              await this.cleanup(executionId);
+            } catch (cleanupError) {
+              this.logger.error(
+                {
+                  task_id: task.id,
+                  execution_id: executionId,
+                  error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
+                },
+                'Failed to cleanup execution'
+              );
+            }
+          }
           semaphore.release();
         }
       })

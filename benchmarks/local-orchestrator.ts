@@ -12,10 +12,14 @@ import type {
 } from './orchestrator.js';
 import { executeTask } from './task-executor.js';
 import { writeFileSync } from 'fs';
-import { join } from 'path';
+import { join, dirname } from 'node:path';
 import type { Task, Validation } from './model.js';
 
 export class LocalOrchestrator extends BaseOrchestrator {
+  protected logger = {
+    error: (data: unknown, message: string) => console.error(`[LocalOrchestrator] ${message}`, data)
+  };
+  
   private executions = new Map<string, { logFile: string; promise: Promise<TaskResult> }>();
 
   async createExecution(params: CreateExecutionParams): Promise<string> {
@@ -51,7 +55,7 @@ export class LocalOrchestrator extends BaseOrchestrator {
       logFile,
       params.taskConfig.context,
       params.environment,
-      params.cwd
+      params.taskConfig.cwd
     );
 
     this.executions.set(executionId, { logFile, promise });
@@ -74,7 +78,7 @@ export class LocalOrchestrator extends BaseOrchestrator {
 
     try {
       // Use the provided cwd, or task.cwd, or calculate from debug directory
-      const evalDir = cwd || task.cwd || path.dirname(this.logger.options?.debugDir || '');
+      const evalDir = cwd || task.cwd || dirname(logFile);
       
       const result = await executeTask(
         command,
