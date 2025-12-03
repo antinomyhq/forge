@@ -298,6 +298,8 @@ pub struct CodebaseSearchResults {
 )]
 #[setters(strip_option)]
 pub struct Node {
+    /// Node identifier
+    pub node_id: NodeId,
     /// The node data (file, chunk, note, etc.)
     #[serde(flatten)]
     pub node: NodeData,
@@ -318,8 +320,6 @@ pub struct Node {
 pub enum NodeData {
     /// File chunk with precise line numbers
     FileChunk {
-        /// Node ID
-        node_id: NodeId,
         /// File path
         file_path: String,
         /// Code content
@@ -331,8 +331,6 @@ pub enum NodeData {
     },
     /// Full file content
     File {
-        /// Node ID
-        node_id: NodeId,
         /// File path
         file_path: String,
         /// File content
@@ -342,8 +340,6 @@ pub enum NodeData {
     },
     /// File reference (path only, no content)
     FileRef {
-        /// Node ID
-        node_id: NodeId,
         /// File path
         file_path: String,
         /// SHA-256 hash of the file content
@@ -351,38 +347,22 @@ pub enum NodeData {
     },
     /// Note content
     Note {
-        /// Node ID
-        node_id: NodeId,
         /// Note content
         content: String,
     },
     /// Task description
     Task {
-        /// Node ID
-        node_id: NodeId,
         /// Task description
         task: String,
     },
 }
 
 impl NodeData {
-    /// Get the node ID for any variant
-    pub fn node_id(&self) -> &str {
-        // FIXME: Should return &NodeId
-        match self {
-            Self::FileChunk { node_id, .. }
-            | Self::File { node_id, .. }
-            | Self::FileRef { node_id, .. }
-            | Self::Note { node_id, .. }
-            | Self::Task { node_id, .. } => node_id.as_str(),
-        }
-    }
-
     pub fn to_element(&self) -> forge_template::Element {
         use forge_template::Element;
 
         match self {
-            Self::FileChunk { file_path, content, start_line, end_line, .. } => {
+            Self::FileChunk { file_path, content, start_line, end_line } => {
                 Element::new("file_chunk")
                     .attr("file_path", file_path)
                     .attr("lines", format!("{}-{}", start_line, end_line))
@@ -394,8 +374,8 @@ impl NodeData {
             Self::FileRef { file_path, .. } => {
                 Element::new("file_ref").attr("file_path", file_path)
             }
-            Self::Note { content, .. } => Element::new("note").cdata(content),
-            Self::Task { task, .. } => Element::new("task").text(task),
+            Self::Note { content } => Element::new("note").cdata(content),
+            Self::Task { task } => Element::new("task").text(task),
         }
     }
 }
@@ -475,8 +455,8 @@ mod tests {
             query: "auth logic".to_string(),
             use_case: "authentication".to_string(),
             results: vec![Node {
+                node_id: "node-1".into(),
                 node: NodeData::FileChunk {
-                    node_id: "node-1".into(),
                     file_path: "src/auth.rs".to_string(),
                     content: "fn authenticate() {}".to_string(),
                     start_line: 10,

@@ -8,7 +8,7 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
-use forge_domain::Node;
+use forge_domain::{Node, NodeId};
 
 /// Tracks the best score for a node across multiple queries.
 ///
@@ -82,15 +82,13 @@ impl Ord for Score {
 /// Returns an error if node IDs cannot be extracted from results.
 pub fn deduplicate_results(results: &mut [Vec<Node>]) {
     // Track best score for each node_id across all queries
-    let mut best_scores: HashMap<String, Score> = HashMap::new();
+    let mut best_scores: HashMap<NodeId, Score> = HashMap::new();
 
     // First pass: find which query has the best score for each node
     for (query_idx, query_results) in results.iter().enumerate() {
         for result in query_results {
-            let node_id = result.node.node_id().to_string();
             let current_score = Score::new(query_idx, result);
-
-            match best_scores.entry(node_id) {
+            match best_scores.entry(result.node_id.clone()) {
                 std::collections::hash_map::Entry::Occupied(mut entry) => {
                     if current_score > *entry.get() {
                         entry.insert(current_score);
@@ -107,7 +105,7 @@ pub fn deduplicate_results(results: &mut [Vec<Node>]) {
     for (query_idx, query_results) in results.iter_mut().enumerate() {
         query_results.retain(|result| {
             best_scores
-                .get(result.node.node_id())
+                .get(&result.node_id)
                 .is_none_or(|best| best.query_idx == query_idx)
         });
     }
@@ -123,8 +121,8 @@ mod tests {
     /// Test fixture for creating a minimal `CodeSearchResult`.
     fn result(node_id: &str) -> Node {
         Node {
+            node_id: node_id.into(),
             node: NodeData::FileChunk {
-                node_id: node_id.into(),
                 file_path: "test.rs".into(),
                 content: "test".into(),
                 start_line: 1,

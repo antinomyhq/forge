@@ -675,8 +675,8 @@ mod tests {
 
     fn search_result() -> Node {
         Node {
+            node_id: "n1".into(),
             node: forge_domain::NodeData::FileChunk {
-                node_id: "n1".into(),
                 file_path: "main.rs".into(),
                 content: "fn main() {}".into(),
                 start_line: 1,
