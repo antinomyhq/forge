@@ -516,7 +516,7 @@ impl<F: Send + Sync> forge_domain::ContextEngineRepository for ForgeRepo<F> {
         &self,
         query: &forge_domain::CodeSearchQuery<'_>,
         auth_token: &forge_domain::ApiKey,
-    ) -> anyhow::Result<Vec<forge_domain::CodeSearchResult>> {
+    ) -> anyhow::Result<Vec<forge_domain::Node>> {
         self.codebase_repo.search(query, auth_token).await
     }
 

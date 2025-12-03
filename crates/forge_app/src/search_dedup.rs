@@ -8,7 +8,7 @@
 use std::cmp::Ordering;
 use std::collections::HashMap;
 
-use forge_domain::CodeSearchResult;
+use forge_domain::Node;
 
 /// Tracks the best score for a node across multiple queries.
 ///
@@ -25,7 +25,7 @@ struct Score {
 
 impl Score {
     /// Creates a new `BestScore` from a query index and search result.
-    fn new(query_idx: usize, result: &CodeSearchResult) -> Self {
+    fn new(query_idx: usize, result: &Node) -> Self {
         Self {
             query_idx,
             relevance: result.relevance,
@@ -80,7 +80,7 @@ impl Ord for Score {
 ///
 /// # Errors
 /// Returns an error if node IDs cannot be extracted from results.
-pub fn deduplicate_results(results: &mut [Vec<CodeSearchResult>]) {
+pub fn deduplicate_results(results: &mut [Vec<Node>]) {
     // Track best score for each node_id across all queries
     let mut best_scores: HashMap<String, Score> = HashMap::new();
 
@@ -115,15 +115,15 @@ pub fn deduplicate_results(results: &mut [Vec<CodeSearchResult>]) {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{CodeNode, CodeSearchResult};
+    use forge_domain::{Node, NodeData};
     use pretty_assertions::assert_eq;
 
     use super::*;
 
     /// Test fixture for creating a minimal `CodeSearchResult`.
-    fn result(node_id: &str) -> CodeSearchResult {
-        CodeSearchResult {
-            node: CodeNode::FileChunk {
+    fn result(node_id: &str) -> Node {
+        Node {
+            node: NodeData::FileChunk {
                 node_id: node_id.into(),
                 file_path: "test.rs".into(),
                 content: "test".into(),

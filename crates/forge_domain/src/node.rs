@@ -257,7 +257,7 @@ pub struct CodebaseQueryResult {
     /// Relevance query used for re-ranking
     pub use_case: String,
     /// The search results for this query
-    pub results: Vec<CodeSearchResult>,
+    pub results: Vec<Node>,
 }
 
 impl CodebaseQueryResult {
@@ -297,10 +297,10 @@ pub struct CodebaseSearchResults {
     Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, derive_setters::Setters,
 )]
 #[setters(strip_option)]
-pub struct CodeSearchResult {
+pub struct Node {
     /// The node data (file, chunk, note, etc.)
     #[serde(flatten)]
-    pub node: CodeNode,
+    pub node: NodeData,
     /// Relevance score (most important ranking metric)
     pub relevance: Option<f32>,
     /// Distance score (second ranking metric, lower is better)
@@ -315,7 +315,7 @@ pub struct CodeSearchResult {
 /// Each variant contains only the fields relevant to that node type.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
-pub enum CodeNode {
+pub enum NodeData {
     /// File chunk with precise line numbers
     FileChunk {
         /// Node ID
@@ -365,7 +365,7 @@ pub enum CodeNode {
     },
 }
 
-impl CodeNode {
+impl NodeData {
     /// Get the node ID for any variant
     pub fn node_id(&self) -> &str {
         // FIXME: Should return &NodeId
@@ -474,8 +474,8 @@ mod tests {
         let fixture = CodebaseQueryResult {
             query: "auth logic".to_string(),
             use_case: "authentication".to_string(),
-            results: vec![CodeSearchResult {
-                node: CodeNode::FileChunk {
+            results: vec![Node {
+                node: NodeData::FileChunk {
                     node_id: "node-1".into(),
                     file_path: "src/auth.rs".to_string(),
                     content: "fn authenticate() {}".to_string(),

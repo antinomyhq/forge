@@ -2908,22 +2908,22 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         for result in results.iter() {
             match &result.node {
-                forge_domain::CodeNode::FileChunk { file_path, start_line, end_line, .. } => {
+                forge_domain::NodeData::FileChunk { file_path, start_line, end_line, .. } => {
                     info = info.add_key_value(
                         "File",
                         format!("{}:{}-{}", file_path, start_line, end_line),
                     );
                 }
-                forge_domain::CodeNode::File { file_path, .. } => {
+                forge_domain::NodeData::File { file_path, .. } => {
                     info = info.add_key_value("File", format!("{} (full file)", file_path));
                 }
-                forge_domain::CodeNode::FileRef { file_path, .. } => {
+                forge_domain::NodeData::FileRef { file_path, .. } => {
                     info = info.add_key_value("File", format!("{} (reference)", file_path));
                 }
-                forge_domain::CodeNode::Note { content, .. } => {
+                forge_domain::NodeData::Note { content, .. } => {
                     info = info.add_key_value("Note", content);
                 }
-                forge_domain::CodeNode::Task { task, .. } => {
+                forge_domain::NodeData::Task { task, .. } => {
                     info = info.add_key_value("Task", task);
                 }
             }
