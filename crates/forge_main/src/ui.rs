@@ -33,6 +33,7 @@ use crate::cli::{
     TopLevelCommand,
 };
 use crate::conversation_selector::ConversationSelector;
+use crate::display_constants::{CommandType, markers, placeholders, status};
 use crate::env::should_show_completion_prompt;
 use crate::info::Info;
 use crate::input::Console;
@@ -45,6 +46,9 @@ use crate::tools_display::format_tools;
 use crate::update::on_update;
 use crate::utils::humanize_time;
 use crate::{TRACKER, banner, tracker};
+
+// File-specific constants
+const MISSING_AGENT_TITLE: &str = "<missing agent.title>";
 
 /// Formats an MCP server config for display, redacting sensitive information.
 /// Returns the command/URL string only.
@@ -196,7 +200,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         let title = format!(
             "∙ {}",
-            agent.title.as_deref().unwrap_or("<Missing agent.title>")
+            agent.title.as_deref().unwrap_or(MISSING_AGENT_TITLE)
         )
         .dimmed();
         self.writeln_title(TitleFormat::action(format!("{name} {title}")))?;
@@ -922,7 +926,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .path
                 .as_ref()
                 .map(|s| s.to_string())
-                .unwrap_or_else(|| "BUILT IN".to_string());
+                .unwrap_or_else(|| markers::BUILT_IN.to_string());
 
             info = info
                 .add_title(id.to_case(Case::UpperSnake))
@@ -972,7 +976,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             let domain = if let Some(url) = provider.url() {
                 url.domain().map(|d| d.to_string()).unwrap_or_default()
             } else {
-                "<unset>".to_string()
+                placeholders::EMPTY.to_string()
             };
             let provider_type = provider.provider_type().to_string();
             let configured = provider.is_configured();
@@ -983,7 +987,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .add_key_value("host", domain)
                 .add_key_value("type", provider_type);
             if configured {
-                info = info.add_key_value("status", "available");
+                info = info.add_key_value("status", status::AVAILABLE);
             };
         }
 
@@ -1025,7 +1029,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 };
                 info = info.add_key_value("Context Window", context);
             } else {
-                info = info.add_key_value("Context Window", "<unavailable>")
+                info = info.add_key_value("Context Window", placeholders::EMPTY)
             }
 
             // Add tools support indicator if explicitly supported
@@ -1039,7 +1043,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     },
                 )
             } else {
-                info = info.add_key_value("Tools", "<unknown>")
+                info = info.add_key_value("Tools", placeholders::EMPTY)
             }
         }
 
@@ -1084,20 +1088,20 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         for cmd in &built_in_commands {
             info = info
                 .add_title(cmd.command)
-                .add_key_value("type", "command")
+                .add_key_value("type", CommandType::Command)
                 .add_key_value("description", cmd.description);
         }
 
         // Add agent aliases
         info = info
             .add_title("ask")
-            .add_key_value("type", "agent")
+            .add_key_value("type", CommandType::Agent)
             .add_key_value(
                 "description",
                 "Research and investigation agent [alias for: sage]",
             )
             .add_title("plan")
-            .add_key_value("type", "agent")
+            .add_key_value("type", CommandType::Agent)
             .add_key_value(
                 "description",
                 "Planning and strategy agent [alias for: muse]",
@@ -1111,7 +1115,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .map(|title| title.lines().collect::<Vec<_>>().join(" "));
             info = info
                 .add_title(agent.id.to_string())
-                .add_key_value("type", "agent")
+                .add_key_value("type", CommandType::Agent)
                 .add_key_value("description", title);
         }
 
@@ -1119,7 +1123,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         for command in custom_commands {
             info = info
                 .add_title(command.name.clone())
-                .add_key_value("type", "custom")
+                .add_key_value("type", CommandType::Custom)
                 .add_key_value("description", command.description.clone());
         }
 
@@ -1199,13 +1203,13 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .get_agent_model(None)
             .await
             .map(|m| m.as_str().to_string());
-        let model = model.unwrap_or_else(|| "<not set>".to_string());
+        let model = model.unwrap_or_else(|| placeholders::EMPTY.to_string());
         let provider = self
             .get_provider(None)
             .await
             .ok()
             .map(|p| p.id.to_string())
-            .unwrap_or_else(|| "<not set>".to_string());
+            .unwrap_or_else(|| placeholders::EMPTY.to_string());
 
         let info = Info::new()
             .add_title("CONFIGURATION")
@@ -1282,7 +1286,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
 
             if server.is_disabled() {
-                info = info.add_key_value("Status", "disabled");
+                info = info.add_key_value("Status", status::DISABLED);
             }
 
             // Add tools for this MCP server

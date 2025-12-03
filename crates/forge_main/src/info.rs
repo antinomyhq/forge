@@ -8,12 +8,13 @@ use forge_app::utils::truncate_key;
 use forge_tracker::VERSION;
 use num_format::{Locale, ToFormattedString};
 
+use crate::display_constants::{placeholders, status};
 use crate::model::ForgeCommandManager;
 
 #[derive(Debug, PartialEq)]
 pub enum Section {
     Title(String),
-    Items(Option<String>, Option<String>), // key, value, subtitle
+    Items(Option<String>, String), // key, value
 }
 
 impl Section {
@@ -25,6 +26,71 @@ impl Section {
     }
 }
 
+/// A structured information display builder for terminal output.
+///
+/// `Info` provides a consistent way to display hierarchical information with
+/// titles, key-value pairs, and values. It handles alignment, formatting, and
+/// color coding automatically.
+///
+/// # Display Conventions
+///
+/// When using Info, follow these conventions for consistency:
+///
+/// ## Keys (Labels)
+/// - Use **Title Case** for keys (e.g., "Default Model", "API Key")
+/// - Keep keys concise but descriptive
+/// - Keys are automatically right-aligned within sections
+/// - Keys are displayed in **green bold**
+///
+/// ## Values
+/// - Use the constants from [`crate::display_constants`] for placeholder/status
+///   values
+/// - For missing/unknown data: Use `placeholders::UNKNOWN` (`<unknown>`)
+/// - For unset configuration: Use `placeholders::NOT_SET` (`<not set>`)
+/// - For unavailable features: Use `placeholders::UNAVAILABLE`
+///   (`<unavailable>`)
+/// - For empty values: Use `placeholders::EMPTY` (`[empty]`)
+/// - For None values: Use `placeholders::NONE` (`None`)
+/// - For statuses: Use lowercase (e.g., `status::AVAILABLE`,
+///   `status::DISABLED`)
+///
+/// ## Sections
+/// - Use **UPPERCASE** for section titles
+/// - Section titles are displayed in **bold dimmed**
+/// - Each section groups related key-value pairs
+/// - Keys within a section are aligned to the longest key
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use crate::display_constants::{placeholders, status};
+/// use crate::info::Info;
+///
+/// let info = Info::new()
+///     .add_title("CONFIGURATION")
+///     .add_key_value("Model", "gpt-4")
+///     .add_key_value("Provider", placeholders::NOT_SET)  // Use constant for unset
+///     .add_key_value("Status", status::AVAILABLE)       // Use constant for status
+///     .add_title("METRICS")
+///     .add_key_value("Tokens", "1000")
+///     .add_key_value("Cost", "$0.02");
+///
+/// println!("{}", info);
+/// ```
+///
+/// # Output Format
+///
+/// ```text
+/// 
+/// CONFIGURATION
+///   model gpt-4
+/// provider <not set>
+///   status available
+///
+/// METRICS
+/// tokens 1000
+///   cost $0.02
+/// ```
 #[derive(Default)]
 pub struct Info {
     sections: Vec<Section>,
@@ -40,28 +106,138 @@ impl Info {
         &self.sections
     }
 
+    /// Adds a section title to the info display.
+    ///
+    /// Section titles are displayed in UPPERCASE, bold, and dimmed. They group
+    /// related key-value pairs that follow.
+    ///
+    /// # Convention
+    /// - Always use UPPERCASE for section titles
+    /// - Keep titles concise (e.g., "CONFIGURATION", "METRICS", "USER")
+    ///
+    /// # Examples
+    ///
+    /// ```rust,ignore
+    /// let info = Info::new()
+    ///     .add_title("ENVIRONMENT")  // Correct: UPPERCASE
+    ///     .add_key_value("Path", "/home/user");
+    /// ```
     pub fn add_title(mut self, title: impl ToString) -> Self {
         self.sections.push(Section::Title(title.to_string()));
         self
     }
 
+    /// Adds a standalone value without a key (displayed as a bullet point).
+    ///
+    /// Values without keys are displayed with a bullet point (⦿) and indented.
+    /// Use this for lists or grouped items under a section.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,ignore
+    /// let info = Info::new()
+    ///     .add_title("AVAILABLE TOOLS")
+    ///     .add_value("read")
+    ///     .add_value("write")
+    ///     .add_value("shell");
+    /// ```
+    ///
+    /// Output:
+    /// ```text
+    /// AVAILABLE TOOLS
+    ///   ⦿ read
+    ///   ⦿ write
+    ///   ⦿ shell
+    /// ```
     pub fn add_value(self, value: impl IntoInfoValue) -> Self {
         self.add_item(None::<String>, value)
     }
 
+    /// Adds a key without a value (displays as a label).
+    ///
+    /// This is typically used for labels or empty fields. The key is displayed
+    /// without any value following it.
+    ///
+    /// # Convention
+    /// - Use **Title Case** for keys (same as
+    ///   [`add_key_value`](Self::add_key_value))
+    ///
+    /// # Examples
+    ///
+    /// ```rust,ignore
+    /// let info = Info::new()
+    ///     .add_title("EMPTY FIELDS")
+    ///     .add_key("API Key");  // Shows just "api key" without a value
+    /// ```
     pub fn add_key(self, key: impl ToString) -> Self {
         self.add_key_value(key, None::<String>)
     }
 
+    /// Adds a key-value pair to the info display.
+    ///
+    /// The key is displayed in green bold, and the value follows it. Keys are
+    /// automatically aligned within each section.
+    ///
+    /// # Conventions
+    ///
+    /// ## Keys
+    /// - Use **Title Case** (e.g., "Default Model", "API Key", "Working
+    ///   Directory")
+    /// - Be descriptive but concise
+    /// - Avoid abbreviations unless widely known
+    ///
+    /// ## Values
+    /// - For placeholders/missing data: Use constants from
+    ///   [`crate::display_constants::placeholders`]
+    ///   - `placeholders::UNKNOWN` - unknown value (`<unknown>`)
+    ///   - `placeholders::NOT_SET` - not configured (`<not set>`)
+    ///   - `placeholders::UNAVAILABLE` - feature unavailable (`<unavailable>`)
+    ///   - `placeholders::EMPTY` - empty value (`[empty]`)
+    ///   - `placeholders::NONE` - None variant (`None`)
+    /// - For statuses: Use constants from [`crate::display_constants::status`]
+    ///   - `status::AVAILABLE` - available/configured (`available`)
+    ///   - `status::DISABLED` - disabled (`disabled`)
+    /// - For actual values: Use the raw value (e.g., "gpt-4", "/home/user")
+    ///
+    /// # Examples
+    ///
+    /// ```rust,ignore
+    /// use crate::display_constants::{placeholders, status};
+    ///
+    /// let info = Info::new()
+    ///     .add_title("CONFIGURATION")
+    ///     // Correct: Title Case key, constant for placeholder
+    ///     .add_key_value("Default Model", model.unwrap_or(placeholders::NOT_SET))
+    ///     // Correct: Status constant for status values
+    ///     .add_key_value("Provider Status", status::AVAILABLE)
+    ///     // Correct: Raw value for actual data
+    ///     .add_key_value("API URL", "https://api.example.com");
+    /// ```
+    ///
+    /// # Incorrect Usage
+    ///
+    /// ```rust,ignore
+    /// // ❌ Wrong: lowercase key
+    /// .add_key_value("model", "gpt-4")
+    ///
+    /// // ❌ Wrong: raw string instead of constant
+    /// .add_key_value("Model", "<not set>")
+    ///
+    /// // ✅ Correct: Title Case key with constant
+    /// .add_key_value("Model", placeholders::NOT_SET)
+    /// ```
     pub fn add_key_value(self, key: impl ToString, value: impl IntoInfoValue) -> Self {
         let key_str = key.to_string();
-        self.add_item(Some(key_str), value)
+        let normalized_key = key_str.to_lowercase();
+        self.add_item(Some(normalized_key), value)
     }
 
     fn add_item(mut self, key: Option<impl ToString>, value: impl IntoInfoValue) -> Self {
         self.sections.push(Section::Items(
             key.map(|a| a.to_string()),
-            value.into_value(),
+            value
+                .into_value()
+                .unwrap_or(placeholders::EMPTY.to_string()),
         ));
         self
     }
@@ -91,6 +267,12 @@ impl IntoInfoValue for &String {
 impl IntoInfoValue for String {
     fn into_value(self) -> Option<String> {
         Some(self)
+    }
+}
+
+impl IntoInfoValue for crate::display_constants::CommandType {
+    fn into_value(self) -> Option<String> {
+        Some(self.to_string())
     }
 }
 
@@ -180,7 +362,7 @@ impl From<&Environment> for Info {
                     .min_tls_version
                     .as_ref()
                     .map(|v| format!("{v}"))
-                    .unwrap_or_else(|| "None".to_string()),
+                    .unwrap_or_else(|| placeholders::EMPTY.to_string()),
             )
             .add_key_value(
                 "Max TLS Version",
@@ -188,7 +370,7 @@ impl From<&Environment> for Info {
                     .max_tls_version
                     .as_ref()
                     .map(|v| format!("{v}"))
-                    .unwrap_or_else(|| "None".to_string()),
+                    .unwrap_or_else(|| placeholders::EMPTY.to_string()),
             )
             .add_key_value("Adaptive Window", env.http.adaptive_window.to_string())
             .add_key_value(
@@ -196,7 +378,7 @@ impl From<&Environment> for Info {
                 env.http
                     .keep_alive_interval
                     .map(|v| format!("{v}s"))
-                    .unwrap_or_else(|| "Disabled".to_string()),
+                    .unwrap_or_else(|| status::DISABLED.to_string()),
             )
             .add_key_value(
                 "Keep-Alive Timeout",
@@ -216,7 +398,7 @@ impl From<&Environment> for Info {
                     .root_cert_paths
                     .as_ref()
                     .map(|paths| paths.join(", "))
-                    .unwrap_or_else(|| "None".to_string()),
+                    .unwrap_or_else(|| placeholders::EMPTY.to_string()),
             )
             .add_title("API CONFIGURATION")
             .add_key_value("Forge API URL", env.forge_api_url.to_string())
@@ -359,28 +541,17 @@ impl fmt::Display for Info {
                         .map(|key| key.len())
                         .max();
                 }
-                Section::Items(key, value) => {
-                    match (key.as_ref(), width, value.as_ref()) {
-                        (Some(k), Some(w), Some(v)) => {
-                            writeln!(f, "  {} {}", format!("{k:<w$}:").green().bold(), v)?;
-                        }
-                        (Some(k), Some(w), None) => {
-                            writeln!(f, "  {}", format!("{k:<w$}:").green().bold())?;
-                        }
-                        (Some(k), None, Some(v)) => {
-                            writeln!(f, "  {}: {}", k.green().bold(), v)?;
-                        }
-                        (Some(k), None, None) => {
-                            writeln!(f, "  {}:", k.green().bold())?;
-                        }
-                        (None, _, Some(v)) => {
-                            writeln!(f, "    {} {}", "⦿".green(), v)?;
-                        }
-                        (None, _, None) => {
-                            // Nothing to display
-                        }
+                Section::Items(key, value) => match (key.as_ref(), width) {
+                    (Some(k), Some(w)) => {
+                        writeln!(f, "  {} {}", format!("{k:<w$}").green().bold(), value)?;
                     }
-                }
+                    (Some(k), None) => {
+                        writeln!(f, "  {} {}", k.green().bold(), value)?;
+                    }
+                    (None, _) => {
+                        writeln!(f, "    {} {}", "⦿".green(), value)?;
+                    }
+                },
             }
         }
         Ok(())
@@ -946,8 +1117,8 @@ mod tests {
         assert!(actual_str.contains("SECTION ONE"));
         assert!(actual_str.contains("SECTION TWO"));
 
-        // Verify padding by checking alignment of colons
-        // All keys in a section should have colons at the same column
+        // Verify padding by checking alignment of values
+        // All keys in a section should have values starting at the same column
         let lines: Vec<&str> = actual_str.lines().collect();
 
         // Find SECTION ONE items
@@ -962,44 +1133,45 @@ mod tests {
 
         let section_one_items: Vec<&str> = lines[section_one_start + 1..section_two_start]
             .iter()
-            .filter(|l| l.contains(':'))
+            .filter(|l| !l.trim().is_empty() && !l.contains("SECTION"))
             .copied()
             .collect();
 
-        // All colons in section one should be at the same position
-        let colon_positions: Vec<usize> = section_one_items
+        // All values in section one should start at the same position
+        // Find where "value" starts in each line
+        let value_positions: Vec<usize> = section_one_items
             .iter()
-            .map(|line| line.find(':').unwrap())
+            .map(|line| line.find("value").unwrap())
             .collect();
 
         assert!(
-            colon_positions.windows(2).all(|w| w[0] == w[1]),
-            "Keys in SECTION ONE should have consistent padding. Colon positions: {:?}",
-            colon_positions
+            value_positions.windows(2).all(|w| w[0] == w[1]),
+            "Values in SECTION ONE should be aligned. Value positions: {:?}",
+            value_positions
         );
 
         // Check SECTION TWO items
         let section_two_items: Vec<&str> = lines[section_two_start + 1..]
             .iter()
-            .filter(|l| l.contains(':'))
+            .filter(|l| !l.trim().is_empty() && !l.contains("SECTION"))
             .copied()
             .collect();
 
-        let colon_positions_two: Vec<usize> = section_two_items
+        let value_positions_two: Vec<usize> = section_two_items
             .iter()
-            .map(|line| line.find(':').unwrap())
+            .map(|line| line.find("value").unwrap())
             .collect();
 
         assert!(
-            colon_positions_two.windows(2).all(|w| w[0] == w[1]),
-            "Keys in SECTION TWO should have consistent padding. Colon positions: {:?}",
-            colon_positions_two
+            value_positions_two.windows(2).all(|w| w[0] == w[1]),
+            "Values in SECTION TWO should be aligned. Value positions: {:?}",
+            value_positions_two
         );
 
         // Verify that different sections can have different padding
         // (SECTION ONE should have wider padding than SECTION TWO)
         assert!(
-            colon_positions[0] > colon_positions_two[0],
+            value_positions[0] > value_positions_two[0],
             "SECTION ONE should have wider padding than SECTION TWO"
         );
     }

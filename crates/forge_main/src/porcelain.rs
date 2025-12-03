@@ -3,6 +3,7 @@ use std::fmt;
 
 use indexmap::IndexSet;
 
+use crate::display_constants::headers;
 use crate::info::{Info, Section};
 
 /// Porcelain is an intermediate representation that converts Info into a flat,
@@ -268,9 +269,12 @@ impl Porcelain {
 
         // Create new headers: [$ID, $FIELD, $VALUE]
         let new_headers = vec![
-            headers.first().cloned().unwrap_or(Some("$ID".to_string())),
-            Some("$FIELD".to_string()),
-            Some("$VALUE".to_string()),
+            headers
+                .first()
+                .cloned()
+                .unwrap_or(Some(headers::ID.to_string())),
+            Some(headers::FIELD.to_string()),
+            Some(headers::VALUE.to_string()),
         ];
 
         // Create new rows: one row per non-None field for each entity
@@ -376,7 +380,7 @@ impl From<&Info> for Porcelain {
                 Section::Items(key, value) => {
                     let default_key = format!("$VALUE_{}", cells.len());
                     let key = key.clone().unwrap_or(default_key);
-                    cells.insert(key.clone(), value.as_ref().cloned());
+                    cells.insert(key.clone(), Some(value.clone()));
                     keys.insert(key);
                 }
             }
