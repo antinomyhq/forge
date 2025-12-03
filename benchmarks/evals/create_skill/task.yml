@@ -1,10 +1,9 @@
 before_run:
   - cargo build
-run:
-  command: FORGE_DEBUG_REQUESTS='{{context_input}}' ../../target/debug/forge -p '{{skill}}'
-  parallelism: 10
-  timeout: 60
-  early_exit: true
+run: FORGE_DEBUG_REQUESTS='{{context_input}}' ../../target/debug/forge -p '{{skill}}'
+parallelism: 10
+timeout: 60
+early_exit: true
 validations:
   - name: "Uses create-skill tool"
     type: shell

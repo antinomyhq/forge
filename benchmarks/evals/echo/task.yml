@@ -1,7 +1,6 @@
-run:
-  command: echo "{{message}}"
-  parallelism: 5
-  timeout: 10
+run: echo "{{message}}"
+parallelism: 5
+timeout: 10
 validations:
   - name: "Output contains Hello"
     type: regex

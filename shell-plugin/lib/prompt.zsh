@@ -239,14 +239,9 @@ function prompt_forge_message_count_unstyled() {
 # Example:
 #   RPROMPT='$(prompt_forge_model) [$(prompt_forge_message_count)]'
 function prompt_forge_message_count() {
-    local content=$(prompt_forge_message_count_unstyled)
-    if [[ -n "$_FORGE_CONVERSATION_ID" ]]; then
-        # Active conversation: green
-        echo "%F{green}${content}%f"
-    else
-        # No conversation: dark grey
-        echo "%F{8}${content}%f"
-    fi
+    local content=$(prompt_forge_message_count_unstyled)    
+    # Active conversation: green
+    echo "%F{green}${content}%f"    
 }
 
 # End of Public API

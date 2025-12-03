@@ -809,7 +809,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 return Err(anyhow::anyhow!("Provider '{id}' is not configured"));
             }
             self.api.remove_provider(id).await?;
-            self.writeln_title(TitleFormat::completion(format!(
+            self.writeln_title(TitleFormat::debug(format!(
                 "Successfully logged out from {id}"
             )))?;
             return Ok(true);
@@ -835,7 +835,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             Some(provider) => {
                 let provider_id = provider.0.id();
                 self.api.remove_provider(&provider_id).await?;
-                self.writeln_title(TitleFormat::completion(format!(
+                self.writeln_title(TitleFormat::debug(format!(
                     "Successfully logged out from {provider_id}"
                 )))?;
                 return Ok(true);
@@ -2291,6 +2291,13 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             self.on_model_selection().await?;
         }
 
+        // Validate provider is configured before loading agents
+        // If provider is set in config but not configured (no credentials), prompt user
+        // to login
+        if self.api.get_default_provider().await.is_err() {
+            self.on_provider_selection().await?;
+        }
+
         // Create base workflow and trigger updates if this is the first initialization
         let mut base_workflow = Workflow::default();
         base_workflow.merge(workflow.clone());
@@ -2874,7 +2881,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     )?;
                 }
 
-                self.writeln_title(TitleFormat::completion(format!(
+                let path = path.canonicalize().unwrap_or(path);
+                self.writeln_title(TitleFormat::debug(format!(
                     "Successfully synced: {}",
                     path.display()
                 )))?;
@@ -3048,7 +3056,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         match self.api.delete_codebase(workspace_id.clone()).await {
             Ok(()) => {
                 self.spinner.stop(None)?;
-                self.writeln_title(TitleFormat::completion(format!(
+                self.writeln_title(TitleFormat::debug(format!(
                     "Successfully deleted workspace {}",
                     workspace_id
                 )))?;
