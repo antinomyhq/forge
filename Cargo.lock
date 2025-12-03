@@ -1558,6 +1558,7 @@ dependencies = [
  "forge_fs",
  "forge_infra",
  "forge_snaps",
+ "forge_template",
  "forge_test_kit",
  "futures",
  "gray_matter",
