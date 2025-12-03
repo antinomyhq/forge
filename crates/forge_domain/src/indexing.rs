@@ -438,7 +438,8 @@ mod tests {
                     start_line: 10,
                     end_line: 15,
                 },
-                similarity: 0.95,
+                similarity: Some(0.95),
+                distance: Some(0.05),
             }],
         };
 

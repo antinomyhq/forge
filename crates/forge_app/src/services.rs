@@ -354,7 +354,7 @@ pub trait ContextEngineService: Send + Sync {
             query_results.retain(|result| {
                 best_scores
                     .get(result.node.node_id())
-                    .map_or(true, |best| best.query_idx == query_idx)
+                    .is_none_or(|best| best.query_idx == query_idx)
             });
         }
 
