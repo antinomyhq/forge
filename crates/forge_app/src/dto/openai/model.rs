@@ -99,7 +99,7 @@ impl From<Model> for forge_domain::Model {
 
         let tools_supported = has_param("tools");
         let supports_parallel_tool_calls = has_param("supports_parallel_tool_calls");
-        let is_reasoning_supported = has_param("reasoning");
+        let supports_reasoning = has_param("reasoning");
 
         forge_domain::Model {
             id: value.id,
@@ -108,7 +108,7 @@ impl From<Model> for forge_domain::Model {
             context_length: value.context_length,
             tools_supported,
             supports_parallel_tool_calls,
-            supports_reasoning: is_reasoning_supported,
+            supports_reasoning,
         }
     }
 }
