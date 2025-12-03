@@ -281,7 +281,7 @@ pub enum CodeNode {
     /// File chunk with precise line numbers
     FileChunk {
         /// Node ID
-        node_id: String,
+        node_id: String, // FIXME: Create a newtype - NodeId
         /// File path
         file_path: String,
         /// Code content
