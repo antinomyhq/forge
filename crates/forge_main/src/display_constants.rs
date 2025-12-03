@@ -13,11 +13,11 @@
 //! ```rust,ignore
 //! use crate::display_constants::{placeholders, status};
 //!
-//! // For missing data
-//! let value = some_optional.unwrap_or(placeholders::UNKNOWN);
+//! // For special values
+//! let empty = placeholders::EMPTY;  // "[empty]"
 //!
 //! // For status indicators
-//! info.add_key_value("status", status::AVAILABLE);
+//! info.add_key_value("status", status::ENABLED);  // "[enabled]"
 //! ```
 
 use std::fmt;
@@ -37,7 +37,7 @@ pub mod placeholders {
 /// Use lowercase for user-facing status strings to maintain consistency.
 pub mod status {
     /// Indicates a resource is available/configured
-    pub const AVAILABLE: &str = "[available]";
+    pub const ENABLED: &str = "[enabled]";
 
     /// Indicates a resource is disabled
     pub const DISABLED: &str = "[disabled]";
@@ -125,14 +125,24 @@ mod tests {
     }
 
     #[test]
-    fn test_placeholders_have_angle_brackets() {
-        assert!(placeholders::EMPTY.starts_with('<'));
-        assert!(placeholders::EMPTY.starts_with('<'));
-        assert!(placeholders::EMPTY.starts_with('<'));
+    fn test_placeholders_use_square_brackets() {
+        // EMPTY uses square brackets like other special markers
+        assert!(placeholders::EMPTY.starts_with('['));
+        assert!(placeholders::EMPTY.ends_with(']'));
     }
 
     #[test]
     fn test_markers_have_square_brackets() {
         assert!(markers::BUILT_IN.starts_with('['));
+        assert!(markers::BUILT_IN.ends_with(']'));
+    }
+
+    #[test]
+    fn test_status_values_use_square_brackets() {
+        // Status values use square brackets to distinguish them from raw strings
+        assert!(status::ENABLED.starts_with('['));
+        assert!(status::ENABLED.ends_with(']'));
+        assert!(status::DISABLED.starts_with('['));
+        assert!(status::DISABLED.ends_with(']'));
     }
 }

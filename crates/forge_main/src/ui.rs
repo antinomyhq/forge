@@ -917,9 +917,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .and_then(|a| a.enabled)
                 .unwrap_or_default()
             {
-                "ENABLED"
+                status::ENABLED
             } else {
-                "DISABLED"
+                status::DISABLED
             };
 
             let location = agent
@@ -987,7 +987,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .add_key_value("host", domain)
                 .add_key_value("type", provider_type);
             if configured {
-                info = info.add_key_value("status", status::AVAILABLE);
+                info = info.add_key_value("status", status::ENABLED);
             };
         }
 
@@ -1627,14 +1627,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 let info = self.build_agents_info().await?;
 
                 // Convert to porcelain format (same as list agents --porcelain)
-                let porcelain_output = Porcelain::from(&info)
-                    .drop_col(0)
-                    .map_col(4, |text| match text.as_deref() {
-                        Some("ENABLED") => Some("Reasoning".to_string()),
-                        Some("DISABLED") => Some("Non-Reasoning".to_string()),
-                        _ => None,
-                    })
-                    .uppercase_headers();
+                let porcelain_output = Porcelain::from(&info).drop_col(0).uppercase_headers();
 
                 // Split the porcelain output into lines and create agents
                 let porcelain_lines: Vec<String> = porcelain_output

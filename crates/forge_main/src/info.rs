@@ -43,16 +43,11 @@ impl Section {
 /// - Keys are displayed in **green bold**
 ///
 /// ## Values
-/// - Use the constants from [`crate::display_constants`] for placeholder/status
-///   values
-/// - For missing/unknown data: Use `placeholders::UNKNOWN` (`<unknown>`)
-/// - For unset configuration: Use `placeholders::NOT_SET` (`<not set>`)
-/// - For unavailable features: Use `placeholders::UNAVAILABLE`
-///   (`<unavailable>`)
+/// - Use the constants from [`crate::display_constants`] for special values
 /// - For empty values: Use `placeholders::EMPTY` (`[empty]`)
-/// - For None values: Use `placeholders::NONE` (`None`)
-/// - For statuses: Use lowercase (e.g., `status::AVAILABLE`,
-///   `status::DISABLED`)
+/// - For statuses: Use `status::ENABLED` (`[enabled]`) or `status::DISABLED`
+///   (`[disabled]`)
+/// - For actual values: Use the raw value (e.g., "gpt-4", "/home/user")
 ///
 /// ## Sections
 /// - Use **UPPERCASE** for section titles
@@ -69,8 +64,8 @@ impl Section {
 /// let info = Info::new()
 ///     .add_title("CONFIGURATION")
 ///     .add_key_value("Model", "gpt-4")
-///     .add_key_value("Provider", placeholders::NOT_SET)  // Use constant for unset
-///     .add_key_value("Status", status::AVAILABLE)       // Use constant for status
+///     .add_key_value("Provider", "openai")
+///     .add_key_value("Status", status::ENABLED)
 ///     .add_title("METRICS")
 ///     .add_key_value("Tokens", "1000")
 ///     .add_key_value("Cost", "$0.02");
@@ -84,8 +79,8 @@ impl Section {
 /// 
 /// CONFIGURATION
 ///   model gpt-4
-/// provider <not set>
-///   status available
+/// provider openai
+///   status [enabled]
 ///
 /// METRICS
 /// tokens 1000
@@ -187,29 +182,24 @@ impl Info {
     /// - Avoid abbreviations unless widely known
     ///
     /// ## Values
-    /// - For placeholders/missing data: Use constants from
-    ///   [`crate::display_constants::placeholders`]
-    ///   - `placeholders::UNKNOWN` - unknown value (`<unknown>`)
-    ///   - `placeholders::NOT_SET` - not configured (`<not set>`)
-    ///   - `placeholders::UNAVAILABLE` - feature unavailable (`<unavailable>`)
+    /// - Use the constants from [`crate::display_constants`] for special
+    ///   values:
     ///   - `placeholders::EMPTY` - empty value (`[empty]`)
-    ///   - `placeholders::NONE` - None variant (`None`)
-    /// - For statuses: Use constants from [`crate::display_constants::status`]
-    ///   - `status::AVAILABLE` - available/configured (`available`)
-    ///   - `status::DISABLED` - disabled (`disabled`)
+    ///   - `status::ENABLED` - enabled/configured (`[enabled]`)
+    ///   - `status::DISABLED` - disabled (`[disabled]`)
     /// - For actual values: Use the raw value (e.g., "gpt-4", "/home/user")
     ///
     /// # Examples
     ///
     /// ```rust,ignore
-    /// use crate::display_constants::{placeholders, status};
+    /// use crate::display_constants::status;
     ///
     /// let info = Info::new()
     ///     .add_title("CONFIGURATION")
-    ///     // Correct: Title Case key, constant for placeholder
-    ///     .add_key_value("Default Model", model.unwrap_or(placeholders::NOT_SET))
+    ///     // Correct: Raw value for actual data
+    ///     .add_key_value("Default Model", "gpt-4")
     ///     // Correct: Status constant for status values
-    ///     .add_key_value("Provider Status", status::AVAILABLE)
+    ///     .add_key_value("Provider Status", status::ENABLED)
     ///     // Correct: Raw value for actual data
     ///     .add_key_value("API URL", "https://api.example.com");
     /// ```
@@ -221,10 +211,10 @@ impl Info {
     /// .add_key_value("model", "gpt-4")
     ///
     /// // ❌ Wrong: raw string instead of constant
-    /// .add_key_value("Model", "<not set>")
+    /// .add_key_value("Status", "[enabled]")
     ///
     /// // ✅ Correct: Title Case key with constant
-    /// .add_key_value("Model", placeholders::NOT_SET)
+    /// .add_key_value("Status", status::ENABLED)
     /// ```
     pub fn add_key_value(self, key: impl ToString, value: impl IntoInfoValue) -> Self {
         let key_str = key.to_string();
