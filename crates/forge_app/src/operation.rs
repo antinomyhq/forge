@@ -1614,7 +1614,7 @@ mod tests {
                     results: vec![
                         CodeSearchResult {
                             node: CodeNode::FileChunk {
-                                node_id: "node1".to_string(),
+                                node_id: "node1".into(),
                                 file_path: "src/retry.rs".to_string(),
                                 content: "fn retry_with_backoff(max_attempts: u32) {\n    let mut delay = 100;\n    for attempt in 0..max_attempts {\n        if try_operation().is_ok() {\n            return;\n        }\n        thread::sleep(Duration::from_millis(delay));\n        delay *= 2;\n    }\n}".to_string(),
                                 start_line: 10,
@@ -1626,7 +1626,7 @@ mod tests {
                         },
                         CodeSearchResult {
                             node: CodeNode::FileChunk {
-                                node_id: "node2".to_string(),
+                                node_id: "node2".into(),
                                 file_path: "src/http/client.rs".to_string(),
                                 content: "async fn request_with_retry(&self, url: &str) -> Result<Response> {\n    const MAX_RETRIES: usize = 3;\n    let mut backoff = ExponentialBackoff::default();\n    // Implementation...\n}".to_string(),
                                 start_line: 45,
@@ -1666,7 +1666,7 @@ mod tests {
                     use_case: "need to add similar auth to my endpoint".to_string(),
                     results: vec![CodeSearchResult {
                         node: CodeNode::FileChunk {
-                            node_id: "node1".to_string(),
+                            node_id: "node1".into(),
                             file_path: "src/auth.rs".to_string(),
                             content: "fn authenticate_user(token: &str) -> Result<User> {\n    verify_jwt(token)\n}".to_string(),
                             start_line: 10,

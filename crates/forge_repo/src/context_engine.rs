@@ -242,28 +242,29 @@ impl ContextEngineRepository for ForgeContextEngineRepository {
                 // Convert proto node to domain CodeNode based on type
                 let code_node = match node_data.kind? {
                     node_data::Kind::FileChunk(chunk) => forge_domain::CodeNode::FileChunk {
-                        node_id,
+                        node_id: node_id.clone().into(),
                         file_path: chunk.path,
                         content: chunk.content,
                         start_line: chunk.start_line,
                         end_line: chunk.end_line,
                     },
                     node_data::Kind::File(file) => forge_domain::CodeNode::File {
-                        node_id: node_id.clone(),
+                        node_id: node_id.clone().into(),
                         file_path: file.path,
                         content: file.content,
                         hash: node.hash,
                     },
                     node_data::Kind::FileRef(file_ref) => forge_domain::CodeNode::FileRef {
-                        node_id,
+                        node_id: node_id.clone().into(),
                         file_path: file_ref.path,
                         file_hash: file_ref.file_hash,
                     },
-                    node_data::Kind::Note(note) => {
-                        forge_domain::CodeNode::Note { node_id, content: note.content }
-                    }
+                    node_data::Kind::Note(note) => forge_domain::CodeNode::Note {
+                        node_id: node_id.into(),
+                        content: note.content,
+                    },
                     node_data::Kind::Task(task) => {
-                        forge_domain::CodeNode::Task { node_id, task: task.task }
+                        forge_domain::CodeNode::Task { node_id: node_id.into(), task: task.task }
                     }
                 };
 

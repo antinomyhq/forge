@@ -115,6 +115,44 @@ impl UserId {
     }
 }
 
+/// Node identifier for code graph nodes.
+///
+/// Uniquely identifies a node in the codebase graph (file chunks, files,
+/// notes, tasks, etc.).
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Display)]
+#[display("{}", _0)]
+pub struct NodeId(String);
+
+impl NodeId {
+    /// Create a new node ID from a string
+    pub fn new(id: impl Into<String>) -> Self {
+        Self(id.into())
+    }
+
+    /// Get the node ID as a string slice
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl From<String> for NodeId {
+    fn from(s: String) -> Self {
+        Self(s)
+    }
+}
+
+impl From<&str> for NodeId {
+    fn from(s: &str) -> Self {
+        Self(s.to_string())
+    }
+}
+
+impl AsRef<str> for NodeId {
+    fn as_ref(&self) -> &str {
+        &self.0
+    }
+}
+
 /// Git repository information for a workspace
 ///
 /// Contains commit hash and branch name for version tracking
@@ -281,7 +319,7 @@ pub enum CodeNode {
     /// File chunk with precise line numbers
     FileChunk {
         /// Node ID
-        node_id: String, // FIXME: Create a newtype - NodeId
+        node_id: NodeId,
         /// File path
         file_path: String,
         /// Code content
@@ -294,7 +332,7 @@ pub enum CodeNode {
     /// Full file content
     File {
         /// Node ID
-        node_id: String,
+        node_id: NodeId,
         /// File path
         file_path: String,
         /// File content
@@ -305,7 +343,7 @@ pub enum CodeNode {
     /// File reference (path only, no content)
     FileRef {
         /// Node ID
-        node_id: String,
+        node_id: NodeId,
         /// File path
         file_path: String,
         /// SHA-256 hash of the file content
@@ -314,14 +352,14 @@ pub enum CodeNode {
     /// Note content
     Note {
         /// Node ID
-        node_id: String,
+        node_id: NodeId,
         /// Note content
         content: String,
     },
     /// Task description
     Task {
         /// Node ID
-        node_id: String,
+        node_id: NodeId,
         /// Task description
         task: String,
     },
@@ -330,12 +368,13 @@ pub enum CodeNode {
 impl CodeNode {
     /// Get the node ID for any variant
     pub fn node_id(&self) -> &str {
+        // FIXME: Should return &NodeId
         match self {
             Self::FileChunk { node_id, .. }
             | Self::File { node_id, .. }
             | Self::FileRef { node_id, .. }
             | Self::Note { node_id, .. }
-            | Self::Task { node_id, .. } => node_id,
+            | Self::Task { node_id, .. } => node_id.as_str(),
         }
     }
 
@@ -437,7 +476,7 @@ mod tests {
             use_case: "authentication".to_string(),
             results: vec![CodeSearchResult {
                 node: CodeNode::FileChunk {
-                    node_id: "node-1".to_string(),
+                    node_id: "node-1".into(),
                     file_path: "src/auth.rs".to_string(),
                     content: "fn authenticate() {}".to_string(),
                     start_line: 10,

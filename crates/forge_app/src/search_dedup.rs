@@ -16,16 +16,16 @@ use forge_domain::CodeSearchResult;
 /// Priority: relevance (higher is better) → distance (lower is better) →
 /// similarity (higher is better) → query index (lower is better, tie-breaker).
 #[derive(Debug, Clone, PartialEq)]
-pub struct BestScore {
+struct Score {
     query_idx: usize,
     relevance: Option<f32>,
     distance: Option<f32>,
     similarity: Option<f32>,
 }
 
-impl BestScore {
+impl Score {
     /// Creates a new `BestScore` from a query index and search result.
-    pub fn new(query_idx: usize, result: &CodeSearchResult) -> Self {
+    fn new(query_idx: usize, result: &CodeSearchResult) -> Self {
         Self {
             query_idx,
             relevance: result.relevance,
@@ -35,15 +35,15 @@ impl BestScore {
     }
 }
 
-impl Eq for BestScore {}
+impl Eq for Score {}
 
-impl PartialOrd for BestScore {
+impl PartialOrd for Score {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl Ord for BestScore {
+impl Ord for Score {
     fn cmp(&self, other: &Self) -> Ordering {
         /// Helper to compare two `Option<f32>` values (higher is better).
         ///
@@ -82,13 +82,13 @@ impl Ord for BestScore {
 /// Returns an error if node IDs cannot be extracted from results.
 pub fn deduplicate_results(results: &mut [Vec<CodeSearchResult>]) {
     // Track best score for each node_id across all queries
-    let mut best_scores: HashMap<String, BestScore> = HashMap::new();
+    let mut best_scores: HashMap<String, Score> = HashMap::new();
 
     // First pass: find which query has the best score for each node
     for (query_idx, query_results) in results.iter().enumerate() {
         for result in query_results {
             let node_id = result.node.node_id().to_string();
-            let current_score = BestScore::new(query_idx, result);
+            let current_score = Score::new(query_idx, result);
 
             match best_scores.entry(node_id) {
                 std::collections::hash_map::Entry::Occupied(mut entry) => {
@@ -138,22 +138,22 @@ mod tests {
 
     #[test]
     fn test_best_score_ordering_by_relevance() {
-        let score1 = BestScore::new(0, &result("node_a").relevance(0.9));
-        let score2 = BestScore::new(1, &result("node_a").relevance(0.8));
+        let score1 = Score::new(0, &result("node_a").relevance(0.9));
+        let score2 = Score::new(1, &result("node_a").relevance(0.8));
 
         assert!(score1 > score2);
     }
 
     #[test]
     fn test_best_score_ordering_by_distance_when_relevance_equal() {
-        let score1 = BestScore::new(
+        let score1 = Score::new(
             0,
             &result("node_a")
                 .relevance(0.9)
                 .distance(0.1)
                 .similarity(0.9),
         );
-        let score2 = BestScore::new(
+        let score2 = Score::new(
             1,
             &result("node_a")
                 .relevance(0.9)
@@ -166,14 +166,14 @@ mod tests {
 
     #[test]
     fn test_best_score_ordering_by_similarity_when_relevance_distance_equal() {
-        let score1 = BestScore::new(
+        let score1 = Score::new(
             0,
             &result("node_a")
                 .relevance(0.9)
                 .distance(0.1)
                 .similarity(0.95),
         );
-        let score2 = BestScore::new(
+        let score2 = Score::new(
             1,
             &result("node_a")
                 .relevance(0.9)
@@ -186,14 +186,14 @@ mod tests {
 
     #[test]
     fn test_best_score_ordering_by_query_idx_when_all_equal() {
-        let score1 = BestScore::new(
+        let score1 = Score::new(
             0,
             &result("node_a")
                 .relevance(0.9)
                 .distance(0.1)
                 .similarity(0.9),
         );
-        let score2 = BestScore::new(
+        let score2 = Score::new(
             1,
             &result("node_a")
                 .relevance(0.9)
@@ -206,8 +206,8 @@ mod tests {
 
     #[test]
     fn test_best_score_some_value_better_than_none() {
-        let score1 = BestScore::new(0, &result("node_a").relevance(0.5));
-        let score2 = BestScore::new(1, &result("node_a"));
+        let score1 = Score::new(0, &result("node_a").relevance(0.5));
+        let score2 = Score::new(1, &result("node_a"));
 
         assert!(score1 > score2);
     }
