@@ -22,16 +22,6 @@
 
 use std::fmt;
 
-/// Placeholder values for missing, unknown, or unavailable data.
-///
-/// These constants use angle brackets to indicate placeholder values
-/// (e.g., `<unknown>`, `<not set>`).
-pub mod placeholders {
-
-    /// Indicates an empty value (distinct from null/unset)
-    pub const EMPTY: &str = "[empty]";
-}
-
 /// Status indicator values.
 ///
 /// Use lowercase for user-facing status strings to maintain consistency.
@@ -48,19 +38,22 @@ pub mod status {
 /// These headers use the `$` prefix to distinguish them as metadata columns.
 pub mod headers {
     /// Default ID column header
-    pub const ID: &str = "ID";
+    pub const ID: &str = "$ID";
 
     /// Field name column header
-    pub const FIELD: &str = "FIELD";
+    pub const FIELD: &str = "$FIELD";
 
     /// Field value column header
-    pub const VALUE: &str = "VALUE";
+    pub const VALUE: &str = "$VALUE";
 }
 
 /// Special markers for specific contexts.
 ///
 /// These use square brackets to indicate special/synthetic values.
 pub mod markers {
+    /// Indicates an empty value (distinct from null/unset)
+    pub const EMPTY: &str = "[empty]";
+
     /// Indicates a built-in (non-user-defined) component
     pub const BUILT_IN: &str = "[built-in]";
 
@@ -130,8 +123,8 @@ mod tests {
     #[test]
     fn test_placeholders_use_square_brackets() {
         // EMPTY uses square brackets like other special markers
-        assert!(placeholders::EMPTY.starts_with('['));
-        assert!(placeholders::EMPTY.ends_with(']'));
+        assert!(markers::EMPTY.starts_with('['));
+        assert!(markers::EMPTY.ends_with(']'));
     }
 
     #[test]

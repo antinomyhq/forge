@@ -364,6 +364,8 @@ impl From<&Info> for Porcelain {
         let mut in_row = false;
         // Extract all unique keys
         let mut keys = IndexSet::new();
+        // Track count of unnamed values separately
+        let mut value_counter = 1;
 
         for section in info.sections() {
             match section {
@@ -371,6 +373,7 @@ impl From<&Info> for Porcelain {
                     if in_row {
                         rows.push(cells.clone());
                         cells = HashMap::new();
+                        value_counter = 1;
                     }
 
                     in_row = true;
@@ -378,8 +381,13 @@ impl From<&Info> for Porcelain {
                     keys.insert("$ID".to_owned());
                 }
                 Section::Items(key, value) => {
-                    let default_key = format!("$VALUE_{}", cells.len());
-                    let key = key.clone().unwrap_or(default_key);
+                    let key = if let Some(k) = key.clone() {
+                        k
+                    } else {
+                        let default_key = format!("$VALUE_{}", value_counter);
+                        value_counter += 1;
+                        default_key
+                    };
                     cells.insert(key.clone(), Some(value.clone()));
                     keys.insert(key);
                 }

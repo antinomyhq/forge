@@ -8,7 +8,7 @@ use forge_app::utils::truncate_key;
 use forge_tracker::VERSION;
 use num_format::{Locale, ToFormattedString};
 
-use crate::display_constants::placeholders;
+use crate::display_constants::markers;
 use crate::model::ForgeCommandManager;
 
 #[derive(Debug, PartialEq)]
@@ -76,7 +76,7 @@ impl Section {
 /// # Output Format
 ///
 /// ```text
-///
+/// 
 /// CONFIGURATION
 ///   model gpt-4
 /// provider openai
@@ -225,9 +225,7 @@ impl Info {
     fn add_item(mut self, key: Option<impl ToString>, value: impl IntoInfoValue) -> Self {
         self.sections.push(Section::Items(
             key.map(|a| a.to_string()),
-            value
-                .into_value()
-                .unwrap_or(placeholders::EMPTY.to_string()),
+            value.into_value().unwrap_or(markers::EMPTY.to_string()),
         ));
         self
     }
@@ -352,7 +350,7 @@ impl From<&Environment> for Info {
                     .min_tls_version
                     .as_ref()
                     .map(|v| format!("{v}"))
-                    .unwrap_or_else(|| placeholders::EMPTY.to_string()),
+                    .unwrap_or_else(|| markers::EMPTY.to_string()),
             )
             .add_key_value(
                 "Max TLS Version",
@@ -360,7 +358,7 @@ impl From<&Environment> for Info {
                     .max_tls_version
                     .as_ref()
                     .map(|v| format!("{v}"))
-                    .unwrap_or_else(|| placeholders::EMPTY.to_string()),
+                    .unwrap_or_else(|| markers::EMPTY.to_string()),
             )
             .add_key_value("Adaptive Window", env.http.adaptive_window.to_string())
             .add_key_value(
@@ -385,7 +383,7 @@ impl From<&Environment> for Info {
                     .root_cert_paths
                     .as_ref()
                     .map(|paths| paths.join(", "))
-                    .unwrap_or_else(|| placeholders::EMPTY.to_string()),
+                    .unwrap_or_else(|| markers::EMPTY.to_string()),
             )
             .add_title("API CONFIGURATION")
             .add_key_value("Forge API URL", env.forge_api_url.to_string())

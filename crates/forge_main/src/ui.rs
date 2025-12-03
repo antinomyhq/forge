@@ -33,7 +33,7 @@ use crate::cli::{
     TopLevelCommand,
 };
 use crate::conversation_selector::ConversationSelector;
-use crate::display_constants::{CommandType, markers, placeholders, status};
+use crate::display_constants::{CommandType, markers, status};
 use crate::env::should_show_completion_prompt;
 use crate::info::Info;
 use crate::input::Console;
@@ -976,7 +976,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             let domain = if let Some(url) = provider.url() {
                 url.domain().map(|d| d.to_string()).unwrap_or_default()
             } else {
-                placeholders::EMPTY.to_string()
+                markers::EMPTY.to_string()
             };
             let provider_type = provider.provider_type().to_string();
             let configured = provider.is_configured();
@@ -1029,7 +1029,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 };
                 info = info.add_key_value("Context Window", context);
             } else {
-                info = info.add_key_value("Context Window", placeholders::EMPTY)
+                info = info.add_key_value("Context Window", markers::EMPTY)
             }
 
             // Add tools support indicator if explicitly supported
@@ -1039,7 +1039,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     if supported { status::YES } else { status::NO },
                 )
             } else {
-                info = info.add_key_value("Tools", placeholders::EMPTY)
+                info = info.add_key_value("Tools", markers::EMPTY)
             }
         }
 
@@ -1188,13 +1188,13 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .get_agent_model(None)
             .await
             .map(|m| m.as_str().to_string());
-        let model = model.unwrap_or_else(|| placeholders::EMPTY.to_string());
+        let model = model.unwrap_or_else(|| markers::EMPTY.to_string());
         let provider = self
             .get_provider(None)
             .await
             .ok()
             .map(|p| p.id.to_string())
-            .unwrap_or_else(|| placeholders::EMPTY.to_string());
+            .unwrap_or_else(|| markers::EMPTY.to_string());
 
         let info = Info::new()
             .add_title("CONFIGURATION")
@@ -1475,7 +1475,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .title
                 .as_deref()
                 .map(|t| t.to_string())
-                .unwrap_or_else(|| format!("<untitled> [{}]", conv.id));
+                .unwrap_or_else(|| markers::EMPTY.to_string());
 
             // Format time using humantime library (same as conversation_selector.rs)
             let duration = chrono::Utc::now().signed_duration_since(
@@ -2937,9 +2937,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let mut info = Info::new();
 
         let title = if is_active {
-            format!("Workspace [Current]")
+            "Workspace [Current]".to_string()
         } else {
-            format!("Workspace")
+            "Workspace".to_string()
         };
         info = info.add_title(title);
 
