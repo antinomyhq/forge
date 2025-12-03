@@ -917,9 +917,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .and_then(|a| a.enabled)
                 .unwrap_or_default()
             {
-                status::ENABLED
+                status::YES
             } else {
-                status::DISABLED
+                status::NO
             };
 
             let location = agent
@@ -935,7 +935,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .add_key_value("Location", location)
                 .add_key_value("Provider", provider_name)
                 .add_key_value("Model", model_name)
-                .add_key_value("Reasoning", reasoning);
+                .add_key_value("Reasoning Enabled", reasoning);
         }
 
         Ok(info)
@@ -987,7 +987,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .add_key_value("host", domain)
                 .add_key_value("type", provider_type);
             if configured {
-                info = info.add_key_value("status", status::ENABLED);
+                info = info.add_key_value("logged in", status::YES);
             };
         }
 
@@ -1035,12 +1035,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             // Add tools support indicator if explicitly supported
             if let Some(supported) = model.tools_supported {
                 info = info.add_key_value(
-                    "Tools",
-                    if supported {
-                        status::SUPPORTED
-                    } else {
-                        status::UNSUPPORTED
-                    },
+                    "Tool Supported",
+                    if supported { status::YES } else { status::NO },
                 )
             } else {
                 info = info.add_key_value("Tools", placeholders::EMPTY)
@@ -1275,7 +1271,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
 
             if server.is_disabled() {
-                info = info.add_key_value("Status", status::DISABLED);
+                info = info.add_key_value("Status", status::NO);
             }
 
             // Add tools for this MCP server
@@ -2940,16 +2936,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         let mut info = Info::new();
 
-        let timestamp = workspace
-            .created_at
-            .with_timezone(&chrono::Local)
-            .format("%Y-%m-%d %H:%M:%S %Z")
-            .to_string();
-
         let title = if is_active {
-            format!("Workspace {}", markers::ACTIVE)
+            format!("Workspace [Current]")
         } else {
-            format!("Workspace [{}]", timestamp)
+            format!("Workspace")
         };
         info = info.add_title(title);
 

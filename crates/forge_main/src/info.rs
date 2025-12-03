@@ -8,7 +8,7 @@ use forge_app::utils::truncate_key;
 use forge_tracker::VERSION;
 use num_format::{Locale, ToFormattedString};
 
-use crate::display_constants::{placeholders, status};
+use crate::display_constants::placeholders;
 use crate::model::ForgeCommandManager;
 
 #[derive(Debug, PartialEq)]
@@ -76,7 +76,7 @@ impl Section {
 /// # Output Format
 ///
 /// ```text
-/// 
+///
 /// CONFIGURATION
 ///   model gpt-4
 /// provider openai
@@ -365,10 +365,7 @@ impl From<&Environment> for Info {
             .add_key_value("Adaptive Window", env.http.adaptive_window.to_string())
             .add_key_value(
                 "Keep-Alive Interval",
-                env.http
-                    .keep_alive_interval
-                    .map(|v| format!("{v}s"))
-                    .unwrap_or_else(|| status::DISABLED.to_string()),
+                env.http.keep_alive_interval.map(|v| format!("{v}s")),
             )
             .add_key_value(
                 "Keep-Alive Timeout",

@@ -37,16 +37,10 @@ pub mod placeholders {
 /// Use lowercase for user-facing status strings to maintain consistency.
 pub mod status {
     /// Indicates a resource is enabled/configured
-    pub const ENABLED: &str = "[enabled]";
+    pub const YES: &str = "[yes]";
 
     /// Indicates a resource is disabled
-    pub const DISABLED: &str = "[disabled]";
-
-    /// Indicates a feature is supported
-    pub const SUPPORTED: &str = "[supported]";
-
-    /// Indicates a feature is not supported
-    pub const UNSUPPORTED: &str = "[unsupported]";
+    pub const NO: &str = "[no]";
 }
 
 /// Table column headers for porcelain (machine-readable) output.
@@ -54,13 +48,13 @@ pub mod status {
 /// These headers use the `$` prefix to distinguish them as metadata columns.
 pub mod headers {
     /// Default ID column header
-    pub const ID: &str = "$ID";
+    pub const ID: &str = "ID";
 
     /// Field name column header
-    pub const FIELD: &str = "$FIELD";
+    pub const FIELD: &str = "FIELD";
 
     /// Field value column header
-    pub const VALUE: &str = "$VALUE";
+    pub const VALUE: &str = "VALUE";
 }
 
 /// Special markers for specific contexts.
@@ -72,9 +66,6 @@ pub mod markers {
 
     /// Indicates a resource is unavailable (e.g., provider not configured)
     pub const UNAVAILABLE: &str = "[unavailable]";
-
-    /// Indicates the active/current selection
-    pub const ACTIVE: &str = "[ACTIVE]";
 }
 
 /// Type discriminator for commands, agents, and custom entries.
@@ -149,20 +140,14 @@ mod tests {
         assert!(markers::BUILT_IN.ends_with(']'));
         assert!(markers::UNAVAILABLE.starts_with('['));
         assert!(markers::UNAVAILABLE.ends_with(']'));
-        assert!(markers::ACTIVE.starts_with('['));
-        assert!(markers::ACTIVE.ends_with(']'));
     }
 
     #[test]
     fn test_status_values_use_square_brackets() {
         // Status values use square brackets to distinguish them from raw strings
-        assert!(status::ENABLED.starts_with('['));
-        assert!(status::ENABLED.ends_with(']'));
-        assert!(status::DISABLED.starts_with('['));
-        assert!(status::DISABLED.ends_with(']'));
-        assert!(status::SUPPORTED.starts_with('['));
-        assert!(status::SUPPORTED.ends_with(']'));
-        assert!(status::UNSUPPORTED.starts_with('['));
-        assert!(status::UNSUPPORTED.ends_with(']'));
+        assert!(status::YES.starts_with('['));
+        assert!(status::YES.ends_with(']'));
+        assert!(status::NO.starts_with('['));
+        assert!(status::NO.ends_with(']'));
     }
 }
