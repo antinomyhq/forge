@@ -16,7 +16,7 @@ use crate::orch::Orchestrator;
 use crate::set_conversation_id::SetConversationId;
 use crate::system_prompt::SystemPrompt;
 use crate::user_prompt::UserPromptGenerator;
-use crate::{AgentService, AttachmentService, TemplateService};
+use crate::{AgentService, AttachmentService, SkillFetchService, TemplateService};
 
 #[derive(Embed)]
 #[folder = "../../templates/"]
@@ -83,7 +83,7 @@ impl Runner {
         let system_tools = setup.tools.clone();
         let agent = agent
             .apply_workflow_config(&setup.workflow)
-            .set_model_deeply(setup.model.clone());
+            .model(setup.model.clone());
 
         // Render system prompt into context.
         let conversation = SystemPrompt::new(services.clone(), setup.env.clone(), agent.clone())
@@ -200,5 +200,16 @@ impl TemplateService for Runner {
 impl AttachmentService for Runner {
     async fn attachments(&self, _url: &str) -> anyhow::Result<Vec<forge_domain::Attachment>> {
         Ok(self.attachments.clone())
+    }
+}
+
+#[async_trait::async_trait]
+impl SkillFetchService for Runner {
+    async fn fetch_skill(&self, _skill_name: String) -> anyhow::Result<forge_domain::Skill> {
+        unimplemented!("SkillFetchService not implemented for test Runner")
+    }
+
+    async fn list_skills(&self) -> anyhow::Result<Vec<forge_domain::Skill>> {
+        Ok(vec![])
     }
 }

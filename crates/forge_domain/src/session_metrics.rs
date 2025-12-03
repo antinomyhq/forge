@@ -10,17 +10,15 @@ pub use crate::file_operation::FileOperation;
 #[derive(Debug, Clone, Default, Setters, Serialize, Deserialize)]
 #[setters(into, strip_option)]
 pub struct Metrics {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub started_at: Option<DateTime<Utc>>,
 
     /// Holds the last file operation for each file
+    #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub file_operations: HashMap<String, FileOperation>,
 }
 
 impl Metrics {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
     /// Records a file operation, replacing any previous operation for the same
     /// file
     pub fn insert(mut self, path: String, metrics: FileOperation) -> Self {
@@ -45,13 +43,13 @@ mod tests {
 
     #[test]
     fn test_metrics_new() {
-        let actual = Metrics::new();
+        let actual = Metrics::default();
         assert_eq!(actual.file_operations.len(), 0);
     }
 
     #[test]
     fn test_metrics_record_file_operation() {
-        let fixture = Metrics::new()
+        let fixture = Metrics::default()
             .insert(
                 "file1.rs".to_string(),
                 FileOperation::new(ToolKind::Write)
@@ -93,7 +91,7 @@ mod tests {
         let path = "file_to_track.rs".to_string();
 
         // Do operation
-        let metrics = Metrics::new().insert(
+        let metrics = Metrics::default().insert(
             path.clone(),
             FileOperation::new(ToolKind::Write)
                 .lines_added(2u64)
@@ -121,7 +119,7 @@ mod tests {
     fn test_metrics_record_multiple_file_operations() {
         let path = "file1.rs".to_string();
 
-        let metrics = Metrics::new()
+        let metrics = Metrics::default()
             .insert(
                 path.clone(),
                 FileOperation::new(ToolKind::Write)

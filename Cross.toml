@@ -9,5 +9,53 @@ passthrough = [
     "POSTHOG_API_SECRET",
 ]
 
+# Install modern protoc in all Cross containers
+# apt-get's protobuf-compiler is too old (proto2 only), so we download from GitHub
+[target.x86_64-unknown-linux-musl]
+pre-build = [
+    "apt-get update && apt-get install -y curl unzip",
+    "curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v28.3/protoc-28.3-linux-x86_64.zip",
+    "unzip -o protoc-28.3-linux-x86_64.zip -d /usr/local bin/protoc",
+    "unzip -o protoc-28.3-linux-x86_64.zip -d /usr/local 'include/*'",
+    "chmod +x /usr/local/bin/protoc",
+]
+
+[target.aarch64-unknown-linux-musl]
+pre-build = [
+    "dpkg --add-architecture amd64",
+    "apt-get update && apt-get install -y curl:amd64 unzip:amd64",
+    "curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v28.3/protoc-28.3-linux-x86_64.zip",
+    "unzip -o protoc-28.3-linux-x86_64.zip -d /usr/local bin/protoc",
+    "unzip -o protoc-28.3-linux-x86_64.zip -d /usr/local 'include/*'",
+    "chmod +x /usr/local/bin/protoc",
+]
+
+[target.x86_64-unknown-linux-gnu]
+pre-build = [
+    "apt-get update && apt-get install -y curl unzip",
+    "curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v28.3/protoc-28.3-linux-x86_64.zip",
+    "unzip -o protoc-28.3-linux-x86_64.zip -d /usr/local bin/protoc",
+    "unzip -o protoc-28.3-linux-x86_64.zip -d /usr/local 'include/*'",
+    "chmod +x /usr/local/bin/protoc",
+]
+
+[target.aarch64-unknown-linux-gnu]
+pre-build = [
+    "dpkg --add-architecture amd64",
+    "apt-get update && apt-get install -y curl:amd64 unzip:amd64",
+    "curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v28.3/protoc-28.3-linux-x86_64.zip",
+    "unzip -o protoc-28.3-linux-x86_64.zip -d /usr/local bin/protoc",
+    "unzip -o protoc-28.3-linux-x86_64.zip -d /usr/local 'include/*'",
+    "chmod +x /usr/local/bin/protoc",
+]
+
 [target.aarch64-linux-android]
 image = "ghcr.io/cross-rs/aarch64-linux-android:edge"
+pre-build = [
+    "dpkg --add-architecture amd64",
+    "apt-get update && apt-get install -y curl:amd64 unzip:amd64",
+    "curl -LO https://github.com/protocolbuffers/protobuf/releases/download/v28.3/protoc-28.3-linux-x86_64.zip",
+    "unzip -o protoc-28.3-linux-x86_64.zip -d /usr/local bin/protoc",
+    "unzip -o protoc-28.3-linux-x86_64.zip -d /usr/local 'include/*'",
+    "chmod +x /usr/local/bin/protoc",
+]

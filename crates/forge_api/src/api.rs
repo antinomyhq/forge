@@ -32,6 +32,15 @@ pub trait API: Sync + Send {
     /// Executes a chat request and returns a stream of responses
     async fn chat(&self, chat: ChatRequest) -> Result<MpscStream<Result<ChatResponse>>>;
 
+    /// Commits changes with an AI-generated commit message
+    async fn commit(
+        &self,
+        preview: bool,
+        max_diff_size: Option<usize>,
+        diff: Option<String>,
+        additional_context: Option<String>,
+    ) -> Result<forge_app::CommitResult>;
+
     /// Returns the current environment
     fn environment(&self) -> Environment;
 
@@ -143,17 +152,16 @@ pub trait API: Sync + Send {
     async fn get_default_model(&self) -> Option<ModelId>;
 
     /// Sets the operating model
-    async fn set_default_model(
-        &self,
-        agent_id: Option<AgentId>,
-        model_id: ModelId,
-    ) -> anyhow::Result<()>;
+    async fn set_default_model(&self, model_id: ModelId) -> anyhow::Result<()>;
 
     /// Refresh MCP caches by fetching fresh data
     async fn reload_mcp(&self) -> Result<()>;
 
     /// List of commands defined in .md file(s)
     async fn get_commands(&self) -> Result<Vec<Command>>;
+
+    /// List of available skills
+    async fn get_skills(&self) -> Result<Vec<Skill>>;
 
     /// Generate a shell command from natural language prompt
     async fn generate_command(&self, prompt: UserPrompt) -> Result<String>;
@@ -175,4 +183,41 @@ pub trait API: Sync + Send {
 
     /// Remove provider credentials (logout)
     async fn remove_provider(&self, provider_id: &ProviderId) -> Result<()>;
+
+    /// Sync a codebase directory for semantic search
+    async fn sync_codebase(
+        &self,
+        path: PathBuf,
+        batch_size: usize,
+    ) -> Result<forge_domain::FileUploadResponse>;
+
+    /// Query the indexed codebase
+    async fn query_codebase(
+        &self,
+        path: PathBuf,
+        params: forge_domain::SearchParams<'_>,
+    ) -> Result<Vec<forge_domain::CodeSearchResult>>;
+
+    /// List all workspaces
+    async fn list_codebases(&self) -> Result<Vec<forge_domain::WorkspaceInfo>>;
+
+    /// Get workspace information for a specific path
+    async fn get_workspace_info(
+        &self,
+        path: PathBuf,
+    ) -> Result<Option<forge_domain::WorkspaceInfo>>;
+
+    /// Delete a workspace
+    async fn delete_codebase(&self, workspace_id: forge_domain::WorkspaceId) -> Result<()>;
+
+    /// Check if authentication credentials exist
+    async fn is_authenticated(&self) -> Result<bool>;
+
+    /// Create new authentication credentials
+    async fn create_auth_credentials(&self) -> Result<forge_domain::WorkspaceAuth>;
+
+    /// Migrate environment variable-based credentials to file-based
+    /// credentials. This is a one-time migration that runs only if the
+    /// credentials file doesn't exist.
+    async fn migrate_env_credentials(&self) -> Result<Option<forge_domain::MigrationResult>>;
 }

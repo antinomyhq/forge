@@ -2,12 +2,12 @@ use std::sync::Arc;
 
 use derive_setters::Setters;
 use forge_domain::{
-    Agent, Conversation, Environment, Error, Model, SystemContext, Template, ToolDefinition,
+    Agent, Conversation, Environment, Model, SystemContext, Template, ToolDefinition,
     ToolUsagePrompt,
 };
 use tracing::debug;
 
-use crate::TemplateService;
+use crate::{SkillFetchService, TemplateEngine};
 
 #[derive(Setters)]
 pub struct SystemPrompt<S> {
@@ -20,7 +20,7 @@ pub struct SystemPrompt<S> {
     custom_instructions: Vec<String>,
 }
 
-impl<S: TemplateService> SystemPrompt<S> {
+impl<S: SkillFetchService> SystemPrompt<S> {
     pub fn new(services: Arc<S>, environment: Environment, agent: Agent) -> Self {
         Self {
             services,
@@ -61,6 +61,8 @@ impl<S: TemplateService> SystemPrompt<S> {
                 custom_rules.push(rule.as_str());
             });
 
+            let skills = self.services.list_skills().await?;
+
             let ctx = SystemContext {
                 env: Some(env),
                 tool_information,
@@ -68,16 +70,13 @@ impl<S: TemplateService> SystemPrompt<S> {
                 files,
                 custom_rules: custom_rules.join("\n\n"),
                 supports_parallel_tool_calls,
+                skills,
             };
 
-            let static_block = self
-                .services
-                .render_template(Template::new(&system_prompt.template), &())
-                .await?;
-            let non_static_block = self
-                .services
-                .render_template(Template::new("{{> forge-custom-agent-template.md }}"), &ctx)
-                .await?;
+            let static_block = TemplateEngine::default()
+                .render_template(Template::new(&system_prompt.template), &ctx)?;
+            let non_static_block = TemplateEngine::default()
+                .render_template(Template::new("{{> forge-custom-agent-template.md }}"), &ctx)?;
 
             context.set_system_messages(vec![static_block, non_static_block])
         } else {
@@ -90,10 +89,7 @@ impl<S: TemplateService> SystemPrompt<S> {
     // Returns if agent supports tool or not.
     fn is_tool_supported(&self) -> anyhow::Result<bool> {
         let agent = &self.agent;
-        let model_id = agent
-            .model
-            .as_ref()
-            .ok_or(Error::MissingModel(agent.id.clone()))?;
+        let model_id = &agent.model;
 
         // Check if at agent level tool support is defined
         let tool_supported = match agent.tool_supported {
@@ -120,11 +116,68 @@ impl<S: TemplateService> SystemPrompt<S> {
     /// Checks if parallel tool calls is supported by agent
     fn is_parallel_tool_call_supported(&self) -> bool {
         let agent = &self.agent;
-        agent
-            .model
-            .as_ref()
-            .and_then(|model_id| self.models.iter().find(|model| &model.id == model_id))
+        self.models
+            .iter()
+            .find(|model| model.id == agent.model)
             .and_then(|model| model.supports_parallel_tool_calls)
             .unwrap_or_default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use fake::Fake;
+    use forge_domain::{Agent, Environment};
+
+    use super::*;
+
+    struct MockSkillFetchService;
+
+    #[async_trait::async_trait]
+    impl SkillFetchService for MockSkillFetchService {
+        async fn fetch_skill(&self, _skill_name: String) -> anyhow::Result<forge_domain::Skill> {
+            Ok(
+                forge_domain::Skill::new("test_skill", "Test skill", "Test skill description")
+                    .path("/skills/test.md"),
+            )
+        }
+
+        async fn list_skills(&self) -> anyhow::Result<Vec<forge_domain::Skill>> {
+            Ok(vec![])
+        }
+    }
+
+    fn create_test_environment() -> Environment {
+        use fake::Faker;
+        Faker.fake()
+    }
+
+    fn create_test_agent() -> Agent {
+        use forge_domain::{AgentId, ModelId, ProviderId};
+        Agent::new(
+            AgentId::new("test_agent"),
+            ProviderId::FORGE,
+            ModelId::new("test_model"),
+        )
+    }
+
+    #[tokio::test]
+    async fn test_system_prompt_adds_context() {
+        // Fixture
+        let services = Arc::new(MockSkillFetchService);
+        let env = create_test_environment();
+        let agent = create_test_agent();
+        let system_prompt = SystemPrompt::new(services, env, agent);
+
+        // Act - create a conversation and add system message
+        let conversation = forge_domain::Conversation::generate();
+        let result = system_prompt.add_system_message(conversation).await;
+
+        // Assert
+        assert!(result.is_ok());
+        let conversation = result.unwrap();
+        assert!(conversation.context.is_some());
     }
 }

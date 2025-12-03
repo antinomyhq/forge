@@ -50,7 +50,17 @@ impl Info {
     }
 
     pub fn add_key_value(self, key: impl ToString, value: impl ToString) -> Self {
-        self.add_item(Some(key), value)
+        let key_str = key.to_string();
+        let normalized_key = key_str.to_lowercase();
+        self.add_item(Some(normalized_key), value)
+    }
+
+    pub fn add_key_value_when(self, key: impl ToString, value: Option<impl ToString>) -> Self {
+        if let Some(value) = value {
+            self.add_key_value(key, value)
+        } else {
+            self
+        }
     }
 
     fn add_item(mut self, key: Option<impl ToString>, value: impl ToString) -> Self {
@@ -187,11 +197,15 @@ impl From<&Environment> for Info {
             )
             .add_title("API CONFIGURATION")
             .add_key_value("Forge API URL", env.forge_api_url.to_string())
+            .add_key_value("Workspace Server URL", env.workspace_server_url.to_string())
             .add_title("TOOL CONFIGURATION")
             .add_key_value("Tool Timeout", format!("{}s", env.tool_timeout))
             .add_key_value("Max Image Size", format!("{} bytes", env.max_image_size))
             .add_key_value("Auto Open Dump", env.auto_open_dump.to_string())
-            .add_key_value("Debug Requests", env.debug_requests.to_string())
+            .add_key_value_when(
+                "Debug Requests",
+                env.debug_requests.as_ref().map(|p| p.display().to_string()),
+            )
             .add_key_value(
                 "Stdout Max Line Length",
                 env.stdout_max_line_length.to_string(),
@@ -220,23 +234,39 @@ impl From<&Metrics> for Info {
             info = info.add_title("TASK COMPLETED".to_string())
         }
 
-        // Add file changes section
-        if metrics.file_operations.is_empty() {
+        // Add file changes section, filtering out files with minimal changes
+        let meaningful_changes: Vec<_> = metrics
+            .file_operations
+            .iter()
+            .filter(|(_, file_metrics)| {
+                // Only show files with actual changes
+                file_metrics.lines_added > 0 || file_metrics.lines_removed > 0
+            })
+            .collect();
+
+        if meaningful_changes.is_empty() {
             info = info.add_value("[No Changes Produced]");
         } else {
-            for (path, file_metrics) in &metrics.file_operations {
+            for (path, file_metrics) in meaningful_changes {
                 // Extract just the filename from the path
                 let filename = std::path::Path::new(path)
                     .file_name()
                     .and_then(|name| name.to_str())
                     .unwrap_or(path);
 
-                let changes = format!(
-                    "−{} +{}",
-                    file_metrics.lines_removed, file_metrics.lines_added
-                );
+                let removed = if file_metrics.lines_removed == 0 {
+                    "0".to_string()
+                } else {
+                    format!("−{}", file_metrics.lines_removed)
+                };
+                let added = if file_metrics.lines_added == 0 {
+                    "0".to_string()
+                } else {
+                    format!("+{}", file_metrics.lines_added)
+                };
+                let changes = format!("{} {}", removed, added);
 
-                info = info.add_key_value(format!("⦿ {filename}"), changes);
+                info = info.add_key_value(filename, changes);
             }
         }
 
@@ -309,14 +339,19 @@ impl fmt::Display for Info {
                 Section::Items(key, value) => {
                     if let Some(key) = key {
                         if let Some(width) = width {
-                            writeln!(f, "  {} {}", format!("{key:<width$}:").cyan().bold(), value)?;
+                            writeln!(
+                                f,
+                                "  {} {}",
+                                format!("{key:<width$}:").green().bold(),
+                                value
+                            )?;
                         } else {
                             // No section width (items without a title)
-                            writeln!(f, "  {}: {}", key.cyan().bold(), value)?;
+                            writeln!(f, "  {}: {}", key.green().bold(), value)?;
                         }
                     } else {
                         // Show value-only items
-                        writeln!(f, "    {} {}", "⦿".cyan(), value)?;
+                        writeln!(f, "    {} {}", "⦿".green(), value)?;
                     }
                 }
             }
@@ -400,11 +435,18 @@ impl From<&ForgeCommandManager> for Info {
             info = info.add_key_value(command.name, command.description);
         }
 
+        // Use compile-time OS detection for keyboard shortcuts
+        #[cfg(target_os = "macos")]
+        let multiline_shortcut = "<OPT+ENTER>";
+
+        #[cfg(not(target_os = "macos"))]
+        let multiline_shortcut = "<ALT+ENTER>";
+
         info = info
             .add_title("KEYBOARD SHORTCUTS")
             .add_key_value("<CTRL+C>", "Interrupt current operation")
             .add_key_value("<CTRL+D>", "Quit Forge interactive shell")
-            .add_key_value("<OPT+ENTER>", "Insert new line (multiline input)");
+            .add_key_value(multiline_shortcut, "Insert new line (multiline input)");
 
         info
     }
@@ -703,7 +745,7 @@ mod tests {
         use forge_api::Metrics;
         use forge_domain::{FileOperation, ToolKind};
 
-        let fixture = Metrics::new()
+        let fixture = Metrics::default()
             .started_at(chrono::Utc::now())
             .insert(
                 "src/main.rs".to_string(),
@@ -730,13 +772,13 @@ mod tests {
         // Verify it contains the task completed section
         assert!(expected_display.contains("TASK COMPLETED"));
 
-        // Verify it contains the files with bullet points
-        assert!(expected_display.contains("⦿ main.rs"));
+        // Verify it contains the files as keys with colons
+        assert!(expected_display.contains("main.rs"));
         assert!(expected_display.contains("−3 +12"));
         assert!(expected_display.contains("mod.rs"));
         assert!(expected_display.contains("−2 +8"));
         assert!(expected_display.contains("test_agent.rs"));
-        assert!(expected_display.contains("−0 +5"));
+        assert!(expected_display.contains("0 +5"));
     }
 
     #[test]
@@ -748,7 +790,7 @@ mod tests {
         use super::{Conversation, Metrics};
 
         let conversation_id = ConversationId::generate();
-        let metrics = Metrics::new()
+        let metrics = Metrics::default()
             .started_at(Utc::now())
             .insert(
                 "src/main.rs".to_string(),
@@ -788,7 +830,7 @@ mod tests {
         use super::{Conversation, Metrics};
 
         let conversation_id = ConversationId::generate();
-        let metrics = Metrics::new().started_at(Utc::now());
+        let metrics = Metrics::default().started_at(Utc::now());
 
         let fixture = Conversation {
             id: conversation_id,
@@ -815,7 +857,7 @@ mod tests {
         use super::{Conversation, Metrics};
 
         let conversation_id = ConversationId::generate();
-        let metrics = Metrics::new().started_at(Utc::now());
+        let metrics = Metrics::default().started_at(Utc::now());
 
         // Create a context with user messages
         let context = Context::default()
@@ -933,5 +975,128 @@ mod tests {
             colon_positions[0] > colon_positions_two[0],
             "SECTION ONE should have wider padding than SECTION TWO"
         );
+    }
+
+    #[test]
+    fn test_add_key_value_normalizes_to_lowercase() {
+        let info = super::Info::new()
+            .add_key_value("VERSION", "1.0.0")
+            .add_key_value("Working Directory", "/home/user")
+            .add_key_value("Mixed CASE Key", "value");
+
+        let display = info.to_string();
+
+        // All keys should be lowercase - checking just the key part without exact
+        // formatting
+        assert!(display.contains("version"));
+        assert!(display.contains("working directory"));
+        assert!(display.contains("mixed case key"));
+
+        // Values should be preserved
+        assert!(display.contains("1.0.0"));
+        assert!(display.contains("/home/user"));
+        assert!(display.contains("value"));
+
+        // Should not contain uppercase versions
+        assert!(!display.contains("VERSION"));
+        assert!(!display.contains("Working Directory"));
+        assert!(!display.contains("Mixed CASE Key"));
+    }
+
+    #[test]
+    fn test_info_from_command_manager() {
+        let command_manager = super::ForgeCommandManager::default();
+        let info = super::Info::from(&command_manager);
+        let display = info.to_string();
+
+        // Verify compile-time detection works correctly
+        #[cfg(target_os = "macos")]
+        {
+            assert!(display.contains("<opt+enter>"));
+            assert!(!display.contains("<alt+enter>"));
+        }
+
+        #[cfg(not(target_os = "macos"))]
+        {
+            assert!(display.contains("<alt+enter>"));
+            assert!(!display.contains("<opt+enter>"));
+        }
+
+        // Should contain standard sections
+        assert!(display.contains("COMMANDS"));
+        assert!(display.contains("KEYBOARD SHORTCUTS"));
+        assert!(display.contains("<ctrl+c>"));
+        assert!(display.contains("<ctrl+d>"));
+    }
+
+    #[test]
+    fn test_metrics_info_filters_zero_changes() {
+        use forge_api::Metrics;
+        use forge_domain::{FileOperation, ToolKind};
+
+        let fixture = Metrics::default()
+            .started_at(chrono::Utc::now())
+            .insert(
+                "src/main.rs".to_string(),
+                FileOperation::new(ToolKind::Write)
+                    .lines_added(12u64)
+                    .lines_removed(3u64),
+            )
+            .insert(
+                "src/no_changes.rs".to_string(),
+                FileOperation::new(ToolKind::Write)
+                    .lines_added(0u64)
+                    .lines_removed(0u64),
+            )
+            .insert(
+                "src/agent/mod.rs".to_string(),
+                FileOperation::new(ToolKind::Write)
+                    .lines_added(8u64)
+                    .lines_removed(2u64),
+            );
+
+        let actual = super::Info::from(&fixture);
+        let expected_display = actual.to_string();
+
+        // Verify it contains the task completed section
+        assert!(expected_display.contains("TASK COMPLETED"));
+
+        // Verify it contains files with changes as keys
+        assert!(expected_display.contains("main.rs"));
+        assert!(expected_display.contains("−3 +12"));
+        assert!(expected_display.contains("mod.rs"));
+        assert!(expected_display.contains("−2 +8"));
+
+        // Verify it does NOT contain the file with zero changes
+        assert!(!expected_display.contains("no_changes.rs"));
+    }
+
+    #[test]
+    fn test_metrics_info_all_zero_changes_shows_no_changes() {
+        use forge_api::Metrics;
+        use forge_domain::{FileOperation, ToolKind};
+
+        let fixture = Metrics::default()
+            .started_at(chrono::Utc::now())
+            .insert(
+                "src/file1.rs".to_string(),
+                FileOperation::new(ToolKind::Write)
+                    .lines_added(0u64)
+                    .lines_removed(0u64),
+            )
+            .insert(
+                "src/file2.rs".to_string(),
+                FileOperation::new(ToolKind::Write)
+                    .lines_added(0u64)
+                    .lines_removed(0u64),
+            );
+
+        let actual = super::Info::from(&fixture);
+        let expected_display = actual.to_string();
+
+        // Verify it shows "No Changes Produced" when all files have zero changes
+        assert!(expected_display.contains("[No Changes Produced]"));
+        assert!(!expected_display.contains("file1.rs"));
+        assert!(!expected_display.contains("file2.rs"));
     }
 }

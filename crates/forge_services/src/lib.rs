@@ -1,4 +1,5 @@
 mod agent_registry;
+mod app_config;
 mod attachment;
 mod auth;
 mod clipper;
@@ -10,9 +11,9 @@ mod env;
 mod error;
 mod forge_services;
 mod http;
+mod indexing;
 mod mcp;
 mod policy;
-mod preferences;
 mod provider;
 mod provider_auth;
 mod range;
@@ -21,15 +22,15 @@ mod tool_services;
 mod utils;
 mod workflow;
 
-pub use agent_registry::*;
+pub use app_config::*;
 pub use clipper::*;
 pub use command_loader::*;
 pub use custom_instructions::*;
 pub use discovery::*;
 pub use error::*;
 pub use forge_services::*;
+pub use indexing::*;
 pub use policy::*;
-pub use preferences::*;
 pub use provider_auth::*;
 
 /// Converts a type from its external representation into its domain model

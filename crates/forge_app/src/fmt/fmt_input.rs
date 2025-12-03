@@ -60,6 +60,18 @@ impl FormatContent for ToolCatalog {
                 };
                 Some(TitleFormat::debug(title).into())
             }
+            ToolCatalog::SemSearch(input) => {
+                let pairs: Vec<_> = input
+                    .queries
+                    .iter()
+                    .map(|sq| format!("{} [{}]", sq.query, sq.use_case))
+                    .collect();
+                Some(
+                    TitleFormat::debug("Codebase Search:")
+                        .sub_title(pairs.join(", "))
+                        .into(),
+                )
+            }
             ToolCatalog::Remove(input) => {
                 let display_path = display_path_for(&input.path);
                 Some(TitleFormat::debug("Remove").sub_title(display_path).into())
@@ -90,6 +102,11 @@ impl FormatContent for ToolCatalog {
                     .into(),
             ),
             ToolCatalog::Plan(_) => None,
+            ToolCatalog::Skill(input) => Some(
+                TitleFormat::debug("Skill")
+                    .sub_title(input.name.to_lowercase())
+                    .into(),
+            ),
         }
     }
 }

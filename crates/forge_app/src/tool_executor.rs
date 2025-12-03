@@ -2,7 +2,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use forge_domain::{
-    LineNumbers, TitleFormat, ToolCallContext, ToolCallFull, ToolCatalog, ToolOutput,
+    CodebaseQueryResult, LineNumbers, TitleFormat, ToolCallContext, ToolCallFull, ToolCatalog,
+    ToolOutput,
 };
 
 use crate::fmt::content::FormatContent;
@@ -10,9 +11,10 @@ use crate::operation::{TempContentFiles, ToolOperation};
 use crate::services::ShellService;
 use crate::utils::format_display_path;
 use crate::{
-    ConversationService, EnvironmentService, FollowUpService, FsCreateService, FsPatchService,
-    FsReadService, FsRemoveService, FsSearchService, FsUndoService, ImageReadService,
-    NetFetchService, PlanCreateService, PolicyService,
+    ContextEngineService, ConversationService, EnvironmentService, FollowUpService,
+    FsCreateService, FsPatchService, FsReadService, FsRemoveService, FsSearchService,
+    FsUndoService, ImageReadService, NetFetchService, PlanCreateService, PolicyService,
+    SkillFetchService,
 };
 
 pub struct ToolExecutor<S> {
@@ -24,6 +26,7 @@ impl<
         + ImageReadService
         + FsCreateService
         + FsSearchService
+        + ContextEngineService
         + NetFetchService
         + FsRemoveService
         + FsPatchService
@@ -33,7 +36,8 @@ impl<
         + ConversationService
         + EnvironmentService
         + PlanCreateService
-        + PolicyService,
+        + PolicyService
+        + SkillFetchService,
 > ToolExecutor<S>
 {
     pub fn new(services: Arc<S>) -> Self {
@@ -198,6 +202,44 @@ impl<
                     .await?;
                 (input, output).into()
             }
+            ToolCatalog::SemSearch(input) => {
+                let env = self.services.get_environment();
+                let services = self.services.clone();
+                let cwd = env.cwd.clone();
+                let limit = env.sem_search_limit;
+                let top_k = env.sem_search_top_k as u32;
+                let params: Vec<_> = input
+                    .queries
+                    .iter()
+                    .map(|search_query| {
+                        let mut params = forge_domain::SearchParams::new(
+                            &search_query.query,
+                            &search_query.use_case,
+                        )
+                        .limit(limit)
+                        .top_k(top_k);
+                        if let Some(ext) = &input.file_extension {
+                            params = params.ends_with(ext);
+                        }
+                        params
+                    })
+                    .collect();
+
+                let result = services.query_codebase_batch(cwd, params).await?;
+                let output = input
+                    .queries
+                    .into_iter()
+                    .zip(result.into_iter())
+                    .map(|(query, results)| CodebaseQueryResult {
+                        query: query.query,
+                        use_case: query.use_case,
+                        results,
+                    })
+                    .collect::<Vec<_>>();
+
+                let output = forge_domain::CodebaseSearchResults { queries: output };
+                ToolOperation::CodebaseSearch { output }
+            }
             ToolCatalog::Remove(input) => {
                 let normalized_path = self.normalize_path(input.path.clone());
                 let output = self.services.remove(normalized_path).await?;
@@ -229,6 +271,7 @@ impl<
                         input.command.clone(),
                         PathBuf::from(normalized_cwd),
                         input.keep_ansi,
+                        false,
                         input.env.clone(),
                     )
                     .await?;
@@ -267,6 +310,10 @@ impl<
                     )
                     .await?;
                 (input, output).into()
+            }
+            ToolCatalog::Skill(input) => {
+                let skill = self.services.fetch_skill(input.name.clone()).await?;
+                (input, skill).into()
             }
         })
     }

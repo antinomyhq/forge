@@ -42,6 +42,7 @@ pub enum ToolCatalog {
     ReadImage(ReadImage),
     Write(FSWrite),
     Search(FSSearch),
+    SemSearch(SemanticSearch),
     Remove(FSRemove),
     Patch(FSPatch),
     Undo(FSUndo),
@@ -49,6 +50,7 @@ pub enum ToolCatalog {
     Fetch(NetFetch),
     Followup(Followup),
     Plan(PlanCreate),
+    Skill(SkillFetch),
 }
 
 /// Input structure for agent tool calls. This serves as the generic schema
@@ -169,6 +171,71 @@ pub struct FSSearch {
     /// If not provided, it will search all files (*).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub file_pattern: Option<String>,
+}
+
+/// A paired query and use_case for semantic search. Each query must have a
+/// corresponding use_case for document reranking.
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+pub struct SearchQuery {
+    /// Describe WHAT the code does or its purpose. Include domain-specific
+    /// terms and technical context. Good: "retry mechanism with exponential
+    /// backoff", "streaming responses from LLM API", "OAuth token refresh
+    /// flow". Bad: generic terms like "retry" or "auth" without context. Think
+    /// about the behavior and functionality you're looking for.
+    pub query: String,
+
+    /// A short natural-language description of what you are trying to find.
+    /// This is the query used for document reranking. The query MUST:
+    /// - express a single, focused information need
+    /// - describe exactly what the agent is searching for
+    /// - should not be the query verbatim
+    /// - be concise (1–2 sentences)
+    ///
+    /// Examples:
+    /// - "Why is `select_model()` returning a Pin<Box<Result>> in Rust?"
+    /// - "How to fix error E0277 for the ? operator on a pinned boxed result?"
+    /// - "Steps to run Diesel migrations in Rust without exposing the DB."
+    /// - "How to design a clean architecture service layer with typed errors?"
+    pub use_case: String,
+}
+
+impl SearchQuery {
+    /// Creates a new search query with the given query and use_case
+    pub fn new(query: impl Into<String>, use_case: impl Into<String>) -> Self {
+        Self { query: query.into(), use_case: use_case.into() }
+    }
+}
+
+/// AI-powered semantic code search. YOUR DEFAULT TOOL for "where is"
+/// questions. Use this FIRST when user asks about code location or
+/// functionality: "where is X", "find the code that does Y", "locate Z
+/// implementation", "how does X work", "understand the Y strategy". For code
+/// location and discovery questions, always use this tool first before
+/// delegating to research agents. Even if you can see relevant directories or
+/// files in the file list, use sem_search to find the exact implementation.
+/// This tool understands CONCEPTS and BEHAVIOR, not just keywords. Finds code
+/// even when exact terms differ. Finding the right code is always the first
+/// step to understanding it. Sem_search locates relevant code quickly, then
+/// read the results to understand. Examples: "where is retry logic" finds
+/// exponential backoff code, "understand caching strategy" finds cache
+/// implementation, "message transformation" finds serialization/DTOs, "tool
+/// registration" finds tool setup code. Returns ranked results with code
+/// snippets. ONLY use regex search tool for exact name matches like "all
+/// functions named execute" or "TODO comments". When in doubt between search
+/// and sem_search, choose sem_search.
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+pub struct SemanticSearch {
+    /// List of search queries to execute in parallel. It's ALWAYS a good idea
+    /// to use multiple queries with different phrasings to maximize search
+    /// coverage. Each query pairs a search term with its use_case for
+    /// document re-ranking. Multiple queries with varied terminology find
+    /// more relevant results than a single query.
+    pub queries: Vec<SearchQuery>,
+
+    /// Optional file extension filter (e.g., ".rs", ".ts", ".py"). If provided,
+    /// only files with this extension will be included in the search results.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub file_extension: Option<String>,
 }
 
 /// Request to remove a file at the specified path. Use this when you need to
@@ -373,6 +440,17 @@ pub struct PlanCreate {
     pub content: String,
 }
 
+/// Fetches detailed information about a specific skill. Use this tool to load
+/// skill content and instructions when you need to understand how to perform a
+/// specialized task. Skills provide domain-specific knowledge, workflows, and
+/// best practices. Only invoke skills that are listed in the available skills
+/// section. Do not invoke a skill that is already active.
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+pub struct SkillFetch {
+    /// The name of the skill to fetch (e.g., "pdf", "code_review")
+    pub name: String,
+}
+
 fn default_raw() -> Option<bool> {
     Some(false)
 }
@@ -469,12 +547,14 @@ impl ToolDescription for ToolCatalog {
             ToolCatalog::Followup(v) => v.description(),
             ToolCatalog::Fetch(v) => v.description(),
             ToolCatalog::Search(v) => v.description(),
+            ToolCatalog::SemSearch(v) => v.description(),
             ToolCatalog::Read(v) => v.description(),
             ToolCatalog::ReadImage(v) => v.description(),
             ToolCatalog::Remove(v) => v.description(),
             ToolCatalog::Undo(v) => v.description(),
             ToolCatalog::Write(v) => v.description(),
             ToolCatalog::Plan(v) => v.description(),
+            ToolCatalog::Skill(v) => v.description(),
         }
     }
 }
@@ -504,12 +584,14 @@ impl ToolCatalog {
             ToolCatalog::Followup(_) => r#gen.into_root_schema_for::<Followup>(),
             ToolCatalog::Fetch(_) => r#gen.into_root_schema_for::<NetFetch>(),
             ToolCatalog::Search(_) => r#gen.into_root_schema_for::<FSSearch>(),
+            ToolCatalog::SemSearch(_) => r#gen.into_root_schema_for::<SemanticSearch>(),
             ToolCatalog::Read(_) => r#gen.into_root_schema_for::<FSRead>(),
             ToolCatalog::ReadImage(_) => r#gen.into_root_schema_for::<ReadImage>(),
             ToolCatalog::Remove(_) => r#gen.into_root_schema_for::<FSRemove>(),
             ToolCatalog::Undo(_) => r#gen.into_root_schema_for::<FSUndo>(),
             ToolCatalog::Write(_) => r#gen.into_root_schema_for::<FSWrite>(),
             ToolCatalog::Plan(_) => r#gen.into_root_schema_for::<PlanCreate>(),
+            ToolCatalog::Skill(_) => r#gen.into_root_schema_for::<SkillFetch>(),
         }
     }
 
@@ -604,7 +686,11 @@ impl ToolCatalog {
                 message: format!("Fetch content from URL: {}", input.url),
             }),
             // Operations that don't require permission checks
-            ToolCatalog::Undo(_) | ToolCatalog::Followup(_) | ToolCatalog::Plan(_) => None,
+            ToolCatalog::SemSearch(_)
+            | ToolCatalog::Undo(_)
+            | ToolCatalog::Followup(_)
+            | ToolCatalog::Plan(_)
+            | ToolCatalog::Skill(_) => None,
         }
     }
 
@@ -669,6 +755,17 @@ impl ToolCatalog {
         }))
     }
 
+    /// Creates a Semantic Search tool call with the specified queries
+    pub fn tool_call_semantic_search(
+        queries: Vec<SearchQuery>,
+        file_ext: Option<String>,
+    ) -> ToolCallFull {
+        ToolCallFull::from(ToolCatalog::SemSearch(SemanticSearch {
+            queries,
+            file_extension: file_ext,
+        }))
+    }
+
     /// Creates an Undo tool call with the specified path
     pub fn tool_call_undo(path: &str) -> ToolCallFull {
         ToolCallFull::from(ToolCatalog::Undo(FSUndo { path: path.to_string() }))
@@ -697,6 +794,13 @@ impl ToolCatalog {
             plan_name: plan_name.to_string(),
             version: version.to_string(),
             content: content.to_string(),
+        }))
+    }
+
+    /// Creates a Skill tool call with the specified skill name
+    pub fn tool_call_skill(skill_name: &str) -> ToolCallFull {
+        ToolCallFull::from(ToolCatalog::Skill(SkillFetch {
+            name: skill_name.to_string(),
         }))
     }
 

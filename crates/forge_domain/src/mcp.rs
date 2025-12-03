@@ -2,7 +2,6 @@
 //! Follows the design specifications of Claude's [.mcp.json](https://docs.anthropic.com/en/docs/claude-code/tutorials#set-up-model-context-protocol-mcp)
 
 use std::collections::BTreeMap;
-use std::fmt::{Display, Formatter};
 use std::ops::Deref;
 
 use derive_more::{Deref, Display, From};
@@ -49,6 +48,14 @@ impl McpServerConfig {
             McpServerConfig::Http(v) => v.disable,
         }
     }
+
+    /// Returns the type of MCP server as a string ("STDIO" or "HTTP")
+    pub fn server_type(&self) -> &'static str {
+        match self {
+            McpServerConfig::Stdio(_) => "STDIO",
+            McpServerConfig::Http(_) => "HTTP",
+        }
+    }
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, Setters, PartialEq, Hash)]
@@ -75,7 +82,7 @@ pub struct McpStdioServer {
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Hash)]
 pub struct McpHttpServer {
     /// Url of the MCP server (auto-detects HTTP vs SSE transport)
-    #[serde(skip_serializing_if = "String::is_empty")]
+    #[serde(skip_serializing_if = "String::is_empty", alias = "serverUrl")]
     pub url: String,
 
     /// Optional headers for HTTP requests
@@ -91,28 +98,7 @@ pub struct McpHttpServer {
 
 impl McpHttpServer {}
 
-impl Display for McpServerConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut output = String::new();
-        match self {
-            McpServerConfig::Stdio(stdio) => {
-                output.push_str(&format!("{} ", stdio.command));
-                stdio.args.iter().for_each(|arg| {
-                    output.push_str(&format!("{arg} "));
-                });
-
-                stdio.env.iter().for_each(|(key, value)| {
-                    output.push_str(&format!("{key}={value} "));
-                });
-            }
-            McpServerConfig::Http(sse) => {
-                output.push_str(&format!("{} ", sse.url));
-            }
-        }
-
-        write!(f, "{}", output.trim())
-    }
-}
+impl McpHttpServer {}
 
 #[derive(
     Clone, Display, Serialize, Deserialize, Debug, PartialEq, Hash, Eq, From, PartialOrd, Ord, Deref,
@@ -351,5 +337,23 @@ mod tests {
             }
             _ => panic!("Expected Http variant"),
         }
+    }
+
+    #[test]
+    fn test_server_type() {
+        use fake::{Fake, Faker};
+        use pretty_assertions::assert_eq;
+
+        let command: String = Faker.fake();
+        let stdio_server = McpServerConfig::new_stdio(&command, vec![], None);
+        let actual = stdio_server.server_type();
+        let expected = "STDIO";
+        assert_eq!(actual, expected);
+
+        let url: String = format!("https://{}.example.com", Faker.fake::<String>());
+        let http_server = McpServerConfig::new_http(&url);
+        let actual = http_server.server_type();
+        let expected = "HTTP";
+        assert_eq!(actual, expected);
     }
 }

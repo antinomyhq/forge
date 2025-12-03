@@ -349,7 +349,7 @@ pub struct Context {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub top_k: Option<TopK>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub reasoning: Option<crate::agent::ReasoningConfig>,
+    pub reasoning: Option<crate::agent_definition::ReasoningConfig>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub usage: Option<Usage>,
 }
@@ -392,6 +392,22 @@ impl Context {
                         .attr("end_line", end_line)
                         .attr("total_lines", total_lines)
                         .cdata(content);
+
+                    let mut message = TextMessage::new(Role::User, elm.to_string()).droppable(true);
+
+                    if let Some(model) = model_id.clone() {
+                        message = message.model(model);
+                    }
+
+                    message.into()
+                }
+                AttachmentContent::DirectoryListing { entries } => {
+                    let elm = Element::new("directory_listing")
+                        .attr("path", attachment.path)
+                        .append(entries.into_iter().map(|entry| {
+                            let tag_name = if entry.is_dir { "dir" } else { "file" };
+                            Element::new(tag_name).text(entry.path)
+                        }));
 
                     let mut message = TextMessage::new(Role::User, elm.to_string()).droppable(true);
 
@@ -533,6 +549,42 @@ impl Context {
 
         result
     }
+
+    /// Returns the total number of messages in the context
+    pub fn total_messages(&self) -> usize {
+        self.messages.len()
+    }
+
+    /// Returns the count of user messages in the context
+    pub fn user_message_count(&self) -> usize {
+        self.messages
+            .iter()
+            .filter(|msg| msg.has_role(Role::User))
+            .count()
+    }
+
+    /// Returns the count of assistant messages in the context
+    pub fn assistant_message_count(&self) -> usize {
+        self.messages
+            .iter()
+            .filter(|msg| msg.has_role(Role::Assistant))
+            .count()
+    }
+
+    /// Returns the total count of tool calls across all messages
+    pub fn tool_call_count(&self) -> usize {
+        self.messages
+            .iter()
+            .filter(|msg| msg.has_tool_call())
+            .map(|msg| {
+                if let ContextMessage::Text(text_msg) = msg {
+                    text_msg.tool_calls.as_ref().map_or(0, |calls| calls.len())
+                } else {
+                    0
+                }
+            })
+            .sum()
+    }
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
@@ -586,8 +638,8 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::estimate_token_count;
     use crate::transformer::Transformer;
+    use crate::{DirectoryEntry, estimate_token_count};
 
     #[test]
     fn test_override_system_message() {
@@ -835,8 +887,10 @@ mod tests {
 
     #[test]
     fn test_context_is_reasoning_supported_when_enabled() {
-        let fixture = Context::default()
-            .reasoning(crate::agent::ReasoningConfig { enabled: Some(true), ..Default::default() });
+        let fixture = Context::default().reasoning(crate::agent_definition::ReasoningConfig {
+            enabled: Some(true),
+            ..Default::default()
+        });
 
         let actual = fixture.is_reasoning_supported();
         let expected = true;
@@ -846,8 +900,8 @@ mod tests {
 
     #[test]
     fn test_context_is_reasoning_supported_when_effort_set() {
-        let fixture = Context::default().reasoning(crate::agent::ReasoningConfig {
-            effort: Some(crate::agent::Effort::High),
+        let fixture = Context::default().reasoning(crate::agent_definition::ReasoningConfig {
+            effort: Some(crate::agent_definition::Effort::High),
             ..Default::default()
         });
 
@@ -859,7 +913,7 @@ mod tests {
 
     #[test]
     fn test_context_is_reasoning_supported_when_max_tokens_positive() {
-        let fixture = Context::default().reasoning(crate::agent::ReasoningConfig {
+        let fixture = Context::default().reasoning(crate::agent_definition::ReasoningConfig {
             max_tokens: Some(1024),
             ..Default::default()
         });
@@ -872,8 +926,10 @@ mod tests {
 
     #[test]
     fn test_context_is_reasoning_not_supported_when_max_tokens_zero() {
-        let fixture = Context::default()
-            .reasoning(crate::agent::ReasoningConfig { max_tokens: Some(0), ..Default::default() });
+        let fixture = Context::default().reasoning(crate::agent_definition::ReasoningConfig {
+            max_tokens: Some(0),
+            ..Default::default()
+        });
 
         let actual = fixture.is_reasoning_supported();
         let expected = false;
@@ -883,7 +939,7 @@ mod tests {
 
     #[test]
     fn test_context_is_reasoning_not_supported_when_disabled() {
-        let fixture = Context::default().reasoning(crate::agent::ReasoningConfig {
+        let fixture = Context::default().reasoning(crate::agent_definition::ReasoningConfig {
             enabled: Some(false),
             ..Default::default()
         });
@@ -906,9 +962,10 @@ mod tests {
 
     #[test]
     fn test_context_is_reasoning_not_supported_when_explicitly_disabled() {
-        let fixture = Context::default().reasoning(crate::agent::ReasoningConfig {
+        let fixture = Context::default().reasoning(crate::agent_definition::ReasoningConfig {
             enabled: Some(false),
-            effort: Some(crate::agent::Effort::High), // Should be ignored when explicitly disabled
+            effort: Some(crate::agent_definition::Effort::High), /* Should be ignored when
+                                                                  * explicitly disabled */
             ..Default::default()
         });
 
@@ -1005,6 +1062,138 @@ mod tests {
             assert!(
                 message.is_droppable(),
                 "All file content attachments should be marked as droppable"
+            );
+        }
+    }
+
+    #[test]
+    fn test_add_attachments_directory_listing() {
+        let fixture_attachments = vec![Attachment {
+            path: "/test/mydir".to_string(),
+            content: AttachmentContent::DirectoryListing {
+                entries: vec![
+                    DirectoryEntry { path: "/test/mydir/file1.txt".to_string(), is_dir: false },
+                    DirectoryEntry { path: "/test/mydir/file2.rs".to_string(), is_dir: false },
+                    DirectoryEntry { path: "/test/mydir/subdir".to_string(), is_dir: true },
+                ],
+            },
+        }];
+
+        let actual = Context::default().add_attachments(fixture_attachments, None);
+
+        // Verify message was added
+        assert_eq!(actual.messages.len(), 1);
+
+        // Verify directory listing is formatted correctly as XML
+        let message = actual.messages.first().unwrap();
+        assert!(
+            message.is_droppable(),
+            "Directory listing should be marked as droppable"
+        );
+
+        let text = message.to_text();
+        // The XML is encoded within the message content
+        assert!(text.contains("&lt;directory_listing"));
+        // Check that files use <file> tag
+        assert!(text.contains("&lt;file&gt;"));
+        // Check that directories use <dir> tag
+        assert!(text.contains("&lt;dir&gt;"));
+    }
+
+    #[test]
+    fn test_context_message_statistics() {
+        let fixture = Context::default()
+            .add_message(ContextMessage::system("System message"))
+            .add_message(ContextMessage::user("User message 1", None))
+            .add_message(ContextMessage::assistant("Assistant response", None, None))
+            .add_message(ContextMessage::user("User message 2", None))
+            .add_message(ContextMessage::assistant(
+                "Assistant with tool",
+                None,
+                Some(vec![
+                    ToolCallFull {
+                        call_id: Some(crate::ToolCallId::new("call1")),
+                        name: crate::ToolName::new("tool1"),
+                        arguments: serde_json::json!({"arg": "value"}).into(),
+                    },
+                    ToolCallFull {
+                        call_id: Some(crate::ToolCallId::new("call2")),
+                        name: crate::ToolName::new("tool2"),
+                        arguments: serde_json::json!({"arg": "value"}).into(),
+                    },
+                ]),
+            ))
+            .add_tool_results(vec![
+                ToolResult {
+                    name: crate::ToolName::new("tool1"),
+                    call_id: Some(crate::ToolCallId::new("call1")),
+                    output: crate::ToolOutput::text("Result 1".to_string()),
+                },
+                ToolResult {
+                    name: crate::ToolName::new("tool2"),
+                    call_id: Some(crate::ToolCallId::new("call2")),
+                    output: crate::ToolOutput::text("Result 2".to_string()),
+                },
+            ]);
+
+        // Test total messages (6 messages: 1 system + 2 user + 2 assistant + 2 tool
+        // results)
+        assert_eq!(fixture.total_messages(), 7);
+
+        // Test user message count
+        assert_eq!(fixture.user_message_count(), 2);
+
+        // Test assistant message count
+        assert_eq!(fixture.assistant_message_count(), 2);
+
+        // Test tool call count (2 tool calls in the second assistant message)
+        assert_eq!(fixture.tool_call_count(), 2);
+    }
+
+    #[test]
+    fn test_directory_listing_sorted_dirs_first() {
+        // Create entries already sorted (as they would come from attachment service)
+        // Directories first, then files, all sorted alphabetically
+        let fixture_attachments = vec![Attachment {
+            path: "/test/root".to_string(),
+            content: AttachmentContent::DirectoryListing {
+                entries: vec![
+                    DirectoryEntry { path: "apple_dir".to_string(), is_dir: true },
+                    DirectoryEntry { path: "berry_dir".to_string(), is_dir: true },
+                    DirectoryEntry { path: "zoo_dir".to_string(), is_dir: true },
+                    DirectoryEntry { path: "banana.txt".to_string(), is_dir: false },
+                    DirectoryEntry { path: "cherry.txt".to_string(), is_dir: false },
+                    DirectoryEntry { path: "zebra.txt".to_string(), is_dir: false },
+                ],
+            },
+        }];
+
+        let actual = Context::default().add_attachments(fixture_attachments, None);
+        let text = actual.messages.first().unwrap().to_text();
+
+        // Extract the order of entries from the XML
+        let dir_entries: Vec<&str> = text
+            .split("&lt;")
+            .filter(|s| s.starts_with("dir&gt;") || s.starts_with("file&gt;"))
+            .collect();
+
+        // Verify directories come first, then files, all sorted alphabetically
+        let expected_order = [
+            "dir&gt;apple_dir",
+            "dir&gt;berry_dir",
+            "dir&gt;zoo_dir",
+            "file&gt;banana.txt",
+            "file&gt;cherry.txt",
+            "file&gt;zebra.txt",
+        ];
+
+        for (i, expected) in expected_order.iter().enumerate() {
+            assert!(
+                dir_entries[i].starts_with(expected),
+                "Expected entry {} to start with '{}', but got '{}'",
+                i,
+                expected,
+                dir_entries[i]
             );
         }
     }

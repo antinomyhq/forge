@@ -62,10 +62,7 @@ impl<S: Services> AgentExecutor<S> {
         let mut response_stream = app
             .chat(
                 agent_id.clone(),
-                ChatRequest::new(
-                    Event::new(agent_id.to_string(), Some(task.clone())),
-                    conversation.id,
-                ),
+                ChatRequest::new(Event::new(task.clone()), conversation.id),
             )
             .await?;
 

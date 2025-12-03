@@ -1,0 +1,33 @@
+export type Task = {
+  before_run: Array<string>;
+  run: string | Array<string>;
+  parallelism?: number;
+  timeout?: number;
+  early_exit?: boolean;
+  validations?: Array<Validation>;
+  sources: Array<Source>;
+  cwd?: string;
+};
+
+export type Validation = 
+  | {
+      name: string;
+      type: "regex";
+      regex: string;
+    }
+  | {
+      name: string;
+      type: "shell";
+      command: string;
+      exit_code?: number;
+    };
+
+export type Source = { csv: string } | { cmd: string } | { value: Record<string, string>[] };
+
+
+export enum TaskStatus {
+  Passed = "passed",
+  ValidationFailed = "validation_failed",
+  Timeout = "timeout",
+  Failed = "failed",
+}

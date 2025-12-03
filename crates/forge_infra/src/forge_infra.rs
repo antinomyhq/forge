@@ -58,15 +58,18 @@ impl ForgeInfra {
 
         let file_write_service = Arc::new(ForgeFileWriteService::new());
         let http_service = Arc::new(ForgeHttpInfra::new(env.clone(), file_write_service.clone()));
+        let file_read_service = Arc::new(ForgeFileReadService::new());
+        let file_meta_service = Arc::new(ForgeFileMetaService);
+        let directory_reader_service = Arc::new(ForgeDirectoryReaderService);
 
         Self {
-            file_read_service: Arc::new(ForgeFileReadService::new()),
+            file_read_service,
             file_write_service,
             file_remove_service: Arc::new(ForgeFileRemoveService::new()),
             environment_service,
-            file_meta_service: Arc::new(ForgeFileMetaService),
+            file_meta_service,
             create_dirs_service: Arc::new(ForgeCreateDirsService),
-            directory_reader_service: Arc::new(ForgeDirectoryReaderService),
+            directory_reader_service,
             command_executor_service: Arc::new(ForgeCommandExecutorService::new(
                 restricted,
                 env.clone(),
@@ -254,6 +257,15 @@ impl HttpInfra for ForgeInfra {
 }
 #[async_trait::async_trait]
 impl DirectoryReaderInfra for ForgeInfra {
+    async fn list_directory_entries(
+        &self,
+        directory: &Path,
+    ) -> anyhow::Result<Vec<(PathBuf, bool)>> {
+        self.directory_reader_service
+            .list_directory_entries(directory)
+            .await
+    }
+
     async fn read_directory_files(
         &self,
         directory: &Path,

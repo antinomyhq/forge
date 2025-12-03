@@ -6,10 +6,6 @@ use uuid::Uuid;
 
 use crate::{Context, Error, Metrics, Result};
 
-// Event type constants
-pub const EVENT_USER_TASK_INIT: &str = "user_task_init";
-pub const EVENT_USER_TASK_UPDATE: &str = "user_task_update";
-
 #[derive(Debug, Default, Display, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(transparent)]
 pub struct ConversationId(Uuid);
@@ -59,7 +55,7 @@ impl MetaData {
 impl Conversation {
     pub fn new(id: ConversationId) -> Self {
         let created_at = Utc::now();
-        let metrics = Metrics::new().started_at(created_at);
+        let metrics = Metrics::default().started_at(created_at);
         Self {
             id,
             metrics,

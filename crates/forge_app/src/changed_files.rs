@@ -1,9 +1,10 @@
 use std::sync::Arc;
 
-use forge_domain::{Agent, ContextMessage, Conversation};
+use forge_domain::{Agent, ContextMessage, Conversation, Role, TextMessage};
 use forge_template::Element;
 
-use crate::FsReadService;
+use crate::utils::format_display_path;
+use crate::{EnvironmentService, FsReadService};
 
 /// Service responsible for detecting externally changed files and rendering
 /// notifications
@@ -19,7 +20,7 @@ impl<S> ChangedFiles<S> {
     }
 }
 
-impl<S: FsReadService> ChangedFiles<S> {
+impl<S: FsReadService + EnvironmentService> ChangedFiles<S> {
     /// Detects externally changed files and renders a notification if changes
     /// are found. Updates file hashes in conversation metrics to prevent
     /// duplicate notifications.
@@ -45,9 +46,13 @@ impl<S: FsReadService> ChangedFiles<S> {
         }
         conversation.metrics = updated_metrics;
 
+        let cwd = self.services.get_environment().cwd;
         let file_elements: Vec<Element> = changes
             .iter()
-            .map(|change| Element::new("file").text(change.path.display().to_string()))
+            .map(|change| {
+                let display_path = format_display_path(&change.path, &cwd);
+                Element::new("file").text(display_path)
+            })
             .collect();
 
         let notification = Element::new("information")
@@ -59,9 +64,12 @@ impl<S: FsReadService> ChangedFiles<S> {
             .to_string();
 
         let context = conversation.context.take().unwrap_or_default();
-        conversation = conversation.context(
-            context.add_message(ContextMessage::user(notification, self.agent.model.clone())),
-        );
+
+        let message = TextMessage::new(Role::User, notification)
+            .droppable(true)
+            .model(self.agent.model.clone());
+
+        conversation = conversation.context(context.add_message(ContextMessage::from(message)));
 
         conversation
     }
@@ -70,20 +78,22 @@ impl<S: FsReadService> ChangedFiles<S> {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
+    use std::path::PathBuf;
 
     use forge_domain::{
-        Agent, AgentId, Context, Conversation, ConversationId, FileOperation, Metrics, ModelId,
-        ToolKind,
+        Agent, AgentId, Context, Conversation, ConversationId, Environment, FileOperation, Metrics,
+        ModelId, ProviderId, ToolKind,
     };
     use pretty_assertions::assert_eq;
 
     use super::*;
     use crate::services::Content;
-    use crate::{FsReadService, ReadOutput};
+    use crate::{EnvironmentService, FsReadService, ReadOutput, compute_hash};
 
     #[derive(Clone, Default)]
     struct TestServices {
         files: HashMap<String, String>,
+        cwd: Option<PathBuf>,
     }
 
     #[async_trait::async_trait]
@@ -96,13 +106,31 @@ mod tests {
         ) -> anyhow::Result<ReadOutput> {
             self.files
                 .get(&path)
-                .map(|content| ReadOutput {
-                    content: Content::File(content.clone()),
-                    start_line: 1,
-                    end_line: 1,
-                    total_lines: 1,
+                .map(|content| {
+                    let hash = compute_hash(content);
+                    ReadOutput {
+                        content: Content::file(content.clone()),
+                        start_line: 1,
+                        end_line: 1,
+                        total_lines: 1,
+                        content_hash: hash,
+                    }
                 })
                 .ok_or_else(|| anyhow::anyhow!(std::io::Error::from(std::io::ErrorKind::NotFound)))
+        }
+    }
+
+    impl EnvironmentService for TestServices {
+        fn get_environment(&self) -> Environment {
+            use fake::{Fake, Faker};
+            let mut env: Environment = Faker.fake();
+            if let Some(cwd) = &self.cwd {
+                env.cwd = cwd.clone();
+            } else {
+                // Use a deterministic cwd that won't match any test paths
+                env.cwd = PathBuf::from("/deterministic/test/cwd");
+            }
+            env
         }
     }
 
@@ -110,11 +138,23 @@ mod tests {
         files: HashMap<String, String>,
         tracked_files: HashMap<String, Option<String>>,
     ) -> (ChangedFiles<TestServices>, Conversation) {
-        let services = Arc::new(TestServices { files });
-        let agent = Agent::new(AgentId::new("test")).model(ModelId::new("test-model"));
+        fixture_with_cwd(files, tracked_files, None)
+    }
+
+    fn fixture_with_cwd(
+        files: HashMap<String, String>,
+        tracked_files: HashMap<String, Option<String>>,
+        cwd: Option<PathBuf>,
+    ) -> (ChangedFiles<TestServices>, Conversation) {
+        let services = Arc::new(TestServices { files, cwd });
+        let agent = Agent::new(
+            AgentId::new("test"),
+            ProviderId::ANTHROPIC,
+            ModelId::new("test-model"),
+        );
         let changed_files = ChangedFiles::new(services, agent);
 
-        let mut metrics = Metrics::new();
+        let mut metrics = Metrics::default();
         for (path, hash) in tracked_files {
             metrics
                 .file_operations
@@ -209,7 +249,32 @@ mod tests {
             .content()
             .unwrap()
             .to_string();
-        assert!(message.contains("/test/file1.txt"));
-        assert!(message.contains("/test/file2.txt"));
+
+        insta::assert_snapshot!(message);
+    }
+
+    #[tokio::test]
+    async fn test_uses_relative_paths_within_cwd() {
+        let old_hash = crate::compute_hash("old content");
+        let new_content = "new content";
+        let cwd = PathBuf::from("/home/user/project");
+        let absolute_path = "/home/user/project/src/main.rs";
+
+        let (service, conversation) = fixture_with_cwd(
+            [(absolute_path.into(), new_content.into())].into(),
+            [(absolute_path.into(), Some(old_hash))].into(),
+            Some(cwd),
+        );
+
+        let actual = service.update_file_stats(conversation).await;
+
+        let message = actual.context.unwrap().messages[0]
+            .content()
+            .unwrap()
+            .to_string();
+
+        let expected = "<information>\n<critical>The following files have been modified externally. Please re-read them if its relevant for the task.</critical>\n<files>\n<file>src/main.rs</file>\n</files>\n</information>";
+
+        assert_eq!(message, expected);
     }
 }

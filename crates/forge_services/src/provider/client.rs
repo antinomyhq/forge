@@ -49,7 +49,11 @@ impl ClientBuilder {
         let provider = self.provider;
         let retry_config = self.retry_config;
 
-        let inner = match &provider.response {
+        let response_type = provider.response.as_ref().ok_or_else(|| {
+            anyhow::anyhow!("Provider response type is required for LLM providers")
+        })?;
+
+        let inner = match response_type {
             ProviderResponse::OpenAI => InnerClient::OpenAICompat(Box::new(OpenAIProvider::new(
                 provider.clone(),
                 http.clone(),
@@ -57,6 +61,10 @@ impl ClientBuilder {
 
             ProviderResponse::Anthropic => {
                 let url = provider.url.clone();
+                let models = provider
+                    .models
+                    .clone()
+                    .ok_or_else(|| anyhow::anyhow!("Provider models configuration is required"))?;
                 let creds = provider
                     .credential
                     .context("Anthropic provider requires credentials")?
@@ -67,7 +75,7 @@ impl ClientBuilder {
                             http.clone(),
                             api_key.as_str().to_string(),
                             url,
-                            provider.models,
+                            models.clone(),
                             "2023-06-01".to_string(),
                             false,
                         )))
@@ -77,7 +85,7 @@ impl ClientBuilder {
                             http.clone(),
                             tokens.access_token.as_str().to_string(),
                             url,
-                            provider.models,
+                            models,
                             "2023-06-01".to_string(),
                             true,
                         )))
@@ -254,7 +262,7 @@ mod tests {
 
     fn make_test_credential() -> Option<forge_domain::AuthCredential> {
         Some(forge_domain::AuthCredential {
-            id: ProviderId::OpenAI,
+            id: ProviderId::OPENAI,
             auth_details: forge_domain::AuthDetails::ApiKey(forge_domain::ApiKey::from(
                 "test-key".to_string(),
             )),
@@ -265,15 +273,16 @@ mod tests {
     #[tokio::test]
     async fn test_cache_initialization() {
         let provider = forge_domain::Provider {
-            id: ProviderId::OpenAI,
-            response: ProviderResponse::OpenAI,
+            id: ProviderId::OPENAI,
+            provider_type: Default::default(),
+            response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_test_credential(),
-            models: forge_domain::Models::Url(
+            models: Some(forge_domain::ModelSource::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
-            ),
+            )),
         };
         let client = ClientBuilder::new(provider, "dev")
             .build(Arc::new(MockHttpClient))
@@ -287,15 +296,16 @@ mod tests {
     #[tokio::test]
     async fn test_refresh_models_method_exists() {
         let provider = forge_domain::Provider {
-            id: ProviderId::OpenAI,
-            response: ProviderResponse::OpenAI,
+            id: ProviderId::OPENAI,
+            provider_type: Default::default(),
+            response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             credential: make_test_credential(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
-            models: forge_domain::Models::Url(
+            models: Some(forge_domain::ModelSource::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
-            ),
+            )),
         };
         let client = ClientBuilder::new(provider, "dev")
             .build(Arc::new(MockHttpClient))
@@ -311,15 +321,16 @@ mod tests {
     #[tokio::test]
     async fn test_builder_pattern_api() {
         let provider = forge_domain::Provider {
-            id: ProviderId::OpenAI,
-            response: ProviderResponse::OpenAI,
+            id: ProviderId::OPENAI,
+            provider_type: Default::default(),
+            response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             credential: make_test_credential(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
-            models: forge_domain::Models::Url(
+            models: Some(forge_domain::ModelSource::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
-            ),
+            )),
         };
 
         // Test the builder pattern API
@@ -338,15 +349,16 @@ mod tests {
     #[tokio::test]
     async fn test_builder_with_defaults() {
         let provider = forge_domain::Provider {
-            id: ProviderId::OpenAI,
-            response: ProviderResponse::OpenAI,
+            id: ProviderId::OPENAI,
+            provider_type: forge_domain::ProviderType::Llm,
+            response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             credential: make_test_credential(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
-            models: forge_domain::Models::Url(
+            models: Some(forge_domain::ModelSource::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
-            ),
+            )),
         };
 
         // Test that ClientBuilder::new works with minimal parameters

@@ -1,16 +1,18 @@
 use std::sync::Arc;
 
 use forge_app::{
-    CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra,
-    FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, KVStore, McpServerInfra,
-    Services, StrategyFactory, UserInfra, WalkerInfra,
+    AgentRepository, CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra,
+    FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, KVStore,
+    McpServerInfra, Services, StrategyFactory, UserInfra, WalkerInfra,
 };
 use forge_domain::{
-    AppConfigRepository, ConversationRepository, ProviderRepository, SnapshotRepository,
+    AppConfigRepository, ContextEngineRepository, ConversationRepository, ProviderRepository,
+    SkillRepository, SnapshotRepository, WorkspaceRepository,
 };
 
 use crate::ForgeProviderAuthService;
-use crate::agent_registry::AgentLoaderService as ForgeAgentLoaderService;
+use crate::agent_registry::ForgeAgentRegistryService;
+use crate::app_config::ForgeAppConfigService;
 use crate::attachment::ForgeChatRequest;
 use crate::auth::ForgeAuthService;
 use crate::command_loader::CommandLoaderService as ForgeCommandLoaderService;
@@ -20,12 +22,11 @@ use crate::discovery::ForgeDiscoveryService;
 use crate::env::ForgeEnvironmentService;
 use crate::mcp::{ForgeMcpManager, ForgeMcpService};
 use crate::policy::ForgePolicyService;
-use crate::preferences::ForgeAppConfigService;
 use crate::provider::ForgeProviderService;
 use crate::template::ForgeTemplateService;
 use crate::tool_services::{
     ForgeFetch, ForgeFollowup, ForgeFsCreate, ForgeFsPatch, ForgeFsRead, ForgeFsRemove,
-    ForgeFsSearch, ForgeFsUndo, ForgeImageRead, ForgePlanCreate, ForgeShell,
+    ForgeFsSearch, ForgeFsUndo, ForgeImageRead, ForgePlanCreate, ForgeShell, ForgeSkillFetch,
 };
 use crate::workflow::ForgeWorkflowService;
 
@@ -49,7 +50,11 @@ pub struct ForgeServices<
         + ConversationRepository
         + AppConfigRepository
         + KVStore
-        + ProviderRepository,
+        + ProviderRepository
+        + forge_domain::WorkspaceRepository
+        + ContextEngineRepository
+        + AgentRepository
+        + SkillRepository,
 > {
     chat_service: Arc<ForgeProviderService<F>>,
     config_service: Arc<ForgeAppConfigService<F>>,
@@ -74,10 +79,12 @@ pub struct ForgeServices<
     env_service: Arc<ForgeEnvironmentService<F>>,
     custom_instructions_service: Arc<ForgeCustomInstructionsService<F>>,
     auth_service: Arc<AuthService<F>>,
-    agent_loader_service: Arc<ForgeAgentLoaderService<F>>,
+    agent_registry_service: Arc<ForgeAgentRegistryService<F>>,
     command_loader_service: Arc<ForgeCommandLoaderService<F>>,
     policy_service: ForgePolicyService<F>,
     provider_auth_service: ForgeProviderAuthService<F>,
+    codebase_service: Arc<crate::indexing::ForgeIndexingService<F>>,
+    skill_service: Arc<ForgeSkillFetch<F>>,
 }
 
 impl<
@@ -95,7 +102,11 @@ impl<
         + ConversationRepository
         + AppConfigRepository
         + ProviderRepository
-        + KVStore,
+        + KVStore
+        + forge_domain::WorkspaceRepository
+        + ContextEngineRepository
+        + AgentRepository
+        + SkillRepository,
 > ForgeServices<F>
 {
     pub fn new(infra: Arc<F>) -> Self {
@@ -123,10 +134,12 @@ impl<
         let env_service = Arc::new(ForgeEnvironmentService::new(infra.clone()));
         let custom_instructions_service =
             Arc::new(ForgeCustomInstructionsService::new(infra.clone()));
-        let agent_loader_service = Arc::new(ForgeAgentLoaderService::new(infra.clone()));
+        let agent_registry_service = Arc::new(ForgeAgentRegistryService::new(infra.clone()));
         let command_loader_service = Arc::new(ForgeCommandLoaderService::new(infra.clone()));
         let policy_service = ForgePolicyService::new(infra.clone());
         let provider_auth_service = ForgeProviderAuthService::new(infra.clone());
+        let codebase_service = Arc::new(crate::indexing::ForgeIndexingService::new(infra.clone()));
+        let skill_service = Arc::new(ForgeSkillFetch::new(infra.clone()));
 
         Self {
             conversation_service,
@@ -152,10 +165,12 @@ impl<
             auth_service,
             chat_service,
             config_service,
-            agent_loader_service,
+            agent_registry_service,
             command_loader_service,
             policy_service,
             provider_auth_service,
+            codebase_service,
+            skill_service,
         }
     }
 }
@@ -179,7 +194,11 @@ impl<
         + AppConfigRepository
         + KVStore
         + ProviderRepository
+        + AgentRepository
+        + SkillRepository
         + StrategyFactory
+        + WorkspaceRepository
+        + ContextEngineRepository
         + Clone
         + 'static,
 > Services for ForgeServices<F>
@@ -212,9 +231,11 @@ impl<
     type ShellService = ForgeShell<F>;
     type McpService = McpService<F>;
     type AuthService = AuthService<F>;
-    type AgentRegistry = ForgeAgentLoaderService<F>;
+    type AgentRegistry = ForgeAgentRegistryService<F>;
     type CommandLoaderService = ForgeCommandLoaderService<F>;
     type PolicyService = ForgePolicyService<F>;
+    type CodebaseService = crate::indexing::ForgeIndexingService<F>;
+    type SkillFetchService = ForgeSkillFetch<F>;
 
     fn provider_service(&self) -> &Self::ProviderService {
         &self.chat_service
@@ -304,7 +325,7 @@ impl<
     }
 
     fn agent_registry(&self) -> &Self::AgentRegistry {
-        &self.agent_loader_service
+        &self.agent_registry_service
     }
 
     fn command_loader_service(&self) -> &Self::CommandLoaderService {
@@ -314,7 +335,15 @@ impl<
     fn policy_service(&self) -> &Self::PolicyService {
         &self.policy_service
     }
+
+    fn context_engine_service(&self) -> &Self::CodebaseService {
+        &self.codebase_service
+    }
+
     fn image_read_service(&self) -> &Self::ImageReadService {
         &self.image_read_service
+    }
+    fn skill_fetch_service(&self) -> &Self::SkillFetchService {
+        &self.skill_service
     }
 }
