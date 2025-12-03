@@ -233,7 +233,10 @@ impl ContextEngineRepository for ForgeContextEngineRepository {
                 let node = query_item.node?;
                 let node_data = node.data?;
                 let node_id = node.node_id.map(|n| n.id).unwrap_or_default();
-                let similarity = query_item.distance.unwrap_or(0.0);
+
+                // Extract distance and similarity from proto (both optional)
+                let distance = query_item.distance;
+                let similarity = query_item.similarity;
 
                 // Convert proto node to domain CodeNode based on type
                 let code_node = match node_data.kind? {
@@ -263,8 +266,8 @@ impl ContextEngineRepository for ForgeContextEngineRepository {
                     }
                 };
 
-                // Wrap the node with its similarity score
-                Some(CodeSearchResult { node: code_node, similarity })
+                // Wrap the node with its similarity and distance scores
+                Some(CodeSearchResult { node: code_node, similarity, distance })
             })
             .collect();
 

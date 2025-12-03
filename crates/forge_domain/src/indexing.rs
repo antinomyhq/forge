@@ -261,7 +261,9 @@ pub struct CodeSearchResult {
     #[serde(flatten)]
     pub node: CodeNode,
     /// Similarity score (0.0 - 1.0)
-    pub similarity: f32,
+    pub similarity: Option<f32>,
+    /// Distance score (0.0 - 1.0)
+    pub distance: Option<f32>,
 }
 
 /// Result of a semantic search query

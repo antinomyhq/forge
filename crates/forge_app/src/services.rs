@@ -265,17 +265,100 @@ pub trait ContextEngineService: Send + Sync {
     ) -> anyhow::Result<Vec<CodeSearchResult>>;
 
     /// Batch Query the indexed codebase with semantic search
+    ///
+    /// Deduplicates results across multiple queries based on similarity score.
+    /// The API returns either:
+    /// - `similarity` (higher is better, 0.0-1.0)
+    /// - `distance` (lower is better, converted to similarity as 1.0 -
+    ///   distance)
+    ///
+    /// Each node appears only once across all query results, kept in the query
+    /// where it has the highest similarity score.
     async fn query_codebase_batch(
         &self,
         path: PathBuf,
         params: Vec<SearchParams<'_>>,
     ) -> anyhow::Result<Vec<Vec<CodeSearchResult>>> {
+        use std::collections::HashMap;
+
+        /// Tracks the best score for a node across queries
+        #[derive(Debug, Clone)]
+        struct BestScore {
+            query_idx: usize,
+            similarity: Option<f32>,
+            distance: Option<f32>,
+        }
+
+        impl BestScore {
+            fn new(query_idx: usize, result: &CodeSearchResult) -> Self {
+                Self {
+                    query_idx,
+                    similarity: result.similarity,
+                    distance: result.distance,
+                }
+            }
+
+            /// Check if current score is worse than the other score
+            /// Priority: similarity (higher) → distance (lower)
+            fn is_worse_than(&self, other: &Self) -> bool {
+                match (other.similarity, self.similarity) {
+                    (Some(other_sim), Some(curr_sim)) => match other_sim.partial_cmp(&curr_sim) {
+                        Some(std::cmp::Ordering::Greater) => true,
+                        Some(std::cmp::Ordering::Equal) => {
+                            // Tiebreaker: lower distance is better
+                            matches!(
+                                (other.distance, self.distance),
+                                (Some(o), Some(c)) if o < c
+                            )
+                        }
+                        _ => false,
+                    },
+                    (Some(_), None) => true,
+                    _ => false,
+                }
+            }
+        }
+
         let futures: Vec<_> = params
             .into_iter()
             .map(|param| self.query_codebase(path.clone(), param))
             .collect();
 
-        futures::future::try_join_all(futures).await
+        let mut results = futures::future::try_join_all(futures).await?;
+
+        // Track best similarity/distance for each node_id across all queries
+        let mut best_scores: HashMap<String, BestScore> = HashMap::new();
+
+        // First pass: find which query has the best similarity/distance for each node
+        for (query_idx, query_results) in results.iter().enumerate() {
+            for result in query_results {
+                let node_id = result.node.node_id().to_string();
+                let current_score = BestScore::new(query_idx, result);
+
+                match best_scores.entry(node_id) {
+                    std::collections::hash_map::Entry::Occupied(mut entry) => {
+                        if entry.get().is_worse_than(&current_score) {
+                            entry.insert(current_score);
+                        }
+                    }
+                    std::collections::hash_map::Entry::Vacant(entry) => {
+                        entry.insert(current_score);
+                    }
+                }
+            }
+        }
+
+        // Second pass: remove duplicates, keeping only in the query with best
+        // similarity/distance
+        for (query_idx, query_results) in results.iter_mut().enumerate() {
+            query_results.retain(|result| {
+                best_scores
+                    .get(result.node.node_id())
+                    .map_or(true, |best| best.query_idx == query_idx)
+            });
+        }
+
+        Ok(results)
     }
 
     /// List all workspaces indexed by the user
@@ -1099,5 +1182,166 @@ impl<I: Services> ContextEngineService for I {
         self.context_engine_service()
             .create_auth_credentials()
             .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use forge_domain::{CodeNode, CodeSearchResult, SearchParams};
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+
+    /// Test fixture for creating a minimal CodeSearchResult
+    fn result(node_id: &str, similarity: f32, distance: f32) -> CodeSearchResult {
+        CodeSearchResult {
+            node: CodeNode::FileChunk {
+                node_id: node_id.into(),
+                file_path: "test.rs".into(),
+                content: "test".into(),
+                start_line: 1,
+                end_line: 1,
+            },
+            similarity: Some(similarity),
+            distance: Some(distance),
+        }
+    }
+
+    /// Mock implementation that returns pre-configured results per query
+    struct MockContextEngine(Vec<Vec<CodeSearchResult>>);
+
+    #[async_trait::async_trait]
+    impl ContextEngineService for MockContextEngine {
+        async fn sync_codebase(
+            &self,
+            _: PathBuf,
+            _: usize,
+        ) -> anyhow::Result<forge_domain::FileUploadResponse> {
+            unimplemented!()
+        }
+
+        async fn query_codebase(
+            &self,
+            _: PathBuf,
+            params: SearchParams<'_>,
+        ) -> anyhow::Result<Vec<CodeSearchResult>> {
+            let index = params.query.parse::<usize>().unwrap_or(0);
+            Ok(self.0.get(index).cloned().unwrap_or_default())
+        }
+
+        async fn list_codebase(&self) -> anyhow::Result<Vec<forge_domain::WorkspaceInfo>> {
+            unimplemented!()
+        }
+
+        async fn get_workspace_info(
+            &self,
+            _: PathBuf,
+        ) -> anyhow::Result<Option<forge_domain::WorkspaceInfo>> {
+            unimplemented!()
+        }
+
+        async fn delete_codebase(&self, _: &forge_domain::WorkspaceId) -> anyhow::Result<()> {
+            unimplemented!()
+        }
+
+        async fn is_indexed(&self, _: &Path) -> anyhow::Result<bool> {
+            unimplemented!()
+        }
+
+        async fn is_authenticated(&self) -> anyhow::Result<bool> {
+            unimplemented!()
+        }
+
+        async fn create_auth_credentials(&self) -> anyhow::Result<WorkspaceAuth> {
+            unimplemented!()
+        }
+    }
+
+    #[tokio::test]
+    async fn test_deduplication_keeps_highest_similarity() {
+        let fixture = MockContextEngine(vec![
+            vec![result("node_a", 0.8, 0.2), result("node_b", 0.7, 0.3)],
+            vec![result("node_a", 0.9, 0.1), result("node_c", 0.6, 0.4)],
+        ]);
+
+        let actual = fixture
+            .query_codebase_batch(
+                PathBuf::from("/test"),
+                vec![
+                    SearchParams::new("0", "test"),
+                    SearchParams::new("1", "test"),
+                ],
+            )
+            .await
+            .unwrap();
+
+        let expected = vec![
+            vec![result("node_b", 0.7, 0.3)],
+            vec![result("node_a", 0.9, 0.1), result("node_c", 0.6, 0.4)],
+        ];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_multiple_duplicates() {
+        let fixture = MockContextEngine(vec![
+            vec![
+                result("node_a", 0.8, 0.2),
+                result("node_b", 0.7, 0.3),
+                result("node_c", 0.6, 0.4),
+            ],
+            vec![
+                result("node_a", 0.9, 0.1),
+                result("node_b", 0.5, 0.5),
+                result("node_d", 0.95, 0.05),
+            ],
+        ]);
+
+        let actual = fixture
+            .query_codebase_batch(
+                PathBuf::from("/test"),
+                vec![
+                    SearchParams::new("0", "test"),
+                    SearchParams::new("1", "test"),
+                ],
+            )
+            .await
+            .unwrap();
+
+        let expected = vec![
+            vec![result("node_b", 0.7, 0.3), result("node_c", 0.6, 0.4)],
+            vec![result("node_a", 0.9, 0.1), result("node_d", 0.95, 0.05)],
+        ];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_equal_similarity_uses_distance_tiebreaker() {
+        let fixture = MockContextEngine(vec![
+            vec![result("node_a", 0.9, 0.2), result("node_b", 0.8, 0.2)],
+            vec![result("node_a", 0.9, 0.1), result("node_c", 0.7, 0.3)],
+        ]);
+
+        let actual = fixture
+            .query_codebase_batch(
+                PathBuf::from("/test"),
+                vec![
+                    SearchParams::new("0", "test"),
+                    SearchParams::new("1", "test"),
+                ],
+            )
+            .await
+            .unwrap();
+
+        let expected = vec![
+            vec![result("node_b", 0.8, 0.2)],
+            vec![result("node_a", 0.9, 0.1), result("node_c", 0.7, 0.3)],
+        ];
+
+        assert_eq!(actual, expected);
     }
 }
