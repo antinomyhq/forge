@@ -325,7 +325,7 @@ pub trait ContextEngineService: Send + Sync {
                 compare(other.relevance, self.relevance, true) // Higher relevance is better
                     .or_else(|| compare(other.distance, self.distance, false)) // Lower distance is better
                     .or_else(|| compare(other.similarity, self.similarity, true)) // Higher similarity is better
-                    .unwrap_or_else(|| other.query_idx < self.query_idx) // Lower query index wins (first query wins)
+                    .unwrap_or(other.query_idx < self.query_idx) // Lower query index wins (first query wins)
             }
         }
 
