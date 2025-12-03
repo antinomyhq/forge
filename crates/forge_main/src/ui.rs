@@ -900,12 +900,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .join(" ");
 
             // Get provider and model for this agent
-            let provider_name = self
-                .get_provider(Some(agent.id.clone()))
-                .await
-                .ok()
-                .map(|p| p.id.to_string())
-                .unwrap_or_else(|| "<unset>".to_string());
+            let provider_name = match self.get_provider(Some(agent.id.clone())).await {
+                Ok(p) => p.id.to_string(),
+                Err(e) => format!("Error: [{}]", e),
+            };
 
             let model_name = agent.model.as_str().to_string();
 
@@ -949,15 +947,15 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let info = self.build_agents_info().await?;
 
         if porcelain {
-            let porcelain =
-                Porcelain::from(&info)
-                    .skip(1)
-                    .drop_col(0)
-                    .map_col(5, |text| match text.as_deref() {
-                        Some("ENABLED") => Some("Reasoning".to_string()),
-                        Some("DISABLED") => Some("Non-Reasoning".to_string()),
-                        _ => None,
-                    });
+            let porcelain = Porcelain::from(&info)
+                .skip(1)
+                .drop_col(0)
+                .truncate(3, 60)
+                .map_col(5, |text| match text.as_deref() {
+                    Some("ENABLED") => Some("Reasoning".to_string()),
+                    Some("DISABLED") => Some("Non-Reasoning".to_string()),
+                    _ => None,
+                });
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
@@ -1616,15 +1614,15 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 let info = self.build_agents_info().await?;
 
                 // Convert to porcelain format (same as list agents --porcelain)
-                let porcelain_output =
-                    Porcelain::from(&info)
-                        .skip(1)
-                        .drop_col(0)
-                        .map_col(4, |text| match text.as_deref() {
-                            Some("ENABLED") => Some("Reasoning".to_string()),
-                            Some("DISABLED") => Some("Non-Reasoning".to_string()),
-                            _ => None,
-                        });
+                let porcelain_output = Porcelain::from(&info)
+                    .skip(1)
+                    .drop_col(0)
+                    .truncate(3, 30)
+                    .map_col(4, |text| match text.as_deref() {
+                        Some("ENABLED") => Some("Reasoning".to_string()),
+                        Some("DISABLED") => Some("Non-Reasoning".to_string()),
+                        _ => None,
+                    });
 
                 // Split the porcelain output into lines and create agents
                 let porcelain_lines: Vec<String> = porcelain_output
