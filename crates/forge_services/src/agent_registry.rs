@@ -72,7 +72,7 @@ impl<R: AgentRepository + AppConfigRepository + ProviderRepository> ForgeAgentRe
         let app_config = self.repository.get_app_config().await?;
         let default_provider_id = app_config
             .provider
-            .ok_or_else(|| anyhow::anyhow!("No default provider configured"))?;
+            .ok_or(forge_domain::Error::NoDefaultProvider)?;
         let default_provider = self.repository.get_provider(default_provider_id).await?;
         let default_model = app_config
             .model

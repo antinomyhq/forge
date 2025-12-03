@@ -108,7 +108,11 @@ async function main() {
   if (task.before_run && task.before_run.length > 0) {
     for (const cmd of task.before_run) {
       try {
-        execSync(cmd, { stdio: "pipe", cwd: path.dirname(evalDir) });
+        logger.info({ command: cmd }, "Running setup command");
+        execSync(cmd, {
+          stdio: "inherit",
+          cwd: task.cwd ?? path.dirname(evalDir),
+        });
       } catch (error) {
         logger.error({ command: cmd }, "Setup command failed");
         process.exit(1);
@@ -153,7 +157,7 @@ async function main() {
   const results: TaskResult[] = [];
 
   // Get parallelism setting (default to 1 for sequential execution)
-  const parallelism = task.run.parallelism ?? 1;
+  const parallelism = task.parallelism ?? 1;
   const limit = pLimit(parallelism);
 
   // Execute run command for each data row
@@ -166,93 +170,114 @@ async function main() {
       // Add context_input to context for command interpolation and validations
       const context = { ...row, context_input: debugRequestFile };
 
-      // Generate command using context (including context_input)
-      const command = generateCommand(task.run.command, context);
+      // Support both single command and multiple commands
+      const commands = Array.isArray(task.run) ? task.run : [task.run];
 
-      logger.info(
-        { command, task_id: i + 1, log_file: logFile },
-        "Executing task",
-      );
+      let combinedOutput = "";
+      let totalDuration = 0;
+      let lastError: string | undefined;
+      let hasTimeout = false;
+      let hasEarlyExit = false;
 
-      // Execute the task
-      const executionResult = await executeTask(
-        command,
-        i + 1,
-        logFile,
-        evalDir,
-        task,
-        context,
-      );
+      // Execute commands sequentially
+      for (let cmdIdx = 0; cmdIdx < commands.length; cmdIdx++) {
+        const commandTemplate = commands[cmdIdx];
+        if (!commandTemplate) continue;
 
-      // If execution failed or timed out, still run validations if output is available
-      if (executionResult.error) {
-        logger.warn(
+        const command = generateCommand(commandTemplate, context);
+
+        logger.debug(
           {
-            task_id: executionResult.index,
-            command: executionResult.command,
-            duration: executionResult.duration,
-            error: executionResult.error,
-            is_timeout: executionResult.isTimeout,
+            command,
+            task_id: i + 1,
+            command_idx: cmdIdx + 1,
+            total_commands: commands.length,
+            log_file: logFile,
           },
-          executionResult.isTimeout ? "Task timed out" : "Task failed",
+          "Launching task"
         );
 
-        // Run validations on available output even if task failed/timed out
+        const executionResult = await executeTask(
+          command,
+          i + 1,
+          logFile,
+          evalDir,
+          task,
+          context,
+          cmdIdx > 0 // append if this is not the first command
+        );
+
+        totalDuration += executionResult.duration;
+
+        if (executionResult.output) {
+          combinedOutput += executionResult.output;
+        }
+
+        if (executionResult.earlyExit) {
+          hasEarlyExit = true;
+        }
+
+        // If execution failed or timed out, stop executing remaining commands
+        if (executionResult.error) {
+          lastError = executionResult.error;
+          hasTimeout = executionResult.isTimeout;
+
+          logger.warn(
+            {
+              task_id: executionResult.index,
+              command: executionResult.command,
+              command_idx: cmdIdx + 1,
+              duration: executionResult.duration,
+              error: executionResult.error,
+              is_timeout: executionResult.isTimeout,
+            },
+            executionResult.isTimeout ? "Task timed out" : "Task failed"
+          );
+          break;
+        }
+      }
+
+      // If any command failed, return failure result
+      if (lastError) {
         const { validationResults } = processValidations(
-          executionResult.output,
+          combinedOutput,
           task.validations,
           logger,
-          executionResult.index,
-          executionResult.duration,
+          i + 1,
+          totalDuration,
           logFile,
-          context,
+          context
         );
 
         return {
-          index: executionResult.index,
-          status: executionResult.isTimeout
-            ? TaskStatus.Timeout
-            : TaskStatus.Failed,
-          command: executionResult.command,
-          duration: executionResult.duration,
+          index: i + 1,
+          status: hasTimeout ? TaskStatus.Timeout : TaskStatus.Failed,
+          command: commands.join(" && "),
+          duration: totalDuration,
           validationResults,
         };
       }
 
-      // Task completed successfully, log execution result
-      const logMessage = executionResult.earlyExit
-        ? "Task completed (early exit)"
-        : "Task completed successfully";
-
-      logger.info(
-        {
-          task_id: executionResult.index,
-          duration: executionResult.duration,
-          early_exit: executionResult.earlyExit || undefined,
-        },
-        logMessage,
-      );
-
-      // Run validations on the output
+      // Run validations on the combined output
       const { validationResults, status: validationStatus } =
         processValidations(
-          executionResult.output,
+          combinedOutput,
           task.validations,
           logger,
-          executionResult.index,
-          executionResult.duration,
+          i + 1,
+          totalDuration,
           logFile,
-          context,
+          context
         );
 
       return {
-        index: executionResult.index,
+        index: i + 1,
         status:
           validationStatus === "passed"
             ? TaskStatus.Passed
             : TaskStatus.ValidationFailed,
-        command: executionResult.command,
-        duration: executionResult.duration,
+        command: commands.join(" && "),
+        duration: totalDuration,
         validationResults,
       };
     });
@@ -264,27 +289,27 @@ async function main() {
 
   // Calculate summary statistics
   const successCount = results.filter(
-    (r) => r.status === TaskStatus.Passed,
+    (r) => r.status === TaskStatus.Passed
   ).length;
   const warningCount = results.filter(
-    (r) => r.status === TaskStatus.ValidationFailed,
+    (r) => r.status === TaskStatus.ValidationFailed
   ).length;
   const timeoutCount = results.filter(
-    (r) => r.status === TaskStatus.Timeout,
+    (r) => r.status === TaskStatus.Timeout
   ).length;
   const failCount = results.filter(
-    (r) => r.status === TaskStatus.Failed,
+    (r) => r.status === TaskStatus.Failed
   ).length;
   const totalDuration = results.reduce((sum, r) => sum + r.duration, 0);
 
   // Calculate validation statistics
   const totalValidations = results.reduce(
     (sum, r) => sum + r.validationResults.length,
-    0,
+    0
   );
   const passedValidations = results.reduce(
     (sum, r) => sum + r.validationResults.filter((v) => v.passed).length,
-    0,
+    0
   );
 
   // Print summary
@@ -302,7 +327,7 @@ async function main() {
         failed: totalValidations - passedValidations,
       },
     },
-    "Evaluation completed",
+    "Evaluation completed"
   );
 
   // Exit with error code if any task failed (excluding timeouts and validation failures)
