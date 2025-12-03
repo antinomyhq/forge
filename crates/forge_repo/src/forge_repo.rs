@@ -40,7 +40,7 @@ pub struct ForgeRepo<F> {
     app_config_repository: Arc<AppConfigRepositoryImpl<F>>,
     mcp_cache_repository: Arc<CacacheStorage>,
     provider_repository: Arc<ForgeProviderRepository<F>>,
-    indexing_repository: Arc<crate::indexing::IndexingRepositoryImpl>,
+    indexing_repository: Arc<crate::ForgeWorkspaceRepository>,
     codebase_repo: Arc<crate::ForgeContextEngineRepository>,
     agent_repository: Arc<ForgeAgentRepository<F>>,
     skill_repository: Arc<ForgeSkillRepository<F>>,
@@ -66,7 +66,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
 
         let provider_repository = Arc::new(ForgeProviderRepository::new(infra.clone()));
 
-        let indexing_repository = Arc::new(crate::indexing::IndexingRepositoryImpl::new(
+        let indexing_repository = Arc::new(crate::ForgeWorkspaceRepository::new(
             db_pool.clone(),
         ));
 
