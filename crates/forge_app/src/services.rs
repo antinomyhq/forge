@@ -358,6 +358,10 @@ pub trait ContextEngineService: Send + Sync {
             });
         }
 
+        for result in results.iter() {
+            println!("Result set: {}", result.len());
+        }
+
         Ok(results)
     }
 
@@ -1313,6 +1317,47 @@ mod tests {
         let expected = vec![
             vec![result("node_b", 0.8, 0.2)],
             vec![result("node_a", 0.9, 0.1), result("node_c", 0.7, 0.3)],
+        ];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_deduplication_across_three_queries() {
+        let fixture = MockContextEngine(vec![
+            vec![
+                result("node_a", 0.85, 0.15),
+                result("node_b", 0.75, 0.25),
+                result("node_e", 0.65, 0.35),
+            ],
+            vec![
+                result("node_a", 0.90, 0.10),
+                result("node_c", 0.80, 0.20),
+                result("node_d", 0.70, 0.30),
+            ],
+            vec![
+                result("node_a", 0.88, 0.12),
+                result("node_b", 0.78, 0.22),
+                result("node_d", 0.72, 0.28),
+            ],
+        ]);
+
+        let actual = fixture
+            .query_codebase_batch(
+                PathBuf::from("/test"),
+                vec![
+                    SearchParams::new("0", "test"),
+                    SearchParams::new("1", "test"),
+                    SearchParams::new("2", "test"),
+                ],
+            )
+            .await
+            .unwrap();
+
+        let expected = vec![
+            vec![result("node_e", 0.65, 0.35)],
+            vec![result("node_a", 0.90, 0.10), result("node_c", 0.80, 0.20)],
+            vec![result("node_b", 0.78, 0.22), result("node_d", 0.72, 0.28)],
         ];
 
         assert_eq!(actual, expected);
