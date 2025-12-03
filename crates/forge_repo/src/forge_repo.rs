@@ -66,9 +66,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
 
         let provider_repository = Arc::new(ForgeProviderRepository::new(infra.clone()));
 
-        let indexing_repository = Arc::new(crate::ForgeWorkspaceRepository::new(
-            db_pool.clone(),
-        ));
+        let indexing_repository = Arc::new(crate::ForgeWorkspaceRepository::new(db_pool.clone()));
 
         let codebase_repo = Arc::new(
             crate::ForgeContextEngineRepository::new(&env.workspace_server_url)

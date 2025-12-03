@@ -5,9 +5,9 @@ mod conversation;
 mod database;
 mod forge_repo;
 mod fs_snap;
-mod workspace;
 mod provider;
 mod skill;
+mod workspace;
 
 pub use agent::*;
 pub use app_config::*;
@@ -16,6 +16,6 @@ pub use conversation::*;
 pub use database::*;
 pub use forge_repo::*;
 pub use fs_snap::*;
-pub use workspace::*;
 pub use provider::*;
 pub use skill::*;
+pub use workspace::*;

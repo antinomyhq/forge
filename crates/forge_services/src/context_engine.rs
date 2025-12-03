@@ -30,11 +30,11 @@ impl IndexedFile {
 }
 
 /// Service for indexing codebases and performing semantic search
-pub struct ForgeIndexingService<F> {
+pub struct ForgeContextEngineService<F> {
     infra: Arc<F>,
 }
 
-impl<F> ForgeIndexingService<F> {
+impl<F> ForgeContextEngineService<F> {
     /// Creates a new indexing service with the provided infrastructure.
     pub fn new(infra: Arc<F>) -> Self {
         Self { infra }
@@ -253,7 +253,7 @@ impl<
         + ContextEngineRepository
         + WalkerInfra
         + FileReaderInfra,
-> ContextEngineService for ForgeIndexingService<F>
+> ContextEngineService for ForgeContextEngineService<F>
 {
     async fn sync_codebase(&self, path: PathBuf, batch_size: usize) -> Result<FileUploadResponse> {
         info!(path = %path.display(), "Starting codebase sync");
@@ -529,7 +529,7 @@ impl<
 }
 
 // Additional authentication methods for ForgeIndexingService
-impl<F> ForgeIndexingService<F>
+impl<F> ForgeContextEngineService<F>
 where
     F: ProviderRepository + WorkspaceRepository + ContextEngineRepository,
 {
@@ -847,7 +847,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_sync_new_workspace() {
-        let service = ForgeIndexingService::new(Arc::new(MockInfra::new(&["main.rs", "lib.rs"])));
+        let service =
+            ForgeContextEngineService::new(Arc::new(MockInfra::new(&["main.rs", "lib.rs"])));
 
         let actual = service.sync_codebase(PathBuf::from("."), 20).await.unwrap();
 
@@ -859,7 +860,7 @@ mod tests {
     async fn test_query_returns_results() {
         let mut mock = MockInfra::synced(&["test.rs"]);
         mock.search_results = vec![search_result()];
-        let service = ForgeIndexingService::new(Arc::new(mock));
+        let service = ForgeContextEngineService::new(Arc::new(mock));
 
         let params = forge_domain::SearchParams::new("test", "fest").limit(10usize);
         let actual = service
@@ -872,7 +873,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_query_error_when_not_found() {
-        let service = ForgeIndexingService::new(Arc::new(MockInfra::default()));
+        let service = ForgeContextEngineService::new(Arc::new(MockInfra::default()));
 
         let params = forge_domain::SearchParams::new("test", "fest").limit(10usize);
         let actual = service.query_codebase(PathBuf::from("."), params).await;
@@ -893,7 +894,7 @@ mod tests {
             last_updated: None,
             created_at: chrono::Utc::now(),
         });
-        let service = ForgeIndexingService::new(Arc::new(mock));
+        let service = ForgeContextEngineService::new(Arc::new(mock));
 
         let actual = service.list_codebase().await.unwrap();
 
@@ -902,7 +903,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_codebases_error_when_none() {
-        let service = ForgeIndexingService::new(Arc::new(MockInfra::default()));
+        let service = ForgeContextEngineService::new(Arc::new(MockInfra::default()));
 
         let actual = service.list_codebase().await;
 
@@ -917,7 +918,7 @@ mod tests {
         );
         mock.server_files
             .push(FileHash { path: "changed.rs".into(), hash: "old".into() });
-        let service = ForgeIndexingService::new(Arc::new(mock.clone()));
+        let service = ForgeContextEngineService::new(Arc::new(mock.clone()));
 
         service.sync_codebase(PathBuf::from("."), 20).await.unwrap();
 
@@ -935,7 +936,7 @@ mod tests {
     #[tokio::test]
     async fn test_no_upload_when_unchanged() {
         let mock = MockInfra::synced(&["main.rs"]);
-        let service = ForgeIndexingService::new(Arc::new(mock.clone()));
+        let service = ForgeContextEngineService::new(Arc::new(mock.clone()));
 
         let actual = service.sync_codebase(PathBuf::from("."), 20).await.unwrap();
 
@@ -949,7 +950,7 @@ mod tests {
         let mut mock = MockInfra::out_of_sync(&["main.rs"], &["main.rs"]);
         mock.server_files
             .push(FileHash { path: "old.rs".into(), hash: "x".into() });
-        let service = ForgeIndexingService::new(Arc::new(mock.clone()));
+        let service = ForgeContextEngineService::new(Arc::new(mock.clone()));
 
         service.sync_codebase(PathBuf::from("."), 20).await.unwrap();
 
@@ -971,7 +972,7 @@ mod tests {
             last_updated: None,
             created_at: chrono::Utc::now(),
         });
-        let service = ForgeIndexingService::new(Arc::new(mock));
+        let service = ForgeContextEngineService::new(Arc::new(mock));
 
         service.delete_codebase(&ws.workspace_id).await.unwrap();
 
@@ -991,7 +992,7 @@ mod tests {
             last_updated: Some(chrono::Utc::now()),
             created_at: chrono::Utc::now(),
         });
-        let service = ForgeIndexingService::new(Arc::new(mock));
+        let service = ForgeContextEngineService::new(Arc::new(mock));
 
         let actual = service.get_workspace_info(ws.path).await.unwrap();
 
@@ -1005,7 +1006,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_workspace_info_returns_none_when_not_found() {
         let mock = MockInfra::new(&["main.rs"]);
-        let service = ForgeIndexingService::new(Arc::new(mock));
+        let service = ForgeContextEngineService::new(Arc::new(mock));
 
         let actual = service
             .get_workspace_info(PathBuf::from("."))
@@ -1020,7 +1021,7 @@ mod tests {
         let mut mock = MockInfra::synced(&["main.rs"]);
         mock.authenticated = false;
         let ws = mock.workspace.clone().unwrap();
-        let service = ForgeIndexingService::new(Arc::new(mock));
+        let service = ForgeContextEngineService::new(Arc::new(mock));
         let actual = service.get_workspace_info(ws.path).await;
 
         assert!(actual.is_err());
