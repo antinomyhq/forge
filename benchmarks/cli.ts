@@ -430,7 +430,7 @@ async function main() {
     process.exit(1);
   }
   } catch (error: unknown) {
-    const err = error as Error;
+    const err = error instanceof Error ? error : new Error(String(error));
     logger.error({ error: err.message, stack: err.stack }, "Orchestrator.runTasks failed");
     throw error;
   }

@@ -88,8 +88,7 @@ export async function executeTask(
         if (task.early_exit && task.validations && task.validations.length > 0) {
           const currentOutput = stdout + stderr;
           if (currentOutput) {
-            // Pass working directory so shell validations can access files
-            const results = runValidations(currentOutput, task.validations, context, logDir);
+            const results = runValidations(currentOutput, task.validations, context);
             if (allValidationsPassed(results)) {
               exitedEarly = true;
               if (timeoutId) clearTimeout(timeoutId);
@@ -179,7 +178,7 @@ export async function executeTask(
     let validationResults: Array<{ name: string; passed: boolean; error?: string }> = [];
     
     if (task.validations && task.validations.length > 0) {
-      const results = runValidations(output, task.validations, context, logDir);
+      const results = runValidations(output, task.validations, context);
       validationResults = results.map(v => ({
         name: v.name,
         passed: v.passed,

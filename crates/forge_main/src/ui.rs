@@ -809,7 +809,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 return Err(anyhow::anyhow!("Provider '{id}' is not configured"));
             }
             self.api.remove_provider(id).await?;
-            self.writeln_title(TitleFormat::completion(format!(
+            self.writeln_title(TitleFormat::debug(format!(
                 "Successfully logged out from {id}"
             )))?;
             return Ok(true);
@@ -835,7 +835,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             Some(provider) => {
                 let provider_id = provider.0.id();
                 self.api.remove_provider(&provider_id).await?;
-                self.writeln_title(TitleFormat::completion(format!(
+                self.writeln_title(TitleFormat::debug(format!(
                     "Successfully logged out from {provider_id}"
                 )))?;
                 return Ok(true);
@@ -900,12 +900,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .join(" ");
 
             // Get provider and model for this agent
-            let provider_name = self
-                .get_provider(Some(agent.id.clone()))
-                .await
-                .ok()
-                .map(|p| p.id.to_string())
-                .unwrap_or_else(|| "<unset>".to_string());
+            let provider_name = match self.get_provider(Some(agent.id.clone())).await {
+                Ok(p) => p.id.to_string(),
+                Err(e) => format!("Error: [{}]", e),
+            };
 
             let model_name = agent.model.as_str().to_string();
 
@@ -949,15 +947,15 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let info = self.build_agents_info().await?;
 
         if porcelain {
-            let porcelain =
-                Porcelain::from(&info)
-                    .skip(1)
-                    .drop_col(0)
-                    .map_col(5, |text| match text.as_deref() {
-                        Some("ENABLED") => Some("Reasoning".to_string()),
-                        Some("DISABLED") => Some("Non-Reasoning".to_string()),
-                        _ => None,
-                    });
+            let porcelain = Porcelain::from(&info)
+                .skip(1)
+                .drop_col(0)
+                .truncate(3, 60)
+                .map_col(5, |text| match text.as_deref() {
+                    Some("ENABLED") => Some("Reasoning".to_string()),
+                    Some("DISABLED") => Some("Non-Reasoning".to_string()),
+                    _ => None,
+                });
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
@@ -1616,15 +1614,15 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 let info = self.build_agents_info().await?;
 
                 // Convert to porcelain format (same as list agents --porcelain)
-                let porcelain_output =
-                    Porcelain::from(&info)
-                        .skip(1)
-                        .drop_col(0)
-                        .map_col(4, |text| match text.as_deref() {
-                            Some("ENABLED") => Some("Reasoning".to_string()),
-                            Some("DISABLED") => Some("Non-Reasoning".to_string()),
-                            _ => None,
-                        });
+                let porcelain_output = Porcelain::from(&info)
+                    .skip(1)
+                    .drop_col(0)
+                    .truncate(3, 30)
+                    .map_col(4, |text| match text.as_deref() {
+                        Some("ENABLED") => Some("Reasoning".to_string()),
+                        Some("DISABLED") => Some("Non-Reasoning".to_string()),
+                        _ => None,
+                    });
 
                 // Split the porcelain output into lines and create agents
                 let porcelain_lines: Vec<String> = porcelain_output
@@ -2291,10 +2289,17 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             self.on_model_selection().await?;
         }
 
-        // Create base workflow and trigger updates if this is the first initialization
-        let mut base_workflow = Workflow::default();
-        base_workflow.merge(workflow.clone());
+        // Validate provider is configured before loading agents
+        // If provider is set in config but not configured (no credentials), prompt user
+        // to login
+        if self.api.get_default_provider().await.is_err() {
+            self.on_provider_selection().await?;
+        }
+
         if first {
+            // Create base workflow and trigger updates if this is the first initialization
+            let mut base_workflow = Workflow::default();
+            base_workflow.merge(workflow.clone());
             // For chat, we are trying to get active agent or setting it to default.
             // So for default values, `/info` doesn't show active provider, model, etc.
             // So my default, on new, we should set the active agent.
@@ -2309,17 +2314,11 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         // Execute independent operations in parallel to improve performance
-        let write_workflow_fut = self
-            .api
-            .write_workflow(self.cli.workflow.as_deref(), &workflow);
         let get_agents_fut = self.api.get_agents();
         let get_operating_agent_fut = self.api.get_active_agent();
 
-        let (write_workflow_result, agents_result, _operating_agent_result) =
-            tokio::join!(write_workflow_fut, get_agents_fut, get_operating_agent_fut);
-
-        // Handle workflow write result first as it's critical for the system state
-        write_workflow_result?;
+        let (agents_result, _operating_agent_result) =
+            tokio::join!(get_agents_fut, get_operating_agent_fut);
 
         // Register agent commands with proper error handling and user feedback
         match agents_result {
@@ -2875,7 +2874,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
 
                 let path = path.canonicalize().unwrap_or(path);
-                self.writeln_title(TitleFormat::completion(format!(
+                self.writeln_title(TitleFormat::debug(format!(
                     "Successfully synced: {}",
                     path.display()
                 )))?;
@@ -2909,22 +2908,22 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         for result in results.iter() {
             match &result.node {
-                forge_domain::CodeNode::FileChunk { file_path, start_line, end_line, .. } => {
+                forge_domain::NodeData::FileChunk { file_path, start_line, end_line, .. } => {
                     info = info.add_key_value(
                         "File",
                         format!("{}:{}-{}", file_path, start_line, end_line),
                     );
                 }
-                forge_domain::CodeNode::File { file_path, .. } => {
+                forge_domain::NodeData::File { file_path, .. } => {
                     info = info.add_key_value("File", format!("{} (full file)", file_path));
                 }
-                forge_domain::CodeNode::FileRef { file_path, .. } => {
+                forge_domain::NodeData::FileRef { file_path, .. } => {
                     info = info.add_key_value("File", format!("{} (reference)", file_path));
                 }
-                forge_domain::CodeNode::Note { content, .. } => {
+                forge_domain::NodeData::Note { content, .. } => {
                     info = info.add_key_value("Note", content);
                 }
-                forge_domain::CodeNode::Task { task, .. } => {
+                forge_domain::NodeData::Task { task, .. } => {
                     info = info.add_key_value("Task", task);
                 }
             }
@@ -3049,7 +3048,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         match self.api.delete_codebase(workspace_id.clone()).await {
             Ok(()) => {
                 self.spinner.stop(None)?;
-                self.writeln_title(TitleFormat::completion(format!(
+                self.writeln_title(TitleFormat::debug(format!(
                     "Successfully deleted workspace {}",
                     workspace_id
                 )))?;

@@ -40,10 +40,11 @@ pub struct ForgeRepo<F> {
     app_config_repository: Arc<AppConfigRepositoryImpl<F>>,
     mcp_cache_repository: Arc<CacacheStorage>,
     provider_repository: Arc<ForgeProviderRepository<F>>,
-    indexing_repository: Arc<crate::indexing::IndexingRepositoryImpl>,
+    indexing_repository: Arc<crate::ForgeWorkspaceRepository>,
     codebase_repo: Arc<crate::ForgeContextEngineRepository>,
     agent_repository: Arc<ForgeAgentRepository<F>>,
     skill_repository: Arc<ForgeSkillRepository<F>>,
+    validation_repository: Arc<crate::ForgeValidationRepository>,
 }
 
 impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
@@ -66,16 +67,19 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
 
         let provider_repository = Arc::new(ForgeProviderRepository::new(infra.clone()));
 
-        let indexing_repository = Arc::new(crate::indexing::IndexingRepositoryImpl::new(
-            db_pool.clone(),
-        ));
+        let indexing_repository = Arc::new(crate::ForgeWorkspaceRepository::new(db_pool.clone()));
 
+        // FIXME: Pass the tonic grpc channel via infra
         let codebase_repo = Arc::new(
             crate::ForgeContextEngineRepository::new(&env.workspace_server_url)
                 .expect("Failed to create codebase repository"),
         );
         let agent_repository = Arc::new(ForgeAgentRepository::new(infra.clone()));
         let skill_repository = Arc::new(ForgeSkillRepository::new(infra.clone()));
+        let validation_repository = Arc::new(
+            crate::ForgeValidationRepository::new(&env.workspace_server_url)
+                .expect("Failed to create validation repository"),
+        );
         Self {
             infra,
             file_snapshot_service,
@@ -87,6 +91,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
             codebase_repo,
             agent_repository,
             skill_repository,
+            validation_repository,
         }
     }
 }
@@ -511,7 +516,7 @@ impl<F: Send + Sync> forge_domain::ContextEngineRepository for ForgeRepo<F> {
         &self,
         query: &forge_domain::CodeSearchQuery<'_>,
         auth_token: &forge_domain::ApiKey,
-    ) -> anyhow::Result<Vec<forge_domain::CodeSearchResult>> {
+    ) -> anyhow::Result<Vec<forge_domain::Node>> {
         self.codebase_repo.search(query, auth_token).await
     }
 
@@ -557,6 +562,19 @@ impl<F: Send + Sync> forge_domain::ContextEngineRepository for ForgeRepo<F> {
     ) -> anyhow::Result<()> {
         self.codebase_repo
             .delete_workspace(workspace_id, auth_token)
+            .await
+    }
+}
+
+#[async_trait::async_trait]
+impl<F: Send + Sync> forge_domain::ValidationRepository for ForgeRepo<F> {
+    async fn validate_file(
+        &self,
+        path: impl AsRef<std::path::Path> + Send,
+        content: &str,
+    ) -> anyhow::Result<Option<String>> {
+        self.validation_repository
+            .validate_file(path, content)
             .await
     }
 }

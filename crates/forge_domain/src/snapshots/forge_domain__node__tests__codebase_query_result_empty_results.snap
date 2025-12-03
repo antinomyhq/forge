@@ -1,5 +1,5 @@
 ---
-source: crates/forge_domain/src/indexing.rs
+source: crates/forge_domain/src/node.rs
 expression: actual
 ---
 <query_result

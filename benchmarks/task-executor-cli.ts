@@ -28,7 +28,7 @@ async function main() {
     sources: [],
   };
   
-  const debugDir = "/workspace/debug";
+  const debugDir = "/tmp/debug";
   const logFile = path.join(debugDir, "task_run.log");
   
   // Create debug directory
@@ -36,19 +36,15 @@ async function main() {
     fs.mkdirSync(debugDir, { recursive: true });
   }
   
-  // Update context to reference the context_input file if it exists
+  // Update context with the actual context_input path from config
   const context = config.context || {};
-  const contextInputFile = path.join(debugDir, "context_input");
-  if (fs.existsSync(contextInputFile)) {
-    context.context_input = contextInputFile;
-  }
   
   try {
     const result = await executeTask(
       config.command,
       1,
       logFile,
-      "/workspace",
+      "/workspace/benchmarks",
       task,
       context,
       false,
