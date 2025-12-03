@@ -900,12 +900,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .join(" ");
 
             // Get provider and model for this agent
-            let provider_name = self
-                .get_provider(Some(agent.id.clone()))
-                .await
-                .ok()
-                .map(|p| p.id.to_string())
-                .unwrap_or_else(|| "<unset>".to_string());
+            let provider_name = match self.get_provider(Some(agent.id.clone())).await {
+                Ok(p) => p.id.to_string(),
+                Err(e) => format!("Error: [{}]", e),
+            };
 
             let model_name = agent.model.as_str().to_string();
 
