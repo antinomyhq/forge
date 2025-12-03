@@ -1037,9 +1037,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 info = info.add_key_value(
                     "Tools",
                     if supported {
-                        "Supported"
+                        status::SUPPORTED
                     } else {
-                        "Unsupported"
+                        status::UNSUPPORTED
                     },
                 )
             } else {
@@ -1048,18 +1048,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         if porcelain {
-            self.writeln(
-                Porcelain::from(&info)
-                    .swap_cols(0, 1)
-                    .map_col(3, |col| {
-                        if col == Some("Supported".to_owned()) {
-                            Some("🛠️".into())
-                        } else {
-                            None
-                        }
-                    })
-                    .uppercase_headers(),
-            )?;
+            self.writeln(Porcelain::from(&info).swap_cols(0, 1).uppercase_headers())?;
         } else {
             self.writeln(info)?;
         }
@@ -2958,7 +2947,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .to_string();
 
         let title = if is_active {
-            "Workspace [ACTIVE]".to_string()
+            format!("Workspace {}", markers::ACTIVE)
         } else {
             format!("Workspace [{}]", timestamp)
         };

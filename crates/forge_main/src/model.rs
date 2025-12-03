@@ -7,6 +7,7 @@ use forge_domain::UserCommand;
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{EnumIter, EnumProperty};
 
+use crate::display_constants::markers;
 use crate::info::Info;
 
 /// Wrapper for displaying models in selection menus
@@ -76,11 +77,11 @@ impl Display for CliProvider {
                 if let Some(domain) = provider.url.domain() {
                     write!(f, " [{domain}]")?;
                 } else {
-                    write!(f, " [unavailable]")?;
+                    write!(f, " {}", markers::UNAVAILABLE)?;
                 }
             }
             AnyProvider::Template(_) => {
-                write!(f, "  {name:<name_width$} [unavailable]")?;
+                write!(f, "  {name:<name_width$} {}", markers::UNAVAILABLE)?;
             }
         }
         Ok(())
@@ -1098,7 +1099,7 @@ mod tests {
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "  Anthropic           [unavailable]";
+        let expected = format!("  Anthropic           {}", markers::UNAVAILABLE);
         assert_eq!(actual, expected);
     }
 
@@ -1118,7 +1119,7 @@ mod tests {
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "✓ Forge               [unavailable]";
+        let expected = format!("✓ Forge               {}", markers::UNAVAILABLE);
         assert_eq!(actual, expected);
     }
 

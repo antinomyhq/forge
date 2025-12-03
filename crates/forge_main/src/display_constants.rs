@@ -36,11 +36,17 @@ pub mod placeholders {
 ///
 /// Use lowercase for user-facing status strings to maintain consistency.
 pub mod status {
-    /// Indicates a resource is available/configured
+    /// Indicates a resource is enabled/configured
     pub const ENABLED: &str = "[enabled]";
 
     /// Indicates a resource is disabled
     pub const DISABLED: &str = "[disabled]";
+
+    /// Indicates a feature is supported
+    pub const SUPPORTED: &str = "[supported]";
+
+    /// Indicates a feature is not supported
+    pub const UNSUPPORTED: &str = "[unsupported]";
 }
 
 /// Table column headers for porcelain (machine-readable) output.
@@ -63,6 +69,12 @@ pub mod headers {
 pub mod markers {
     /// Indicates a built-in (non-user-defined) component
     pub const BUILT_IN: &str = "[built-in]";
+
+    /// Indicates a resource is unavailable (e.g., provider not configured)
+    pub const UNAVAILABLE: &str = "[unavailable]";
+
+    /// Indicates the active/current selection
+    pub const ACTIVE: &str = "[ACTIVE]";
 }
 
 /// Type discriminator for commands, agents, and custom entries.
@@ -135,6 +147,10 @@ mod tests {
     fn test_markers_have_square_brackets() {
         assert!(markers::BUILT_IN.starts_with('['));
         assert!(markers::BUILT_IN.ends_with(']'));
+        assert!(markers::UNAVAILABLE.starts_with('['));
+        assert!(markers::UNAVAILABLE.ends_with(']'));
+        assert!(markers::ACTIVE.starts_with('['));
+        assert!(markers::ACTIVE.ends_with(']'));
     }
 
     #[test]
@@ -144,5 +160,9 @@ mod tests {
         assert!(status::ENABLED.ends_with(']'));
         assert!(status::DISABLED.starts_with('['));
         assert!(status::DISABLED.ends_with(']'));
+        assert!(status::SUPPORTED.starts_with('['));
+        assert!(status::SUPPORTED.ends_with(']'));
+        assert!(status::UNSUPPORTED.starts_with('['));
+        assert!(status::UNSUPPORTED.ends_with(']'));
     }
 }
