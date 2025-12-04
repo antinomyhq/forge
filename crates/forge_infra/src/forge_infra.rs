@@ -63,9 +63,7 @@ impl ForgeInfra {
         let file_read_service = Arc::new(ForgeFileReadService::new());
         let file_meta_service = Arc::new(ForgeFileMetaService);
         let directory_reader_service = Arc::new(ForgeDirectoryReaderService);
-        let grpc_client = Arc::new(
-            ForgeGrpcClient::new(&env.workspace_server_url).expect("Failed to create gRPC client"),
-        );
+        let grpc_client = Arc::new(ForgeGrpcClient::new(env.workspace_server_url.clone()));
 
         Self {
             file_read_service,
@@ -297,7 +295,7 @@ impl StrategyFactory for ForgeInfra {
 }
 
 impl GrpcInfra for ForgeInfra {
-    fn connection(&self) -> tonic::transport::Channel {
+    fn channel(&self) -> tonic::transport::Channel {
         self.grpc_client.channel()
     }
 }

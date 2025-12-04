@@ -1,11 +1,13 @@
+use std::sync::Arc;
+
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use chrono::Utc;
+use forge_app::GrpcInfra;
 use forge_domain::{
     ApiKey, ContextEngineRepository, FileUploadInfo, Node, UserId, WorkspaceAuth, WorkspaceId,
     WorkspaceInfo,
 };
-use tonic::transport::Channel;
 
 // Include the generated proto code at module level
 // Allow dead code since protobuf generates code that may not be fully used
@@ -86,18 +88,17 @@ impl TryFrom<FileRefNode> for forge_domain::FileHash {
 }
 
 /// gRPC implementation of CodebaseRepository
-pub struct ForgeContextEngineRepository {
-    client: ForgeServiceClient<Channel>,
+pub struct ForgeContextEngineRepository<I> {
+    infra: Arc<I>,
 }
 
-impl ForgeContextEngineRepository {
-    /// Create a new repository from an existing gRPC channel
+impl<I> ForgeContextEngineRepository<I> {
+    /// Create a new repository with the given infrastructure
     ///
     /// # Arguments
-    /// * `channel` - A shared gRPC channel to the workspace server
-    pub fn new(channel: Channel) -> Self {
-        let client = ForgeServiceClient::new(channel);
-        Self { client }
+    /// * `infra` - Infrastructure that provides gRPC connection
+    pub fn new(infra: Arc<I>) -> Self {
+        Self { infra }
     }
 
     /// Add authorization header to a gRPC request
@@ -118,9 +119,10 @@ impl ForgeContextEngineRepository {
 }
 
 #[async_trait]
-impl ContextEngineRepository for ForgeContextEngineRepository {
+impl<I: GrpcInfra> ContextEngineRepository for ForgeContextEngineRepository<I> {
     async fn authenticate(&self) -> Result<WorkspaceAuth> {
-        let mut client = self.client.clone();
+        let channel = self.infra.channel();
+        let mut client = ForgeServiceClient::new(channel);
         let request = tonic::Request::new(CreateApiKeyRequest { user_id: None });
 
         let response = client
@@ -146,7 +148,8 @@ impl ContextEngineRepository for ForgeContextEngineRepository {
 
         let request = self.with_auth(request, auth_token)?;
 
-        let mut client = self.client.clone();
+        let channel = self.infra.channel();
+        let mut client = ForgeServiceClient::new(channel);
         let response = client.create_workspace(request).await?.into_inner();
 
         response.try_into()
@@ -175,7 +178,8 @@ impl ContextEngineRepository for ForgeContextEngineRepository {
 
         let request = self.with_auth(request, auth_token)?;
 
-        let mut client = self.client.clone();
+        let channel = self.infra.channel();
+        let mut client = ForgeServiceClient::new(channel);
         let response = client.upload_files(request).await?;
 
         let result = response
@@ -213,7 +217,8 @@ impl ContextEngineRepository for ForgeContextEngineRepository {
 
         let request = self.with_auth(request, auth_token)?;
 
-        let mut client = self.client.clone();
+        let channel = self.infra.channel();
+        let mut client = ForgeServiceClient::new(channel);
         let response = client.search(request).await?;
 
         let result = response.into_inner().result.unwrap_or_default();
@@ -277,7 +282,8 @@ impl ContextEngineRepository for ForgeContextEngineRepository {
         let request = tonic::Request::new(ListWorkspacesRequest {});
         let request = self.with_auth(request, auth_token)?;
 
-        let mut client = self.client.clone();
+        let channel = self.infra.channel();
+        let mut client = ForgeServiceClient::new(channel);
         let response = client.list_workspaces(request).await?;
 
         response
@@ -299,7 +305,8 @@ impl ContextEngineRepository for ForgeContextEngineRepository {
         });
         let request = self.with_auth(request, auth_token)?;
 
-        let mut client = self.client.clone();
+        let channel = self.infra.channel();
+        let mut client = ForgeServiceClient::new(channel);
         let response = client.get_workspace_info(request).await?;
 
         let workspace = response.into_inner().workspace;
@@ -320,7 +327,8 @@ impl ContextEngineRepository for ForgeContextEngineRepository {
 
         let request = self.with_auth(request, auth_token)?;
 
-        let mut client = self.client.clone();
+        let channel = self.infra.channel();
+        let mut client = ForgeServiceClient::new(channel);
         let response = client.list_files(request).await?;
 
         response
@@ -350,7 +358,8 @@ impl ContextEngineRepository for ForgeContextEngineRepository {
 
         let request = self.with_auth(request, auth_token)?;
 
-        let mut client = self.client.clone();
+        let channel = self.infra.channel();
+        let mut client = ForgeServiceClient::new(channel);
         client.delete_files(request).await?;
 
         Ok(())
@@ -367,7 +376,8 @@ impl ContextEngineRepository for ForgeContextEngineRepository {
 
         let request = self.with_auth(request, auth_token)?;
 
-        let mut client = self.client.clone();
+        let channel = self.infra.channel();
+        let mut client = ForgeServiceClient::new(channel);
         client.delete_workspace(request).await?;
 
         Ok(())

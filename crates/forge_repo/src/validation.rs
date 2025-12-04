@@ -1,10 +1,11 @@
 use std::path::Path;
+use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
+use forge_app::GrpcInfra;
 use forge_domain::ValidationRepository;
 use forge_template::Element;
-use tonic::transport::Channel;
 use tracing::{debug, warn};
 
 // Include the generated proto code at module level
@@ -17,23 +18,22 @@ use forge_service_client::ForgeServiceClient;
 use proto_generated::*;
 
 /// gRPC implementation of ValidationRepository
-pub struct ForgeValidationRepository {
-    client: ForgeServiceClient<Channel>,
+pub struct ForgeValidationRepository<I> {
+    infra: Arc<I>,
 }
 
-impl ForgeValidationRepository {
-    /// Create a new repository from an existing gRPC channel
+impl<I> ForgeValidationRepository<I> {
+    /// Create a new repository with the given infrastructure
     ///
     /// # Arguments
-    /// * `channel` - A shared gRPC channel to the workspace server
-    pub fn new(channel: Channel) -> Self {
-        let client = ForgeServiceClient::new(channel);
-        Self { client }
+    /// * `infra` - Infrastructure that provides gRPC connection
+    pub fn new(infra: Arc<I>) -> Self {
+        Self { infra }
     }
 }
 
 #[async_trait]
-impl ValidationRepository for ForgeValidationRepository {
+impl<I: GrpcInfra> ValidationRepository for ForgeValidationRepository<I> {
     async fn validate_file(
         &self,
         path: impl AsRef<Path> + Send,
@@ -49,7 +49,8 @@ impl ValidationRepository for ForgeValidationRepository {
         let request = tonic::Request::new(ValidateFilesRequest { files: vec![proto_file] });
 
         // Call gRPC API
-        let mut client = self.client.clone();
+        let channel = self.infra.channel();
+        let mut client = ForgeServiceClient::new(channel);
         let response = client
             .validate_files(request)
             .await
