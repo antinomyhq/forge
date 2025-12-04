@@ -10,7 +10,6 @@ mod image_read;
 mod plan_create;
 mod shell;
 mod skill;
-mod syn;
 
 pub use fetch::*;
 pub use followup::*;

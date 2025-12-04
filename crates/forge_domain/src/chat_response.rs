@@ -182,15 +182,6 @@ impl TitleFormat {
         }
     }
 
-    pub fn completion(message: impl Into<String>) -> Self {
-        Self {
-            title: message.into(),
-            sub_title: None,
-            category: Category::Completion,
-            timestamp: Local::now().into(),
-        }
-    }
-
     pub fn warning(message: impl Into<String>) -> Self {
         Self {
             title: message.into(),

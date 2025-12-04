@@ -13,7 +13,7 @@ function _forge_get_commands() {
 
 # Private fzf function with common options for consistent UX
 function _forge_fzf() {
-    fzf --exact --cycle --select-1 --height 100% --no-scrollbar "$@"
+    fzf --exact --cycle --select-1 --height 100% --no-scrollbar --ansi --color="header:bold" "$@"
 }
 
 # Helper function to execute forge commands consistently
@@ -45,13 +45,21 @@ function _forge_reset() {
 # Returns the index if found, 1 otherwise
 # Usage: _forge_find_index <output> <value_to_find> [field_number]
 # field_number: which field to compare (1 for first field, 2 for second field, etc.)
+# Note: This function expects porcelain output WITH headers and skips the header line
 function _forge_find_index() {
     local output="$1"
     local value_to_find="$2"
     local field_number="${3:-1}"  # Default to first field if not specified
 
     local index=1
+    local line_num=0
     while IFS= read -r line; do
+        ((line_num++))
+        # Skip the header line (first line)
+        if [[ $line_num -eq 1 ]]; then
+            continue
+        fi
+        
         # Extract the specified field for comparison
         local field_value=$(echo "$line" | awk "{print \$$field_number}")
         if [[ "$field_value" == "$value_to_find" ]]; then
@@ -101,54 +109,3 @@ function _forge_log() {
     esac
 }
 
-# Helper function to select a provider from the list
-# Usage: _forge_select_provider [filter_status] [current_provider]
-# Returns: selected provider line (via stdout)
-function _forge_select_provider() {
-    local filter_status="${1:-}"
-    local current_provider="${2:-}"
-    local output
-    output=$($_FORGE_BIN list provider --porcelain 2>/dev/null)
-    
-    if [[ -z "$output" ]]; then
-        _forge_log error "No providers available"
-        return 1
-    fi
-    
-    # Filter by status if specified (e.g., "available" for configured providers)
-    if [[ -n "$filter_status" ]]; then
-        output=$(echo "$output" | grep -i "$filter_status")
-        if [[ -z "$output" ]]; then
-            _forge_log error "No ${filter_status} providers found"
-            return 1
-        fi
-    fi
-    
-    # Get current provider if not provided
-    if [[ -z "$current_provider" ]]; then
-        current_provider=$($_FORGE_BIN config get provider --porcelain 2>/dev/null)
-    fi
-    
-    local fzf_args=(
-        --delimiter="$_FORGE_DELIMITER"
-        --prompt="Provider ❯ "
-        --with-nth=1,3..
-    )
-    
-    # Position cursor on current provider if available
-    if [[ -n "$current_provider" ]]; then
-        # For providers, compare against the first field (display name)
-        local index=$(_forge_find_index "$output" "$current_provider" 1)
-        fzf_args+=(--bind="start:pos($index)")
-    fi
-    
-    local selected
-    selected=$(echo "$output" | _forge_fzf "${fzf_args[@]}")
-    
-    if [[ -n "$selected" ]]; then
-        echo "$selected"
-        return 0
-    fi
-    
-    return 1
-}

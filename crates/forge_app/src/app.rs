@@ -303,7 +303,4 @@ impl<S: Services> ForgeApp<S> {
     pub async fn read_workflow_merged(&self, path: Option<&Path>) -> Result<Workflow> {
         self.services.read_merged(path).await
     }
-    pub async fn write_workflow(&self, path: Option<&Path>, workflow: &Workflow) -> Result<()> {
-        self.services.write_workflow(path, workflow).await
-    }
 }

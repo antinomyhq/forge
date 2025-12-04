@@ -56,7 +56,7 @@ function _forge_action_conversation() {
 
         local selected_conversation
         # Use fzf with preview showing the last message from the conversation
-        selected_conversation=$(echo "$conversations_output" | _forge_fzf "${fzf_args[@]}")
+        selected_conversation=$(echo "$conversations_output" | _forge_fzf --header-lines=1 "${fzf_args[@]}")
         
         if [[ -n "$selected_conversation" ]]; then
             # Extract the first field (UUID) - everything before the first multi-space delimiter
@@ -126,7 +126,7 @@ function _forge_action_clone() {
     fi
 
     local selected_conversation
-    selected_conversation=$(echo "$conversations_output" | _forge_fzf "${fzf_args[@]}")
+    selected_conversation=$(echo "$conversations_output" | _forge_fzf --header-lines=1 "${fzf_args[@]}")
     
     if [[ -n "$selected_conversation" ]]; then
         # Extract conversation ID

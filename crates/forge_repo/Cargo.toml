@@ -9,6 +9,7 @@ forge_domain.workspace = true
 forge_infra.workspace = true
 forge_snaps.workspace = true
 forge_fs.workspace = true
+forge_template.workspace = true
 
 anyhow.workspace = true
 futures.workspace = true
