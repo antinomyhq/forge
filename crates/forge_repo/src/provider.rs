@@ -196,7 +196,8 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
 
         for config in configs {
             // Skip Forge provider and  context engine
-            if config.id == ProviderId::FORGE || config.provider_type == ProviderType::ContextEngine {
+            if config.id == ProviderId::FORGE || config.provider_type == ProviderType::ContextEngine
+            {
                 continue;
             }
 
