@@ -602,7 +602,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 return Ok(());
             }
             TopLevelCommand::Data(data_command_group) => {
-                while let Some(data) = self.api.generate_data(data_command_group.into()).await? {
+                let mut stream = self.api.generate_data(data_command_group.into()).await?;
+                while let Some(data) = stream.next().await {
                     println!("{}", data);
                 }
             }

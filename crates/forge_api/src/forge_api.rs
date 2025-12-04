@@ -362,6 +362,14 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + AppConf
         Ok(self.services.migrate_env_credentials().await?)
     }
 
+    async fn generate_data(
+        &self,
+        _data_parameters: DataGenerationParameters,
+    ) -> Result<MpscStream<serde_json::Value>> {
+        // TODO: Implement data generation logic
+        todo!("generate_data not yet implemented")
+    }
+
     async fn get_default_provider(&self) -> Result<Provider<Url>> {
         self.services.get_default_provider().await
     }

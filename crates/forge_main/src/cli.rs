@@ -628,12 +628,41 @@ pub struct DataCommandGroup {
     pub concurrency: usize,
 }
 
+impl From<DataCommandGroup> for forge_domain::DataGenerationParameters {
+    fn from(value: DataCommandGroup) -> Self {
+        Self {
+            schema: value.schema.into(),
+            system_prompt: value.system_prompt.map(Into::into),
+            user_prompt: value.user_prompt.map(Into::into),
+            concurrency: value.concurrency,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use clap::Parser;
     use pretty_assertions::assert_eq;
 
     use super::*;
+
+    #[test]
+    fn test_data_command_group_conversion() {
+        let fixture = DataCommandGroup {
+            schema: "path/to/schema.json".to_string(),
+            system_prompt: Some("system prompt".to_string()),
+            user_prompt: None,
+            concurrency: 5,
+        };
+        let actual: forge_domain::DataGenerationParameters = fixture.into();
+        let expected = forge_domain::DataGenerationParameters {
+            schema: "path/to/schema.json".into(),
+            system_prompt: Some("system prompt".into()),
+            user_prompt: None,
+            concurrency: 5,
+        };
+        assert_eq!(actual, expected);
+    }
 
     #[test]
     fn test_commit_default_max_diff_size() {

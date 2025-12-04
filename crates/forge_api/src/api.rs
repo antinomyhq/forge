@@ -208,4 +208,9 @@ pub trait API: Sync + Send {
     /// credentials. This is a one-time migration that runs only if the
     /// credentials file doesn't exist.
     async fn migrate_env_credentials(&self) -> Result<Option<forge_domain::MigrationResult>>;
+
+    async fn generate_data(
+        &self,
+        data_parameters: DataGenerationParameters,
+    ) -> Result<MpscStream<serde_json::Value>>;
 }
