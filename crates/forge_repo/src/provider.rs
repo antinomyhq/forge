@@ -195,7 +195,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
         let has_anthropic_url = self.infra.get_env_var("ANTHROPIC_URL").is_some();
 
         for config in configs {
-            // Skip Forge provider and  context engine
+            // Skip Forge provider and ContextEngine providers - they're not configurable via env like other providers 
             if config.id == ProviderId::FORGE || config.provider_type == ProviderType::ContextEngine
             {
                 continue;
