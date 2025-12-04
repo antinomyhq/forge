@@ -90,6 +90,14 @@ pub struct Environment {
     /// If set, this provider will be used as default.
     #[dummy(default)]
     pub override_provider: Option<ProviderId>,
+    /// Title display format configuration.
+    /// Controlled by FORGE_TITLE_FORMAT environment variable.
+    /// Placeholders: {timestamp}, {input}, {output}, {total}, {cached},
+    /// {cache_pct}, {cost}, {title}, {subtitle}
+    /// Examples: "[{timestamp} {input}/{total}] {title}", "{title} - {cost}"
+    /// Default: "[{timestamp} {input}/{total} {cost} {cache_pct}] {title}
+    /// {subtitle}"
+    pub title_format: String,
 }
 
 impl Environment {
@@ -298,6 +306,7 @@ fn test_command_path() {
         workspace_server_url: "http://localhost:8080".parse().unwrap(),
         override_model: None,
         override_provider: None,
+        title_format: r#"{{#if (eq level "error")}}{{red icon}}{{else if (eq level "warning")}}{{bright_yellow icon}}{{else if (eq level "debug")}}{{cyan icon}}{{else if (eq level "completion")}}{{yellow icon}}{{else if (eq level "action")}}{{yellow icon}}{{else}}{{white icon}}{{/if}} {{#if (is_not_empty has_usage)}}{{dimmed "["}}{{white timestamp}} {{white input}}{{#if (is_not_empty output)}}/{{white output}}{{/if}}{{#if (is_not_empty cost)}} {{white cost}}{{/if}}{{#if (is_not_empty cache_pct)}} {{white cache_pct}}{{/if}}{{dimmed "]"}}{{else}}{{dimmed "["}}{{white timestamp}}{{dimmed "]"}}{{/if}} {{white title}}{{#if (is_not_empty subtitle)}} {{dimmed subtitle}}{{/if}}"#.to_string(),
     };
 
     let actual = fixture.command_path();
@@ -337,6 +346,7 @@ fn test_command_cwd_path() {
         workspace_server_url: "http://localhost:8080".parse().unwrap(),
         override_model: None,
         override_provider: None,
+        title_format: r#"{{#if (eq level "error")}}{{red icon}}{{else if (eq level "warning")}}{{bright_yellow icon}}{{else if (eq level "debug")}}{{cyan icon}}{{else if (eq level "completion")}}{{yellow icon}}{{else if (eq level "action")}}{{yellow icon}}{{else}}{{white icon}}{{/if}} {{#if (is_not_empty has_usage)}}{{dimmed "["}}{{white timestamp}} {{white input}}{{#if (is_not_empty output)}}/{{white output}}{{/if}}{{#if (is_not_empty cost)}} {{white cost}}{{/if}}{{#if (is_not_empty cache_pct)}} {{white cache_pct}}{{/if}}{{dimmed "]"}}{{else}}{{dimmed "["}}{{white timestamp}}{{dimmed "]"}}{{/if}} {{white title}}{{#if (is_not_empty subtitle)}} {{dimmed subtitle}}{{/if}}"#.to_string(),
     };
 
     let actual = fixture.command_cwd_path();
@@ -376,6 +386,7 @@ fn test_command_cwd_path_independent_from_command_path() {
         workspace_server_url: "http://localhost:8080".parse().unwrap(),
         override_model: None,
         override_provider: None,
+        title_format: r#"{{#if (eq level "error")}}{{red icon}}{{else if (eq level "warning")}}{{bright_yellow icon}}{{else if (eq level "debug")}}{{cyan icon}}{{else if (eq level "completion")}}{{yellow icon}}{{else if (eq level "action")}}{{yellow icon}}{{else}}{{white icon}}{{/if}} {{#if (is_not_empty has_usage)}}{{dimmed "["}}{{white timestamp}} {{white input}}{{#if (is_not_empty output)}}/{{white output}}{{/if}}{{#if (is_not_empty cost)}} {{white cost}}{{/if}}{{#if (is_not_empty cache_pct)}} {{white cache_pct}}{{/if}}{{dimmed "]"}}{{else}}{{dimmed "["}}{{white timestamp}}{{dimmed "]"}}{{/if}} {{white title}}{{#if (is_not_empty subtitle)}} {{dimmed subtitle}}{{/if}}"#.to_string(),
     };
 
     let command_path = fixture.command_path();

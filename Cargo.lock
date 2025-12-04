@@ -1510,6 +1510,7 @@ dependencies = [
  "forge_fs",
  "forge_select",
  "forge_spinner",
+ "forge_template",
  "forge_tracker",
  "forge_walker",
  "humantime",
@@ -1684,8 +1685,11 @@ dependencies = [
 name = "forge_template"
 version = "0.1.0"
 dependencies = [
+ "colored",
+ "handlebars",
  "html-escape",
  "pretty_assertions",
+ "serde_json",
 ]
 
 [[package]]
