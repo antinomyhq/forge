@@ -102,6 +102,7 @@ impl TryFrom<forge_domain::Context> for Request {
             top_p: request.top_p.map(|t| t.value()),
             top_k: request.top_k.map(|t| t.value() as u64),
             tool_choice: request.tool_choice.map(ToolChoice::from),
+            stream: Some(request.stream.unwrap_or(true)),
             thinking: request.reasoning.and_then(|reasoning| {
                 reasoning.enabled.and_then(|enabled| {
                     if enabled {

@@ -339,7 +339,7 @@ impl From<Context> for Request {
             prompt: Default::default(),
             response_format: Default::default(),
             stop: Default::default(),
-            stream: Default::default(),
+            stream: Some(context.stream.unwrap_or(true)),
             max_tokens: context.max_tokens.map(|t| t as u32),
             temperature: context.temperature.map(|t| t.value()),
             tool_choice: context.tool_choice.map(|tc| tc.into()),

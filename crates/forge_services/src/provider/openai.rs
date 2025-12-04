@@ -90,7 +90,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
         model: &ModelId,
         context: ChatContext,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
-        let mut request = Request::from(context).model(model.clone()).stream(true);
+        let mut request = Request::from(context).model(model.clone());
         let mut pipeline = ProviderPipeline::new(&self.provider);
         request = pipeline.transform(request);
 
