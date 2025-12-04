@@ -33,6 +33,7 @@ use crate::cli::{
     TopLevelCommand,
 };
 use crate::conversation_selector::ConversationSelector;
+use crate::display_constants::{CommandType, headers, markers, status};
 use crate::env::should_show_completion_prompt;
 use crate::info::Info;
 use crate::input::Console;
@@ -45,6 +46,9 @@ use crate::tools_display::format_tools;
 use crate::update::on_update;
 use crate::utils::humanize_time;
 use crate::{TRACKER, banner, tracker};
+
+// File-specific constants
+const MISSING_AGENT_TITLE: &str = "<missing agent.title>";
 
 /// Formats an MCP server config for display, redacting sensitive information.
 /// Returns the command/URL string only.
@@ -196,7 +200,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         let title = format!(
             "∙ {}",
-            agent.title.as_deref().unwrap_or("<Missing agent.title>")
+            agent.title.as_deref().unwrap_or(MISSING_AGENT_TITLE)
         )
         .dimmed();
         self.writeln_title(TitleFormat::action(format!("{name} {title}")))?;
@@ -886,7 +890,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Builds an Info structure for agents with their details
     async fn build_agents_info(&self) -> anyhow::Result<Info> {
-        let agents = self.api.get_agents().await?;
+        let mut agents = self.api.get_agents().await?;
+        // Sort agents alphabetically by ID
+        agents.sort_by(|a, b| a.id.as_str().cmp(b.id.as_str()));
         let mut info = Info::new();
 
         for agent in agents.iter() {
@@ -894,10 +900,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             let title = agent
                 .title
                 .as_deref()
-                .unwrap_or("<Missing agent.title>")
-                .lines()
-                .collect::<Vec<_>>()
-                .join(" ");
+                .map(|title| title.lines().collect::<Vec<_>>().join(" "));
 
             // Get provider and model for this agent
             let provider_name = match self.get_provider(Some(agent.id.clone())).await {
@@ -913,16 +916,16 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .and_then(|a| a.enabled)
                 .unwrap_or_default()
             {
-                "ENABLED"
+                status::YES
             } else {
-                "DISABLED"
+                status::NO
             };
 
             let location = agent
                 .path
                 .as_ref()
                 .map(|s| s.to_string())
-                .unwrap_or_else(|| "BUILT IN".to_string());
+                .unwrap_or_else(|| markers::BUILT_IN.to_string());
 
             info = info
                 .add_title(id.to_case(Case::UpperSnake))
@@ -931,7 +934,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .add_key_value("Location", location)
                 .add_key_value("Provider", provider_name)
                 .add_key_value("Model", model_name)
-                .add_key_value("Reasoning", reasoning);
+                .add_key_value("Reasoning Enabled", reasoning);
         }
 
         Ok(info)
@@ -948,14 +951,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         if porcelain {
             let porcelain = Porcelain::from(&info)
-                .skip(1)
                 .drop_col(0)
                 .truncate(3, 60)
-                .map_col(5, |text| match text.as_deref() {
-                    Some("ENABLED") => Some("Reasoning".to_string()),
-                    Some("DISABLED") => Some("Non-Reasoning".to_string()),
-                    _ => None,
-                });
+                .uppercase_headers();
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
@@ -980,7 +978,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             let domain = if let Some(url) = provider.url() {
                 url.domain().map(|d| d.to_string()).unwrap_or_default()
             } else {
-                "<unset>".to_string()
+                markers::EMPTY.to_string()
             };
             let provider_type = provider.provider_type().to_string();
             let configured = provider.is_configured();
@@ -991,12 +989,12 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .add_key_value("host", domain)
                 .add_key_value("type", provider_type);
             if configured {
-                info = info.add_key_value("status", "available");
+                info = info.add_key_value("logged in", status::YES);
             };
         }
 
         if porcelain {
-            let porcelain = Porcelain::from(&info).skip(1).drop_col(0);
+            let porcelain = Porcelain::from(&info).drop_col(0).uppercase_headers();
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
@@ -1033,37 +1031,22 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 };
                 info = info.add_key_value("Context Window", context);
             } else {
-                info = info.add_key_value("Context Window", "<unavailable>")
+                info = info.add_key_value("Context Window", markers::EMPTY)
             }
 
             // Add tools support indicator if explicitly supported
             if let Some(supported) = model.tools_supported {
                 info = info.add_key_value(
-                    "Tools",
-                    if supported {
-                        "Supported"
-                    } else {
-                        "Unsupported"
-                    },
+                    "Tool Supported",
+                    if supported { status::YES } else { status::NO },
                 )
             } else {
-                info = info.add_key_value("Tools", "<unknown>")
+                info = info.add_key_value("Tools", markers::EMPTY)
             }
         }
 
         if porcelain {
-            self.writeln(
-                Porcelain::from(&info)
-                    .skip(1)
-                    .swap_cols(0, 1)
-                    .map_col(3, |col| {
-                        if col == Some("Supported".to_owned()) {
-                            Some("🛠️".into())
-                        } else {
-                            None
-                        }
-                    }),
-            )?;
+            self.writeln(Porcelain::from(&info).swap_cols(0, 1).uppercase_headers())?;
         } else {
             self.writeln(info)?;
         }
@@ -1092,20 +1075,20 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         for cmd in &built_in_commands {
             info = info
                 .add_title(cmd.command)
-                .add_key_value("type", "command")
+                .add_key_value("type", CommandType::Command)
                 .add_key_value("description", cmd.description);
         }
 
         // Add agent aliases
         info = info
             .add_title("ask")
-            .add_key_value("type", "agent")
+            .add_key_value("type", CommandType::Agent)
             .add_key_value(
                 "description",
                 "Research and investigation agent [alias for: sage]",
             )
             .add_title("plan")
-            .add_key_value("type", "agent")
+            .add_key_value("type", CommandType::Agent)
             .add_key_value(
                 "description",
                 "Planning and strategy agent [alias for: muse]",
@@ -1116,14 +1099,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         for agent in agents {
             let title = agent
                 .title
-                .as_deref()
-                .unwrap_or("<Missing agent.title>")
-                .lines()
-                .collect::<Vec<_>>()
-                .join(" ");
+                .map(|title| title.lines().collect::<Vec<_>>().join(" "));
             info = info
                 .add_title(agent.id.to_string())
-                .add_key_value("type", "agent")
+                .add_key_value("type", CommandType::Agent)
                 .add_key_value("description", title);
         }
 
@@ -1131,12 +1110,23 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         for command in custom_commands {
             info = info
                 .add_title(command.name.clone())
-                .add_key_value("type", "custom")
+                .add_key_value("type", CommandType::Custom)
                 .add_key_value("description", command.description.clone());
         }
 
         if porcelain {
-            let porcelain = Porcelain::from(&info).swap_cols(1, 2).skip(1);
+            // Original order from Info: [$ID, type, description]
+            // So the original order is fine! But $ID should become COMMAND
+            let porcelain = Porcelain::from(&info)
+                .uppercase_headers()
+                .to_case(&[1], Case::UpperSnake)
+                .map_col(0, |col| {
+                    if col.as_deref() == Some(headers::ID) {
+                        Some("COMMAND".to_string())
+                    } else {
+                        col
+                    }
+                });
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
@@ -1148,7 +1138,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     /// Lists only custom commands (used by `forge run`)
     async fn on_show_custom_commands(&mut self, porcelain: bool) -> anyhow::Result<()> {
         let custom_commands = self.api.get_commands().await?;
-        let mut info = Info::new().add_title("CUSTOM COMMANDS");
+        let mut info = Info::new();
 
         for command in custom_commands {
             info = info
@@ -1157,7 +1147,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         if porcelain {
-            let porcelain = Porcelain::from(&info).skip(2);
+            let porcelain = Porcelain::from(&info).uppercase_headers();
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
@@ -1185,7 +1175,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         if porcelain {
-            let porcelain = Porcelain::from(&info).skip(1).drop_col(3);
+            let porcelain = Porcelain::from(&info).truncate(3, 60).uppercase_headers();
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
@@ -1200,13 +1190,13 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .get_agent_model(None)
             .await
             .map(|m| m.as_str().to_string());
-        let model = model.unwrap_or_else(|| "<not set>".to_string());
+        let model = model.unwrap_or_else(|| markers::EMPTY.to_string());
         let provider = self
             .get_provider(None)
             .await
             .ok()
             .map(|p| p.id.to_string())
-            .unwrap_or_else(|| "<not set>".to_string());
+            .unwrap_or_else(|| markers::EMPTY.to_string());
 
         let info = Info::new()
             .add_title("CONFIGURATION")
@@ -1214,7 +1204,12 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .add_key_value("Default Provider", provider);
 
         if porcelain {
-            self.writeln(Porcelain::from(&info).into_long().skip(1).drop_col(0))?;
+            self.writeln(
+                Porcelain::from(&info)
+                    .into_long()
+                    .drop_col(0)
+                    .uppercase_headers(),
+            )?;
         } else {
             self.writeln(info)?;
         }
@@ -1240,7 +1235,12 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         let info = format_tools(&agent_tools, &all_tools);
         if porcelain {
-            self.writeln(Porcelain::from(&info).into_long().drop_col(1).skip(1))?;
+            self.writeln(
+                Porcelain::from(&info)
+                    .into_long()
+                    .drop_col(1)
+                    .uppercase_headers(),
+            )?;
         } else {
             self.writeln(info)?;
         }
@@ -1273,7 +1273,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
 
             if server.is_disabled() {
-                info = info.add_key_value("Status", "disabled");
+                info = info.add_key_value("Status", status::NO);
             }
 
             // Add tools for this MCP server
@@ -1302,7 +1302,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         if porcelain {
-            self.writeln(Porcelain::from(&info).skip(1))?;
+            self.writeln(Porcelain::from(&info).uppercase_headers().truncate(3, 60))?;
         } else {
             self.writeln(info)?;
         }
@@ -1344,26 +1344,26 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Add model information if available
         if let Some(model) = model {
-            info = info.add_key_value("Model", model);
+            info = info.add_key_value("Model", model.as_str());
         }
 
         // Add provider information
         match (default_provider, agent_provider) {
             (Some(default), Some(agent_specific)) if default.id != agent_specific.id => {
                 // Show both providers if they're different
-                info = info.add_key_value("Agent Provider (URL)", &agent_specific.url);
+                info = info.add_key_value("Agent Provider (URL)", agent_specific.url.as_str());
                 if let Some(api_key) = agent_specific.api_key() {
                     info = info.add_key_value("Agent API Key", truncate_key(api_key.as_str()));
                 }
 
-                info = info.add_key_value("Default Provider (URL)", &default.url);
+                info = info.add_key_value("Default Provider (URL)", default.url.as_str());
                 if let Some(api_key) = default.api_key() {
                     info = info.add_key_value("Default API Key", truncate_key(api_key.as_str()));
                 }
             }
             (Some(provider), _) | (_, Some(provider)) => {
                 // Show single provider (either default or agent-specific)
-                info = info.add_key_value("Provider (URL)", &provider.url);
+                info = info.add_key_value("Provider (URL)", provider.url.as_str());
                 if let Some(api_key) = provider.api_key() {
                     info = info.add_key_value("API Key", truncate_key(api_key.as_str()));
                 }
@@ -1382,11 +1382,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         if let Some(conversation) = conversation {
             info = info.extend(Info::from(&conversation));
         } else {
-            info = info.extend(
-                Info::new()
-                    .add_title("CONVERSATION")
-                    .add_key_value("ID", "<Uninitialized>".to_string()),
-            );
+            info = info.extend(Info::new().add_title("CONVERSATION").add_key("ID"));
         }
 
         if porcelain {
@@ -1470,7 +1466,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             return Ok(());
         }
 
-        let mut info = Info::new().add_title("SESSIONS");
+        let mut info = Info::new();
 
         for conv in conversations.into_iter() {
             if conv.context.is_none() {
@@ -1481,7 +1477,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .title
                 .as_deref()
                 .map(|t| t.to_string())
-                .unwrap_or_else(|| format!("<untitled> [{}]", conv.id));
+                .unwrap_or_else(|| markers::EMPTY.to_string());
 
             // Format time using humantime library (same as conversation_selector.rs)
             let duration = chrono::Utc::now().signed_duration_since(
@@ -1504,7 +1500,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // In porcelain mode, skip the top-level "SESSIONS" title
         if porcelain {
-            let porcelain = Porcelain::from(&info).skip(2).drop_col(3).truncate(1, 60);
+            let porcelain = Porcelain::from(&info)
+                .drop_col(3)
+                .truncate(1, 60)
+                .uppercase_headers();
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
@@ -1615,19 +1614,15 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
                 // Convert to porcelain format (same as list agents --porcelain)
                 let porcelain_output = Porcelain::from(&info)
-                    .skip(1)
                     .drop_col(0)
                     .truncate(3, 30)
-                    .map_col(4, |text| match text.as_deref() {
-                        Some("ENABLED") => Some("Reasoning".to_string()),
-                        Some("DISABLED") => Some("Non-Reasoning".to_string()),
-                        _ => None,
-                    });
+                    .uppercase_headers();
 
                 // Split the porcelain output into lines and create agents
                 let porcelain_lines: Vec<String> = porcelain_output
                     .to_string()
                     .lines()
+                    .skip(1) // Skip header row
                     .map(|s| s.to_string())
                     .collect();
 
@@ -2600,10 +2595,13 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Add message statistics if context exists
         if let Some(context) = &conversation.context {
             info = info
-                .add_key_value("Total Messages", context.total_messages())
-                .add_key_value("User Messages", context.user_message_count())
-                .add_key_value("Assistant Messages", context.assistant_message_count())
-                .add_key_value("Tool Calls", context.tool_call_count());
+                .add_key_value("Total Messages", context.total_messages().to_string())
+                .add_key_value("User Messages", context.user_message_count().to_string())
+                .add_key_value(
+                    "Assistant Messages",
+                    context.assistant_message_count().to_string(),
+                )
+                .add_key_value("Tool Calls", context.tool_call_count().to_string());
         }
 
         // Add token usage if available
@@ -2942,16 +2940,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         let mut info = Info::new();
 
-        let timestamp = workspace
-            .created_at
-            .with_timezone(&chrono::Local)
-            .format("%Y-%m-%d %H:%M:%S %Z")
-            .to_string();
-
         let title = if is_active {
-            "Workspace [ACTIVE]".to_string()
+            "Workspace [Current]".to_string()
         } else {
-            format!("Workspace [{}]", timestamp)
+            "Workspace".to_string()
         };
         info = info.add_title(title);
 
