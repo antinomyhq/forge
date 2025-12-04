@@ -443,3 +443,77 @@ async fn test_raw_user_message_is_stored() {
     );
     assert_eq!(actual, expected);
 }
+
+#[tokio::test]
+async fn test_usage_accumulates_across_multiple_requests() {
+    use forge_domain::{TokenCount, Usage};
+
+    let tool_call =
+        ToolCallFull::new("test_tool").arguments(ToolCallArguments::from(json!({"key": "value1"})));
+    let tool_result = ToolResult::new("test_tool").output(Ok(ToolOutput::text("Tool result")));
+
+    let mut ctx = TestContext::default()
+        .mock_tool_call_responses(vec![(tool_call.clone(), tool_result)])
+        .mock_assistant_responses(vec![
+            // First request with usage
+            ChatCompletionMessage::assistant(Content::full("First response"))
+                .finish_reason(FinishReason::ToolCalls)
+                .tool_calls(vec![tool_call.into()])
+                .usage(Usage {
+                    prompt_tokens: TokenCount::Actual(100),
+                    completion_tokens: TokenCount::Actual(50),
+                    total_tokens: TokenCount::Actual(150),
+                    cached_tokens: TokenCount::Actual(20),
+                    cost: Some(0.01),
+                }),
+            // Second request with usage
+            ChatCompletionMessage::assistant(Content::full("Second response"))
+                .finish_reason(FinishReason::Stop)
+                .usage(Usage {
+                    prompt_tokens: TokenCount::Actual(200),
+                    completion_tokens: TokenCount::Actual(75),
+                    total_tokens: TokenCount::Actual(275),
+                    cached_tokens: TokenCount::Actual(30),
+                    cost: Some(0.02),
+                }),
+        ]);
+
+    ctx.run("Test message").await.unwrap();
+
+    let conversation = ctx.output.conversation_history.last().unwrap();
+    let context = conversation.context.as_ref().unwrap();
+
+    // Verify that the last usage is stored
+    let last_usage = context
+        .usage
+        .as_ref()
+        .expect("Last usage should be present");
+    let expected_last = Usage {
+        prompt_tokens: TokenCount::Actual(200),
+        completion_tokens: TokenCount::Actual(75),
+        total_tokens: TokenCount::Actual(275),
+        cached_tokens: TokenCount::Actual(30),
+        cost: Some(0.02),
+    };
+    assert_eq!(
+        last_usage, &expected_last,
+        "Last usage should match the second request"
+    );
+
+    // Verify that accumulated usage is correct
+    let accumulated_usage = context
+        .accumulated_usage
+        .as_ref()
+        .expect("Accumulated usage should be present");
+    let expected_accumulated = Usage {
+        prompt_tokens: TokenCount::Actual(300),
+        completion_tokens: TokenCount::Actual(125),
+        total_tokens: TokenCount::Actual(425),
+        cached_tokens: TokenCount::Actual(50),
+        cost: Some(0.03),
+    };
+    assert_eq!(
+        accumulated_usage, &expected_accumulated,
+        "Accumulated usage should sum all requests"
+    );
+}
