@@ -34,7 +34,7 @@ gray_matter = { workspace = true }
 dirs.workspace = true
 
 # gRPC for codebase client
-tonic = { version = "0.14.2", features = ["tls-native-roots"] }
+tonic.workspace = true
 prost = "0.14.1"
 
 prost-types = "0.14.1"

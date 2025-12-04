@@ -7,8 +7,9 @@ use forge_app::dto::ToolsOverview;
 use forge_app::{
     AgentProviderResolver, AgentRegistry, AppConfigService, AuthService, CommandInfra,
     CommandLoaderService, ContextEngineService, ConversationService, DataGenerationApp,
-    EnvironmentInfra, EnvironmentService, FileDiscoveryService, ForgeApp, GitApp, McpConfigManager,
-    McpService, ProviderAuthService, ProviderService, Services, User, UserUsage, Walker,
+    EnvironmentInfra, EnvironmentService, FileDiscoveryService, ForgeApp, GitApp, GrpcInfra,
+    McpConfigManager, McpService, ProviderAuthService, ProviderService, Services, User, UserUsage,
+    Walker,
 };
 use forge_domain::{Agent, InitAuth, LoginInfo, *};
 use forge_infra::ForgeInfra;
@@ -54,8 +55,10 @@ impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
 }
 
 #[async_trait::async_trait]
-impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + AppConfigRepository> API
-    for ForgeAPI<A, F>
+impl<
+    A: Services,
+    F: CommandInfra + EnvironmentInfra + SkillRepository + AppConfigRepository + GrpcInfra,
+> API for ForgeAPI<A, F>
 {
     async fn discover(&self) -> Result<Vec<File>> {
         let environment = self.services.get_environment();
@@ -373,5 +376,10 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + AppConf
 
     async fn get_default_provider(&self) -> Result<Provider<Url>> {
         self.services.get_default_provider().await
+    }
+
+    fn hydrate_channel(&self) -> Result<()> {
+        self.infra.hydrate();
+        Ok(())
     }
 }
