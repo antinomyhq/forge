@@ -69,13 +69,13 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra> ForgeR
 
         let indexing_repository = Arc::new(crate::ForgeWorkspaceRepository::new(db_pool.clone()));
 
-        let grpc_channel = infra.connection();
+        let connection = infra.connection();
         let codebase_repo = Arc::new(crate::ForgeContextEngineRepository::new(
-            grpc_channel.clone(),
+            connection.clone(),
         ));
         let agent_repository = Arc::new(ForgeAgentRepository::new(infra.clone()));
         let skill_repository = Arc::new(ForgeSkillRepository::new(infra.clone()));
-        let validation_repository = Arc::new(crate::ForgeValidationRepository::new(grpc_channel));
+        let validation_repository = Arc::new(crate::ForgeValidationRepository::new(connection));
         Self {
             infra,
             file_snapshot_service,
