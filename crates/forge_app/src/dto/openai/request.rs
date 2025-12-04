@@ -767,4 +767,28 @@ mod tests {
 
         assert_eq!(actual, expected);
     }
+
+    #[test]
+    fn test_context_conversion_stream_defaults_to_true() {
+        let fixture = forge_domain::Context::default();
+        let actual = Request::from(fixture);
+
+        assert_eq!(actual.stream, Some(true));
+    }
+
+    #[test]
+    fn test_context_conversion_stream_explicit_true() {
+        let fixture = forge_domain::Context::default().stream(true);
+        let actual = Request::from(fixture);
+
+        assert_eq!(actual.stream, Some(true));
+    }
+
+    #[test]
+    fn test_context_conversion_stream_explicit_false() {
+        let fixture = forge_domain::Context::default().stream(false);
+        let actual = Request::from(fixture);
+
+        assert_eq!(actual.stream, Some(false));
+    }
 }
