@@ -1611,6 +1611,7 @@ dependencies = [
  "forge_domain",
  "forge_fs",
  "forge_snaps",
+ "forge_stream",
  "forge_test_kit",
  "futures",
  "glob",
