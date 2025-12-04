@@ -3080,7 +3080,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(())
     }
 
-    /// Silently install VS Code extension if in VS Code and extension not installed.
+    /// Silently install VS Code extension if in VS Code and extension not
+    /// installed.
     fn install_vscode_extension(&self) {
         tokio::task::spawn_blocking(|| {
             if crate::vscode::should_install_extension() {
