@@ -7,8 +7,8 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use forge_app::{ContextEngineService, FileReaderInfra, Walker, WalkerInfra, compute_hash};
 use forge_domain::{
-    AuthCredential, ContextEngineRepository, FileHash, SyncProgress, ProviderId,
-    ProviderRepository, UserId, WorkspaceId, WorkspaceRepository,
+    AuthCredential, ContextEngineRepository, FileHash, ProviderId, ProviderRepository,
+    SyncProgress, UserId, WorkspaceId, WorkspaceRepository,
 };
 use forge_stream::MpscStream;
 use futures::future::join_all;
