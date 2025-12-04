@@ -771,6 +771,41 @@ mod env_tests {
     }
 
     #[tokio::test]
+    async fn test_migration_should_not_create_forge_services_credential() {
+        let mut env_vars = HashMap::new();
+        env_vars.insert("OPENAI_API_KEY".to_string(), "test-key".to_string());
+
+        let infra = Arc::new(MockInfra::new(env_vars));
+        let registry = ForgeProviderRepository::new(infra.clone());
+
+        // Trigger migration
+        registry.migrate_env_to_file().await.unwrap();
+
+        // Verify credentials were written
+        let credentials_guard = infra.credentials.lock().await;
+        let credentials = credentials_guard.as_ref().unwrap();
+
+        // Verify forge_services was NOT created during migration
+        assert!(
+            !credentials
+                .iter()
+                .any(|c| c.id == ProviderId::FORGE_SERVICES),
+            "Should NOT create forge_services credential during environment migration"
+        );
+
+        // Verify only OpenAI credential was created
+        assert_eq!(
+            credentials.len(),
+            1,
+            "Should only have one credential (OpenAI)"
+        );
+        assert!(
+            credentials.iter().any(|c| c.id == ProviderId::OPENAI),
+            "Should have OpenAI credential"
+        );
+    }
+
+    #[tokio::test]
     async fn test_migration_both_compatible_urls() {
         let mut env_vars = HashMap::new();
         env_vars.insert("OPENAI_API_KEY".to_string(), "test-openai-key".to_string());
