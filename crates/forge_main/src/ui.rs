@@ -2095,14 +2095,14 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     // Helper method to handle model selection and update the conversation
     #[async_recursion::async_recursion]
-    async fn on_model_selection(&mut self) -> Result<()> {
+    async fn on_model_selection(&mut self) -> Result<Option<ModelId>> {
         // Select a model
         let model_option = self.select_model().await?;
 
         // If no model was selected (user canceled), return early
         let model = match model_option {
             Some(model) => model,
-            None => return Ok(()),
+            None => return Ok(None),
         };
 
         // Update the operating model via API
@@ -2113,7 +2113,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         self.writeln_title(TitleFormat::action(format!("Switched to model: {model}")))?;
 
-        Ok(())
+        Ok(Some(model))
     }
 
     async fn on_provider_selection(&mut self) -> Result<()> {
@@ -2241,7 +2241,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Print if the state is being reinitialized
         if self.state.conversation_id.is_none() {
-            self.print_conversation_status(is_new, id).await?;
+            self.print_conversation_status(is_new, id)?;
         }
 
         // Always set the conversation id in state
@@ -2250,7 +2250,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(id)
     }
 
-    async fn print_conversation_status(
+    fn print_conversation_status(
         &mut self,
         new_conversation: bool,
         id: ConversationId,
@@ -2276,12 +2276,12 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         self.install_vscode_extension();
 
         // Ensure we have a model selected before proceeding with initialization
-        if self
-            .get_agent_model(self.api.get_active_agent().await)
-            .await
-            .is_none()
-        {
-            self.on_model_selection().await?;
+        let active_agent = self.api.get_active_agent().await;
+
+        let mut operating_model = self.get_agent_model(active_agent.clone()).await;
+        if operating_model.is_none() {
+            // Use the model returned from selection instead of re-fetching
+            operating_model = self.on_model_selection().await?;
         }
 
         // Validate provider is configured before loading agents
@@ -2299,7 +2299,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             // So for default values, `/info` doesn't show active provider, model, etc.
             // So my default, on new, we should set the active agent.
             self.api
-                .set_active_agent(self.api.get_active_agent().await.unwrap_or_default())
+                .set_active_agent(active_agent.clone().unwrap_or_default())
                 .await?;
             // only call on_update if this is the first initialization
             on_update(self.api.clone(), base_workflow.updates.as_ref()).await;
@@ -2309,11 +2309,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         // Execute independent operations in parallel to improve performance
-        let get_agents_fut = self.api.get_agents();
-        let get_operating_agent_fut = self.api.get_active_agent();
-
-        let (agents_result, _operating_agent_result) =
-            tokio::join!(get_agents_fut, get_operating_agent_fut);
+        let (agents_result, commands_result) =
+            tokio::join!(self.api.get_agents(), self.api.get_commands());
 
         // Register agent commands with proper error handling and user feedback
         match agents_result {
@@ -2335,11 +2332,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         // Register all the commands
-        self.command.register_all(self.api.get_commands().await?);
+        self.command.register_all(commands_result?);
 
-        let operating_model = self
-            .get_agent_model(self.api.get_active_agent().await)
-            .await;
         self.state = UIState::new(self.api.environment());
         self.update_model(operating_model);
 
