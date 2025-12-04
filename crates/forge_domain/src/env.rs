@@ -70,6 +70,17 @@ pub struct Environment {
     /// Maximum number of conversations to show in list.
     /// Controlled by FORGE_MAX_CONVERSATIONS environment variable.
     pub max_conversations: usize,
+    /// Maximum number of results to return from initial vector search.
+    /// Controlled by FORGE_SEM_SEARCH_LIMIT environment variable.
+    pub sem_search_limit: usize,
+    /// Top-k parameter for relevance filtering during semantic search.
+    /// Controls the number of nearest neighbors to consider.
+    /// Controlled by FORGE_SEM_SEARCH_TOP_K environment variable.
+    pub sem_search_top_k: usize,
+    /// URL for the indexing server.
+    /// Controlled by FORGE_WORKSPACE_SERVER_URL environment variable.
+    #[dummy(expr = "url::Url::parse(\"http://localhost:8080\").unwrap()")]
+    pub workspace_server_url: Url,
     /// Override model for all providers from FORGE_OVERRIDE_MODEL environment
     /// variable. If set, this model will be used instead of configured
     /// models.
@@ -158,19 +169,19 @@ impl Environment {
         self.cwd.join(".forge/skills")
     }
 
-    pub fn workspace_id(&self) -> WorkspaceId {
+    pub fn workspace_hash(&self) -> WorkspaceHash {
         let mut hasher = DefaultHasher::default();
         self.cwd.hash(&mut hasher);
 
-        WorkspaceId(hasher.finish())
+        WorkspaceHash(hasher.finish())
     }
 }
 
 #[derive(Clone, Copy, Display)]
-pub struct WorkspaceId(u64);
-impl WorkspaceId {
+pub struct WorkspaceHash(u64);
+impl WorkspaceHash {
     pub fn new(id: u64) -> Self {
-        WorkspaceId(id)
+        WorkspaceHash(id)
     }
 
     pub fn id(&self) -> u64 {
@@ -289,7 +300,10 @@ fn test_command_path() {
         debug_requests: None,
         custom_history_path: None,
         max_conversations: 100,
+        sem_search_limit: 100,
+        sem_search_top_k: 10,
         max_image_size: 262144,
+        workspace_server_url: "http://localhost:8080".parse().unwrap(),
         override_model: None,
         override_provider: None,
         title_format: r#"{{#if (eq level "error")}}{{red icon}}{{else if (eq level "warning")}}{{bright_yellow icon}}{{else if (eq level "debug")}}{{cyan icon}}{{else if (eq level "completion")}}{{yellow icon}}{{else if (eq level "action")}}{{yellow icon}}{{else}}{{white icon}}{{/if}} {{#if (is_not_empty has_usage)}}{{dimmed "["}}{{white timestamp}} {{white input}}{{#if (is_not_empty output)}}/{{white output}}{{/if}}{{#if (is_not_empty cost)}} {{white cost}}{{/if}}{{#if (is_not_empty cache_pct)}} {{white cache_pct}}{{/if}}{{dimmed "]"}}{{else}}{{dimmed "["}}{{white timestamp}}{{dimmed "]"}}{{/if}} {{white title}}{{#if (is_not_empty subtitle)}} {{dimmed subtitle}}{{/if}}"#.to_string(),
@@ -326,7 +340,10 @@ fn test_command_cwd_path() {
         debug_requests: None,
         custom_history_path: None,
         max_conversations: 100,
+        sem_search_limit: 100,
+        sem_search_top_k: 10,
         max_image_size: 262144,
+        workspace_server_url: "http://localhost:8080".parse().unwrap(),
         override_model: None,
         override_provider: None,
         title_format: r#"{{#if (eq level "error")}}{{red icon}}{{else if (eq level "warning")}}{{bright_yellow icon}}{{else if (eq level "debug")}}{{cyan icon}}{{else if (eq level "completion")}}{{yellow icon}}{{else if (eq level "action")}}{{yellow icon}}{{else}}{{white icon}}{{/if}} {{#if (is_not_empty has_usage)}}{{dimmed "["}}{{white timestamp}} {{white input}}{{#if (is_not_empty output)}}/{{white output}}{{/if}}{{#if (is_not_empty cost)}} {{white cost}}{{/if}}{{#if (is_not_empty cache_pct)}} {{white cache_pct}}{{/if}}{{dimmed "]"}}{{else}}{{dimmed "["}}{{white timestamp}}{{dimmed "]"}}{{/if}} {{white title}}{{#if (is_not_empty subtitle)}} {{dimmed subtitle}}{{/if}}"#.to_string(),
@@ -363,7 +380,10 @@ fn test_command_cwd_path_independent_from_command_path() {
         debug_requests: None,
         custom_history_path: None,
         max_conversations: 100,
+        sem_search_limit: 100,
+        sem_search_top_k: 10,
         max_image_size: 262144,
+        workspace_server_url: "http://localhost:8080".parse().unwrap(),
         override_model: None,
         override_provider: None,
         title_format: r#"{{#if (eq level "error")}}{{red icon}}{{else if (eq level "warning")}}{{bright_yellow icon}}{{else if (eq level "debug")}}{{cyan icon}}{{else if (eq level "completion")}}{{yellow icon}}{{else if (eq level "action")}}{{yellow icon}}{{else}}{{white icon}}{{/if}} {{#if (is_not_empty has_usage)}}{{dimmed "["}}{{white timestamp}} {{white input}}{{#if (is_not_empty output)}}/{{white output}}{{/if}}{{#if (is_not_empty cost)}} {{white cost}}{{/if}}{{#if (is_not_empty cache_pct)}} {{white cache_pct}}{{/if}}{{dimmed "]"}}{{else}}{{dimmed "["}}{{white timestamp}}{{dimmed "]"}}{{/if}} {{white title}}{{#if (is_not_empty subtitle)}} {{dimmed subtitle}}{{/if}}"#.to_string(),

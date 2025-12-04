@@ -60,18 +60,6 @@ pub trait API: Sync + Send {
     /// directory or its parent directories
     async fn read_merged(&self, path: Option<&Path>) -> Result<Workflow>;
 
-    /// Writes the given workflow to the specified path
-    /// If no path is provided, it will try to find forge.yaml in the current
-    /// directory or its parent directories
-    async fn write_workflow(&self, path: Option<&Path>, workflow: &Workflow) -> Result<()>;
-
-    /// Updates the workflow at the given path using the provided closure
-    /// If no path is provided, it will try to find forge.yaml in the current
-    /// directory or its parent directories
-    async fn update_workflow<F>(&self, path: Option<&Path>, f: F) -> Result<Workflow>
-    where
-        F: FnOnce(&mut Workflow) + Send;
-
     /// Returns the conversation with the given ID
     async fn conversation(&self, conversation_id: &ConversationId) -> Result<Option<Conversation>>;
 
@@ -183,6 +171,38 @@ pub trait API: Sync + Send {
 
     /// Remove provider credentials (logout)
     async fn remove_provider(&self, provider_id: &ProviderId) -> Result<()>;
+
+    /// Sync a codebase directory for semantic search
+    async fn sync_codebase(
+        &self,
+        path: PathBuf,
+        batch_size: usize,
+    ) -> Result<forge_domain::FileUploadResponse>;
+
+    /// Query the indexed codebase
+    async fn query_codebase(
+        &self,
+        path: PathBuf,
+        params: forge_domain::SearchParams<'_>,
+    ) -> Result<Vec<forge_domain::Node>>;
+
+    /// List all workspaces
+    async fn list_codebases(&self) -> Result<Vec<forge_domain::WorkspaceInfo>>;
+
+    /// Get workspace information for a specific path
+    async fn get_workspace_info(
+        &self,
+        path: PathBuf,
+    ) -> Result<Option<forge_domain::WorkspaceInfo>>;
+
+    /// Delete a workspace
+    async fn delete_codebase(&self, workspace_id: forge_domain::WorkspaceId) -> Result<()>;
+
+    /// Check if authentication credentials exist
+    async fn is_authenticated(&self) -> Result<bool>;
+
+    /// Create new authentication credentials
+    async fn create_auth_credentials(&self) -> Result<forge_domain::WorkspaceAuth>;
 
     /// Migrate environment variable-based credentials to file-based
     /// credentials. This is a one-time migration that runs only if the

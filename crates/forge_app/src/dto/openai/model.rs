@@ -90,30 +90,25 @@ pub struct ListModelResponse {
 
 impl From<Model> for forge_domain::Model {
     fn from(value: Model) -> Self {
-        let tools_supported = value
-            .supported_parameters
-            .iter()
-            .flatten()
-            .any(|param| param == "tools");
-        let supports_parallel_tool_calls = value
-            .supported_parameters
-            .iter()
-            .flatten()
-            .any(|param| param == "supports_parallel_tool_calls");
-        let is_reasoning_supported = value
-            .supported_parameters
-            .iter()
-            .flatten()
-            .any(|param| param == "reasoning");
+        let has_param = |name: &str| {
+            value
+                .supported_parameters
+                .as_ref()
+                .map(|params| params.iter().any(|p| p == name))
+        };
+
+        let tools_supported = has_param("tools");
+        let supports_parallel_tool_calls = has_param("supports_parallel_tool_calls");
+        let supports_reasoning = has_param("reasoning");
 
         forge_domain::Model {
             id: value.id,
             name: value.name,
             description: value.description,
             context_length: value.context_length,
-            tools_supported: Some(tools_supported),
-            supports_parallel_tool_calls: Some(supports_parallel_tool_calls),
-            supports_reasoning: Some(is_reasoning_supported),
+            tools_supported,
+            supports_parallel_tool_calls,
+            supports_reasoning,
         }
     }
 }
@@ -252,5 +247,54 @@ mod tests {
 
         assert_eq!(actual.pricing.as_ref().unwrap().prompt, Some(0.0015));
         assert_eq!(actual.pricing.as_ref().unwrap().completion, Some(0.0002));
+    }
+    #[tokio::test]
+    async fn test_model_conversion_without_supported_parameters() {
+        let model = Model {
+            id: "test-model".into(),
+            name: Some("Test Model".to_string()),
+            created: None,
+            description: Some("A test model".to_string()),
+            context_length: Some(4096),
+            architecture: None,
+            pricing: None,
+            top_provider: None,
+            per_request_limits: None,
+            supported_parameters: None, // No supported_parameters field
+        };
+
+        let domain_model: forge_domain::Model = model.into();
+
+        // When supported_parameters is None, capabilities should be None (unknown)
+        assert_eq!(domain_model.tools_supported, None);
+        assert_eq!(domain_model.supports_parallel_tool_calls, None);
+        assert_eq!(domain_model.supports_reasoning, None);
+    }
+
+    #[tokio::test]
+    async fn test_model_conversion_with_supported_parameters() {
+        let model = Model {
+            id: "test-model".into(),
+            name: Some("Test Model".to_string()),
+            created: None,
+            description: Some("A test model".to_string()),
+            context_length: Some(4096),
+            architecture: None,
+            pricing: None,
+            top_provider: None,
+            per_request_limits: None,
+            supported_parameters: Some(vec![
+                "tools".to_string(),
+                "reasoning".to_string(),
+                // Note: "supports_parallel_tool_calls" is not included
+            ]),
+        };
+
+        let domain_model: forge_domain::Model = model.into();
+
+        // Should reflect what's actually in supported_parameters
+        assert_eq!(domain_model.tools_supported, Some(true));
+        assert_eq!(domain_model.supports_parallel_tool_calls, Some(false));
+        assert_eq!(domain_model.supports_reasoning, Some(true));
     }
 }

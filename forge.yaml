@@ -1,3 +1,0 @@
-# yaml-language-server: $schema=https://raw.githubusercontent.com/antinomyhq/forge/refs/heads/main/forge.schema.json
-max_walker_depth: 1024
-tool_supported: true

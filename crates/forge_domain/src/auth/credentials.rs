@@ -63,12 +63,16 @@ impl AuthCredential {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum AuthDetails {
+    #[serde(alias = "ApiKey")]
     ApiKey(ApiKey),
+    #[serde(alias = "OAuth")]
     OAuth {
         tokens: OAuthTokens,
         config: OAuthConfig,
     },
+    #[serde(alias = "OAuthWithApiKey")]
     OAuthWithApiKey {
         tokens: OAuthTokens,
         api_key: ApiKey,

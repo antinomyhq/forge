@@ -6,8 +6,8 @@ use forge_app::{
     McpServerInfra, Services, StrategyFactory, UserInfra, WalkerInfra,
 };
 use forge_domain::{
-    AppConfigRepository, ConversationRepository, ProviderRepository, SkillRepository,
-    SnapshotRepository,
+    AppConfigRepository, ContextEngineRepository, ConversationRepository, ProviderRepository,
+    SkillRepository, SnapshotRepository, ValidationRepository, WorkspaceRepository,
 };
 
 use crate::ForgeProviderAuthService;
@@ -15,11 +15,11 @@ use crate::agent_registry::ForgeAgentRegistryService;
 use crate::app_config::ForgeAppConfigService;
 use crate::attachment::ForgeChatRequest;
 use crate::auth::ForgeAuthService;
-use crate::command_loader::CommandLoaderService as ForgeCommandLoaderService;
+use crate::command::CommandLoaderService as ForgeCommandLoaderService;
 use crate::conversation::ForgeConversationService;
-use crate::custom_instructions::ForgeCustomInstructionsService;
 use crate::discovery::ForgeDiscoveryService;
 use crate::env::ForgeEnvironmentService;
+use crate::instructions::ForgeCustomInstructionsService;
 use crate::mcp::{ForgeMcpManager, ForgeMcpService};
 use crate::policy::ForgePolicyService;
 use crate::provider::ForgeProviderService;
@@ -51,8 +51,11 @@ pub struct ForgeServices<
         + AppConfigRepository
         + KVStore
         + ProviderRepository
+        + forge_domain::WorkspaceRepository
+        + ContextEngineRepository
         + AgentRepository
-        + SkillRepository,
+        + SkillRepository
+        + ValidationRepository,
 > {
     chat_service: Arc<ForgeProviderService<F>>,
     config_service: Arc<ForgeAppConfigService<F>>,
@@ -81,6 +84,7 @@ pub struct ForgeServices<
     command_loader_service: Arc<ForgeCommandLoaderService<F>>,
     policy_service: ForgePolicyService<F>,
     provider_auth_service: ForgeProviderAuthService<F>,
+    codebase_service: Arc<crate::context_engine::ForgeContextEngineService<F>>,
     skill_service: Arc<ForgeSkillFetch<F>>,
 }
 
@@ -100,8 +104,11 @@ impl<
         + AppConfigRepository
         + ProviderRepository
         + KVStore
+        + forge_domain::WorkspaceRepository
+        + ContextEngineRepository
         + AgentRepository
-        + SkillRepository,
+        + SkillRepository
+        + ValidationRepository,
 > ForgeServices<F>
 {
     pub fn new(infra: Arc<F>) -> Self {
@@ -133,6 +140,9 @@ impl<
         let command_loader_service = Arc::new(ForgeCommandLoaderService::new(infra.clone()));
         let policy_service = ForgePolicyService::new(infra.clone());
         let provider_auth_service = ForgeProviderAuthService::new(infra.clone());
+        let codebase_service = Arc::new(crate::context_engine::ForgeContextEngineService::new(
+            infra.clone(),
+        ));
         let skill_service = Arc::new(ForgeSkillFetch::new(infra.clone()));
 
         Self {
@@ -163,6 +173,7 @@ impl<
             command_loader_service,
             policy_service,
             provider_auth_service,
+            codebase_service,
             skill_service,
         }
     }
@@ -190,6 +201,9 @@ impl<
         + AgentRepository
         + SkillRepository
         + StrategyFactory
+        + WorkspaceRepository
+        + ContextEngineRepository
+        + ValidationRepository
         + Clone
         + 'static,
 > Services for ForgeServices<F>
@@ -225,6 +239,7 @@ impl<
     type AgentRegistry = ForgeAgentRegistryService<F>;
     type CommandLoaderService = ForgeCommandLoaderService<F>;
     type PolicyService = ForgePolicyService<F>;
+    type CodebaseService = crate::context_engine::ForgeContextEngineService<F>;
     type SkillFetchService = ForgeSkillFetch<F>;
 
     fn provider_service(&self) -> &Self::ProviderService {
@@ -325,6 +340,11 @@ impl<
     fn policy_service(&self) -> &Self::PolicyService {
         &self.policy_service
     }
+
+    fn context_engine_service(&self) -> &Self::CodebaseService {
+        &self.codebase_service
+    }
+
     fn image_read_service(&self) -> &Self::ImageReadService {
         &self.image_read_service
     }

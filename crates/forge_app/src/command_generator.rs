@@ -87,7 +87,7 @@ where
 mod tests {
     use forge_domain::{
         AuthCredential, AuthDetails, AuthMethod, ChatCompletionMessage, Content, FinishReason,
-        Models, ProviderId, ProviderResponse, ResultStream,
+        ModelSource, ProviderId, ProviderResponse, ResultStream,
     };
     use tokio::sync::Mutex;
     use url::Url;
@@ -160,9 +160,12 @@ mod tests {
         async fn get_provider(&self, _id: ProviderId) -> Result<Provider<Url>> {
             Ok(Provider {
                 id: ProviderId::OPENAI,
-                response: ProviderResponse::OpenAI,
+                provider_type: Default::default(),
+                response: Some(ProviderResponse::OpenAI),
                 url: Url::parse("https://api.test.com").unwrap(),
-                models: Models::Url(Url::parse("https://api.test.com/models").unwrap()),
+                models: Some(ModelSource::Url(
+                    Url::parse("https://api.test.com/models").unwrap(),
+                )),
                 auth_methods: vec![AuthMethod::ApiKey],
                 url_params: vec![],
                 credential: Some(AuthCredential {
