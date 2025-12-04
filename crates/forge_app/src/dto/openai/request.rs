@@ -339,7 +339,7 @@ impl From<Context> for Request {
             prompt: Default::default(),
             response_format: Default::default(),
             stop: Default::default(),
-            stream: Default::default(),
+            stream: Some(context.stream.unwrap_or(true)),
             max_tokens: context.max_tokens.map(|t| t as u32),
             temperature: context.temperature.map(|t| t.value()),
             tool_choice: context.tool_choice.map(|tc| tc.into()),
@@ -766,5 +766,29 @@ mod tests {
         };
 
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_context_conversion_stream_defaults_to_true() {
+        let fixture = forge_domain::Context::default();
+        let actual = Request::from(fixture);
+
+        assert_eq!(actual.stream, Some(true));
+    }
+
+    #[test]
+    fn test_context_conversion_stream_explicit_true() {
+        let fixture = forge_domain::Context::default().stream(true);
+        let actual = Request::from(fixture);
+
+        assert_eq!(actual.stream, Some(true));
+    }
+
+    #[test]
+    fn test_context_conversion_stream_explicit_false() {
+        let fixture = forge_domain::Context::default().stream(false);
+        let actual = Request::from(fixture);
+
+        assert_eq!(actual.stream, Some(false));
     }
 }
