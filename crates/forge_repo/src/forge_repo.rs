@@ -70,9 +70,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra> ForgeR
         let indexing_repository = Arc::new(crate::ForgeWorkspaceRepository::new(db_pool.clone()));
 
         let connection = infra.connection();
-        let codebase_repo = Arc::new(crate::ForgeContextEngineRepository::new(
-            connection.clone(),
-        ));
+        let codebase_repo = Arc::new(crate::ForgeContextEngineRepository::new(connection.clone()));
         let agent_repository = Arc::new(ForgeAgentRepository::new(infra.clone()));
         let skill_repository = Arc::new(ForgeSkillRepository::new(infra.clone()));
         let validation_repository = Arc::new(crate::ForgeValidationRepository::new(connection));
