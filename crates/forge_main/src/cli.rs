@@ -141,6 +141,9 @@ pub enum TopLevelCommand {
 
     /// Manage workspaces for semantic search.
     Workspace(WorkspaceCommandGroup),
+
+    /// Process JSONL data through LLM with schema-constrained tools.
+    Data(DataCommandGroup),
 }
 
 /// Command group for custom command management.
@@ -603,6 +606,26 @@ pub struct CommitCommandGroup {
     /// generating the commit message. Multiple words can be provided without
     /// quotes: `forge commit fix typo in readme`
     pub text: Vec<String>,
+}
+
+/// Group of Data-related commands
+#[derive(Parser, Debug, Clone)]
+pub struct DataCommandGroup {
+    /// Path to JSON schema file for LLM tool definition
+    #[arg(long)]
+    pub schema: String,
+
+    /// Path to Handlebars template file for system prompt
+    #[arg(long)]
+    pub system_prompt: Option<String>,
+
+    /// Path to Handlebars template file for user prompt
+    #[arg(long)]
+    pub user_prompt: Option<String>,
+
+    /// Maximum number of concurrent LLM requests
+    #[arg(long, default_value = "10")]
+    pub concurrency: usize,
 }
 
 #[cfg(test)]

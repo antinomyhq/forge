@@ -416,7 +416,6 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
                 return Ok(());
             }
-
             TopLevelCommand::Mcp(mcp_command) => match mcp_command.command {
                 McpCommand::Import(import_args) => {
                     let scope: forge_domain::Scope = import_args.scope.into();
@@ -508,22 +507,18 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     .await?;
                 return Ok(());
             }
-
             TopLevelCommand::Provider(provider_group) => {
                 self.handle_provider_command(provider_group).await?;
                 return Ok(());
             }
-
             TopLevelCommand::Conversation(conversation_group) => {
                 self.handle_conversation_command(conversation_group).await?;
                 return Ok(());
             }
-
             TopLevelCommand::Suggest { prompt } => {
                 self.on_cmd(UserPrompt::from(prompt)).await?;
                 return Ok(());
             }
-
             TopLevelCommand::Cmd(run_group) => {
                 let porcelain = run_group.porcelain;
                 match run_group.command {
@@ -558,7 +553,6 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
                 return Ok(());
             }
-
             TopLevelCommand::Workspace(index_group) => {
                 match index_group.command {
                     crate::cli::WorkspaceCommand::Sync { path, batch_size } => {
@@ -599,7 +593,6 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
                 return Ok(());
             }
-
             TopLevelCommand::Commit(commit_group) => {
                 let preview = commit_group.preview;
                 let result = self.handle_commit_command(commit_group).await?;
@@ -607,6 +600,11 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     self.writeln(&result.message)?;
                 }
                 return Ok(());
+            }
+            TopLevelCommand::Data(data_command_group) => {
+                while let Some(data) = self.api.generate_data(data_command_group.into()).await? {
+                    println!("{}", data);
+                }
             }
         }
         Ok(())
