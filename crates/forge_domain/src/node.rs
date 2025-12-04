@@ -7,7 +7,7 @@ use crate::WorkspaceId;
 
 /// Progress events emitted during codebase indexing
 #[derive(Debug, Clone, PartialEq)]
-pub enum IndexProgress {
+pub enum SyncProgress {
     /// Sync operation is starting
     Starting,
     /// A new workspace was created on the server
@@ -53,7 +53,7 @@ pub enum IndexProgress {
     },
 }
 
-impl IndexProgress {
+impl SyncProgress {
     /// Progress weight allocation:
     /// - 0-10%: Discovery phase (guaranteed events)
     /// - 10-100%: Syncing phase (file operations)

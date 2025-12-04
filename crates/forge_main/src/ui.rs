@@ -2849,7 +2849,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         path: std::path::PathBuf,
         batch_size: usize,
     ) -> anyhow::Result<()> {
-        use forge_domain::IndexProgress;
+        use forge_domain::SyncProgress;
         use forge_spinner::ProgressBarManager;
 
         // Check if auth already exists and create if needed
@@ -2866,7 +2866,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         while let Some(event) = stream.next().await {
             match event {
-                Ok(ref progress @ IndexProgress::Completed { .. }) => {
+                Ok(ref progress @ SyncProgress::Completed { .. }) => {
                     progress_bar.set_position(100)?;
                     progress_bar.stop(None).await?;
                     self.writeln_title(TitleFormat::debug(progress.message()))?;

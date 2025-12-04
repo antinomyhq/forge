@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use forge_app::{ContextEngineService, FileReaderInfra, Walker, WalkerInfra, compute_hash};
 use forge_domain::{
-    AuthCredential, ContextEngineRepository, FileHash, IndexProgress, ProviderId,
+    AuthCredential, ContextEngineRepository, FileHash, SyncProgress, ProviderId,
     ProviderRepository, UserId, WorkspaceId, WorkspaceRepository,
 };
 use forge_stream::MpscStream;
@@ -226,13 +226,13 @@ impl<F> ForgeContextEngineService<F> {
             + ContextEngineRepository
             + WalkerInfra
             + FileReaderInfra,
-        E: Fn(IndexProgress) -> Fut + Send + Sync,
+        E: Fn(SyncProgress) -> Fut + Send + Sync,
         Fut: std::future::Future<Output = ()> + Send,
     {
         info!(path = %path.display(), "Starting codebase sync");
 
         // Emit starting event
-        emit(IndexProgress::Starting).await;
+        emit(SyncProgress::Starting).await;
 
         let canonical_path = path
             .canonicalize()
@@ -276,20 +276,20 @@ impl<F> ForgeContextEngineService<F> {
                 .await
                 .context("Failed to save workspace")?;
 
-            emit(IndexProgress::WorkspaceCreated { workspace_id: id.clone() }).await;
+            emit(SyncProgress::WorkspaceCreated { workspace_id: id.clone() }).await;
             id
         } else {
             workspace_id
         };
 
         // Read all files and compute hashes
-        emit(IndexProgress::DiscoveringFiles { path: canonical_path.clone() }).await;
+        emit(SyncProgress::DiscoveringFiles { path: canonical_path.clone() }).await;
         let local_files = self.read_files(&canonical_path).await?;
         let total_file_count = local_files.len();
-        emit(IndexProgress::FilesDiscovered { count: total_file_count }).await;
+        emit(SyncProgress::FilesDiscovered { count: total_file_count }).await;
 
         // Fetch remote hashes and create sync plan
-        emit(IndexProgress::ComparingFiles).await;
+        emit(SyncProgress::ComparingFiles).await;
         let remote_files = if is_new_workspace {
             Vec::new()
         } else {
@@ -301,7 +301,7 @@ impl<F> ForgeContextEngineService<F> {
         let uploaded_files = plan.total();
 
         // Emit diff computed event with breakdown
-        emit(IndexProgress::DiffComputed {
+        emit(SyncProgress::DiffComputed {
             to_delete: plan.files_to_delete.len(),
             to_upload: plan.files_to_upload.len(),
             modified: plan.modified_files.len(),
@@ -324,7 +324,7 @@ impl<F> ForgeContextEngineService<F> {
             },
             |current, total| {
                 let emit = &emit;
-                Box::pin(async move { emit(IndexProgress::Syncing { current, total }).await })
+                Box::pin(async move { emit(SyncProgress::Syncing { current, total }).await })
             },
         )
         .await?;
@@ -341,7 +341,7 @@ impl<F> ForgeContextEngineService<F> {
             "Sync completed successfully"
         );
 
-        emit(IndexProgress::Completed { total_files: total_file_count, uploaded_files }).await;
+        emit(SyncProgress::Completed { total_files: total_file_count, uploaded_files }).await;
 
         Ok(())
     }
@@ -459,12 +459,12 @@ impl<
         &self,
         path: PathBuf,
         batch_size: usize,
-    ) -> Result<MpscStream<Result<IndexProgress>>> {
+    ) -> Result<MpscStream<Result<SyncProgress>>> {
         let service = Clone::clone(self);
 
         let stream = MpscStream::spawn(move |tx| async move {
             // Create emit closure that captures the sender
-            let emit = |progress: IndexProgress| {
+            let emit = |progress: SyncProgress| {
                 let tx = tx.clone();
                 async move {
                     let _ = tx.send(Ok(progress)).await;
@@ -1071,7 +1071,7 @@ mod tests {
         // Verify we got a completion event
         let has_completion = events
             .iter()
-            .any(|e| matches!(e, forge_domain::IndexProgress::Completed { .. }));
+            .any(|e| matches!(e, forge_domain::SyncProgress::Completed { .. }));
         assert!(has_completion, "Expected a completion event");
     }
 
