@@ -710,11 +710,10 @@ mod tests {
             vec![
                 Some(headers::ID.into()),
                 Some(format!("{}_1", headers::VALUE)),
-                Some(format!("{}_2", headers::VALUE)),
             ],
-            vec![Some("T1".into()), Some("a1".into()), Some("b1".into())],
-            vec![Some("T2".into()), Some("a2".into()), Some("b2".into())],
-            vec![Some("T3".into()), Some("a3".into()), Some("b3".into())],
+            vec![Some("T1".into()), Some("a1, b1".into())],
+            vec![Some("T2".into()), Some("a2, b2".into())],
+            vec![Some("T3".into()), Some("a3, b3".into())],
         ];
 
         assert_eq!(actual, expected)
@@ -744,32 +743,17 @@ mod tests {
             vec![
                 Some("T1".into()),
                 Some(format!("{}_1", headers::VALUE)),
-                Some("a1".into()),
-            ],
-            vec![
-                Some("T1".into()),
-                Some(format!("{}_2", headers::VALUE)),
-                Some("b1".into()),
+                Some("a1, b1".into()),
             ],
             vec![
                 Some("T2".into()),
                 Some(format!("{}_1", headers::VALUE)),
-                Some("a2".into()),
-            ],
-            vec![
-                Some("T2".into()),
-                Some(format!("{}_2", headers::VALUE)),
-                Some("b2".into()),
+                Some("a2, b2".into()),
             ],
             vec![
                 Some("T3".into()),
                 Some(format!("{}_1", headers::VALUE)),
-                Some("a3".into()),
-            ],
-            vec![
-                Some("T3".into()),
-                Some(format!("{}_2", headers::VALUE)),
-                Some("b3".into()),
+                Some("a3, b3".into()),
             ],
         ];
 
@@ -795,7 +779,7 @@ mod tests {
         let actual = info.to_string();
         let expected = [
             //
-            "$ID    name   age",
+            "ID     name   age",
             "user1  Alice  30",
             "user2  Bob    25",
         ]
@@ -823,7 +807,7 @@ mod tests {
         let actual = info.to_string();
         let expected = [
             //
-            "$ID    name   age",
+            "ID     name   age",
             "user1  Alice  30",
             "user2         25",
         ]
