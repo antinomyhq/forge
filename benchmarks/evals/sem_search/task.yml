@@ -1,15 +1,19 @@
 before_run:
-  - cargo build
+  - cargo run -- workspace sync
 run:
-  command: ../../target/debug/forge -C ../../ -p '{{task}}'
-  parallelism: 20
-  timeout: 60
-  early_exit: true
+  - FORGE_OVERRIDE_PROVIDER=open_router FORGE_OVERRIDE_MODEL={{model}} FORGE_DEBUG_REQUESTS='{{context_input}}' target/debug/forge -p '{{task}}'
+parallelism: 20
+timeout: 60
+cwd: ../
+early_exit: true
 validations:
-  - type: matches_regex
-    name: "Uses codebase search tool"
-    regex: .*\[[0-9:]*\].*Codebase Search
+  - name: "Uses codebase search tool"
+    type: shell
+    command: 'jq -e ''[.messages[]?.tool_calls[]? | select(.function.name == "sem_search")] | any'' {{context_input}}'
 sources:
+  - value:
+      - model: "x-ai/grok-code-fast-1"
+      - model: "anthropic/claude-sonnet-4.5"
   - value:
       # Original 10 tests
       - task: "Where is the code that transforms messages between different AI provider formats?"

@@ -19,7 +19,7 @@ function _forge_action_login() {
 function _forge_action_logout() {
     echo
     local selected
-    selected=$(_forge_select_provider "available")
+    selected=$(_forge_select_provider "\[yes\]")
     if [[ -n "$selected" ]]; then
         # Extract the second field (provider ID)
         local provider=$(echo "$selected" | awk '{print $2}')

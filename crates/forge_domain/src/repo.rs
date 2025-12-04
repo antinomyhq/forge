@@ -141,7 +141,7 @@ pub trait ContextEngineRepository: Send + Sync {
         &self,
         query: &crate::CodeSearchQuery<'_>,
         auth_token: &crate::ApiKey,
-    ) -> anyhow::Result<Vec<crate::CodeSearchResult>>;
+    ) -> anyhow::Result<Vec<crate::Node>>;
 
     /// List all workspaces for a user
     async fn list_workspaces(
@@ -189,4 +189,28 @@ pub trait SkillRepository: Send + Sync {
     /// # Errors
     /// Returns an error if skill loading fails
     async fn load_skills(&self) -> Result<Vec<Skill>>;
+}
+
+/// Repository for validating file syntax
+///
+/// This repository provides operations for validating the syntax of source
+/// code files using remote validation services.
+#[async_trait::async_trait]
+pub trait ValidationRepository: Send + Sync {
+    /// Validates the syntax of a single file
+    ///
+    /// # Arguments
+    /// * `path` - Path to the file (used for determining language and in error
+    ///   messages)
+    /// * `content` - Content of the file to validate
+    ///
+    /// # Returns
+    /// * `Ok(None)` - File is valid or file type is not supported by backend
+    /// * `Ok(Some(String))` - Validation failed with error message
+    /// * `Err(_)` - Communication error with validation service
+    async fn validate_file(
+        &self,
+        path: impl AsRef<std::path::Path> + Send,
+        content: &str,
+    ) -> Result<Option<String>>;
 }

@@ -30,11 +30,11 @@ impl IndexedFile {
 }
 
 /// Service for indexing codebases and performing semantic search
-pub struct ForgeIndexingService<F> {
+pub struct ForgeContextEngineService<F> {
     infra: Arc<F>,
 }
 
-impl<F> ForgeIndexingService<F> {
+impl<F> ForgeContextEngineService<F> {
     /// Creates a new indexing service with the provided infrastructure.
     pub fn new(infra: Arc<F>) -> Self {
         Self { infra }
@@ -253,7 +253,7 @@ impl<
         + ContextEngineRepository
         + WalkerInfra
         + FileReaderInfra,
-> ContextEngineService for ForgeIndexingService<F>
+> ContextEngineService for ForgeContextEngineService<F>
 {
     async fn sync_codebase(&self, path: PathBuf, batch_size: usize) -> Result<FileUploadResponse> {
         info!(path = %path.display(), "Starting codebase sync");
@@ -366,7 +366,7 @@ impl<
         &self,
         path: PathBuf,
         params: forge_domain::SearchParams<'_>,
-    ) -> Result<Vec<forge_domain::CodeSearchResult>> {
+    ) -> Result<Vec<forge_domain::Node>> {
         // Step 1: Canonicalize path
         let canonical_path = path
             .canonicalize()
@@ -529,7 +529,7 @@ impl<
 }
 
 // Additional authentication methods for ForgeIndexingService
-impl<F> ForgeIndexingService<F>
+impl<F> ForgeContextEngineService<F>
 where
     F: ProviderRepository + WorkspaceRepository + ContextEngineRepository,
 {
@@ -584,9 +584,8 @@ mod tests {
 
     use forge_app::WalkedFile;
     use forge_domain::{
-        ApiKey, CodeSearchQuery, CodeSearchResult, FileDeletion, FileHash, FileInfo, FileUpload,
-        FileUploadInfo, UserId, Workspace, WorkspaceAuth, WorkspaceFiles, WorkspaceId,
-        WorkspaceInfo,
+        ApiKey, CodeSearchQuery, FileDeletion, FileHash, FileInfo, FileUpload, FileUploadInfo,
+        Node, UserId, Workspace, WorkspaceAuth, WorkspaceFiles, WorkspaceId, WorkspaceInfo,
     };
     use pretty_assertions::assert_eq;
 
@@ -596,7 +595,7 @@ mod tests {
     struct MockInfra {
         files: HashMap<String, String>,
         workspace: Option<Workspace>,
-        search_results: Vec<CodeSearchResult>,
+        search_results: Vec<Node>,
         workspaces: Arc<tokio::sync::Mutex<Vec<WorkspaceInfo>>>,
         server_files: Vec<FileHash>,
         deleted_files: Arc<tokio::sync::Mutex<Vec<String>>>,
@@ -674,16 +673,18 @@ mod tests {
         }
     }
 
-    fn search_result() -> CodeSearchResult {
-        CodeSearchResult {
-            node: forge_domain::CodeNode::FileChunk {
-                node_id: "n1".into(),
+    fn search_result() -> Node {
+        Node {
+            node_id: "n1".into(),
+            node: forge_domain::NodeData::FileChunk {
                 file_path: "main.rs".into(),
                 content: "fn main() {}".into(),
                 start_line: 1,
                 end_line: 1,
             },
-            similarity: 0.95,
+            relevance: Some(0.95),
+            distance: Some(0.05),
+            similarity: Some(0.95),
         }
     }
 
@@ -769,11 +770,7 @@ mod tests {
                 .extend(upload.data.iter().map(|f| f.path.clone()));
             Ok(FileUploadInfo::new(upload.data.len(), upload.data.len()))
         }
-        async fn search(
-            &self,
-            _: &CodeSearchQuery<'_>,
-            _: &ApiKey,
-        ) -> Result<Vec<CodeSearchResult>> {
+        async fn search(&self, _: &CodeSearchQuery<'_>, _: &ApiKey) -> Result<Vec<Node>> {
             Ok(self.search_results.clone())
         }
         async fn list_workspaces(&self, _: &ApiKey) -> Result<Vec<WorkspaceInfo>> {
@@ -847,7 +844,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_sync_new_workspace() {
-        let service = ForgeIndexingService::new(Arc::new(MockInfra::new(&["main.rs", "lib.rs"])));
+        let service =
+            ForgeContextEngineService::new(Arc::new(MockInfra::new(&["main.rs", "lib.rs"])));
 
         let actual = service.sync_codebase(PathBuf::from("."), 20).await.unwrap();
 
@@ -859,7 +857,7 @@ mod tests {
     async fn test_query_returns_results() {
         let mut mock = MockInfra::synced(&["test.rs"]);
         mock.search_results = vec![search_result()];
-        let service = ForgeIndexingService::new(Arc::new(mock));
+        let service = ForgeContextEngineService::new(Arc::new(mock));
 
         let params = forge_domain::SearchParams::new("test", "fest").limit(10usize);
         let actual = service
@@ -872,7 +870,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_query_error_when_not_found() {
-        let service = ForgeIndexingService::new(Arc::new(MockInfra::default()));
+        let service = ForgeContextEngineService::new(Arc::new(MockInfra::default()));
 
         let params = forge_domain::SearchParams::new("test", "fest").limit(10usize);
         let actual = service.query_codebase(PathBuf::from("."), params).await;
@@ -893,7 +891,7 @@ mod tests {
             last_updated: None,
             created_at: chrono::Utc::now(),
         });
-        let service = ForgeIndexingService::new(Arc::new(mock));
+        let service = ForgeContextEngineService::new(Arc::new(mock));
 
         let actual = service.list_codebase().await.unwrap();
 
@@ -902,7 +900,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_list_codebases_error_when_none() {
-        let service = ForgeIndexingService::new(Arc::new(MockInfra::default()));
+        let service = ForgeContextEngineService::new(Arc::new(MockInfra::default()));
 
         let actual = service.list_codebase().await;
 
@@ -917,7 +915,7 @@ mod tests {
         );
         mock.server_files
             .push(FileHash { path: "changed.rs".into(), hash: "old".into() });
-        let service = ForgeIndexingService::new(Arc::new(mock.clone()));
+        let service = ForgeContextEngineService::new(Arc::new(mock.clone()));
 
         service.sync_codebase(PathBuf::from("."), 20).await.unwrap();
 
@@ -935,7 +933,7 @@ mod tests {
     #[tokio::test]
     async fn test_no_upload_when_unchanged() {
         let mock = MockInfra::synced(&["main.rs"]);
-        let service = ForgeIndexingService::new(Arc::new(mock.clone()));
+        let service = ForgeContextEngineService::new(Arc::new(mock.clone()));
 
         let actual = service.sync_codebase(PathBuf::from("."), 20).await.unwrap();
 
@@ -949,7 +947,7 @@ mod tests {
         let mut mock = MockInfra::out_of_sync(&["main.rs"], &["main.rs"]);
         mock.server_files
             .push(FileHash { path: "old.rs".into(), hash: "x".into() });
-        let service = ForgeIndexingService::new(Arc::new(mock.clone()));
+        let service = ForgeContextEngineService::new(Arc::new(mock.clone()));
 
         service.sync_codebase(PathBuf::from("."), 20).await.unwrap();
 
@@ -971,7 +969,7 @@ mod tests {
             last_updated: None,
             created_at: chrono::Utc::now(),
         });
-        let service = ForgeIndexingService::new(Arc::new(mock));
+        let service = ForgeContextEngineService::new(Arc::new(mock));
 
         service.delete_codebase(&ws.workspace_id).await.unwrap();
 
@@ -991,7 +989,7 @@ mod tests {
             last_updated: Some(chrono::Utc::now()),
             created_at: chrono::Utc::now(),
         });
-        let service = ForgeIndexingService::new(Arc::new(mock));
+        let service = ForgeContextEngineService::new(Arc::new(mock));
 
         let actual = service.get_workspace_info(ws.path).await.unwrap();
 
@@ -1005,7 +1003,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_workspace_info_returns_none_when_not_found() {
         let mock = MockInfra::new(&["main.rs"]);
-        let service = ForgeIndexingService::new(Arc::new(mock));
+        let service = ForgeContextEngineService::new(Arc::new(mock));
 
         let actual = service
             .get_workspace_info(PathBuf::from("."))
@@ -1020,7 +1018,7 @@ mod tests {
         let mut mock = MockInfra::synced(&["main.rs"]);
         mock.authenticated = false;
         let ws = mock.workspace.clone().unwrap();
-        let service = ForgeIndexingService::new(Arc::new(mock));
+        let service = ForgeContextEngineService::new(Arc::new(mock));
         let actual = service.get_workspace_info(ws.path).await;
 
         assert!(actual.is_err());

@@ -26,6 +26,7 @@ source "${0:A:h}/lib/actions/conversation.zsh"
 source "${0:A:h}/lib/actions/git.zsh"
 source "${0:A:h}/lib/actions/auth.zsh"
 source "${0:A:h}/lib/actions/editor.zsh"
+source "${0:A:h}/lib/actions/provider.zsh"
 
 # Main dispatcher and widget registration
 source "${0:A:h}/lib/dispatcher.zsh"

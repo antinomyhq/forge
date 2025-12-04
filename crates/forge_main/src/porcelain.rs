@@ -3,6 +3,7 @@ use std::fmt;
 
 use indexmap::IndexSet;
 
+use crate::display_constants::headers;
 use crate::info::{Info, Section};
 
 /// Porcelain is an intermediate representation that converts Info into a flat,
@@ -237,6 +238,23 @@ impl Porcelain {
     /// Row 3:   [conversation, id, 000-000-000]
     /// Row 4:   [conversation, title, make agents great again]
     /// ```
+    /// Converts all headers (first row) to uppercase
+    pub fn uppercase_headers(self) -> Self {
+        if self.0.is_empty() {
+            return self;
+        }
+
+        let mut rows = self.0;
+        if let Some(header_row) = rows.first_mut() {
+            *header_row = header_row
+                .iter()
+                .map(|col| col.as_ref().map(|s| s.to_uppercase()))
+                .collect();
+        }
+
+        Porcelain(rows)
+    }
+
     pub fn into_long(self) -> Self {
         if self.0.is_empty() {
             return self;
@@ -251,9 +269,12 @@ impl Porcelain {
 
         // Create new headers: [$ID, $FIELD, $VALUE]
         let new_headers = vec![
-            headers.first().cloned().unwrap_or(Some("$ID".to_string())),
-            Some("$FIELD".to_string()),
-            Some("$VALUE".to_string()),
+            headers
+                .first()
+                .cloned()
+                .unwrap_or(Some(headers::ID.to_string())),
+            Some(headers::FIELD.to_string()),
+            Some(headers::VALUE.to_string()),
         ];
 
         // Create new rows: one row per non-None field for each entity
@@ -339,10 +360,13 @@ impl From<Info> for Porcelain {
 impl From<&Info> for Porcelain {
     fn from(info: &Info) -> Self {
         let mut rows = Vec::new();
-        let mut cells = HashMap::new();
+        let mut cells = HashMap::<String, Vec<String>>::new();
         let mut in_row = false;
         // Extract all unique keys
         let mut keys = IndexSet::new();
+        // Track count of unnamed values separately
+        let mut value_counter = 1;
+        let mut last_key: Option<String> = None;
 
         for section in info.sections() {
             match section {
@@ -350,17 +374,28 @@ impl From<&Info> for Porcelain {
                     if in_row {
                         rows.push(cells.clone());
                         cells = HashMap::new();
+                        value_counter = 1;
                     }
 
                     in_row = true;
-                    cells.insert("$ID".to_owned(), Some(title.to_owned()));
-                    keys.insert("$ID".to_owned());
+                    cells.insert(headers::ID.to_owned(), vec![title.to_owned()]);
+                    keys.insert(headers::ID.to_owned());
                 }
                 Section::Items(key, value) => {
-                    let default_key = format!("$VALUE_{}", cells.len());
-                    let key = key.clone().unwrap_or(default_key);
-                    cells.insert(key.clone(), Some(value.clone()));
-                    keys.insert(key);
+                    let key = if let Some(key) = key.as_ref().cloned().or(last_key) {
+                        key
+                    } else {
+                        let default_key = format!("{}_{}", headers::VALUE, value_counter);
+                        value_counter += 1;
+                        default_key
+                    };
+                    last_key = Some(key.clone());
+
+                    cells
+                        .entry(key.to_string())
+                        .or_default()
+                        .push(value.clone());
+                    keys.insert(key.to_string());
                 }
             }
         }
@@ -379,7 +414,15 @@ impl From<&Info> for Porcelain {
         // Insert Rows
         data.extend(rows.iter().map(|rows| {
             keys.iter()
-                .map(|key| rows.get(key).and_then(|value| value.as_ref().cloned()))
+                .map(|key| {
+                    rows.get(key).and_then(|value| {
+                        if value.is_empty() {
+                            None
+                        } else {
+                            Some(value.join(", "))
+                        }
+                    })
+                })
                 .collect::<Vec<Option<String>>>()
         }));
         Porcelain(data)
@@ -665,13 +708,12 @@ mod tests {
         let expected = vec![
             //
             vec![
-                Some("$ID".into()),
-                Some("$VALUE_1".into()),
-                Some("$VALUE_2".into()),
+                Some(headers::ID.into()),
+                Some(format!("{}_1", headers::VALUE)),
             ],
-            vec![Some("T1".into()), Some("a1".into()), Some("b1".into())],
-            vec![Some("T2".into()), Some("a2".into()), Some("b2".into())],
-            vec![Some("T3".into()), Some("a3".into()), Some("b3".into())],
+            vec![Some("T1".into()), Some("a1, b1".into())],
+            vec![Some("T2".into()), Some("a2, b2".into())],
+            vec![Some("T3".into()), Some("a3, b3".into())],
         ];
 
         assert_eq!(actual, expected)
@@ -694,39 +736,24 @@ mod tests {
 
         let expected = vec![
             vec![
-                Some("$ID".into()),
-                Some("$FIELD".into()),
-                Some("$VALUE".into()),
+                Some(headers::ID.into()),
+                Some(headers::FIELD.into()),
+                Some(headers::VALUE.into()),
             ],
             vec![
                 Some("T1".into()),
-                Some("$VALUE_1".into()),
-                Some("a1".into()),
-            ],
-            vec![
-                Some("T1".into()),
-                Some("$VALUE_2".into()),
-                Some("b1".into()),
+                Some(format!("{}_1", headers::VALUE)),
+                Some("a1, b1".into()),
             ],
             vec![
                 Some("T2".into()),
-                Some("$VALUE_1".into()),
-                Some("a2".into()),
-            ],
-            vec![
-                Some("T2".into()),
-                Some("$VALUE_2".into()),
-                Some("b2".into()),
+                Some(format!("{}_1", headers::VALUE)),
+                Some("a2, b2".into()),
             ],
             vec![
                 Some("T3".into()),
-                Some("$VALUE_1".into()),
-                Some("a3".into()),
-            ],
-            vec![
-                Some("T3".into()),
-                Some("$VALUE_2".into()),
-                Some("b3".into()),
+                Some(format!("{}_1", headers::VALUE)),
+                Some("a3, b3".into()),
             ],
         ];
 
@@ -736,7 +763,11 @@ mod tests {
     #[test]
     fn test_display_simple() {
         let info = Porcelain(vec![
-            vec![Some("$ID".into()), Some("name".into()), Some("age".into())],
+            vec![
+                Some(headers::ID.into()),
+                Some("name".into()),
+                Some("age".into()),
+            ],
             vec![
                 Some("user1".into()),
                 Some("Alice".into()),
@@ -748,7 +779,7 @@ mod tests {
         let actual = info.to_string();
         let expected = [
             //
-            "$ID    name   age",
+            "ID     name   age",
             "user1  Alice  30",
             "user2  Bob    25",
         ]
@@ -760,7 +791,11 @@ mod tests {
     #[test]
     fn test_display_with_none() {
         let info = Porcelain(vec![
-            vec![Some("$ID".into()), Some("name".into()), Some("age".into())],
+            vec![
+                Some(headers::ID.into()),
+                Some("name".into()),
+                Some("age".into()),
+            ],
             vec![
                 Some("user1".into()),
                 Some("Alice".into()),
@@ -772,7 +807,7 @@ mod tests {
         let actual = info.to_string();
         let expected = [
             //
-            "$ID    name   age",
+            "ID     name   age",
             "user1  Alice  30",
             "user2         25",
         ]
@@ -787,7 +822,7 @@ mod tests {
 
         let info = Porcelain(vec![
             vec![
-                Some("$ID".into()),
+                Some(headers::ID.into()),
                 Some("user_name".into()),
                 Some("user_age".into()),
             ],
@@ -807,7 +842,7 @@ mod tests {
 
         let expected = vec![
             vec![
-                Some("$ID".into()),
+                Some(headers::ID.into()),
                 Some("user_name".into()),
                 Some("user_age".into()),
             ],
@@ -874,7 +909,11 @@ mod tests {
     #[test]
     fn test_sort_by_single_col() {
         let fixture = Porcelain(vec![
-            vec![Some("$ID".into()), Some("name".into()), Some("age".into())],
+            vec![
+                Some(headers::ID.into()),
+                Some("name".into()),
+                Some("age".into()),
+            ],
             vec![
                 Some("user3".into()),
                 Some("Charlie".into()),
@@ -891,7 +930,11 @@ mod tests {
         let actual = fixture.sort_by(&[1]).into_rows();
 
         let expected = vec![
-            vec![Some("$ID".into()), Some("name".into()), Some("age".into())],
+            vec![
+                Some(headers::ID.into()),
+                Some("name".into()),
+                Some("age".into()),
+            ],
             vec![
                 Some("user1".into()),
                 Some("Alice".into()),
@@ -911,7 +954,11 @@ mod tests {
     #[test]
     fn test_sort_by_multiple_cols() {
         let fixture = Porcelain(vec![
-            vec![Some("$ID".into()), Some("city".into()), Some("name".into())],
+            vec![
+                Some(headers::ID.into()),
+                Some("city".into()),
+                Some("name".into()),
+            ],
             vec![
                 Some("user3".into()),
                 Some("NYC".into()),
@@ -929,7 +976,11 @@ mod tests {
         let actual = fixture.sort_by(&[1, 2]).into_rows();
 
         let expected = vec![
-            vec![Some("$ID".into()), Some("city".into()), Some("name".into())],
+            vec![
+                Some(headers::ID.into()),
+                Some("city".into()),
+                Some("name".into()),
+            ],
             vec![Some("user2".into()), Some("LA".into()), Some("Bob".into())],
             vec![
                 Some("user1".into()),
@@ -950,7 +1001,11 @@ mod tests {
     #[test]
     fn test_sort_by_with_none_values() {
         let fixture = Porcelain(vec![
-            vec![Some("$ID".into()), Some("name".into()), Some("age".into())],
+            vec![
+                Some(headers::ID.into()),
+                Some("name".into()),
+                Some("age".into()),
+            ],
             vec![Some("user3".into()), None, Some("35".into())],
             vec![
                 Some("user1".into()),
@@ -963,7 +1018,11 @@ mod tests {
         let actual = fixture.sort_by(&[1]).into_rows();
 
         let expected = vec![
-            vec![Some("$ID".into()), Some("name".into()), Some("age".into())],
+            vec![
+                Some(headers::ID.into()),
+                Some("name".into()),
+                Some("age".into()),
+            ],
             vec![
                 Some("user1".into()),
                 Some("Alice".into()),
@@ -979,7 +1038,7 @@ mod tests {
     #[test]
     fn test_sort_by_empty_cols() {
         let fixture = Porcelain(vec![
-            vec![Some("$ID".into()), Some("name".into())],
+            vec![Some(headers::ID.into()), Some("name".into())],
             vec![Some("user2".into()), Some("Bob".into())],
             vec![Some("user1".into()), Some("Alice".into())],
         ]);
@@ -987,7 +1046,7 @@ mod tests {
         let actual = fixture.sort_by(&[]).into_rows();
 
         let expected = vec![
-            vec![Some("$ID".into()), Some("name".into())],
+            vec![Some(headers::ID.into()), Some("name".into())],
             vec![Some("user2".into()), Some("Bob".into())],
             vec![Some("user1".into()), Some("Alice".into())],
         ];

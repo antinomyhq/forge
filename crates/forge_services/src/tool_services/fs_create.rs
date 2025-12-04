@@ -7,9 +7,8 @@ use forge_app::{
     FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra, FsCreateOutput,
     FsCreateService, compute_hash,
 };
-use forge_domain::SnapshotRepository;
+use forge_domain::{SnapshotRepository, ValidationRepository};
 
-use crate::tool_services;
 use crate::utils::assert_absolute_path;
 
 /// Service for creating files with snapshot coordination
@@ -33,6 +32,7 @@ impl<
         + FileReaderInfra
         + FileWriterInfra
         + SnapshotRepository
+        + ValidationRepository
         + Send
         + Sync,
 > FsCreateService for ForgeFsCreate<F>
@@ -46,8 +46,13 @@ impl<
         let path = Path::new(&path);
         assert_absolute_path(path)?;
 
-        // Validate file content if it's a supported language file
-        let syntax_warning = tool_services::syn::validate(path, &content);
+        // Validate file syntax using remote validation API (graceful failure)
+        let syntax_warning = self
+            .infra
+            .validate_file(path, &content)
+            .await
+            .ok()
+            .flatten();
 
         if let Some(parent) = Path::new(&path).parent() {
             self.infra
@@ -88,7 +93,7 @@ impl<
         Ok(FsCreateOutput {
             path: path.display().to_string(),
             before: old_content,
-            warning: syntax_warning.map(|v| v.to_string()),
+            warning: syntax_warning,
             content_hash,
         })
     }

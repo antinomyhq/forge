@@ -38,6 +38,9 @@ service ForgeService {
   
   // Creates a new API key for a user
   rpc CreateApiKey(CreateApiKeyRequest) returns (CreateApiKeyResponse);
+  
+  // Validates syntax for a batch of files
+  rpc ValidateFiles(ValidateFilesRequest) returns (ValidateFilesResponse);
 }
 
 // Node types
@@ -166,8 +169,8 @@ message Query {
   repeated NodeKind kinds = 4;
   optional uint32 top_k = 5;
   optional string relevance_query = 6;
-  optional string starts_with = 7;
-  optional string ends_with = 8;
+  repeated string starts_with = 7;
+  repeated string ends_with = 8;
 }
 
 message FileUploadContent {
@@ -282,4 +285,34 @@ message CreateApiKeyRequest {
 message CreateApiKeyResponse {
   UserId user_id = 1;
   string key = 2;
+}
+
+message ValidateFilesRequest {
+  repeated File files = 1;
+}
+
+message SyntaxError {
+  uint32 line = 1;
+  uint32 column = 2;
+  string message = 3;
+}
+
+message ValidationStatus {
+  oneof status {
+    bool valid = 1;
+    SyntaxErrorList errors = 2;
+  }
+}
+
+message SyntaxErrorList {
+  repeated SyntaxError errors = 1;
+}
+
+message FileValidationResult {
+  string file_path = 1;
+  ValidationStatus status = 2;
+}
+
+message ValidateFilesResponse {
+  repeated FileValidationResult results = 1;
 }
