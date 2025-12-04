@@ -198,6 +198,9 @@ pub trait API: Sync + Send {
     /// Delete a workspace
     async fn delete_codebase(&self, workspace_id: forge_domain::WorkspaceId) -> Result<()>;
 
+    /// Hydrates the gRPC channel
+    fn hydrate_channel(&self) -> Result<()>;
+
     /// Check if authentication credentials exist
     async fn is_authenticated(&self) -> Result<bool>;
 

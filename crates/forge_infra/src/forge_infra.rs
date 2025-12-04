@@ -298,4 +298,8 @@ impl GrpcInfra for ForgeInfra {
     fn channel(&self) -> tonic::transport::Channel {
         self.grpc_client.channel()
     }
+
+    fn hydrate(&self) {
+        self.grpc_client.hydrate();
+    }
 }

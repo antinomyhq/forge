@@ -571,3 +571,13 @@ impl<F: GrpcInfra + Send + Sync> forge_domain::ValidationRepository for ForgeRep
             .await
     }
 }
+
+impl<F: GrpcInfra> GrpcInfra for ForgeRepo<F> {
+    fn channel(&self) -> tonic::transport::Channel {
+        self.infra.channel()
+    }
+
+    fn hydrate(&self) {
+        self.infra.hydrate();
+    }
+}
