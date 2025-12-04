@@ -177,7 +177,7 @@ pub trait API: Sync + Send {
         &self,
         path: PathBuf,
         batch_size: usize,
-    ) -> Result<forge_domain::FileUploadResponse>;
+    ) -> Result<MpscStream<Result<forge_domain::SyncProgress>>>;
 
     /// Query the indexed codebase
     async fn query_codebase(

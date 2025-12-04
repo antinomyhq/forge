@@ -5,6 +5,128 @@ use uuid::Uuid;
 
 use crate::WorkspaceId;
 
+/// Progress events emitted during codebase indexing
+#[derive(Debug, Clone, PartialEq)]
+pub enum SyncProgress {
+    /// Sync operation is starting
+    Starting,
+    /// A new workspace was created on the server
+    WorkspaceCreated {
+        /// The ID of the newly created workspace
+        workspace_id: WorkspaceId,
+    },
+    /// Discovering files in the directory
+    DiscoveringFiles {
+        /// Path being scanned
+        path: std::path::PathBuf,
+    },
+    /// Files have been discovered in the directory
+    FilesDiscovered {
+        /// Total number of files found
+        count: usize,
+    },
+    /// Comparing local files with server state
+    ComparingFiles,
+    /// Diff computed showing breakdown of changes
+    DiffComputed {
+        /// Number of files to delete (orphaned on server)
+        to_delete: usize,
+        /// Number of files to upload (new files)
+        to_upload: usize,
+        /// Number of modified files (delete + upload same path)
+        modified: usize,
+    },
+    /// Syncing files (deleting outdated + uploading new/changed)
+    Syncing {
+        /// Current progress score (modified files contribute 0.5 for delete +
+        /// 0.5 for upload)
+        current: f64,
+        /// Total number of files to sync
+        total: usize,
+    },
+    /// Sync operation completed successfully
+    Completed {
+        /// Total number of files in the workspace
+        total_files: usize,
+        /// Number of files that were uploaded (changed or new)
+        uploaded_files: usize,
+    },
+}
+
+impl SyncProgress {
+    /// Progress weight allocation:
+    /// - 0-10%: Discovery phase (guaranteed events)
+    /// - 10-100%: Syncing phase (file operations)
+    const DISCOVERY_WEIGHT: u64 = 10;
+    const SYNC_WEIGHT: u64 = 90;
+
+    /// Returns the progress weight (0-100) for this event.
+    pub fn weight(&self) -> Option<u64> {
+        match self {
+            Self::Starting => Some(0),
+            Self::DiscoveringFiles { .. } => Some(1),
+            Self::FilesDiscovered { .. } => Some(3),
+            Self::ComparingFiles => Some(5),
+            Self::DiffComputed { .. } => Some(10),
+            Self::Completed { .. } => Some(100),
+            Self::WorkspaceCreated { .. } => None,
+            Self::Syncing { current, total } => {
+                let sync_progress = if *total > 0 {
+                    (*current * Self::SYNC_WEIGHT as f64 / *total as f64) as u64
+                } else {
+                    0
+                };
+                Some(Self::DISCOVERY_WEIGHT + sync_progress)
+            }
+        }
+    }
+
+    /// Returns a human-readable status message for this event
+    pub fn message(&self) -> String {
+        match self {
+            Self::Starting => "Starting...".to_string(),
+            Self::WorkspaceCreated { .. } => "Workspace created".to_string(),
+            Self::DiscoveringFiles { path } => {
+                // Show only the last directory component for brevity
+                let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("files");
+                format!("Discovering {}", name)
+            }
+            Self::FilesDiscovered { count } => format!("Found {} files", count),
+            Self::ComparingFiles => "Comparing...".to_string(),
+            Self::DiffComputed { to_delete, to_upload, modified } => {
+                let total = to_delete + to_upload - modified;
+                if total == 0 {
+                    "No changes detected".to_string()
+                } else {
+                    format!(
+                        "{} files to sync ({} deleted, {} new, {} modified)",
+                        total,
+                        to_delete - modified,
+                        to_upload - modified,
+                        modified
+                    )
+                }
+            }
+            Self::Syncing { current, total } => {
+                let file_word = if *total == 1 { "file" } else { "files" };
+                format!("Syncing {:.1}/{} {}", current, total, file_word)
+            }
+            Self::Completed { uploaded_files, total_files: _ } => {
+                if *uploaded_files == 0 {
+                    "Already up to date".to_string()
+                } else {
+                    let file_word = if *uploaded_files == 1 {
+                        "file"
+                    } else {
+                        "files"
+                    };
+                    format!("{} {} synced", uploaded_files, file_word)
+                }
+            }
+        }
+    }
+}
+
 /// Stored authentication token for the indexing service (no expiry)
 ///
 /// Associates a user with their indexing service authentication token

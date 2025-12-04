@@ -2849,6 +2849,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         path: std::path::PathBuf,
         batch_size: usize,
     ) -> anyhow::Result<()> {
+        use forge_domain::SyncProgress;
+        use forge_spinner::ProgressBarManager;
+
         // Check if auth already exists and create if needed
         if !self.api.is_authenticated().await? {
             let auth = self.api.create_auth_credentials().await?;
@@ -2857,32 +2860,31 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             )?;
         }
 
-        self.spinner.start(Some("Syncing codebase..."))?;
+        let mut stream = self.api.sync_codebase(path.clone(), batch_size).await?;
+        let mut progress_bar = ProgressBarManager::default();
+        progress_bar.start(100, "Indexing codebase")?;
 
-        match self.api.sync_codebase(path.clone(), batch_size).await {
-            Ok(stats) => {
-                self.spinner.stop(None)?;
-
-                // Display workspace creation info
-                if stats.is_new_workspace {
-                    self.writeln_title(
-                        TitleFormat::action("Workspace created")
-                            .sub_title(stats.workspace_id.to_string()),
-                    )?;
+        while let Some(event) = stream.next().await {
+            match event {
+                Ok(ref progress @ SyncProgress::Completed { .. }) => {
+                    progress_bar.set_position(100)?;
+                    progress_bar.stop(None).await?;
+                    self.writeln_title(TitleFormat::debug(progress.message()))?;
                 }
-
-                let path = path.canonicalize().unwrap_or(path);
-                self.writeln_title(TitleFormat::debug(format!(
-                    "Successfully synced: {}",
-                    path.display()
-                )))?;
-                Ok(())
-            }
-            Err(e) => {
-                self.spinner.stop(None)?;
-                Err(e)
+                Ok(ref progress) => {
+                    progress_bar.set_message(&progress.message())?;
+                    if let Some(weight) = progress.weight() {
+                        progress_bar.set_position(weight)?;
+                    }
+                }
+                Err(e) => {
+                    progress_bar.stop(None).await?;
+                    return Err(e);
+                }
             }
         }
+
+        Ok(())
     }
 
     async fn on_query(
