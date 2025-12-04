@@ -91,20 +91,13 @@ pub struct ForgeContextEngineRepository {
 }
 
 impl ForgeContextEngineRepository {
-    /// Create a new gRPC client with lazy connection
-    pub fn new(server_url: &url::Url) -> Result<Self> {
-        let mut channel = Channel::from_shared(server_url.to_string())?.concurrency_limit(256);
-
-        // Enable TLS for https URLs (webpki-roots is faster than native-roots)
-        if server_url.scheme().contains("https") {
-            let tls_config = tonic::transport::ClientTlsConfig::new().with_webpki_roots();
-            channel = channel.tls_config(tls_config)?;
-        }
-
-        let channel = channel.connect_lazy();
+    /// Create a new repository from an existing gRPC channel
+    ///
+    /// # Arguments
+    /// * `channel` - A shared gRPC channel to the workspace server
+    pub fn new(channel: Channel) -> Self {
         let client = ForgeServiceClient::new(channel);
-
-        Ok(Self { client })
+        Self { client }
     }
 
     /// Add authorization header to a gRPC request

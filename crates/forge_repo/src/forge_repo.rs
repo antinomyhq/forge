@@ -5,8 +5,8 @@ use std::sync::Arc;
 use bytes::Bytes;
 use forge_app::{
     AgentRepository, CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra,
-    FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, KVStore,
-    McpServerInfra, StrategyFactory, UserInfra, WalkedFile, Walker, WalkerInfra,
+    FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra, GrpcInfra, HttpInfra,
+    KVStore, McpServerInfra, StrategyFactory, UserInfra, WalkedFile, Walker, WalkerInfra,
 };
 use forge_domain::{
     AnyProvider, AppConfig, AppConfigRepository, AuthCredential, CommandOutput, Conversation,
@@ -47,7 +47,7 @@ pub struct ForgeRepo<F> {
     validation_repository: Arc<crate::ForgeValidationRepository>,
 }
 
-impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
+impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra> ForgeRepo<F> {
     pub fn new(infra: Arc<F>) -> Self {
         let env = infra.get_environment();
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
@@ -69,17 +69,13 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
 
         let indexing_repository = Arc::new(crate::ForgeWorkspaceRepository::new(db_pool.clone()));
 
-        // FIXME: Pass the tonic grpc channel via infra
-        let codebase_repo = Arc::new(
-            crate::ForgeContextEngineRepository::new(&env.workspace_server_url)
-                .expect("Failed to create codebase repository"),
-        );
+        let grpc_channel = infra.connection();
+        let codebase_repo = Arc::new(crate::ForgeContextEngineRepository::new(
+            grpc_channel.clone(),
+        ));
         let agent_repository = Arc::new(ForgeAgentRepository::new(infra.clone()));
         let skill_repository = Arc::new(ForgeSkillRepository::new(infra.clone()));
-        let validation_repository = Arc::new(
-            crate::ForgeValidationRepository::new(&env.workspace_server_url)
-                .expect("Failed to create validation repository"),
-        );
+        let validation_repository = Arc::new(crate::ForgeValidationRepository::new(grpc_channel));
         Self {
             infra,
             file_snapshot_service,
