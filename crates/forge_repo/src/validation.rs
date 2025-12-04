@@ -32,10 +32,10 @@ impl ForgeValidationRepository {
     pub fn new(server_url: &url::Url) -> Result<Self> {
         let mut channel = Channel::from_shared(server_url.to_string())?.concurrency_limit(256);
 
-        // Enable TLS for https URLs using system certificate store
+        // Enable TLS for https URLs (webpki-roots is faster than native-roots)
         if server_url.scheme().contains("https") {
-            channel =
-                channel.tls_config(tonic::transport::ClientTlsConfig::new().with_native_roots())?;
+            let tls_config = tonic::transport::ClientTlsConfig::new().with_webpki_roots();
+            channel = channel.tls_config(tls_config)?;
         }
 
         let channel = channel.connect_lazy();
