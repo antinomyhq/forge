@@ -611,6 +611,10 @@ pub struct CommitCommandGroup {
 /// Group of Data-related commands
 #[derive(Parser, Debug, Clone)]
 pub struct DataCommandGroup {
+    /// Path to JSONL file to process (reads from stdin if not provided)
+    #[arg(long)]
+    pub input: Option<String>,
+
     /// Path to JSON schema file for LLM tool definition
     #[arg(long)]
     pub schema: String,
@@ -630,7 +634,21 @@ pub struct DataCommandGroup {
 
 impl From<DataCommandGroup> for forge_domain::DataGenerationParameters {
     fn from(value: DataCommandGroup) -> Self {
+        use forge_domain::DataGenerationInput;
+
+        let input = match value.input {
+            Some(path) => DataGenerationInput::Path(path.into()),
+            None => {
+                // Read from stdin
+                use std::io::{self, BufRead};
+                let stdin = io::stdin();
+                let lines: Vec<String> = stdin.lock().lines().map_while(Result::ok).collect();
+                DataGenerationInput::JSONL(lines)
+            }
+        };
+
         Self {
+            input,
             schema: value.schema.into(),
             system_prompt: value.system_prompt.map(Into::into),
             user_prompt: value.user_prompt.map(Into::into),
@@ -648,7 +666,10 @@ mod tests {
 
     #[test]
     fn test_data_command_group_conversion() {
+        use forge_domain::DataGenerationInput;
+
         let fixture = DataCommandGroup {
+            input: Some("path/to/input.jsonl".to_string()),
             schema: "path/to/schema.json".to_string(),
             system_prompt: Some("system prompt".to_string()),
             user_prompt: None,
@@ -656,6 +677,7 @@ mod tests {
         };
         let actual: forge_domain::DataGenerationParameters = fixture.into();
         let expected = forge_domain::DataGenerationParameters {
+            input: DataGenerationInput::Path("path/to/input.jsonl".into()),
             schema: "path/to/schema.json".into(),
             system_prompt: Some("system prompt".into()),
             user_prompt: None,

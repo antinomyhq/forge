@@ -11,6 +11,13 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize, Setters, PartialEq, fake::Dummy)]
 #[setters(into, strip_option)]
 pub struct DataGenerationParameters {
+    /// Input source for data generation
+    ///
+    /// Can be either a file path to read data from or a collection of JSONL
+    /// values to process directly. The input determines where the data
+    /// generation process will source its initial data.
+    pub input: DataGenerationInput,
+
     /// Path to JSON schema file for LLM tool definition
     pub schema: PathBuf,
 
@@ -22,4 +29,10 @@ pub struct DataGenerationParameters {
 
     /// Maximum number of concurrent LLM requests
     pub concurrency: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, fake::Dummy)]
+pub enum DataGenerationInput {
+    Path(PathBuf),
+    JSONL(Vec<String>),
 }
