@@ -5,10 +5,10 @@ use bytes::Bytes;
 use derive_setters::Setters;
 use forge_domain::{
     AgentId, AnyProvider, Attachment, AuthContextRequest, AuthContextResponse, AuthMethod,
-    ChatCompletionMessage, CodeSearchResult, CommandOutput, Context, Conversation, ConversationId,
-    Environment, File, FileUploadResponse, Image, InitAuth, LoginInfo, McpConfig, McpServers,
-    Model, ModelId, PatchOperation, Provider, ProviderId, ResultStream, Scope, SearchParams,
-    Template, ToolCallFull, ToolOutput, Workflow, WorkspaceAuth, WorkspaceId, WorkspaceInfo,
+    ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId, Environment, File,
+    Image, InitAuth, LoginInfo, McpConfig, McpServers, Model, ModelId, Node, PatchOperation,
+    Provider, ProviderId, ResultStream, Scope, SearchParams, SyncProgress, Template, ToolCallFull,
+    ToolOutput, Workflow, WorkspaceAuth, WorkspaceId, WorkspaceInfo,
 };
 use merge::Merge;
 use reqwest::Response;
@@ -129,7 +129,7 @@ pub struct PolicyDecision {
 pub trait ProviderService: Send + Sync {
     async fn chat(
         &self,
-        id: &ModelId,
+        model_id: &ModelId,
         context: Context,
         provider: Provider<Url>,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error>;
@@ -255,28 +255,14 @@ pub trait ContextEngineService: Send + Sync {
         &self,
         path: PathBuf,
         batch_size: usize,
-    ) -> anyhow::Result<FileUploadResponse>;
+    ) -> anyhow::Result<forge_stream::MpscStream<anyhow::Result<SyncProgress>>>;
 
     /// Query the indexed codebase with semantic search
     async fn query_codebase(
         &self,
         path: PathBuf,
         params: SearchParams<'_>,
-    ) -> anyhow::Result<Vec<CodeSearchResult>>;
-
-    /// Batch Query the indexed codebase with semantic search
-    async fn query_codebase_batch(
-        &self,
-        path: PathBuf,
-        params: Vec<SearchParams<'_>>,
-    ) -> anyhow::Result<Vec<Vec<CodeSearchResult>>> {
-        let futures: Vec<_> = params
-            .into_iter()
-            .map(|param| self.query_codebase(path.clone(), param))
-            .collect();
-
-        futures::future::try_join_all(futures).await
-    }
+    ) -> anyhow::Result<Vec<Node>>;
 
     /// List all workspaces indexed by the user
     async fn list_codebase(&self) -> anyhow::Result<Vec<WorkspaceInfo>>;
@@ -317,22 +303,6 @@ pub trait WorkflowService {
         base_workflow.merge(workflow);
         Ok(base_workflow)
     }
-
-    /// Writes the given workflow to the specified path.
-    /// If no path is provided, it will try to find forge.yaml in the current
-    /// directory or its parent directories.
-    async fn write_workflow(&self, path: Option<&Path>, workflow: &Workflow) -> anyhow::Result<()>;
-
-    /// Updates the workflow at the given path using the provided closure.
-    /// If no path is provided, it will try to find forge.yaml in the current
-    /// directory or its parent directories.
-    ///
-    /// The closure receives a mutable reference to the workflow, which can be
-    /// modified. After the closure completes, the updated workflow is
-    /// written back to the same path.
-    async fn update_workflow<F>(&self, path: Option<&Path>, f: F) -> anyhow::Result<Workflow>
-    where
-        F: FnOnce(&mut Workflow) + Send;
 }
 
 #[async_trait::async_trait]
@@ -636,11 +606,13 @@ impl<I: Services> ConversationService for I {
 impl<I: Services> ProviderService for I {
     async fn chat(
         &self,
-        id: &ModelId,
+        model_id: &ModelId,
         context: Context,
         provider: Provider<Url>,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
-        self.provider_service().chat(id, context, provider).await
+        self.provider_service()
+            .chat(model_id, context, provider)
+            .await
     }
 
     async fn models(&self, provider: Provider<Url>) -> anyhow::Result<Vec<Model>> {
@@ -733,17 +705,6 @@ impl<I: Services> WorkflowService for I {
 
     async fn read_workflow(&self, path: Option<&Path>) -> anyhow::Result<Workflow> {
         self.workflow_service().read_workflow(path).await
-    }
-
-    async fn write_workflow(&self, path: Option<&Path>, workflow: &Workflow) -> anyhow::Result<()> {
-        self.workflow_service().write_workflow(path, workflow).await
-    }
-
-    async fn update_workflow<F>(&self, path: Option<&Path>, f: F) -> anyhow::Result<Workflow>
-    where
-        F: FnOnce(&mut Workflow) + Send,
-    {
-        self.workflow_service().update_workflow(path, f).await
     }
 }
 
@@ -1057,7 +1018,7 @@ impl<I: Services> ContextEngineService for I {
         &self,
         path: PathBuf,
         batch_size: usize,
-    ) -> anyhow::Result<FileUploadResponse> {
+    ) -> anyhow::Result<forge_stream::MpscStream<anyhow::Result<SyncProgress>>> {
         self.context_engine_service()
             .sync_codebase(path, batch_size)
             .await
@@ -1067,7 +1028,7 @@ impl<I: Services> ContextEngineService for I {
         &self,
         path: PathBuf,
         params: SearchParams<'_>,
-    ) -> anyhow::Result<Vec<CodeSearchResult>> {
+    ) -> anyhow::Result<Vec<Node>> {
         self.context_engine_service()
             .query_codebase(path, params)
             .await

@@ -14,10 +14,11 @@ function forge-completion() {
             $_FORGE_PREVIEW_WINDOW
         )
         
+        local file_list=$($_FORGE_FD_CMD --type f --type d --hidden --exclude .git)
         if [[ -n "$filter_text" ]]; then
-            selected=$($_FORGE_FD_CMD --type f --type d --hidden --exclude .git | _forge_fzf --query "$filter_text" "${fzf_args[@]}")
+            selected=$(echo "$file_list" | _forge_fzf --query "$filter_text" "${fzf_args[@]}")
         else
-            selected=$($_FORGE_FD_CMD --type f --type d --hidden --exclude .git | _forge_fzf "${fzf_args[@]}")
+            selected=$(echo "$file_list" | _forge_fzf "${fzf_args[@]}")
         fi
         
         if [[ -n "$selected" ]]; then
@@ -42,9 +43,9 @@ function forge-completion() {
             # Use fzf for interactive selection with prefilled filter
             local selected
             if [[ -n "$filter_text" ]]; then
-                selected=$(echo "$commands_list" | _forge_fzf --delimiter="$_FORGE_DELIMITER" --nth=1 --query "$filter_text" --prompt="Command ❯ ")
+                selected=$(echo "$commands_list" | _forge_fzf --header-lines=1 --delimiter="$_FORGE_DELIMITER" --nth=1 --query "$filter_text" --prompt="Command ❯ ")
             else
-                selected=$(echo "$commands_list" | _forge_fzf --delimiter="$_FORGE_DELIMITER" --nth=1 --prompt="Command ❯ ")
+                selected=$(echo "$commands_list" | _forge_fzf --header-lines=1 --delimiter="$_FORGE_DELIMITER" --nth=1 --prompt="Command ❯ ")
             fi
             
             if [[ -n "$selected" ]]; then
