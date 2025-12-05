@@ -109,7 +109,7 @@ impl<A: Services> DataGenerationApp<A> {
 
         let services = self.services.clone();
 
-        let json_stream = input.into_iter().map(move |data| {
+        let json_stream = input.into_iter().map(move |input| {
             let provider = provider.clone();
             let context = context.clone();
             let user_prompt = user_prompt.clone();
@@ -122,9 +122,9 @@ impl<A: Services> DataGenerationApp<A> {
                 let provider = provider.clone();
                 let mut context = context.clone();
                 let content = if let Some(ref content) = user_prompt {
-                    TemplateEngine::default().render_template(Template::new(content), &data)?
+                    TemplateEngine::default().render_template(Template::new(content), &input)?
                 } else {
-                    serde_json::to_string(&data)?
+                    serde_json::to_string(&input)?
                 };
 
                 context =
@@ -133,17 +133,24 @@ impl<A: Services> DataGenerationApp<A> {
                 let stream = services.chat(&model_id, context, provider.clone()).await?;
                 let response = stream.into_full(false).await?;
 
-                anyhow::Ok(response)
+                anyhow::Ok((input, response))
             }
         });
 
         let json_stream = stream::iter(json_stream)
             .buffer_unordered(concurrency)
             .map(|result| {
-                result.and_then(|data| {
-                    data.tool_calls
+                result.and_then(|(input, response)| {
+                    response
+                        .tool_calls
                         .into_iter()
-                        .map(|tool| Ok(tool.arguments.parse()?))
+                        .map(|tool| {
+                            let output = tool.arguments.parse()?;
+                            let mut value = serde_json::Map::new();
+                            value.insert("input".to_string(), input.clone());
+                            value.insert("output".to_string(), output);
+                            Ok(serde_json::Value::from(value))
+                        })
                         .collect::<Result<Vec<_>>>()
                 })
             })
