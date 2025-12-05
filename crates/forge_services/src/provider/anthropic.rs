@@ -82,7 +82,6 @@ impl<T: HttpClientService> Anthropic<T> {
 
         let request = Request::try_from(context)?
             .model(model.as_str().to_string())
-            .stream(true)
             .max_tokens(max_tokens as u64);
 
         let request = AuthSystemMessage::default()

@@ -6,6 +6,9 @@ use indicatif::{ProgressBar, ProgressStyle};
 use rand::seq::IndexedRandom;
 use tokio::task::JoinHandle;
 
+mod progress_bar;
+pub use progress_bar::*;
+
 /// Manages spinner functionality for the UI
 #[derive(Default)]
 pub struct SpinnerManager {

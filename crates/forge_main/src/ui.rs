@@ -354,6 +354,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         tokio::spawn(async move { api.get_tools().await });
         let api = self.api.clone();
         tokio::spawn(async move { api.get_agents().await });
+        let api = self.api.clone();
+        tokio::spawn(async move {
+            let _ = api.hydrate_channel();
+        });
     }
 
     async fn handle_generate_conversation_id(&mut self) -> Result<()> {
@@ -416,7 +420,6 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
                 return Ok(());
             }
-
             TopLevelCommand::Mcp(mcp_command) => match mcp_command.command {
                 McpCommand::Import(import_args) => {
                     let scope: forge_domain::Scope = import_args.scope.into();
@@ -508,22 +511,18 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     .await?;
                 return Ok(());
             }
-
             TopLevelCommand::Provider(provider_group) => {
                 self.handle_provider_command(provider_group).await?;
                 return Ok(());
             }
-
             TopLevelCommand::Conversation(conversation_group) => {
                 self.handle_conversation_command(conversation_group).await?;
                 return Ok(());
             }
-
             TopLevelCommand::Suggest { prompt } => {
                 self.on_cmd(UserPrompt::from(prompt)).await?;
                 return Ok(());
             }
-
             TopLevelCommand::Cmd(run_group) => {
                 let porcelain = run_group.porcelain;
                 match run_group.command {
@@ -558,7 +557,6 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
                 return Ok(());
             }
-
             TopLevelCommand::Workspace(index_group) => {
                 match index_group.command {
                     crate::cli::WorkspaceCommand::Sync { path, batch_size } => {
@@ -599,7 +597,6 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
                 return Ok(());
             }
-
             TopLevelCommand::Commit(commit_group) => {
                 let preview = commit_group.preview;
                 let result = self.handle_commit_command(commit_group).await?;
@@ -607,6 +604,12 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     self.writeln(&result.message)?;
                 }
                 return Ok(());
+            }
+            TopLevelCommand::Data(data_command_group) => {
+                let mut stream = self.api.generate_data(data_command_group.into()).await?;
+                while let Some(data) = stream.next().await {
+                    self.writeln(data?)?;
+                }
             }
         }
         Ok(())
@@ -2095,14 +2098,14 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     // Helper method to handle model selection and update the conversation
     #[async_recursion::async_recursion]
-    async fn on_model_selection(&mut self) -> Result<()> {
+    async fn on_model_selection(&mut self) -> Result<Option<ModelId>> {
         // Select a model
         let model_option = self.select_model().await?;
 
         // If no model was selected (user canceled), return early
         let model = match model_option {
             Some(model) => model,
-            None => return Ok(()),
+            None => return Ok(None),
         };
 
         // Update the operating model via API
@@ -2113,7 +2116,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         self.writeln_title(TitleFormat::action(format!("Switched to model: {model}")))?;
 
-        Ok(())
+        Ok(Some(model))
     }
 
     async fn on_provider_selection(&mut self) -> Result<()> {
@@ -2241,7 +2244,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Print if the state is being reinitialized
         if self.state.conversation_id.is_none() {
-            self.print_conversation_status(is_new, id).await?;
+            self.print_conversation_status(is_new, id)?;
         }
 
         // Always set the conversation id in state
@@ -2250,7 +2253,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(id)
     }
 
-    async fn print_conversation_status(
+    fn print_conversation_status(
         &mut self,
         new_conversation: bool,
         id: ConversationId,
@@ -2273,15 +2276,15 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
 
         let _ = self.handle_migrate_credentials().await;
-        let _ = self.install_vscode_extension().await;
+        self.install_vscode_extension();
 
         // Ensure we have a model selected before proceeding with initialization
-        if self
-            .get_agent_model(self.api.get_active_agent().await)
-            .await
-            .is_none()
-        {
-            self.on_model_selection().await?;
+        let active_agent = self.api.get_active_agent().await;
+
+        let mut operating_model = self.get_agent_model(active_agent.clone()).await;
+        if operating_model.is_none() {
+            // Use the model returned from selection instead of re-fetching
+            operating_model = self.on_model_selection().await?;
         }
 
         // Validate provider is configured before loading agents
@@ -2299,7 +2302,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             // So for default values, `/info` doesn't show active provider, model, etc.
             // So my default, on new, we should set the active agent.
             self.api
-                .set_active_agent(self.api.get_active_agent().await.unwrap_or_default())
+                .set_active_agent(active_agent.clone().unwrap_or_default())
                 .await?;
             // only call on_update if this is the first initialization
             on_update(self.api.clone(), base_workflow.updates.as_ref()).await;
@@ -2309,11 +2312,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         // Execute independent operations in parallel to improve performance
-        let get_agents_fut = self.api.get_agents();
-        let get_operating_agent_fut = self.api.get_active_agent();
-
-        let (agents_result, _operating_agent_result) =
-            tokio::join!(get_agents_fut, get_operating_agent_fut);
+        let (agents_result, commands_result) =
+            tokio::join!(self.api.get_agents(), self.api.get_commands());
 
         // Register agent commands with proper error handling and user feedback
         match agents_result {
@@ -2335,11 +2335,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         // Register all the commands
-        self.command.register_all(self.api.get_commands().await?);
+        self.command.register_all(commands_result?);
 
-        let operating_model = self
-            .get_agent_model(self.api.get_active_agent().await)
-            .await;
         self.state = UIState::new(self.api.environment());
         self.update_model(operating_model);
 
@@ -2849,6 +2846,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         path: std::path::PathBuf,
         batch_size: usize,
     ) -> anyhow::Result<()> {
+        use forge_domain::SyncProgress;
+        use forge_spinner::ProgressBarManager;
+
         // Check if auth already exists and create if needed
         if !self.api.is_authenticated().await? {
             let auth = self.api.create_auth_credentials().await?;
@@ -2857,32 +2857,31 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             )?;
         }
 
-        self.spinner.start(Some("Syncing codebase..."))?;
+        let mut stream = self.api.sync_codebase(path.clone(), batch_size).await?;
+        let mut progress_bar = ProgressBarManager::default();
+        progress_bar.start(100, "Indexing codebase")?;
 
-        match self.api.sync_codebase(path.clone(), batch_size).await {
-            Ok(stats) => {
-                self.spinner.stop(None)?;
-
-                // Display workspace creation info
-                if stats.is_new_workspace {
-                    self.writeln_title(
-                        TitleFormat::action("Workspace created")
-                            .sub_title(stats.workspace_id.to_string()),
-                    )?;
+        while let Some(event) = stream.next().await {
+            match event {
+                Ok(ref progress @ SyncProgress::Completed { .. }) => {
+                    progress_bar.set_position(100)?;
+                    progress_bar.stop(None).await?;
+                    self.writeln_title(TitleFormat::debug(progress.message()))?;
                 }
-
-                let path = path.canonicalize().unwrap_or(path);
-                self.writeln_title(TitleFormat::debug(format!(
-                    "Successfully synced: {}",
-                    path.display()
-                )))?;
-                Ok(())
-            }
-            Err(e) => {
-                self.spinner.stop(None)?;
-                Err(e)
+                Ok(ref progress) => {
+                    progress_bar.set_message(&progress.message())?;
+                    if let Some(weight) = progress.weight() {
+                        progress_bar.set_position(weight)?;
+                    }
+                }
+                Err(e) => {
+                    progress_bar.stop(None).await?;
+                    return Err(e);
+                }
             }
         }
+
+        Ok(())
     }
 
     async fn on_query(
@@ -3079,14 +3078,12 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     }
 
     /// Silently install VS Code extension if in VS Code and extension not
-    /// installed
-    async fn install_vscode_extension(&mut self) -> Result<()> {
-        if crate::vscode::should_install_extension() {
-            // Spawn installation in background to avoid blocking startup
-            tokio::task::spawn_blocking(|| {
+    /// installed.
+    fn install_vscode_extension(&self) {
+        tokio::task::spawn_blocking(|| {
+            if crate::vscode::should_install_extension() {
                 let _ = crate::vscode::install_extension();
-            });
-        }
-        Ok(())
+            }
+        });
     }
 }
