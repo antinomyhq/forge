@@ -1,11 +1,14 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use anyhow::Result;
-use forge_domain::{Context, ContextMessage, DataGenerationParameters, Template, ToolDefinition};
+use anyhow::{Context as _, Result};
+use forge_domain::{
+    Context, ContextMessage, DataGenerationParameters, ResultStreamExt, Template, ToolDefinition,
+};
 use futures::StreamExt;
 use futures::stream::{self, BoxStream};
 use schemars::schema::RootSchema;
+use tracing::{debug, info};
 
 use crate::{
     AppConfigService, EnvironmentService, FsReadService, ProviderService, Services, TemplateEngine,
@@ -57,6 +60,8 @@ impl<A: Services> DataGenerationApp<A> {
         &self,
         params: DataGenerationParameters,
     ) -> Result<(JsonSchema, Option<SystemPrompt>, Option<UserPrompt>, Input)> {
+        debug!("Loading data generation parameters");
+
         // Read all files in parallel
         let (schema, system_prompt, user_prompt, input) = tokio::join!(
             self.read_file(params.schema.clone()),
@@ -66,9 +71,13 @@ impl<A: Services> DataGenerationApp<A> {
         );
 
         let input: Vec<serde_json::Value> = input?
-            .split("\n")
-            .map(|text| Ok(serde_json::from_str(text)?))
+            .lines()
+            .map(|text| {
+                Ok(serde_json::from_str(text).with_context(|| "Could not parse the input file")?)
+            })
             .collect::<Result<Vec<_>>>()?;
+
+        debug!("Loaded {} input items", input.len());
 
         Ok((schema?, system_prompt?, user_prompt?, input))
     }
@@ -79,9 +88,18 @@ impl<A: Services> DataGenerationApp<A> {
     ) -> Result<BoxStream<'static, Result<serde_json::Value>>> {
         let concurrency = params.concurrency;
         let (schema, system_prompt, user_prompt, input) = self.load_parameters(params).await?;
+
+        info!(
+            "Starting data generation with {} items (concurrency: {})",
+            input.len(),
+            concurrency
+        );
+
         let provider = self.services.get_default_provider().await?;
         let model_id = self.services.get_provider_model(Some(&provider.id)).await?;
-        let schema: RootSchema = serde_json::from_str(&schema)?;
+        debug!("Using provider: {}, model: {}", provider.id, model_id);
+        let schema: RootSchema =
+            serde_json::from_str(&schema).with_context(|| "Could not parse the JSON schema")?;
         let mut context =
             Context::default().add_tool(ToolDefinition::new("output").input_schema(schema));
 
@@ -99,6 +117,8 @@ impl<A: Services> DataGenerationApp<A> {
             let services = services.clone();
 
             async move {
+                debug!("Processing data generation request");
+
                 let provider = provider.clone();
                 let mut context = context.clone();
                 let content = if let Some(ref content) = user_prompt {
@@ -111,24 +131,17 @@ impl<A: Services> DataGenerationApp<A> {
                     context.add_message(ContextMessage::user(content, Some(model_id.clone())));
 
                 let stream = services.chat(&model_id, context, provider.clone()).await?;
+                let response = stream.into_full(false).await?;
 
-                anyhow::Ok(stream)
+                anyhow::Ok(response)
             }
         });
 
         let json_stream = stream::iter(json_stream)
             .buffer_unordered(concurrency)
-            .map(|data| match data {
-                Ok(data) => data,
-                Err(err) => Box::pin(stream::once(async { Err(err) })),
-            })
-            .flatten()
-            .filter_map(|result| async {
-                result.map(|data| data.content).transpose().map(|result| {
-                    result.and_then(|content| Ok(serde_json::from_str(content.as_str())?))
-                })
-            });
+            .map(|result| result.and_then(|data| Ok(serde_json::from_str(data.content.as_str())?)))
+            .boxed();
 
-        Ok(json_stream.boxed())
+        Ok(json_stream)
     }
 }
