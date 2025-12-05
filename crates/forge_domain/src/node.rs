@@ -74,7 +74,7 @@ impl SyncProgress {
         match self {
             Self::Starting => "Initializing codebase sync".to_string(),
             Self::WorkspaceCreated { workspace_id } => {
-                format!("Created workspace {}", workspace_id)
+                format!("Created workspace '{}'", workspace_id)
             }
             Self::DiscoveringFiles { path } => {
                 let name = path.file_name().and_then(|n| n.to_str()).unwrap_or(".");
