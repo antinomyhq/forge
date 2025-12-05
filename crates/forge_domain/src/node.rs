@@ -90,7 +90,10 @@ impl SyncProgress {
                 format!("Discovered {} {} for indexing", count, file_word)
             }
             Self::ComparingFiles { local_files, remote_files } => {
-                format!("Computing diff ({} local, {} remote)", local_files, remote_files)
+                format!(
+                    "Comparing {} local files against {} indexed",
+                    local_files, remote_files
+                )
             }
             Self::DiffComputed { to_delete, to_upload, modified } => {
                 let total = to_delete + to_upload - modified;
