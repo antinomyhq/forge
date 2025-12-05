@@ -1,15 +1,15 @@
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::Result;
-use forge_domain::{
-    Context, ContextMessage, DataGenerationInput, DataGenerationParameters, Template,
-    ToolDefinition,
-};
+use forge_domain::{Context, ContextMessage, DataGenerationParameters, Template, ToolDefinition};
 use futures::StreamExt;
 use futures::stream::{self, BoxStream};
 use schemars::schema::RootSchema;
 
-use crate::{AppConfigService, FsReadService, ProviderService, Services, TemplateEngine};
+use crate::{
+    AppConfigService, EnvironmentService, FsReadService, ProviderService, Services, TemplateEngine,
+};
 
 pub struct DataGenerationApp<A> {
     services: Arc<A>,
@@ -25,61 +25,52 @@ impl<A: Services> DataGenerationApp<A> {
         Self { services }
     }
 
-    async fn load_parameters(
-        &self,
-        params: DataGenerationParameters,
-    ) -> Result<(JsonSchema, Option<SystemPrompt>, Option<UserPrompt>, Input)> {
-        // FIXME: Too much of ceremony and no-parallelization
-        let schema = self
+    /// Helper function to read a file from a path, resolving it relative to cwd
+    /// if necessary
+    async fn read_file(&self, path: PathBuf) -> Result<String> {
+        let resolved_path = if path.is_absolute() {
+            path
+        } else {
+            let cwd = self.services.get_environment().cwd;
+            cwd.join(path)
+        };
+
+        let content = self
             .services
-            .read(params.schema.display().to_string(), None, None)
+            .read(resolved_path.display().to_string(), None, None)
             .await?
             .content
             .file_content()
             .to_owned();
-        let system_prompt = match params.system_prompt {
-            Some(system_prompt) => Some(
-                self.services
-                    .read(system_prompt.display().to_string(), None, None)
-                    .await?
-                    .content
-                    .file_content()
-                    .to_owned(),
-            ),
-            None => None,
-        };
 
-        let user_prompt = match params.user_prompt {
-            Some(user_prompt) => Some(
-                self.services
-                    .read(user_prompt.display().to_string(), None, None)
-                    .await?
-                    .content
-                    .file_content()
-                    .to_owned(),
-            ),
-            None => None,
-        };
+        Ok(content)
+    }
 
-        let input_text: Vec<String> = match params.input {
-            DataGenerationInput::Path(path_buf) => self
-                .services
-                .read(path_buf.display().to_string(), None, None)
-                .await?
-                .content
-                .file_content()
-                .split("\n")
-                .map(|s| s.to_owned())
-                .collect::<Vec<_>>(),
-            DataGenerationInput::JSONL(items) => items,
-        };
+    async fn read_file_opt(&self, path: Option<PathBuf>) -> Result<Option<String>> {
+        match path {
+            Some(path) => self.read_file(path).await.map(Some),
+            None => Ok(None),
+        }
+    }
 
-        let input: Vec<serde_json::Value> = input_text
-            .into_iter()
-            .map(|text| Ok(serde_json::from_str(&text)?))
+    async fn load_parameters(
+        &self,
+        params: DataGenerationParameters,
+    ) -> Result<(JsonSchema, Option<SystemPrompt>, Option<UserPrompt>, Input)> {
+        // Read all files in parallel
+        let (schema, system_prompt, user_prompt, input) = tokio::join!(
+            self.read_file(params.schema.clone()),
+            self.read_file_opt(params.system_prompt),
+            self.read_file_opt(params.user_prompt),
+            self.read_file(params.input)
+        );
+
+        let input: Vec<serde_json::Value> = input?
+            .split("\n")
+            .map(|text| Ok(serde_json::from_str(text)?))
             .collect::<Result<Vec<_>>>()?;
 
-        Ok((schema, system_prompt, user_prompt, input))
+        Ok((schema?, system_prompt?, user_prompt?, input))
     }
 
     pub async fn execute(
