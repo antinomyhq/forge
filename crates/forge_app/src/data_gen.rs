@@ -73,7 +73,7 @@ impl<A: Services> DataGenerationApp<A> {
         let input: Vec<serde_json::Value> = input?
             .lines()
             .map(|text| {
-                Ok(serde_json::from_str(text).with_context(|| "Could not parse the input file")?)
+                serde_json::from_str(text).with_context(|| "Could not parse the input file")
             })
             .collect::<Result<Vec<_>>>()?;
 
