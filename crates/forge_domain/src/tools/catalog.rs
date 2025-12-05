@@ -189,7 +189,10 @@ pub struct FSSearch {
 /// registration" finds tool setup code. Returns ranked results with code
 /// snippets. ONLY use regex search tool for exact name matches like "all
 /// functions named execute" or "TODO comments". When in doubt between search
-/// and sem_search, choose sem_search.
+/// and sem_search, choose sem_search. IMPORTANT: For comprehensive exploration,
+/// invoke this tool MULTIPLE TIMES IN PARALLEL with different query phrasings
+/// to maximize coverage - each call explores a different dimension of the
+/// search space.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct SemanticSearch {
     /// Describe WHAT the code does or its purpose. Include domain-specific
