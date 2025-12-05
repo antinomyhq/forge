@@ -309,6 +309,7 @@ impl TryFrom<ContentBlock> for ChatCompletionMessage {
                         .add_reasoning_detail(Reasoning::Part(vec![ReasoningPart {
                             signature,
                             text: Some(thinking),
+                            ..Default::default()
                         }]))
                 } else {
                     ChatCompletionMessage::assistant(Content::part(""))
@@ -321,6 +322,7 @@ impl TryFrom<ContentBlock> for ChatCompletionMessage {
                         .add_reasoning_detail(Reasoning::Part(vec![ReasoningPart {
                             signature: None,
                             text: Some(data),
+                            ..Default::default()
                         }]))
                 } else {
                     ChatCompletionMessage::assistant(Content::part(""))
@@ -333,16 +335,20 @@ impl TryFrom<ContentBlock> for ChatCompletionMessage {
                         .add_reasoning_detail(Reasoning::Part(vec![ReasoningPart {
                             signature: None,
                             text: Some(thinking),
+                            ..Default::default()
                         }]))
                 } else {
                     ChatCompletionMessage::assistant(Content::part(""))
                 }
             }
-            ContentBlock::SignatureDelta { signature } => {
-                ChatCompletionMessage::assistant(Content::part("")).add_reasoning_detail(
-                    Reasoning::Part(vec![ReasoningPart { signature, text: None }]),
-                )
-            }
+            ContentBlock::SignatureDelta { signature } => ChatCompletionMessage::assistant(
+                Content::part(""),
+            )
+            .add_reasoning_detail(Reasoning::Part(vec![ReasoningPart {
+                signature,
+                text: None,
+                ..Default::default()
+            }])),
             ContentBlock::ToolUse { id, name, input } => {
                 // note: We've to check if the input is empty or null. else we end up adding
                 // empty object `{}` as prefix to tool args.

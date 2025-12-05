@@ -17,12 +17,22 @@ before:
         reasoning_details:
           - text: Complex reasoning process
             signature: ~
+            data: ~
+            id: ~
+            format: ~
+            index: ~
+            type: ~
     - text:
         role: Assistant
         content: Third assistant with reasoning
         reasoning_details:
           - text: Complex reasoning process
             signature: ~
+            data: ~
+            id: ~
+            format: ~
+            index: ~
+            type: ~
   reasoning:
     enabled: true
 after:
