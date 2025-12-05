@@ -6,15 +6,17 @@ use anyhow::Result;
 use forge_app::dto::ToolsOverview;
 use forge_app::{
     AgentProviderResolver, AgentRegistry, AppConfigService, AuthService, CommandInfra,
-    CommandLoaderService, ContextEngineService, ConversationService, EnvironmentInfra,
-    EnvironmentService, FileDiscoveryService, ForgeApp, GitApp, GrpcInfra, McpConfigManager,
-    McpService, ProviderAuthService, ProviderService, Services, User, UserUsage, Walker,
+    CommandLoaderService, ContextEngineService, ConversationService, DataGenerationApp,
+    EnvironmentInfra, EnvironmentService, FileDiscoveryService, ForgeApp, GitApp, GrpcInfra,
+    McpConfigManager, McpService, ProviderAuthService, ProviderService, Services, User, UserUsage,
+    Walker,
 };
 use forge_domain::{Agent, InitAuth, LoginInfo, *};
 use forge_infra::ForgeInfra;
 use forge_repo::ForgeRepo;
 use forge_services::ForgeServices;
 use forge_stream::MpscStream;
+use futures::stream::BoxStream;
 use url::Url;
 
 use crate::API;
@@ -362,6 +364,14 @@ impl<
 
     async fn migrate_env_credentials(&self) -> Result<Option<forge_domain::MigrationResult>> {
         Ok(self.services.migrate_env_credentials().await?)
+    }
+
+    async fn generate_data(
+        &self,
+        data_parameters: DataGenerationParameters,
+    ) -> Result<BoxStream<'static, Result<serde_json::Value, anyhow::Error>>> {
+        let app = DataGenerationApp::new(self.services.clone());
+        app.execute(data_parameters).await
     }
 
     async fn get_default_provider(&self) -> Result<Provider<Url>> {

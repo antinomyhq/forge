@@ -129,7 +129,7 @@ pub struct PolicyDecision {
 pub trait ProviderService: Send + Sync {
     async fn chat(
         &self,
-        id: &ModelId,
+        model_id: &ModelId,
         context: Context,
         provider: Provider<Url>,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error>;
@@ -606,11 +606,13 @@ impl<I: Services> ConversationService for I {
 impl<I: Services> ProviderService for I {
     async fn chat(
         &self,
-        id: &ModelId,
+        model_id: &ModelId,
         context: Context,
         provider: Provider<Url>,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
-        self.provider_service().chat(id, context, provider).await
+        self.provider_service()
+            .chat(model_id, context, provider)
+            .await
     }
 
     async fn models(&self, provider: Provider<Url>) -> anyhow::Result<Vec<Model>> {
