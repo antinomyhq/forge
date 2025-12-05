@@ -5,7 +5,7 @@ use console::strip_ansi_codes;
 use derive_setters::Setters;
 use forge_display::DiffFormat;
 use forge_domain::{
-    CodebaseSearchResults, Environment, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite,
+    CodebaseQueryResult, Environment, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite,
     FileOperation, Metrics, NetFetch, PlanCreate, ToolKind,
 };
 use forge_template::Element;
@@ -49,7 +49,7 @@ pub enum ToolOperation {
         output: Option<SearchResult>,
     },
     CodebaseSearch {
-        output: CodebaseSearchResults,
+        output: CodebaseQueryResult,
     },
     FsPatch {
         input: FSPatch,
@@ -331,15 +331,12 @@ impl ToolOperation {
                 }
             },
             ToolOperation::CodebaseSearch { output } => {
-                let total_results: usize = output.queries.iter().map(|q| q.results.len()).sum();
                 let mut root = Element::new("sem_search_results");
 
-                if output.queries.is_empty() || total_results == 0 {
+                if output.results.is_empty() {
                     root = root.text("No results found for query. Try refining your search with more specific terms or different keywords.")
                 } else {
-                    for query_result in &output.queries {
-                        root = root.append(query_result.to_element());
-                    }
+                    root = root.append(output.to_element());
                 }
 
                 forge_domain::ToolOutput::text(root)
@@ -1602,40 +1599,38 @@ mod tests {
 
     #[test]
     fn test_sem_search_with_results() {
-        use forge_domain::{CodebaseQueryResult, CodebaseSearchResults, Node, NodeData};
+        use forge_domain::{CodebaseQueryResult, Node, NodeData};
 
         let fixture = ToolOperation::CodebaseSearch {
-            output: CodebaseSearchResults {
-                queries: vec![CodebaseQueryResult {
-                    query: "retry mechanism with exponential backoff".to_string(),
-                    use_case: "where is the retrying logic written".to_string(),
-                    results: vec![
-                        Node {
-                            node_id: "node1".into(),
-                            node: NodeData::FileChunk {
-                                file_path: "src/retry.rs".to_string(),
-                                content: "fn retry_with_backoff(max_attempts: u32) {\n    let mut delay = 100;\n    for attempt in 0..max_attempts {\n        if try_operation().is_ok() {\n            return;\n        }\n        thread::sleep(Duration::from_millis(delay));\n        delay *= 2;\n    }\n}".to_string(),
-                                start_line: 10,
-                                end_line: 19,
-                            },
-                            relevance: Some(0.9534),
-                            distance: Some(0.0466),
-                            similarity: Some(0.9534),
+            output: CodebaseQueryResult {
+                query: "retry mechanism with exponential backoff".to_string(),
+                use_case: "where is the retrying logic written".to_string(),
+                results: vec![
+                    Node {
+                        node_id: "node1".into(),
+                        node: NodeData::FileChunk {
+                            file_path: "src/retry.rs".to_string(),
+                            content: "fn retry_with_backoff(max_attempts: u32) {\n    let mut delay = 100;\n    for attempt in 0..max_attempts {\n        if try_operation().is_ok() {\n            return;\n        }\n        thread::sleep(Duration::from_millis(delay));\n        delay *= 2;\n    }\n}".to_string(),
+                            start_line: 10,
+                            end_line: 19,
                         },
-                        Node {
-                            node_id: "node2".into(),
-                            node: NodeData::FileChunk {
-                                file_path: "src/http/client.rs".to_string(),
-                                content: "async fn request_with_retry(&self, url: &str) -> Result<Response> {\n    const MAX_RETRIES: usize = 3;\n    let mut backoff = ExponentialBackoff::default();\n    // Implementation...\n}".to_string(),
-                                start_line: 45,
-                                end_line: 50,
-                            },
-                            relevance: Some(0.9201),
-                            distance: Some(0.0799),
-                            similarity: Some(0.9201),
+                        relevance: Some(0.9534),
+                        distance: Some(0.0466),
+                        similarity: Some(0.9534),
+                    },
+                    Node {
+                        node_id: "node2".into(),
+                        node: NodeData::FileChunk {
+                            file_path: "src/http/client.rs".to_string(),
+                            content: "async fn request_with_retry(&self, url: &str) -> Result<Response> {\n    const MAX_RETRIES: usize = 3;\n    let mut backoff = ExponentialBackoff::default();\n    // Implementation...\n}".to_string(),
+                            start_line: 45,
+                            end_line: 50,
                         },
-                    ],
-                }],
+                        relevance: Some(0.9201),
+                        distance: Some(0.0799),
+                        similarity: Some(0.9201),
+                    },
+                ],
             },
         };
 
@@ -1653,25 +1648,23 @@ mod tests {
 
     #[test]
     fn test_sem_search_with_usecase() {
-        use forge_domain::{CodebaseQueryResult, CodebaseSearchResults, Node, NodeData};
+        use forge_domain::{CodebaseQueryResult, Node, NodeData};
 
         let fixture = ToolOperation::CodebaseSearch {
-            output: CodebaseSearchResults {
-                queries: vec![CodebaseQueryResult {
-                    query: "authentication logic".to_string(),
-                    use_case: "need to add similar auth to my endpoint".to_string(),
-                    results: vec![Node {
-                        node_id: "node1".into(),
-                        node: NodeData::FileChunk {
-                            file_path: "src/auth.rs".to_string(),
-                            content: "fn authenticate_user(token: &str) -> Result<User> {\n    verify_jwt(token)\n}".to_string(),
-                            start_line: 10,
-                            end_line: 12,
-                        },
-                        relevance: Some(0.95),
-                        distance: Some(0.05),
-                        similarity: Some(0.95),
-                    }],
+            output: CodebaseQueryResult {
+                query: "authentication logic".to_string(),
+                use_case: "need to add similar auth to my endpoint".to_string(),
+                results: vec![Node {
+                    node_id: "node1".into(),
+                    node: NodeData::FileChunk {
+                        file_path: "src/auth.rs".to_string(),
+                        content: "fn authenticate_user(token: &str) -> Result<User> {\n    verify_jwt(token)\n}".to_string(),
+                        start_line: 10,
+                        end_line: 12,
+                    },
+                    relevance: Some(0.95),
+                    distance: Some(0.05),
+                    similarity: Some(0.95),
                 }],
             },
         };
