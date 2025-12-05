@@ -621,17 +621,28 @@ mod env_tests {
     struct MockInfra {
         env_vars: HashMap<String, String>,
         base_path: PathBuf,
-        credentials: tokio::sync::Mutex<Option<Vec<AuthCredential>>>,
+        credentials_json: std::sync::RwLock<Option<String>>,
+    }
+
+    impl Default for MockInfra {
+        fn default() -> Self {
+            use fake::{Fake, Faker};
+            Self {
+                env_vars: HashMap::new(),
+                base_path: Faker.fake(),
+                credentials_json: std::sync::RwLock::new(None),
+            }
+        }
     }
 
     impl MockInfra {
         fn new(env_vars: HashMap<String, String>) -> Self {
-            use fake::{Fake, Faker};
-            Self {
-                env_vars,
-                base_path: Faker.fake(),
-                credentials: tokio::sync::Mutex::new(None),
-            }
+            Self { env_vars, ..Default::default() }
+        }
+
+        fn credentials_json(self, json: impl Into<String>) -> Self {
+            *self.credentials_json.write().unwrap() = Some(json.into());
+            self
         }
     }
 
@@ -658,11 +669,10 @@ mod env_tests {
     #[async_trait::async_trait]
     impl FileReaderInfra for MockInfra {
         async fn read_utf8(&self, path: &std::path::Path) -> anyhow::Result<String> {
-            // Check if it's the credentials file
             if path.ends_with(".credentials.json") {
-                let guard = self.credentials.lock().await;
-                if let Some(ref creds) = *guard {
-                    return Ok(serde_json::to_string(creds)?);
+                let guard = self.credentials_json.read().unwrap();
+                if let Some(ref json) = *guard {
+                    return Ok(json.clone());
                 }
             }
             Err(anyhow::anyhow!("File not found"))
@@ -685,12 +695,9 @@ mod env_tests {
     #[async_trait::async_trait]
     impl FileWriterInfra for MockInfra {
         async fn write(&self, path: &std::path::Path, content: Bytes) -> anyhow::Result<()> {
-            // Capture writes to credentials file
             if path.ends_with(".credentials.json") {
-                let content_str = String::from_utf8(content.to_vec())?;
-                let creds: Vec<AuthCredential> = serde_json::from_str(&content_str)?;
-                let mut guard = self.credentials.lock().await;
-                *guard = Some(creds);
+                let mut guard = self.credentials_json.write().unwrap();
+                *guard = Some(String::from_utf8(content.to_vec())?);
             }
             Ok(())
         }
@@ -740,6 +747,16 @@ mod env_tests {
         }
     }
 
+    impl MockInfra {
+        fn get_credentials(&self) -> Vec<AuthCredential> {
+            let guard = self.credentials_json.read().unwrap();
+            guard
+                .as_ref()
+                .and_then(|json| serde_json::from_str(json).ok())
+                .unwrap_or_default()
+        }
+    }
+
     #[tokio::test]
     async fn test_migration_from_env_to_file() {
         let mut env_vars = HashMap::new();
@@ -760,8 +777,7 @@ mod env_tests {
         registry.migrate_env_to_file().await.unwrap();
 
         // Verify credentials were written
-        let credentials_guard = infra.credentials.lock().await;
-        let credentials = credentials_guard.as_ref().unwrap();
+        let credentials = infra.get_credentials();
 
         // Should have migrated OpenAICompatible (not OpenAI) and Anthropic (not
         // AnthropicCompatible)
@@ -829,8 +845,7 @@ mod env_tests {
         registry.migrate_env_to_file().await.unwrap();
 
         // Verify credentials were written
-        let credentials_guard = infra.credentials.lock().await;
-        let credentials = credentials_guard.as_ref().unwrap();
+        let credentials = infra.get_credentials();
 
         // Verify forge_services was NOT created during migration
         assert!(
@@ -876,8 +891,7 @@ mod env_tests {
         registry.migrate_env_to_file().await.unwrap();
 
         // Verify credentials were written
-        let credentials_guard = infra.credentials.lock().await;
-        let credentials = credentials_guard.as_ref().unwrap();
+        let credentials = infra.get_credentials();
 
         // Should have migrated only compatible versions
         assert!(
@@ -1177,5 +1191,110 @@ mod env_tests {
             .iter()
             .find(|c| c.id == ProviderId::OPEN_ROUTER);
         assert!(openrouter_config.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_read_credentials_skips_corrupt_entries() {
+        let json = r#"[
+            {"id": "openai", "auth_details": {"api_key": "valid-key"}},
+            {"id": "anthropic"},
+            {"id": "open_router", "auth_details": {"api_key": "another-key"}}
+        ]"#;
+
+        let infra = Arc::new(MockInfra::default().credentials_json(json));
+        let service = ForgeProviderRepository::new(infra);
+        let credentials = service.read_credentials().await;
+
+        assert_eq!(credentials.len(), 2);
+        assert_eq!(credentials[0].id, ProviderId::OPENAI);
+        assert_eq!(credentials[1].id, ProviderId::OPEN_ROUTER);
+    }
+
+    #[tokio::test]
+    async fn test_read_credentials_skips_invalid_types() {
+        let json = r#"[
+            {"id": "openai", "auth_details": {"api_key": "key"}},
+            "not an object",
+            123,
+            null,
+            {"id": "anthropic", "auth_details": {"api_key": "key2"}}
+        ]"#;
+
+        let infra = Arc::new(MockInfra::default().credentials_json(json));
+        let service = ForgeProviderRepository::new(infra);
+        let credentials = service.read_credentials().await;
+
+        assert_eq!(credentials.len(), 2);
+        assert_eq!(credentials[0].id, ProviderId::OPENAI);
+        assert_eq!(credentials[1].id, ProviderId::ANTHROPIC);
+    }
+
+    #[tokio::test]
+    async fn test_read_credentials_all_corrupt_returns_empty() {
+        let json = r#"[{"id": "openai"}, {"id": "anthropic"}, "invalid"]"#;
+
+        let infra = Arc::new(MockInfra::default().credentials_json(json));
+        let service = ForgeProviderRepository::new(infra);
+        let credentials = service.read_credentials().await;
+
+        assert!(credentials.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_read_credentials_repairs_trailing_comma() {
+        let json = r#"[{"id": "openai", "auth_details": {"api_key": "key"}},]"#;
+
+        let infra = Arc::new(MockInfra::default().credentials_json(json));
+        let service = ForgeProviderRepository::new(infra);
+        let credentials = service.read_credentials().await;
+
+        assert_eq!(credentials.len(), 1);
+        assert_eq!(credentials[0].id, ProviderId::OPENAI);
+    }
+
+    #[tokio::test]
+    async fn test_read_credentials_repairs_unquoted_keys() {
+        let json = r#"[{id: "openai", auth_details: {api_key: "key"}}]"#;
+
+        let infra = Arc::new(MockInfra::default().credentials_json(json));
+        let service = ForgeProviderRepository::new(infra);
+        let credentials = service.read_credentials().await;
+
+        assert_eq!(credentials.len(), 1);
+        assert_eq!(credentials[0].id, ProviderId::OPENAI);
+    }
+
+    #[tokio::test]
+    async fn test_read_credentials_invalid_json_returns_empty() {
+        let json = r#"{"not": "an array"}"#;
+
+        let infra = Arc::new(MockInfra::default().credentials_json(json));
+        let service = ForgeProviderRepository::new(infra);
+        let credentials = service.read_credentials().await;
+
+        assert!(credentials.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_read_credentials_empty_array() {
+        let infra = Arc::new(MockInfra::default().credentials_json("[]"));
+        let service = ForgeProviderRepository::new(infra);
+        let credentials = service.read_credentials().await;
+
+        assert!(credentials.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_read_credentials_valid_all_preserved() {
+        let json = r#"[
+            {"id": "openai", "auth_details": {"api_key": "key1"}},
+            {"id": "anthropic", "auth_details": {"api_key": "key2"}}
+        ]"#;
+
+        let infra = Arc::new(MockInfra::default().credentials_json(json));
+        let service = ForgeProviderRepository::new(infra);
+        let credentials = service.read_credentials().await;
+
+        assert_eq!(credentials.len(), 2);
     }
 }
