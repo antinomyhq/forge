@@ -274,7 +274,8 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
             .ok_or_else(|| Error::provider_not_available(config.id.clone()))?;
 
         // Build template data from URL parameters in credential
-        let mut template_data = std::collections::HashMap::with_capacity(credential.url_params.len());
+        let mut template_data =
+            std::collections::HashMap::with_capacity(credential.url_params.len());
         for (param, value) in &credential.url_params {
             template_data.insert(param.as_str(), value.as_str());
         }
