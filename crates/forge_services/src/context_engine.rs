@@ -288,8 +288,6 @@ impl<F> ForgeContextEngineService<F> {
         let total_file_count = local_files.len();
         emit(SyncProgress::FilesDiscovered { count: total_file_count }).await;
 
-        // Fetch remote hashes and create sync plan
-        emit(SyncProgress::ComparingFiles).await;
         let remote_files = if is_new_workspace {
             Vec::new()
         } else {
@@ -297,6 +295,14 @@ impl<F> ForgeContextEngineService<F> {
                 .await
         };
 
+        
+        emit(SyncProgress::ComparingFiles {
+            remote_files: remote_files.len(),
+            local_files: total_file_count,
+        })
+        .await;
+
+        // Fetch remote hashes and create sync plan
         let plan = SyncPlan::new(local_files, remote_files);
         let uploaded_files = plan.total();
 

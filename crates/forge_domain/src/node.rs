@@ -26,7 +26,12 @@ pub enum SyncProgress {
         count: usize,
     },
     /// Comparing local files with server state
-    ComparingFiles,
+    ComparingFiles {
+        /// Number of remote files in the workspace
+        remote_files: usize,
+        /// Number of local files being compared
+        local_files: usize,
+    },
     /// Diff computed showing breakdown of changes
     DiffComputed {
         /// Number of files to delete (orphaned on server)
@@ -77,14 +82,16 @@ impl SyncProgress {
                 format!("Created workspace '{}'", workspace_id)
             }
             Self::DiscoveringFiles { path } => {
-                let name = path.file_name().and_then(|n| n.to_str()).unwrap_or(".");
-                format!("Scanning directory '{}'", name)
+                // let name = path.file_name().and_then(|n| n.to_str()).unwrap_or(".");
+                format!("Scanning directory '{}'", path.display())
             }
             Self::FilesDiscovered { count } => {
                 let file_word = if *count == 1 { "file" } else { "files" };
                 format!("Discovered {} {} for indexing", count, file_word)
             }
-            Self::ComparingFiles => "Comparing local files with remote".to_string(),
+            Self::ComparingFiles { local_files, remote_files } => {
+                format!("Computing diff ({} local, {} remote)", local_files, remote_files)
+            }
             Self::DiffComputed { to_delete, to_upload, modified } => {
                 let total = to_delete + to_upload - modified;
                 if total == 0 {
