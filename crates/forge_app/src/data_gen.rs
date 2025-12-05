@@ -139,7 +139,18 @@ impl<A: Services> DataGenerationApp<A> {
 
         let json_stream = stream::iter(json_stream)
             .buffer_unordered(concurrency)
-            .map(|result| result.and_then(|data| Ok(serde_json::from_str(data.content.as_str())?)))
+            .map(|result| {
+                result.and_then(|data| {
+                    data.tool_calls
+                        .into_iter()
+                        .map(|tool| Ok(tool.arguments.parse()?))
+                        .collect::<Result<Vec<_>>>()
+                })
+            })
+            .flat_map(|data| match data {
+                Ok(data) => stream::iter(data).map(Ok).boxed(),
+                Err(err) => stream::iter(Err(err)).boxed(),
+            })
             .boxed();
 
         Ok(json_stream)
