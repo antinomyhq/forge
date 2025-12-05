@@ -204,50 +204,25 @@ impl<
             }
             ToolCatalog::SemSearch(input) => {
                 let env = self.services.get_environment();
-                let services = self.services.clone();
                 let cwd = env.cwd.clone();
                 let limit = env.sem_search_limit;
                 let top_k = env.sem_search_top_k as u32;
-                let params: Vec<_> = input
-                    .queries
-                    .iter()
-                    .map(|search_query| {
-                        let mut params = forge_domain::SearchParams::new(
-                            &search_query.query,
-                            &search_query.use_case,
-                        )
+                let mut params =
+                    forge_domain::SearchParams::new(&input.query, &input.use_case)
                         .limit(limit)
                         .top_k(top_k);
-                        if let Some(ext) = &input.file_extension {
-                            params = params.ends_with(ext);
-                        }
-                        params
-                    })
-                    .collect();
+                if let Some(ext) = &input.file_extension {
+                    params = params.ends_with(ext);
+                }
 
-                // Execute all queries in parallel
-                let futures: Vec<_> = params
-                    .into_iter()
-                    .map(|param| services.query_codebase(cwd.clone(), param))
-                    .collect();
+                let results = self.services.query_codebase(cwd, params).await?;
 
-                let mut results = futures::future::try_join_all(futures).await?;
+                let output = CodebaseQueryResult {
+                    query: input.query,
+                    use_case: input.use_case,
+                    results,
+                };
 
-                // Deduplicate results across queries
-                crate::search_dedup::deduplicate_results(&mut results);
-
-                let output = input
-                    .queries
-                    .into_iter()
-                    .zip(results.into_iter())
-                    .map(|(query, results)| CodebaseQueryResult {
-                        query: query.query,
-                        use_case: query.use_case,
-                        results,
-                    })
-                    .collect::<Vec<_>>();
-
-                let output = forge_domain::CodebaseSearchResults { queries: output };
                 ToolOperation::CodebaseSearch { output }
             }
             ToolCatalog::Remove(input) => {

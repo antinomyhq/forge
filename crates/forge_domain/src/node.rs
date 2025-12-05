@@ -404,13 +404,6 @@ impl CodebaseQueryResult {
     }
 }
 
-/// Results for multiple codebase search queries
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
-pub struct CodebaseSearchResults {
-    /// Results for each query/use_case pair
-    pub queries: Vec<CodebaseQueryResult>,
-}
-
 /// A search result with its similarity score
 ///
 /// Wraps a code node with its semantic search scores,

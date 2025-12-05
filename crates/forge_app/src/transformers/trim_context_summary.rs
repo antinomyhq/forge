@@ -21,9 +21,10 @@ enum Operation<'a> {
     Shell(&'a str),
     /// Search operation with a specific pattern
     Search(&'a str),
-    /// Codebase search operation with queries
+    /// Codebase search operation with query and use_case
     CodebaseSearch {
-        queries: &'a [forge_domain::SearchQuery],
+        query: &'a str,
+        use_case: &'a str,
         file_extension: Option<&'a str>,
     },
     /// Fetch operation for a specific URL
@@ -48,8 +49,12 @@ fn to_op(tool: &SummaryTool) -> Operation<'_> {
         SummaryTool::Undo { path } => Operation::File(path),
         SummaryTool::Shell { command } => Operation::Shell(command),
         SummaryTool::Search { pattern } => Operation::Search(pattern),
-        SummaryTool::SemSearch { queries, file_extension } => {
-            Operation::CodebaseSearch { queries, file_extension: file_extension.as_deref() }
+        SummaryTool::SemSearch { query, use_case, file_extension } => {
+            Operation::CodebaseSearch {
+                query,
+                use_case,
+                file_extension: file_extension.as_deref(),
+            }
         }
         SummaryTool::Fetch { url } => Operation::Fetch(url),
         SummaryTool::Followup { question } => Operation::Followup(question),

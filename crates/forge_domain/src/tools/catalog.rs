@@ -173,10 +173,25 @@ pub struct FSSearch {
     pub file_pattern: Option<String>,
 }
 
-/// A paired query and use_case for semantic search. Each query must have a
-/// corresponding use_case for document reranking.
-#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
-pub struct SearchQuery {
+/// AI-powered semantic code search. YOUR DEFAULT TOOL for "where is"
+/// questions. Use this FIRST when user asks about code location or
+/// functionality: "where is X", "find the code that does Y", "locate Z
+/// implementation", "how does X work", "understand the Y strategy". For code
+/// location and discovery questions, always use this tool first before
+/// delegating to research agents. Even if you can see relevant directories or
+/// files in the file list, use sem_search to find the exact implementation.
+/// This tool understands CONCEPTS and BEHAVIOR, not just keywords. Finds code
+/// even when exact terms differ. Finding the right code is always the first
+/// step to understanding it. Sem_search locates relevant code quickly, then
+/// read the results to understand. Examples: "where is retry logic" finds
+/// exponential backoff code, "understand caching strategy" finds cache
+/// implementation, "message transformation" finds serialization/DTOs, "tool
+/// registration" finds tool setup code. Returns ranked results with code
+/// snippets. ONLY use regex search tool for exact name matches like "all
+/// functions named execute" or "TODO comments". When in doubt between search
+/// and sem_search, choose sem_search.
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+pub struct SemanticSearch {
     /// Describe WHAT the code does or its purpose. Include domain-specific
     /// terms and technical context. Good: "retry mechanism with exponential
     /// backoff", "streaming responses from LLM API", "OAuth token refresh
@@ -197,40 +212,6 @@ pub struct SearchQuery {
     /// - "Steps to run Diesel migrations in Rust without exposing the DB."
     /// - "How to design a clean architecture service layer with typed errors?"
     pub use_case: String,
-}
-
-impl SearchQuery {
-    /// Creates a new search query with the given query and use_case
-    pub fn new(query: impl Into<String>, use_case: impl Into<String>) -> Self {
-        Self { query: query.into(), use_case: use_case.into() }
-    }
-}
-
-/// AI-powered semantic code search. YOUR DEFAULT TOOL for "where is"
-/// questions. Use this FIRST when user asks about code location or
-/// functionality: "where is X", "find the code that does Y", "locate Z
-/// implementation", "how does X work", "understand the Y strategy". For code
-/// location and discovery questions, always use this tool first before
-/// delegating to research agents. Even if you can see relevant directories or
-/// files in the file list, use sem_search to find the exact implementation.
-/// This tool understands CONCEPTS and BEHAVIOR, not just keywords. Finds code
-/// even when exact terms differ. Finding the right code is always the first
-/// step to understanding it. Sem_search locates relevant code quickly, then
-/// read the results to understand. Examples: "where is retry logic" finds
-/// exponential backoff code, "understand caching strategy" finds cache
-/// implementation, "message transformation" finds serialization/DTOs, "tool
-/// registration" finds tool setup code. Returns ranked results with code
-/// snippets. ONLY use regex search tool for exact name matches like "all
-/// functions named execute" or "TODO comments". When in doubt between search
-/// and sem_search, choose sem_search.
-#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
-pub struct SemanticSearch {
-    /// List of search queries to execute in parallel. It's ALWAYS a good idea
-    /// to use multiple queries with different phrasings to maximize search
-    /// coverage. Each query pairs a search term with its use_case for
-    /// document re-ranking. Multiple queries with varied terminology find
-    /// more relevant results than a single query.
-    pub queries: Vec<SearchQuery>,
 
     /// Optional file extension filter (e.g., ".rs", ".ts", ".py"). If provided,
     /// only files with this extension will be included in the search results.
@@ -755,13 +736,15 @@ impl ToolCatalog {
         }))
     }
 
-    /// Creates a Semantic Search tool call with the specified queries
+    /// Creates a Semantic Search tool call with the specified query and use_case
     pub fn tool_call_semantic_search(
-        queries: Vec<SearchQuery>,
+        query: impl Into<String>,
+        use_case: impl Into<String>,
         file_ext: Option<String>,
     ) -> ToolCallFull {
         ToolCallFull::from(ToolCatalog::SemSearch(SemanticSearch {
-            queries,
+            query: query.into(),
+            use_case: use_case.into(),
             file_extension: file_ext,
         }))
     }
