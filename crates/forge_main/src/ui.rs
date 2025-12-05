@@ -929,7 +929,14 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         .map(|s| s.to_string())
                         .unwrap_or_else(|| markers::BUILT_IN.to_string());
 
-                    (agent.id, title, location, provider_name, agent.model, reasoning)
+                    (
+                        agent.id,
+                        title,
+                        location,
+                        provider_name,
+                        agent.model,
+                        reasoning,
+                    )
                 })
             })
             .collect();
@@ -946,7 +953,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     .add_key_value("Location", location)
                     .add_key_value("Provider", provider_name)
                     .add_key_value("Model", model.as_str())
-                    .add_key_value("Reasoning Enabled", if reasoning { status::YES } else { status::NO }),
+                    .add_key_value(
+                        "Reasoning Enabled",
+                        if reasoning { status::YES } else { status::NO },
+                    ),
             )
         })?;
 
