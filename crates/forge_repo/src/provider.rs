@@ -11,7 +11,31 @@ use forge_domain::{
 use handlebars::Handlebars;
 use merge::Merge;
 use serde::Deserialize;
+use serde_with::{serde_as, VecSkipError};
 use url::Url;
+
+/// Error inspector that logs warnings for skipped credential entries.
+struct CredentialErrorLogger;
+
+impl serde_with::InspectError for CredentialErrorLogger {
+    fn inspect_error(error: impl serde::de::Error) {
+        tracing::warn!(
+            "Skipping corrupt credential entry in .credentials.json: {}",
+            error
+        );
+    }
+}
+
+/// Wrapper for deserializing credentials with error tolerance.
+///
+/// Uses `VecSkipError` to skip any corrupt credential entries instead of
+/// failing the entire deserialization. This ensures Forge can boot up even
+/// with a partially corrupt `.credentials.json` file.
+#[serde_as]
+#[derive(Deserialize)]
+struct ResilientCredentials(
+    #[serde_as(as = "VecSkipError<_, CredentialErrorLogger>")] Vec<AuthCredential>,
+);
 
 /// Represents the source of models for a provider
 #[derive(Debug, Clone, Deserialize)]
@@ -371,6 +395,11 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
         configs.0
     }
 
+    /// Reads credentials from the JSON file with multiple fallback strategies:
+    /// 1. Try normal JSON parsing with `VecSkipError` to skip corrupt entries
+    /// 2. If JSON is syntactically broken, try to repair it with
+    ///    `forge_json_repair`
+    /// 3. If all else fails, return an empty Vec
     async fn read_credentials(&self) -> Vec<AuthCredential> {
         let path = self
             .infra
@@ -378,10 +407,28 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
             .base_path
             .join(".credentials.json");
 
-        match self.infra.read_utf8(&path).await {
-            Ok(content) => serde_json::from_str(&content).unwrap_or_default(),
-            Err(_) => Vec::new(),
-        }
+        let Ok(content) = self.infra.read_utf8(&path).await else {
+            return Vec::new();
+        };
+
+        // Strategy 1: Try normal parsing with VecSkipError
+        serde_json::from_str::<ResilientCredentials>(&content)
+            .or_else(|_| {
+                // Strategy 2: Try JSON repair for syntactically broken JSON
+                tracing::warn!(path = %path.display(), "Failed to parse credentials file, attempting repair...");
+                forge_json_repair::json_repair::<ResilientCredentials>(&content).inspect(|_| {
+                    tracing::info!(path = %path.display(), "Successfully repaired credentials file");
+                })
+            })
+            .inspect_err(|e| {
+                tracing::error!(
+                    path = %path.display(),
+                    error = %e,
+                    "Failed to repair credentials file. Using empty credentials."
+                );
+            })
+            .map(|r| r.0)
+            .unwrap_or_default()
     }
 
     /// Writes credentials to the JSON file
@@ -575,17 +622,28 @@ mod env_tests {
     struct MockInfra {
         env_vars: HashMap<String, String>,
         base_path: PathBuf,
-        credentials: tokio::sync::Mutex<Option<Vec<AuthCredential>>>,
+        credentials_json: std::sync::RwLock<Option<String>>,
+    }
+
+    impl Default for MockInfra {
+        fn default() -> Self {
+            use fake::{Fake, Faker};
+            Self {
+                env_vars: HashMap::new(),
+                base_path: Faker.fake(),
+                credentials_json: std::sync::RwLock::new(None),
+            }
+        }
     }
 
     impl MockInfra {
         fn new(env_vars: HashMap<String, String>) -> Self {
-            use fake::{Fake, Faker};
-            Self {
-                env_vars,
-                base_path: Faker.fake(),
-                credentials: tokio::sync::Mutex::new(None),
-            }
+            Self { env_vars, ..Default::default() }
+        }
+
+        fn credentials_json(self, json: impl Into<String>) -> Self {
+            *self.credentials_json.write().unwrap() = Some(json.into());
+            self
         }
     }
 
@@ -612,11 +670,10 @@ mod env_tests {
     #[async_trait::async_trait]
     impl FileReaderInfra for MockInfra {
         async fn read_utf8(&self, path: &std::path::Path) -> anyhow::Result<String> {
-            // Check if it's the credentials file
             if path.ends_with(".credentials.json") {
-                let guard = self.credentials.lock().await;
-                if let Some(ref creds) = *guard {
-                    return Ok(serde_json::to_string(creds)?);
+                let guard = self.credentials_json.read().unwrap();
+                if let Some(ref json) = *guard {
+                    return Ok(json.clone());
                 }
             }
             Err(anyhow::anyhow!("File not found"))
@@ -639,12 +696,9 @@ mod env_tests {
     #[async_trait::async_trait]
     impl FileWriterInfra for MockInfra {
         async fn write(&self, path: &std::path::Path, content: Bytes) -> anyhow::Result<()> {
-            // Capture writes to credentials file
             if path.ends_with(".credentials.json") {
-                let content_str = String::from_utf8(content.to_vec())?;
-                let creds: Vec<AuthCredential> = serde_json::from_str(&content_str)?;
-                let mut guard = self.credentials.lock().await;
-                *guard = Some(creds);
+                let mut guard = self.credentials_json.write().unwrap();
+                *guard = Some(String::from_utf8(content.to_vec())?);
             }
             Ok(())
         }
@@ -694,6 +748,16 @@ mod env_tests {
         }
     }
 
+    impl MockInfra {
+        fn get_credentials(&self) -> Vec<AuthCredential> {
+            let guard = self.credentials_json.read().unwrap();
+            guard
+                .as_ref()
+                .and_then(|json| serde_json::from_str(json).ok())
+                .unwrap_or_default()
+        }
+    }
+
     #[tokio::test]
     async fn test_migration_from_env_to_file() {
         let mut env_vars = HashMap::new();
@@ -714,8 +778,7 @@ mod env_tests {
         registry.migrate_env_to_file().await.unwrap();
 
         // Verify credentials were written
-        let credentials_guard = infra.credentials.lock().await;
-        let credentials = credentials_guard.as_ref().unwrap();
+        let credentials = infra.get_credentials();
 
         // Should have migrated OpenAICompatible (not OpenAI) and Anthropic (not
         // AnthropicCompatible)
@@ -783,8 +846,7 @@ mod env_tests {
         registry.migrate_env_to_file().await.unwrap();
 
         // Verify credentials were written
-        let credentials_guard = infra.credentials.lock().await;
-        let credentials = credentials_guard.as_ref().unwrap();
+        let credentials = infra.get_credentials();
 
         // Verify forge_services was NOT created during migration
         assert!(
@@ -830,8 +892,7 @@ mod env_tests {
         registry.migrate_env_to_file().await.unwrap();
 
         // Verify credentials were written
-        let credentials_guard = infra.credentials.lock().await;
-        let credentials = credentials_guard.as_ref().unwrap();
+        let credentials = infra.get_credentials();
 
         // Should have migrated only compatible versions
         assert!(
@@ -1131,5 +1192,110 @@ mod env_tests {
             .iter()
             .find(|c| c.id == ProviderId::OPEN_ROUTER);
         assert!(openrouter_config.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_read_credentials_skips_corrupt_entries() {
+        let json = r#"[
+            {"id": "openai", "auth_details": {"api_key": "valid-key"}},
+            {"id": "anthropic"},
+            {"id": "open_router", "auth_details": {"api_key": "another-key"}}
+        ]"#;
+
+        let infra = Arc::new(MockInfra::default().credentials_json(json));
+        let service = ForgeProviderRepository::new(infra);
+        let credentials = service.read_credentials().await;
+
+        assert_eq!(credentials.len(), 2);
+        assert_eq!(credentials[0].id, ProviderId::OPENAI);
+        assert_eq!(credentials[1].id, ProviderId::OPEN_ROUTER);
+    }
+
+    #[tokio::test]
+    async fn test_read_credentials_skips_invalid_types() {
+        let json = r#"[
+            {"id": "openai", "auth_details": {"api_key": "key"}},
+            "not an object",
+            123,
+            null,
+            {"id": "anthropic", "auth_details": {"api_key": "key2"}}
+        ]"#;
+
+        let infra = Arc::new(MockInfra::default().credentials_json(json));
+        let service = ForgeProviderRepository::new(infra);
+        let credentials = service.read_credentials().await;
+
+        assert_eq!(credentials.len(), 2);
+        assert_eq!(credentials[0].id, ProviderId::OPENAI);
+        assert_eq!(credentials[1].id, ProviderId::ANTHROPIC);
+    }
+
+    #[tokio::test]
+    async fn test_read_credentials_all_corrupt_returns_empty() {
+        let json = r#"[{"id": "openai"}, {"id": "anthropic"}, "invalid"]"#;
+
+        let infra = Arc::new(MockInfra::default().credentials_json(json));
+        let service = ForgeProviderRepository::new(infra);
+        let credentials = service.read_credentials().await;
+
+        assert!(credentials.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_read_credentials_repairs_trailing_comma() {
+        let json = r#"[{"id": "openai", "auth_details": {"api_key": "key"}},]"#;
+
+        let infra = Arc::new(MockInfra::default().credentials_json(json));
+        let service = ForgeProviderRepository::new(infra);
+        let credentials = service.read_credentials().await;
+
+        assert_eq!(credentials.len(), 1);
+        assert_eq!(credentials[0].id, ProviderId::OPENAI);
+    }
+
+    #[tokio::test]
+    async fn test_read_credentials_repairs_unquoted_keys() {
+        let json = r#"[{id: "openai", auth_details: {api_key: "key"}}]"#;
+
+        let infra = Arc::new(MockInfra::default().credentials_json(json));
+        let service = ForgeProviderRepository::new(infra);
+        let credentials = service.read_credentials().await;
+
+        assert_eq!(credentials.len(), 1);
+        assert_eq!(credentials[0].id, ProviderId::OPENAI);
+    }
+
+    #[tokio::test]
+    async fn test_read_credentials_invalid_json_returns_empty() {
+        let json = r#"{"not": "an array"}"#;
+
+        let infra = Arc::new(MockInfra::default().credentials_json(json));
+        let service = ForgeProviderRepository::new(infra);
+        let credentials = service.read_credentials().await;
+
+        assert!(credentials.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_read_credentials_empty_array() {
+        let infra = Arc::new(MockInfra::default().credentials_json("[]"));
+        let service = ForgeProviderRepository::new(infra);
+        let credentials = service.read_credentials().await;
+
+        assert!(credentials.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_read_credentials_valid_all_preserved() {
+        let json = r#"[
+            {"id": "openai", "auth_details": {"api_key": "key1"}},
+            {"id": "anthropic", "auth_details": {"api_key": "key2"}}
+        ]"#;
+
+        let infra = Arc::new(MockInfra::default().credentials_json(json));
+        let service = ForgeProviderRepository::new(infra);
+        let credentials = service.read_credentials().await;
+
+        assert_eq!(credentials.len(), 2);
     }
 }
