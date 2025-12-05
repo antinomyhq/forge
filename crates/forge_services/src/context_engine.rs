@@ -295,7 +295,6 @@ impl<F> ForgeContextEngineService<F> {
                 .await
         };
 
-        
         emit(SyncProgress::ComparingFiles {
             remote_files: remote_files.len(),
             local_files: total_file_count,
