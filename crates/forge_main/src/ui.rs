@@ -607,11 +607,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
             TopLevelCommand::Data(data_command_group) => {
                 let mut stream = self.api.generate_data(data_command_group.into()).await?;
-                while let Some(result) = stream.next().await {
-                    match result {
-                        Ok(data) => println!("{}", data),
-                        Err(e) => eprintln!("Error: {}", e),
-                    }
+                while let Some(data) = stream.next().await {
+                    self.writeln(data?)?;
                 }
             }
         }
