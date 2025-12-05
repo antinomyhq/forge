@@ -90,7 +90,11 @@ impl SyncProgress {
                 format!("Scanning directory '{}'", path.display())
             }
             Self::FilesDiscovered { count } => {
-                format!("Discovered {} {} for indexing", count, Self::pluralize(*count))
+                format!(
+                    "Discovered {} {} for indexing",
+                    count,
+                    Self::pluralize(*count)
+                )
             }
             Self::ComparingFiles { local_files, remote_files } => {
                 format!(
@@ -112,7 +116,11 @@ impl SyncProgress {
                         parts.push(format!("{} new {}", new, Self::pluralize(new)));
                     }
                     if *modified > 0 {
-                        parts.push(format!("{} {} modified", modified, Self::pluralize(*modified)));
+                        parts.push(format!(
+                            "{} {} modified",
+                            modified,
+                            Self::pluralize(*modified)
+                        ));
                     }
                     if deleted > 0 {
                         parts.push(format!("{} {} removed", deleted, Self::pluralize(deleted)));
@@ -131,7 +139,11 @@ impl SyncProgress {
             }
             Self::Completed { uploaded_files, total_files } => {
                 if *uploaded_files == 0 {
-                    format!("Index already synced ({} {})", total_files, Self::pluralize(*total_files))
+                    format!(
+                        "Index already synced ({} {})",
+                        total_files,
+                        Self::pluralize(*total_files)
+                    )
                 } else {
                     format!(
                         "Sync complete. {} {} updated, {} total indexed",
