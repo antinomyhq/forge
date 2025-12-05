@@ -300,13 +300,15 @@ impl<F> ForgeContextEngineService<F> {
         let plan = SyncPlan::new(local_files, remote_files);
         let uploaded_files = plan.total();
 
-        // Emit diff computed event with breakdown
-        emit(SyncProgress::DiffComputed {
-            to_delete: plan.files_to_delete.len(),
-            to_upload: plan.files_to_upload.len(),
-            modified: plan.modified_files.len(),
-        })
-        .await;
+        // Only emit diff computed event if there are actual changes
+        if  !plan.files_to_delete.is_empty() || !plan.files_to_upload.is_empty() || !plan.modified_files.is_empty() {
+            emit(SyncProgress::DiffComputed {
+                to_delete: plan.files_to_delete.len(),
+                to_upload: plan.files_to_upload.len(),
+                modified: plan.modified_files.len(),
+            })
+            .await;
+        }
 
         plan.execute(
             batch_size,
