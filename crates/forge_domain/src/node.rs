@@ -59,6 +59,11 @@ pub enum SyncProgress {
 }
 
 impl SyncProgress {
+    /// Returns "file" or "files" based on count
+    fn pluralize(count: usize) -> &'static str {
+        if count == 1 { "file" } else { "files" }
+    }
+
     /// Returns the progress weight (0-100) for this event.
     pub fn weight(&self) -> Option<u64> {
         match self {
@@ -82,17 +87,17 @@ impl SyncProgress {
                 format!("Created workspace '{}'", workspace_id)
             }
             Self::DiscoveringFiles { path } => {
-                // let name = path.file_name().and_then(|n| n.to_str()).unwrap_or(".");
                 format!("Scanning directory '{}'", path.display())
             }
             Self::FilesDiscovered { count } => {
-                let file_word = if *count == 1 { "file" } else { "files" };
-                format!("Discovered {} {} for indexing", count, file_word)
+                format!("Discovered {} {} for indexing", count, Self::pluralize(*count))
             }
             Self::ComparingFiles { local_files, remote_files } => {
                 format!(
-                    "Comparing {} local files against {} indexed",
-                    local_files, remote_files
+                    "Comparing {} local {} against {} indexed",
+                    local_files,
+                    Self::pluralize(*local_files),
+                    remote_files
                 )
             }
             Self::DiffComputed { to_delete, to_upload, modified } => {
@@ -104,39 +109,35 @@ impl SyncProgress {
                     let new = to_upload - modified;
                     let mut parts = Vec::new();
                     if new > 0 {
-                        parts.push(format!("{} new", new));
+                        parts.push(format!("{} new {}", new, Self::pluralize(new)));
                     }
                     if *modified > 0 {
-                        parts.push(format!("{} modified", modified));
+                        parts.push(format!("{} {} modified", modified, Self::pluralize(*modified)));
                     }
                     if deleted > 0 {
-                        parts.push(format!("{} removed", deleted));
+                        parts.push(format!("{} {} removed", deleted, Self::pluralize(deleted)));
                     }
                     format!("Changes detected: {}", parts.join(", "))
                 }
             }
             Self::Syncing { current, total } => {
-                let file_word = if *total == 1 { "file" } else { "files" };
                 let width = total.to_string().len();
                 format!(
                     "Syncing {:>width$}/{} {}",
                     current.round() as usize,
                     total,
-                    file_word
+                    Self::pluralize(*total)
                 )
             }
             Self::Completed { uploaded_files, total_files } => {
                 if *uploaded_files == 0 {
-                    format!("Index already synced ({} files)", total_files)
+                    format!("Index already synced ({} {})", total_files, Self::pluralize(*total_files))
                 } else {
-                    let file_word = if *uploaded_files == 1 {
-                        "file"
-                    } else {
-                        "files"
-                    };
                     format!(
                         "Sync complete. {} {} updated, {} total indexed",
-                        uploaded_files, file_word, total_files
+                        uploaded_files,
+                        Self::pluralize(*uploaded_files),
+                        total_files
                     )
                 }
             }
