@@ -107,8 +107,9 @@ impl SyncProgress {
             }
             Self::Syncing { current, total } => {
                 let file_word = if *total == 1 { "file" } else { "files" };
+                let width = total.to_string().len();
                 format!(
-                    "Syncing {}/{} {}",
+                    "Syncing {:>width$}/{} {}",
                     current.round() as usize,
                     total,
                     file_word
