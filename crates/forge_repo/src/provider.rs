@@ -415,15 +415,16 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
         serde_json::from_str::<ResilientCredentials>(&content)
             .or_else(|_| {
                 // Strategy 2: Try JSON repair for syntactically broken JSON
-                tracing::warn!("Failed to parse .credentials.json, attempting repair...");
+                tracing::warn!(path = %path.display(), "Failed to parse credentials file, attempting repair...");
                 forge_json_repair::json_repair::<ResilientCredentials>(&content).inspect(|_| {
-                    tracing::info!("Successfully repaired .credentials.json");
+                    tracing::info!(path = %path.display(), "Successfully repaired credentials file");
                 })
             })
             .inspect_err(|e| {
                 tracing::error!(
-                    "Failed to repair .credentials.json: {}. Using empty credentials.",
-                    e
+                    path = %path.display(),
+                    error = %e,
+                    "Failed to repair credentials file. Using empty credentials."
                 );
             })
             .map(|r| r.0)
