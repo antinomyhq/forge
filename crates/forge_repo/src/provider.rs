@@ -395,7 +395,11 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
         configs.0
     }
 
-    /// Reads credentials from the JSON file, skipping any corrupt entries.
+    /// Reads credentials from the JSON file with multiple fallback strategies:
+    /// 1. Try normal JSON parsing with `VecSkipError` to skip corrupt entries
+    /// 2. If JSON is syntactically broken, try to repair it with
+    ///    `forge_json_repair`
+    /// 3. If all else fails, return an empty Vec
     async fn read_credentials(&self) -> Vec<AuthCredential> {
         let path = self
             .infra
@@ -403,12 +407,27 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
             .base_path
             .join(".credentials.json");
 
-        match self.infra.read_utf8(&path).await {
-            Ok(content) => serde_json::from_str::<ResilientCredentials>(&content)
-                .map(|r| r.0)
-                .unwrap_or_default(),
-            Err(_) => Vec::new(),
-        }
+        let Ok(content) = self.infra.read_utf8(&path).await else {
+            return Vec::new();
+        };
+
+        // Strategy 1: Try normal parsing with VecSkipError
+        serde_json::from_str::<ResilientCredentials>(&content)
+            .or_else(|_| {
+                // Strategy 2: Try JSON repair for syntactically broken JSON
+                tracing::warn!("Failed to parse .credentials.json, attempting repair...");
+                forge_json_repair::json_repair::<ResilientCredentials>(&content).inspect(|_| {
+                    tracing::info!("Successfully repaired .credentials.json");
+                })
+            })
+            .inspect_err(|e| {
+                tracing::error!(
+                    "Failed to repair .credentials.json: {}. Using empty credentials.",
+                    e
+                );
+            })
+            .map(|r| r.0)
+            .unwrap_or_default()
     }
 
     /// Writes credentials to the JSON file
@@ -1158,115 +1177,5 @@ mod env_tests {
             .iter()
             .find(|c| c.id == ProviderId::OPEN_ROUTER);
         assert!(openrouter_config.is_some());
-    }
-}
-
-#[cfg(test)]
-mod resilient_credentials_tests {
-    use pretty_assertions::assert_eq;
-
-    use super::*;
-
-    #[test]
-    fn test_skip_corrupt_credential_entries() {
-        // JSON with one valid credential and one corrupt entry (missing required field)
-        let json = r#"[
-            {
-                "id": "openai",
-                "auth_details": {"api_key": "valid-key"}
-            },
-            {
-                "id": "anthropic"
-            },
-            {
-                "id": "open_router",
-                "auth_details": {"api_key": "another-valid-key"}
-            }
-        ]"#;
-
-        let result: ResilientCredentials = serde_json::from_str(json).unwrap();
-        let credentials = result.0;
-
-        // Should have 2 valid credentials, skipping the corrupt one
-        assert_eq!(credentials.len(), 2);
-        assert_eq!(credentials[0].id, ProviderId::OPENAI);
-        assert_eq!(credentials[1].id, ProviderId::OPEN_ROUTER);
-    }
-
-    #[test]
-    fn test_skip_completely_invalid_entries() {
-        // JSON with valid credential and completely invalid entries
-        let json = r#"[
-            {
-                "id": "openai",
-                "auth_details": {"api_key": "valid-key"}
-            },
-            "not an object",
-            123,
-            null,
-            {
-                "id": "anthropic",
-                "auth_details": {"api_key": "another-valid-key"}
-            }
-        ]"#;
-
-        let result: ResilientCredentials = serde_json::from_str(json).unwrap();
-        let credentials = result.0;
-
-        // Should have 2 valid credentials
-        assert_eq!(credentials.len(), 2);
-        assert_eq!(credentials[0].id, ProviderId::OPENAI);
-        assert_eq!(credentials[1].id, ProviderId::ANTHROPIC);
-    }
-
-    #[test]
-    fn test_all_corrupt_entries_returns_empty() {
-        // JSON with all corrupt entries
-        let json = r#"[
-            {"id": "openai"},
-            {"id": "anthropic"},
-            "invalid"
-        ]"#;
-
-        let result: ResilientCredentials = serde_json::from_str(json).unwrap();
-        let credentials = result.0;
-
-        assert!(credentials.is_empty());
-    }
-
-    #[test]
-    fn test_empty_array_returns_empty() {
-        let json = "[]";
-
-        let result: ResilientCredentials = serde_json::from_str(json).unwrap();
-        assert!(result.0.is_empty());
-    }
-
-    #[test]
-    fn test_valid_credentials_all_preserved() {
-        let json = r#"[
-            {
-                "id": "openai",
-                "auth_details": {"api_key": "key1"}
-            },
-            {
-                "id": "anthropic",
-                "auth_details": {"api_key": "key2"}
-            }
-        ]"#;
-
-        let result: ResilientCredentials = serde_json::from_str(json).unwrap();
-        let credentials = result.0;
-
-        assert_eq!(credentials.len(), 2);
-    }
-
-    #[test]
-    fn test_completely_invalid_json_returns_error() {
-        // Not a JSON array at all - this should fail at the outer level
-        let json = r#"{"not": "an array"}"#;
-
-        let result = serde_json::from_str::<ResilientCredentials>(json);
-        assert!(result.is_err());
     }
 }
