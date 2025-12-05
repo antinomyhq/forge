@@ -54,56 +54,55 @@ pub enum SyncProgress {
 }
 
 impl SyncProgress {
-    /// Progress weight allocation:
-    /// - 0-10%: Discovery phase (guaranteed events)
-    /// - 10-100%: Syncing phase (file operations)
-    const DISCOVERY_WEIGHT: u64 = 10;
-    const SYNC_WEIGHT: u64 = 90;
-
     /// Returns the progress weight (0-100) for this event.
     pub fn weight(&self) -> Option<u64> {
         match self {
-            Self::Starting => Some(0),
-            Self::DiscoveringFiles { .. } => Some(1),
-            Self::FilesDiscovered { .. } => Some(3),
-            Self::ComparingFiles => Some(5),
-            Self::DiffComputed { .. } => Some(10),
-            Self::Completed { .. } => Some(100),
-            Self::WorkspaceCreated { .. } => None,
             Self::Syncing { current, total } => {
                 let sync_progress = if *total > 0 {
-                    (*current * Self::SYNC_WEIGHT as f64 / *total as f64) as u64
+                    (*current * 100.0 / *total as f64) as u64
                 } else {
                     0
                 };
-                Some(Self::DISCOVERY_WEIGHT + sync_progress)
+                Some(sync_progress)
             }
+            _ => None,
         }
     }
 
     /// Returns a human-readable status message for this event
     pub fn message(&self) -> String {
         match self {
-            Self::Starting => "Starting...".to_string(),
-            Self::WorkspaceCreated { .. } => "Workspace created".to_string(),
-            Self::DiscoveringFiles { path } => {
-                let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("files");
-                format!("Discovering {}", name)
+            Self::Starting => "Initializing codebase sync".to_string(),
+            Self::WorkspaceCreated { workspace_id } => {
+                format!("Created workspace {}", workspace_id)
             }
-            Self::FilesDiscovered { count } => format!("Found {} files", count),
-            Self::ComparingFiles => "Comparing...".to_string(),
+            Self::DiscoveringFiles { path } => {
+                let name = path.file_name().and_then(|n| n.to_str()).unwrap_or(".");
+                format!("Scanning directory '{}'", name)
+            }
+            Self::FilesDiscovered { count } => {
+                let file_word = if *count == 1 { "file" } else { "files" };
+                format!("Discovered {} {} for indexing", count, file_word)
+            }
+            Self::ComparingFiles => "Comparing local files with remote".to_string(),
             Self::DiffComputed { to_delete, to_upload, modified } => {
                 let total = to_delete + to_upload - modified;
                 if total == 0 {
-                    "No changes detected".to_string()
+                    "Index is up to date, no changes needed".to_string()
                 } else {
-                    format!(
-                        "{} files to sync ({} deleted, {} new, {} modified)",
-                        total,
-                        to_delete - modified,
-                        to_upload - modified,
-                        modified
-                    )
+                    let deleted = to_delete - modified;
+                    let new = to_upload - modified;
+                    let mut parts = Vec::new();
+                    if new > 0 {
+                        parts.push(format!("{} new", new));
+                    }
+                    if *modified > 0 {
+                        parts.push(format!("{} modified", modified));
+                    }
+                    if deleted > 0 {
+                        parts.push(format!("{} removed", deleted));
+                    }
+                    format!("Changes detected: {}", parts.join(", "))
                 }
             }
             Self::Syncing { current, total } => {
@@ -115,16 +114,19 @@ impl SyncProgress {
                     file_word
                 )
             }
-            Self::Completed { uploaded_files, total_files: _ } => {
+            Self::Completed { uploaded_files, total_files } => {
                 if *uploaded_files == 0 {
-                    "Already up to date".to_string()
+                    format!("Index already synced ({} files)", total_files)
                 } else {
                     let file_word = if *uploaded_files == 1 {
                         "file"
                     } else {
                         "files"
                     };
-                    format!("{} {} synced", uploaded_files, file_word)
+                    format!(
+                        "Sync complete. {} {} updated, {} total indexed",
+                        uploaded_files, file_word, total_files
+                    )
                 }
             }
         }

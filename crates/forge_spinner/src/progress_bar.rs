@@ -54,6 +54,10 @@ impl ProgressBarManager {
         }
         Ok(())
     }
+
+    pub fn is_active(&self) -> bool {
+        self.bar.as_ref().is_some_and(|bar| !bar.is_finished())
+    }
 }
 
 #[cfg(test)]
