@@ -109,7 +109,7 @@ impl SyncProgress {
             }
             Self::Syncing { current, total } => {
                 let file_word = if *total == 1 { "file" } else { "files" };
-                format!("Syncing {}/{} {}", current, total, file_word)
+                format!("Syncing {}/{} {}", current.round() as usize, total, file_word)
             }
             Self::Completed { uploaded_files, total_files: _ } => {
                 if *uploaded_files == 0 {
