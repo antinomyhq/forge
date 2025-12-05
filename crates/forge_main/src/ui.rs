@@ -1614,14 +1614,12 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     }
                 }
 
-                let agents = self.api.get_agents().await?;
-
-                if agents.is_empty() {
-                    return Ok(false);
-                }
-
                 // Reuse the same Info building logic as list agents
                 let info = self.build_agents_info().await?;
+
+                if info.is_empty() {
+                    return Ok(false);
+                }
 
                 // Convert to porcelain format (same as list agents --porcelain)
                 let porcelain_output = Porcelain::from(&info)
