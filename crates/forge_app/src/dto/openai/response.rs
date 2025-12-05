@@ -109,17 +109,36 @@ pub struct ResponseMessage {
     pub tool_calls: Option<Vec<ToolCall>>,
     pub refusal: Option<String>,
     pub reasoning_details: Option<Vec<ReasoningDetail>>,
+    // GitHub Copilot format (flat fields instead of array)
+    pub reasoning_text: Option<String>,
+    pub reasoning_opaque: Option<String>,
 }
 
 impl From<ReasoningDetail> for forge_domain::ReasoningFull {
     fn from(detail: ReasoningDetail) -> Self {
-        forge_domain::ReasoningFull { text: detail.text, signature: detail.signature }
+        forge_domain::ReasoningFull {
+            text: detail.text,
+            signature: detail.signature,
+            data: detail.data,
+            id: detail.id,
+            format: detail.format,
+            index: detail.index,
+            r#type: Some(detail.r#type),
+        }
     }
 }
 
 impl From<ReasoningDetail> for forge_domain::ReasoningPart {
     fn from(detail: ReasoningDetail) -> Self {
-        forge_domain::ReasoningPart { text: detail.text, signature: detail.signature }
+        forge_domain::ReasoningPart {
+            text: detail.text,
+            signature: detail.signature,
+            data: detail.data,
+            id: detail.id,
+            format: detail.format,
+            index: detail.index,
+            r#type: Some(detail.r#type),
+        }
     }
 }
 
@@ -214,6 +233,27 @@ impl TryFrom<Response> for ChatCompletionMessage {
                                 resp = resp.add_reasoning_detail(forge_domain::Reasoning::Full(
                                     converted_details,
                                 ));
+                            } else if message.reasoning_text.is_some()
+                                || message.reasoning_opaque.is_some()
+                            {
+                                // GitHub Copilot format: convert flat fields to reasoning_details
+                                let mut details = Vec::new();
+                                if let Some(text) = &message.reasoning_text {
+                                    details.push(forge_domain::ReasoningFull {
+                                        text: Some(text.clone()),
+                                        r#type: Some("reasoning.text".to_string()),
+                                        ..Default::default()
+                                    });
+                                }
+                                if let Some(opaque) = &message.reasoning_opaque {
+                                    details.push(forge_domain::ReasoningFull {
+                                        data: Some(opaque.clone()),
+                                        r#type: Some("reasoning.encrypted".to_string()),
+                                        ..Default::default()
+                                    });
+                                }
+                                resp = resp
+                                    .add_reasoning_detail(forge_domain::Reasoning::Full(details));
                             }
 
                             if let Some(tool_calls) = &message.tool_calls {
@@ -257,6 +297,27 @@ impl TryFrom<Response> for ChatCompletionMessage {
                                 resp = resp.add_reasoning_detail(forge_domain::Reasoning::Part(
                                     converted_details,
                                 ));
+                            } else if delta.reasoning_text.is_some()
+                                || delta.reasoning_opaque.is_some()
+                            {
+                                // GitHub Copilot format: convert flat fields to reasoning_details
+                                let mut details = Vec::new();
+                                if let Some(text) = &delta.reasoning_text {
+                                    details.push(forge_domain::ReasoningPart {
+                                        text: Some(text.clone()),
+                                        r#type: Some("reasoning.text".to_string()),
+                                        ..Default::default()
+                                    });
+                                }
+                                if let Some(opaque) = &delta.reasoning_opaque {
+                                    details.push(forge_domain::ReasoningPart {
+                                        data: Some(opaque.clone()),
+                                        r#type: Some("reasoning.encrypted".to_string()),
+                                        ..Default::default()
+                                    });
+                                }
+                                resp = resp
+                                    .add_reasoning_detail(forge_domain::Reasoning::Part(details));
                             }
 
                             if let Some(tool_calls) = &delta.tool_calls {
@@ -404,6 +465,8 @@ mod tests {
                     tool_calls: None,
                     refusal: None,
                     reasoning_details: None,
+                    reasoning_text: None,
+                    reasoning_opaque: None,
                 },
                 error: Some(error_response.clone()),
             }],
@@ -437,6 +500,8 @@ mod tests {
                     tool_calls: None,
                     refusal: None,
                     reasoning_details: None,
+                    reasoning_text: None,
+                    reasoning_opaque: None,
                 },
                 error: Some(error_response.clone()),
             }],
@@ -470,6 +535,8 @@ mod tests {
                     tool_calls: None,
                     refusal: None,
                     reasoning_details: None,
+                    reasoning_text: None,
+                    reasoning_opaque: None,
                 },
                 error: None,
             }],
