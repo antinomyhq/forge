@@ -174,6 +174,9 @@ function forge-accept-line() {
         logout)
             _forge_action_logout
         ;;
+        log-level)
+            _forge_action_log_level "$input_text"
+        ;;
         *)
             _forge_action_default "$user_action" "$input_text"
         ;;

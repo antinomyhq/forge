@@ -12,6 +12,11 @@ typeset -h _FORGE_PREVIEW_WINDOW="--preview-window=top:75%:wrap:border-sharp"
 # Detect fd command - Ubuntu/Debian use 'fdfind', others use 'fd'
 typeset -h _FORGE_FD_CMD="$(command -v fdfind 2>/dev/null || command -v fd 2>/dev/null || echo 'fd')"
 
+# Log level configuration - controls message verbosity
+# Default to "info" level to maintain backward compatibility while hiding debug messages
+# Hierarchy: debug=0 < info=1 < warning=2 < error=3 < success=4
+typeset -h _FORGE_LOG_LEVEL="${FORGE_LOG_LEVEL:-info}"
+
 # Detect bat command - use bat if available, otherwise fall back to cat
 if command -v bat &>/dev/null; then
     typeset -h _FORGE_CAT_CMD="bat --color=always --style=numbers,changes --line-range=:500"
