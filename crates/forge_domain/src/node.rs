@@ -81,7 +81,6 @@ impl SyncProgress {
         }
     }
 
-
     /// Returns a human-readable status message for this event
     pub fn message(&self) -> String {
         match self {
@@ -109,13 +108,22 @@ impl SyncProgress {
             }
             Self::Syncing { current, total } => {
                 let file_word = if *total == 1 { "file" } else { "files" };
-                format!("Syncing {}/{} {}", current.round() as usize, total, file_word)
+                format!(
+                    "Syncing {}/{} {}",
+                    current.round() as usize,
+                    total,
+                    file_word
+                )
             }
             Self::Completed { uploaded_files, total_files: _ } => {
                 if *uploaded_files == 0 {
                     "Already up to date".to_string()
                 } else {
-                    let file_word = if *uploaded_files == 1 { "file" } else { "files" };
+                    let file_word = if *uploaded_files == 1 {
+                        "file"
+                    } else {
+                        "files"
+                    };
                     format!("{} {} synced", uploaded_files, file_word)
                 }
             }
