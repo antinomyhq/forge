@@ -967,12 +967,8 @@ mod tests {
         let fixture = context(vec![assistant_with_tools(
             "Searching codebase",
             vec![
-                ToolCatalog::tool_call_semantic_search(
-                    "retry mechanism",
-                    "find retry logic",
-                    None,
-                )
-                .call_id("call_1"),
+                ToolCatalog::tool_call_semantic_search("retry mechanism", "find retry logic", None)
+                    .call_id("call_1"),
             ],
         )]);
 

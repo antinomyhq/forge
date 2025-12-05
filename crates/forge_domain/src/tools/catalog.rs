@@ -736,7 +736,8 @@ impl ToolCatalog {
         }))
     }
 
-    /// Creates a Semantic Search tool call with the specified query and use_case
+    /// Creates a Semantic Search tool call with the specified query and
+    /// use_case
     pub fn tool_call_semantic_search(
         query: impl Into<String>,
         use_case: impl Into<String>,

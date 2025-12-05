@@ -207,21 +207,17 @@ impl<
                 let cwd = env.cwd.clone();
                 let limit = env.sem_search_limit;
                 let top_k = env.sem_search_top_k as u32;
-                let mut params =
-                    forge_domain::SearchParams::new(&input.query, &input.use_case)
-                        .limit(limit)
-                        .top_k(top_k);
+                let mut params = forge_domain::SearchParams::new(&input.query, &input.use_case)
+                    .limit(limit)
+                    .top_k(top_k);
                 if let Some(ext) = &input.file_extension {
                     params = params.ends_with(ext);
                 }
 
                 let results = self.services.query_codebase(cwd, params).await?;
 
-                let output = CodebaseQueryResult {
-                    query: input.query,
-                    use_case: input.use_case,
-                    results,
-                };
+                let output =
+                    CodebaseQueryResult { query: input.query, use_case: input.use_case, results };
 
                 ToolOperation::CodebaseSearch { output }
             }
