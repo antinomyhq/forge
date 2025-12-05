@@ -897,61 +897,68 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let mut agents = self.api.get_agents().await?;
         // Sort agents alphabetically by ID
         agents.sort_by(|a, b| a.id.as_str().cmp(b.id.as_str()));
-        let mut info = Info::new();
 
-        for agent in agents.iter() {
-            let id = agent.id.as_str().to_string();
-            let title = agent
-                .title
-                .as_deref()
-                .map(|title| title.lines().collect::<Vec<_>>().join(" "));
+        // Process agents in parallel
+        let handles: Vec<_> = agents
+            .iter()
+            .map(|agent| {
+                let agent = agent.clone();
+                let api = self.api.clone();
 
-            // Get provider and model for this agent
-            let provider_name = match self.get_provider(Some(agent.id.clone())).await {
-                Ok(p) => p.id.to_string(),
-                Err(e) => format!("Error: [{}]", e),
-            };
+                tokio::spawn(async move {
+                    let provider_name = api
+                        .get_agent_provider(agent.id.clone())
+                        .await
+                        .map(|p| p.id.to_string())
+                        .unwrap_or_else(|e| format!("Error: [{}]", e));
 
-            let model_name = agent.model.as_str().to_string();
+                    let title = agent
+                        .title
+                        .as_deref()
+                        .map(|t| t.lines().collect::<Vec<_>>().join(" "));
 
-            let reasoning = if agent
-                .reasoning
-                .as_ref()
-                .and_then(|a| a.enabled)
-                .unwrap_or_default()
-            {
-                status::YES
-            } else {
-                status::NO
-            };
+                    let reasoning = agent
+                        .reasoning
+                        .as_ref()
+                        .and_then(|r| r.enabled)
+                        .unwrap_or_default();
 
-            let location = agent
-                .path
-                .as_ref()
-                .map(|s| s.to_string())
-                .unwrap_or_else(|| markers::BUILT_IN.to_string());
+                    let location = agent
+                        .path
+                        .as_ref()
+                        .map(|s| s.to_string())
+                        .unwrap_or_else(|| markers::BUILT_IN.to_string());
 
-            info = info
-                .add_title(id.to_case(Case::UpperSnake))
-                .add_key_value("Id", id)
-                .add_key_value("Title", title)
-                .add_key_value("Location", location)
-                .add_key_value("Provider", provider_name)
-                .add_key_value("Model", model_name)
-                .add_key_value("Reasoning Enabled", reasoning);
-        }
+                    (agent.id, title, location, provider_name, agent.model, reasoning)
+                })
+            })
+            .collect();
+
+        let results = futures::future::join_all(handles).await;
+
+        // Build info from results
+        let info = results.into_iter().try_fold(Info::new(), |info, result| {
+            let (id, title, location, provider_name, model, reasoning) = result?;
+            Ok::<_, anyhow::Error>(
+                info.add_title(id.as_str().to_case(Case::UpperSnake))
+                    .add_key_value("Id", id.as_str())
+                    .add_key_value("Title", title)
+                    .add_key_value("Location", location)
+                    .add_key_value("Provider", provider_name)
+                    .add_key_value("Model", model.as_str())
+                    .add_key_value("Reasoning Enabled", if reasoning { status::YES } else { status::NO }),
+            )
+        })?;
 
         Ok(info)
     }
 
     async fn on_show_agents(&mut self, porcelain: bool) -> anyhow::Result<()> {
-        let agents = self.api.get_agents().await?;
+        let info = self.build_agents_info().await?;
 
-        if agents.is_empty() {
+        if info.is_empty() {
             return Ok(());
         }
-
-        let info = self.build_agents_info().await?;
 
         if porcelain {
             let porcelain = Porcelain::from(&info)

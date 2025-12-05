@@ -96,6 +96,10 @@ impl Info {
         Info { sections: Vec::new() }
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.sections.is_empty()
+    }
+
     /// Returns a reference to the sections
     pub fn sections(&self) -> &[Section] {
         &self.sections
