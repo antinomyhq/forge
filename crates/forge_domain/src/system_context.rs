@@ -29,7 +29,7 @@ pub struct SystemContext {
 
     /// Indicates whether the agent supports parallel tool calls.
     #[serde(default)]
-    pub supports_parallel_tool_calls: bool,
+    pub supports_parallel_tool_calls: Option<bool>,
 
     /// List of available skills
     #[serde(skip_serializing_if = "Vec::is_empty")]

@@ -114,13 +114,12 @@ impl<S: SkillFetchService> SystemPrompt<S> {
     }
 
     /// Checks if parallel tool calls is supported by agent
-    fn is_parallel_tool_call_supported(&self) -> bool {
+    fn is_parallel_tool_call_supported(&self) -> Option<bool> {
         let agent = &self.agent;
         self.models
             .iter()
             .find(|model| model.id == agent.model)
             .and_then(|model| model.supports_parallel_tool_calls)
-            .unwrap_or_default()
     }
 }
 
