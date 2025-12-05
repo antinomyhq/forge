@@ -81,13 +81,13 @@ impl SyncProgress {
         }
     }
 
+
     /// Returns a human-readable status message for this event
     pub fn message(&self) -> String {
         match self {
             Self::Starting => "Starting...".to_string(),
             Self::WorkspaceCreated { .. } => "Workspace created".to_string(),
             Self::DiscoveringFiles { path } => {
-                // Show only the last directory component for brevity
                 let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("files");
                 format!("Discovering {}", name)
             }
@@ -109,18 +109,13 @@ impl SyncProgress {
             }
             Self::Syncing { current, total } => {
                 let file_word = if *total == 1 { "file" } else { "files" };
-                let width = total.to_string().len();
-                format!("Syncing {:>width$}/{} {}", current, total, file_word)
+                format!("Syncing {}/{} {}", current, total, file_word)
             }
             Self::Completed { uploaded_files, total_files: _ } => {
                 if *uploaded_files == 0 {
                     "Already up to date".to_string()
                 } else {
-                    let file_word = if *uploaded_files == 1 {
-                        "file"
-                    } else {
-                        "files"
-                    };
+                    let file_word = if *uploaded_files == 1 { "file" } else { "files" };
                     format!("{} {} synced", uploaded_files, file_word)
                 }
             }
