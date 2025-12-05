@@ -1,6 +1,6 @@
 import { execSync } from "child_process";
 import Handlebars from "handlebars";
-import type { Validation } from "./model.js";
+import type { Task, Validation } from "./model.js";
 
 /**
  * Escapes special regex characters in a string
@@ -141,7 +141,7 @@ export type ProcessValidationsResult = {
  */
 export function processValidations(
   output: string | undefined,
-  validations: Array<Validation> | undefined,
+  task: Task,
   logger: {
     info: (data: any, message: string) => void;
     warn: (data: any, message: string) => void;
@@ -154,8 +154,8 @@ export function processValidations(
 ): ProcessValidationsResult {
   // Run validations if configured and output is available
   const validationResults =
-    validations && validations.length > 0 && output
-      ? runValidations(output, validations, context)
+    task.validations && task.validations.length > 0 && output
+      ? runValidations(output, task.validations, context)
       : [];
 
   const allPassed = allValidationsPassed(validationResults);
@@ -172,7 +172,7 @@ export function processValidations(
           task_id,
           duration,
           log_file: logFile,
-          context_input: context?.context_input,
+          parameters: context,
           passed: validationResults.map((r) => r.name),
         },
         "Validation Passed",
@@ -183,7 +183,7 @@ export function processValidations(
           task_id,
           duration,
           log_file: logFile,
-          context_input: context?.context_input,
+          parameters: context,
           failed: validationResults
             .filter((r) => !r.passed)
             .map((r) => ({

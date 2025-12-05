@@ -193,6 +193,7 @@ async function main() {
             command_idx: cmdIdx + 1,
             total_commands: commands.length,
             log_file: logFile,
+            parameters: context,
           },
           "Launching task",
         );
@@ -241,7 +242,7 @@ async function main() {
       if (lastError) {
         const { validationResults } = processValidations(
           combinedOutput,
-          task.validations,
+          task,
           logger,
           i + 1,
           totalDuration,
@@ -262,7 +263,7 @@ async function main() {
       const { validationResults, status: validationStatus } =
         processValidations(
           combinedOutput,
-          task.validations,
+          task,
           logger,
           i + 1,
           totalDuration,
