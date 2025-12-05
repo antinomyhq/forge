@@ -301,7 +301,10 @@ impl<F> ForgeContextEngineService<F> {
         let uploaded_files = plan.total();
 
         // Only emit diff computed event if there are actual changes
-        if  !plan.files_to_delete.is_empty() || !plan.files_to_upload.is_empty() || !plan.modified_files.is_empty() {
+        if !plan.files_to_delete.is_empty()
+            || !plan.files_to_upload.is_empty()
+            || !plan.modified_files.is_empty()
+        {
             emit(SyncProgress::DiffComputed {
                 to_delete: plan.files_to_delete.len(),
                 to_upload: plan.files_to_upload.len(),
