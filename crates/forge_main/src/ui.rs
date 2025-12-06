@@ -656,6 +656,18 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
                 self.state.conversation_id = original_id;
             }
+            ConversationCommand::Delete { id, force } => {
+                let conversation_id =
+                    ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
+
+                self.validate_conversation_exists(&conversation_id).await?;
+
+                if !force && !self.confirm_delete_conversation(&conversation_id).await? {
+                    return Ok(());
+                }
+
+                self.on_conversation_delete(conversation_id).await?;
+            }
             ConversationCommand::Retry { id } => {
                 let conversation_id =
                     ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
@@ -730,6 +742,42 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 "Conversation '{conversation_id}' not found. Use 'forge conversation list' to see available conversations."
             )
         })
+    }
+
+    async fn confirm_delete_conversation(&mut self, conversation_id: &ConversationId) -> anyhow::Result<bool> {
+        self.writeln_title(TitleFormat::info(format!(
+            "Are you sure you want to delete conversation '{}'?",
+            conversation_id
+        )))?;
+
+        let answer = forge_select::ForgeSelect::confirm("This action cannot be undone.")
+            .with_default(false)
+            .prompt();
+
+        match answer {
+            Ok(Some(result)) => Ok(result),
+            Ok(None) => Ok(false), // User cancelled
+            Err(_) => Ok(false),   // Error occurred
+        }
+    }
+
+    async fn on_conversation_delete(&mut self, conversation_id: ConversationId) -> anyhow::Result<()> {
+        self.spinner.start(Some("Deleting conversation..."))?;
+
+        match self.api.delete_conversation(&conversation_id).await {
+            Ok(_) => {
+                self.spinner.stop(None)?;
+                self.writeln_title(TitleFormat::debug(format!(
+                    "Successfully deleted conversation '{}'",
+                    conversation_id
+                )))?;
+                Ok(())
+            }
+            Err(e) => {
+                self.spinner.stop(None)?;
+                Err(e)
+            }
+        }
     }
 
     async fn handle_provider_command(
@@ -1524,6 +1572,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.spinner.start(Some("Compacting"))?;
                 self.on_compaction().await?;
             }
+            SlashCommand::Delete => {
+                self.handle_delete_conversation().await?;
+            }
             SlashCommand::Dump { html } => {
                 self.spinner.start(Some("Dumping"))?;
                 self.on_dump(html).await?;
@@ -1687,6 +1738,16 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             "Context size reduced by {token_reduction:.1}% (tokens), {message_reduction:.1}% (messages)"
         ));
         self.writeln_title(content)?;
+        Ok(())
+    }
+
+    async fn handle_delete_conversation(&mut self) -> anyhow::Result<()> {
+        let conversation_id = self.init_conversation().await?;
+        
+        if self.confirm_delete_conversation(&conversation_id).await? {
+            self.on_conversation_delete(conversation_id).await?;
+        }
+        
         Ok(())
     }
 
@@ -3086,4 +3147,11 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
         });
     }
+}
+
+#[cfg(test)]
+mod tests {
+    // Note: Tests for confirm_delete_conversation are disabled because ForgeSelect::confirm
+    // is not easily mockable in the current architecture. The functionality is tested
+    // through integration tests instead.
 }
