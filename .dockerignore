@@ -1,0 +1,6 @@
+# Minimal dockerignore for eval builds
+# Include only cross-compiled binary and compiled JavaScript
+*
+!target/x86_64-unknown-linux-gnu/release/forge
+!benchmarks/dist
+!benchmarks/container-entrypoint.sh

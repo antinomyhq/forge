@@ -43,13 +43,13 @@ function validateShellCommand(
   output: string,
   command: string,
   expectedExitCode: number,
-  name: string,
+  name: string
 ): ValidationResult {
   try {
+    // Execute shell command
     execSync(command, {
-      input: output,
       encoding: "utf-8",
-      stdio: ["pipe", "pipe", "pipe"],
+      stdio: ["ignore", "pipe", "pipe"],
     });
 
     // Command succeeded (exit code 0)
@@ -82,7 +82,7 @@ function validateShellCommand(
 export function runValidations(
   output: string,
   validations: Array<Validation>,
-  context?: Record<string, string>,
+  context?: Record<string, string>
 ): ValidationResult[] {
   const results: ValidationResult[] = [];
 
