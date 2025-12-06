@@ -1,0 +1,255 @@
+use std::sync::Arc;
+
+use anyhow::{Context as _, Result};
+use aws_sdk_bedrockruntime::Client;
+use forge_app::HttpClientService;
+use forge_domain::{
+    ChatCompletionMessage, Context, Model, ModelId, Provider, ResultStream, Transformer,
+};
+use reqwest::Url;
+use tokio::sync::OnceCell;
+
+use super::credentials::create_bedrock_config;
+
+/// Provider implementation for Amazon Bedrock using AWS SDK
+pub struct BedrockProvider<T> {
+    provider: Provider<Url>,
+    region: String,
+    client: OnceCell<Client>,
+    _phantom: std::marker::PhantomData<T>,
+}
+
+impl<H: HttpClientService> BedrockProvider<H> {
+    /// Creates a new BedrockProvider instance
+    ///
+    /// Credentials are automatically loaded from:
+    /// - Environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY,
+    ///   AWS_SESSION_TOKEN)
+    /// - AWS credentials file (~/.aws/credentials)
+    /// - IAM role (for EC2/ECS/Lambda)
+    pub fn new(provider: Provider<Url>, _http: Arc<H>) -> Result<Self> {
+        // Extract region from URL params
+        let region_param: forge_domain::URLParam = "AWS_REGION".to_string().into();
+        let region = provider
+            .credential
+            .as_ref()
+            .and_then(|c| c.url_params.get(&region_param).map(|v| v.to_string()))
+            .unwrap_or_else(|| "us-east-1".to_string());
+
+        Ok(Self {
+            provider,
+            region,
+            client: OnceCell::new(),
+            _phantom: std::marker::PhantomData,
+        })
+    }
+
+    /// Get or create the AWS SDK client
+    async fn get_client(&self) -> Result<&Client> {
+        self.client
+            .get_or_try_init(|| async {
+                let config = create_bedrock_config(Some(self.region.clone())).await?;
+                Ok(Client::new(&config))
+            })
+            .await
+    }
+
+    /// Transform model ID with regional prefix if needed
+    pub fn transform_model_id(&self, model_id: &str) -> String {
+        // Skip if already has global prefix
+        if model_id.starts_with("global.") {
+            return model_id.to_string();
+        }
+
+        // Determine regional prefix
+        let prefix = match self.region.as_str() {
+            r if r.starts_with("us-") && !r.contains("gov") => "us.",
+            r if r.starts_with("eu-") => "eu.",
+            "ap-southeast-2" => "au.",
+            r if r.starts_with("ap-") => "apac.",
+            _ => "",
+        };
+
+        // Only prefix Anthropic models that don't already have a regional prefix
+        if model_id.contains("anthropic.")
+            && !model_id.starts_with("us.")
+            && !model_id.starts_with("eu.")
+            && !model_id.starts_with("apac.")
+            && !model_id.starts_with("au.")
+        {
+            format!("{}{}", prefix, model_id)
+        } else {
+            model_id.to_string()
+        }
+    }
+
+    /// Perform a streaming chat completion
+    pub async fn chat_stream(
+        &self,
+        model: &ModelId,
+        context: Context,
+    ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
+        let model_id = self.transform_model_id(model.as_str());
+        let client = match self.get_client().await {
+            Ok(c) => c,
+            Err(e) => return Err(e),
+        };
+
+        // Convert context to AWS SDK types and apply caching transformer
+        let bedrock_input = super::convert::BedrockConvert::try_from(context)
+            .context("Failed to convert context to Bedrock ConverseStreamInput")?;
+
+        // Apply caching transformer only for non-DeepSeek models
+        // DeepSeek models don't support prompt caching
+        let bedrock_input = if !model_id.to_lowercase().contains("deepseek") {
+            let mut set_cache = super::transform::SetCache;
+            set_cache.transform(bedrock_input)
+        } else {
+            bedrock_input
+        };
+
+        // Build and send the converse_stream request
+        let output = client
+            .converse_stream()
+            .model_id(model_id)
+            .set_system(bedrock_input.system.clone())
+            .set_messages(bedrock_input.messages.clone())
+            .set_tool_config(bedrock_input.tool_config.clone())
+            .set_inference_config(bedrock_input.inference_config.clone())
+            .send()
+            .await
+            .context("Failed to call Bedrock converse_stream API")?;
+
+        // Convert the Bedrock event stream to ChatCompletionMessage stream
+        let stream = futures::stream::unfold(output.stream, |mut event_stream| async move {
+            match event_stream.recv().await {
+                Ok(Some(event)) => {
+                    let wrapped_event = super::convert::BedrockStreamEvent::from(event);
+                    let message =
+                        ChatCompletionMessage::try_from(wrapped_event).unwrap_or_else(|e| {
+                            tracing::warn!("Failed to convert Bedrock event: {}", e);
+                            ChatCompletionMessage::assistant(forge_domain::Content::part(""))
+                        });
+                    Some((Ok(message), event_stream))
+                }
+                Ok(None) => None, // End of stream
+                Err(e) => Some((
+                    Err(anyhow::anyhow!("Bedrock stream error: {:?}", e)),
+                    event_stream,
+                )),
+            }
+        });
+
+        Ok(Box::pin(stream))
+    }
+
+    /// Get available models
+    pub async fn models(&self) -> Result<Vec<Model>> {
+        // Bedrock doesn't have a models list API
+        // Return hardcoded models from configuration
+        match &self.provider.models {
+            Some(forge_domain::ModelSource::Hardcoded(models)) => Ok(models.clone()),
+            _ => Ok(vec![]),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+    use reqwest_eventsource::EventSource;
+
+    use super::*;
+
+    struct MockHttpClient;
+
+    #[async_trait::async_trait]
+    impl HttpClientService for MockHttpClient {
+        async fn get(
+            &self,
+            _url: &reqwest::Url,
+            _headers: Option<reqwest::header::HeaderMap>,
+        ) -> anyhow::Result<reqwest::Response> {
+            Err(anyhow::anyhow!("Mock HTTP client - no real requests"))
+        }
+
+        async fn post(
+            &self,
+            _url: &reqwest::Url,
+            _body: bytes::Bytes,
+        ) -> anyhow::Result<reqwest::Response> {
+            Err(anyhow::anyhow!("Mock HTTP client - no real requests"))
+        }
+
+        async fn delete(&self, _url: &reqwest::Url) -> anyhow::Result<reqwest::Response> {
+            Err(anyhow::anyhow!("Mock HTTP client - no real requests"))
+        }
+
+        async fn eventsource(
+            &self,
+            _url: &reqwest::Url,
+            _headers: Option<reqwest::header::HeaderMap>,
+            _body: bytes::Bytes,
+        ) -> anyhow::Result<reqwest_eventsource::EventSource> {
+            Err(anyhow::anyhow!("Mock HTTP client - no real requests"))
+        }
+    }
+
+    fn create_test_provider(region: &str) -> BedrockProvider<MockHttpClient> {
+        use forge_domain::{
+            ApiKey, AuthCredential, AuthDetails, ProviderId, ProviderResponse, ProviderType,
+        };
+        use reqwest::Url;
+
+        let provider = Provider {
+            id: ProviderId::from("bedrock".to_string()),
+            provider_type: ProviderType::Llm,
+            response: Some(ProviderResponse::Bedrock),
+            url: Url::parse("https://bedrock-runtime.us-east-1.amazonaws.com").unwrap(),
+            models: None,
+            auth_methods: vec![],
+            url_params: vec![],
+            credential: Some(AuthCredential {
+                id: ProviderId::from("bedrock".to_string()),
+                auth_details: AuthDetails::ApiKey(ApiKey::from("test-token".to_string())),
+                url_params: std::collections::HashMap::new(),
+            }),
+        };
+
+        BedrockProvider {
+            provider,
+            client: OnceCell::new(),
+            region: region.to_string(),
+            _phantom: std::marker::PhantomData,
+        }
+    }
+
+    #[test]
+    fn test_transform_model_id_us_region() {
+        let bedrock = create_test_provider("us-east-1");
+        let transformed = bedrock.transform_model_id("anthropic.claude-3-5-sonnet-20241022-v2:0");
+        assert_eq!(transformed, "us.anthropic.claude-3-5-sonnet-20241022-v2:0");
+    }
+
+    #[test]
+    fn test_transform_model_id_eu_region() {
+        let bedrock = create_test_provider("eu-west-1");
+        let transformed = bedrock.transform_model_id("anthropic.claude-3-5-sonnet-20241022-v2:0");
+        assert_eq!(transformed, "eu.anthropic.claude-3-5-sonnet-20241022-v2:0");
+    }
+
+    #[test]
+    fn test_transform_model_id_already_prefixed() {
+        let bedrock = create_test_provider("us-east-1");
+        let transformed =
+            bedrock.transform_model_id("us.anthropic.claude-3-5-sonnet-20241022-v2:0");
+        assert_eq!(transformed, "us.anthropic.claude-3-5-sonnet-20241022-v2:0");
+    }
+
+    #[test]
+    fn test_transform_model_id_non_anthropic() {
+        let bedrock = create_test_provider("us-east-1");
+        let transformed = bedrock.transform_model_id("amazon.nova-pro-v1:0");
+        assert_eq!(transformed, "amazon.nova-pro-v1:0");
+    }
+}

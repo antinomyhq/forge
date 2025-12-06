@@ -12,6 +12,10 @@ strip = true
 anyhow = "1.0.99"
 async-recursion = "1.1.1"
 async-trait = "0.1.89"
+aws-config = { version = "1.5", features = ["rustls"] }
+aws-sdk-bedrockruntime = { version = "1.60", features = ["rustls"] }
+aws-credential-types = "1.2"
+aws-smithy-types = "1.3"
 base64 = "0.22.1"
 bytes = "1.10.0"
 chrono = { version = "0.4.39", features = ["serde"] }
