@@ -118,7 +118,10 @@ async function main() {
   if (task.before_run && task.before_run.length > 0) {
     for (const cmd of task.before_run) {
       try {
-        logger.info({ command: cmd }, "Running setup command");
+        logger.info(
+          { dir: setupTmpDir.name, command: cmd },
+          "Running setup command",
+        );
         // Small delay to allow logger to flush before command output
         await new Promise((resolve) => setTimeout(resolve, 0));
         await execAsync(cmd, {
@@ -177,14 +180,13 @@ async function main() {
   // Create promises for all tasks
   const taskPromises = data.map((row, i) => {
     return limit(async () => {
-      const logFile = path.join(debugDir, `task_run_${i + 1}.log`);
-      const debugRequestFile = path.join(debugDir, `request_${i + 1}.json`);
-
       // Create a unique temp directory for this task
       const taskTmpDir = await createTempDir(`forge-task-${i + 1}-`);
 
-      // Add context_input to context for command interpolation and validations
-      const context = { ...row, context_input: debugRequestFile };
+      const logFile = path.join(taskTmpDir.name, `task.log`);
+
+      // Context for command interpolation and validations
+      const context = { ...row, dir: taskTmpDir.name };
 
       // Support both single command and multiple commands
       const commands = Array.isArray(task.run) ? task.run : [task.run];
@@ -206,10 +208,10 @@ async function main() {
           {
             command,
             task_id: i + 1,
-            command_idx: cmdIdx + 1,
+            command_id: cmdIdx + 1,
             total_commands: commands.length,
-            log_file: logFile,
-            tmp_dir: taskTmpDir.name,
+            log: logFile,
+            dir: taskTmpDir.name,
             parameters: context,
           },
           "Launching task",
@@ -244,7 +246,7 @@ async function main() {
             {
               task_id: executionResult.index,
               command: executionResult.command,
-              command_idx: cmdIdx + 1,
+              command_id: cmdIdx + 1,
               duration: executionResult.duration,
               error: executionResult.error,
               is_timeout: executionResult.isTimeout,
@@ -344,7 +346,7 @@ async function main() {
         passed: passedValidations,
         failed: totalValidations - passedValidations,
       },
-      setup_tmp_dir: setupTmpDir.name,
+      dir: setupTmpDir.name,
     },
     "Evaluation completed",
   );
