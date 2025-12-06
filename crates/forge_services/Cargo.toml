@@ -13,6 +13,7 @@ async-trait.workspace = true
 async-recursion.workspace = true
 
 forge_snaps.workspace = true
+forge_stream.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 derive_setters.workspace = true

@@ -41,6 +41,8 @@ schemars.workspace = true
 glob.workspace = true
 lazy_static.workspace = true
 
+tonic.workspace = true
+
 
 [dev-dependencies]
 forge_test_kit.workspace = true
