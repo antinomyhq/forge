@@ -89,8 +89,13 @@ mod tests {
         let has_plugin_file = files.iter().any(|f| f == "forge.plugin.zsh");
         assert!(!has_plugin_file, "Should exclude forge.plugin.zsh");
 
-        // Should include files from lib/actions/ directory (only remaining files after
-        // cleanup)
+        // Should include files from lib/ directory
+        let has_lib_files = files
+            .iter()
+            .any(|f| f.starts_with("lib/") && !f.contains("actions"));
+        assert!(has_lib_files, "Should include lib/*.zsh files");
+
+        // Should include files from lib/actions/ directory
         let has_action_files = files.iter().any(|f| f.starts_with("lib/actions/"));
         assert!(has_action_files, "Should include lib/actions/*.zsh files");
 
