@@ -71,7 +71,7 @@ export async function executeTask(
       let timeoutId: NodeJS.Timeout | null = null;
 
       // Helper function to check validations after each write
-      const checkValidations = () => {
+      const checkValidations = async () => {
         if (exitedEarly || timedOut) return;
 
         if (
@@ -81,7 +81,7 @@ export async function executeTask(
         ) {
           const currentOutput = stdout + stderr;
           if (currentOutput) {
-            const results = runValidations(
+            const results = await runValidations(
               currentOutput,
               task.validations,
               context,
