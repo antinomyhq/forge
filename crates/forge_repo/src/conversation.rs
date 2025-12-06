@@ -6,7 +6,7 @@ use derive_more::From;
 use diesel::prelude::*;
 use forge_domain::{
     Context, Conversation, ConversationId, ConversationRepository, FileOperation, MetaData,
-    Metrics, ToolKind, WorkspaceId,
+    Metrics, ToolKind, ProjectRootId,
 };
 use serde::{Deserialize, Serialize};
 
@@ -114,7 +114,7 @@ impl From<MetricsRecord> for Metrics {
 struct ConversationRecord {
     conversation_id: String,
     title: Option<String>,
-    workspace_id: i64,
+    project_root_path: i64,
     context: Option<String>,
     created_at: NaiveDateTime,
     updated_at: Option<NaiveDateTime>,
@@ -122,7 +122,7 @@ struct ConversationRecord {
 }
 
 impl ConversationRecord {
-    fn new(conversation: Conversation, workspace_id: WorkspaceId) -> Self {
+    fn new(conversation: Conversation, project_root_id: ProjectRootId) -> Self {
         let context = conversation
             .context
             .as_ref()
@@ -138,7 +138,7 @@ impl ConversationRecord {
             context,
             created_at: conversation.metadata.created_at.naive_utc(),
             updated_at,
-            workspace_id: workspace_id.id() as i64,
+            project_root_path: project_root_id.id() as i64,
             metrics,
         }
     }
@@ -172,12 +172,12 @@ impl TryFrom<ConversationRecord> for Conversation {
 
 pub struct ConversationRepositoryImpl {
     pool: Arc<DatabasePool>,
-    wid: WorkspaceId,
+    wid: ProjectRootId,
 }
 
 impl ConversationRepositoryImpl {
-    pub fn new(pool: Arc<DatabasePool>, workspace_id: WorkspaceId) -> Self {
-        Self { pool, wid: workspace_id }
+    pub fn new(pool: Arc<DatabasePool>, project_root_id: ProjectRootId) -> Self {
+        Self { pool, wid: project_root_id }
     }
 }
 
@@ -225,9 +225,8 @@ impl ConversationRepository for ConversationRepositoryImpl {
     ) -> anyhow::Result<Option<Vec<Conversation>>> {
         let mut connection = self.pool.get_connection()?;
 
-        let workspace_id = self.wid.id() as i64;
         let mut query = conversations::table
-            .filter(conversations::workspace_id.eq(&workspace_id))
+            .filter(conversations::project_root_path.eq(self.wid.id() as i64))
             .filter(conversations::context.is_not_null())
             .order(conversations::updated_at.desc())
             .into_boxed();
@@ -249,9 +248,8 @@ impl ConversationRepository for ConversationRepositoryImpl {
 
     async fn get_last_conversation(&self) -> anyhow::Result<Option<Conversation>> {
         let mut connection = self.pool.get_connection()?;
-        let workspace_id = self.wid.id() as i64;
         let record: Option<ConversationRecord> = conversations::table
-            .filter(conversations::workspace_id.eq(&workspace_id))
+            .filter(conversations::project_root_path.eq(self.wid.id() as i64))
             .filter(conversations::context.is_not_null())
             .order(conversations::updated_at.desc())
             .first(&mut connection)
@@ -274,7 +272,7 @@ mod tests {
 
     fn repository() -> anyhow::Result<ConversationRepositoryImpl> {
         let pool = Arc::new(DatabasePool::in_memory()?);
-        Ok(ConversationRepositoryImpl::new(pool, WorkspaceId::new(0)))
+        Ok(ConversationRepositoryImpl::new(pool, ProjectRootId::new(0)))
     }
 
     #[tokio::test]
@@ -438,7 +436,7 @@ mod tests {
         let fixture = Conversation::new(ConversationId::generate())
             .title(Some("Test Conversation".to_string()));
 
-        let actual = ConversationRecord::new(fixture.clone(), WorkspaceId::new(0));
+        let actual = ConversationRecord::new(fixture.clone(), ProjectRootId::new(0));
 
         assert_eq!(actual.conversation_id, fixture.id.into_string());
         assert_eq!(actual.title, Some("Test Conversation".to_string()));
@@ -454,7 +452,7 @@ mod tests {
             .title(Some("Conversation with Context".to_string()))
             .context(Some(context));
 
-        let actual = ConversationRecord::new(fixture.clone(), WorkspaceId::new(0));
+        let actual = ConversationRecord::new(fixture.clone(), ProjectRootId::new(0));
 
         assert_eq!(actual.conversation_id, fixture.id.into_string());
         assert_eq!(actual.title, Some("Conversation with Context".to_string()));
@@ -469,7 +467,7 @@ mod tests {
             .title(Some("Conversation with Empty Context".to_string()))
             .context(Some(Context::default()));
 
-        let actual = ConversationRecord::new(fixture.clone(), WorkspaceId::new(0));
+        let actual = ConversationRecord::new(fixture.clone(), ProjectRootId::new(0));
 
         assert_eq!(actual.conversation_id, fixture.id.into_string());
         assert_eq!(
@@ -490,7 +488,7 @@ mod tests {
             context: None,
             created_at: Utc::now().naive_utc(),
             updated_at: None,
-            workspace_id: 0,
+            project_root_path: 0,
             metrics: None,
         };
 

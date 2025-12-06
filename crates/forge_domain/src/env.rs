@@ -79,17 +79,17 @@ pub struct Environment {
     /// If set, this provider will be used as default.
     #[dummy(default)]
     pub override_provider: Option<ProviderId>,
-    /// Maximum number of parent directories to traverse when finding workspace
+    /// Maximum number of parent directories to traverse when finding project
     /// root. Default: 10 (reasonable limit to prevent infinite loops)
     #[dummy(expr = "Some(10)")]
-    pub max_workspace_depth: Option<usize>,
+    pub max_project_root_depth: Option<usize>,
 }
 
 impl Environment {
-    /// Find workspace root by traversing up the directory tree looking for
-    /// workspace markers
-    pub fn workspace_root(&self) -> PathBuf {
-        find_workspace_root(&self.cwd, self.max_workspace_depth)
+    /// Find project root by traversing up the directory tree looking for
+    /// project root markers
+    pub fn project_root_path(&self) -> PathBuf {
+        find_project_root(&self.cwd, self.max_project_root_depth)
     }
 
     pub fn log_path(&self) -> PathBuf {
@@ -101,8 +101,8 @@ impl Environment {
             return custom_path.clone();
         }
 
-        let workspace_root = self.workspace_root();
-        let forge_dir = workspace_root.join(".forge");
+        let project_root = self.project_root_path();
+        let forge_dir = project_root.join(".forge");
 
         // Create .forge directory if it doesn't exist
         if let Err(e) = std::fs::create_dir_all(&forge_dir) {
@@ -170,19 +170,19 @@ impl Environment {
         self.cwd.join(".forge/skills")
     }
 
-    pub fn workspace_id(&self) -> WorkspaceId {
-        let workspace_root = self.workspace_root();
+    pub fn project_root_id(&self) -> ProjectRootId {
+        let project_root = self.project_root_path();
         let mut hasher = DefaultHasher::default();
-        workspace_root.hash(&mut hasher);
-        WorkspaceId(hasher.finish())
+        project_root.hash(&mut hasher);
+        ProjectRootId(hasher.finish())
     }
 }
 
 #[derive(Clone, Copy, Display)]
-pub struct WorkspaceId(u64);
-impl WorkspaceId {
+pub struct ProjectRootId(u64);
+impl ProjectRootId {
     pub fn new(id: u64) -> Self {
-        WorkspaceId(id)
+        ProjectRootId(id)
     }
 
     pub fn id(&self) -> u64 {
@@ -190,8 +190,8 @@ impl WorkspaceId {
     }
 }
 
-fn find_workspace_root(cwd: &Path, max_depth: Option<usize>) -> PathBuf {
-    let markers_str = std::env::var("FORGE_WORKSPACE_MARKERS")
+fn find_project_root(cwd: &Path, max_depth: Option<usize>) -> PathBuf {
+    let markers_str = std::env::var("FORGE_PROJECT_ROOT_MARKERS")
         .unwrap_or_else(|_| ".git,forge.yaml,.forge,forge/.config.json".to_string());
 
     let markers = markers_str
@@ -342,7 +342,7 @@ fn test_command_path() {
         max_image_size: 262144,
         override_model: None,
         override_provider: None,
-        max_workspace_depth: Some(10),
+        max_project_root_depth: Some(10),
     };
 
     let actual = fixture.command_path();
@@ -379,7 +379,7 @@ fn test_command_cwd_path() {
         max_image_size: 262144,
         override_model: None,
         override_provider: None,
-        max_workspace_depth: Some(10),
+        max_project_root_depth: Some(10),
     };
 
     let actual = fixture.command_cwd_path();
@@ -416,7 +416,7 @@ fn test_command_cwd_path_independent_from_command_path() {
         max_image_size: 262144,
         override_model: None,
         override_provider: None,
-        max_workspace_depth: Some(10),
+        max_project_root_depth: Some(10),
     };
 
     let command_path = fixture.command_path();
