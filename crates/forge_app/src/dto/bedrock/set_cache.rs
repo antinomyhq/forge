@@ -3,7 +3,7 @@ use aws_sdk_bedrockruntime::types::{
 };
 use forge_domain::Transformer;
 
-use super::convert::BedrockConvert;
+use super::BedrockConvert;
 
 /// Transformer that implements a simple two-breakpoint cache strategy for
 /// Bedrock:

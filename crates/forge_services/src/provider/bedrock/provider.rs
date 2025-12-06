@@ -3,13 +3,12 @@ use std::sync::Arc;
 use anyhow::{Context as _, Result};
 use aws_sdk_bedrockruntime::Client;
 use forge_app::HttpClientService;
+use forge_app::dto::bedrock::{BedrockConvert, BedrockStreamEvent, SetCache};
 use forge_domain::{
     ChatCompletionMessage, Context, Model, ModelId, Provider, ResultStream, Transformer,
 };
 use reqwest::Url;
 use tokio::sync::OnceCell;
-
-use super::transform::SetCache;
 
 /// Provider implementation for Amazon Bedrock using AWS SDK
 pub struct BedrockProvider<T> {
@@ -58,12 +57,22 @@ impl<H: HttpClientService> BedrockProvider<H> {
     }
 
     /// Check if the model supports prompt caching
+    ///
+    /// AWS Bedrock supports prompt caching for models that implement cache
+    /// points. Currently supported models:
+    /// - Anthropic Claude (all variants) - System + Message cache points
+    /// - Amazon Nova (all variants) - System cache points only (20K token
+    ///   limit)
+    ///
+    /// The SetCache transformer is model-aware and will only add message-level
+    /// cache points for Claude models.
     fn supports_caching(model_id: &str) -> bool {
         let model_lower = model_id.to_lowercase();
 
-        // Only Anthropic Claude models support prompt caching on Bedrock
-        // Nova, Llama, Mistral, and other models don't support it yet
-        model_lower.contains("anthropic") || model_lower.contains("claude")
+        // Claude and Nova models support prompt caching
+        // SetCache is model-aware: adds message cache points only for Claude
+        model_lower.contains("anthropic")
+            || model_lower.contains("claude")
     }
 
     /// Transform model ID with regional prefix if needed
@@ -108,7 +117,7 @@ impl<H: HttpClientService> BedrockProvider<H> {
         };
 
         // Convert context to AWS SDK types
-        let bedrock_input = super::convert::BedrockConvert::try_from(context)
+        let bedrock_input = BedrockConvert::try_from(context)
             .context("Failed to convert context to Bedrock ConverseStreamInput")?;
 
         // Apply transformers pipeline
@@ -133,7 +142,7 @@ impl<H: HttpClientService> BedrockProvider<H> {
         let stream = futures::stream::unfold(output.stream, |mut event_stream| async move {
             match event_stream.recv().await {
                 Ok(Some(event)) => {
-                    let wrapped_event = super::convert::BedrockStreamEvent::from(event);
+                    let wrapped_event = BedrockStreamEvent::from(event);
                     let message =
                         ChatCompletionMessage::try_from(wrapped_event).unwrap_or_else(|e| {
                             tracing::warn!("Failed to convert Bedrock event: {}", e);
