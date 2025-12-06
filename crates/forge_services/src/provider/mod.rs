@@ -1,4 +1,5 @@
 mod anthropic;
+mod bedrock;
 mod client;
 mod event;
 #[cfg(test)]
