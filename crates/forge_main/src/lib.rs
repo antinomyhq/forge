@@ -2,6 +2,7 @@ pub mod banner;
 mod cli;
 mod completer;
 mod conversation_selector;
+mod display_constants;
 mod editor;
 mod env;
 mod info;
@@ -15,7 +16,9 @@ mod title_display;
 mod tools_display;
 pub mod tracker;
 mod ui;
+mod utils;
 mod vscode;
+mod zsh_plugin;
 
 mod update;
 

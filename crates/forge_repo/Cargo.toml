@@ -9,6 +9,7 @@ forge_domain.workspace = true
 forge_infra.workspace = true
 forge_snaps.workspace = true
 forge_fs.workspace = true
+forge_template.workspace = true
 
 anyhow.workspace = true
 futures.workspace = true
@@ -32,6 +33,16 @@ derive_more.workspace = true
 gray_matter = { workspace = true }
 dirs.workspace = true
 
+# gRPC for codebase client
+tonic.workspace = true
+prost = "0.14.1"
+
+prost-types = "0.14.1"
+tonic-prost = "0.14.2"
+
+[build-dependencies]
+tonic-prost-build = "0.14.2"
+
 [dev-dependencies]
 forge_test_kit.workspace = true
 tokio = { workspace = true, features = ["macros", "rt", "time", "test-util"] }
@@ -39,3 +50,4 @@ tempfile = { workspace = true }
 pretty_assertions = { workspace = true }
 serial_test = "3.2"
 fake = { version = "4.4.0", features = ["derive"] }
+derive_setters.workspace = true

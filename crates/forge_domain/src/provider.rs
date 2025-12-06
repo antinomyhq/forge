@@ -4,16 +4,26 @@ use std::collections::HashMap;
 use derive_more::{AsRef, Deref, From};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use strum_macros::Display;
 use url::Url;
 
 use crate::{ApiKey, AuthCredential, AuthDetails, Model, Template};
 
-/// Provider identifier that can be either a built-in provider or a custom
-/// provider.
-///
-/// Built-in providers are available as constants (e.g., `ProviderId::OPENAI`,
-/// `ProviderId::ANTHROPIC`). Custom providers can be created from any string
-/// using `from_str()`.
+/// Distinguishes between different categories of providers
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Display, Default)]
+#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
+pub enum ProviderType {
+    /// LLM providers for chat completions (default for backward compatibility)
+    #[default]
+    Llm,
+    /// Context engine providers for code indexing and search
+    ContextEngine,
+}
+
+/// --- IMPORTANT ---
+/// The order of providers is important because that would be order in which the
+/// providers will be resolved
 #[derive(
     Debug,
     Clone,
@@ -50,6 +60,7 @@ impl ProviderId {
     pub const GITHUB_COPILOT: ProviderId = ProviderId(Cow::Borrowed("github_copilot"));
     pub const OPENAI_COMPATIBLE: ProviderId = ProviderId(Cow::Borrowed("openai_compatible"));
     pub const ANTHROPIC_COMPATIBLE: ProviderId = ProviderId(Cow::Borrowed("anthropic_compatible"));
+    pub const FORGE_SERVICES: ProviderId = ProviderId(Cow::Borrowed("forge_services"));
 
     /// Returns all built-in provider IDs
     ///
@@ -72,6 +83,7 @@ impl ProviderId {
             ProviderId::GITHUB_COPILOT,
             ProviderId::OPENAI_COMPATIBLE,
             ProviderId::ANTHROPIC_COMPATIBLE,
+            ProviderId::FORGE_SERVICES,
         ]
     }
 
@@ -127,6 +139,7 @@ impl std::str::FromStr for ProviderId {
             "github_copilot" => ProviderId::GITHUB_COPILOT,
             "openai_compatible" => ProviderId::OPENAI_COMPATIBLE,
             "anthropic_compatible" => ProviderId::ANTHROPIC_COMPATIBLE,
+            "forge_services" => ProviderId::FORGE_SERVICES,
             // For custom providers, use Cow::Owned to avoid memory leaks
             custom => ProviderId(Cow::Owned(custom.to_string())),
         };
@@ -149,7 +162,7 @@ pub enum ProviderResponse {
 /// Represents the source of models for a provider
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum Models<T> {
+pub enum ModelSource<T> {
     /// Can be a `Url` or a `Template`
     Url(T),
     Hardcoded(Vec<Model>),
@@ -158,10 +171,13 @@ pub enum Models<T> {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Provider<T> {
     pub id: ProviderId,
-    pub response: ProviderResponse,
+    #[serde(default)]
+    pub provider_type: ProviderType,
+    pub response: Option<ProviderResponse>,
     pub url: T,
-    pub models: Models<T>,
+    pub models: Option<ModelSource<T>>,
     pub auth_methods: Vec<crate::AuthMethod>,
+    #[serde(default)]
     pub url_params: Vec<crate::URLParam>,
     pub credential: Option<AuthCredential>,
 }
@@ -170,8 +186,8 @@ impl<T> Provider<T> {
     pub fn is_configured(&self) -> bool {
         self.credential.is_some()
     }
-    pub fn models(&self) -> &Models<T> {
-        &self.models
+    pub fn models(&self) -> Option<&ModelSource<T>> {
+        self.models.as_ref()
     }
 }
 
@@ -207,6 +223,13 @@ impl AnyProvider {
         }
     }
 
+    pub fn provider_type(&self) -> &ProviderType {
+        match self {
+            AnyProvider::Url(p) => &p.provider_type,
+            AnyProvider::Template(t) => &t.provider_type,
+        }
+    }
+
     pub fn id(&self) -> ProviderId {
         match self {
             AnyProvider::Url(p) => p.id.clone(),
@@ -215,10 +238,10 @@ impl AnyProvider {
     }
 
     /// Gets the response type
-    pub fn response(&self) -> &ProviderResponse {
+    pub fn response(&self) -> Option<&ProviderResponse> {
         match self {
-            AnyProvider::Url(p) => &p.response,
-            AnyProvider::Template(p) => &p.response,
+            AnyProvider::Url(p) => p.response.as_ref(),
+            AnyProvider::Template(p) => p.response.as_ref(),
         }
     }
 
@@ -272,12 +295,15 @@ mod test_helpers {
     pub(super) fn zai(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::ZAI,
-            response: ProviderResponse::OpenAI,
+            provider_type: Default::default(),
+            response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.z.ai/api/paas/v4/chat/completions").unwrap(),
             auth_methods: vec![crate::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::ZAI, key),
-            models: Models::Url(Url::parse("https://api.z.ai/api/paas/v4/models").unwrap()),
+            models: Some(ModelSource::Url(
+                Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
+            )),
         }
     }
 
@@ -285,12 +311,15 @@ mod test_helpers {
     pub(super) fn zai_coding(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::ZAI_CODING,
-            response: ProviderResponse::OpenAI,
+            provider_type: Default::default(),
+            response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.z.ai/api/coding/paas/v4/chat/completions").unwrap(),
             auth_methods: vec![crate::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::ZAI_CODING, key),
-            models: Models::Url(Url::parse("https://api.z.ai/api/paas/v4/models").unwrap()),
+            models: Some(ModelSource::Url(
+                Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
+            )),
         }
     }
 
@@ -298,12 +327,15 @@ mod test_helpers {
     pub(super) fn openai(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::OPENAI,
-            response: ProviderResponse::OpenAI,
+            provider_type: Default::default(),
+            response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             auth_methods: vec![crate::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::OPENAI, key),
-            models: Models::Url(Url::parse("https://api.openai.com/v1/models").unwrap()),
+            models: Some(ModelSource::Url(
+                Url::parse("https://api.openai.com/v1/models").unwrap(),
+            )),
         }
     }
 
@@ -311,12 +343,15 @@ mod test_helpers {
     pub(super) fn xai(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::XAI,
-            response: ProviderResponse::OpenAI,
+            provider_type: Default::default(),
+            response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.x.ai/v1/chat/completions").unwrap(),
             auth_methods: vec![crate::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::XAI, key),
-            models: Models::Url(Url::parse("https://api.x.ai/v1/models").unwrap()),
+            models: Some(ModelSource::Url(
+                Url::parse("https://api.x.ai/v1/models").unwrap(),
+            )),
         }
     }
 
@@ -347,7 +382,8 @@ mod test_helpers {
         };
         Provider {
             id: ProviderId::VERTEX_AI,
-            response: ProviderResponse::OpenAI,
+            provider_type: Default::default(),
+            response: Some(ProviderResponse::OpenAI),
             url: Url::parse(&chat_url).unwrap(),
             auth_methods: vec![crate::AuthMethod::ApiKey],
             url_params: ["project_id", "location"]
@@ -355,7 +391,7 @@ mod test_helpers {
                 .map(|&s| s.to_string().into())
                 .collect(),
             credential: make_credential(ProviderId::VERTEX_AI, key),
-            models: Models::Url(Url::parse(&model_url).unwrap()),
+            models: Some(ModelSource::Url(Url::parse(&model_url).unwrap())),
         }
     }
 
@@ -377,7 +413,8 @@ mod test_helpers {
 
         Provider {
             id: ProviderId::AZURE,
-            response: ProviderResponse::OpenAI,
+            provider_type: Default::default(),
+            response: Some(ProviderResponse::OpenAI),
             url: Url::parse(&chat_url).unwrap(),
             auth_methods: vec![crate::AuthMethod::ApiKey],
             url_params: ["resource_name", "deployment_name", "api_version"]
@@ -385,7 +422,7 @@ mod test_helpers {
                 .map(|&s| s.to_string().into())
                 .collect(),
             credential: make_credential(ProviderId::AZURE, key),
-            models: Models::Url(Url::parse(&model_url).unwrap()),
+            models: Some(ModelSource::Url(Url::parse(&model_url).unwrap())),
         }
     }
 }
@@ -425,7 +462,8 @@ mod tests {
         let actual = xai(fixture);
         let expected = Provider {
             id: ProviderId::XAI,
-            response: ProviderResponse::OpenAI,
+            provider_type: Default::default(),
+            response: Some(ProviderResponse::OpenAI),
             url: Url::from_str("https://api.x.ai/v1/chat/completions").unwrap(),
             credential: Some(AuthCredential {
                 id: ProviderId::XAI,
@@ -434,7 +472,9 @@ mod tests {
             }),
             auth_methods: vec![crate::AuthMethod::ApiKey],
             url_params: vec![],
-            models: Models::Url(Url::from_str("https://api.x.ai/v1/models").unwrap()),
+            models: Some(ModelSource::Url(
+                Url::from_str("https://api.x.ai/v1/models").unwrap(),
+            )),
         };
         assert_eq!(actual, expected);
     }
@@ -460,7 +500,9 @@ mod tests {
     fn test_zai_coding_to_model_url() {
         let fixture = zai_coding("test_key");
         let actual = fixture.models.clone();
-        let expected = Models::Url(Url::parse("https://api.z.ai/api/paas/v4/models").unwrap());
+        let expected = Some(ModelSource::Url(
+            Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
+        ));
         assert_eq!(actual, expected);
     }
 
@@ -476,7 +518,9 @@ mod tests {
     fn test_regular_zai_to_model_url() {
         let fixture = zai("test_key");
         let actual = fixture.models.clone();
-        let expected = Models::Url(Url::parse("https://api.z.ai/api/paas/v4/models").unwrap());
+        let expected = Some(ModelSource::Url(
+            Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
+        ));
         assert_eq!(actual, expected);
     }
 
@@ -507,16 +551,16 @@ mod tests {
 
         // Check model URL
         let actual_model = fixture.models.clone();
-        let expected_model = Models::Url(
+        let expected_model = Some(ModelSource::Url(
             Url::parse(
                 "https://my-resource.openai.azure.com/openai/models?api-version=2024-02-15-preview",
             )
             .unwrap(),
-        );
+        ));
         assert_eq!(actual_model, expected_model);
 
         assert_eq!(fixture.id, ProviderId::AZURE);
-        assert_eq!(fixture.response, ProviderResponse::OpenAI);
+        assert_eq!(fixture.response, Some(ProviderResponse::OpenAI));
     }
 
     #[test]
@@ -530,10 +574,10 @@ mod tests {
 
         // Check model URL
         let actual_model = fixture.models.clone();
-        let expected_model = Models::Url(
+        let expected_model = Some(ModelSource::Url(
             Url::parse("https://east-us.openai.azure.com/openai/models?api-version=2023-05-15")
                 .unwrap(),
-        );
+        ));
         assert_eq!(actual_model, expected_model);
     }
 }

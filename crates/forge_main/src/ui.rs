@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fmt::Display;
+use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -32,6 +33,7 @@ use crate::cli::{
     TopLevelCommand,
 };
 use crate::conversation_selector::ConversationSelector;
+use crate::display_constants::{CommandType, headers, markers, status};
 use crate::env::should_show_completion_prompt;
 use crate::info::Info;
 use crate::input::Console;
@@ -42,7 +44,11 @@ use crate::state::UIState;
 use crate::title_display::TitleDisplayExt;
 use crate::tools_display::format_tools;
 use crate::update::on_update;
+use crate::utils::humanize_time;
 use crate::{TRACKER, banner, tracker};
+
+// File-specific constants
+const MISSING_AGENT_TITLE: &str = "<missing agent.title>";
 
 /// Formats an MCP server config for display, redacting sensitive information.
 /// Returns the command/URL string only.
@@ -194,7 +200,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         let title = format!(
             "∙ {}",
-            agent.title.as_deref().unwrap_or("<Missing agent.title>")
+            agent.title.as_deref().unwrap_or(MISSING_AGENT_TITLE)
         )
         .dimmed();
         self.writeln_title(TitleFormat::action(format!("{name} {title}")))?;
@@ -248,8 +254,17 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             Ok(_) => {}
             Err(error) => {
                 tracing::error!(error = ?error);
-                let _ = self
-                    .writeln_to_stderr(TitleFormat::error(error.to_string()).display().to_string());
+
+                // Display the full error chain for better debugging
+                let mut error_message = error.to_string();
+                let mut source = error.source();
+                while let Some(err) = source {
+                    error_message.push_str(&format!("\n    Caused by: {}", err));
+                    source = err.source();
+                }
+
+                let _ =
+                    self.writeln_to_stderr(TitleFormat::error(error_message).display().to_string());
             }
         }
     }
@@ -277,6 +292,14 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         if let Some(prompt) = prompt {
             self.spinner.start(None)?;
             self.on_message(Some(prompt)).await?;
+            return Ok(());
+        }
+
+        // Handle piped input if provided (treat it like --prompt)
+        let piped_input = self.cli.piped_input.clone();
+        if let Some(piped) = piped_input {
+            self.spinner.start(None)?;
+            self.on_message(Some(piped)).await?;
             return Ok(());
         }
 
@@ -331,6 +354,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         tokio::spawn(async move { api.get_tools().await });
         let api = self.api.clone();
         tokio::spawn(async move { api.get_agents().await });
+        let api = self.api.clone();
+        tokio::spawn(async move {
+            let _ = api.hydrate_channel();
+        });
     }
 
     async fn handle_generate_conversation_id(&mut self) -> Result<()> {
@@ -393,7 +420,6 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
                 return Ok(());
             }
-
             TopLevelCommand::Mcp(mcp_command) => match mcp_command.command {
                 McpCommand::Import(import_args) => {
                     let scope: forge_domain::Scope = import_args.scope.into();
@@ -485,22 +511,18 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     .await?;
                 return Ok(());
             }
-
             TopLevelCommand::Provider(provider_group) => {
                 self.handle_provider_command(provider_group).await?;
                 return Ok(());
             }
-
             TopLevelCommand::Conversation(conversation_group) => {
                 self.handle_conversation_command(conversation_group).await?;
                 return Ok(());
             }
-
             TopLevelCommand::Suggest { prompt } => {
                 self.on_cmd(UserPrompt::from(prompt)).await?;
                 return Ok(());
             }
-
             TopLevelCommand::Cmd(run_group) => {
                 let porcelain = run_group.porcelain;
                 match run_group.command {
@@ -535,7 +557,46 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
                 return Ok(());
             }
+            TopLevelCommand::Workspace(index_group) => {
+                match index_group.command {
+                    crate::cli::WorkspaceCommand::Sync { path, batch_size } => {
+                        self.on_index(path, batch_size).await?;
+                    }
+                    crate::cli::WorkspaceCommand::List { porcelain } => {
+                        self.on_list_workspaces(porcelain).await?;
+                    }
+                    crate::cli::WorkspaceCommand::Query {
+                        query,
+                        path,
+                        limit,
+                        top_k,
+                        use_case,
+                        starts_with,
+                        ends_with,
+                    } => {
+                        let mut params =
+                            forge_domain::SearchParams::new(&query, &use_case).limit(limit);
+                        if let Some(k) = top_k {
+                            params = params.top_k(k);
+                        }
+                        if let Some(prefix) = starts_with {
+                            params = params.starts_with(prefix);
+                        }
+                        if let Some(suffix) = ends_with {
+                            params = params.ends_with(suffix);
+                        }
+                        self.on_query(path, params).await?;
+                    }
 
+                    crate::cli::WorkspaceCommand::Info { path } => {
+                        self.on_workspace_info(path).await?;
+                    }
+                    crate::cli::WorkspaceCommand::Delete { workspace_id } => {
+                        self.on_delete_workspace(workspace_id).await?;
+                    }
+                }
+                return Ok(());
+            }
             TopLevelCommand::Commit(commit_group) => {
                 let preview = commit_group.preview;
                 let result = self.handle_commit_command(commit_group).await?;
@@ -543,6 +604,12 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     self.writeln(&result.message)?;
                 }
                 return Ok(());
+            }
+            TopLevelCommand::Data(data_command_group) => {
+                let mut stream = self.api.generate_data(data_command_group.into()).await?;
+                while let Some(data) = stream.next().await {
+                    self.writeln(data?)?;
+                }
             }
         }
         Ok(())
@@ -555,9 +622,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         use forge_domain::ConversationId;
 
         match conversation_group.command {
-            ConversationCommand::List => {
-                self.on_show_conversations(conversation_group.porcelain)
-                    .await?;
+            ConversationCommand::List { porcelain } => {
+                self.on_show_conversations(porcelain).await?;
             }
             ConversationCommand::New => {
                 self.handle_generate_conversation_id().await?;
@@ -630,15 +696,22 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
                 self.on_show_conv_info(conversation).await?;
             }
-            ConversationCommand::Clone { id } => {
+            ConversationCommand::Stats { id, porcelain } => {
+                let conversation_id =
+                    ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
+
+                let conversation = self.validate_conversation_exists(&conversation_id).await?;
+
+                self.on_show_conv_stats(conversation, porcelain).await?;
+            }
+            ConversationCommand::Clone { id, porcelain } => {
                 let conversation_id =
                     ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
 
                 let conversation = self.validate_conversation_exists(&conversation_id).await?;
 
                 self.spinner.start(Some("Cloning"))?;
-                self.on_clone_conversation(conversation, conversation_group.porcelain)
-                    .await?;
+                self.on_clone_conversation(conversation, porcelain).await?;
                 self.spinner.stop(None)?;
             }
         }
@@ -742,9 +815,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             if !provider.is_configured() {
                 return Err(anyhow::anyhow!("Provider '{id}' is not configured"));
             }
-
             self.api.remove_provider(id).await?;
-            self.writeln_title(TitleFormat::completion(format!(
+            self.writeln_title(TitleFormat::debug(format!(
                 "Successfully logged out from {id}"
             )))?;
             return Ok(true);
@@ -770,7 +842,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             Some(provider) => {
                 let provider_id = provider.0.id();
                 self.api.remove_provider(&provider_id).await?;
-                self.writeln_title(TitleFormat::completion(format!(
+                self.writeln_title(TitleFormat::debug(format!(
                     "Successfully logged out from {provider_id}"
                 )))?;
                 return Ok(true);
@@ -821,7 +893,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Builds an Info structure for agents with their details
     async fn build_agents_info(&self) -> anyhow::Result<Info> {
-        let agents = self.api.get_agents().await?;
+        let mut agents = self.api.get_agents().await?;
+        // Sort agents alphabetically by ID
+        agents.sort_by(|a, b| a.id.as_str().cmp(b.id.as_str()));
         let mut info = Info::new();
 
         for agent in agents.iter() {
@@ -829,18 +903,13 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             let title = agent
                 .title
                 .as_deref()
-                .unwrap_or("<Missing agent.title>")
-                .lines()
-                .collect::<Vec<_>>()
-                .join(" ");
+                .map(|title| title.lines().collect::<Vec<_>>().join(" "));
 
             // Get provider and model for this agent
-            let provider_name = self
-                .get_provider(Some(agent.id.clone()))
-                .await
-                .ok()
-                .map(|p| p.id.to_string())
-                .unwrap_or_else(|| "<unset>".to_string());
+            let provider_name = match self.get_provider(Some(agent.id.clone())).await {
+                Ok(p) => p.id.to_string(),
+                Err(e) => format!("Error: [{}]", e),
+            };
 
             let model_name = agent.model.as_str().to_string();
 
@@ -850,16 +919,16 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .and_then(|a| a.enabled)
                 .unwrap_or_default()
             {
-                "ENABLED"
+                status::YES
             } else {
-                "DISABLED"
+                status::NO
             };
 
             let location = agent
                 .path
                 .as_ref()
                 .map(|s| s.to_string())
-                .unwrap_or_else(|| "BUILT IN".to_string());
+                .unwrap_or_else(|| markers::BUILT_IN.to_string());
 
             info = info
                 .add_title(id.to_case(Case::UpperSnake))
@@ -868,7 +937,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .add_key_value("Location", location)
                 .add_key_value("Provider", provider_name)
                 .add_key_value("Model", model_name)
-                .add_key_value("Reasoning", reasoning);
+                .add_key_value("Reasoning Enabled", reasoning);
         }
 
         Ok(info)
@@ -884,15 +953,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let info = self.build_agents_info().await?;
 
         if porcelain {
-            let porcelain =
-                Porcelain::from(&info)
-                    .skip(1)
-                    .drop_col(0)
-                    .map_col(5, |text| match text.as_deref() {
-                        Some("ENABLED") => Some("Reasoning".to_string()),
-                        Some("DISABLED") => Some("Non-Reasoning".to_string()),
-                        _ => None,
-                    });
+            let porcelain = Porcelain::from(&info)
+                .drop_col(0)
+                .truncate(3, 60)
+                .uppercase_headers();
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
@@ -917,21 +981,23 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             let domain = if let Some(url) = provider.url() {
                 url.domain().map(|d| d.to_string()).unwrap_or_default()
             } else {
-                "<unset>".to_string()
+                markers::EMPTY.to_string()
             };
+            let provider_type = provider.provider_type().to_string();
             let configured = provider.is_configured();
             info = info
                 .add_title(id.to_case(Case::UpperSnake))
                 .add_key_value("name", display_name)
                 .add_key_value("id", id)
-                .add_key_value("host", domain);
+                .add_key_value("host", domain)
+                .add_key_value("type", provider_type);
             if configured {
-                info = info.add_key_value("status", "available");
+                info = info.add_key_value("logged in", status::YES);
             };
         }
 
         if porcelain {
-            let porcelain = Porcelain::from(&info).skip(1).drop_col(0);
+            let porcelain = Porcelain::from(&info).drop_col(0).uppercase_headers();
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
@@ -968,37 +1034,22 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 };
                 info = info.add_key_value("Context Window", context);
             } else {
-                info = info.add_key_value("Context Window", "<unavailable>")
+                info = info.add_key_value("Context Window", markers::EMPTY)
             }
 
             // Add tools support indicator if explicitly supported
             if let Some(supported) = model.tools_supported {
                 info = info.add_key_value(
-                    "Tools",
-                    if supported {
-                        "Supported"
-                    } else {
-                        "Unsupported"
-                    },
+                    "Tool Supported",
+                    if supported { status::YES } else { status::NO },
                 )
             } else {
-                info = info.add_key_value("Tools", "<unknown>")
+                info = info.add_key_value("Tools", markers::EMPTY)
             }
         }
 
         if porcelain {
-            self.writeln(
-                Porcelain::from(&info)
-                    .skip(1)
-                    .swap_cols(0, 1)
-                    .map_col(3, |col| {
-                        if col == Some("Supported".to_owned()) {
-                            Some("🛠️".into())
-                        } else {
-                            None
-                        }
-                    }),
-            )?;
+            self.writeln(Porcelain::from(&info).swap_cols(0, 1).uppercase_headers())?;
         } else {
             self.writeln(info)?;
         }
@@ -1027,20 +1078,20 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         for cmd in &built_in_commands {
             info = info
                 .add_title(cmd.command)
-                .add_key_value("type", "command")
+                .add_key_value("type", CommandType::Command)
                 .add_key_value("description", cmd.description);
         }
 
         // Add agent aliases
         info = info
             .add_title("ask")
-            .add_key_value("type", "agent")
+            .add_key_value("type", CommandType::Agent)
             .add_key_value(
                 "description",
                 "Research and investigation agent [alias for: sage]",
             )
             .add_title("plan")
-            .add_key_value("type", "agent")
+            .add_key_value("type", CommandType::Agent)
             .add_key_value(
                 "description",
                 "Planning and strategy agent [alias for: muse]",
@@ -1051,14 +1102,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         for agent in agents {
             let title = agent
                 .title
-                .as_deref()
-                .unwrap_or("<Missing agent.title>")
-                .lines()
-                .collect::<Vec<_>>()
-                .join(" ");
+                .map(|title| title.lines().collect::<Vec<_>>().join(" "));
             info = info
                 .add_title(agent.id.to_string())
-                .add_key_value("type", "agent")
+                .add_key_value("type", CommandType::Agent)
                 .add_key_value("description", title);
         }
 
@@ -1066,12 +1113,23 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         for command in custom_commands {
             info = info
                 .add_title(command.name.clone())
-                .add_key_value("type", "custom")
+                .add_key_value("type", CommandType::Custom)
                 .add_key_value("description", command.description.clone());
         }
 
         if porcelain {
-            let porcelain = Porcelain::from(&info).swap_cols(1, 2).skip(1);
+            // Original order from Info: [$ID, type, description]
+            // So the original order is fine! But $ID should become COMMAND
+            let porcelain = Porcelain::from(&info)
+                .uppercase_headers()
+                .to_case(&[1], Case::UpperSnake)
+                .map_col(0, |col| {
+                    if col.as_deref() == Some(headers::ID) {
+                        Some("COMMAND".to_string())
+                    } else {
+                        col
+                    }
+                });
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
@@ -1083,7 +1141,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     /// Lists only custom commands (used by `forge run`)
     async fn on_show_custom_commands(&mut self, porcelain: bool) -> anyhow::Result<()> {
         let custom_commands = self.api.get_commands().await?;
-        let mut info = Info::new().add_title("CUSTOM COMMANDS");
+        let mut info = Info::new();
 
         for command in custom_commands {
             info = info
@@ -1092,7 +1150,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         if porcelain {
-            let porcelain = Porcelain::from(&info).skip(2);
+            let porcelain = Porcelain::from(&info).uppercase_headers();
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
@@ -1120,7 +1178,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         if porcelain {
-            let porcelain = Porcelain::from(&info).skip(1).drop_col(3);
+            let porcelain = Porcelain::from(&info).truncate(3, 60).uppercase_headers();
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
@@ -1135,13 +1193,13 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .get_agent_model(None)
             .await
             .map(|m| m.as_str().to_string());
-        let model = model.unwrap_or_else(|| "<not set>".to_string());
+        let model = model.unwrap_or_else(|| markers::EMPTY.to_string());
         let provider = self
             .get_provider(None)
             .await
             .ok()
             .map(|p| p.id.to_string())
-            .unwrap_or_else(|| "<not set>".to_string());
+            .unwrap_or_else(|| markers::EMPTY.to_string());
 
         let info = Info::new()
             .add_title("CONFIGURATION")
@@ -1149,7 +1207,12 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .add_key_value("Default Provider", provider);
 
         if porcelain {
-            self.writeln(Porcelain::from(&info).into_long().skip(1).drop_col(0))?;
+            self.writeln(
+                Porcelain::from(&info)
+                    .into_long()
+                    .drop_col(0)
+                    .uppercase_headers(),
+            )?;
         } else {
             self.writeln(info)?;
         }
@@ -1175,7 +1238,12 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         let info = format_tools(&agent_tools, &all_tools);
         if porcelain {
-            self.writeln(Porcelain::from(&info).into_long().drop_col(1).skip(1))?;
+            self.writeln(
+                Porcelain::from(&info)
+                    .into_long()
+                    .drop_col(1)
+                    .uppercase_headers(),
+            )?;
         } else {
             self.writeln(info)?;
         }
@@ -1208,7 +1276,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
 
             if server.is_disabled() {
-                info = info.add_key_value("Status", "disabled");
+                info = info.add_key_value("Status", status::NO);
             }
 
             // Add tools for this MCP server
@@ -1237,7 +1305,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         if porcelain {
-            self.writeln(Porcelain::from(&info).skip(1))?;
+            self.writeln(Porcelain::from(&info).uppercase_headers().truncate(3, 60))?;
         } else {
             self.writeln(info)?;
         }
@@ -1279,26 +1347,26 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Add model information if available
         if let Some(model) = model {
-            info = info.add_key_value("Model", model);
+            info = info.add_key_value("Model", model.as_str());
         }
 
         // Add provider information
         match (default_provider, agent_provider) {
             (Some(default), Some(agent_specific)) if default.id != agent_specific.id => {
                 // Show both providers if they're different
-                info = info.add_key_value("Agent Provider (URL)", &agent_specific.url);
+                info = info.add_key_value("Agent Provider (URL)", agent_specific.url.as_str());
                 if let Some(api_key) = agent_specific.api_key() {
                     info = info.add_key_value("Agent API Key", truncate_key(api_key.as_str()));
                 }
 
-                info = info.add_key_value("Default Provider (URL)", &default.url);
+                info = info.add_key_value("Default Provider (URL)", default.url.as_str());
                 if let Some(api_key) = default.api_key() {
                     info = info.add_key_value("Default API Key", truncate_key(api_key.as_str()));
                 }
             }
             (Some(provider), _) | (_, Some(provider)) => {
                 // Show single provider (either default or agent-specific)
-                info = info.add_key_value("Provider (URL)", &provider.url);
+                info = info.add_key_value("Provider (URL)", provider.url.as_str());
                 if let Some(api_key) = provider.api_key() {
                     info = info.add_key_value("API Key", truncate_key(api_key.as_str()));
                 }
@@ -1317,11 +1385,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         if let Some(conversation) = conversation {
             info = info.extend(Info::from(&conversation));
         } else {
-            info = info.extend(
-                Info::new()
-                    .add_title("CONVERSATION")
-                    .add_key_value("ID", "<Uninitialized>".to_string()),
-            );
+            info = info.extend(Info::new().add_title("CONVERSATION").add_key("ID"));
         }
 
         if porcelain {
@@ -1341,7 +1405,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     }
 
     async fn on_zsh_prompt(&self) -> anyhow::Result<()> {
-        println!("{}", include_str!("../../../shell-plugin/forge.plugin.zsh"));
+        let plugin = crate::zsh_plugin::generate_zsh_plugin()?;
+        println!("{plugin}");
         Ok(())
     }
 
@@ -1404,7 +1469,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             return Ok(());
         }
 
-        let mut info = Info::new().add_title("SESSIONS");
+        let mut info = Info::new();
 
         for conv in conversations.into_iter() {
             if conv.context.is_none() {
@@ -1415,7 +1480,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .title
                 .as_deref()
                 .map(|t| t.to_string())
-                .unwrap_or_else(|| format!("<untitled> [{}]", conv.id));
+                .unwrap_or_else(|| markers::EMPTY.to_string());
 
             // Format time using humantime library (same as conversation_selector.rs)
             let duration = chrono::Utc::now().signed_duration_since(
@@ -1438,7 +1503,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // In porcelain mode, skip the top-level "SESSIONS" title
         if porcelain {
-            let porcelain = Porcelain::from(&info).skip(2).drop_col(3).truncate(1, 60);
+            let porcelain = Porcelain::from(&info)
+                .drop_col(3)
+                .truncate(1, 60)
+                .uppercase_headers();
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
@@ -1548,20 +1616,16 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 let info = self.build_agents_info().await?;
 
                 // Convert to porcelain format (same as list agents --porcelain)
-                let porcelain_output =
-                    Porcelain::from(&info)
-                        .skip(1)
-                        .drop_col(0)
-                        .map_col(4, |text| match text.as_deref() {
-                            Some("ENABLED") => Some("Reasoning".to_string()),
-                            Some("DISABLED") => Some("Non-Reasoning".to_string()),
-                            _ => None,
-                        });
+                let porcelain_output = Porcelain::from(&info)
+                    .drop_col(0)
+                    .truncate(3, 30)
+                    .uppercase_headers();
 
                 // Split the porcelain output into lines and create agents
                 let porcelain_lines: Vec<String> = porcelain_output
                     .to_string()
                     .lines()
+                    .skip(1) // Skip header row
                     .map(|s| s.to_string())
                     .collect();
 
@@ -1591,6 +1655,11 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             SlashCommand::Retry => {
                 self.spinner.start(None)?;
                 self.on_message(None).await?;
+            }
+            SlashCommand::Index => {
+                let working_dir = self.state.cwd.clone();
+                // Use default batch size of 10 for slash command
+                self.on_index(working_dir, 10).await?;
             }
             SlashCommand::AgentSwitch(agent_id) => {
                 // Validate that the agent exists by checking against loaded agents
@@ -1675,14 +1744,25 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     ) -> anyhow::Result<()> {
         use anyhow::Context;
         self.spinner.stop(None)?;
+
+        // Extract existing API key and URL params for prefilling
+        let existing_url_params = request.existing_params.as_ref();
+
         // Collect URL parameters if required
         let url_params = request
             .required_params
             .iter()
             .map(|param| {
-                let param_value = ForgeSelect::input(format!("Enter {param}:"))
-                    .prompt()?
-                    .context("Parameter input cancelled")?;
+                let mut input = ForgeSelect::input(format!("Enter {param}:"));
+
+                // Add default value if it exists in the credential
+                if let Some(params) = existing_url_params
+                    && let Some(default_value) = params.get(param)
+                {
+                    input = input.with_default(default_value.as_str());
+                }
+
+                let param_value = input.prompt()?.context("Parameter input cancelled")?;
 
                 anyhow::ensure!(!param_value.trim().is_empty(), "{param} cannot be empty");
 
@@ -1727,11 +1807,28 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             "→".blue(),
             display_uri.blue().underline()
         ))?;
-        self.writeln(format!(
-            "{} Enter code: {}",
-            "→".blue(),
-            user_code.bold().yellow()
-        ))?;
+        // Try to copy code to clipboard automatically (not available on Android)
+        #[cfg(not(target_os = "android"))]
+        let clipboard_copied = arboard::Clipboard::new()
+            .and_then(|mut clipboard| clipboard.set_text(user_code))
+            .is_ok();
+
+        #[cfg(target_os = "android")]
+        let clipboard_copied = false;
+
+        if clipboard_copied {
+            self.writeln(format!(
+                "{} Code copied to clipboard: {}",
+                "✓".green().bold(),
+                user_code.bold().yellow()
+            ))?;
+        } else {
+            self.writeln(format!(
+                "{} Enter code: {}",
+                "→".blue(),
+                user_code.bold().yellow()
+            ))?;
+        }
         self.writeln("")?;
 
         // Try to open browser automatically
@@ -1905,6 +2002,13 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         provider_id: ProviderId,
         auth_methods: Vec<AuthMethod>,
     ) -> Result<Option<Provider<Url>>> {
+        if provider_id == ProviderId::FORGE_SERVICES {
+            let auth = self.api.create_auth_credentials().await?;
+            self.writeln_title(
+                TitleFormat::info("Forge API key created").sub_title(auth.token.as_str()),
+            )?;
+            return Ok(None);
+        }
         // Select auth method (or use the only one available)
         let auth_method = match self
             .select_auth_method(provider_id.clone(), &auth_methods)
@@ -1956,6 +2060,13 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .get_providers()
             .await?
             .into_iter()
+            .filter(|p| {
+                let filter = forge_domain::ProviderType::Llm;
+                match &p {
+                    AnyProvider::Url(provider) => provider.provider_type == filter,
+                    AnyProvider::Template(provider) => provider.provider_type == filter,
+                }
+            })
             .map(CliProvider)
             .collect::<Vec<_>>();
 
@@ -1987,14 +2098,14 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     // Helper method to handle model selection and update the conversation
     #[async_recursion::async_recursion]
-    async fn on_model_selection(&mut self) -> Result<()> {
+    async fn on_model_selection(&mut self) -> Result<Option<ModelId>> {
         // Select a model
         let model_option = self.select_model().await?;
 
         // If no model was selected (user canceled), return early
         let model = match model_option {
             Some(model) => model,
-            None => return Ok(()),
+            None => return Ok(None),
         };
 
         // Update the operating model via API
@@ -2005,7 +2116,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         self.writeln_title(TitleFormat::action(format!("Switched to model: {model}")))?;
 
-        Ok(())
+        Ok(Some(model))
     }
 
     async fn on_provider_selection(&mut self) -> Result<()> {
@@ -2133,7 +2244,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Print if the state is being reinitialized
         if self.state.conversation_id.is_none() {
-            self.print_conversation_status(is_new, id).await?;
+            self.print_conversation_status(is_new, id)?;
         }
 
         // Always set the conversation id in state
@@ -2142,7 +2253,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(id)
     }
 
-    async fn print_conversation_status(
+    fn print_conversation_status(
         &mut self,
         new_conversation: bool,
         id: ConversationId,
@@ -2165,26 +2276,33 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
 
         let _ = self.handle_migrate_credentials().await;
-        let _ = self.install_vscode_extension().await;
+        self.install_vscode_extension();
 
         // Ensure we have a model selected before proceeding with initialization
-        if self
-            .get_agent_model(self.api.get_active_agent().await)
-            .await
-            .is_none()
-        {
-            self.on_model_selection().await?;
+        let active_agent = self.api.get_active_agent().await;
+
+        let mut operating_model = self.get_agent_model(active_agent.clone()).await;
+        if operating_model.is_none() {
+            // Use the model returned from selection instead of re-fetching
+            operating_model = self.on_model_selection().await?;
         }
 
-        // Create base workflow and trigger updates if this is the first initialization
-        let mut base_workflow = Workflow::default();
-        base_workflow.merge(workflow.clone());
+        // Validate provider is configured before loading agents
+        // If provider is set in config but not configured (no credentials), prompt user
+        // to login
+        if self.api.get_default_provider().await.is_err() {
+            self.on_provider_selection().await?;
+        }
+
         if first {
+            // Create base workflow and trigger updates if this is the first initialization
+            let mut base_workflow = Workflow::default();
+            base_workflow.merge(workflow.clone());
             // For chat, we are trying to get active agent or setting it to default.
             // So for default values, `/info` doesn't show active provider, model, etc.
             // So my default, on new, we should set the active agent.
             self.api
-                .set_active_agent(self.api.get_active_agent().await.unwrap_or_default())
+                .set_active_agent(active_agent.clone().unwrap_or_default())
                 .await?;
             // only call on_update if this is the first initialization
             on_update(self.api.clone(), base_workflow.updates.as_ref()).await;
@@ -2194,17 +2312,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         // Execute independent operations in parallel to improve performance
-        let write_workflow_fut = self
-            .api
-            .write_workflow(self.cli.workflow.as_deref(), &workflow);
-        let get_agents_fut = self.api.get_agents();
-        let get_operating_agent_fut = self.api.get_active_agent();
-
-        let (write_workflow_result, agents_result, _operating_agent_result) =
-            tokio::join!(write_workflow_fut, get_agents_fut, get_operating_agent_fut);
-
-        // Handle workflow write result first as it's critical for the system state
-        write_workflow_result?;
+        let (agents_result, commands_result) =
+            tokio::join!(self.api.get_agents(), self.api.get_commands());
 
         // Register agent commands with proper error handling and user feedback
         match agents_result {
@@ -2226,11 +2335,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         // Register all the commands
-        self.command.register_all(self.api.get_commands().await?);
+        self.command.register_all(commands_result?);
 
-        let operating_model = self
-            .get_agent_model(self.api.get_active_agent().await)
-            .await;
         self.state = UIState::new(self.api.environment());
         self.update_model(operating_model);
 
@@ -2240,8 +2346,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     async fn on_message(&mut self, content: Option<String>) -> Result<()> {
         let conversation_id = self.init_conversation().await?;
 
-        // Get piped input from CLI if available
-        let piped_input = self.cli.piped_input.clone();
+        // Track if content was provided to decide whether to use piped input as
+        // additional context
+        let has_content = content.is_some();
 
         // Create a ChatRequest with the appropriate event type
         let mut event = match content {
@@ -2249,9 +2356,16 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             None => Event::empty(),
         };
 
-        // Set piped input if present
+        // Only use CLI piped_input as additional context if it wasn't already passed as
+        // content This handles cases where piped input is used alongside
+        // explicit prompts
+        let piped_input = self.cli.piped_input.clone();
         if let Some(piped) = piped_input {
-            event = event.additional_context(piped);
+            // Only add as additional context if content is provided separately (e.g., via
+            // --prompt)
+            if has_content {
+                event = event.additional_context(piped);
+            }
         }
 
         // Create the chat request with the event
@@ -2421,9 +2535,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         self.spinner.start(Some("Loading Summary"))?;
 
         let info = Info::default().extend(&conversation);
-
         self.writeln(info)?;
-
         self.spinner.stop(None)?;
 
         // Only prompt for new conversation if in interactive mode and prompt is enabled
@@ -2442,6 +2554,77 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             if should_start_new_chat {
                 self.on_new().await?;
             }
+        }
+
+        Ok(())
+    }
+
+    async fn on_show_conv_stats(
+        &mut self,
+        conversation: Conversation,
+        porcelain: bool,
+    ) -> anyhow::Result<()> {
+        let mut info = Info::new().add_title("CONVERSATION");
+
+        // Add conversation ID
+        info = info.add_key_value("ID", conversation.id.to_string());
+
+        // Calculate duration
+        let created_at = conversation.metadata.created_at;
+        let updated_at = conversation.metadata.updated_at.unwrap_or(created_at);
+        let duration = updated_at.signed_duration_since(created_at);
+
+        // Format duration
+        let duration_str = if duration.num_hours() > 0 {
+            format!("{}h {}m", duration.num_hours(), duration.num_minutes() % 60)
+        } else if duration.num_minutes() > 0 {
+            format!(
+                "{}m {}s",
+                duration.num_minutes(),
+                duration.num_seconds() % 60
+            )
+        } else {
+            format!("{}s", duration.num_seconds())
+        };
+
+        info = info.add_key_value("Total Duration", duration_str);
+
+        // Add message statistics if context exists
+        if let Some(context) = &conversation.context {
+            info = info
+                .add_key_value("Total Messages", context.total_messages().to_string())
+                .add_key_value("User Messages", context.user_message_count().to_string())
+                .add_key_value(
+                    "Assistant Messages",
+                    context.assistant_message_count().to_string(),
+                )
+                .add_key_value("Tool Calls", context.tool_call_count().to_string());
+        }
+
+        // Add token usage if available
+        if let Some(usage) = conversation.context.as_ref().and_then(|c| c.usage.as_ref()) {
+            info = info
+                .add_title("TOKEN")
+                .add_key_value("Prompt Tokens", usage.prompt_tokens.to_string())
+                .add_key_value("Completion Tokens", usage.completion_tokens.to_string())
+                .add_key_value("Total Tokens", usage.total_tokens.to_string());
+
+            if let Some(cost) = usage.cost {
+                info = info.add_key_value("Cost", format!("${cost:.4}"));
+            }
+        }
+
+        if porcelain {
+            use convert_case::Case;
+            self.writeln(
+                Porcelain::from(&info)
+                    .into_long()
+                    .skip(1)
+                    .to_case(&[0, 1], Case::Snake)
+                    .sort_by(&[0, 1]),
+            )?;
+        } else {
+            self.writeln(info)?;
         }
 
         Ok(())
@@ -2658,6 +2841,217 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(())
     }
 
+    async fn on_index(
+        &mut self,
+        path: std::path::PathBuf,
+        batch_size: usize,
+    ) -> anyhow::Result<()> {
+        use forge_domain::SyncProgress;
+        use forge_spinner::ProgressBarManager;
+
+        // Check if auth already exists and create if needed
+        if !self.api.is_authenticated().await? {
+            let auth = self.api.create_auth_credentials().await?;
+            self.writeln_title(
+                TitleFormat::info("Forge API key created").sub_title(auth.token.as_str()),
+            )?;
+        }
+
+        let mut stream = self.api.sync_codebase(path.clone(), batch_size).await?;
+        let mut progress_bar = ProgressBarManager::default();
+        progress_bar.start(100, "Indexing codebase")?;
+
+        while let Some(event) = stream.next().await {
+            match event {
+                Ok(ref progress @ SyncProgress::Completed { .. }) => {
+                    progress_bar.set_position(100)?;
+                    progress_bar.stop(None).await?;
+                    self.writeln_title(TitleFormat::debug(progress.message()))?;
+                }
+                Ok(ref progress) => {
+                    progress_bar.set_message(&progress.message())?;
+                    if let Some(weight) = progress.weight() {
+                        progress_bar.set_position(weight)?;
+                    }
+                }
+                Err(e) => {
+                    progress_bar.stop(None).await?;
+                    return Err(e);
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn on_query(
+        &mut self,
+        path: PathBuf,
+        params: forge_domain::SearchParams<'_>,
+    ) -> anyhow::Result<()> {
+        self.spinner.start(Some("Searching codebase..."))?;
+
+        let results = match self.api.query_codebase(path.clone(), params).await {
+            Ok(results) => results,
+            Err(e) => {
+                self.spinner.stop(None)?;
+                return Err(e);
+            }
+        };
+
+        self.spinner.stop(None)?;
+
+        let mut info = Info::new().add_title(format!("FILES [{} RESULTS]", results.len()));
+
+        for result in results.iter() {
+            match &result.node {
+                forge_domain::NodeData::FileChunk { file_path, start_line, end_line, .. } => {
+                    info = info.add_key_value(
+                        "File",
+                        format!("{}:{}-{}", file_path, start_line, end_line),
+                    );
+                }
+                forge_domain::NodeData::File { file_path, .. } => {
+                    info = info.add_key_value("File", format!("{} (full file)", file_path));
+                }
+                forge_domain::NodeData::FileRef { file_path, .. } => {
+                    info = info.add_key_value("File", format!("{} (reference)", file_path));
+                }
+                forge_domain::NodeData::Note { content, .. } => {
+                    info = info.add_key_value("Note", content);
+                }
+                forge_domain::NodeData::Task { task, .. } => {
+                    info = info.add_key_value("Task", task);
+                }
+            }
+        }
+
+        self.writeln(info)?;
+
+        Ok(())
+    }
+
+    /// Helper function to format workspace information consistently
+    fn format_workspace_info(workspace: &forge_domain::WorkspaceInfo, is_active: bool) -> Info {
+        let updated_time = workspace
+            .last_updated
+            .map_or("NEVER".to_string(), humanize_time);
+
+        let mut info = Info::new();
+
+        let title = if is_active {
+            "Workspace [Current]".to_string()
+        } else {
+            "Workspace".to_string()
+        };
+        info = info.add_title(title);
+
+        info.add_key_value("ID", workspace.workspace_id.to_string())
+            .add_key_value("Path", workspace.working_dir.to_string())
+            .add_key_value("File", workspace.node_count.to_string())
+            .add_key_value("Relations", workspace.relation_count.to_string())
+            .add_key_value("Created At", humanize_time(workspace.created_at))
+            .add_key_value("Updated At", updated_time)
+    }
+
+    async fn on_list_workspaces(&mut self, porcelain: bool) -> anyhow::Result<()> {
+        if !porcelain {
+            self.spinner.start(Some("Fetching workspaces..."))?;
+        }
+
+        // Fetch workspaces and current workspace info in parallel
+        let env = self.api.environment();
+        let (workspaces_result, current_workspace_result) = tokio::join!(
+            self.api.list_codebases(),
+            self.api.get_workspace_info(env.cwd)
+        );
+
+        match workspaces_result {
+            Ok(workspaces) => {
+                if !porcelain {
+                    self.spinner.stop(None)?;
+                }
+
+                // Get active workspace ID if current workspace info is available
+                let current_workspace = current_workspace_result.ok().flatten();
+                let active_workspace_id = current_workspace.as_ref().map(|ws| &ws.workspace_id);
+
+                // Build Info object once
+                let mut info = Info::new();
+
+                for workspace in &workspaces {
+                    let is_active = active_workspace_id == Some(&workspace.workspace_id);
+                    info = info.extend(Self::format_workspace_info(workspace, is_active));
+                }
+
+                // Output based on mode
+                if porcelain {
+                    // Skip header row in porcelain mode (consistent with conversation list)
+                    self.writeln(Porcelain::from(info).skip(1).drop_cols(&[0, 4, 5]))?;
+                } else {
+                    self.writeln(info)?;
+                }
+
+                Ok(())
+            }
+            Err(e) => {
+                self.spinner.stop(None)?;
+                Err(e)
+            }
+        }
+    }
+
+    /// Displays workspace information for a given path.
+    async fn on_workspace_info(&mut self, path: std::path::PathBuf) -> anyhow::Result<()> {
+        self.spinner.start(Some("Fetching workspace info..."))?;
+
+        match self.api.get_workspace_info(path).await {
+            Ok(Some(workspace)) => {
+                self.spinner.stop(None)?;
+
+                // When viewing a specific workspace's info, it's implicitly the active one
+                let info = Self::format_workspace_info(&workspace, true);
+
+                self.writeln(info)
+            }
+            Ok(None) => {
+                self.spinner.stop(None)?;
+                self.writeln_to_stderr(
+                    TitleFormat::error("No workspace found")
+                        .display()
+                        .to_string(),
+                )
+            }
+            Err(e) => {
+                self.spinner.stop(None)?;
+                Err(e)
+            }
+        }
+    }
+
+    async fn on_delete_workspace(&mut self, workspace_id: String) -> anyhow::Result<()> {
+        // Parse workspace ID
+        let workspace_id = forge_domain::WorkspaceId::from_string(&workspace_id)
+            .context("Invalid workspace ID format")?;
+
+        self.spinner.start(Some("Deleting workspace..."))?;
+
+        match self.api.delete_codebase(workspace_id.clone()).await {
+            Ok(()) => {
+                self.spinner.stop(None)?;
+                self.writeln_title(TitleFormat::debug(format!(
+                    "Successfully deleted workspace {}",
+                    workspace_id
+                )))?;
+                Ok(())
+            }
+            Err(e) => {
+                self.spinner.stop(None)?;
+                Err(e)
+            }
+        }
+    }
+
     /// Handle credential migration
     async fn handle_migrate_credentials(&mut self) -> Result<()> {
         // Perform the migration
@@ -2684,14 +3078,12 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     }
 
     /// Silently install VS Code extension if in VS Code and extension not
-    /// installed
-    async fn install_vscode_extension(&mut self) -> Result<()> {
-        if crate::vscode::should_install_extension() {
-            // Spawn installation in background to avoid blocking startup
-            tokio::task::spawn_blocking(|| {
+    /// installed.
+    fn install_vscode_extension(&self) {
+        tokio::task::spawn_blocking(|| {
+            if crate::vscode::should_install_extension() {
                 let _ = crate::vscode::install_extension();
-            });
-        }
-        Ok(())
+            }
+        });
     }
 }

@@ -1,6 +1,5 @@
 mod agent;
 mod agent_executor;
-
 mod agent_provider_resolver;
 mod app;
 mod apply_tunable_parameters;
@@ -8,6 +7,7 @@ mod authenticator;
 mod changed_files;
 mod command_generator;
 mod compact;
+mod data_gen;
 pub mod dto;
 mod error;
 mod file_tracking;
@@ -21,6 +21,7 @@ mod orch;
 #[cfg(test)]
 mod orch_spec;
 mod retry;
+mod search_dedup;
 mod services;
 mod set_conversation_id;
 pub mod system_prompt;
@@ -40,6 +41,7 @@ pub use agent::*;
 pub use agent_provider_resolver::*;
 pub use app::*;
 pub use command_generator::*;
+pub use data_gen::*;
 pub use error::*;
 pub use git_app::*;
 pub use infra::*;

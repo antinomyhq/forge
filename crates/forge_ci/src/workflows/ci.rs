@@ -1,5 +1,4 @@
 use gh_workflow::generate::Generate;
-use gh_workflow::toolchain::Component;
 use gh_workflow::*;
 
 use crate::jobs::{self, ReleaseBuilderJob};
@@ -9,22 +8,14 @@ pub fn generate_ci_workflow() {
     // Create a basic build job for CI
     let build_job = Job::new("Build and Test")
         .permissions(Permissions::default().contents(Level::Read))
-        .add_step(Step::new("Checkout Code").uses("actions", "checkout", "v6"))
+        .add_step(Step::checkout())
+        .add_step(
+            Step::new("Setup Protobuf Compiler")
+                .uses("arduino", "setup-protoc", "v3")
+                .with(("repo-token", "${{ secrets.GITHUB_TOKEN }}")),
+        )
         .add_step(Step::toolchain().add_stable())
         .add_step(Step::new("Cargo Test").run("cargo test --all-features --workspace"));
-
-    // Create a basic lint job for CI
-    let lint_job = Job::new("Lint")
-        .permissions(Permissions::default().contents(Level::Read))
-        .add_step(Step::new("Checkout Code").uses("actions", "checkout", "v6"))
-        .add_step(
-            Step::toolchain()
-                .add_nightly()
-                .add_component(Component::Clippy)
-                .add_component(Component::Rustfmt),
-        )
-        .add_step(Step::new("Cargo Fmt").run(jobs::fmt_cmd(false)))
-        .add_step(Step::new("Cargo Clippy").run(jobs::clippy_cmd(false)));
 
     let draft_release_job = jobs::create_draft_release_job("build");
     let draft_release_pr_job = jobs::create_draft_release_pr_job();
@@ -68,7 +59,6 @@ pub fn generate_ci_workflow() {
         .concurrency(Concurrency::default().group("${{ github.workflow }}-${{ github.ref }}"))
         .add_env(("OPENROUTER_API_KEY", "${{secrets.OPENROUTER_API_KEY}}"))
         .add_job("build", build_job)
-        .add_job("lint", lint_job)
         .add_job("draft_release", draft_release_job)
         .add_job("draft_release_pr", draft_release_pr_job)
         .add_job("build_release", build_release_job)

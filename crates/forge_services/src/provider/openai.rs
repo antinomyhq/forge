@@ -71,16 +71,13 @@ impl<H: HttpClientService> OpenAIProvider<H> {
     fn get_headers_with_request(&self, request: &Request) -> Vec<(String, String)> {
         let mut headers = self.get_headers();
         // Add Session-Id header for zai and zai_coding providers
-        if (self.provider.id == ProviderId::ZAI || self.provider.id == ProviderId::ZAI_CODING)
-            && request.session_id.is_some()
+        if let Some(session_id) = &request.session_id
+            && (self.provider.id == ProviderId::ZAI || self.provider.id == ProviderId::ZAI_CODING)
         {
-            headers.push((
-                "Session-Id".to_string(),
-                request.session_id.clone().unwrap(),
-            ));
+            headers.push(("Session-Id".to_string(), session_id.clone()));
             debug!(
                 provider = %self.provider.url,
-                session_id = %request.session_id.as_ref().unwrap(),
+                session_id = %session_id,
                 "Added Session-Id header for zai provider"
             );
         }
@@ -93,7 +90,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
         model: &ModelId,
         context: ChatContext,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
-        let mut request = Request::from(context).model(model.clone()).stream(true);
+        let mut request = Request::from(context).model(model.clone());
         let mut pipeline = ProviderPipeline::new(&self.provider);
         request = pipeline.transform(request);
 
@@ -129,8 +126,13 @@ impl<H: HttpClientService> OpenAIProvider<H> {
             debug!("Loading Vertex AI models from static JSON file");
             Ok(self.inner_vertex_models())
         } else {
-            match &self.provider.models {
-                forge_domain::Models::Url(url) => {
+            let models = self
+                .provider
+                .models()
+                .ok_or_else(|| anyhow::anyhow!("Provider models configuration is required"))?;
+
+            match models {
+                forge_domain::ModelSource::Url(url) => {
                     debug!(url = %url, "Fetching models");
                     match self.fetch_models(url.as_str()).await {
                         Err(error) => {
@@ -145,7 +147,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
                         }
                     }
                 }
-                forge_domain::Models::Hardcoded(models) => {
+                forge_domain::ModelSource::Hardcoded(models) => {
                     debug!("Using hardcoded models");
                     Ok(models.clone())
                 }
@@ -240,56 +242,60 @@ mod tests {
     fn openai(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::OPENAI,
-            response: ProviderResponse::OpenAI,
+            provider_type: forge_domain::ProviderType::Llm,
+            response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             credential: make_credential(ProviderId::OPENAI, key),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
-            models: forge_domain::Models::Url(
+            models: Some(forge_domain::ModelSource::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
-            ),
+            )),
         }
     }
 
     fn zai(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::ZAI,
-            response: ProviderResponse::OpenAI,
+            provider_type: forge_domain::ProviderType::Llm,
+            response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.z.ai/api/paas/v4/chat/completions").unwrap(),
             credential: make_credential(ProviderId::ZAI, key),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
-            models: forge_domain::Models::Url(
+            models: Some(forge_domain::ModelSource::Url(
                 Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
-            ),
+            )),
         }
     }
 
     fn zai_coding(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::ZAI_CODING,
-            response: ProviderResponse::OpenAI,
+            provider_type: forge_domain::ProviderType::Llm,
+            response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.z.ai/api/coding/paas/v4/chat/completions").unwrap(),
             credential: make_credential(ProviderId::ZAI_CODING, key),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
-            models: forge_domain::Models::Url(
+            models: Some(forge_domain::ModelSource::Url(
                 Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
-            ),
+            )),
         }
     }
 
     fn anthropic(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::ANTHROPIC,
-            response: ProviderResponse::Anthropic,
+            provider_type: forge_domain::ProviderType::Llm,
+            response: Some(ProviderResponse::Anthropic),
             url: Url::parse("https://api.anthropic.com/v1/messages").unwrap(),
             credential: make_credential(ProviderId::ANTHROPIC, key),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
-            models: forge_domain::Models::Url(
+            models: Some(forge_domain::ModelSource::Url(
                 Url::parse("https://api.anthropic.com/v1/models").unwrap(),
-            ),
+            )),
         }
     }
 
@@ -344,12 +350,15 @@ mod tests {
     fn create_provider(base_url: &str) -> anyhow::Result<OpenAIProvider<MockHttpClient>> {
         let provider = Provider {
             id: ProviderId::OPENAI,
-            response: ProviderResponse::OpenAI,
+            provider_type: forge_domain::ProviderType::Llm,
+            response: Some(ProviderResponse::OpenAI),
             url: reqwest::Url::parse(base_url)?,
             credential: make_credential(ProviderId::OPENAI, "test-api-key"),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
-            models: forge_domain::Models::Url(reqwest::Url::parse(base_url)?.join("models")?),
+            models: Some(forge_domain::ModelSource::Url(
+                reqwest::Url::parse(base_url)?.join("models")?,
+            )),
         };
 
         Ok(OpenAIProvider::new(
