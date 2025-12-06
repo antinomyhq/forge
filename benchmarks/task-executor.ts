@@ -1,8 +1,10 @@
 import * as fs from "fs";
 import * as path from "path";
 import { spawn } from "child_process";
+import stripAnsi from "strip-ansi";
 import type { Validation, Task } from "./model.js";
 import { runValidations, allValidationsPassed } from "./verification.js";
+import { formatTimestamp } from "./utils.js";
 
 export type TaskExecutionResult = {
   index: number;
@@ -13,21 +15,6 @@ export type TaskExecutionResult = {
   isTimeout: boolean;
   earlyExit?: boolean;
 };
-
-/**
- * Formats a date with local timezone information
- */
-function formatTimestamp(date: Date): string {
-  const offset = -date.getTimezoneOffset();
-  const sign = offset >= 0 ? "+" : "-";
-  const hours = Math.floor(Math.abs(offset) / 60)
-    .toString()
-    .padStart(2, "0");
-  const minutes = (Math.abs(offset) % 60).toString().padStart(2, "0");
-  const timezone = `${sign}${hours}:${minutes}`;
-
-  return `${date.toISOString().replace("Z", "")}${timezone}`;
-}
 
 /**
  * Executes a single task command and returns the result
@@ -119,7 +106,7 @@ export async function executeTask(
         const text = data.toString();
         stdout += text;
         if (logStream.writable) {
-          logStream.write(text);
+          logStream.write(stripAnsi(text));
         }
         checkValidations();
       });
@@ -129,7 +116,7 @@ export async function executeTask(
         const text = data.toString();
         stderr += text;
         if (logStream.writable) {
-          logStream.write(text);
+          logStream.write(stripAnsi(text));
         }
         checkValidations();
       });

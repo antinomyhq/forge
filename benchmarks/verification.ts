@@ -2,15 +2,9 @@ import { exec } from "child_process";
 import { promisify } from "util";
 import Handlebars from "handlebars";
 import type { Task, Validation } from "./model.js";
+import { escapeRegex } from "./utils.js";
 
 const execAsync = promisify(exec);
-
-/**
- * Escapes special regex characters in a string
- */
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
 
 // Register Handlebars helper for escaping regex
 Handlebars.registerHelper("escapeRegex", escapeRegex);
@@ -50,7 +44,7 @@ async function validateShellCommand(
 ): Promise<ValidationResult> {
   try {
     const { spawn } = await import("child_process");
-    
+
     // Use spawn to pipe stdin properly
     const result = await new Promise<{ code: number }>((resolve, reject) => {
       const child = spawn(command, {
@@ -185,7 +179,7 @@ export async function processValidations(
         {
           task_id,
           duration,
-          log_file: logFile,
+          log: logFile,
           parameters: context,
           passed: validationResults.map((r) => r.name),
         },
