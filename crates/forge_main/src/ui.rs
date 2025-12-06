@@ -744,7 +744,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         })
     }
 
-    async fn confirm_delete_conversation(&mut self, conversation_id: &ConversationId) -> anyhow::Result<bool> {
+    async fn confirm_delete_conversation(
+        &mut self,
+        conversation_id: &ConversationId,
+    ) -> anyhow::Result<bool> {
         self.writeln_title(TitleFormat::info(format!(
             "Are you sure you want to delete conversation '{}'?",
             conversation_id
@@ -761,7 +764,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
     }
 
-    async fn on_conversation_delete(&mut self, conversation_id: ConversationId) -> anyhow::Result<()> {
+    async fn on_conversation_delete(
+        &mut self,
+        conversation_id: ConversationId,
+    ) -> anyhow::Result<()> {
         self.spinner.start(Some("Deleting conversation..."))?;
 
         match self.api.delete_conversation(&conversation_id).await {
@@ -1743,11 +1749,11 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     async fn handle_delete_conversation(&mut self) -> anyhow::Result<()> {
         let conversation_id = self.init_conversation().await?;
-        
+
         if self.confirm_delete_conversation(&conversation_id).await? {
             self.on_conversation_delete(conversation_id).await?;
         }
-        
+
         Ok(())
     }
 
@@ -3151,7 +3157,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
 #[cfg(test)]
 mod tests {
-    // Note: Tests for confirm_delete_conversation are disabled because ForgeSelect::confirm
-    // is not easily mockable in the current architecture. The functionality is tested
-    // through integration tests instead.
+    // Note: Tests for confirm_delete_conversation are disabled because
+    // ForgeSelect::confirm is not easily mockable in the current
+    // architecture. The functionality is tested through integration tests
+    // instead.
 }
