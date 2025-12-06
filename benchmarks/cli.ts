@@ -183,6 +183,10 @@ async function main() {
       // Create a unique temp directory for this task
       const taskTmpDir = await createTempDir(`forge-task-${i + 1}-`);
 
+      // Create a 'task' subdirectory for running commands
+      const taskWorkDir = path.join(taskTmpDir.name, 'task');
+      await fs.mkdir(taskWorkDir, { recursive: true });
+
       const logFile = path.join(taskTmpDir.name, `task.log`);
 
       // Context for command interpolation and validations
@@ -191,16 +195,43 @@ async function main() {
       // Support both single command and multiple commands
       const commands = Array.isArray(task.run) ? task.run : [task.run];
 
+      // Filter out empty or non-string commands
+      const validCommands = commands.filter(cmd => typeof cmd === 'string' && cmd.trim().length > 0);
+
+      // If no valid commands, skip this task
+      if (validCommands.length === 0) {
+        logger.warn({ task_id: i + 1 }, "No valid commands found, skipping task");
+        return {
+          index: i + 1,
+          status: TaskStatus.Failed,
+          command: "No valid commands",
+          duration: 0,
+          validationResults: [],
+        };
+      }
+
       let combinedOutput = "";
       let totalDuration = 0;
       let lastError: string | undefined;
       let hasTimeout = false;
       let hasEarlyExit = false;
 
+      // Log task launch once before executing commands
+      logger.info(
+        {
+          task_id: i + 1,
+          total_commands: validCommands.length,
+          log: logFile,
+          dir: taskTmpDir.name,
+          work_dir: taskWorkDir,
+          parameters: context,
+        },
+        "Launching task",
+      );
+
       // Execute commands sequentially
-      for (let cmdIdx = 0; cmdIdx < commands.length; cmdIdx++) {
-        const commandTemplate = commands[cmdIdx];
-        if (!commandTemplate) continue;
+      for (let cmdIdx = 0; cmdIdx < validCommands.length; cmdIdx++) {
+        const commandTemplate = validCommands[cmdIdx]!; // Non-null assertion safe after filter
 
         const command = generateCommand(commandTemplate, context);
 
@@ -209,19 +240,16 @@ async function main() {
             command,
             task_id: i + 1,
             command_id: cmdIdx + 1,
-            total_commands: commands.length,
-            log: logFile,
-            dir: taskTmpDir.name,
-            parameters: context,
+            total_commands: validCommands.length,
           },
-          "Launching task",
+          "Executing command",
         );
 
         const executionResult = await executeTask(
           command,
           i + 1,
           logFile,
-          taskTmpDir.name,
+          taskWorkDir, // Use taskWorkDir instead of taskTmpDir.name
           task,
           context,
           cmdIdx > 0, // append if this is not the first command
@@ -272,7 +300,7 @@ async function main() {
         return {
           index: i + 1,
           status: hasTimeout ? TaskStatus.Timeout : TaskStatus.Failed,
-          command: commands.join(" && "),
+          command: validCommands.length === 1 ? validCommands[0]! : `${validCommands.length} commands`,
           duration: totalDuration,
           validationResults,
         };
@@ -296,7 +324,7 @@ async function main() {
           validationStatus === "passed"
             ? TaskStatus.Passed
             : TaskStatus.ValidationFailed,
-        command: commands.join(" && "),
+        command: validCommands.length === 1 ? validCommands[0]! : `${validCommands.length} commands`,
         duration: totalDuration,
         validationResults,
       };
