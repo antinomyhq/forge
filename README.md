@@ -692,6 +692,33 @@ MCP tools can be used as part of multi-agent workflows, allowing specialized age
 
 For comprehensive documentation on all features and capabilities, please visit the [documentation site](https://github.com/antinomyhq/forge/tree/main/docs).
 
+### Conversation Management
+
+Forge provides comprehensive conversation management capabilities to help you organize and maintain your chat history:
+
+```bash
+# List all conversations
+forge conversation list
+
+# List in machine-readable format
+forge conversation list --porcelain
+
+# Rename a conversation with new title
+forge conversation rename <conversation-id> "New Title"
+
+# Interactive rename - prompts for new title
+forge conversation rename <conversation-id>
+
+# Show conversation details
+forge conversation info <conversation-id>
+
+# Create new conversation
+forge conversation new
+
+# Clone existing conversation
+forge conversation clone <conversation-id>
+```
+
 ---
 
 ## Community
