@@ -83,6 +83,21 @@ pub struct Environment {
     /// root. Default: 10 (reasonable limit to prevent infinite loops)
     #[dummy(expr = "Some(10)")]
     pub max_project_root_depth: Option<usize>,
+    /// Detected project root path if found
+    #[dummy(default)]
+    pub detected_project_root: Option<PathBuf>,
+    /// List of marker files/directories that identify project root
+    #[dummy(expr = "vec![\"Cargo.toml\".to_string(), \"package.json\".to_string()]")]
+    pub project_root_markers: Vec<String>,
+    /// Maximum number of semantic search results
+    #[dummy(expr = "10")]
+    pub sem_search_limit: u32,
+    /// Maximum number of top results for semantic search
+    #[dummy(expr = "5")]
+    pub sem_search_top_k: u32,
+    /// URL for workspace server
+    #[dummy(expr = "\"https://localhost:8080\".parse().unwrap()")]
+    pub workspace_server_url: Url,
 }
 
 impl Environment {
@@ -90,6 +105,14 @@ impl Environment {
     /// project root markers
     pub fn project_root_path(&self) -> PathBuf {
         find_project_root(&self.cwd, self.max_project_root_depth)
+    }
+
+    /// Get the hash of the project root path for workspace identification
+    pub fn project_root_id(&self) -> ProjectRootId {
+        let project_root = self.project_root_path();
+        let mut hasher = DefaultHasher::default();
+        project_root.hash(&mut hasher);
+        ProjectRootId(hasher.finish())
     }
 
     pub fn log_path(&self) -> PathBuf {
@@ -168,13 +191,6 @@ impl Environment {
     /// Returns the project-local skills directory path (.forge/skills)
     pub fn local_skills_path(&self) -> PathBuf {
         self.cwd.join(".forge/skills")
-    }
-
-    pub fn project_root_id(&self) -> ProjectRootId {
-        let project_root = self.project_root_path();
-        let mut hasher = DefaultHasher::default();
-        project_root.hash(&mut hasher);
-        ProjectRootId(hasher.finish())
     }
 }
 
@@ -343,6 +359,11 @@ fn test_command_path() {
         override_model: None,
         override_provider: None,
         max_project_root_depth: Some(10),
+        sem_search_limit: 10,
+        sem_search_top_k: 5,
+        workspace_server_url: "https://workspace.example.com".parse().unwrap(),
+        detected_project_root: Some(PathBuf::from("/project/root")),
+        project_root_markers: vec!["Cargo.toml".to_string(), "package.json".to_string()],
     };
 
     let actual = fixture.command_path();
@@ -380,6 +401,11 @@ fn test_command_cwd_path() {
         override_model: None,
         override_provider: None,
         max_project_root_depth: Some(10),
+        sem_search_limit: 10,
+        sem_search_top_k: 5,
+        workspace_server_url: "https://workspace.example.com".parse().unwrap(),
+        detected_project_root: Some(PathBuf::from("/project/root")),
+        project_root_markers: vec!["Cargo.toml".to_string(), "package.json".to_string()],
     };
 
     let actual = fixture.command_cwd_path();
@@ -417,6 +443,11 @@ fn test_command_cwd_path_independent_from_command_path() {
         override_model: None,
         override_provider: None,
         max_project_root_depth: Some(10),
+        sem_search_limit: 10,
+        sem_search_top_k: 5,
+        workspace_server_url: "https://workspace.example.com".parse().unwrap(),
+        detected_project_root: Some(PathBuf::from("/project/root")),
+        project_root_markers: vec!["Cargo.toml".to_string(), "package.json".to_string()],
     };
 
     let command_path = fixture.command_path();

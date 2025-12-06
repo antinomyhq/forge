@@ -86,8 +86,8 @@ impl ForgeEnvironmentInfra {
             forge_api_url,
             custom_history_path,
             max_conversations: parse_env::<usize>("FORGE_MAX_CONVERSATIONS").unwrap_or(100),
-            sem_search_limit: parse_env::<usize>("FORGE_SEM_SEARCH_LIMIT").unwrap_or(100),
-            sem_search_top_k: parse_env::<usize>("FORGE_SEM_SEARCH_TOP_K").unwrap_or(10),
+            sem_search_limit: parse_env::<u32>("FORGE_SEM_SEARCH_LIMIT").unwrap_or(100),
+            sem_search_top_k: parse_env::<u32>("FORGE_SEM_SEARCH_TOP_K").unwrap_or(10),
             workspace_server_url: parse_env::<String>("FORGE_WORKSPACE_SERVER_URL")
                 .as_ref()
                 .and_then(|url| Url::parse(url.as_str()).ok())
@@ -97,6 +97,10 @@ impl ForgeEnvironmentInfra {
             max_project_root_depth: parse_env::<usize>("FORGE_MAX_PROJECT_ROOT_DEPTH")
                 .map(|depth| if depth == 0 { None } else { Some(depth) })
                 .unwrap_or(Some(10)), // Default to 10 levels
+            detected_project_root: None,
+            project_root_markers: parse_env::<String>("FORGE_PROJECT_ROOT_MARKERS")
+                .map(|markers| markers.split(',').map(|s| s.trim().to_string()).collect())
+                .unwrap_or_else(|| vec!["Cargo.toml".to_string(), "package.json".to_string()]),
         }
     }
 

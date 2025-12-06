@@ -90,6 +90,8 @@ impl Default for TestContext {
                 override_model: None,
                 override_provider: None,
                 max_project_root_depth: Some(10),
+                detected_project_root: None,
+                project_root_markers: vec!["Cargo.toml".to_string(), "package.json".to_string()],
             },
             title: Some("test-conversation".into()),
             agent: Agent::new(

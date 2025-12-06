@@ -903,7 +903,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             let title = agent
                 .title
                 .as_deref()
-                .map(|title| title.lines().collect::<Vec<_>>().join(" "));
+                .map(|title| title.lines().collect::<Vec<_>>().join(" "))
+                .unwrap_or_else(|| "".to_string());
 
             // Get provider and model for this agent
             let provider_name = match self.get_provider(Some(agent.id.clone())).await {
@@ -1106,7 +1107,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             info = info
                 .add_title(agent.id.to_string())
                 .add_key_value("type", CommandType::Agent)
-                .add_key_value("description", title);
+                .add_key_value("description", title.unwrap_or_else(|| "".to_string()));
         }
 
         let custom_commands = self.api.get_commands().await?;
@@ -1385,7 +1386,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         if let Some(conversation) = conversation {
             info = info.extend(Info::from(&conversation));
         } else {
-            info = info.extend(Info::new().add_title("CONVERSATION").add_key("ID"));
+            info = info.extend(Info::new().add_title("CONVERSATION").add_key_value("ID", ""));
         }
 
         if porcelain {

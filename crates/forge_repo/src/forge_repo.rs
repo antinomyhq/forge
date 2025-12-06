@@ -25,7 +25,8 @@ use crate::fs_snap::ForgeFileSnapshotService;
 use crate::provider::ForgeProviderRepository;
 use crate::{
     AppConfigRepositoryImpl, ConversationRepositoryImpl, DatabasePool, ForgeAgentRepository,
-    ForgeSkillRepository, PoolConfig,
+    ForgeSkillRepository, ForgeContextEngineRepository, ForgeValidationRepository, 
+    ForgeWorkspaceRepository, PoolConfig,
 };
 
 /// Repository layer that implements all domain repository traits
@@ -37,6 +38,9 @@ pub struct ForgeRepo<F> {
     infra: Arc<F>,
     file_snapshot_service: Arc<ForgeFileSnapshotService>,
     conversation_repository: Arc<ConversationRepositoryImpl>,
+    workspace_repository: Arc<ForgeWorkspaceRepository>,
+    context_engine_repository: Arc<ForgeContextEngineRepository<F>>,
+    validation_repository: Arc<ForgeValidationRepository<F>>,
     app_config_repository: Arc<AppConfigRepositoryImpl<F>>,
     mcp_cache_repository: Arc<CacacheStorage>,
     provider_repository: Arc<ForgeProviderRepository<F>>,
@@ -44,7 +48,7 @@ pub struct ForgeRepo<F> {
     skill_repository: Arc<ForgeSkillRepository<F>>,
 }
 
-impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
+impl<F: forge_app::GrpcInfra + forge_app::EnvironmentInfra + forge_app::FileReaderInfra + forge_app::FileWriterInfra> ForgeRepo<F> {
     pub fn new(infra: Arc<F>) -> Self {
         let env = infra.get_environment();
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
@@ -60,6 +64,14 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
             Some(3600),
         )); // 1 hour TTL
 
+        let workspace_repository = Arc::new(ForgeWorkspaceRepository::new(
+            Arc::new(DatabasePool::try_from(PoolConfig::new(env.database_path())).unwrap()),
+        ));
+        let context_engine_repository = Arc::new(ForgeContextEngineRepository::new(
+            infra.clone(),
+        ));
+        let validation_repository = Arc::new(ForgeValidationRepository::new(infra.clone()));
+
         let provider_repository = Arc::new(ForgeProviderRepository::new(infra.clone()));
         let agent_repository = Arc::new(ForgeAgentRepository::new(infra.clone()));
         let skill_repository = Arc::new(ForgeSkillRepository::new(infra.clone()));
@@ -67,6 +79,9 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeRepo<F> {
             infra,
             file_snapshot_service,
             conversation_repository,
+            workspace_repository,
+            context_engine_repository,
+            validation_repository,
             app_config_repository,
             mcp_cache_repository,
             provider_repository,
@@ -434,5 +449,129 @@ impl<F: StrategyFactory> StrategyFactory for ForgeRepo<F> {
     ) -> anyhow::Result<Self::Strategy> {
         self.infra
             .create_auth_strategy(provider_id, auth_method, required_params)
+    }
+}
+
+// Implement the required repository traits for ForgeRepo
+#[async_trait::async_trait]
+impl<F> forge_domain::WorkspaceRepository for ForgeRepo<F>
+where
+    F: Send + Sync,
+{
+    async fn upsert(
+        &self,
+        workspace_id: &forge_domain::WorkspaceId,
+        user_id: &forge_domain::UserId,
+        path: &std::path::Path,
+    ) -> anyhow::Result<()> {
+        self.workspace_repository.upsert(workspace_id, user_id, path).await
+    }
+
+    async fn find_by_path(&self, path: &std::path::Path) -> anyhow::Result<Option<forge_domain::Workspace>> {
+        self.workspace_repository.find_by_path(path).await
+    }
+
+    async fn get_user_id(&self) -> anyhow::Result<Option<forge_domain::UserId>> {
+        self.workspace_repository.get_user_id().await
+    }
+
+    async fn delete(&self, workspace_id: &forge_domain::WorkspaceId) -> anyhow::Result<()> {
+        self.workspace_repository.delete(workspace_id).await
+    }
+}
+
+#[async_trait::async_trait]
+impl<F> forge_domain::ContextEngineRepository for ForgeRepo<F>
+where
+    F: forge_app::GrpcInfra + Send + Sync,
+{
+    async fn authenticate(&self) -> anyhow::Result<forge_domain::WorkspaceAuth> {
+        self.context_engine_repository.authenticate().await
+    }
+
+    async fn create_workspace(
+        &self,
+        working_dir: &std::path::Path,
+        auth_token: &forge_domain::ApiKey,
+    ) -> anyhow::Result<forge_domain::WorkspaceId> {
+        self.context_engine_repository.create_workspace(working_dir, auth_token).await
+    }
+
+    async fn upload_files(
+        &self,
+        upload: &forge_domain::FileUpload,
+        auth_token: &forge_domain::ApiKey,
+    ) -> anyhow::Result<forge_domain::FileUploadInfo> {
+        self.context_engine_repository.upload_files(upload, auth_token).await
+    }
+
+    async fn search(
+        &self,
+        query: &forge_domain::CodeSearchQuery<'_>,
+        auth_token: &forge_domain::ApiKey,
+    ) -> anyhow::Result<Vec<forge_domain::Node>> {
+        self.context_engine_repository.search(query, auth_token).await
+    }
+
+    async fn list_workspaces(
+        &self,
+        auth_token: &forge_domain::ApiKey,
+    ) -> anyhow::Result<Vec<forge_domain::WorkspaceInfo>> {
+        self.context_engine_repository.list_workspaces(auth_token).await
+    }
+
+    async fn get_workspace(
+        &self,
+        workspace_id: &forge_domain::WorkspaceId,
+        auth_token: &forge_domain::ApiKey,
+    ) -> anyhow::Result<Option<forge_domain::WorkspaceInfo>> {
+        self.context_engine_repository.get_workspace(workspace_id, auth_token).await
+    }
+
+    async fn list_workspace_files(
+        &self,
+        workspace: &forge_domain::WorkspaceFiles,
+        auth_token: &forge_domain::ApiKey,
+    ) -> anyhow::Result<Vec<forge_domain::FileHash>> {
+        self.context_engine_repository.list_workspace_files(workspace, auth_token).await
+    }
+
+    async fn delete_files(
+        &self,
+        deletion: &forge_domain::FileDeletion,
+        auth_token: &forge_domain::ApiKey,
+    ) -> anyhow::Result<()> {
+        self.context_engine_repository.delete_files(deletion, auth_token).await
+    }
+
+    async fn delete_workspace(
+        &self,
+        workspace_id: &forge_domain::WorkspaceId,
+        auth_token: &forge_domain::ApiKey,
+    ) -> anyhow::Result<()> {
+        self.context_engine_repository.delete_workspace(workspace_id, auth_token).await
+    }
+}
+
+#[async_trait::async_trait]
+impl<F> forge_domain::ValidationRepository for ForgeRepo<F>
+where
+    F: forge_app::GrpcInfra + Send + Sync,
+{
+    async fn validate_file(
+        &self,
+        path: impl AsRef<std::path::Path> + Send,
+        content: &str,
+    ) -> anyhow::Result<Option<String>> {
+        self.validation_repository.validate_file(path, content).await
+    }
+}
+impl<F: forge_app::GrpcInfra> forge_app::GrpcInfra for ForgeRepo<F> {
+    fn channel(&self) -> tonic::transport::Channel {
+        self.infra.channel()
+    }
+
+    fn hydrate(&self) {
+        self.infra.hydrate()
     }
 }
