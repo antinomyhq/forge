@@ -36,15 +36,17 @@ export async function executeTask(
   command: string,
   index: number,
   logFile: string,
-  evalDir: string,
+  cwd: string,
   task: Task,
   context?: Record<string, string>,
-  append: boolean = false
+  append: boolean = false,
 ): Promise<TaskExecutionResult> {
   const startTime = Date.now();
 
   // Create log stream for this task (append if this is not the first command)
-  const logStream = fs.createWriteStream(logFile, { flags: append ? 'a' : 'w' });
+  const logStream = fs.createWriteStream(logFile, {
+    flags: append ? "a" : "w",
+  });
 
   // Write command at the top of the log file
   logStream.write(`Command: ${command}\n`);
@@ -55,12 +57,12 @@ export async function executeTask(
     // Track timeout state outside the promise
     let timedOut = false;
     let exitedEarly = false;
-    
+
     // Execute command and stream output to log file
     const output = await new Promise<string>((resolve, reject) => {
       const child = spawn(command, {
         shell: true,
-        cwd: task.cwd ?? path.dirname(evalDir),
+        cwd: cwd,
         stdio: ["ignore", "pipe", "pipe"],
       });
 
@@ -71,11 +73,19 @@ export async function executeTask(
       // Helper function to check validations after each write
       const checkValidations = () => {
         if (exitedEarly || timedOut) return;
-        
-        if (task.early_exit && task.validations && task.validations.length > 0) {
+
+        if (
+          task.early_exit &&
+          task.validations &&
+          task.validations.length > 0
+        ) {
           const currentOutput = stdout + stderr;
           if (currentOutput) {
-            const results = runValidations(currentOutput, task.validations, context);
+            const results = runValidations(
+              currentOutput,
+              task.validations,
+              context,
+            );
             if (allValidationsPassed(results)) {
               exitedEarly = true;
               if (timeoutId) clearTimeout(timeoutId);
@@ -166,7 +176,8 @@ export async function executeTask(
     };
   } catch (error) {
     const duration = Date.now() - startTime;
-    const errorMessage = error instanceof Error ? error.message : "Command failed";
+    const errorMessage =
+      error instanceof Error ? error.message : "Command failed";
 
     return {
       index,

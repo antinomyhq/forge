@@ -104,14 +104,20 @@ async function main() {
   const debugDir = path.join(evalDir, "debug", timestamp);
   fs.mkdirSync(debugDir, { recursive: true });
 
+  // Create temp directory for task execution
+  const tmpDir = path.join(debugDir, "tmp");
+  fs.mkdirSync(tmpDir, { recursive: true });
+
   // Execute before_run commands
   if (task.before_run && task.before_run.length > 0) {
     for (const cmd of task.before_run) {
       try {
         logger.info({ command: cmd }, "Running setup command");
+        // Small delay to allow logger to flush before command output
+        await new Promise((resolve) => setTimeout(resolve, 0));
         execSync(cmd, {
           stdio: "inherit",
-          cwd: task.cwd ?? path.dirname(evalDir),
+          cwd: tmpDir,
         });
       } catch (error) {
         logger.error({ command: cmd }, "Setup command failed");
@@ -202,7 +208,7 @@ async function main() {
           command,
           i + 1,
           logFile,
-          evalDir,
+          tmpDir,
           task,
           context,
           cmdIdx > 0, // append if this is not the first command
