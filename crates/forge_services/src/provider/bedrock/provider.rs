@@ -157,7 +157,6 @@ impl<H: HttpClientService> BedrockProvider<H> {
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
-    
 
     use super::*;
 
