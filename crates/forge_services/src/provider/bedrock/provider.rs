@@ -71,8 +71,7 @@ impl<H: HttpClientService> BedrockProvider<H> {
 
         // Claude and Nova models support prompt caching
         // SetCache is model-aware: adds message cache points only for Claude
-        model_lower.contains("anthropic")
-            || model_lower.contains("claude")
+        model_lower.contains("anthropic") || model_lower.contains("claude")
     }
 
     /// Transform model ID with regional prefix if needed
