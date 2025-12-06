@@ -6,7 +6,6 @@ export type Task = {
   early_exit?: boolean;
   validations?: Array<Validation>;
   sources: Array<Source>;
-  cwd?: string;
 };
 
 export type Validation = 

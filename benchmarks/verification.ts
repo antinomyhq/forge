@@ -1,13 +1,10 @@
-import { execSync } from "child_process";
+import { exec } from "child_process";
+import { promisify } from "util";
 import Handlebars from "handlebars";
-import type { Validation } from "./model.js";
+import type { Task, Validation } from "./model.js";
+import { escapeRegex } from "./utils.js";
 
-/**
- * Escapes special regex characters in a string
- */
-function escapeRegex(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
+const execAsync = promisify(exec);
 
 // Register Handlebars helper for escaping regex
 Handlebars.registerHelper("escapeRegex", escapeRegex);
@@ -39,39 +36,50 @@ function validateRegex(
 /**
  * Validates output using a shell command
  */
-function validateShellCommand(
+async function validateShellCommand(
   output: string,
   command: string,
   expectedExitCode: number,
   name: string,
-): ValidationResult {
+): Promise<ValidationResult> {
   try {
-    execSync(command, {
-      input: output,
-      encoding: "utf-8",
-      stdio: ["pipe", "pipe", "pipe"],
+    const { spawn } = await import("child_process");
+
+    // Use spawn to pipe stdin properly
+    const result = await new Promise<{ code: number }>((resolve, reject) => {
+      const child = spawn(command, {
+        shell: true,
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+
+      // Write output to stdin
+      child.stdin.write(output);
+      child.stdin.end();
+
+      child.on("close", (code) => {
+        resolve({ code: code ?? 0 });
+      });
+
+      child.on("error", (err) => {
+        reject(err);
+      });
     });
 
     // Command succeeded (exit code 0)
-    const passed = expectedExitCode === 0;
+    const passed = result.code === expectedExitCode;
     return {
       name,
       passed,
       message: passed
-        ? `Command succeeded with exit code 0`
-        : `Expected exit code ${expectedExitCode}, got 0`,
+        ? `Command succeeded with exit code ${result.code}`
+        : `Expected exit code ${expectedExitCode}, got ${result.code}`,
     };
   } catch (error: any) {
-    // Command failed with non-zero exit code
-    const actualExitCode = error.status ?? 1;
-    const passed = actualExitCode === expectedExitCode;
-
+    // Command failed with error
     return {
       name,
-      passed,
-      message: passed
-        ? `Command exited with expected code ${expectedExitCode}`
-        : `Expected exit code ${expectedExitCode}, got ${actualExitCode}`,
+      passed: false,
+      message: `Command failed: ${error.message}`,
     };
   }
 }
@@ -79,11 +87,11 @@ function validateShellCommand(
 /**
  * Runs all validations on output and returns results
  */
-export function runValidations(
+export async function runValidations(
   output: string,
   validations: Array<Validation>,
   context?: Record<string, string>,
-): ValidationResult[] {
+): Promise<ValidationResult[]> {
   const results: ValidationResult[] = [];
 
   for (const validation of validations) {
@@ -104,7 +112,7 @@ export function runValidations(
       }
       const expectedExitCode = validation.exit_code ?? 0;
       results.push(
-        validateShellCommand(
+        await validateShellCommand(
           output,
           command,
           expectedExitCode,
@@ -139,9 +147,9 @@ export type ProcessValidationsResult = {
 /**
  * Processes validations and returns results with status
  */
-export function processValidations(
+export async function processValidations(
   output: string | undefined,
-  validations: Array<Validation> | undefined,
+  task: Task,
   logger: {
     info: (data: any, message: string) => void;
     warn: (data: any, message: string) => void;
@@ -151,11 +159,11 @@ export function processValidations(
   duration: number,
   logFile: string,
   context?: Record<string, string>,
-): ProcessValidationsResult {
+): Promise<ProcessValidationsResult> {
   // Run validations if configured and output is available
   const validationResults =
-    validations && validations.length > 0 && output
-      ? runValidations(output, validations, context)
+    task.validations && task.validations.length > 0 && output
+      ? await runValidations(output, task.validations, context)
       : [];
 
   const allPassed = allValidationsPassed(validationResults);
@@ -171,11 +179,11 @@ export function processValidations(
         {
           task_id,
           duration,
-          log_file: logFile,
-          context_input: context?.context_input,
+          log: logFile,
+          parameters: context,
           passed: validationResults.map((r) => r.name),
         },
-        "Validation Passed",
+        "Validation passed",
       );
     } else {
       logger.error(
@@ -183,7 +191,7 @@ export function processValidations(
           task_id,
           duration,
           log_file: logFile,
-          context_input: context?.context_input,
+          parameters: context,
           failed: validationResults
             .filter((r) => !r.passed)
             .map((r) => ({
