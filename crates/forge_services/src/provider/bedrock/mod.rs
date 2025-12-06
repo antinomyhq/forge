@@ -33,7 +33,6 @@
 //! - ✅ Bearer token authentication
 
 mod convert;
-mod credentials;
 mod provider;
 mod transform;
 

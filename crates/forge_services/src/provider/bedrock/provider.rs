@@ -9,7 +9,7 @@ use forge_domain::{
 use reqwest::Url;
 use tokio::sync::OnceCell;
 
-use super::credentials::create_bedrock_config;
+use super::transform::SetCache;
 
 /// Provider implementation for Amazon Bedrock using AWS SDK
 pub struct BedrockProvider<T> {
@@ -48,10 +48,22 @@ impl<H: HttpClientService> BedrockProvider<H> {
     async fn get_client(&self) -> Result<&Client> {
         self.client
             .get_or_try_init(|| async {
-                let config = create_bedrock_config(Some(self.region.clone())).await?;
+                let config = aws_config::defaults(aws_config::BehaviorVersion::latest())
+                    .region(aws_config::Region::new(self.region.clone()))
+                    .load()
+                    .await;
                 Ok(Client::new(&config))
             })
             .await
+    }
+
+    /// Check if the model supports prompt caching
+    fn supports_caching(model_id: &str) -> bool {
+        let model_lower = model_id.to_lowercase();
+
+        // Only Anthropic Claude models support prompt caching on Bedrock
+        // Nova, Llama, Mistral, and other models don't support it yet
+        model_lower.contains("anthropic") || model_lower.contains("claude")
     }
 
     /// Transform model ID with regional prefix if needed
@@ -95,18 +107,15 @@ impl<H: HttpClientService> BedrockProvider<H> {
             Err(e) => return Err(e),
         };
 
-        // Convert context to AWS SDK types and apply caching transformer
+        // Convert context to AWS SDK types
         let bedrock_input = super::convert::BedrockConvert::try_from(context)
             .context("Failed to convert context to Bedrock ConverseStreamInput")?;
 
-        // Apply caching transformer only for non-DeepSeek models
-        // DeepSeek models don't support prompt caching
-        let bedrock_input = if !model_id.to_lowercase().contains("deepseek") {
-            let mut set_cache = super::transform::SetCache;
-            set_cache.transform(bedrock_input)
-        } else {
-            bedrock_input
-        };
+        // Apply transformers pipeline
+        let supports_caching = Self::supports_caching(&model_id);
+        let bedrock_input = SetCache
+            .when(move |_| supports_caching)
+            .transform(bedrock_input);
 
         // Build and send the converse_stream request
         let output = client
