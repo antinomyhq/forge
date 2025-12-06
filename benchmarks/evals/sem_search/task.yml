@@ -1,15 +1,15 @@
-before_run:
-  - cargo run -- workspace sync
 run:
-  - FORGE_OVERRIDE_PROVIDER=open_router FORGE_OVERRIDE_MODEL={{model}} FORGE_DEBUG_REQUESTS='{{context_input}}' target/debug/forge -p '{{task}}'
+  # Clone into `tmp/task` dir
+  - git clone --depth=1 --branch main https://github.com/antinomyhq/forge .
+  - forgee workspace sync
+  - FORGE_OVERRIDE_PROVIDER=open_router FORGE_OVERRIDE_MODEL={{model}} FORGE_DEBUG_REQUESTS='{{dir}}/context.json' forgee -p '{{task}}'
 parallelism: 50
-timeout: 10
-cwd: ../
+timeout: 120
 early_exit: true
 validations:
   - name: "Uses codebase search tool"
     type: shell
-    command: 'jq -e ''[.messages[]?.tool_calls[]? | select(.function.name == "sem_search")] | any'' {{context_input}}'
+    command: cat '{{dir}}/context.json' | jq -e '[.messages[]?.tool_calls[]? | select(.function.name == "sem_search")] | any'
 sources:
   - value:
       # - model: "x-ai/grok-code-fast-1"
@@ -21,50 +21,49 @@ sources:
       # - task: "Where is file upload validation and size checking implemented?"
       # - task: "Where are environment variables parsed and configuration loaded?"
       # - task: "Where is the logic for selecting which AI model to use for a task?"
-      
+
       # # Discovery questions - "find"
       # - task: "Find the code that caches API responses to reduce costs"
       # - task: "Find where tool definitions are registered and made available to the AI"
       # - task: "Find the code that manages API keys, tokens, and credentials securely"
       # - task: "Find where Git operations like commit, diff, and status are implemented"
-      
+
       # # Understanding questions - "how does"
       # - task: "How does the system handle differences between OpenAI and Anthropic APIs?"
       # - task: "How does the tool execution pipeline process and validate tool calls?"
       # - task: "How are streaming responses from LLMs processed?"
-      
+
       # # Need-based questions - "I need to"
       # - task: "I need to find retry logic with exponential backoff for API calls"
       # - task: "I need to understand how streaming responses from LLM APIs work"
       # - task: "I need to see how conversation history is truncated when context is too large"
       # - task: "I need to find examples of rate limiting implementations"
-      
+
       # # Show me questions
       # - task: "Show me where authentication tokens are validated and refreshed"
       # - task: "Show me the code that handles rate limiting for API requests"
       # - task: "Show me the code that compacts conversation context when tokens exceed limits"
       # - task: "Show me how the system handles request timeouts and cancellation"
       # - task: "Show me the permission checking and security policy enforcement code"
-      
+
       # # Strategy/pattern questions
       # - task: "I want to understand the caching strategy for semantic search embeddings"
       # - task: "What's the strategy for managing concurrent API requests?"
       # - task: "What's the approach for handling API errors and retries?"
-      
+
       # # Troubleshooting questions
       # - task: "What could cause API requests to fail?"
       # - task: "How are timeout errors handled in the system?"
-      
+
       # # Architecture questions
       # - task: "How do the different AI provider adapters integrate with the main system?"
       # - task: "What's the flow of a user request from input to response?"
       # - task: "How are tools registered and executed?"
-      
+
       # # Capability questions
       # - task: "How does the system track token usage?"
       # - task: "What mechanism prevents infinite loops in tool execution?"
 
-      
       # Human review tasks - integrated from human-review-sem-search-tasks.json
       - task: "Now that we support piping, how can I use an external editor to type a large command and pipe it to the forge cli?"
       - task: "Is there a type-safe version of commander that can make sure the command is parsed into a type-safe object"
