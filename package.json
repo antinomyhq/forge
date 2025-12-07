@@ -7,7 +7,7 @@
   "author": "Tushar Mathur <tusharmath@gmail.com>",
   "type": "module",
   "scripts": {
-    "eval": "tsx cli.ts"
+    "eval": "tsx benchmarks/cli.ts"
   },
   "dependencies": {
     "@types/handlebars": "^4.0.40",
