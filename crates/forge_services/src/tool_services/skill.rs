@@ -5,11 +5,11 @@ use forge_app::SkillFetchService;
 use forge_domain::Skill;
 use tokio::sync::OnceCell;
 
-/// Fetches detailed information about a specific skill. Use this tool to load
-/// skill content and instructions when you need to understand how to perform a
-/// specialized task. Skills provide domain-specific knowledge, workflows, and
-/// best practices. Only invoke skills that are listed in the available skills
-/// section. Do not invoke a skill that is already active.
+/// Loads specialized skills for specific task types. ALWAYS check the
+/// available_skills list when a user request matches a skill's description or
+/// trigger conditions. Skills provide domain-specific workflows and must be
+/// invoked BEFORE attempting the task directly. Only invoke skills listed in
+/// available_skills. Do not invoke a skill that is already active.
 pub struct ForgeSkillFetch<R> {
     repository: Arc<R>,
     cache: OnceCell<Vec<Skill>>,
