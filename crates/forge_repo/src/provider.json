@@ -361,51 +361,6 @@
     "auth_methods": ["api_key"]
   },
   {
-    "id": "llama_cpp_default",
-    "api_key_vars": "",
-    "url_param_vars": [],
-    "response_type": "OpenAI",
-    "url": "http://127.0.0.1:8080/v1/chat/completions",
-    "models": "http://127.0.0.1:8080/v1/models",
-    "auth_methods": ["api_key"]
-  },
-  {
-    "id": "vllm_default",
-    "api_key_vars": "",
-    "url_param_vars": [],
-    "response_type": "OpenAI",
-    "url": "http://127.0.0.1:8000/v1/chat/completions",
-    "models": "http://127.0.0.1:8000/v1/models",
-    "auth_methods": ["api_key"]
-  },
-  {
-    "id": "jan_ai_default",
-    "api_key_vars": "",
-    "url_param_vars": [],
-    "response_type": "OpenAI",
-    "url": "http://127.0.0.1:1337/v1/chat/completions",
-    "models": "http://127.0.0.1:1337/v1/models",
-    "auth_methods": ["api_key"]
-  },
-  {
-    "id": "ollama_default",
-    "api_key_vars": "",
-    "url_param_vars": [],
-    "response_type": "OpenAI",
-    "url": "http://127.0.0.1:11434/v1/chat/completions",
-    "models": "http://127.0.0.1:11434/v1/models",
-    "auth_methods": ["api_key"]
-  },
-  {
-    "id": "lm_studio_default",
-    "api_key_vars": "",
-    "url_param_vars": [],
-    "response_type": "OpenAI",
-    "url": "http://127.0.0.1:1234/v1/chat/completions",
-    "models": "http://127.0.0.1:1234/v1/models",
-    "auth_methods": ["api_key"]
-  },
-  {
     "id": "forge_services",
     "provider_type": "context_engine",
     "url": "https://api.forgecode.dev/",
