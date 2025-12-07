@@ -306,11 +306,11 @@ impl TryFrom<ContentBlock> for ChatCompletionMessage {
                 if let Some(thinking) = thinking {
                     ChatCompletionMessage::assistant(Content::part(""))
                         .reasoning(Content::part(thinking.clone()))
-                        .add_reasoning_detail(Reasoning::Part(vec![ReasoningPart {
-                            signature,
-                            text: Some(thinking),
-                            ..Default::default()
-                        }]))
+                        .add_reasoning_detail(Reasoning::Part(vec![
+                            ReasoningPart::default()
+                                .text(Some(thinking))
+                                .signature(signature),
+                        ]))
                 } else {
                     ChatCompletionMessage::assistant(Content::part(""))
                 }
@@ -319,11 +319,9 @@ impl TryFrom<ContentBlock> for ChatCompletionMessage {
                 if let Some(data) = data {
                     ChatCompletionMessage::assistant(Content::part(""))
                         .reasoning(Content::part(data.clone()))
-                        .add_reasoning_detail(Reasoning::Part(vec![ReasoningPart {
-                            signature: None,
-                            text: Some(data),
-                            ..Default::default()
-                        }]))
+                        .add_reasoning_detail(Reasoning::Part(vec![
+                            ReasoningPart::default().text(Some(data)),
+                        ]))
                 } else {
                     ChatCompletionMessage::assistant(Content::part(""))
                 }
@@ -332,23 +330,18 @@ impl TryFrom<ContentBlock> for ChatCompletionMessage {
                 if let Some(thinking) = thinking {
                     ChatCompletionMessage::assistant(Content::part(""))
                         .reasoning(Content::part(thinking.clone()))
-                        .add_reasoning_detail(Reasoning::Part(vec![ReasoningPart {
-                            signature: None,
-                            text: Some(thinking),
-                            ..Default::default()
-                        }]))
+                        .add_reasoning_detail(Reasoning::Part(vec![
+                            ReasoningPart::default().text(Some(thinking)),
+                        ]))
                 } else {
                     ChatCompletionMessage::assistant(Content::part(""))
                 }
             }
-            ContentBlock::SignatureDelta { signature } => ChatCompletionMessage::assistant(
-                Content::part(""),
-            )
-            .add_reasoning_detail(Reasoning::Part(vec![ReasoningPart {
-                signature,
-                text: None,
-                ..Default::default()
-            }])),
+            ContentBlock::SignatureDelta { signature } => {
+                ChatCompletionMessage::assistant(Content::part("")).add_reasoning_detail(
+                    Reasoning::Part(vec![ReasoningPart::default().signature(signature)]),
+                )
+            }
             ContentBlock::ToolUse { id, name, input } => {
                 // note: We've to check if the input is empty or null. else we end up adding
                 // empty object `{}` as prefix to tool args.

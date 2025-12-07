@@ -404,7 +404,7 @@ impl From<ContextMessage> for Message {
                         .into_iter()
                         .map(|detail| ReasoningDetail {
                             r#type: detail
-                                .r#type
+                                .type_of
                                 .unwrap_or_else(|| "reasoning.text".to_string()),
                             text: detail.text,
                             signature: detail.signature,

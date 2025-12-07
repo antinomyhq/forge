@@ -123,7 +123,7 @@ impl From<ReasoningDetail> for forge_domain::ReasoningDetail {
             id: detail.id,
             format: detail.format,
             index: detail.index,
-            r#type: Some(detail.r#type),
+            type_of: Some(detail.r#type),
         }
     }
 }
@@ -181,7 +181,7 @@ impl GitHubCopilotReasoning {
         forge_domain::ReasoningDetail {
             text: self.text,
             data: self.data,
-            r#type: self.r#type,
+            type_of: self.r#type,
             ..Default::default()
         }
     }
