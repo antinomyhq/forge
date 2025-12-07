@@ -11,12 +11,22 @@ before:
         reasoning_details:
           - text: I need to think about this
             signature: ~
+            data: ~
+            id: ~
+            format: ~
+            index: ~
+            type_of: ~
     - text:
         role: Assistant
         content: Assistant response with reasoning
         reasoning_details:
           - text: I need to think about this
             signature: ~
+            data: ~
+            id: ~
+            format: ~
+            index: ~
+            type_of: ~
 after:
   messages:
     - text:
