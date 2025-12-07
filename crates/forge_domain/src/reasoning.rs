@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 
 /// Represents a reasoning detail that may be included in the response
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Default)]
-pub struct ReasoningPart {
+pub struct ReasoningDetail {
     pub text: Option<String>,
     pub signature: Option<String>,
     pub data: Option<String>,
@@ -12,17 +12,11 @@ pub struct ReasoningPart {
     pub r#type: Option<String>,
 }
 
-/// Represents a reasoning detail that may be included in the response
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Default)]
-pub struct ReasoningFull {
-    pub text: Option<String>,
-    pub signature: Option<String>,
-    pub data: Option<String>,
-    pub id: Option<String>,
-    pub format: Option<String>,
-    pub index: Option<i32>,
-    pub r#type: Option<String>,
-}
+/// Type alias for partial reasoning (used in streaming)
+pub type ReasoningPart = ReasoningDetail;
+
+/// Type alias for complete reasoning
+pub type ReasoningFull = ReasoningDetail;
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Reasoning {
@@ -47,8 +41,6 @@ impl Reasoning {
 
     pub fn from_parts(parts: Vec<Vec<ReasoningPart>>) -> Vec<ReasoningFull> {
         // Flatten all parts and group by type
-        // Different types (reasoning.text vs reasoning.encrypted) should be separate
-        // entries
         let mut grouped: std::collections::HashMap<Option<String>, Vec<ReasoningPart>> =
             std::collections::HashMap::new();
 
@@ -60,55 +52,51 @@ impl Reasoning {
 
         grouped
             .into_iter()
-            .map(|(type_key, parts_for_type)| {
-                // Merge all parts of the same type
-                let text = parts_for_type
+            .filter_map(|(type_key, parts)| {
+                // Merge text from all parts
+                let text = parts
                     .iter()
-                    .filter_map(|part| part.text.as_deref())
+                    .filter_map(|p| p.text.as_deref())
                     .collect::<String>();
 
-                // For non-text fields, take the first non-empty value
-                let signature = parts_for_type
+                // Get first non-empty value for each field
+                let signature = parts.iter().find_map(|p| {
+                    p.signature
+                        .as_deref()
+                        .filter(|s| !s.is_empty())
+                        .map(String::from)
+                });
+                let data = parts.iter().find_map(|p| {
+                    p.data
+                        .as_deref()
+                        .filter(|s| !s.is_empty())
+                        .map(String::from)
+                });
+                let id = parts
                     .iter()
-                    .filter_map(|part| part.signature.as_deref())
-                    .find(|s| !s.is_empty())
-                    .map(String::from);
+                    .find_map(|p| p.id.as_deref().filter(|s| !s.is_empty()).map(String::from));
+                let format = parts.iter().find_map(|p| {
+                    p.format
+                        .as_deref()
+                        .filter(|s| !s.is_empty())
+                        .map(String::from)
+                });
+                let index = parts.iter().find_map(|p| p.index);
 
-                let data = parts_for_type
-                    .iter()
-                    .filter_map(|part| part.data.as_deref())
-                    .find(|s| !s.is_empty())
-                    .map(String::from);
+                // Only include if at least one field has data
+                if text.is_empty() && signature.is_none() && data.is_none() {
+                    return None;
+                }
 
-                let id = parts_for_type
-                    .iter()
-                    .filter_map(|part| part.id.as_deref())
-                    .find(|s| !s.is_empty())
-                    .map(String::from);
-
-                let format = parts_for_type
-                    .iter()
-                    .filter_map(|part| part.format.as_deref())
-                    .find(|s| !s.is_empty())
-                    .map(String::from);
-
-                let index_val = parts_for_type.iter().filter_map(|part| part.index).next();
-
-                ReasoningFull {
+                Some(ReasoningFull {
                     text: (!text.is_empty()).then_some(text),
                     signature,
                     data,
                     id,
                     format,
-                    index: index_val,
+                    index,
                     r#type: type_key,
-                    ..Default::default()
-                }
-            })
-            .filter(|reasoning| {
-                reasoning.text.is_some()
-                    || reasoning.signature.is_some()
-                    || reasoning.data.is_some()
+                })
             })
             .collect()
     }

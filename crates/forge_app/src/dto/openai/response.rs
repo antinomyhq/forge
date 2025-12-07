@@ -114,23 +114,9 @@ pub struct ResponseMessage {
     pub reasoning_opaque: Option<String>,
 }
 
-impl From<ReasoningDetail> for forge_domain::ReasoningFull {
+impl From<ReasoningDetail> for forge_domain::ReasoningDetail {
     fn from(detail: ReasoningDetail) -> Self {
-        forge_domain::ReasoningFull {
-            text: detail.text,
-            signature: detail.signature,
-            data: detail.data,
-            id: detail.id,
-            format: detail.format,
-            index: detail.index,
-            r#type: Some(detail.r#type),
-        }
-    }
-}
-
-impl From<ReasoningDetail> for forge_domain::ReasoningPart {
-    fn from(detail: ReasoningDetail) -> Self {
-        forge_domain::ReasoningPart {
+        forge_domain::ReasoningDetail {
             text: detail.text,
             signature: detail.signature,
             data: detail.data,
@@ -191,17 +177,8 @@ struct GitHubCopilotReasoning {
 }
 
 impl GitHubCopilotReasoning {
-    fn as_reasoning_full(self) -> forge_domain::ReasoningFull {
-        forge_domain::ReasoningFull {
-            text: self.text,
-            data: self.data,
-            r#type: self.r#type,
-            ..Default::default()
-        }
-    }
-
-    fn as_reasoning_part(self) -> forge_domain::ReasoningPart {
-        forge_domain::ReasoningPart {
+    fn into_reasoning_detail(self) -> forge_domain::ReasoningDetail {
+        forge_domain::ReasoningDetail {
             text: self.text,
             data: self.data,
             r#type: self.r#type,
@@ -295,7 +272,7 @@ impl TryFrom<Response> for ChatCompletionMessage {
                                 resp = resp.add_reasoning_detail(forge_domain::Reasoning::Full(
                                     details
                                         .into_iter()
-                                        .map(GitHubCopilotReasoning::as_reasoning_full)
+                                        .map(GitHubCopilotReasoning::into_reasoning_detail)
                                         .collect(),
                                 ));
                             }
@@ -348,7 +325,7 @@ impl TryFrom<Response> for ChatCompletionMessage {
                                 resp = resp.add_reasoning_detail(forge_domain::Reasoning::Part(
                                     details
                                         .into_iter()
-                                        .map(GitHubCopilotReasoning::as_reasoning_part)
+                                        .map(GitHubCopilotReasoning::into_reasoning_detail)
                                         .collect(),
                                 ));
                             }
