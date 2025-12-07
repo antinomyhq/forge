@@ -105,7 +105,6 @@ function forge-accept-line() {
     # Move cursor to end, print newline to move past content, then clear buffer
     CURSOR=${#BUFFER}
     zle redisplay
-    print ""
     BUFFER=""
     CURSOR=0
     
