@@ -1,12 +1,12 @@
 before_run:
   - cargo build
-run: FORGE_DEBUG_REQUESTS='{{context_input}}' ../../target/debug/forge -p '{{skill}}'
+run: FORGE_DEBUG_REQUESTS='{{tmp_dir}}/context.json' ../../target/debug/forge -p '{{skill}}'
 parallelism: 10
 timeout: 60
 early_exit: true
 validations:
   - name: "Uses create-skill tool"
     type: shell
-    command: "jq -e '[.messages[]?.tool_calls[]? | select(.function.name == \"skill\") | .function.arguments | fromjson | .name == \"create-skill\"] | any' {{context_input}}"
+    command: "jq -e '[.messages[]?.tool_calls[]? | select(.function.name == \"skill\") | .function.arguments | fromjson | .name == \"create-skill\"] | any' {{tmp_dir}}/context.json"
 sources:
   - csv: create_skill_tasks.csv
