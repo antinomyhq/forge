@@ -15,7 +15,7 @@ before:
             id: ~
             format: ~
             index: ~
-            type: ~
+            type_of: ~
     - image:
         url: "data:image/png;base64,image_data"
         mime_type: image/png

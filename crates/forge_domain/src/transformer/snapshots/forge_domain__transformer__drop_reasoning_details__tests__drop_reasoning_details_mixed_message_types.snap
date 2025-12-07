@@ -18,7 +18,7 @@ before:
             id: ~
             format: ~
             index: ~
-            type: ~
+            type_of: ~
     - text:
         role: User
         content: User message without reasoning

@@ -21,7 +21,7 @@ before:
             id: ~
             format: ~
             index: ~
-            type: ~
+            type_of: ~
     - text:
         role: Assistant
         content: Third assistant with reasoning
@@ -32,7 +32,7 @@ before:
             id: ~
             format: ~
             index: ~
-            type: ~
+            type_of: ~
   reasoning:
     enabled: true
 after:

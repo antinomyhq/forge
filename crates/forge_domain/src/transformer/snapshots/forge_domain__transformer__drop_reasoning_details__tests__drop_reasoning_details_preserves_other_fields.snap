@@ -16,7 +16,7 @@ before:
             id: ~
             format: ~
             index: ~
-            type: ~
+            type_of: ~
 after:
   messages:
     - text:
