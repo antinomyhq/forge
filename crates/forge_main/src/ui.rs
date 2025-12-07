@@ -2865,19 +2865,25 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 Ok(ref progress @ SyncProgress::Completed { .. }) => {
                     progress_bar.set_position(100)?;
                     progress_bar.stop(None).await?;
-                    self.writeln_title(TitleFormat::debug(progress.message()))?;
+                    if let Some(msg) = progress.message() {
+                        self.writeln_title(TitleFormat::debug(msg))?;
+                    }
                 }
                 Ok(ref progress @ SyncProgress::Syncing { .. }) => {
                     if !progress_bar.is_active() {
                         progress_bar.start(100, "Indexing codebase")?;
                     }
-                    progress_bar.set_message(&progress.message())?;
+                    if let Some(msg) = progress.message() {
+                        progress_bar.set_message(&msg)?;
+                    }
                     if let Some(weight) = progress.weight() {
                         progress_bar.set_position(weight)?;
                     }
                 }
                 Ok(ref progress) => {
-                    self.writeln_title(TitleFormat::debug(progress.message()))?;
+                    if let Some(msg) = progress.message() {
+                        self.writeln_title(TitleFormat::debug(msg))?;
+                    }
                 }
                 Err(e) => {
                     progress_bar.stop(None).await?;

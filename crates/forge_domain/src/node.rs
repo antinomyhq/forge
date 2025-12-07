@@ -80,34 +80,22 @@ impl SyncProgress {
     }
 
     /// Returns a human-readable status message for this event
-    pub fn message(&self) -> String {
+    pub fn message(&self) -> Option<String> {
         match self {
-            Self::Starting => "Initializing codebase sync".to_string(),
+            Self::Starting => {
+                Some("Initializing sync".to_string())
+                // None
+            }
             Self::WorkspaceCreated { workspace_id } => {
-                format!("Created workspace '{}'", workspace_id)
+                Some(format!("Created Workspace: {}", workspace_id))
             }
-            Self::DiscoveringFiles { path } => {
-                format!("Scanning directory '{}'", path.display())
-            }
-            Self::FilesDiscovered { count } => {
-                format!(
-                    "Discovered {} {} for indexing",
-                    count,
-                    Self::pluralize(*count)
-                )
-            }
-            Self::ComparingFiles { local_files, remote_files } => {
-                format!(
-                    "Comparing {} local {} against {} indexed",
-                    local_files,
-                    Self::pluralize(*local_files),
-                    remote_files
-                )
-            }
+            Self::DiscoveringFiles { path: _ } => None,
+            Self::FilesDiscovered { count: _ } => None,
+            Self::ComparingFiles { .. } => None,
             Self::DiffComputed { to_delete, to_upload, modified } => {
                 let total = to_delete + to_upload - modified;
                 if total == 0 {
-                    "Index is up to date, no changes needed".to_string()
+                    Some("Index is up to date".to_string())
                 } else {
                     let deleted = to_delete - modified;
                     let new = to_upload - modified;
@@ -125,32 +113,30 @@ impl SyncProgress {
                     if deleted > 0 {
                         parts.push(format!("{} {} removed", deleted, Self::pluralize(deleted)));
                     }
-                    format!("Changes detected: {}", parts.join(", "))
+                    Some(format!("Change scan completed [{}]", parts.join(", ")))
                 }
             }
             Self::Syncing { current, total } => {
                 let width = total.to_string().len();
-                format!(
+                Some(format!(
                     "Syncing {:>width$}/{} {}",
                     current.round() as usize,
                     total,
                     Self::pluralize(*total)
-                )
+                ))
             }
             Self::Completed { uploaded_files, total_files } => {
                 if *uploaded_files == 0 {
-                    format!(
-                        "Index already synced ({} {})",
+                    Some(format!(
+                        "Index up to date [{} {}]",
                         total_files,
                         Self::pluralize(*total_files)
-                    )
+                    ))
                 } else {
-                    format!(
-                        "Sync complete. {} {} updated, {} total indexed",
-                        uploaded_files,
+                    Some(format!(
+                        "Sync completed successfully [{uploaded_files}/{total_files} {} updated]",
                         Self::pluralize(*uploaded_files),
-                        total_files
-                    )
+                    ))
                 }
             }
         }
