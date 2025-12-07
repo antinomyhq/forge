@@ -5,8 +5,8 @@ use chrono::{DateTime, Local};
 use derive_setters::Setters;
 use forge_domain::{
     Agent, AgentId, Attachment, ChatCompletionMessage, ChatResponse, ContextMessage, Conversation,
-    Environment, Event, HttpConfig, ModelId, ProviderId, RetryConfig, Role, Template, ToolCallFull,
-    ToolDefinition, ToolResult, Workflow,
+    Environment, Event, File, HttpConfig, ModelId, ProviderId, RetryConfig, Role, Template,
+    ToolCallFull, ToolDefinition, ToolResult, Workflow,
 };
 use url::Url;
 
@@ -25,7 +25,7 @@ pub struct TestContext {
     pub mock_assistant_responses: Vec<ChatCompletionMessage>,
     pub workflow: Workflow,
     pub templates: HashMap<String, String>,
-    pub files: Vec<String>,
+    pub files: Vec<File>,
     pub env: Environment,
     pub current_time: DateTime<Local>,
     pub title: Option<String>,
