@@ -308,6 +308,10 @@ pub trait WorkflowService {
 #[async_trait::async_trait]
 pub trait FileDiscoveryService: Send + Sync {
     async fn collect_files(&self, config: Walker) -> anyhow::Result<Vec<File>>;
+
+    /// Lists all entries (files and directories) in the current directory
+    /// Returns a sorted vector of File entries with directories first
+    async fn list_current_directory(&self) -> anyhow::Result<Vec<File>>;
 }
 
 #[async_trait::async_trait]
@@ -712,6 +716,10 @@ impl<I: Services> WorkflowService for I {
 impl<I: Services> FileDiscoveryService for I {
     async fn collect_files(&self, config: Walker) -> anyhow::Result<Vec<File>> {
         self.file_discovery_service().collect_files(config).await
+    }
+
+    async fn list_current_directory(&self) -> anyhow::Result<Vec<File>> {
+        self.file_discovery_service().list_current_directory().await
     }
 }
 

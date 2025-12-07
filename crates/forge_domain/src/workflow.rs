@@ -29,12 +29,6 @@ pub struct Workflow {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub commands: Vec<Command>,
 
-    /// Maximum depth to which the file walker should traverse for all agents
-    /// If not provided, each agent's individual setting will be used
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[merge(strategy = crate::merge::option)]
-    pub max_walker_depth: Option<usize>,
-
     /// A set of custom rules that all agents should follow
     /// These rules will be applied in addition to each agent's individual rules
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -155,7 +149,6 @@ impl Workflow {
     /// scratch.
     pub fn new() -> Self {
         Self {
-            max_walker_depth: None,
             custom_rules: None,
             temperature: None,
             top_p: None,
@@ -187,7 +180,6 @@ mod tests {
         let actual = Workflow::new();
 
         // Assert
-        assert_eq!(actual.max_walker_depth, None);
         assert_eq!(actual.custom_rules, None);
         assert_eq!(actual.temperature, None);
         assert_eq!(actual.top_p, None);
