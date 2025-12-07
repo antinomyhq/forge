@@ -101,6 +101,14 @@ function forge-accept-line() {
     # Add the original command to history before transformation
     print -s -- "$original_buffer"
     
+    # CRITICAL: Accept the line visually without showing a new prompt
+    # Move cursor to end, print newline to move past content, then clear buffer
+    CURSOR=${#BUFFER}
+    zle redisplay
+    print ""
+    BUFFER=""
+    CURSOR=0
+    
     # Handle aliases - convert to their actual agent names
     case "$user_action" in
         ask)
