@@ -166,7 +166,7 @@ impl<T: HttpClientService> Client<T> {
         let chat_stream = self.clone().retry(match self.inner.as_ref() {
             InnerClient::OpenAICompat(provider) => provider.chat(model, context).await,
             InnerClient::Anthropic(provider) => provider.chat(model, context).await,
-            InnerClient::Bedrock(provider) => provider.chat_stream(model, context).await,
+            InnerClient::Bedrock(provider) => provider.chat(model, context).await,
         })?;
 
         let this: Client<T> = self.clone();

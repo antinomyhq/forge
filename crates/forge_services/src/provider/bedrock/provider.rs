@@ -104,7 +104,7 @@ impl<H: HttpClientService> BedrockProvider<H> {
     }
 
     /// Perform a streaming chat completion
-    pub async fn chat_stream(
+    pub async fn chat(
         &self,
         model: &ModelId,
         context: Context,
