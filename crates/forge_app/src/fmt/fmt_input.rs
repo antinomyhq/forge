@@ -64,11 +64,11 @@ impl FormatContent for ToolCatalog {
                 let pairs: Vec<_> = input
                     .queries
                     .iter()
-                    .map(|sq| format!("{} [{}]", sq.query, sq.use_case))
+                    .map(|item| item.query.as_str())
                     .collect();
                 Some(
-                    TitleFormat::debug("Codebase Search:")
-                        .sub_title(pairs.join(", "))
+                    TitleFormat::debug("Codebase Search")
+                        .sub_title(format!("[{}]", pairs.join(" · ")))
                         .into(),
                 )
             }
