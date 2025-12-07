@@ -191,7 +191,7 @@ struct GitHubCopilotReasoning {
 }
 
 impl GitHubCopilotReasoning {
-    fn to_reasoning_full(self) -> forge_domain::ReasoningFull {
+    fn as_reasoning_full(self) -> forge_domain::ReasoningFull {
         forge_domain::ReasoningFull {
             text: self.text,
             data: self.data,
@@ -200,7 +200,7 @@ impl GitHubCopilotReasoning {
         }
     }
 
-    fn to_reasoning_part(self) -> forge_domain::ReasoningPart {
+    fn as_reasoning_part(self) -> forge_domain::ReasoningPart {
         forge_domain::ReasoningPart {
             text: self.text,
             data: self.data,
@@ -295,7 +295,7 @@ impl TryFrom<Response> for ChatCompletionMessage {
                                 resp = resp.add_reasoning_detail(forge_domain::Reasoning::Full(
                                     details
                                         .into_iter()
-                                        .map(GitHubCopilotReasoning::to_reasoning_full)
+                                        .map(GitHubCopilotReasoning::as_reasoning_full)
                                         .collect(),
                                 ));
                             }
@@ -348,7 +348,7 @@ impl TryFrom<Response> for ChatCompletionMessage {
                                 resp = resp.add_reasoning_detail(forge_domain::Reasoning::Part(
                                     details
                                         .into_iter()
-                                        .map(GitHubCopilotReasoning::to_reasoning_part)
+                                        .map(GitHubCopilotReasoning::as_reasoning_part)
                                         .collect(),
                                 ));
                             }
