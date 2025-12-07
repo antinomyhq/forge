@@ -112,6 +112,8 @@ num-format = "0.4"
 humantime = "2.1.0"
 dashmap = "7.0.0-rc2"
 
+mimalloc = "0.1"
+
 # Internal crates
 forge_api = { path = "crates/forge_api" }
 forge_app = { path = "crates/forge_app" }

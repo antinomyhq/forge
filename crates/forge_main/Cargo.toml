@@ -54,6 +54,8 @@ atty = "0.2"
 url.workspace = true
 rust-embed = { version = "8.5", features = ["interpolate-folder-path"] }
 indexmap.workspace = true
+
+mimalloc.workspace = true
 async-recursion.workspace = true
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
