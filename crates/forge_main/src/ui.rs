@@ -420,7 +420,6 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
                 return Ok(());
             }
-
             TopLevelCommand::Mcp(mcp_command) => match mcp_command.command {
                 McpCommand::Import(import_args) => {
                     let scope: forge_domain::Scope = import_args.scope.into();
@@ -512,22 +511,18 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     .await?;
                 return Ok(());
             }
-
             TopLevelCommand::Provider(provider_group) => {
                 self.handle_provider_command(provider_group).await?;
                 return Ok(());
             }
-
             TopLevelCommand::Conversation(conversation_group) => {
                 self.handle_conversation_command(conversation_group).await?;
                 return Ok(());
             }
-
             TopLevelCommand::Suggest { prompt } => {
                 self.on_cmd(UserPrompt::from(prompt)).await?;
                 return Ok(());
             }
-
             TopLevelCommand::Cmd(run_group) => {
                 let porcelain = run_group.porcelain;
                 match run_group.command {
@@ -562,7 +557,6 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
                 return Ok(());
             }
-
             TopLevelCommand::Workspace(index_group) => {
                 match index_group.command {
                     crate::cli::WorkspaceCommand::Sync { path, batch_size } => {
@@ -603,7 +597,6 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
                 return Ok(());
             }
-
             TopLevelCommand::Commit(commit_group) => {
                 let preview = commit_group.preview;
                 let result = self.handle_commit_command(commit_group).await?;
@@ -611,6 +604,12 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     self.writeln(&result.message)?;
                 }
                 return Ok(());
+            }
+            TopLevelCommand::Data(data_command_group) => {
+                let mut stream = self.api.generate_data(data_command_group.into()).await?;
+                while let Some(data) = stream.next().await {
+                    self.writeln(data?)?;
+                }
             }
         }
         Ok(())
@@ -2860,19 +2859,30 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         let mut stream = self.api.sync_codebase(path.clone(), batch_size).await?;
         let mut progress_bar = ProgressBarManager::default();
-        progress_bar.start(100, "Indexing codebase")?;
 
         while let Some(event) = stream.next().await {
             match event {
                 Ok(ref progress @ SyncProgress::Completed { .. }) => {
                     progress_bar.set_position(100)?;
                     progress_bar.stop(None).await?;
-                    self.writeln_title(TitleFormat::debug(progress.message()))?;
+                    if let Some(msg) = progress.message() {
+                        self.writeln_title(TitleFormat::debug(msg))?;
+                    }
                 }
-                Ok(ref progress) => {
-                    progress_bar.set_message(&progress.message())?;
+                Ok(ref progress @ SyncProgress::Syncing { .. }) => {
+                    if !progress_bar.is_active() {
+                        progress_bar.start(100, "Indexing codebase")?;
+                    }
+                    if let Some(msg) = progress.message() {
+                        progress_bar.set_message(&msg)?;
+                    }
                     if let Some(weight) = progress.weight() {
                         progress_bar.set_position(weight)?;
+                    }
+                }
+                Ok(ref progress) => {
+                    if let Some(msg) = progress.message() {
+                        self.writeln_title(TitleFormat::debug(msg))?;
                     }
                 }
                 Err(e) => {

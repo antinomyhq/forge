@@ -26,7 +26,12 @@ pub enum SyncProgress {
         count: usize,
     },
     /// Comparing local files with server state
-    ComparingFiles,
+    ComparingFiles {
+        /// Number of remote files in the workspace
+        remote_files: usize,
+        /// Number of local files being compared
+        local_files: usize,
+    },
     /// Diff computed showing breakdown of changes
     DiffComputed {
         /// Number of files to delete (orphaned on server)
@@ -54,73 +59,84 @@ pub enum SyncProgress {
 }
 
 impl SyncProgress {
-    /// Progress weight allocation:
-    /// - 0-10%: Discovery phase (guaranteed events)
-    /// - 10-100%: Syncing phase (file operations)
-    const DISCOVERY_WEIGHT: u64 = 10;
-    const SYNC_WEIGHT: u64 = 90;
+    /// Returns "file" or "files" based on count
+    fn pluralize(count: usize) -> &'static str {
+        if count == 1 { "file" } else { "files" }
+    }
 
     /// Returns the progress weight (0-100) for this event.
     pub fn weight(&self) -> Option<u64> {
         match self {
-            Self::Starting => Some(0),
-            Self::DiscoveringFiles { .. } => Some(1),
-            Self::FilesDiscovered { .. } => Some(3),
-            Self::ComparingFiles => Some(5),
-            Self::DiffComputed { .. } => Some(10),
-            Self::Completed { .. } => Some(100),
-            Self::WorkspaceCreated { .. } => None,
             Self::Syncing { current, total } => {
                 let sync_progress = if *total > 0 {
-                    (*current * Self::SYNC_WEIGHT as f64 / *total as f64) as u64
+                    (*current * 100.0 / *total as f64) as u64
                 } else {
                     0
                 };
-                Some(Self::DISCOVERY_WEIGHT + sync_progress)
+                Some(sync_progress)
             }
+            _ => None,
         }
     }
 
     /// Returns a human-readable status message for this event
-    pub fn message(&self) -> String {
+    pub fn message(&self) -> Option<String> {
         match self {
-            Self::Starting => "Starting...".to_string(),
-            Self::WorkspaceCreated { .. } => "Workspace created".to_string(),
-            Self::DiscoveringFiles { path } => {
-                // Show only the last directory component for brevity
-                let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("files");
-                format!("Discovering {}", name)
+            Self::Starting => {
+                Some("Initializing sync".to_string())
+                // None
             }
-            Self::FilesDiscovered { count } => format!("Found {} files", count),
-            Self::ComparingFiles => "Comparing...".to_string(),
+            Self::WorkspaceCreated { workspace_id } => {
+                Some(format!("Created Workspace: {}", workspace_id))
+            }
+            Self::DiscoveringFiles { path: _ } => None,
+            Self::FilesDiscovered { count: _ } => None,
+            Self::ComparingFiles { .. } => None,
             Self::DiffComputed { to_delete, to_upload, modified } => {
                 let total = to_delete + to_upload - modified;
                 if total == 0 {
-                    "No changes detected".to_string()
+                    Some("Index is up to date".to_string())
                 } else {
-                    format!(
-                        "{} files to sync ({} deleted, {} new, {} modified)",
-                        total,
-                        to_delete - modified,
-                        to_upload - modified,
-                        modified
-                    )
+                    let deleted = to_delete - modified;
+                    let new = to_upload - modified;
+                    let mut parts = Vec::new();
+                    if new > 0 {
+                        parts.push(format!("{} new {}", new, Self::pluralize(new)));
+                    }
+                    if *modified > 0 {
+                        parts.push(format!(
+                            "{} {} modified",
+                            modified,
+                            Self::pluralize(*modified)
+                        ));
+                    }
+                    if deleted > 0 {
+                        parts.push(format!("{} {} removed", deleted, Self::pluralize(deleted)));
+                    }
+                    Some(format!("Change scan completed [{}]", parts.join(", ")))
                 }
             }
             Self::Syncing { current, total } => {
-                let file_word = if *total == 1 { "file" } else { "files" };
-                format!("Syncing {:.1}/{} {}", current, total, file_word)
+                let width = total.to_string().len();
+                Some(format!(
+                    "Syncing {:>width$}/{} {}",
+                    current.round() as usize,
+                    total,
+                    Self::pluralize(*total)
+                ))
             }
-            Self::Completed { uploaded_files, total_files: _ } => {
+            Self::Completed { uploaded_files, total_files } => {
                 if *uploaded_files == 0 {
-                    "Already up to date".to_string()
+                    Some(format!(
+                        "Index up to date [{} {}]",
+                        total_files,
+                        Self::pluralize(*total_files)
+                    ))
                 } else {
-                    let file_word = if *uploaded_files == 1 {
-                        "file"
-                    } else {
-                        "files"
-                    };
-                    format!("{} {} synced", uploaded_files, file_word)
+                    Some(format!(
+                        "Sync completed successfully [{uploaded_files}/{total_files} {} updated]",
+                        Self::pluralize(*uploaded_files),
+                    ))
                 }
             }
         }

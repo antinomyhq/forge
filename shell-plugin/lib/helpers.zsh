@@ -84,8 +84,8 @@ function _forge_log() {
     
     case "$level" in
         error)
-            # Category::Error - Red ❌
-            echo "\033[31m❌\033[0m ${timestamp} \033[31m${message}\033[0m"
+            # Category::Error - Red ⏺
+            echo "\033[31m⏺\033[0m ${timestamp} \033[31m${message}\033[0m"
             ;;
         info)
             # Category::Info - White ⏺

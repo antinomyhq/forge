@@ -141,6 +141,9 @@ pub enum TopLevelCommand {
 
     /// Manage workspaces for semantic search.
     Workspace(WorkspaceCommandGroup),
+
+    /// Process JSONL data through LLM with schema-constrained tools.
+    Data(DataCommandGroup),
 }
 
 /// Command group for custom command management.
@@ -605,12 +608,70 @@ pub struct CommitCommandGroup {
     pub text: Vec<String>,
 }
 
+/// Group of Data-related commands
+#[derive(Parser, Debug, Clone)]
+pub struct DataCommandGroup {
+    /// Path to JSONL file to process
+    #[arg(long)]
+    pub input: String,
+
+    /// Path to JSON schema file for LLM tool definition
+    #[arg(long)]
+    pub schema: String,
+
+    /// Path to Handlebars template file for system prompt
+    #[arg(long)]
+    pub system_prompt: Option<String>,
+
+    /// Path to Handlebars template file for user prompt
+    #[arg(long)]
+    pub user_prompt: Option<String>,
+
+    /// Maximum number of concurrent LLM requests
+    #[arg(long, default_value = "10")]
+    pub concurrency: usize,
+}
+
+impl From<DataCommandGroup> for forge_domain::DataGenerationParameters {
+    fn from(value: DataCommandGroup) -> Self {
+        Self {
+            input: value.input.into(),
+            schema: value.schema.into(),
+            system_prompt: value.system_prompt.map(Into::into),
+            user_prompt: value.user_prompt.map(Into::into),
+            concurrency: value.concurrency,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use clap::Parser;
     use pretty_assertions::assert_eq;
 
     use super::*;
+
+    #[test]
+    fn test_data_command_group_conversion() {
+        use std::path::PathBuf;
+
+        let fixture = DataCommandGroup {
+            input: "path/to/input.jsonl".to_string(),
+            schema: "path/to/schema.json".to_string(),
+            system_prompt: Some("system prompt".to_string()),
+            user_prompt: None,
+            concurrency: 5,
+        };
+        let actual: forge_domain::DataGenerationParameters = fixture.into();
+        let expected = forge_domain::DataGenerationParameters {
+            input: PathBuf::from("path/to/input.jsonl"),
+            schema: PathBuf::from("path/to/schema.json"),
+            system_prompt: Some(PathBuf::from("system prompt")),
+            user_prompt: None,
+            concurrency: 5,
+        };
+        assert_eq!(actual, expected);
+    }
 
     #[test]
     fn test_commit_default_max_diff_size() {
