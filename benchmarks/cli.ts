@@ -383,6 +383,12 @@ async function main() {
   if (failCount > 0) {
     process.exit(1);
   }
+  
+  // Exit successfully - ensures process terminates even with open handles
+  process.exit(0);
 }
 
-main();
+main().catch((error) => {
+  logger.error({ error: error.message }, "Fatal error");
+  process.exit(1);
+});

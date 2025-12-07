@@ -76,12 +76,14 @@ export async function executeTask(
             if (allValidationsPassed(results)) {
               exitedEarly = true;
               if (timeoutId) clearTimeout(timeoutId);
-              logStream.write(
-                `\n${"=".repeat(80)}\nEarly exit: All validations passed\nKilling process...\n`,
-                () => {
-                  logStream.end();
-                },
-              );
+              if (logStream.writable) {
+                logStream.write(
+                  `\n${"=".repeat(80)}\nEarly exit: All validations passed\nKilling process...\n`,
+                  () => {
+                    logStream.end();
+                  },
+                );
+              }
               child.kill("SIGTERM");
               resolve(currentOutput);
             }
@@ -93,10 +95,12 @@ export async function executeTask(
       if (task.timeout) {
         timeoutId = setTimeout(() => {
           timedOut = true;
-          logStream.write(`\n${"=".repeat(80)}\n`);
-          logStream.write(`Timeout: ${task.timeout}s exceeded\n`);
-          logStream.write(`Killing process...\n`);
-          logStream.end();
+          if (logStream.writable) {
+            logStream.write(`\n${"=".repeat(80)}\n`);
+            logStream.write(`Timeout: ${task.timeout}s exceeded\n`);
+            logStream.write(`Killing process...\n`);
+            logStream.end();
+          }
           child.kill("SIGKILL");
           // Resolve with captured output so far
           resolve(stdout + stderr);
