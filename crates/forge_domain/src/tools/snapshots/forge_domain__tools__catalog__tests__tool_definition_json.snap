@@ -4,7 +4,7 @@ expression: tools
 ---
 {
   "title": "FSRead",
-  "description": "Reads file contents from the specified absolute path. Ideal for analyzing code, configuration files, documentation, or textual data. Returns the content as a string with line number prefixes by default. For files larger than 2,000 lines, the tool automatically returns only the first 2,000 lines. You should always rely on this default behavior and avoid specifying custom ranges unless absolutely necessary. If needed, specify a range with start_line and end_line parameters, ensuring the total range does not exceed 2,000 lines. Specifying a range exceeding this limit will result in an error. Binary files are automatically detected and rejected.",
+  "description": "Reads file contents from the specified absolute path. Ideal for analyzing code, configuration files, documentation, or textual data. Returns the content as a string with line number prefixes by default. For files larger than 2,000 lines, the tool automatically returns only the first 2,000 lines. You should always rely on this default behavior and avoid specifying custom ranges unless absolutely necessary. If needed, specify a range with the start_line and end_line parameters, ensuring the total range does not exceed 2,000 lines. Specifying a range exceeding this limit will result in an error. Binary files are automatically detected and rejected.",
   "type": "object",
   "required": [
     "path"
@@ -49,7 +49,7 @@ expression: tools
 }
 {
   "title": "FSWrite",
-  "description": "Use it to create a new file at a specified path with the provided content.\n\nAlways provide absolute paths for file locations. The tool automatically handles the creation of any missing intermediary directories in the specified path. IMPORTANT: DO NOT attempt to use this tool to move or rename files, use the shell tool instead.",
+  "description": "Use it to create a new file at the specified path with the provided content.\n\nAlways provide absolute paths for file locations. The tool automatically handles the creation of any missing intermediary directories in the specified path. IMPORTANT: DO NOT attempt to use this tool to move or rename files, use the shell tool instead.",
   "type": "object",
   "required": [
     "content",
@@ -135,7 +135,7 @@ expression: tools
             "type": "string"
           },
           "use_case": {
-            "description": "A short natural-language description of what you are trying to find. This is the query used for document reranking. The query MUST: - express a single, focused information need - describe exactly what the agent is searching for - should not be the query verbatim - be concise (1–2 sentences)\n\nExamples: - \"Why is `select_model()` returning a Pin<Box<Result>> in Rust?\" - \"How to fix error E0277 for the ? operator on a pinned boxed result?\" - \"Steps to run Diesel migrations in Rust without exposing the DB.\" - \"How to design a clean architecture service layer with typed errors?\"",
+            "description": "A short natural-language description of what you are trying to find. This is query used for document reranking. The query MUST: - express a single, focused information need - describe exactly what agent is searching for - should not be query verbatim - be concise (1–2 sentences)\n\nExamples: - \"Why is `select_model()` returning a Pin<Box<Result>> in Rust?\" - \"How to fix error E0277 for ? operator on a pinned boxed result?\" - \"Steps to run Diesel migrations in Rust without exposing DB.\" - \"How to design a clean architecture service layer with typed errors?\"",
             "type": "string"
           }
         }
@@ -159,7 +159,7 @@ expression: tools
 }
 {
   "title": "FSPatch",
-  "description": "Modifies files with targeted line operations on matched patterns. Supports prepend, append, replace, replace_all, swap operations. Ideal for precise changes to configs, code, or docs while preserving context. Not suitable for complex refactoring or modifying all pattern occurrences - use `write` instead for complete rewrites and `undo` for undoing the last operation. Fails if the search pattern isn't found.\\n\\nUsage Guidelines:\\n-When editing text from Read tool output, ensure you preserve new lines and the exact indentation (tabs/spaces) as it appears AFTER the line number prefix. The line number prefix format is: line number + ':'. Everything after that is the actual file content to match. Never include any part of the line number prefix in the search or content",
+  "description": "Modifies files with targeted line operations on matched patterns. Supports prepend, append, replace, replace_all, swap operations. Ideal for precise changes to configs, code, or docs while preserving context. Not suitable for complex refactoring or modifying all pattern occurrences - use `write` instead for complete rewrites and `undo` for undoing the last operation. Fails if search pattern isn't found.\\n\\nUsage Guidelines:\\n-When editing text from Read tool output, ensure you preserve new lines and the exact indentation (tabs/spaces) as it appears AFTER the line number prefix. The line number prefix format is: line number + ':'. Everything after that is the actual file content to match. Never include any part of the line number prefix in the search or content",
   "type": "object",
   "required": [
     "content",
@@ -296,7 +296,7 @@ expression: tools
       "nullable": true
     },
     "question": {
-      "description": "Question to ask user",
+      "description": "Question to ask the user",
       "type": "string"
     }
   }
