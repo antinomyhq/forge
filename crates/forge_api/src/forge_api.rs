@@ -6,15 +6,17 @@ use anyhow::Result;
 use forge_app::dto::ToolsOverview;
 use forge_app::{
     AgentProviderResolver, AgentRegistry, AppConfigService, AuthService, CommandInfra,
-    CommandLoaderService, ContextEngineService, ConversationService, EnvironmentInfra,
-    EnvironmentService, FileDiscoveryService, ForgeApp, GitApp, McpConfigManager, McpService,
-    ProviderAuthService, ProviderService, Services, User, UserUsage, Walker,
+    CommandLoaderService, ContextEngineService, ConversationService, DataGenerationApp,
+    EnvironmentInfra, EnvironmentService, FileDiscoveryService, ForgeApp, GitApp, GrpcInfra,
+    McpConfigManager, McpService, ProviderAuthService, ProviderService, Services, User, UserUsage,
+    Walker,
 };
 use forge_domain::{Agent, InitAuth, LoginInfo, *};
 use forge_infra::ForgeInfra;
 use forge_repo::ForgeRepo;
 use forge_services::ForgeServices;
 use forge_stream::MpscStream;
+use futures::stream::BoxStream;
 use url::Url;
 
 use crate::API;
@@ -53,8 +55,10 @@ impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
 }
 
 #[async_trait::async_trait]
-impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + AppConfigRepository> API
-    for ForgeAPI<A, F>
+impl<
+    A: Services,
+    F: CommandInfra + EnvironmentInfra + SkillRepository + AppConfigRepository + GrpcInfra,
+> API for ForgeAPI<A, F>
 {
     async fn discover(&self) -> Result<Vec<File>> {
         let environment = self.services.get_environment();
@@ -362,7 +366,20 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + AppConf
         Ok(self.services.migrate_env_credentials().await?)
     }
 
+    async fn generate_data(
+        &self,
+        data_parameters: DataGenerationParameters,
+    ) -> Result<BoxStream<'static, Result<serde_json::Value, anyhow::Error>>> {
+        let app = DataGenerationApp::new(self.services.clone());
+        app.execute(data_parameters).await
+    }
+
     async fn get_default_provider(&self) -> Result<Provider<Url>> {
         self.services.get_default_provider().await
+    }
+
+    fn hydrate_channel(&self) -> Result<()> {
+        self.infra.hydrate();
+        Ok(())
     }
 }

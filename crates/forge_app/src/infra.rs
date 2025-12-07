@@ -348,3 +348,17 @@ pub trait AgentRepository: Send + Sync {
     /// resolution.
     async fn get_agents(&self) -> anyhow::Result<Vec<forge_domain::AgentDefinition>>;
 }
+
+/// Infrastructure trait for providing shared gRPC channel
+///
+/// This trait provides access to a shared gRPC channel for communicating with
+/// the workspace server. The channel is lazily connected and can be cloned
+/// cheaply across multiple clients.
+pub trait GrpcInfra: Send + Sync {
+    /// Returns a cloned gRPC channel for the workspace server
+    fn channel(&self) -> tonic::transport::Channel;
+
+    /// Hydrates the gRPC channel by establishing and then dropping the
+    /// connection
+    fn hydrate(&self);
+}

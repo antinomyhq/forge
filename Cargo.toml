@@ -84,6 +84,7 @@ tokio = { version = "1.47.1", features = [
 ] }
 tokio-stream = "0.1.17"
 tokio-util = "0.7"
+tonic = { version = "0.14.2", features = ["tls-webpki-roots"] }
 tracing = "0.1.41"
 tracing-appender = "0.2.3"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter", "json"] }
