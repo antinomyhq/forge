@@ -6,6 +6,13 @@ export type CliArgs = {
   evalName: string;
   evalDir: string;
   taskFile: string;
+  cloudrun: boolean;
+  gcpProject: string | undefined;
+  gcpRegion: string | undefined;
+  parallelism: number | undefined;
+  apiKey: string | undefined;
+  provider: string | undefined;
+  model: string | undefined;
 };
 
 /**
@@ -18,6 +25,38 @@ export async function parseCliArgs(dirname: string): Promise<CliArgs> {
     .positional("eval-name", {
       describe: "Name of the evaluation to run",
       type: "string",
+    })
+    .option("cloudrun", {
+      alias: "c",
+      type: "boolean",
+      description: "Run evaluation on Google Cloud Run",
+      default: false,
+    })
+    .option("gcp-project", {
+      type: "string",
+      description: "Google Cloud project ID (or set GCP_PROJECT env var)",
+    })
+    .option("gcp-region", {
+      type: "string",
+      description: "Google Cloud region (default: us-central1)",
+      default: "us-east5",
+    })
+    .option("parallelism", {
+      alias: "p",
+      type: "number",
+      description: "Number of parallel workspaces (overrides task.yml parallelism)",
+    })
+    .option("api-key", {
+      type: "string",
+      description: "LLM provider API key (or set ANTHROPIC_API_KEY/OPENAI_API_KEY/etc)",
+    })
+    .option("provider", {
+      type: "string",
+      description: "LLM provider (e.g., anthropic, openai, openrouter)",
+    })
+    .option("model", {
+      type: "string",
+      description: "LLM model to use (e.g., claude-3-5-sonnet-20241022, gpt-4)",
     })
     .help()
     .alias("h", "help")
@@ -44,9 +83,37 @@ export async function parseCliArgs(dirname: string): Promise<CliArgs> {
     taskFile = path.join(evalDir, "task.yml");
   }
 
+  // Get GCP configuration from CLI or environment
+  const gcpProject =
+    (argv["gcp-project"] as string) || process.env.GCP_PROJECT || process.env.GOOGLE_CLOUD_PROJECT;
+  const gcpRegion = (argv["gcp-region"] as string) || "us-central1";
+  
+  // Get API key from CLI or environment (try provider-specific env vars)
+  const provider = argv.provider as string | undefined;
+  let apiKey = argv["api-key"] as string | undefined;
+  
+  if (!apiKey && provider) {
+    // Try to get API key from provider-specific environment variable
+    const providerLower = provider.toLowerCase().replace(/_/g, '');
+    if (providerLower.includes("openrouter")) {
+      apiKey = process.env.OPENROUTER_API_KEY;
+    } else if (providerLower === "anthropic") {
+      apiKey = process.env.ANTHROPIC_API_KEY;
+    } else if (providerLower === "openai") {
+      apiKey = process.env.OPENAI_API_KEY;
+    }
+  }
+
   return {
     evalName,
     evalDir,
     taskFile,
+    cloudrun: argv.cloudrun as boolean,
+    gcpProject,
+    gcpRegion,
+    parallelism: argv.parallelism as number | undefined,
+    apiKey,
+    provider,
+    model: argv.model as string | undefined,
   };
 }

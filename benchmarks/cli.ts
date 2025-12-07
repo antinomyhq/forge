@@ -79,7 +79,7 @@ async function main() {
     process.exit(1);
   }
 
-  const { evalName, evalDir, taskFile } = args;
+  const { evalName, evalDir, taskFile, cloudrun, gcpProject, gcpRegion, parallelism, apiKey, provider, model } = args;
 
   // Check if eval directory and task file exist
   if (!fs.existsSync(evalDir)) {
@@ -95,6 +95,9 @@ async function main() {
   // Read and parse task.yml
   const taskContent = fs.readFileSync(taskFile, "utf-8");
   const task: Task = parseYaml(taskContent);
+  
+  // Set eval_dir on task for later use
+  task.eval_dir = evalDir;
 
   // Display header
   const displayName = path.relative(__dirname, evalDir) || evalName;
@@ -104,8 +107,9 @@ async function main() {
   const debugDir = path.join(evalDir, "debug", timestamp);
   fs.mkdirSync(debugDir, { recursive: true });
 
-  // Execute before_run commands
-  if (task.before_run && task.before_run.length > 0) {
+  // Execute before_run commands (only for local execution)
+  if (task.before_run && task.before_run.length > 0 && !args.cloudrun) {
+    logger.info("Executing before_run commands");
     for (const cmd of task.before_run) {
       try {
         logger.info({ command: cmd }, "Running setup command");
@@ -118,6 +122,8 @@ async function main() {
         process.exit(1);
       }
     }
+  } else if (task.before_run && task.before_run.length > 0) {
+    logger.info("Skipping before_run commands (using pre-built container image)");
   }
 
   // Load data from sources and create cross product
@@ -151,188 +157,282 @@ async function main() {
     process.exit(1);
   }
 
-  // Get contexts from sources using pure function
-  const data = getContextsFromSources(sourcesData);
+  // Handle Cloud Run execution
+  if (cloudrun) {
+    // Try to get project from ADC if not provided
+    let projectId = gcpProject;
+    
+    if (!projectId) {
+      try {
+        // Get project from gcloud config
+        const { execSync } = await import("child_process");
+        projectId = execSync("gcloud config get-value project", { 
+          encoding: "utf-8" 
+        }).trim();
+        
+        if (projectId && projectId !== "(unset)") {
+          logger.info({ project: projectId }, "Using GCP project from ADC/gcloud config");
+        } else {
+          projectId = undefined;
+        }
+      } catch (error) {
+        // ADC not configured
+      }
+    }
 
-  const results: TaskResult[] = [];
+    if (!projectId) {
+      logger.error(
+        "GCP project ID is required for Cloud Run execution. Either:\n" +
+        "  1. Set GCP_PROJECT env var\n" +
+        "  2. Use --gcp-project flag\n" +
+        "  3. Run: gcloud config set project YOUR_PROJECT_ID"
+      );
+      process.exit(1);
+    }
 
-  // Get parallelism setting (default to 1 for sequential execution)
-  const parallelism = task.parallelism ?? 1;
-  const limit = pLimit(parallelism);
+    logger.info("Running evaluation on Google Cloud Run");
 
-  // Execute run command for each data row
-  // Create promises for all tasks
-  const taskPromises = data.map((row, i) => {
-    return limit(async () => {
-      const logFile = path.join(debugDir, `task_run_${i + 1}.log`);
-      const debugRequestFile = path.join(debugDir, `request_${i + 1}.json`);
+    // Import orchestrator factory
+    const { createOrchestrator } = await import("./orchestrator-factory.js");
+    const { distributeTask } = await import("./task-distributor.js");
+    
+    // Build environment overrides
+    const envOverrides: Record<string, string> = {};
+    
+    // Add API key
+    if (apiKey) {
+      const providerLower = provider?.toLowerCase().replace(/_/g, '');
+      if (providerLower?.includes("openrouter")) {
+        envOverrides.OPENROUTER_API_KEY = apiKey;
+      } else if (providerLower === "anthropic") {
+        envOverrides.ANTHROPIC_API_KEY = apiKey;
+      } else if (providerLower === "openai") {
+        envOverrides.OPENAI_API_KEY = apiKey;
+      } else {
+        // Default to provider-specific key
+        envOverrides[`${provider?.toUpperCase()}_API_KEY`] = apiKey;
+      }
+    }
 
-      // Add context_input to context for command interpolation and validations
-      const context = { ...row, context_input: debugRequestFile };
+    // Add provider and model overrides
+    if (provider) {
+      envOverrides.FORGE_OVERRIDE_PROVIDER = provider;
+    }
+    if (model) {
+      envOverrides.FORGE_OVERRIDE_MODEL = model;
+    }
 
-      // Support both single command and multiple commands
-      const commands = Array.isArray(task.run) ? task.run : [task.run];
+    logger.info({ envOverrides }, "Environment overrides configured for Cloud Run");
 
-      let combinedOutput = "";
-      let totalDuration = 0;
-      let lastError: string | undefined;
-      let hasTimeout = false;
-      let hasEarlyExit = false;
+    // Build and push Docker image to Artifact Registry
+    const region = gcpRegion || "us-central1";
+    const imageTag = `${region}-docker.pkg.dev/${projectId}/forge-eval/forge-eval:latest`;
+    const localTag = "forge-eval:latest";
+    
+    logger.info({ image: imageTag }, "Building Docker image for Cloud Run...");
+    
+    // Get the root directory (parent of benchmarks directory)
+    // evalDir is like /path/to/benchmarks/evals/create_skill
+    // We need to go up to /path/to/code-forge
+    const rootDir = path.resolve(evalDir, "../../..");
+    
+    try {
+      // Build the binary using cross for linux/amd64
+      logger.info("Building forge binary with cross for x86_64-unknown-linux-gnu...");
+      execSync(
+        `cross build --release --bin forge --target x86_64-unknown-linux-gnu`,
+        {
+          cwd: rootDir,
+          stdio: "inherit",
+        }
+      );
 
-      // Execute commands sequentially
-      for (let cmdIdx = 0; cmdIdx < commands.length; cmdIdx++) {
-        const commandTemplate = commands[cmdIdx];
-        if (!commandTemplate) continue;
+      // Install node_modules for benchmarks if not already installed
+      logger.info("Installing node_modules for benchmarks...");
+      const benchmarksDir = path.join(rootDir, "benchmarks");
+      const fsModule = await import("fs");
+      if (!fsModule.existsSync(path.join(benchmarksDir, "node_modules"))) {
+        execSync(`npm ci`, {
+          cwd: benchmarksDir,
+          stdio: "inherit",
+        });
+      }
 
-        const command = generateCommand(commandTemplate, context);
+      // Build TypeScript to JavaScript
+      logger.info("Building TypeScript to JavaScript...");
+      execSync(`npx tsc --project tsconfig.container.json --skipLibCheck`, {
+        cwd: benchmarksDir,
+        stdio: "inherit",
+      });
 
-        logger.info(
+      // Build the Docker image with the cross-compiled binary
+      // Use a custom dockerignore that allows the target directory
+      logger.info({ tag: localTag }, "Building Docker image with cross-compiled binary for linux/amd64...");
+      
+      // Temporarily rename .dockerignore and use .dockerignore.eval
+      const fs = await import("fs");
+      const dockerignoreBackup = path.join(rootDir, ".dockerignore.backup");
+      const dockerignoreOriginal = path.join(rootDir, ".dockerignore");
+      const dockerignoreEval = path.join(rootDir, ".dockerignore.eval");
+      
+      try {
+        // Backup original .dockerignore if it exists
+        if (fs.existsSync(dockerignoreOriginal)) {
+          execSync(`cp ${dockerignoreOriginal} ${dockerignoreBackup}`, { cwd: rootDir });
+        }
+        
+        // Use .dockerignore.eval as .dockerignore
+        if (fs.existsSync(dockerignoreEval)) {
+          execSync(`cp ${dockerignoreEval} ${dockerignoreOriginal}`, { cwd: rootDir });
+        }
+        
+        execSync(
+          `docker build --platform linux/amd64 -f Dockerfile.eval -t ${localTag} .`,
           {
-            command,
-            task_id: i + 1,
-            command_idx: cmdIdx + 1,
-            total_commands: commands.length,
-            log_file: logFile,
-          },
-          "Launching task",
+            cwd: rootDir,
+            stdio: "inherit",
+          }
         );
-
-        const executionResult = await executeTask(
-          command,
-          i + 1,
-          logFile,
-          evalDir,
-          task,
-          context,
-          cmdIdx > 0, // append if this is not the first command
-        );
-
-        totalDuration += executionResult.duration;
-
-        if (executionResult.output) {
-          combinedOutput += executionResult.output;
-        }
-
-        if (executionResult.earlyExit) {
-          hasEarlyExit = true;
-        }
-
-        // If execution failed or timed out, stop executing remaining commands
-        if (executionResult.error) {
-          lastError = executionResult.error;
-          hasTimeout = executionResult.isTimeout;
-
-          logger.warn(
-            {
-              task_id: executionResult.index,
-              command: executionResult.command,
-              command_idx: cmdIdx + 1,
-              duration: executionResult.duration,
-              error: executionResult.error,
-              is_timeout: executionResult.isTimeout,
-            },
-            executionResult.isTimeout ? "Task timed out" : "Task failed",
-          );
-          break;
+      } finally {
+        // Restore original .dockerignore
+        if (fs.existsSync(dockerignoreBackup)) {
+          execSync(`mv ${dockerignoreBackup} ${dockerignoreOriginal}`, { cwd: rootDir });
         }
       }
 
-      // If any command failed, return failure result
-      if (lastError) {
-        const { validationResults } = processValidations(
-          combinedOutput,
-          task.validations,
-          logger,
-          i + 1,
-          totalDuration,
-          logFile,
-          context,
-        );
+      // Tag for Artifact Registry
+      logger.info({ artifact_registry_image: imageTag }, "Tagging for Artifact Registry...");
+      execSync(`docker tag ${localTag} ${imageTag}`, { stdio: "inherit" });
 
-        return {
-          index: i + 1,
-          status: hasTimeout ? TaskStatus.Timeout : TaskStatus.Failed,
-          command: commands.join(" && "),
-          duration: totalDuration,
-          validationResults,
-        };
-      }
+      // Authenticate with Artifact Registry
+      logger.info("Authenticating with Artifact Registry...");
+      execSync(`gcloud auth configure-docker ${region}-docker.pkg.dev --quiet`, {
+        stdio: "pipe",
+      });
 
-      // Run validations on the combined output
-      const { validationResults, status: validationStatus } =
-        processValidations(
-          combinedOutput,
-          task.validations,
-          logger,
-          i + 1,
-          totalDuration,
-          logFile,
-          context,
-        );
+      // Push to Artifact Registry
+      logger.info({ image: imageTag }, "Pushing image to Artifact Registry...");
+      execSync(`docker push ${imageTag}`, { stdio: "inherit" });
 
-      return {
-        index: i + 1,
-        status:
-          validationStatus === "passed"
-            ? TaskStatus.Passed
-            : TaskStatus.ValidationFailed,
-        command: commands.join(" && "),
-        duration: totalDuration,
-        validationResults,
-      };
-    });
-  });
+      logger.info({ image: imageTag }, "Image successfully pushed to Artifact Registry");
+    } catch (error: any) {
+      logger.error({ error: error.message }, "Failed to build or push Docker image");
+      process.exit(1);
+    }
 
-  // Wait for all tasks to complete
-  const taskResults = await Promise.all(taskPromises);
-  results.push(...taskResults);
-
-  // Calculate summary statistics
-  const successCount = results.filter(
-    (r) => r.status === TaskStatus.Passed,
-  ).length;
-  const warningCount = results.filter(
-    (r) => r.status === TaskStatus.ValidationFailed,
-  ).length;
-  const timeoutCount = results.filter(
-    (r) => r.status === TaskStatus.Timeout,
-  ).length;
-  const failCount = results.filter(
-    (r) => r.status === TaskStatus.Failed,
-  ).length;
-  const totalDuration = results.reduce((sum, r) => sum + r.duration, 0);
-
-  // Calculate validation statistics
-  const totalValidations = results.reduce(
-    (sum, r) => sum + r.validationResults.length,
-    0,
-  );
-  const passedValidations = results.reduce(
-    (sum, r) => sum + r.validationResults.filter((v) => v.passed).length,
-    0,
-  );
-
-  // Print summary
-  logger.info(
-    {
-      total: results.length,
-      passed: successCount,
-      validation_failed: warningCount,
-      timeout: timeoutCount,
-      failed: failCount,
-      total_duration: totalDuration,
-      validations: {
-        total: totalValidations,
-        passed: passedValidations,
-        failed: totalValidations - passedValidations,
+    // Create Cloud Run orchestrator
+    const orchestrator = createOrchestrator(
+      {
+        type: 'cloudrun',
+        cloudrun: {
+          projectId: projectId, // Use detected or provided project ID
+          region: region,
+          image: imageTag,
+        },
       },
+      logger
+    );
+
+    try {
+      // Distribute task into individual task units
+      const flattenedSources = sourcesData.flat();
+      const taskUnits = distributeTask(task, flattenedSources, evalDir);
+      
+      logger.info({ task_count: taskUnits.length }, "Distributed task into units");
+
+      // Run tasks using orchestrator
+      const result = await orchestrator.runTasks({
+        tasks: taskUnits,
+        maxConcurrency: parallelism ?? task.parallelism ?? 3,
+        debugDir,
+        envOverrides,
+      });
+
+      logger.info(
+        {
+          total: result.total,
+          passed: result.passed,
+          validation_failed: result.validation_failed,
+          timeout: result.timeout,
+          failed: result.failed,
+          validations_passed: result.validationsPassed,
+          validations_failed: result.validationsFailed,
+          validations_total: result.validationsTotal,
+        },
+        "Cloud Run evaluation completed"
+      );
+
+      // Exit with error code if any task failed
+      if (result.failed > 0) {
+        process.exit(1);
+      }
+
+      return;
+    } catch (error) {
+      logger.error(
+        {
+          error: error instanceof Error ? error.message : String(error),
+        },
+        "Cloud Run execution failed"
+      );
+      process.exit(1);
+    }
+  }
+
+  // Local execution (default)
+  logger.info("Running evaluation locally");
+
+  // Import orchestrator factory and task distributor
+  const { createOrchestrator } = await import("./orchestrator-factory.js");
+  const { distributeTask } = await import("./task-distributor.js");
+  
+  // Create local orchestrator
+  const orchestrator = createOrchestrator({ type: 'local' }, logger);
+  
+  // Distribute task into individual task units
+  const flattenedSources = sourcesData.flat();
+  const taskUnits = distributeTask(task, flattenedSources, debugDir);
+  
+  logger.info({ task_count: taskUnits.length }, "Distributed task into units");
+
+  // Run tasks using orchestrator
+  try {
+    logger.info("Calling orchestrator.runTasks...");
+    const result = await orchestrator.runTasks({
+      tasks: taskUnits,
+      maxConcurrency: parallelism ?? task.parallelism ?? 1,
+      debugDir,
+    });
+    logger.info("Orchestrator.runTasks completed");
+
+    // Print summary
+    logger.info(
+    {
+      total: result.total,
+      passed: result.passed,
+      validation_failed: result.validation_failed,
+      timeout: result.timeout,
+      failed: result.failed,
+      validations_passed: result.validationsPassed,
+      validations_failed: result.validationsFailed,
+      validations_total: result.validationsTotal,
     },
-    "Evaluation completed",
+    "Local evaluation completed"
   );
 
-  // Exit with error code if any task failed (excluding timeouts and validation failures)
-  if (failCount > 0) {
+  // Write summary file
+  const summaryFile = path.join(debugDir, 'summary.json');
+  fs.writeFileSync(summaryFile, JSON.stringify(result, null, 2), 'utf-8');
+  logger.info({ summaryFile }, "Summary written");
+
+  // Exit with error code if any task failed
+  if (result.failed > 0) {
     process.exit(1);
+  }
+  } catch (error: unknown) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    logger.error({ error: err.message, stack: err.stack }, "Orchestrator.runTasks failed");
+    throw error;
   }
 }
 
