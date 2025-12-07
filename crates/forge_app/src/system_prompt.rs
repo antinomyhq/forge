@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use derive_setters::Setters;
 use forge_domain::{
-    Agent, Conversation, Environment, Model, SystemContext, Template, ToolDefinition,
+    Agent, Conversation, Environment, File, Model, SystemContext, Template, ToolDefinition,
     ToolUsagePrompt,
 };
 use tracing::debug;
@@ -15,7 +15,7 @@ pub struct SystemPrompt<S> {
     environment: Environment,
     agent: Agent,
     tool_definitions: Vec<ToolDefinition>,
-    files: Vec<String>,
+    files: Vec<File>,
     models: Vec<Model>,
     custom_instructions: Vec<String>,
 }
@@ -41,8 +41,7 @@ impl<S: SkillFetchService> SystemPrompt<S> {
         let agent = &self.agent;
         let context = if let Some(system_prompt) = &agent.system_prompt {
             let env = self.environment.clone();
-            let mut files = self.files.clone();
-            files.sort();
+            let files = self.files.clone();
 
             let tool_supported = self.is_tool_supported()?;
             let supports_parallel_tool_calls = self.is_parallel_tool_call_supported();
