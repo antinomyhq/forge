@@ -76,10 +76,12 @@ export async function executeTask(
             if (allValidationsPassed(results)) {
               exitedEarly = true;
               if (timeoutId) clearTimeout(timeoutId);
-              logStream.write(`\n${"=".repeat(80)}\n`);
-              logStream.write(`Early exit: All validations passed\n`);
-              logStream.write(`Killing process...\n`);
-              logStream.end();
+              logStream.write(
+                `\n${"=".repeat(80)}\nEarly exit: All validations passed\nKilling process...\n`,
+                () => {
+                  logStream.end();
+                },
+              );
               child.kill("SIGTERM");
               resolve(currentOutput);
             }

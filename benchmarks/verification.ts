@@ -52,16 +52,42 @@ async function validateShellCommand(
         stdio: ["pipe", "pipe", "pipe"],
       });
 
-      // Write output to stdin
-      child.stdin.write(output);
-      child.stdin.end();
+      let processExited = false;
+
+      // Handle stdin errors (EPIPE when process exits early)
+      child.stdin.on("error", (err: NodeJS.ErrnoException) => {
+        // Ignore EPIPE errors - they happen when the child process
+        // exits before we finish writing, which is expected behavior
+        if (err.code !== "EPIPE") {
+          reject(err);
+        }
+      });
 
       child.on("close", (code) => {
+        processExited = true;
         resolve({ code: code ?? 0 });
       });
 
       child.on("error", (err) => {
         reject(err);
+      });
+
+      // Write output to stdin
+      // Use setImmediate to ensure event handlers are attached first
+      setImmediate(() => {
+        if (!processExited && child.stdin.writable) {
+          child.stdin.write(output, (err?: Error | null) => {
+            if (err && (err as NodeJS.ErrnoException).code !== "EPIPE") {
+              // Only reject on non-EPIPE errors
+              reject(err);
+            } else {
+              child.stdin.end();
+            }
+          });
+        } else {
+          // Process already exited or stdin not writable
+          child.stdin.end();
+        }
       });
     });
 
