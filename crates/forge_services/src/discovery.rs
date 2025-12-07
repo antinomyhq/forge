@@ -40,13 +40,10 @@ impl<F: EnvironmentInfra + WalkerInfra + DirectoryReaderInfra + Send + Sync> Fil
 
         let mut files: Vec<File> = entries
             .into_iter()
-            .map(|(path, is_dir)| File {
-                path: path
-                    .file_name()
+            .filter_map(|(path, is_dir)| {
+                path.file_name()
                     .and_then(|n| n.to_str())
-                    .unwrap_or("")
-                    .to_string(),
-                is_dir,
+                    .map(|path| File { path: path.to_string(), is_dir })
             })
             .collect();
 
