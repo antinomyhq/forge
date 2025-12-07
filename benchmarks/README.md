@@ -71,9 +71,6 @@ parallelism: 10  # Number of tasks to run in parallel (default: 1)
 timeout: 60      # Timeout in seconds (optional)
 early_exit: true # Stop execution when validations pass (optional)
 
-# Optional: Working directory for command execution
-cwd: /path/to/working/dir  # Defaults to parent directory of eval
-
 # Optional: Validations to run on output
 validations:
   - name: "Check success message"
@@ -89,7 +86,7 @@ sources:
 
 **`before_run`** (optional): Array of shell commands to execute before running tasks
 - Runs sequentially before the main command execution
-- Uses the same working directory as specified in `cwd` (defaults to parent directory of eval)
+- Executes in a temporary directory created for the evaluation run
 - Useful for building binaries or setting up dependencies
 
 **`run`** (required): Command(s) to execute for each test case
@@ -103,11 +100,6 @@ sources:
 **`timeout`** (optional): Maximum execution time in seconds per task
 
 **`early_exit`** (optional): Stop command execution when all validations pass
-
-**`cwd`** (optional): Working directory for command execution
-- Defaults to parent directory of eval
-- Applies to both `before_run` commands and the main `run` command
-- All commands within the task will run in this directory
 
 **`validations`** (optional): Array of validation rules
 - `name`: Human-readable description
