@@ -5,8 +5,8 @@ use chrono::{DateTime, Local};
 use derive_setters::Setters;
 use forge_domain::{
     Agent, AgentId, Attachment, ChatCompletionMessage, ChatResponse, ContextMessage, Conversation,
-    Environment, Event, HttpConfig, ModelId, ProviderId, RetryConfig, Role, Template, ToolCallFull,
-    ToolDefinition, ToolResult, Workflow,
+    Environment, Event, File, HttpConfig, ModelId, ProviderId, RetryConfig, Role, Template,
+    ToolCallFull, ToolDefinition, ToolResult, Workflow,
 };
 use url::Url;
 
@@ -25,7 +25,7 @@ pub struct TestContext {
     pub mock_assistant_responses: Vec<ChatCompletionMessage>,
     pub workflow: Workflow,
     pub templates: HashMap<String, String>,
-    pub files: Vec<String>,
+    pub files: Vec<File>,
     pub env: Environment,
     pub current_time: DateTime<Local>,
     pub title: Option<String>,
@@ -89,9 +89,6 @@ impl Default for TestContext {
                 workspace_server_url: Url::parse("http://localhost:8080").unwrap(),
                 override_model: None,
                 override_provider: None,
-                max_project_root_depth: Some(10),
-                detected_project_root: None,
-                project_root_markers: vec!["Cargo.toml".to_string(), "package.json".to_string()],
             },
             title: Some("test-conversation".into()),
             agent: Agent::new(

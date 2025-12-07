@@ -207,7 +207,7 @@ impl<
                 let services = self.services.clone();
                 let cwd = env.cwd.clone();
                 let limit = env.sem_search_limit;
-                let top_k = env.sem_search_top_k;
+                let top_k = env.sem_search_top_k as u32;
                 let params: Vec<_> = input
                     .queries
                     .iter()
@@ -216,7 +216,7 @@ impl<
                             &search_query.query,
                             &search_query.use_case,
                         )
-                        .limit(limit as usize)
+                        .limit(limit)
                         .top_k(top_k);
                         if let Some(ext) = &input.file_extension {
                             params = params.ends_with(ext);

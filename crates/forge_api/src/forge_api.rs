@@ -12,7 +12,7 @@ use forge_app::{
     Walker,
 };
 use forge_domain::{Agent, InitAuth, LoginInfo, *};
-use forge_infra::ForgeInfra as ForgeInfraType;
+use forge_infra::ForgeInfra;
 use forge_repo::ForgeRepo;
 use forge_services::ForgeServices;
 use forge_stream::MpscStream;
@@ -40,12 +40,9 @@ impl<A, F> ForgeAPI<A, F> {
     }
 }
 
-impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfraType>>, ForgeRepo<ForgeInfraType>>
-where
-    ForgeInfraType: forge_app::GrpcInfra,
-{
+impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
     pub fn init(restricted: bool, cwd: PathBuf) -> Self {
-        let infra = Arc::new(ForgeInfraType::new(restricted, cwd));
+        let infra = Arc::new(ForgeInfra::new(restricted, cwd));
         let repo = Arc::new(ForgeRepo::new(infra.clone()));
         let app = Arc::new(ForgeServices::new(repo.clone()));
         ForgeAPI::new(app, repo)

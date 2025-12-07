@@ -903,8 +903,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             let title = agent
                 .title
                 .as_deref()
-                .map(|title| title.lines().collect::<Vec<_>>().join(" "))
-                .unwrap_or_else(|| "".to_string());
+                .map(|title| title.lines().collect::<Vec<_>>().join(" "));
 
             // Get provider and model for this agent
             let provider_name = match self.get_provider(Some(agent.id.clone())).await {
@@ -1107,7 +1106,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             info = info
                 .add_title(agent.id.to_string())
                 .add_key_value("type", CommandType::Agent)
-                .add_key_value("description", title.unwrap_or_else(|| "".to_string()));
+                .add_key_value("description", title);
         }
 
         let custom_commands = self.api.get_commands().await?;
@@ -1386,7 +1385,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         if let Some(conversation) = conversation {
             info = info.extend(Info::from(&conversation));
         } else {
-            info = info.extend(Info::new().add_title("CONVERSATION").add_key_value("ID", ""));
+            info = info.extend(Info::new().add_title("CONVERSATION").add_key("ID"));
         }
 
         if porcelain {
@@ -2860,19 +2859,30 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         let mut stream = self.api.sync_codebase(path.clone(), batch_size).await?;
         let mut progress_bar = ProgressBarManager::default();
-        progress_bar.start(100, "Indexing codebase")?;
 
         while let Some(event) = stream.next().await {
             match event {
                 Ok(ref progress @ SyncProgress::Completed { .. }) => {
                     progress_bar.set_position(100)?;
                     progress_bar.stop(None).await?;
-                    self.writeln_title(TitleFormat::debug(progress.message()))?;
+                    if let Some(msg) = progress.message() {
+                        self.writeln_title(TitleFormat::debug(msg))?;
+                    }
                 }
-                Ok(ref progress) => {
-                    progress_bar.set_message(&progress.message())?;
+                Ok(ref progress @ SyncProgress::Syncing { .. }) => {
+                    if !progress_bar.is_active() {
+                        progress_bar.start(100, "Indexing codebase")?;
+                    }
+                    if let Some(msg) = progress.message() {
+                        progress_bar.set_message(&msg)?;
+                    }
                     if let Some(weight) = progress.weight() {
                         progress_bar.set_position(weight)?;
+                    }
+                }
+                Ok(ref progress) => {
+                    if let Some(msg) = progress.message() {
+                        self.writeln_title(TitleFormat::debug(msg))?;
                     }
                 }
                 Err(e) => {
