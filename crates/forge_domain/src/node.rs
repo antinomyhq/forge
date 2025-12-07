@@ -101,17 +101,13 @@ impl SyncProgress {
                     let new = to_upload - modified;
                     let mut parts = Vec::new();
                     if new > 0 {
-                        parts.push(format!("{} new {}", new, Self::pluralize(new)));
+                        parts.push(format!("{} new", new));
                     }
                     if *modified > 0 {
-                        parts.push(format!(
-                            "{} {} modified",
-                            modified,
-                            Self::pluralize(*modified)
-                        ));
+                        parts.push(format!("{} modified", modified));
                     }
                     if deleted > 0 {
-                        parts.push(format!("{} {} removed", deleted, Self::pluralize(deleted)));
+                        parts.push(format!("{} removed", deleted));
                     }
                     Some(format!("Change scan completed [{}]", parts.join(", ")))
                 }
