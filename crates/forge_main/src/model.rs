@@ -355,7 +355,6 @@ impl ForgeCommandManager {
             "/logout" => Ok(SlashCommand::Logout),
             "/retry" => Ok(SlashCommand::Retry),
             "/conversation" | "/conversations" => Ok(SlashCommand::Conversations),
-            "/delete" => Ok(SlashCommand::Delete),
             "/commit" => {
                 // Support flexible syntax:
                 // /commit              -> commit with AI message
@@ -458,7 +457,9 @@ pub enum SlashCommand {
     #[strum(props(usage = "Enable help mode for tool questions"))]
     Help,
     /// Dumps the current conversation into a json file or html file
-    #[strum(props(usage = "Save conversation as JSON or HTML (use /dump --html for HTML format)"))]
+    #[strum(props(
+        usage = "Save conversation as JSON or HTML (use /dump --html for HTML format)"
+    ))]
     Dump { html: bool },
     /// Switch or select the active model
     /// This can be triggered with the '/model' command.
@@ -879,11 +880,9 @@ mod tests {
             .collect();
 
         assert_eq!(agent_commands.len(), 2);
-        assert!(
-            agent_commands
-                .iter()
-                .any(|cmd| cmd.name == "agent-test-agent")
-        );
+        assert!(agent_commands
+            .iter()
+            .any(|cmd| cmd.name == "agent-test-agent"));
         assert!(agent_commands.iter().any(|cmd| cmd.name == "agent-another"));
     }
 
@@ -894,14 +893,12 @@ mod tests {
 
         // Setup
         let fixture = ForgeCommandManager::default();
-        let agents = vec![
-            Agent::new(
-                "test-agent",
-                ProviderId::ANTHROPIC,
-                ModelId::new("claude-3-5-sonnet-20241022"),
-            )
-            .title("Test Agent".to_string()),
-        ];
+        let agents = vec![Agent::new(
+            "test-agent",
+            ProviderId::ANTHROPIC,
+            ModelId::new("claude-3-5-sonnet-20241022"),
+        )
+        .title("Test Agent".to_string())];
         let _result = fixture.register_agent_commands(agents);
 
         // Execute
@@ -1198,12 +1195,10 @@ mod tests {
 
         // Verify
         assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("not a valid agent command")
-        );
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("not a valid agent command"));
     }
 
     #[test]
