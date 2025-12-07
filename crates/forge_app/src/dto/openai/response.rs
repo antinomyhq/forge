@@ -183,6 +183,61 @@ impl From<ResponseUsage> for Usage {
     }
 }
 
+/// Intermediate representation of GitHub Copilot reasoning fields
+struct GitHubCopilotReasoning {
+    text: Option<String>,
+    data: Option<String>,
+    r#type: Option<String>,
+}
+
+impl GitHubCopilotReasoning {
+    fn to_reasoning_full(self) -> forge_domain::ReasoningFull {
+        forge_domain::ReasoningFull {
+            text: self.text,
+            data: self.data,
+            r#type: self.r#type,
+            ..Default::default()
+        }
+    }
+
+    fn to_reasoning_part(self) -> forge_domain::ReasoningPart {
+        forge_domain::ReasoningPart {
+            text: self.text,
+            data: self.data,
+            r#type: self.r#type,
+            ..Default::default()
+        }
+    }
+}
+
+/// Converts GitHub Copilot flat reasoning fields to structured reasoning
+/// details
+fn convert_github_copilot_reasoning(
+    reasoning_text: &Option<String>,
+    reasoning_opaque: &Option<String>,
+) -> Option<Vec<GitHubCopilotReasoning>> {
+    if reasoning_text.is_some() || reasoning_opaque.is_some() {
+        let mut details = Vec::new();
+        if let Some(text) = reasoning_text {
+            details.push(GitHubCopilotReasoning {
+                text: Some(text.clone()),
+                data: None,
+                r#type: Some("reasoning.text".to_string()),
+            });
+        }
+        if let Some(opaque) = reasoning_opaque {
+            details.push(GitHubCopilotReasoning {
+                text: None,
+                data: Some(opaque.clone()),
+                r#type: Some("reasoning.encrypted".to_string()),
+            });
+        }
+        Some(details)
+    } else {
+        None
+    }
+}
+
 impl TryFrom<Response> for ChatCompletionMessage {
     type Error = anyhow::Error;
 
@@ -233,27 +288,16 @@ impl TryFrom<Response> for ChatCompletionMessage {
                                 resp = resp.add_reasoning_detail(forge_domain::Reasoning::Full(
                                     converted_details,
                                 ));
-                            } else if message.reasoning_text.is_some()
-                                || message.reasoning_opaque.is_some()
-                            {
-                                // GitHub Copilot format: convert flat fields to reasoning_details
-                                let mut details = Vec::new();
-                                if let Some(text) = &message.reasoning_text {
-                                    details.push(forge_domain::ReasoningFull {
-                                        text: Some(text.clone()),
-                                        r#type: Some("reasoning.text".to_string()),
-                                        ..Default::default()
-                                    });
-                                }
-                                if let Some(opaque) = &message.reasoning_opaque {
-                                    details.push(forge_domain::ReasoningFull {
-                                        data: Some(opaque.clone()),
-                                        r#type: Some("reasoning.encrypted".to_string()),
-                                        ..Default::default()
-                                    });
-                                }
-                                resp = resp
-                                    .add_reasoning_detail(forge_domain::Reasoning::Full(details));
+                            } else if let Some(details) = convert_github_copilot_reasoning(
+                                &message.reasoning_text,
+                                &message.reasoning_opaque,
+                            ) {
+                                resp = resp.add_reasoning_detail(forge_domain::Reasoning::Full(
+                                    details
+                                        .into_iter()
+                                        .map(GitHubCopilotReasoning::to_reasoning_full)
+                                        .collect(),
+                                ));
                             }
 
                             if let Some(tool_calls) = &message.tool_calls {
@@ -297,27 +341,16 @@ impl TryFrom<Response> for ChatCompletionMessage {
                                 resp = resp.add_reasoning_detail(forge_domain::Reasoning::Part(
                                     converted_details,
                                 ));
-                            } else if delta.reasoning_text.is_some()
-                                || delta.reasoning_opaque.is_some()
-                            {
-                                // GitHub Copilot format: convert flat fields to reasoning_details
-                                let mut details = Vec::new();
-                                if let Some(text) = &delta.reasoning_text {
-                                    details.push(forge_domain::ReasoningPart {
-                                        text: Some(text.clone()),
-                                        r#type: Some("reasoning.text".to_string()),
-                                        ..Default::default()
-                                    });
-                                }
-                                if let Some(opaque) = &delta.reasoning_opaque {
-                                    details.push(forge_domain::ReasoningPart {
-                                        data: Some(opaque.clone()),
-                                        r#type: Some("reasoning.encrypted".to_string()),
-                                        ..Default::default()
-                                    });
-                                }
-                                resp = resp
-                                    .add_reasoning_detail(forge_domain::Reasoning::Part(details));
+                            } else if let Some(details) = convert_github_copilot_reasoning(
+                                &delta.reasoning_text,
+                                &delta.reasoning_opaque,
+                            ) {
+                                resp = resp.add_reasoning_detail(forge_domain::Reasoning::Part(
+                                    details
+                                        .into_iter()
+                                        .map(GitHubCopilotReasoning::to_reasoning_part)
+                                        .collect(),
+                                ));
                             }
 
                             if let Some(tool_calls) = &delta.tool_calls {
