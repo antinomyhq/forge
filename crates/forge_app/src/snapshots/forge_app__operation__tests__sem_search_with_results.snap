@@ -8,9 +8,16 @@ expression: to_value(actual)
   use_case="where is the retrying logic written"
   results="2"
 >
-<file_chunk
-  file_path="src/retry.rs"
-  lines="10-19"
+<file
+  path="src/http/client.rs"
+><![CDATA[45:async fn request_with_retry(&self, url: &str) -> Result<Response> {
+46:    const MAX_RETRIES: usize = 3;
+47:    let mut backoff = ExponentialBackoff::default();
+48:    // Implementation...
+49:}]]>
+</file>
+<file
+  path="src/retry.rs"
 ><![CDATA[10:fn retry_with_backoff(max_attempts: u32) {
 11:    let mut delay = 100;
 12:    for attempt in 0..max_attempts {
@@ -21,15 +28,6 @@ expression: to_value(actual)
 17:        delay *= 2;
 18:    }
 19:}]]>
-</file_chunk>
-<file_chunk
-  file_path="src/http/client.rs"
-  lines="45-50"
-><![CDATA[45:async fn request_with_retry(&self, url: &str) -> Result<Response> {
-46:    const MAX_RETRIES: usize = 3;
-47:    let mut backoff = ExponentialBackoff::default();
-48:    // Implementation...
-49:}]]>
-</file_chunk>
+</file>
 </query_result>
 </sem_search_results>

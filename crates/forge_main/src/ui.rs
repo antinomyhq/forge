@@ -2917,23 +2917,27 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         for result in results.iter() {
             match &result.node {
-                forge_domain::NodeData::FileChunk { file_path, start_line, end_line, .. } => {
+                forge_domain::NodeData::FileChunk(chunk) => {
                     info = info.add_key_value(
                         "File",
-                        format!("{}:{}-{}", file_path, start_line, end_line),
+                        format!(
+                            "{}:{}-{}",
+                            chunk.file_path, chunk.start_line, chunk.end_line
+                        ),
                     );
                 }
-                forge_domain::NodeData::File { file_path, .. } => {
-                    info = info.add_key_value("File", format!("{} (full file)", file_path));
+                forge_domain::NodeData::File(file) => {
+                    info = info.add_key_value("File", format!("{} (full file)", file.file_path));
                 }
-                forge_domain::NodeData::FileRef { file_path, .. } => {
-                    info = info.add_key_value("File", format!("{} (reference)", file_path));
+                forge_domain::NodeData::FileRef(file_ref) => {
+                    info =
+                        info.add_key_value("File", format!("{} (reference)", file_ref.file_path));
                 }
-                forge_domain::NodeData::Note { content, .. } => {
-                    info = info.add_key_value("Note", content);
+                forge_domain::NodeData::Note(note) => {
+                    info = info.add_key_value("Note", &note.content);
                 }
-                forge_domain::NodeData::Task { task, .. } => {
-                    info = info.add_key_value("Task", task);
+                forge_domain::NodeData::Task(task) => {
+                    info = info.add_key_value("Task", &task.task);
                 }
             }
         }
