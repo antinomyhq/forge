@@ -522,14 +522,14 @@ impl NodeData {
 
         match self {
             Self::FileChunk(chunk) => {
-                let numbered_content = chunk.content.numbered_from(chunk.start_line as usize);
+                let numbered_content = chunk.content.to_numbered_from(chunk.start_line as usize);
                 Element::new("file_chunk")
                     .attr("file_path", &chunk.file_path)
                     .attr("lines", format!("{}-{}", chunk.start_line, chunk.end_line))
                     .cdata(numbered_content)
             }
             Self::File(file) => {
-                let numbered_content = file.content.numbered();
+                let numbered_content = file.content.to_numbered();
                 Element::new("file")
                     .attr("file_path", &file.file_path)
                     .cdata(numbered_content)
