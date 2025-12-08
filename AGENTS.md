@@ -41,34 +41,55 @@ This document contains guidelines and best practices for AI agents working with 
 
 - Test should always be written in the same file as the source code.
 
-- Use `new`, Default and derive_setters::Setters to create `actual`, `expected` and specially `fixtures`. For eg:
-  Good
+- Use `new`, Default and derive_setters::Setters to create `actual`, `expected` and specially `fixtures`. For example:
+
+  **Good:**
+
+  ```rust,ignore
   User::default().age(12).is_happy(true).name("John")
   User::new("Job").age(12).is_happy()
   User::test() // Special test constructor
+  ```
 
-  Bad
-  Use {name: "John".to_string(), is_happy: true, age: 12}
+  **Bad:**
+
+  ```rust,ignore
+  User {name: "John".to_string(), is_happy: true, age: 12}
   User::with_name("Job") // Bad name, should stick to User::new() or User::test()
+  ```
 
-- Use unwrap() unless the error information is useful. Use `expect` instead of `panic!` when error message is useful for eg:
-  Good
+- Use `unwrap()` unless the error information is useful. Use `expect` instead of `panic!` when error message is useful. For example:
+
+  **Good:**
+
+  ```rust,ignore
   users.first().expect("List should not be empty")
+  ```
 
-  Bad
+  **Bad:**
+
+  ```rust,ignore
   if let Some(user) = users.first() {
-  // ...
+      // ...
   } else {
-  panic!("List should not be empty")
+      panic!("List should not be empty")
   }
+  ```
 
-- Prefer using assert_eq on full objects instead of asserting each field
-  Good
-  assert_eq(actual, expected);
+- Prefer using `assert_eq` on full objects instead of asserting each field:
 
-  Bad
-  assert_eq(actual.a, expected.a);
-  assert_eq(actual.b, expected.b);
+  **Good:**
+
+  ```rust,ignore
+  assert_eq!(actual, expected);
+  ```
+
+  **Bad:**
+
+  ```rust,ignore
+  assert_eq!(actual.a, expected.a);
+  assert_eq!(actual.b, expected.b);
+  ```
 
 ## Verification
 
@@ -77,15 +98,10 @@ Always verify changes by running tests and linting the codebase
 1. Run crate specific tests to ensure they pass.
 
    ```
-   cargo insta test
+   cargo insta test --accept
    ```
 
-2. Lint and format the codebase.
-   ```
-   cargo +nightly fmt --all && cargo +nightly clippy --fix --allow-staged --allow-dirty --workspace;
-   ```
-
-3. **Build Guidelines**:
+2. **Build Guidelines**:
    - **NEVER** run `cargo build --release` unless absolutely necessary (e.g., performance testing, creating binaries for distribution)
    - For verification, use `cargo check` (fastest), `cargo insta test`, or `cargo build` (debug mode)
    - Release builds take significantly longer and are rarely needed for development verification
@@ -176,7 +192,7 @@ impl<R: UserRepository> UserService<R> {
 #### Tuple Struct Pattern for Simple Services
 
 ```rust,ignore
-// Infrastructure traits  
+// Infrastructure traits
 pub trait FileReader {
     async fn read_file(&self, path: &Path) -> Result<String>;
 }
