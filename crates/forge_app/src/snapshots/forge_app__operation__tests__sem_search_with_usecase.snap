@@ -11,9 +11,9 @@ expression: to_value(actual)
 <file_chunk
   file_path="src/auth.rs"
   lines="10-12"
-><![CDATA[fn authenticate_user(token: &str) -> Result<User> {
-    verify_jwt(token)
-}]]>
+><![CDATA[10:fn authenticate_user(token: &str) -> Result<User> {
+11:    verify_jwt(token)
+12:}]]>
 </file_chunk>
 </query_result>
 </sem_search_results>

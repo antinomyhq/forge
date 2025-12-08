@@ -10,8 +10,8 @@ You are Forge
 <default_shell>bash</default_shell>
 <home_directory>/Users/tushar</home_directory>
 <file_list>
- - /users/jason/bar.txt
  - /users/john/foo.txt
+ - /users/jason/bar.txt
 </file_list>
 </system_information>
 

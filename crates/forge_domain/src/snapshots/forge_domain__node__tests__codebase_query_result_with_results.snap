@@ -10,6 +10,6 @@ expression: actual
 <file_chunk
   file_path="src/auth.rs"
   lines="10-15"
-><![CDATA[fn authenticate() {}]]>
+><![CDATA[10:fn authenticate() {}]]>
 </file_chunk>
 </query_result>
