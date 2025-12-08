@@ -1,7 +1,7 @@
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 
-use crate::{Environment, Skill};
+use crate::{Environment, File, Skill};
 
 #[derive(Debug, Setters, Clone, Serialize, Deserialize)]
 #[setters(strip_option)]
@@ -20,9 +20,9 @@ pub struct SystemContext {
     #[serde(default)]
     pub tool_supported: bool,
 
-    // List of file paths that are relevant for the agent context
+    // List of files and directories that are relevant for the agent context
     #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub files: Vec<String>,
+    pub files: Vec<File>,
 
     #[serde(skip_serializing_if = "String::is_empty")]
     pub custom_rules: String,

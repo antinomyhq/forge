@@ -13,7 +13,7 @@ impl ProgressBarManager {
         let pb = ProgressBar::new(total);
         pb.set_style(
             ProgressStyle::with_template(
-                "{spinner:.green} {elapsed} {msg:<10.green} [{bar:20.green}] [{pos}/{len}]",
+                "{spinner:.green} {elapsed} {msg:.green} {bar:20.green} [{pos}/{len}]",
             )
             .unwrap()
             .progress_chars("█░░")
@@ -53,6 +53,10 @@ impl ProgressBarManager {
             println!("{msg}");
         }
         Ok(())
+    }
+
+    pub fn is_active(&self) -> bool {
+        self.bar.as_ref().is_some_and(|bar| !bar.is_finished())
     }
 }
 

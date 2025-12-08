@@ -4,7 +4,6 @@
 <home_directory>{{env.home}}</home_directory>
 {{#if files}}
 <file_list>
-{{#each files}} - {{this}}
-{{/each}}
-</file_list>
+{{#each files}} - {{path}}{{#if is_dir}}/{{/if}}
+{{/each}}</file_list>
 {{/if}}

@@ -18,7 +18,7 @@ pub struct Cli {
     /// When provided, executes a single command and exits instead of starting
     /// an interactive session. Content can also be piped: `cat prompt.txt |
     /// forge`.
-    #[arg(long, short = 'p')]
+    #[arg(long, short = 'p', allow_hyphen_values = true)]
     pub prompt: Option<String>,
 
     /// Piped input from stdin (populated internally)
@@ -1258,5 +1258,23 @@ mod tests {
         };
         let expected = true;
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_prompt_with_leading_hyphen() {
+        let fixture = Cli::parse_from(["forge", "-p", "- hi"]);
+        assert_eq!(fixture.prompt, Some("- hi".to_string()));
+    }
+
+    #[test]
+    fn test_prompt_with_hyphen_flag_like_value() {
+        let fixture = Cli::parse_from(["forge", "-p", "-test"]);
+        assert_eq!(fixture.prompt, Some("-test".to_string()));
+    }
+
+    #[test]
+    fn test_prompt_with_double_hyphen() {
+        let fixture = Cli::parse_from(["forge", "-p", "--something"]);
+        assert_eq!(fixture.prompt, Some("--something".to_string()));
     }
 }

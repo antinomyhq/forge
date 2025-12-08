@@ -12,6 +12,11 @@ before:
         reasoning_details:
           - text: Important reasoning
             signature: ~
+            data: ~
+            id: ~
+            format: ~
+            index: ~
+            type_of: ~
 after:
   messages:
     - text:
