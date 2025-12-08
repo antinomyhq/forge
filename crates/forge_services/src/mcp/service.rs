@@ -122,7 +122,7 @@ where
                     .connect(&name, server)
                     .await
                     .context(format!("Failed to initiate the MCP server: {name}"));
-                
+
                 (name, conn)
             })
             .collect();

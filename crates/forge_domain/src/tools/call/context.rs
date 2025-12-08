@@ -84,7 +84,7 @@ mod tests {
         use crate::ConversationId;
         let metrics = Metrics::default();
         let conversation_id = ConversationId::generate();
-        let context = ToolCallContext::new(metrics).conversation_id(Some(conversation_id.clone()));
+        let context = ToolCallContext::new(metrics).conversation_id(Some(conversation_id));
         assert_eq!(context.get_conversation_id(), Some(conversation_id));
     }
 }
