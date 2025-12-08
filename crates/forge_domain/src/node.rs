@@ -3,7 +3,7 @@ use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::WorkspaceId;
+use crate::{LineNumbers, WorkspaceId};
 
 /// Progress events emitted during codebase indexing
 #[derive(Debug, Clone, PartialEq)]
@@ -497,14 +497,18 @@ impl NodeData {
 
         match self {
             Self::FileChunk { file_path, content, start_line, end_line } => {
+                let numbered_content = content.numbered_from(*start_line as usize);
                 Element::new("file_chunk")
                     .attr("file_path", file_path)
                     .attr("lines", format!("{}-{}", start_line, end_line))
-                    .cdata(content)
+                    .cdata(numbered_content)
             }
-            Self::File { file_path, content, .. } => Element::new("file")
-                .attr("file_path", file_path)
-                .cdata(content),
+            Self::File { file_path, content, .. } => {
+                let numbered_content = content.numbered();
+                Element::new("file")
+                    .attr("file_path", file_path)
+                    .cdata(numbered_content)
+            }
             Self::FileRef { file_path, .. } => {
                 Element::new("file_ref").attr("file_path", file_path)
             }
