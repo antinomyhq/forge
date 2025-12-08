@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use forge_domain::{
-    CodebaseQueryResult, TitleFormat, ToolCallContext, ToolCallFull, ToolCatalog, ToolOutput,
+    AppConfigRepository, CodebaseQueryResult, TitleFormat, ToolCallContext, ToolCallFull, ToolCatalog, ToolOutput,
 };
 
 use crate::fmt::content::FormatContent;
@@ -36,11 +36,29 @@ impl<
         + EnvironmentService
         + PlanCreateService
         + PolicyService
-        + SkillFetchService,
+        + SkillFetchService
+        + AppConfigRepository,
 > ToolExecutor<S>
 {
     pub fn new(services: Arc<S>) -> Self {
         Self { services }
+    }
+
+    /// Check if policy system is enabled via environment variable or forge config
+    async fn is_policy_enabled(&self) -> bool {
+        // First check environment variable (highest priority)
+        if let Ok(enabled) = std::env::var("FORGE_POLICY_ENABLED") {
+            return enabled == "1" || enabled.to_lowercase() == "true";
+        }
+
+        // Then check existing forge configuration system
+        match self.services.get_app_config().await {
+            Ok(config) => config.policy_enabled.unwrap_or(false),
+            Err(_) => {
+                tracing::warn!("Failed to load app config, policy disabled");
+                false
+            }
+        }
     }
 
     /// Check if a tool operation is allowed based on the workflow policies
@@ -332,19 +350,24 @@ impl<
             context.send(content).await?;
         }
 
-        // Check permissions before executing the tool
-        // if self.check_tool_permission(&tool_input, context).await? {
-        //     // Send formatted output message for policy denial
+        // Check permissions before executing the tool (only if policy is enabled)
+        if self.is_policy_enabled().await && self.check_tool_permission(&tool_input, context).await? {
+            let tool_name = tool_input.kind();
+            context
+                .send(ContentFormat::from(
+                    TitleFormat::error("Permission Denied")
+                        .sub_title(format!("Tool '{}' blocked by security policy", tool_name))
+                ))
+                .await?;
 
-        //     context
-        //         .send(ContentFormat::from(TitleFormat::error("Permission Denied")))
-        //         .await?;
-
-        //     return Ok(ToolOutput::text(
-        //         Element::new("permission_denied")
-        //             .cdata("User has denied the permission to execute this tool"),
-        //     ));
-        // }
+            return Ok(ToolOutput::text(
+                Element::new("permission_denied")
+                    .cdata(format!(
+                        "The '{}' tool was blocked by your security policy. Enable/disable via FORGE_POLICY_ENABLED or ~/forge/.config.json.",
+                        tool_name
+                    )),
+            ));
+        }
 
         let execution_result = self.call_internal(tool_input.clone()).await;
 

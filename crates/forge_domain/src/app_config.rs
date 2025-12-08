@@ -21,6 +21,8 @@ pub struct AppConfig {
     pub provider: Option<ProviderId>,
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub model: HashMap<ProviderId, ModelId>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub policy_enabled: Option<bool>,
 }
 
 #[derive(Clone, Serialize, Deserialize, From, Debug, PartialEq)]
