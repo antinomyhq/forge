@@ -254,7 +254,11 @@ mod tests {
             timestamp: chrono::Utc::now(),
         };
 
-        let env = Environment { title_format: r#"{{#if (eq level "error")}}{{red "[ERROR]"}} {{bold title}} {{dimmed subtitle}}{{/if}}"#.to_string(), ..fake::Faker.fake() };
+        let env = Environment {
+            title_format: r#"{{#if (eq level "error")}}[ERROR] {{title}} {{subtitle}}{{/if}}"#
+                .to_string(),
+            ..fake::Faker.fake()
+        };
 
         let display = title.display_with_env(env).with_colors(false);
         let result = display.format_with_data(None, None);
@@ -274,9 +278,7 @@ mod tests {
         };
 
         let env = Environment {
-            title_format:
-                r#"{{#if (eq level "warning")}}{{bright_yellow "[WARNING]"}} {{bold title}}{{/if}}"#
-                    .to_string(),
+            title_format: r#"{{#if (eq level "warning")}}[WARNING] {{title}}{{/if}}"#.to_string(),
             ..fake::Faker.fake()
         };
 
@@ -327,9 +329,8 @@ mod tests {
         };
 
         let env = Environment {
-            title_format:
-                r#"{{#if (eq level "debug")}}{{dimmed title}}{{else}}{{white title}}{{/if}}"#
-                    .to_string(),
+            title_format: r#"{{#if (eq level "debug")}}{{title}}{{else}}{{title}}{{/if}}"#
+                .to_string(),
             ..fake::Faker.fake()
         };
 

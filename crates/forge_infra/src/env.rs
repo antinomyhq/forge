@@ -94,10 +94,15 @@ impl ForgeEnvironmentInfra {
                 .unwrap_or_else(|| Url::parse("https://api.forgecode.dev/").unwrap()),
             override_model,
             override_provider,
-            title_format: parse_env::<String>("FORGE_TITLE_FORMAT").unwrap_or_else(|| {
-                r#"{{#if (eq level "error")}}{{red icon}}{{else if (eq level "warning")}}{{bright_yellow icon}}{{else if (eq level "debug")}}{{cyan icon}}{{else if (eq level "completion")}}{{yellow icon}}{{else if (eq level "action")}}{{yellow icon}}{{else}}{{white icon}}{{/if}} {{#if (is_not_empty has_usage)}}{{dimmed "["}}{{white timestamp}} {{white input}}{{#if (is_not_empty output)}}/{{white output}}{{/if}}{{#if (is_not_empty cost)}} {{white cost}}{{/if}}{{#if (is_not_empty cache_pct)}} {{white cache_pct}}{{/if}}{{dimmed "]"}}{{else}}{{dimmed "["}}{{white timestamp}}{{dimmed "]"}}{{/if}} {{white title}}{{#if (is_not_empty subtitle)}} {{dimmed subtitle}}{{/if}}"#.to_string()
-            }),
+            title_format: parse_env::<String>("FORGE_TITLE_FORMAT")
+                .unwrap_or_else(Self::load_default_title_format),
         }
+    }
+
+    /// Loads the default title format template from the bundled template file
+    fn load_default_title_format() -> String {
+        const DEFAULT_TEMPLATE: &str = include_str!("../templates/title_format.hbs");
+        DEFAULT_TEMPLATE.trim().to_string()
     }
 
     /// Load all `.env` files with priority to lower (closer) files.
