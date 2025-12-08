@@ -1,11 +1,9 @@
-use std::collections::HashMap;
-
 use derive_more::Display;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{LineNumbers, WorkspaceId};
+use crate::WorkspaceId;
 
 /// Progress events emitted during codebase indexing
 #[derive(Debug, Clone, PartialEq)]
@@ -396,55 +394,6 @@ pub struct CodebaseQueryResult {
     pub results: Vec<Node>,
 }
 
-impl CodebaseQueryResult {
-    /// Convert to XML element for tool output
-    pub fn to_element(&self) -> forge_template::Element {
-        use forge_template::Element;
-
-        let query_elm = Element::new("query_result")
-            .attr("query", &self.query)
-            .attr("use_case", &self.use_case)
-            .attr("results", self.results.len());
-
-        if self.results.is_empty() {
-            query_elm.text("No results found. Try using multiple queries with different phrasings, synonyms, or more specific use_case descriptions to improve search coverage.")
-        } else {
-            let result_elm = self
-                .results
-                .iter()
-                // Extract all file chunks
-                .filter_map(|data| match &data.node {
-                    NodeData::FileChunk(file_chunk) => Some(file_chunk),
-                    _ => None,
-                })
-                // Group chunks by file path
-                .fold(
-                    HashMap::<&str, Vec<_>>::new(),
-                    |mut acc: HashMap<_, _>, chunk| {
-                        let key = chunk.file_path.as_str();
-                        acc.entry(key).or_default().push(chunk);
-                        acc
-                    },
-                )
-                .into_iter()
-                // Sort chunks by start line
-                .map(|(path, mut chunks)| {
-                    chunks.sort_by(|a, b| a.start_line.cmp(&b.start_line));
-                    let data = chunks
-                        .into_iter()
-                        .map(|chunk| chunk.content.to_numbered_from(chunk.start_line as usize))
-                        .collect::<Vec<_>>()
-                        .join("\n...\n");
-
-                    Element::new("file").attr("path", path).cdata(data)
-                })
-                .collect::<Vec<_>>();
-
-            query_elm.append(result_elm)
-        }
-    }
-}
-
 /// Results for multiple codebase search queries
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct CodebaseSearchResults {
@@ -600,40 +549,5 @@ mod tests {
         };
 
         assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_codebase_query_result_empty_results() {
-        let fixture = CodebaseQueryResult {
-            query: "retry mechanism".to_string(),
-            use_case: "find retry logic".to_string(),
-            results: vec![],
-        };
-
-        let actual = fixture.to_element().render();
-        insta::assert_snapshot!(actual);
-    }
-
-    #[test]
-    fn test_codebase_query_result_with_results() {
-        let fixture = CodebaseQueryResult {
-            query: "auth logic".to_string(),
-            use_case: "authentication".to_string(),
-            results: vec![Node {
-                node_id: "node-1".into(),
-                node: NodeData::FileChunk(FileChunk {
-                    file_path: "src/auth.rs".to_string(),
-                    content: "fn authenticate() {}".to_string(),
-                    start_line: 10,
-                    end_line: 15,
-                }),
-                relevance: Some(0.95),
-                distance: Some(0.05),
-                similarity: Some(0.95),
-            }],
-        };
-
-        let actual = fixture.to_element().render();
-        insta::assert_snapshot!(actual);
     }
 }

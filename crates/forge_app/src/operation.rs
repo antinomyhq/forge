@@ -1,4 +1,5 @@
 use std::cmp::min;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use console::strip_ansi_codes;
@@ -6,7 +7,7 @@ use derive_setters::Setters;
 use forge_display::DiffFormat;
 use forge_domain::{
     CodebaseSearchResults, Environment, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite,
-    FileOperation, Metrics, NetFetch, PlanCreate, ToolKind,
+    FileOperation, LineNumbers, Metrics, NetFetch, PlanCreate, ToolKind,
 };
 use forge_template::Element;
 
@@ -338,7 +339,61 @@ impl ToolOperation {
                     root = root.text("No results found for query. Try refining your search with more specific terms or different keywords.")
                 } else {
                     for query_result in &output.queries {
-                        root = root.append(query_result.to_element());
+                        let query_elm = Element::new("query_result")
+                            .attr("query", &query_result.query)
+                            .attr("use_case", &query_result.use_case)
+                            .attr("results", query_result.results.len());
+
+                        let query_elm = if query_result.results.is_empty() {
+                            query_elm.text("No results found. Try using multiple queries with different phrasings, synonyms, or more specific use_case descriptions to improve search coverage.")
+                        } else {
+                            let grouped_by_path = query_result
+                                .results
+                                .iter()
+                                // Extract all file chunks
+                                .filter_map(|data| match &data.node {
+                                    forge_domain::NodeData::FileChunk(file_chunk) => {
+                                        Some(file_chunk)
+                                    }
+                                    _ => None,
+                                })
+                                // Group chunks by file path
+                                .fold(
+                                    HashMap::<&str, Vec<_>>::new(),
+                                    |mut acc: HashMap<_, _>, chunk| {
+                                        let key = chunk.file_path.as_str();
+                                        acc.entry(key).or_default().push(chunk);
+                                        acc
+                                    },
+                                );
+
+                            // Sort by file path for stable ordering
+                            let mut grouped_chunks: Vec<_> = grouped_by_path.into_iter().collect();
+                            grouped_chunks.sort_by(|a, b| a.0.cmp(b.0));
+
+                            let result_elm = grouped_chunks
+                                .into_iter()
+                                // Sort chunks by start line
+                                .map(|(path, mut chunks)| {
+                                    chunks.sort_by(|a, b| a.start_line.cmp(&b.start_line));
+                                    let data = chunks
+                                        .into_iter()
+                                        .map(|chunk| {
+                                            chunk
+                                                .content
+                                                .to_numbered_from(chunk.start_line as usize)
+                                        })
+                                        .collect::<Vec<_>>()
+                                        .join("\n...\n");
+
+                                    Element::new("file").attr("path", path).cdata(data)
+                                })
+                                .collect::<Vec<_>>();
+
+                            query_elm.append(result_elm)
+                        };
+
+                        root = root.append(query_elm);
                     }
                 }
 
