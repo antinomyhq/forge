@@ -83,6 +83,7 @@ mod tests {
             reasoning: None,
             usage: None,
             accumulated_usage: None,
+            stream: None,
         };
 
         Request::try_from(context).unwrap()

@@ -206,30 +206,27 @@ impl SearchQuery {
     }
 }
 
-/// AI-powered semantic code search. YOUR DEFAULT TOOL for "where is"
-/// questions. Use this FIRST when user asks about code location or
-/// functionality: "where is X", "find the code that does Y", "locate Z
-/// implementation", "how does X work", "understand the Y strategy". For code
-/// location and discovery questions, always use this tool first before
-/// delegating to research agents. Even if you can see relevant directories or
-/// files in the file list, use sem_search to find the exact implementation.
-/// This tool understands CONCEPTS and BEHAVIOR, not just keywords. Finds code
-/// even when exact terms differ. Finding the right code is always the first
-/// step to understanding it. Sem_search locates relevant code quickly, then
-/// read the results to understand. Examples: "where is retry logic" finds
-/// exponential backoff code, "understand caching strategy" finds cache
-/// implementation, "message transformation" finds serialization/DTOs, "tool
-/// registration" finds tool setup code. Returns ranked results with code
-/// snippets. ONLY use regex search tool for exact name matches like "all
-/// functions named execute" or "TODO comments". When in doubt between search
-/// and sem_search, choose sem_search.
+/// AI-powered semantic code search. YOUR DEFAULT TOOL for code discovery
+/// tasks. Use this when you need to find code locations, understand
+/// implementations, or explore functionality - it works with natural language
+/// about behavior and concepts, not just keyword matching.
+///
+/// Start with sem_search when: locating code to modify, understanding how
+/// features work, finding patterns/examples, or exploring unfamiliar areas.
+/// Understands queries like "authentication flow" (finds login), "retry logic"
+/// (finds backoff), "validation" (finds checking/sanitization).
+///
+/// Returns file:line locations with code context, ranked by relevance. Use
+/// multiple varied queries (2-3) for best coverage. For exact string matching
+/// (TODO comments, specific function names), use regex search instead.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct SemanticSearch {
-    /// List of search queries to execute in parallel. It's ALWAYS a good idea
-    /// to use multiple queries with different phrasings to maximize search
-    /// coverage. Each query pairs a search term with its use_case for
-    /// document re-ranking. Multiple queries with varied terminology find
-    /// more relevant results than a single query.
+    /// List of search queries to execute in parallel. Using multiple queries
+    /// (2-3) with varied phrasings significantly improves results - each query
+    /// captures different aspects of what you're looking for. Each query pairs
+    /// a search term with a use_case for reranking. Example: for
+    /// authentication, try "user login verification", "token generation",
+    /// "OAuth flow".
     pub queries: Vec<SearchQuery>,
 
     /// Optional file extension filter (e.g., ".rs", ".ts", ".py"). If provided,

@@ -86,6 +86,7 @@ mod tests {
             reasoning: None,
             usage: None,
             accumulated_usage: None,
+            stream: None,
         };
 
         let request = Request::from(context);

@@ -14,6 +14,11 @@ before:
         reasoning_details:
           - text: Complex reasoning process
             signature: ~
+            data: ~
+            id: ~
+            format: ~
+            index: ~
+            type_of: ~
     - text:
         role: User
         content: User message without reasoning

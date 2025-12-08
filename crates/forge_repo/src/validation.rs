@@ -1,10 +1,11 @@
 use std::path::Path;
+use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
+use forge_app::GrpcInfra;
 use forge_domain::ValidationRepository;
 use forge_template::Element;
-use tonic::transport::Channel;
 use tracing::{debug, warn};
 
 // Include the generated proto code at module level
@@ -17,36 +18,22 @@ use forge_service_client::ForgeServiceClient;
 use proto_generated::*;
 
 /// gRPC implementation of ValidationRepository
-pub struct ForgeValidationRepository {
-    client: ForgeServiceClient<Channel>,
+pub struct ForgeValidationRepository<I> {
+    infra: Arc<I>,
 }
 
-impl ForgeValidationRepository {
-    /// Create a new gRPC client with lazy connection
+impl<I> ForgeValidationRepository<I> {
+    /// Create a new repository with the given infrastructure
     ///
     /// # Arguments
-    /// * `server_url` - The URL of the validation server
-    ///
-    /// # Errors
-    /// Returns an error if the channel cannot be created
-    pub fn new(server_url: &url::Url) -> Result<Self> {
-        let mut channel = Channel::from_shared(server_url.to_string())?.concurrency_limit(256);
-
-        // Enable TLS for https URLs using system certificate store
-        if server_url.scheme().contains("https") {
-            channel =
-                channel.tls_config(tonic::transport::ClientTlsConfig::new().with_native_roots())?;
-        }
-
-        let channel = channel.connect_lazy();
-        let client = ForgeServiceClient::new(channel);
-
-        Ok(Self { client })
+    /// * `infra` - Infrastructure that provides gRPC connection
+    pub fn new(infra: Arc<I>) -> Self {
+        Self { infra }
     }
 }
 
 #[async_trait]
-impl ValidationRepository for ForgeValidationRepository {
+impl<I: GrpcInfra> ValidationRepository for ForgeValidationRepository<I> {
     async fn validate_file(
         &self,
         path: impl AsRef<Path> + Send,
@@ -62,7 +49,8 @@ impl ValidationRepository for ForgeValidationRepository {
         let request = tonic::Request::new(ValidateFilesRequest { files: vec![proto_file] });
 
         // Call gRPC API
-        let mut client = self.client.clone();
+        let channel = self.infra.channel();
+        let mut client = ForgeServiceClient::new(channel);
         let response = client
             .validate_files(request)
             .await

@@ -188,7 +188,7 @@ This will index the current directory for semantic code search.
 
 The plugin creates a `.forge` directory in your current working directory (similar to `.git`) for temporary files:
 
-- `FORGE_EDITMSG`: Temporary file used when opening an external editor with `:edit`
+- `FORGE_EDITMSG.md`: Temporary file used when opening an external editor with `:edit`
 
 ## Advanced Features
 

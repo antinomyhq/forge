@@ -354,6 +354,12 @@ pub struct Context {
     pub usage: Option<Usage>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub accumulated_usage: Option<Usage>,
+    /// Controls whether responses should be streamed. When `true`, responses
+    /// are delivered incrementally as they're generated. When `false`, the
+    /// complete response is returned at once. Defaults to `true` if not
+    /// specified.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stream: Option<bool>,
 }
 
 impl Context {
