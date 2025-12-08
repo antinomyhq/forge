@@ -6,5 +6,5 @@ expression: to_value(actual)
   path="/home/user/large_file.txt"
   display_lines="1-100"
   total_lines="1"
-><![CDATA[Truncated content]]>
+><![CDATA[1:Truncated content]]>
 </file>

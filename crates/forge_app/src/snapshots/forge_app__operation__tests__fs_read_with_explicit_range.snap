@@ -6,7 +6,7 @@ expression: to_value(actual)
   path="/home/user/test.txt"
   display_lines="2-3"
   total_lines="3"
-><![CDATA[Line 1
-Line 2
-Line 3]]>
+><![CDATA[2:Line 1
+3:Line 2
+4:Line 3]]>
 </file>

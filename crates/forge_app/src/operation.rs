@@ -201,6 +201,11 @@ impl ToolOperation {
         match self {
             ToolOperation::FsRead { input, output } => {
                 let content = output.content.file_content();
+                let content = if input.show_line_numbers {
+                    content.to_numbered_from(output.start_line as usize)
+                } else {
+                    content.to_string()
+                };
                 let elm = Element::new("file")
                     .attr("path", &input.path)
                     .attr(
