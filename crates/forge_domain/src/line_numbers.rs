@@ -12,15 +12,15 @@ impl<T: AsRef<str>> LineNumbers for T {
     fn numbered_from(&self, start: usize) -> String {
         let text = self.as_ref();
         let lines: Vec<&str> = text.lines().collect();
-        
+
         if lines.is_empty() {
             return String::new();
         }
-        
+
         // Calculate the width needed for the largest line number
         let max_line_number = start + lines.len() - 1;
         let width = max_line_number.to_string().len();
-        
+
         lines
             .into_iter()
             .enumerate()
@@ -91,7 +91,7 @@ mod tests {
         }
         let text = lines.join("\n");
         let actual = text.numbered();
-        
+
         // Check first line has 2 leading spaces (001 -> "  1")
         assert!(actual.starts_with("  1:line1"));
         // Check line 10 has 1 leading space (010 -> " 10")
