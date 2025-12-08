@@ -174,6 +174,43 @@ export FORGE_BIN="/path/to/custom/forge"
 - Internal pattern matching for conversation syntax (`:`)
 - New session command keyword: `:new` or `:n`
 
+### Git Worktree Management
+
+Create new git worktrees with automatic directory structure:
+
+```bash
+# Basic usage
+:worktree my-feature
+:sandbox my-feature
+
+# With directory structure (creates parent directories automatically)
+:worktree feature/new-api
+:sandbox fix/bug-123
+:worktree hotfix/security-patch
+```
+
+This command will:
+
+- **Validate** that you're in a git repository
+- **Check** if the branch name is valid and doesn't already exist
+- **Create** parent directories automatically for structured branch names (e.g., `feature/`, `fix/`, `hotfix/`)
+- **Generate** a new git worktree at `../<branch-name>` or `../<category>/<branch-name>`
+- **Switch** to the newly created worktree directory
+- **Provide** clear error messages for validation failures
+
+**Use Cases:**
+- Isolated development environments for features
+- Bug fixes in separate worktrees
+- Hotfix branches with proper directory organization
+- Parallel development without context switching
+
+**Validation Features:**
+- Git repository verification
+- Branch name existence checking
+- Directory collision detection
+- Branch name format validation (alphanumeric, `/`, `_`, `-` only)
+- Automatic parent directory creation
+
 ### Codebase Indexing
 
 Sync your codebase for semantic search:
@@ -234,6 +271,21 @@ All transformed commands are properly saved to ZSH history, allowing you to:
 : New conversation starts here
 ```
 
+### Git Worktree Examples
+
+```bash
+# Create a simple feature worktree
+:worktree user-authentication
+
+# Create structured worktree with automatic parent directory
+:sandbox feature/payment-integration
+
+# Create bug fix worktree
+:worktree fix/memory-leak
+
+# Create hotfix worktree
+:sandbox hotfix/critical-security
+```
 
 ### Codebase Indexing
 
