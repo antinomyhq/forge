@@ -67,7 +67,7 @@ impl FormatContent for ToolCatalog {
                     .map(|item| item.query.as_str())
                     .collect();
                 Some(
-                    TitleFormat::debug("Codebase Search")
+                    TitleFormat::debug("Search")
                         .sub_title(format!("[{}]", pairs.join(" · ")))
                         .into(),
                 )
