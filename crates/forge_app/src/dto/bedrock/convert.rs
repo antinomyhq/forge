@@ -322,6 +322,7 @@ impl TryFrom<BedrockStreamEvent> for forge_domain::ChatCompletionMessage {
                                             forge_domain::ReasoningPart {
                                                 text: Some(text),
                                                 signature: None,
+                                                ..Default::default()
                                             },
                                         ])))
                                 }
@@ -334,6 +335,7 @@ impl TryFrom<BedrockStreamEvent> for forge_domain::ChatCompletionMessage {
                                             forge_domain::ReasoningPart {
                                                 text: None,
                                                 signature: Some(sig),
+                                                ..Default::default()
                                             },
                                         ]),
                                     ))
