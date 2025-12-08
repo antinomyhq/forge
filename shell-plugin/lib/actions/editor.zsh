@@ -27,8 +27,8 @@ function _forge_action_editor() {
         }
     fi
     
-    # Create temporary file with git-like naming: FORGE_EDITMSG
-    local temp_file="${forge_dir}/FORGE_EDITMSG"
+    # Create temporary file with git-like naming: FORGE_EDITMSG.md
+    local temp_file="${forge_dir}/FORGE_EDITMSG.md"
     touch "$temp_file" || {
         _forge_log error "Failed to create temporary file"
         _forge_reset

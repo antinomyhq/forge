@@ -47,6 +47,7 @@ mod tests {
         let reasoning_details = vec![ReasoningFull {
             text: Some("I need to think about this".to_string()),
             signature: None,
+            ..Default::default()
         }];
 
         Context::default()
@@ -64,6 +65,7 @@ mod tests {
         let reasoning_details = vec![ReasoningFull {
             text: Some("Complex reasoning process".to_string()),
             signature: None,
+            ..Default::default()
         }];
 
         Context::default()
@@ -96,6 +98,7 @@ mod tests {
         let reasoning_details = vec![ReasoningFull {
             text: Some("Important reasoning".to_string()),
             signature: None,
+            ..Default::default()
         }];
 
         let fixture = Context::default().add_message(ContextMessage::Text(
@@ -139,8 +142,11 @@ mod tests {
 
     #[test]
     fn test_drop_reasoning_details_preserves_non_text_messages() {
-        let reasoning_details =
-            vec![ReasoningFull { text: Some("User reasoning".to_string()), signature: None }];
+        let reasoning_details = vec![ReasoningFull {
+            text: Some("User reasoning".to_string()),
+            signature: None,
+            ..Default::default()
+        }];
 
         let fixture = Context::default()
             .reasoning(ReasoningConfig::default().enabled(true))

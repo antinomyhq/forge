@@ -6,9 +6,9 @@ use derive_setters::Setters;
 use forge_domain::{
     AgentId, AnyProvider, Attachment, AuthContextRequest, AuthContextResponse, AuthMethod,
     ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId, Environment, File,
-    FileUploadResponse, Image, InitAuth, LoginInfo, McpConfig, McpServers, Model, ModelId, Node,
-    PatchOperation, Provider, ProviderId, ResultStream, Scope, SearchParams, Template,
-    ToolCallFull, ToolOutput, Workflow, WorkspaceAuth, WorkspaceId, WorkspaceInfo,
+    Image, InitAuth, LoginInfo, McpConfig, McpServers, Model, ModelId, Node, PatchOperation,
+    Provider, ProviderId, ResultStream, Scope, SearchParams, SyncProgress, Template, ToolCallFull,
+    ToolOutput, Workflow, WorkspaceAuth, WorkspaceId, WorkspaceInfo,
 };
 use merge::Merge;
 use reqwest::Response;
@@ -129,7 +129,7 @@ pub struct PolicyDecision {
 pub trait ProviderService: Send + Sync {
     async fn chat(
         &self,
-        id: &ModelId,
+        model_id: &ModelId,
         context: Context,
         provider: Provider<Url>,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error>;
@@ -255,7 +255,7 @@ pub trait ContextEngineService: Send + Sync {
         &self,
         path: PathBuf,
         batch_size: usize,
-    ) -> anyhow::Result<FileUploadResponse>;
+    ) -> anyhow::Result<forge_stream::MpscStream<anyhow::Result<SyncProgress>>>;
 
     /// Query the indexed codebase with semantic search
     async fn query_codebase(
@@ -308,6 +308,10 @@ pub trait WorkflowService {
 #[async_trait::async_trait]
 pub trait FileDiscoveryService: Send + Sync {
     async fn collect_files(&self, config: Walker) -> anyhow::Result<Vec<File>>;
+
+    /// Lists all entries (files and directories) in the current directory
+    /// Returns a sorted vector of File entries with directories first
+    async fn list_current_directory(&self) -> anyhow::Result<Vec<File>>;
 }
 
 #[async_trait::async_trait]
@@ -606,11 +610,13 @@ impl<I: Services> ConversationService for I {
 impl<I: Services> ProviderService for I {
     async fn chat(
         &self,
-        id: &ModelId,
+        model_id: &ModelId,
         context: Context,
         provider: Provider<Url>,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
-        self.provider_service().chat(id, context, provider).await
+        self.provider_service()
+            .chat(model_id, context, provider)
+            .await
     }
 
     async fn models(&self, provider: Provider<Url>) -> anyhow::Result<Vec<Model>> {
@@ -710,6 +716,10 @@ impl<I: Services> WorkflowService for I {
 impl<I: Services> FileDiscoveryService for I {
     async fn collect_files(&self, config: Walker) -> anyhow::Result<Vec<File>> {
         self.file_discovery_service().collect_files(config).await
+    }
+
+    async fn list_current_directory(&self) -> anyhow::Result<Vec<File>> {
+        self.file_discovery_service().list_current_directory().await
     }
 }
 
@@ -1016,7 +1026,7 @@ impl<I: Services> ContextEngineService for I {
         &self,
         path: PathBuf,
         batch_size: usize,
-    ) -> anyhow::Result<FileUploadResponse> {
+    ) -> anyhow::Result<forge_stream::MpscStream<anyhow::Result<SyncProgress>>> {
         self.context_engine_service()
             .sync_codebase(path, batch_size)
             .await

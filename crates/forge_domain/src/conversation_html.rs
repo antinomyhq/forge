@@ -324,6 +324,7 @@ mod tests {
                     Some(vec![ReasoningFull {
                         text: Some("This is my reasoning process".to_string()),
                         signature: Some("reasoning_signature_123".to_string()),
+                        ..Default::default()
                     }]),
                     None,
                 ));
