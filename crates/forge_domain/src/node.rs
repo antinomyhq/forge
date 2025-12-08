@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use derive_more::Display;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
@@ -399,20 +401,47 @@ impl CodebaseQueryResult {
     pub fn to_element(&self) -> forge_template::Element {
         use forge_template::Element;
 
-        let mut elem = Element::new("query_result")
+        let query_elm = Element::new("query_result")
             .attr("query", &self.query)
             .attr("use_case", &self.use_case)
             .attr("results", self.results.len());
 
         if self.results.is_empty() {
-            elem = elem.text("No results found. Try using multiple queries with different phrasings, synonyms, or more specific use_case descriptions to improve search coverage.");
+            query_elm.text("No results found. Try using multiple queries with different phrasings, synonyms, or more specific use_case descriptions to improve search coverage.")
         } else {
-            for result in &self.results {
-                elem = elem.append(result.node.to_element());
-            }
-        }
+            let result_elm = self
+                .results
+                .iter()
+                // Extract all file chunks
+                .filter_map(|data| match &data.node {
+                    NodeData::FileChunk(file_chunk) => Some(file_chunk),
+                    _ => None,
+                })
+                // Group chunks by file path
+                .fold(
+                    HashMap::<&str, Vec<_>>::new(),
+                    |mut acc: HashMap<_, _>, chunk| {
+                        let key = chunk.file_path.as_str();
+                        acc.entry(key).or_default().push(chunk);
+                        acc
+                    },
+                )
+                .into_iter()
+                // Sort chunks by start line
+                .map(|(path, mut chunks)| {
+                    chunks.sort_by(|a, b| a.start_line.cmp(&b.start_line));
+                    let data = chunks
+                        .into_iter()
+                        .map(|chunk| chunk.content.to_numbered_from(chunk.start_line as usize))
+                        .collect::<Vec<_>>()
+                        .join("\n...\n");
 
-        elem
+                    Element::new("file").attr("path", path).cdata(data)
+                })
+                .collect::<Vec<_>>();
+
+            query_elm.append(result_elm)
+        }
     }
 }
 
@@ -514,33 +543,6 @@ pub enum NodeData {
     /// Task description
     #[from]
     Task(Task),
-}
-
-impl NodeData {
-    pub fn to_element(&self) -> forge_template::Element {
-        use forge_template::Element;
-
-        match self {
-            Self::FileChunk(chunk) => {
-                let numbered_content = chunk.content.to_numbered_from(chunk.start_line as usize);
-                Element::new("file_chunk")
-                    .attr("file_path", &chunk.file_path)
-                    .attr("lines", format!("{}-{}", chunk.start_line, chunk.end_line))
-                    .cdata(numbered_content)
-            }
-            Self::File(file) => {
-                let numbered_content = file.content.to_numbered();
-                Element::new("file")
-                    .attr("file_path", &file.file_path)
-                    .cdata(numbered_content)
-            }
-            Self::FileRef(file_ref) => {
-                Element::new("file_ref").attr("file_path", &file_ref.file_path)
-            }
-            Self::Note(note) => Element::new("note").cdata(&note.content),
-            Self::Task(task) => Element::new("task").text(&task.task),
-        }
-    }
 }
 
 #[cfg(test)]
