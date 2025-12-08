@@ -152,23 +152,32 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
                     }
                     ContextMessage::Tool(tool_result) => {
                         // Tool Message
-                        Element::new("details.message-card.message-tool")
-                            .append(
-                                Element::new("summary")
-                                    .append(Element::new("strong").text("Tool Result: "))
-                                    .append(Element::span(tool_result.name.as_str())),
-                            )
-                            .append(tool_result.output.values.iter().filter_map(
-                                |value| match value {
-                                    crate::ToolValue::Text(text) => {
-                                        Some(Element::new("pre").text(text))
-                                    }
-                                    crate::ToolValue::Image(image) => {
-                                        Some(Element::new("img").attr("src", image.url()))
-                                    }
-                                    crate::ToolValue::Empty => None,
-                                },
-                            ))
+                        let mut element = Element::new("details.message-card.message-tool").append(
+                            Element::new("summary")
+                                .append(Element::new("strong").text("Tool Result: "))
+                                .append(Element::span(tool_result.name.as_str())),
+                        );
+
+                        // Add conversation ID if present
+                        if let Some(conversation_id) = &tool_result.conversation_id {
+                            element = element.append(
+                                Element::new("p.conversation-id")
+                                    .append(Element::new("strong").text("Conversation ID: "))
+                                    .text(conversation_id.to_string()),
+                            );
+                        }
+
+                        element.append(tool_result.output.values.iter().filter_map(|value| {
+                            match value {
+                                crate::ToolValue::Text(text) => {
+                                    Some(Element::new("pre").text(text))
+                                }
+                                crate::ToolValue::Image(image) => {
+                                    Some(Element::new("img").attr("src", image.url()))
+                                }
+                                crate::ToolValue::Empty => None,
+                            }
+                        }))
                     }
                     ContextMessage::Image(image) => {
                         // Image message
@@ -345,5 +354,30 @@ mod tests {
 
         // Verify reasoning indicator in message header
         assert!(actual.contains("🧠 Reasoning"));
+    }
+
+    #[test]
+    fn test_render_conversation_with_tool_result_conversation_id() {
+        use crate::context::Context;
+        use crate::conversation::ConversationId;
+        use crate::{ToolCallId, ToolName, ToolOutput, ToolResult};
+
+        let conversation_id = ConversationId::generate();
+        let agent_conversation_id = ConversationId::generate();
+
+        let context = Context::default().add_tool_results(vec![ToolResult {
+            name: ToolName::new("test_agent"),
+            call_id: Some(ToolCallId::new("call_123")),
+            output: ToolOutput::text("Agent output"),
+            conversation_id: Some(agent_conversation_id),
+        }]);
+
+        let fixture = Conversation::new(conversation_id).context(context);
+        let actual = render_conversation_html(&fixture);
+
+        // Verify conversation ID is displayed in tool result
+        assert!(actual.contains("Conversation ID:"));
+        assert!(actual.contains(&agent_conversation_id.to_string()));
+        assert!(actual.contains("conversation-id"));
     }
 }

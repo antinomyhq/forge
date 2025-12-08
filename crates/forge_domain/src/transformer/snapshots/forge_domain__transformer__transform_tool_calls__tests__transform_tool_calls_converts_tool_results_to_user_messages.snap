@@ -17,6 +17,7 @@ before:
                 mime_type: image/png
             - text: Second text output
             - empty
+        conversation_id: ~
 after:
   messages:
     - text:

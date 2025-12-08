@@ -129,6 +129,7 @@ mod tests {
                 name: ToolName::new("test_tool"),
                 call_id: Some(ToolCallId::new("call_123")),
                 output: ToolOutput::text("Tool result text".to_string()),
+                conversation_id: None,
             }])
     }
 

@@ -13,6 +13,7 @@ messages:
           - text: "[The image with ID 0 will be sent as an attachment in the next message]"
           - text: Second text
           - text: "[The image with ID 1 will be sent as an attachment in the next message]"
+      conversation_id: ~
   - text:
       role: User
       content: "[Here is the image attachment for ID 0]"

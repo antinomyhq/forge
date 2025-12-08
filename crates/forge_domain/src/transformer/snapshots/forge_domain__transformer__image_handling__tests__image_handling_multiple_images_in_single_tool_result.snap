@@ -20,6 +20,7 @@ before:
                 url: "data:image/jpeg;base64,image2_data"
                 mime_type: image/jpeg
             - text: After images
+        conversation_id: ~
 after:
   messages:
     - tool:
@@ -33,6 +34,7 @@ after:
             - text: Between images
             - text: "[The image with ID 1 will be sent as an attachment in the next message]"
             - text: After images
+        conversation_id: ~
     - text:
         role: User
         content: "[Here is the image attachment for ID 0]"

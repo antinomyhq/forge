@@ -2,7 +2,7 @@ use derive_setters::Setters;
 use forge_template::Element;
 use serde::{Deserialize, Serialize};
 
-use crate::{Image, ToolCallFull, ToolCallId, ToolName};
+use crate::{ConversationId, Image, ToolCallFull, ToolCallId, ToolName};
 
 const REFLECTION_PROMPT: &str =
     include_str!("../../../../templates/forge-partial-tool-error-reflection.md");
@@ -14,6 +14,7 @@ pub struct ToolResult {
     pub call_id: Option<ToolCallId>,
     #[setters(skip)]
     pub output: ToolOutput,
+    pub conversation_id: Option<ConversationId>,
 }
 
 impl ToolResult {
@@ -22,6 +23,7 @@ impl ToolResult {
             name: name.into(),
             call_id: Default::default(),
             output: Default::default(),
+            conversation_id: None,
         }
     }
 
@@ -75,6 +77,7 @@ impl From<ToolCallFull> for ToolResult {
             name: value.name,
             call_id: value.call_id,
             output: Default::default(),
+            conversation_id: None,
         }
     }
 }

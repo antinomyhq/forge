@@ -13,6 +13,7 @@ messages:
         is_error: false
         values:
           - text: Text output
+      conversation_id: ~
   - tool:
       name: empty_tool
       call_id: call2
@@ -20,3 +21,4 @@ messages:
         is_error: false
         values:
           - empty
+      conversation_id: ~

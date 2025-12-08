@@ -26,6 +26,7 @@ before:
           is_error: false
           values:
             - text: Tool output
+        conversation_id: ~
   reasoning:
     enabled: true
 after:
@@ -43,3 +44,4 @@ after:
           is_error: false
           values:
             - text: Tool output
+        conversation_id: ~

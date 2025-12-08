@@ -167,3 +167,13 @@ img {
   color: #7c3aed;
   font-size: 0.9em;
 }
+
+/* Conversation ID style */
+.conversation-id {
+  margin: 8px 0;
+  padding: 8px;
+  background-color: #e8f4f8;
+  border-left: 3px solid #0891b2;
+  font-size: 0.9em;
+  color: #0e7490;
+}

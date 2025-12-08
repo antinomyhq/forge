@@ -121,8 +121,8 @@ where
                 let conn = self
                     .connect(&name, server)
                     .await
-                    .context(format!("Failed to initiate MCP server: {name}"));
-
+                    .context(format!("Failed to initiate the MCP server: {name}"));
+                
                 (name, conn)
             })
             .collect();
@@ -133,6 +133,7 @@ where
             match result {
                 Ok(_) => {}
                 Err(error) => {
+                    tracing::debug!(error = %error, "MCP server error");
                     let error_string = error.to_string();
                     self.failed_servers
                         .write()

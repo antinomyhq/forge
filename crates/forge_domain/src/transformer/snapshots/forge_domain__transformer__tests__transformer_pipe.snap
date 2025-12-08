@@ -23,6 +23,7 @@ before:
           is_error: false
           values:
             - text: Tool result text
+        conversation_id: ~
 after:
   messages:
     - text:

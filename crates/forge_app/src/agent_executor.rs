@@ -53,6 +53,7 @@ impl<S: Services> AgentExecutor<S> {
 
         // Create a new conversation for agent execution
         let conversation = Conversation::generate().title(task.clone());
+        let agent_conversation_id = conversation.id;
         self.services
             .conversation_service()
             .upsert_conversation(conversation.clone())
@@ -62,7 +63,7 @@ impl<S: Services> AgentExecutor<S> {
         let mut response_stream = app
             .chat(
                 agent_id.clone(),
-                ChatRequest::new(Event::new(task.clone()), conversation.id),
+                ChatRequest::new(Event::new(task.clone()), agent_conversation_id),
             )
             .await?;
 
@@ -87,10 +88,11 @@ impl<S: Services> AgentExecutor<S> {
         }
 
         if let Some(output) = output {
-            // Create tool output
+            // Create tool output with conversation ID reference
             Ok(ToolOutput::text(
                 Element::new("task_completed")
                     .attr("task", &task)
+                    .attr("conversation_id", agent_conversation_id.to_string())
                     .append(Element::new("output").text(output)),
             ))
         } else {

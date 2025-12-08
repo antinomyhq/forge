@@ -119,7 +119,10 @@ impl<S: Services> ToolRegistry<S> {
         let tool_name = call.name.clone();
         let output = self.call_inner(agent, call, context).await;
 
-        ToolResult::new(tool_name).call_id(call_id).output(output)
+        ToolResult::new(tool_name)
+            .call_id(call_id)
+            .conversation_id(context.get_conversation_id())
+            .output(output)
     }
 
     pub async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {

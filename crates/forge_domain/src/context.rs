@@ -729,6 +729,7 @@ mod tests {
                     name: crate::ToolName::new("text_tool"),
                     call_id: Some(crate::ToolCallId::new("call1")),
                     output: crate::ToolOutput::text("Text output".to_string()),
+                    conversation_id: None,
                 },
                 ToolResult {
                     name: crate::ToolName::new("empty_tool"),
@@ -737,6 +738,7 @@ mod tests {
                         values: vec![crate::ToolValue::Empty],
                         is_error: false,
                     },
+                    conversation_id: None,
                 },
             ]);
 
@@ -755,6 +757,7 @@ mod tests {
                 name: crate::ToolName::new("image_tool"),
                 call_id: Some(crate::ToolCallId::new("call1")),
                 output: crate::ToolOutput::image(image),
+                conversation_id: None,
             }]);
 
         let mut transformer = crate::transformer::ImageHandling::new();
@@ -779,6 +782,7 @@ mod tests {
                 ],
                 is_error: false,
             },
+            conversation_id: None,
         }]);
 
         let mut transformer = crate::transformer::ImageHandling::new();
@@ -798,16 +802,19 @@ mod tests {
                     name: crate::ToolName::new("text_tool"),
                     call_id: Some(crate::ToolCallId::new("call1")),
                     output: crate::ToolOutput::text("Text output".to_string()),
+                    conversation_id: None,
                 },
                 ToolResult {
                     name: crate::ToolName::new("image_tool1"),
                     call_id: Some(crate::ToolCallId::new("call2")),
                     output: crate::ToolOutput::image(image1),
+                    conversation_id: None,
                 },
                 ToolResult {
                     name: crate::ToolName::new("image_tool2"),
                     call_id: Some(crate::ToolCallId::new("call3")),
                     output: crate::ToolOutput::image(image2),
+                    conversation_id: None,
                 },
             ]);
 
@@ -836,6 +843,7 @@ mod tests {
                     ],
                     is_error: false,
                 },
+                conversation_id: None,
             }]);
 
         let mut transformer = crate::transformer::ImageHandling::new();
@@ -854,6 +862,7 @@ mod tests {
                 values: vec![crate::ToolValue::Image(image)],
                 is_error: true,
             },
+            conversation_id: None,
         }]);
 
         let mut transformer = crate::transformer::ImageHandling::new();
@@ -1134,11 +1143,13 @@ mod tests {
                     name: crate::ToolName::new("tool1"),
                     call_id: Some(crate::ToolCallId::new("call1")),
                     output: crate::ToolOutput::text("Result 1".to_string()),
+                    conversation_id: None,
                 },
                 ToolResult {
                     name: crate::ToolName::new("tool2"),
                     call_id: Some(crate::ToolCallId::new("call2")),
                     output: crate::ToolOutput::text("Result 2".to_string()),
+                    conversation_id: None,
                 },
             ]);
 

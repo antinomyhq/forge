@@ -32,6 +32,7 @@ before:
           is_error: false
           values:
             - text: Tool result
+        conversation_id: ~
 after:
   messages:
     - text:
@@ -53,3 +54,4 @@ after:
           is_error: false
           values:
             - text: Tool result
+        conversation_id: ~

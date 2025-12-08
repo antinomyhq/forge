@@ -15,6 +15,7 @@ before:
             - image:
                 url: "data:image/png;base64,error_image_data"
                 mime_type: image/png
+        conversation_id: ~
 after:
   messages:
     - tool:
@@ -25,6 +26,7 @@ after:
           values:
             - text: Error occurred
             - text: "[The image with ID 0 will be sent as an attachment in the next message]"
+        conversation_id: ~
     - text:
         role: User
         content: "[Here is the image attachment for ID 0]"
