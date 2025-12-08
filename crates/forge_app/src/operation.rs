@@ -349,56 +349,40 @@ impl ToolOperation {
                             .attr("use_case", &query_result.use_case)
                             .attr("results", query_result.results.len());
 
-                        let query_elm = if query_result.results.is_empty() {
-                            query_elm.text("No results found. Try using multiple queries with different phrasings, synonyms, or more specific use_case descriptions to improve search coverage.")
-                        } else {
-                            let grouped_by_path = query_result
-                                .results
-                                .iter()
-                                // Extract all file chunks
-                                .filter_map(|data| match &data.node {
-                                    forge_domain::NodeData::FileChunk(file_chunk) => {
-                                        Some(file_chunk)
-                                    }
-                                    _ => None,
-                                })
-                                // Group chunks by file path
-                                .fold(
-                                    HashMap::<&str, Vec<_>>::new(),
-                                    |mut acc: HashMap<_, _>, chunk| {
-                                        let key = chunk.file_path.as_str();
-                                        acc.entry(key).or_default().push(chunk);
-                                        acc
-                                    },
-                                );
+                        let mut grouped_by_path: HashMap<&str, Vec<_>> = HashMap::new();
 
-                            // Sort by file path for stable ordering
-                            let mut grouped_chunks: Vec<_> = grouped_by_path.into_iter().collect();
-                            grouped_chunks.sort_by(|a, b| a.0.cmp(b.0));
+                        // Extract all file chunks and group by path
+                        for data in &query_result.results {
+                            if let forge_domain::NodeData::FileChunk(file_chunk) = &data.node {
+                                let key = file_chunk.file_path.as_str();
+                                grouped_by_path.entry(key).or_default().push(file_chunk);
+                            }
+                        }
 
-                            let result_elm = grouped_chunks
-                                .into_iter()
-                                // Sort chunks by start line
-                                .map(|(path, mut chunks)| {
-                                    chunks.sort_by(|a, b| a.start_line.cmp(&b.start_line));
-                                    let data = chunks
-                                        .into_iter()
-                                        .map(|chunk| {
-                                            chunk
-                                                .content
-                                                .to_numbered_from(chunk.start_line as usize)
-                                        })
-                                        .collect::<Vec<_>>()
-                                        .join("\n...\n");
+                        // Sort by file path for stable ordering
+                        let mut grouped_chunks: Vec<_> = grouped_by_path.into_iter().collect();
+                        grouped_chunks.sort_by(|a, b| a.0.cmp(b.0));
 
-                                    Element::new("file").attr("path", path).cdata(data)
-                                })
-                                .collect::<Vec<_>>();
+                        let mut result_elm = Vec::new();
 
-                            query_elm.append(result_elm)
-                        };
+                        // Process each file path
+                        for (path, mut chunks) in grouped_chunks {
+                            // Sort chunks by start line
+                            chunks.sort_by(|a, b| a.start_line.cmp(&b.start_line));
 
-                        root = root.append(query_elm);
+                            let mut content_parts = Vec::new();
+                            for chunk in chunks {
+                                let numbered =
+                                    chunk.content.to_numbered_from(chunk.start_line as usize);
+                                content_parts.push(numbered);
+                            }
+
+                            let data = content_parts.join("\n...\n");
+                            let element = Element::new("file").attr("path", path).cdata(data);
+                            result_elm.push(element);
+                        }
+
+                        root = root.append(query_elm.append(result_elm));
                     }
                 }
 
