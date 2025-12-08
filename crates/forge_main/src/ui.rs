@@ -477,9 +477,19 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         .get(&name)
                         .ok_or(anyhow::anyhow!("Server not found"))?;
 
-                    let mut output = String::new();
-                    output.push_str(&format!("{name}: {}", format_mcp_server(server)));
-                    self.writeln_title(TitleFormat::info(output))?;
+                    // Get MCP servers to check for failures
+                    let tools = self.api.get_tools().await?;
+
+                    // Display server configuration
+                    self.writeln_title(TitleFormat::info(format!(
+                        "{name}: {}",
+                        format_mcp_server(server)
+                    )))?;
+
+                    // Display error if the server failed to initialize
+                    if let Some(error) = tools.mcp.get_failures().get(&name) {
+                        self.writeln_title(TitleFormat::error(error))?;
+                    }
                 }
                 McpCommand::Reload => {
                     self.spinner.start(Some("Reloading MCPs"))?;
