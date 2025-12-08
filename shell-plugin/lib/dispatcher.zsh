@@ -182,6 +182,9 @@ function forge-accept-line() {
         sync)
             _forge_action_sync
         ;;
+        worktree|sandbox)
+            _forge_action_worktree "$input_text"
+        ;;
         login)
             _forge_action_login
         ;;
