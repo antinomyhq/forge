@@ -20,6 +20,14 @@ function _forge_action_info() {
     else
         _forge_exec info
     fi
+    
+    # Show security mode status
+    local mode_status="fullaccess"
+    if [[ "$_FORGE_RESTRICTED_MODE" == "true" ]]; then
+        mode_status="restricted"
+    fi
+    echo "Security mode: $mode_status"
+    
     _forge_reset
 }
 

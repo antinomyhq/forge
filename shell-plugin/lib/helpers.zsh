@@ -22,7 +22,13 @@ function _forge_exec() {
     # Ensure FORGE_ACTIVE_AGENT always has a value, default to "forge"
     local agent_id="${_FORGE_ACTIVE_AGENT:-forge}"
     
-    eval "$_FORGE_BIN --agent $(printf '%q' "$agent_id") $(printf '%q ' "$@")"
+    # Add --restricted flag if restricted mode is enabled
+    local restricted_flag=""
+    if [[ "$_FORGE_RESTRICTED_MODE" == "true" ]]; then
+        restricted_flag="--restricted"
+    fi
+    
+    eval "$_FORGE_BIN --agent $(printf '%q' "$agent_id") $restricted_flag $(printf '%q ' "$@")"
 }
 
 # Helper function to clear buffer and reset prompt
