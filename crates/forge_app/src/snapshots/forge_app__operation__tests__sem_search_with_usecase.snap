@@ -1,7 +1,6 @@
 ---
 source: crates/forge_app/src/operation.rs
 expression: to_value(actual)
-snapshot_kind: text
 ---
 <sem_search_results>
 <query_result
