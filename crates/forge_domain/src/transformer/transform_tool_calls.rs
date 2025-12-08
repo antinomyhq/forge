@@ -109,7 +109,6 @@ mod tests {
                 name: ToolName::new("test_tool"),
                 call_id: Some(ToolCallId::new("call_123")),
                 output: ToolOutput::text("Tool result text".to_string()),
-                conversation_id: None,
             }])
     }
 
@@ -127,8 +126,8 @@ mod tests {
                     ToolValue::Empty,
                 ],
                 is_error: false,
+                conversation_id: None,
             },
-            conversation_id: None,
         }])
     }
 
@@ -192,8 +191,11 @@ mod tests {
         let fixture = Context::default().add_tool_results(vec![ToolResult {
             name: ToolName::new("empty_tool"),
             call_id: Some(ToolCallId::new("call_empty")),
-            output: ToolOutput { values: vec![ToolValue::Empty], is_error: false },
-            conversation_id: None,
+            output: ToolOutput {
+                values: vec![ToolValue::Empty],
+                is_error: false,
+                conversation_id: None,
+            },
         }]);
 
         let mut transformer = TransformToolCalls::new();

@@ -1,6 +1,7 @@
 ---
 source: crates/forge_domain/src/transformer/transform_tool_calls.rs
 expression: snapshot
+snapshot_kind: text
 ---
 transformation: "TransformToolCalls::with_model(gpt-4)"
 before:
@@ -23,7 +24,7 @@ before:
           is_error: false
           values:
             - text: Tool result text
-        conversation_id: ~
+          conversation_id: ~
 after:
   messages:
     - text:

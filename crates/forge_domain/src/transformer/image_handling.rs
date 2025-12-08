@@ -98,8 +98,8 @@ mod tests {
                     ToolValue::Empty,
                 ],
                 is_error: false,
+                conversation_id: None,
             },
-            conversation_id: None,
         }])
     }
 
@@ -114,13 +114,11 @@ mod tests {
                     name: ToolName::new("image_tool_1"),
                     call_id: Some(ToolCallId::new("call_1")),
                     output: ToolOutput::image(image1),
-                    conversation_id: None,
                 },
                 ToolResult {
                     name: ToolName::new("image_tool_2"),
                     call_id: Some(ToolCallId::new("call_2")),
                     output: ToolOutput::image(image2),
-                    conversation_id: None,
                 },
             ])
     }
@@ -143,7 +141,6 @@ mod tests {
                 name: ToolName::new("text_tool"),
                 call_id: Some(ToolCallId::new("call_text")),
                 output: ToolOutput::text("Just text output".to_string()),
-                conversation_id: None,
             }]);
 
         let mut transformer = ImageHandling::new();
@@ -180,8 +177,8 @@ mod tests {
                     ToolValue::Text("After images".to_string()),
                 ],
                 is_error: false,
+                conversation_id: None,
             },
-            conversation_id: None,
         }]);
 
         let mut transformer = ImageHandling::new();
@@ -204,8 +201,8 @@ mod tests {
                     ToolValue::Image(image),
                 ],
                 is_error: true,
+                conversation_id: None,
             },
-            conversation_id: None,
         }]);
 
         let mut transformer = ImageHandling::new();
@@ -237,7 +234,6 @@ mod tests {
                 name: ToolName::new("image_tool"),
                 call_id: Some(ToolCallId::new("call_preserve")),
                 output: ToolOutput::image(image),
-                conversation_id: None,
             }]);
 
         let mut transformer = ImageHandling::new();

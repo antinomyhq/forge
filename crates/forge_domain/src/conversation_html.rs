@@ -159,7 +159,7 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
                         );
 
                         // Add conversation ID if present
-                        if let Some(conversation_id) = &tool_result.conversation_id {
+                        if let Some(conversation_id) = &tool_result.output.conversation_id {
                             element = element.append(
                                 Element::new("p.conversation-id")
                                     .append(Element::new("strong").text("Conversation ID: "))
@@ -360,7 +360,7 @@ mod tests {
     fn test_render_conversation_with_tool_result_conversation_id() {
         use crate::context::Context;
         use crate::conversation::ConversationId;
-        use crate::{ToolCallId, ToolName, ToolOutput, ToolResult};
+        use crate::{ToolCallId, ToolName, ToolOutput, ToolResult, ToolValue};
 
         let conversation_id = ConversationId::generate();
         let agent_conversation_id = ConversationId::generate();
@@ -368,8 +368,11 @@ mod tests {
         let context = Context::default().add_tool_results(vec![ToolResult {
             name: ToolName::new("test_agent"),
             call_id: Some(ToolCallId::new("call_123")),
-            output: ToolOutput::text("Agent output"),
-            conversation_id: Some(agent_conversation_id),
+            output: ToolOutput {
+                values: vec![ToolValue::Text("Agent output".to_string())],
+                is_error: false,
+                conversation_id: Some(agent_conversation_id),
+            },
         }]);
 
         let fixture = Conversation::new(conversation_id).context(context);

@@ -1,6 +1,7 @@
 ---
 source: crates/forge_domain/src/context.rs
 expression: actual
+snapshot_kind: text
 ---
 messages:
   - text:
@@ -22,7 +23,7 @@ messages:
           - text: "[The image with ID 0 will be sent as an attachment in the next message]"
           - text: After image
           - empty
-      conversation_id: ~
+        conversation_id: ~
   - text:
       role: User
       content: "[Here is the image attachment for ID 0]"

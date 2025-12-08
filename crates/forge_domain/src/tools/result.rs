@@ -14,7 +14,6 @@ pub struct ToolResult {
     pub call_id: Option<ToolCallId>,
     #[setters(skip)]
     pub output: ToolOutput,
-    pub conversation_id: Option<ConversationId>,
 }
 
 impl ToolResult {
@@ -23,7 +22,6 @@ impl ToolResult {
             name: name.into(),
             call_id: Default::default(),
             output: Default::default(),
-            conversation_id: None,
         }
     }
 
@@ -77,7 +75,6 @@ impl From<ToolCallFull> for ToolResult {
             name: value.name,
             call_id: value.call_id,
             output: Default::default(),
-            conversation_id: None,
         }
     }
 }
@@ -87,6 +84,7 @@ impl From<ToolCallFull> for ToolResult {
 pub struct ToolOutput {
     pub is_error: bool,
     pub values: Vec<ToolValue>,
+    pub conversation_id: Option<ConversationId>,
 }
 
 impl ToolOutput {
@@ -94,11 +92,16 @@ impl ToolOutput {
         ToolOutput {
             is_error: Default::default(),
             values: vec![ToolValue::Text(tool.to_string())],
+            conversation_id: None,
         }
     }
 
     pub fn image(img: Image) -> Self {
-        ToolOutput { is_error: false, values: vec![ToolValue::Image(img)] }
+        ToolOutput {
+            is_error: false,
+            values: vec![ToolValue::Image(img)],
+            conversation_id: None,
+        }
     }
 
     pub fn combine_mut(&mut self, value: ToolOutput) {
@@ -108,7 +111,11 @@ impl ToolOutput {
     pub fn combine(self, other: ToolOutput) -> Self {
         let mut items = self.values;
         items.extend(other.values);
-        ToolOutput { values: items, is_error: self.is_error || other.is_error }
+        ToolOutput {
+            values: items,
+            is_error: self.is_error || other.is_error,
+            conversation_id: self.conversation_id.or(other.conversation_id),
+        }
     }
 
     /// Returns the first item as a string if it exists

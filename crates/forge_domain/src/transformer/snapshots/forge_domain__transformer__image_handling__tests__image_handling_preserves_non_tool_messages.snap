@@ -1,6 +1,7 @@
 ---
 source: crates/forge_domain/src/transformer/image_handling.rs
 expression: snapshot
+snapshot_kind: text
 ---
 transformation: ImageHandling
 before:
@@ -23,7 +24,7 @@ before:
             - image:
                 url: "data:image/png;base64,test_image"
                 mime_type: image/png
-        conversation_id: ~
+          conversation_id: ~
 after:
   messages:
     - text:
@@ -42,7 +43,7 @@ after:
           is_error: false
           values:
             - text: "[The image with ID 0 will be sent as an attachment in the next message]"
-        conversation_id: ~
+          conversation_id: ~
     - text:
         role: User
         content: "[Here is the image attachment for ID 0]"

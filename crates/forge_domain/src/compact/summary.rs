@@ -359,7 +359,6 @@ mod tests {
             name: ToolName::new(name),
             call_id: Some(ToolCallId::new(call_id)),
             output: ToolOutput::text("result").is_error(is_error),
-            conversation_id: None,
         })
     }
 
@@ -719,7 +718,6 @@ mod tests {
                 name: ToolName::new("read"),
                 call_id: None,
                 output: ToolOutput::text("result"),
-                conversation_id: None,
             }),
         ]);
 

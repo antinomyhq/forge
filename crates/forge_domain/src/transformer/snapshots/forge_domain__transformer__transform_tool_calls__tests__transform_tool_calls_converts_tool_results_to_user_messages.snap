@@ -1,6 +1,7 @@
 ---
 source: crates/forge_domain/src/transformer/transform_tool_calls.rs
 expression: snapshot
+snapshot_kind: text
 ---
 transformation: TransformToolCalls
 before:
@@ -17,7 +18,7 @@ before:
                 mime_type: image/png
             - text: Second text output
             - empty
-        conversation_id: ~
+          conversation_id: ~
 after:
   messages:
     - text:

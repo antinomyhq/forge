@@ -1,6 +1,7 @@
 ---
 source: crates/forge_domain/src/transformer/transform_tool_calls.rs
 expression: snapshot
+snapshot_kind: text
 ---
 transformation: TransformToolCalls
 before:
@@ -12,5 +13,5 @@ before:
           is_error: false
           values:
             - empty
-        conversation_id: ~
+          conversation_id: ~
 after: {}
