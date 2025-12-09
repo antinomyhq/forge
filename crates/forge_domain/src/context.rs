@@ -667,6 +667,7 @@ impl Context {
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub enum TokenCount {
     Actual(usize),
     Approx(usize),
