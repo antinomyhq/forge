@@ -38,6 +38,9 @@
 
 ## Quickstart
 
+[![Run in Smithery](https://smithery.ai/badge/skills/antinomyhq)](https://smithery.ai/skills?ns=antinomyhq&utm_source=github&utm_medium=badge)
+
+
 To get started with Forge, run the command below:
 
 ```bash
