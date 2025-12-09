@@ -15,4 +15,8 @@ impl<F: EnvironmentInfra> EnvironmentService for ForgeEnvironmentService<F> {
     fn get_environment(&self) -> Environment {
         self.0.get_environment()
     }
+
+    fn get_env_var(&self, key: &str) -> Option<String> {
+        self.0.get_env_var(key)
+    }
 }

@@ -132,6 +132,10 @@ mod tests {
             }
             env
         }
+
+        fn get_env_var(&self, _key: &str) -> Option<String> {
+            None
+        }
     }
 
     fn fixture(

@@ -47,7 +47,7 @@ impl<
     /// Check if policy system is enabled via environment variable or forge config
     async fn is_policy_enabled(&self) -> bool {
         // First check environment variable (highest priority)
-        if let Ok(enabled) = std::env::var("FORGE_POLICY_ENABLED") {
+        if let Some(enabled) = self.services.get_env_var("FORGE_POLICY_ENABLED") {
             return enabled == "1" || enabled.to_lowercase() == "true";
         }
 
