@@ -97,7 +97,10 @@ impl ToolOutput {
     pub fn llm(id: ConversationId, output: impl ToString) -> Self {
         ToolOutput {
             is_error: Default::default(),
-            values: vec![ToolValue::Llm(output.to_string(), id)],
+            values: vec![ToolValue::AI {
+                value: output.to_string(),
+                conversation_id: id,
+            }],
         }
     }
 
@@ -136,9 +139,10 @@ where
 #[serde(rename_all = "camelCase")]
 pub enum ToolValue {
     Text(String),
-    // FIXME: Change the order to params
-    // FIXME: Instead of LLM lets call it Agent
-    Llm(String, ConversationId),
+    AI {
+        value: String,
+        conversation_id: ConversationId,
+    },
     Image(Image),
     #[default]
     Empty,
@@ -158,7 +162,7 @@ impl ToolValue {
             ToolValue::Text(text) => Some(text),
             ToolValue::Image(_) => None,
             ToolValue::Empty => None,
-            ToolValue::Llm(text, _) => Some(text),
+            ToolValue::AI { value, .. } => Some(value),
         }
     }
 }

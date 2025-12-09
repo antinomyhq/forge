@@ -47,7 +47,7 @@ impl Transformer for ImageHandling {
                 }
                 crate::ToolValue::Text(_) => {}
                 crate::ToolValue::Empty => {}
-                crate::ToolValue::Llm(_, _) => {}
+                crate::ToolValue::AI { .. } => {}
             });
 
         // Step 2: Insert all images at the end

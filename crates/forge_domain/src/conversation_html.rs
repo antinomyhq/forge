@@ -167,12 +167,12 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
                                         Some(Element::new("img").attr("src", image.url()))
                                     }
                                     crate::ToolValue::Empty => None,
-                                    crate::ToolValue::Llm(text, conversation_id) => Some(
+                                    crate::ToolValue::AI { value, conversation_id } => Some(
                                         Element::new("div")
                                             .append(Element::new("b").text(format!(
                                                 "Conversation ID: {conversation_id}"
                                             )))
-                                            .append(Element::new("pre").text(text)),
+                                            .append(Element::new("pre").text(value)),
                                     ),
                                 }
                             }))
