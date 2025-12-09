@@ -383,8 +383,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     ListCommand::Agent => {
                         self.on_show_agents(porcelain).await?;
                     }
-                    ListCommand::Provider => {
-                        self.on_show_providers(porcelain).await?;
+                    ListCommand::Provider { types } => {
+                        self.on_show_providers(porcelain, types).await?;
                     }
                     ListCommand::Model => {
                         self.on_show_models(porcelain).await?;
@@ -477,9 +477,19 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         .get(&name)
                         .ok_or(anyhow::anyhow!("Server not found"))?;
 
-                    let mut output = String::new();
-                    output.push_str(&format!("{name}: {}", format_mcp_server(server)));
-                    self.writeln_title(TitleFormat::info(output))?;
+                    // Get MCP servers to check for failures
+                    let tools = self.api.get_tools().await?;
+
+                    // Display server configuration
+                    self.writeln_title(TitleFormat::info(format!(
+                        "{name}: {}",
+                        format_mcp_server(server)
+                    )))?;
+
+                    // Display error if the server failed to initialize
+                    if let Some(error) = tools.mcp.get_failures().get(&name) {
+                        self.writeln_title(TitleFormat::error(error))?;
+                    }
                 }
                 McpCommand::Reload => {
                     self.spinner.start(Some("Reloading MCPs"))?;
@@ -746,8 +756,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             ProviderCommand::Logout { provider } => {
                 self.handle_provider_logout(provider.as_ref()).await?;
             }
-            ProviderCommand::List => {
-                self.on_show_providers(provider_group.porcelain).await?;
+            ProviderCommand::List { types } => {
+                self.on_show_providers(provider_group.porcelain, types)
+                    .await?;
             }
         }
 
@@ -967,8 +978,17 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     }
 
     /// Lists all the providers
-    async fn on_show_providers(&mut self, porcelain: bool) -> anyhow::Result<()> {
-        let providers = self.api.get_providers().await?;
+    async fn on_show_providers(
+        &mut self,
+        porcelain: bool,
+        types: Vec<forge_domain::ProviderType>,
+    ) -> anyhow::Result<()> {
+        let mut providers = self.api.get_providers().await?;
+
+        // Filter by type if specified
+        if !types.is_empty() {
+            providers.retain(|p| types.contains(p.provider_type()));
+        }
 
         if providers.is_empty() {
             return Ok(());
