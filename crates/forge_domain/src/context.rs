@@ -344,7 +344,7 @@ impl<'de> Deserialize<'de> for ContextMessage {
     {
         #[derive(Deserialize)]
         #[serde(untagged)]
-        enum Helper {
+        enum ContextMessageParser {
             // Try new format first (with message field)
             Wrapper {
                 message: ContextMessageValue,
@@ -354,9 +354,11 @@ impl<'de> Deserialize<'de> for ContextMessage {
             Direct(ContextMessageValue),
         }
 
-        match Helper::deserialize(deserializer)? {
-            Helper::Wrapper { message, usage } => Ok(ContextMessage { message, usage }),
-            Helper::Direct(message) => Ok(ContextMessage { message, usage: None }),
+        match ContextMessageParser::deserialize(deserializer)? {
+            ContextMessageParser::Wrapper { message, usage } => {
+                Ok(ContextMessage { message, usage })
+            }
+            ContextMessageParser::Direct(message) => Ok(ContextMessage { message, usage: None }),
         }
     }
 }
