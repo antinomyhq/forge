@@ -142,8 +142,11 @@ impl Compactor {
             msg.reasoning_details = Some(reasoning);
         }
 
-        // Clear usage field so token_count() recalculates based on new messages
-        context.usage = None;
+        // Clear usage from all message wrappers to force recalculation
+        // This ensures token counts reflect the new compacted context
+        for wrapper in &mut context.messages {
+            wrapper.usage = None;
+        }
 
         Ok(context)
     }
@@ -153,6 +156,7 @@ impl Compactor {
 mod tests {
     use std::path::PathBuf;
 
+    use forge_domain::ContextMessageWrapper;
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -508,17 +512,27 @@ mod tests {
         let msg5 = ContextMessage::user("Message 3", None);
         let msg6 = ContextMessage::assistant("Response 3", None, None);
 
+        // Add usage to the last message to set context-wide usage
+        let mut wrapper6 = ContextMessageWrapper::from(msg6.clone());
+        wrapper6.usage = Some(original_usage.clone());
+
         let context = Context::default()
             .add_message(msg1.clone())
             .add_message(msg2.clone())
             .add_message(msg3.clone())
             .add_message(msg4.clone())
             .add_message(msg5.clone())
-            .add_message(msg6.clone())
-            .usage(original_usage.clone());
+            .messages(vec![
+                ContextMessage::user("Message 1", None).into(),
+                ContextMessage::assistant("Response 1", None, None).into(),
+                ContextMessage::user("Message 2", None).into(),
+                ContextMessage::assistant("Response 2", None, None).into(),
+                ContextMessage::user("Message 3", None).into(),
+                wrapper6,
+            ]);
 
         // Verify usage exists before compaction
-        assert_eq!(context.usage, Some(original_usage.clone()));
+        assert_eq!(context.usage(), Some(original_usage.clone()));
         assert_eq!(context.token_count(), TokenCount::Actual(50000));
 
         // Calculate expected token count after compaction
@@ -541,7 +555,8 @@ mod tests {
 
         // Verify usage is cleared after compaction
         assert_eq!(
-            compacted.usage, None,
+            compacted.usage(),
+            None,
             "Usage field should be None after compaction to force token recalculation"
         );
 

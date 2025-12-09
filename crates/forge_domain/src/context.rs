@@ -401,9 +401,6 @@ pub struct Context {
     pub top_k: Option<TopK>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reasoning: Option<crate::agent_definition::ReasoningConfig>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    // FIXME: Drop usage from Context and keep it messages
-    pub usage: Option<Usage>,
     /// Controls whether responses should be streamed. When `true`, responses
     /// are delivered incrementally as they're generated. When `false`, the
     /// complete response is returned at once. Defaults to `true` if not
@@ -565,7 +562,7 @@ impl Context {
     /// Returns the token count for context
     pub fn token_count(&self) -> TokenCount {
         let actual = self
-            .usage
+            .usage()
             .as_ref()
             .map(|u| u.total_tokens)
             .unwrap_or_default();
@@ -936,23 +933,25 @@ mod tests {
 
         // case 2: context with usage - since total_tokens present return that.
         let usage = Usage { total_tokens: TokenCount::Actual(100), ..Default::default() };
-        let fixture = Context::default().usage(usage);
+        let mut wrapper = ContextMessageWrapper::from(ContextMessage::user("Hello", None));
+        wrapper.usage = Some(usage);
+        let fixture = Context::default().messages(vec![wrapper]);
         assert_eq!(fixture.token_count(), TokenCount::Actual(100));
 
         // case 3: context with usage - since total_tokens present return that.
         let usage = Usage { total_tokens: TokenCount::Actual(80), ..Default::default() };
-        let fixture = Context::default().usage(usage);
+        let mut wrapper = ContextMessageWrapper::from(ContextMessage::user("Hello", None));
+        wrapper.usage = Some(usage);
+        let fixture = Context::default().messages(vec![wrapper]);
         assert_eq!(fixture.token_count(), TokenCount::Actual(80));
 
         // case 4: context with messages - since total_tokens are not present return
         // estimate
-        let usage = Usage::default();
         let fixture = Context::default()
             .add_message(ContextMessage::user("Hello", None))
             .add_message(ContextMessage::assistant("Hi there!", None, None))
             .add_message(ContextMessage::assistant("How can I help you?", None, None))
-            .add_message(ContextMessage::user("I'm looking for a restaurant.", None))
-            .usage(usage);
+            .add_message(ContextMessage::user("I'm looking for a restaurant.", None));
         assert_eq!(fixture.token_count(), TokenCount::Approx(18));
     }
 
