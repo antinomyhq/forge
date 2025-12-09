@@ -3,17 +3,30 @@
 # Provider selection helper
 
 # Helper function to select a provider from the list
-# Usage: _forge_select_provider [filter_status] [current_provider]
+# Usage: _forge_select_provider [filter_status] [current_provider] [filter_type]
 # Returns: selected provider line (via stdout)
 function _forge_select_provider() {
     local filter_status="${1:-}"
     local current_provider="${2:-}"
+    local filter_type="${3:-}"
     local output
     output=$($_FORGE_BIN list provider --porcelain 2>/dev/null)
     
     if [[ -z "$output" ]]; then
         _forge_log error "No providers available"
         return 1
+    fi
+    
+    # Filter by type if specified (e.g., "llm" for LLM providers only)
+    if [[ -n "$filter_type" ]]; then
+        # Preserve the header line and filter the rest by TYPE column
+        local header=$(echo "$output" | head -n 1)
+        local filtered=$(echo "$output" | tail -n +2 | awk -v type="$filter_type" '$4 == type')
+        if [[ -z "$filtered" ]]; then
+            _forge_log error "No ${filter_type} providers found"
+            return 1
+        fi
+        output=$(printf "%s\n%s" "$header" "$filtered")
     fi
     
     # Filter by status if specified (e.g., "available" for configured providers)
