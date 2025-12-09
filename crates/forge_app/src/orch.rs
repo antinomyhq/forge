@@ -331,6 +331,7 @@ impl<S: AgentService> Orchestrator<S> {
             context = context.append_message(
                 message.content.clone(),
                 message.reasoning_details,
+                message.usage,
                 tool_call_records,
             );
 

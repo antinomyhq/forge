@@ -439,10 +439,15 @@ impl Context {
         self
     }
 
-    pub fn add_message(mut self, content: impl Into<ContextMessageValue>) -> Self {
+    pub fn add_message(self, content: impl Into<ContextMessageValue>) -> Self {
+        self.add_message_wrapper(content.into())
+    }
+
+    // FIXME: Rename this function
+    pub fn add_message_wrapper(mut self, content: impl Into<ContextMessage>) -> Self {
         let content = content.into();
         debug!(content = ?content, "Adding message to context");
-        self.messages.push(content.into());
+        self.messages.push(content);
 
         self
     }
@@ -540,10 +545,11 @@ impl Context {
         self,
         content: impl ToString,
         reasoning_details: Option<Vec<ReasoningFull>>,
+        usage: Usage,
         tool_records: Vec<(ToolCallFull, ToolResult)>,
     ) -> Self {
         // Adding tool calls
-        self.add_message(ContextMessageValue::assistant(
+        let message: ContextMessage = ContextMessageValue::assistant(
             content,
             reasoning_details,
             Some(
@@ -552,14 +558,16 @@ impl Context {
                     .map(|record| record.0.clone())
                     .collect::<Vec<_>>(),
             ),
-        ))
-        // Adding tool results
-        .add_tool_results(
-            tool_records
-                .iter()
-                .map(|record| record.1.clone())
-                .collect::<Vec<_>>(),
         )
+        .into();
+
+        let tool_results = tool_records
+            .iter()
+            .map(|record| record.1.clone())
+            .collect::<Vec<_>>();
+
+        self.add_message_wrapper(message.usage(usage))
+            .add_tool_results(tool_results)
     }
 
     /// Returns the token count for context
