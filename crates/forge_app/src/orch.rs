@@ -241,16 +241,7 @@ impl<S: AgentService> Orchestrator<S> {
                 debug!(agent_id = %agent.id, "No compaction was needed");
             }
 
-            let 
-                ChatCompletionMessageFull {
-                    tool_calls,
-                    content,
-                    usage,
-                    reasoning,
-                    reasoning_details,
-                    finish_reason,
-                }
-             = crate::retry::retry_with_config(
+            let message = crate::retry::retry_with_config(
                 &self.environment.retry_config,
                 || self.execute_chat_turn(&model_id, context.clone(), context.is_reasoning_supported()),
                 self.sender.as_ref().map(|sender| {
@@ -272,32 +263,35 @@ impl<S: AgentService> Orchestrator<S> {
             info!(
                 conversation_id = %self.conversation.id,
                 conversation_length = context.messages.len(),
-                token_usage = format!("{}", usage.prompt_tokens),
-                total_tokens = format!("{}", usage.total_tokens),
-                cached_tokens = format!("{}", usage.cached_tokens),
-                cost = usage.cost.unwrap_or_default(),
-                finish_reason = finish_reason.as_ref().map_or("", |reason| reason.into()),
+                token_usage = format!("{}", message.usage.prompt_tokens),
+                total_tokens = format!("{}", message.usage.total_tokens),
+                cached_tokens = format!("{}", message.usage.cached_tokens),
+                cost = message.usage.cost.unwrap_or_default(),
+                finish_reason = message.finish_reason.as_ref().map_or("", |reason| reason.into()),
                 "Processing usage information"
             );
 
             // Send the usage information if available
-            self.send(ChatResponse::Usage(usage.clone())).await?;
+            self.send(ChatResponse::Usage(message.usage.clone()))
+                .await?;
 
-            context = context.usage(usage);
+            context = context.usage(message.usage);
 
-            debug!(agent_id = %agent.id, tool_call_count = tool_calls.len(), "Tool call count");
+            debug!(agent_id = %agent.id, tool_call_count = message.tool_calls.len(), "Tool call count");
 
             // Turn is completed, if finish_reason is 'stop'. Gemini models return stop as
             // finish reason with tool calls.
-            is_complete = finish_reason == Some(FinishReason::Stop) && tool_calls.is_empty();
+            is_complete =
+                message.finish_reason == Some(FinishReason::Stop) && message.tool_calls.is_empty();
 
             // Should yield if a tool is asking for a follow-up
             should_yield = is_complete
-                || tool_calls
+                || message
+                    .tool_calls
                     .iter()
                     .any(|call| ToolCatalog::should_yield(&call.name));
 
-            if let Some(reasoning) = reasoning.as_ref()
+            if let Some(reasoning) = message.reasoning.as_ref()
                 && context.is_reasoning_supported()
             {
                 // If reasoning is present, send it as a separate message
@@ -307,12 +301,14 @@ impl<S: AgentService> Orchestrator<S> {
 
             // Send the content message
             self.send(ChatResponse::TaskMessage {
-                content: ChatResponseContent::Markdown(content.clone()),
+                content: ChatResponseContent::Markdown(message.content.clone()),
             })
             .await?;
 
             // Process tool calls and update context
-            let mut tool_call_records = self.execute_tool_calls(&tool_calls, &tool_context).await?;
+            let mut tool_call_records = self
+                .execute_tool_calls(&message.tool_calls, &tool_context)
+                .await?;
 
             self.error_tracker.adjust_record(&tool_call_records);
             let allowed_max_attempts = self.error_tracker.limit();
@@ -332,7 +328,11 @@ impl<S: AgentService> Orchestrator<S> {
                 }
             }
 
-            context = context.append_message(content.clone(), reasoning_details, tool_call_records);
+            context = context.append_message(
+                message.content.clone(),
+                message.reasoning_details,
+                tool_call_records,
+            );
 
             if self.error_tracker.limit_reached() {
                 self.send(ChatResponse::Interrupt {
