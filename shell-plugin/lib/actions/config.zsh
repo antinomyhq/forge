@@ -80,11 +80,12 @@ function _forge_action_agent() {
 function _forge_action_provider() {
     echo
     local selected
-    selected=$(_forge_select_provider)
+    # Only show LLM providers (exclude context_engine and other non-LLM types)
+    selected=$(_forge_select_provider "" "" "llm")
     
     if [[ -n "$selected" ]]; then
         # Extract the second field (provider ID) from the selected line
-        # Format: "DisplayName  provider_id  host  status"
+        # Format: "DisplayName  provider_id  host  type  status"
         local provider_id=$(echo "$selected" | awk '{print $2}')
         # Always use config set - it will handle authentication if needed
         _forge_exec config set provider "$provider_id"

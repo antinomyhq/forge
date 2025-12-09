@@ -606,6 +606,9 @@ mod tests {
             ToolValue::Empty => {
                 writeln!(result, "Empty value").unwrap();
             }
+            ToolValue::AI { value, .. } => {
+                writeln!(result, "{}", value).unwrap();
+            }
         });
 
         result

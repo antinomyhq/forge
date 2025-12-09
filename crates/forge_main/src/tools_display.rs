@@ -46,9 +46,10 @@ pub fn format_tools(agent_tools: &[ToolName], overview: &ToolsOverview) -> Info 
     if !overview.mcp.get_failures().is_empty() {
         info = info.add_title("FAILED MCP SERVERS");
         for (server_name, error) in overview.mcp.get_failures().iter() {
-            // Truncate error message for readability
-            let truncated_error = if error.len() > 50 {
-                format!("{}...", &error[..47])
+            // Truncate error message for readability in list view
+            // Use 'mcp show <name>' for full error details
+            let truncated_error = if error.len() > 80 {
+                format!("{}...", &error[..77])
             } else {
                 error.clone()
             };
