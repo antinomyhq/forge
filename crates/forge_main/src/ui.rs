@@ -477,9 +477,19 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         .get(&name)
                         .ok_or(anyhow::anyhow!("Server not found"))?;
 
-                    let mut output = String::new();
-                    output.push_str(&format!("{name}: {}", format_mcp_server(server)));
-                    self.writeln_title(TitleFormat::info(output))?;
+                    // Get MCP servers to check for failures
+                    let tools = self.api.get_tools().await?;
+
+                    // Display server configuration
+                    self.writeln_title(TitleFormat::info(format!(
+                        "{name}: {}",
+                        format_mcp_server(server)
+                    )))?;
+
+                    // Display error if the server failed to initialize
+                    if let Some(error) = tools.mcp.get_failures().get(&name) {
+                        self.writeln_title(TitleFormat::error(error))?;
+                    }
                 }
                 McpCommand::Reload => {
                     self.spinner.start(Some("Reloading MCPs"))?;
@@ -2917,23 +2927,27 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         for result in results.iter() {
             match &result.node {
-                forge_domain::NodeData::FileChunk { file_path, start_line, end_line, .. } => {
+                forge_domain::NodeData::FileChunk(chunk) => {
                     info = info.add_key_value(
                         "File",
-                        format!("{}:{}-{}", file_path, start_line, end_line),
+                        format!(
+                            "{}:{}-{}",
+                            chunk.file_path, chunk.start_line, chunk.end_line
+                        ),
                     );
                 }
-                forge_domain::NodeData::File { file_path, .. } => {
-                    info = info.add_key_value("File", format!("{} (full file)", file_path));
+                forge_domain::NodeData::File(file) => {
+                    info = info.add_key_value("File", format!("{} (full file)", file.file_path));
                 }
-                forge_domain::NodeData::FileRef { file_path, .. } => {
-                    info = info.add_key_value("File", format!("{} (reference)", file_path));
+                forge_domain::NodeData::FileRef(file_ref) => {
+                    info =
+                        info.add_key_value("File", format!("{} (reference)", file_ref.file_path));
                 }
-                forge_domain::NodeData::Note { content, .. } => {
-                    info = info.add_key_value("Note", content);
+                forge_domain::NodeData::Note(note) => {
+                    info = info.add_key_value("Note", &note.content);
                 }
-                forge_domain::NodeData::Task { task, .. } => {
-                    info = info.add_key_value("Task", task);
+                forge_domain::NodeData::Task(task) => {
+                    info = info.add_key_value("Task", &task.task);
                 }
             }
         }

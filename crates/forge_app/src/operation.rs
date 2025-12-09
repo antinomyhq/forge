@@ -1,4 +1,5 @@
 use std::cmp::min;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use console::strip_ansi_codes;
@@ -6,7 +7,7 @@ use derive_setters::Setters;
 use forge_display::DiffFormat;
 use forge_domain::{
     CodebaseSearchResults, Environment, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite,
-    FileOperation, Metrics, NetFetch, PlanCreate, ToolKind,
+    FileOperation, LineNumbers, Metrics, NetFetch, PlanCreate, ToolKind,
 };
 use forge_template::Element;
 
@@ -200,7 +201,12 @@ impl ToolOperation {
         match self {
             ToolOperation::FsRead { input, output } => {
                 let content = output.content.file_content();
-                let elm = Element::new("file_content")
+                let content = if input.show_line_numbers {
+                    content.to_numbered_from(output.start_line as usize)
+                } else {
+                    content.to_string()
+                };
+                let elm = Element::new("file")
                     .attr("path", &input.path)
                     .attr(
                         "display_lines",
@@ -338,7 +344,45 @@ impl ToolOperation {
                     root = root.text("No results found for query. Try refining your search with more specific terms or different keywords.")
                 } else {
                     for query_result in &output.queries {
-                        root = root.append(query_result.to_element());
+                        let query_elm = Element::new("query_result")
+                            .attr("query", &query_result.query)
+                            .attr("use_case", &query_result.use_case)
+                            .attr("results", query_result.results.len());
+
+                        let mut grouped_by_path: HashMap<&str, Vec<_>> = HashMap::new();
+
+                        // Extract all file chunks and group by path
+                        for data in &query_result.results {
+                            if let forge_domain::NodeData::FileChunk(file_chunk) = &data.node {
+                                let key = file_chunk.file_path.as_str();
+                                grouped_by_path.entry(key).or_default().push(file_chunk);
+                            }
+                        }
+
+                        // Sort by file path for stable ordering
+                        let mut grouped_chunks: Vec<_> = grouped_by_path.into_iter().collect();
+                        grouped_chunks.sort_by(|a, b| a.0.cmp(b.0));
+
+                        let mut result_elm = Vec::new();
+
+                        // Process each file path
+                        for (path, mut chunks) in grouped_chunks {
+                            // Sort chunks by start line
+                            chunks.sort_by(|a, b| a.start_line.cmp(&b.start_line));
+
+                            let mut content_parts = Vec::new();
+                            for chunk in chunks {
+                                let numbered =
+                                    chunk.content.to_numbered_from(chunk.start_line as usize);
+                                content_parts.push(numbered);
+                            }
+
+                            let data = content_parts.join("\n...\n");
+                            let element = Element::new("file").attr("path", path).cdata(data);
+                            result_elm.push(element);
+                        }
+
+                        root = root.append(query_elm.append(result_elm));
                     }
                 }
 
@@ -562,9 +606,64 @@ mod tests {
             ToolValue::Empty => {
                 writeln!(result, "Empty value").unwrap();
             }
+            ToolValue::AI { value, .. } => {
+                writeln!(result, "{}", value).unwrap();
+            }
         });
 
         result
+    }
+
+    // Helper functions for semantic search tests
+    mod sem_search_helpers {
+        use fake::{Fake, Faker};
+        use forge_domain::{CodebaseQueryResult, CodebaseSearchResults, FileChunk, Node, NodeData};
+
+        /// Creates a file chunk node with auto-generated ID, computed end_line,
+        /// and default relevance
+        ///
+        /// # Arguments
+        /// * `file_path` - Path to the file
+        /// * `content` - Code content
+        /// * `start_line` - Starting line number
+        ///
+        /// The end_line is computed from content by counting newlines.
+        /// Node ID is auto-generated using faker.
+        /// Relevance defaults to 0.9.
+        pub fn chunk_node(file_path: &str, content: &str, start_line: u32) -> Node {
+            let line_count = content.lines().count() as u32;
+            let end_line = start_line + line_count.saturating_sub(1);
+            let relevance = 0.9;
+            let node_id: String = Faker.fake();
+
+            Node {
+                node_id: node_id.into(),
+                node: NodeData::FileChunk(FileChunk {
+                    file_path: file_path.to_string(),
+                    content: content.to_string(),
+                    start_line,
+                    end_line,
+                }),
+                relevance: Some(relevance),
+                distance: Some(1.0 - relevance),
+                similarity: Some(relevance),
+            }
+        }
+
+        /// Creates a CodebaseSearchResults with a single query
+        pub fn search_results(
+            query: &str,
+            use_case: &str,
+            nodes: Vec<Node>,
+        ) -> CodebaseSearchResults {
+            CodebaseSearchResults {
+                queries: vec![CodebaseQueryResult {
+                    query: query.to_string(),
+                    use_case: use_case.to_string(),
+                    results: nodes,
+                }],
+            }
+        }
     }
 
     #[test]
@@ -1602,45 +1701,28 @@ mod tests {
 
     #[test]
     fn test_sem_search_with_results() {
-        use forge_domain::{CodebaseQueryResult, CodebaseSearchResults, Node, NodeData};
+        use sem_search_helpers::{chunk_node, search_results};
 
         let fixture = ToolOperation::CodebaseSearch {
-            output: CodebaseSearchResults {
-                queries: vec![CodebaseQueryResult {
-                    query: "retry mechanism with exponential backoff".to_string(),
-                    use_case: "where is the retrying logic written".to_string(),
-                    results: vec![
-                        Node {
-                            node_id: "node1".into(),
-                            node: NodeData::FileChunk {
-                                file_path: "src/retry.rs".to_string(),
-                                content: "fn retry_with_backoff(max_attempts: u32) {\n    let mut delay = 100;\n    for attempt in 0..max_attempts {\n        if try_operation().is_ok() {\n            return;\n        }\n        thread::sleep(Duration::from_millis(delay));\n        delay *= 2;\n    }\n}".to_string(),
-                                start_line: 10,
-                                end_line: 19,
-                            },
-                            relevance: Some(0.9534),
-                            distance: Some(0.0466),
-                            similarity: Some(0.9534),
-                        },
-                        Node {
-                            node_id: "node2".into(),
-                            node: NodeData::FileChunk {
-                                file_path: "src/http/client.rs".to_string(),
-                                content: "async fn request_with_retry(&self, url: &str) -> Result<Response> {\n    const MAX_RETRIES: usize = 3;\n    let mut backoff = ExponentialBackoff::default();\n    // Implementation...\n}".to_string(),
-                                start_line: 45,
-                                end_line: 50,
-                            },
-                            relevance: Some(0.9201),
-                            distance: Some(0.0799),
-                            similarity: Some(0.9201),
-                        },
-                    ],
-                }],
-            },
+            output: search_results(
+                "retry mechanism with exponential backoff",
+                "where is the retrying logic written",
+                vec![
+                    chunk_node(
+                        "src/retry.rs",
+                        "fn retry_with_backoff(max_attempts: u32) {\n    let mut delay = 100;\n    for attempt in 0..max_attempts {\n        if try_operation().is_ok() {\n            return;\n        }\n        thread::sleep(Duration::from_millis(delay));\n        delay *= 2;\n    }\n}",
+                        10,
+                    ),
+                    chunk_node(
+                        "src/http/client.rs",
+                        "async fn request_with_retry(&self, url: &str) -> Result<Response> {\n    const MAX_RETRIES: usize = 3;\n    let mut backoff = ExponentialBackoff::default();\n    // Implementation...\n}",
+                        45,
+                    ),
+                ],
+            ),
         };
 
         let env = fixture_environment();
-
         let actual = fixture.into_tool_output(
             ToolKind::SemSearch,
             TempContentFiles::default(),
@@ -1653,31 +1735,21 @@ mod tests {
 
     #[test]
     fn test_sem_search_with_usecase() {
-        use forge_domain::{CodebaseQueryResult, CodebaseSearchResults, Node, NodeData};
+        use sem_search_helpers::{chunk_node, search_results};
 
         let fixture = ToolOperation::CodebaseSearch {
-            output: CodebaseSearchResults {
-                queries: vec![CodebaseQueryResult {
-                    query: "authentication logic".to_string(),
-                    use_case: "need to add similar auth to my endpoint".to_string(),
-                    results: vec![Node {
-                        node_id: "node1".into(),
-                        node: NodeData::FileChunk {
-                            file_path: "src/auth.rs".to_string(),
-                            content: "fn authenticate_user(token: &str) -> Result<User> {\n    verify_jwt(token)\n}".to_string(),
-                            start_line: 10,
-                            end_line: 12,
-                        },
-                        relevance: Some(0.95),
-                        distance: Some(0.05),
-                        similarity: Some(0.95),
-                    }],
-                }],
-            },
+            output: search_results(
+                "authentication logic",
+                "need to add similar auth to my endpoint",
+                vec![chunk_node(
+                    "src/auth.rs",
+                    "fn authenticate_user(token: &str) -> Result<User> {\n    verify_jwt(token)\n}",
+                    10,
+                )],
+            ),
         };
 
         let env = fixture_environment();
-
         let actual = fixture.into_tool_output(
             ToolKind::SemSearch,
             TempContentFiles::default(),
@@ -1696,6 +1768,50 @@ mod tests {
 
         let actual = fixture.into_tool_output(
             ToolKind::Followup,
+            TempContentFiles::default(),
+            &env,
+            &mut Metrics::default(),
+        );
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_sem_search_multiple_chunks_same_file_sorted() {
+        use sem_search_helpers::{chunk_node, search_results};
+
+        // Test that multiple chunks from the same file are sorted by start_line
+        // Chunks are provided in non-sequential order: 100, 10, 50
+        let fixture = ToolOperation::CodebaseSearch {
+            output: search_results(
+                "database operations",
+                "finding all database query implementations",
+                vec![
+                    // Third chunk (lines 100-102) - provided first
+                    chunk_node(
+                        "src/database.rs",
+                        "fn delete_user(id: u32) -> Result<()> {\n    db.execute(\"DELETE FROM users WHERE id = ?\", &[id])\n}",
+                        100,
+                    ),
+                    // First chunk (lines 10-12) - provided second
+                    chunk_node(
+                        "src/database.rs",
+                        "fn get_user(id: u32) -> Result<User> {\n    db.query(\"SELECT * FROM users WHERE id = ?\", &[id])\n}",
+                        10,
+                    ),
+                    // Second chunk (lines 50-52) - provided third
+                    chunk_node(
+                        "src/database.rs",
+                        "fn update_user(id: u32, name: &str) -> Result<()> {\n    db.execute(\"UPDATE users SET name = ? WHERE id = ?\", &[name, id])\n}",
+                        50,
+                    ),
+                ],
+            ),
+        };
+
+        let env = fixture_environment();
+        let actual = fixture.into_tool_output(
+            ToolKind::SemSearch,
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
