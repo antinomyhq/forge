@@ -388,7 +388,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_find_last_active_conversation_with_context() -> anyhow::Result<()> {
-        let context = Context::default().messages(vec![ContextMessageValue::user("Hello", None).into()]);
+        let context =
+            Context::default().messages(vec![ContextMessageValue::user("Hello", None).into()]);
         let conversation_with_context = Conversation::new(ConversationId::generate())
             .title(Some("Conversation with Context".to_string()))
             .context(Some(context));
@@ -459,7 +460,8 @@ mod tests {
 
     #[test]
     fn test_conversation_record_from_conversation_with_context() -> anyhow::Result<()> {
-        let context = Context::default().messages(vec![ContextMessageValue::user("Hello", None).into()]);
+        let context =
+            Context::default().messages(vec![ContextMessageValue::user("Hello", None).into()]);
         let fixture = Conversation::new(ConversationId::generate())
             .title(Some("Conversation with Context".to_string()))
             .context(Some(context));

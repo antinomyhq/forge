@@ -1,7 +1,7 @@
 use serde_json::json;
 
 use crate::{
-    Context, ContextMessageValue, ContextMessage, ModelId, ToolCallFull, ToolCallId, ToolName,
+    Context, ContextMessage, ContextMessageValue, ModelId, ToolCallFull, ToolCallId, ToolName,
     ToolResult,
 };
 
@@ -84,7 +84,11 @@ impl MessagePattern {
                     'u' => ContextMessageValue::user(&content, Some(model_id.clone())),
                     'a' => ContextMessageValue::assistant(&content, None, None),
                     's' => ContextMessageValue::system(&content),
-                    't' => ContextMessageValue::assistant(&content, None, Some(vec![tool_call.clone()])),
+                    't' => ContextMessageValue::assistant(
+                        &content,
+                        None,
+                        Some(vec![tool_call.clone()]),
+                    ),
                     'r' => ContextMessageValue::tool_result(tool_result.clone()),
                     _ => {
                         panic!("Invalid character '{c}' in pattern. Use 'u', 'a', 's', 't', or 'r'")

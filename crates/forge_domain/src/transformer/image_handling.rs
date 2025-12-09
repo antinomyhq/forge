@@ -53,10 +53,15 @@ impl Transformer for ImageHandling {
         // Step 2: Insert all images at the end
         images.into_iter().for_each(|(id, image)| {
             value.messages.push(
-                ContextMessageValue::user(format!("[Here is the image attachment for ID {id}]"), None)
-                    .into(),
+                ContextMessageValue::user(
+                    format!("[Here is the image attachment for ID {id}]"),
+                    None,
+                )
+                .into(),
             );
-            value.messages.push(ContextMessageValue::Image(image).into());
+            value
+                .messages
+                .push(ContextMessageValue::Image(image).into());
         });
 
         value
@@ -227,7 +232,11 @@ mod tests {
         let fixture = Context::default()
             .add_message(ContextMessageValue::system("System message"))
             .add_message(ContextMessageValue::user("User message", None))
-            .add_message(ContextMessageValue::assistant("Assistant message", None, None))
+            .add_message(ContextMessageValue::assistant(
+                "Assistant message",
+                None,
+                None,
+            ))
             .add_tool_results(vec![ToolResult {
                 name: ToolName::new("image_tool"),
                 call_id: Some(ToolCallId::new("call_preserve")),

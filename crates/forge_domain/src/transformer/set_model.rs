@@ -66,7 +66,11 @@ mod tests {
         let fixture = Context::default()
             .add_message(ContextMessageValue::system("System message"))
             .add_message(ContextMessageValue::user("User message 1", None))
-            .add_message(ContextMessageValue::assistant("Assistant response", None, None))
+            .add_message(ContextMessageValue::assistant(
+                "Assistant response",
+                None,
+                None,
+            ))
             .add_message(ContextMessageValue::user("User message 2", None));
 
         let mut transformer = SetModel::new(ModelId::new("gpt-4"));

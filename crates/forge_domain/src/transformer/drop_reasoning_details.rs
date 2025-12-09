@@ -26,8 +26,8 @@ mod tests {
 
     use super::*;
     use crate::{
-        ContextMessageValue, ReasoningConfig, ReasoningFull, Role, TextMessage, ToolCallId, ToolName,
-        ToolOutput, ToolResult,
+        ContextMessageValue, ReasoningConfig, ReasoningFull, Role, TextMessage, ToolCallId,
+        ToolName, ToolOutput, ToolResult,
     };
 
     #[derive(Serialize)]
@@ -74,8 +74,15 @@ mod tests {
                 TextMessage::new(Role::User, "User message with reasoning")
                     .reasoning_details(reasoning_details),
             ))
-            .add_message(ContextMessageValue::user("User message without reasoning", None))
-            .add_message(ContextMessageValue::assistant("Assistant response", None, None))
+            .add_message(ContextMessageValue::user(
+                "User message without reasoning",
+                None,
+            ))
+            .add_message(ContextMessageValue::assistant(
+                "Assistant response",
+                None,
+                None,
+            ))
             .add_tool_results(vec![ToolResult {
                 name: ToolName::new("test_tool"),
                 call_id: Some(ToolCallId::new("call_123")),
@@ -130,7 +137,11 @@ mod tests {
     fn test_drop_reasoning_details_already_none() {
         let fixture = Context::default()
             .add_message(ContextMessageValue::user("User message", None))
-            .add_message(ContextMessageValue::assistant("Assistant message", None, None))
+            .add_message(ContextMessageValue::assistant(
+                "Assistant message",
+                None,
+                None,
+            ))
             .add_message(ContextMessageValue::system("System message"));
 
         let mut transformer = DropReasoningDetails;

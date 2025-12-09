@@ -3,7 +3,8 @@ use std::sync::Arc;
 
 use anyhow::{Context as _, Result};
 use forge_domain::{
-    Context, ContextMessageValue, DataGenerationParameters, ResultStreamExt, Template, ToolDefinition,
+    Context, ContextMessageValue, DataGenerationParameters, ResultStreamExt, Template,
+    ToolDefinition,
 };
 use futures::StreamExt;
 use futures::stream::{self, BoxStream};

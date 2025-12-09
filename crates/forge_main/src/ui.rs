@@ -2623,7 +2623,12 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         // Add token usage if available
-        if let Some(usage) = conversation.context.as_ref().and_then(|c| c.usage()).as_ref() {
+        if let Some(usage) = conversation
+            .context
+            .as_ref()
+            .and_then(|c| c.usage())
+            .as_ref()
+        {
             info = info
                 .add_title("TOKEN")
                 .add_key_value("Prompt Tokens", usage.prompt_tokens.to_string())

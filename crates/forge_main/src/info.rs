@@ -761,7 +761,12 @@ impl From<&Conversation> for Info {
         }
 
         // Insert token usage
-        if let Some(usage) = conversation.context.as_ref().and_then(|c| c.usage()).as_ref() {
+        if let Some(usage) = conversation
+            .context
+            .as_ref()
+            .and_then(|c| c.usage())
+            .as_ref()
+        {
             info = info.extend(usage);
         }
 
@@ -1049,7 +1054,11 @@ mod tests {
                 forge_domain::TextMessage::new(Role::User, "First user message")
                     .raw_content(EventValue::text("First user message")),
             ))
-            .add_message(ContextMessageValue::assistant("Assistant response", None, None))
+            .add_message(ContextMessageValue::assistant(
+                "Assistant response",
+                None,
+                None,
+            ))
             .add_message(ContextMessageValue::Text(
                 forge_domain::TextMessage::new(Role::User, "Create a new feature")
                     .raw_content(EventValue::text("Create a new feature")),

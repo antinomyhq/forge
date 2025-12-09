@@ -51,7 +51,10 @@ impl<S: AS> TitleGenerator<S> {
             .temperature(1.0f32)
             .conversation_id(ConversationId::generate())
             .add_message(ContextMessageValue::system(template))
-            .add_message(ContextMessageValue::user(prompt, Some(self.model_id.clone())));
+            .add_message(ContextMessageValue::user(
+                prompt,
+                Some(self.model_id.clone()),
+            ));
 
         // Set the reasoning if configured.
         if let Some(reasoning) = self.reasoning.as_ref() {

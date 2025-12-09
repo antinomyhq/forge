@@ -69,7 +69,8 @@ impl<S: FsReadService + EnvironmentService> ChangedFiles<S> {
             .droppable(true)
             .model(self.agent.model.clone());
 
-        conversation = conversation.context(context.add_message(ContextMessageValue::from(message)));
+        conversation =
+            conversation.context(context.add_message(ContextMessageValue::from(message)));
 
         conversation
     }
