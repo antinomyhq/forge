@@ -2,7 +2,7 @@ use derive_setters::Setters;
 use forge_template::Element;
 use serde::{Deserialize, Serialize};
 
-use crate::{Image, ToolCallFull, ToolCallId, ToolName};
+use crate::{ConversationId, Image, ToolCallFull, ToolCallId, ToolName};
 
 const REFLECTION_PROMPT: &str =
     include_str!("../../../../templates/forge-partial-tool-error-reflection.md");
@@ -94,6 +94,13 @@ impl ToolOutput {
         }
     }
 
+    pub fn llm(id: ConversationId, output: impl ToString) -> Self {
+        ToolOutput {
+            is_error: Default::default(),
+            values: vec![ToolValue::Llm(output.to_string(), id)],
+        }
+    }
+
     pub fn image(img: Image) -> Self {
         ToolOutput { is_error: false, values: vec![ToolValue::Image(img)] }
     }
@@ -129,6 +136,8 @@ where
 #[serde(rename_all = "camelCase")]
 pub enum ToolValue {
     Text(String),
+    // FIXME: Change the order to params
+    Llm(String, ConversationId),
     Image(Image),
     #[default]
     Empty,
@@ -148,6 +157,7 @@ impl ToolValue {
             ToolValue::Text(text) => Some(text),
             ToolValue::Image(_) => None,
             ToolValue::Empty => None,
+            ToolValue::Llm(text, _) => Some(text),
         }
     }
 }

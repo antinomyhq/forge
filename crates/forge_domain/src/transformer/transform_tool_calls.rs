@@ -54,6 +54,9 @@ impl Transformer for TransformToolCalls {
                                 new_messages.push(ContextMessage::Image(image));
                             }
                             crate::ToolValue::Empty => {}
+                            crate::ToolValue::Llm(text, _) => {
+                                new_messages.push(ContextMessage::user(text, self.model.clone()))
+                            }
                         }
                     }
                 }
