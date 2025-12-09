@@ -2,7 +2,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use forge_domain::{
-    ChatResponseContent, CodebaseQueryResult, TitleFormat, ToolCallContext, ToolCallFull, ToolCatalog, ToolOutput,
+    ChatResponseContent, CodebaseQueryResult, TitleFormat, ToolCallContext, ToolCallFull,
+    ToolCatalog, ToolOutput,
 };
 use forge_template::Element;
 
@@ -44,7 +45,8 @@ impl<
         Self { services }
     }
 
-    /// Check if policy system is enabled via environment variable or forge config
+    /// Check if policy system is enabled via environment variable or forge
+    /// config
     async fn is_policy_enabled(&self) -> bool {
         // First check environment variable (highest priority)
         if let Some(enabled) = self.services.get_env_var("FORGE_POLICY_ENABLED") {
@@ -53,7 +55,9 @@ impl<
 
         // TODO: Implement AppConfig access from Services trait
         // For now, policy is disabled unless explicitly set via ENV
-        tracing::warn!("Policy system access via config not yet implemented - use FORGE_POLICY_ENABLED");
+        tracing::warn!(
+            "Policy system access via config not yet implemented - use FORGE_POLICY_ENABLED"
+        );
         false
     }
 
@@ -347,11 +351,13 @@ impl<
         }
 
         // Check permissions before executing the tool (only if policy is enabled)
-        if self.is_policy_enabled().await && self.check_tool_permission(&tool_input, context).await? {
+        if self.is_policy_enabled().await
+            && self.check_tool_permission(&tool_input, context).await?
+        {
             let tool_name = tool_input.kind();
             let error_content = ChatResponseContent::Title(
                 TitleFormat::error("Permission Denied")
-                    .sub_title(format!("Tool '{}' blocked by security policy", tool_name))
+                    .sub_title(format!("Tool '{}' blocked by security policy", tool_name)),
             );
             context.send(error_content).await?;
 
