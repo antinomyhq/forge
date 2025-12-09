@@ -2495,7 +2495,6 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     return Ok(());
                 }
             }
-            ChatResponse::Usage(_) => {}
             ChatResponse::RetryAttempt { cause, duration: _ } => {
                 if !self.api.environment().retry_config.suppress_retry_errors {
                     self.spinner.start(Some("Retrying"))?;

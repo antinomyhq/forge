@@ -271,10 +271,6 @@ impl<S: AgentService> Orchestrator<S> {
                 "Processing usage information"
             );
 
-            // Send the usage information if available
-            self.send(ChatResponse::Usage(message.usage.clone()))
-                .await?;
-
             // FIXME: Need to store usage information within into the message
 
             debug!(agent_id = %agent.id, tool_call_count = message.tool_calls.len(), "Tool call count");
