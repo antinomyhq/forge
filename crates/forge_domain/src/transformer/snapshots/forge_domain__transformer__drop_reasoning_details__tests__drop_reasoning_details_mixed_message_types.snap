@@ -1,7 +1,6 @@
 ---
 source: crates/forge_domain/src/transformer/drop_reasoning_details.rs
 expression: snapshot
-snapshot_kind: text
 ---
 transformation: DropReasoningDetails_mixed_messages
 before:

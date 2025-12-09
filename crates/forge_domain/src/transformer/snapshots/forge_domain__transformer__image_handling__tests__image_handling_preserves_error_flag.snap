@@ -1,7 +1,6 @@
 ---
 source: crates/forge_domain/src/transformer/image_handling.rs
 expression: snapshot
-snapshot_kind: text
 ---
 transformation: ImageHandling
 before:
