@@ -106,8 +106,8 @@ mod tests {
         };
 
         Context::default()
-            .add_message(ContextMessageValue::system("System message"))
-            .add_message(ContextMessageValue::assistant(
+            .add_message_value(ContextMessageValue::system("System message"))
+            .add_message_value(ContextMessageValue::assistant(
                 "I'll help you",
                 None,
                 Some(vec![tool_call]),
@@ -150,9 +150,9 @@ mod tests {
     #[test]
     fn test_transform_tool_calls_no_tool_calls() {
         let fixture = Context::default()
-            .add_message(ContextMessageValue::system("System message"))
-            .add_message(ContextMessageValue::user("User message", None))
-            .add_message(ContextMessageValue::assistant(
+            .add_message_value(ContextMessageValue::system("System message"))
+            .add_message_value(ContextMessageValue::user("User message", None))
+            .add_message_value(ContextMessageValue::assistant(
                 "Assistant response",
                 None,
                 None,
@@ -219,7 +219,7 @@ mod tests {
                 description: "A test tool".to_string(),
                 input_schema: schemars::schema_for!(()),
             })
-            .add_message(ContextMessageValue::user("Test message", None));
+            .add_message_value(ContextMessageValue::user("Test message", None));
 
         let mut transformer = TransformToolCalls::new();
         let actual = transformer.transform(fixture);

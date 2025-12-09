@@ -105,7 +105,7 @@ impl<A: Services> DataGenerationApp<A> {
             Context::default().add_tool(ToolDefinition::new("output").input_schema(schema));
 
         if let Some(content) = system_prompt {
-            context = context.add_message(ContextMessageValue::system(content))
+            context = context.add_message_value(ContextMessageValue::system(content))
         }
 
         let services = self.services.clone();
@@ -129,7 +129,7 @@ impl<A: Services> DataGenerationApp<A> {
                 };
 
                 context =
-                    context.add_message(ContextMessageValue::user(content, Some(model_id.clone())));
+                    context.add_message_value(ContextMessageValue::user(content, Some(model_id.clone())));
 
                 let stream = services.chat(&model_id, context, provider.clone()).await?;
                 let response = stream.into_full(false).await?;

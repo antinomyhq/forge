@@ -284,14 +284,14 @@ mod tests {
     async fn test_request_conversion() {
         let model_id = ModelId::new("gpt-4");
         let context = Context::default()
-            .add_message(ContextMessageValue::system(
+            .add_message_value(ContextMessageValue::system(
                 "You're expert at math, so you should resolve all user queries.",
             ))
-            .add_message(ContextMessageValue::user(
+            .add_message_value(ContextMessageValue::user(
                 "what's 2 + 2 ?",
                 model_id.clone().into(),
             ))
-            .add_message(ContextMessageValue::assistant(
+            .add_message_value(ContextMessageValue::assistant(
                 "here is the system call.",
                 None,
                 Some(vec![ToolCallFull {

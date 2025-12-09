@@ -323,7 +323,7 @@ mod tests {
             exclude: Some(false),
         };
 
-        let context = Context::default().reasoning(reasoning_config).add_message(
+        let context = Context::default().reasoning(reasoning_config).add_message_value(
             ContextMessageValue::assistant(
                 "Main response content",
                 Some(vec![ReasoningFull {

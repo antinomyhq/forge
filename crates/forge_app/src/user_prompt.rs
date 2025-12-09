@@ -60,7 +60,7 @@ impl<S: AttachmentService> UserPromptGenerator<S> {
                 model: Some(self.agent.model.clone()),
                 droppable: true, // Piped input is droppable
             };
-            context = context.add_message(ContextMessageValue::Text(piped_message));
+            context = context.add_message_value(ContextMessageValue::Text(piped_message));
         }
 
         Ok(conversation.context(context))
@@ -135,7 +135,7 @@ impl<S: AttachmentService> UserPromptGenerator<S> {
                 model: Some(self.agent.model.clone()),
                 droppable: false,
             };
-            context = context.add_message(ContextMessageValue::Text(message));
+            context = context.add_message_value(ContextMessageValue::Text(message));
         }
 
         Ok((conversation.context(context), content))

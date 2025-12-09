@@ -113,7 +113,7 @@ mod tests {
         let image2 = Image::new_base64("image2_data".to_string(), "image/jpeg");
 
         Context::default()
-            .add_message(ContextMessageValue::user("User message", None))
+            .add_message_value(ContextMessageValue::user("User message", None))
             .add_tool_results(vec![
                 ToolResult {
                     name: ToolName::new("image_tool_1"),
@@ -141,7 +141,7 @@ mod tests {
     #[test]
     fn test_image_handling_no_images() {
         let fixture = Context::default()
-            .add_message(ContextMessageValue::system("System message"))
+            .add_message_value(ContextMessageValue::system("System message"))
             .add_tool_results(vec![ToolResult {
                 name: ToolName::new("text_tool"),
                 call_id: Some(ToolCallId::new("call_text")),
@@ -230,9 +230,9 @@ mod tests {
         let image = Image::new_base64("test_image".to_string(), "image/png");
 
         let fixture = Context::default()
-            .add_message(ContextMessageValue::system("System message"))
-            .add_message(ContextMessageValue::user("User message", None))
-            .add_message(ContextMessageValue::assistant(
+            .add_message_value(ContextMessageValue::system("System message"))
+            .add_message_value(ContextMessageValue::user("User message", None))
+            .add_message_value(ContextMessageValue::assistant(
                 "Assistant message",
                 None,
                 None,

@@ -72,17 +72,17 @@ mod tests {
 
         Context::default()
             .reasoning(ReasoningConfig::default().enabled(true))
-            .add_message(ContextMessageValue::user("User question", None))
-            .add_message(ContextMessageValue::Text(
+            .add_message_value(ContextMessageValue::user("User question", None))
+            .add_message_value(ContextMessageValue::Text(
                 TextMessage::new(Role::Assistant, "First assistant response with reasoning")
                     .reasoning_details(reasoning_details.clone()),
             ))
-            .add_message(ContextMessageValue::user("Follow-up question", None))
-            .add_message(ContextMessageValue::Text(
+            .add_message_value(ContextMessageValue::user("Follow-up question", None))
+            .add_message_value(ContextMessageValue::Text(
                 TextMessage::new(Role::Assistant, "Second assistant response with reasoning")
                     .reasoning_details(reasoning_details.clone()),
             ))
-            .add_message(ContextMessageValue::Text(TextMessage::new(
+            .add_message_value(ContextMessageValue::Text(TextMessage::new(
                 Role::Assistant,
                 "Third assistant without reasoning",
             )))
@@ -97,16 +97,16 @@ mod tests {
 
         Context::default()
             .reasoning(ReasoningConfig::default().enabled(true))
-            .add_message(ContextMessageValue::user("User message", None))
-            .add_message(ContextMessageValue::Text(TextMessage::new(
+            .add_message_value(ContextMessageValue::user("User message", None))
+            .add_message_value(ContextMessageValue::Text(TextMessage::new(
                 Role::Assistant,
                 "First assistant without reasoning",
             )))
-            .add_message(ContextMessageValue::Text(
+            .add_message_value(ContextMessageValue::Text(
                 TextMessage::new(Role::Assistant, "Second assistant with reasoning")
                     .reasoning_details(reasoning_details.clone()),
             ))
-            .add_message(ContextMessageValue::Text(
+            .add_message_value(ContextMessageValue::Text(
                 TextMessage::new(Role::Assistant, "Third assistant with reasoning")
                     .reasoning_details(reasoning_details),
             ))
@@ -141,8 +141,8 @@ mod tests {
     fn test_reasoning_normalizer_when_no_assistant_message_present() {
         let context = Context::default()
             .reasoning(ReasoningConfig::default().enabled(true))
-            .add_message(ContextMessageValue::system("System message"))
-            .add_message(ContextMessageValue::user("User message", None));
+            .add_message_value(ContextMessageValue::system("System message"))
+            .add_message_value(ContextMessageValue::user("User message", None));
         let mut transformer = ReasoningNormalizer;
         let actual = transformer.transform(context.clone());
 

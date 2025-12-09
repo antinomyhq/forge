@@ -1049,17 +1049,17 @@ mod tests {
 
         // Create a context with user messages
         let context = Context::default()
-            .add_message(ContextMessageValue::system("System prompt"))
-            .add_message(ContextMessageValue::Text(
+            .add_message_value(ContextMessageValue::system("System prompt"))
+            .add_message_value(ContextMessageValue::Text(
                 forge_domain::TextMessage::new(Role::User, "First user message")
                     .raw_content(EventValue::text("First user message")),
             ))
-            .add_message(ContextMessageValue::assistant(
+            .add_message_value(ContextMessageValue::assistant(
                 "Assistant response",
                 None,
                 None,
             ))
-            .add_message(ContextMessageValue::Text(
+            .add_message_value(ContextMessageValue::Text(
                 forge_domain::TextMessage::new(Role::User, "Create a new feature")
                     .raw_content(EventValue::text("Create a new feature")),
             ));

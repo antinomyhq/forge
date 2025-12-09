@@ -336,7 +336,7 @@ pub struct ContextMessage {
     pub usage: Option<Usage>,
 }
 
-// FIXME: Drop this deserialization logic
+// TODO: Move this deserialization logic into Conversation repo
 impl<'de> Deserialize<'de> for ContextMessage {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -439,12 +439,11 @@ impl Context {
         self
     }
 
-    pub fn add_message(self, content: impl Into<ContextMessageValue>) -> Self {
-        self.add_message_wrapper(content.into())
+    pub fn add_message_value(self, content: impl Into<ContextMessageValue>) -> Self {
+        self.add_message(content.into())
     }
 
-    // FIXME: Rename this function
-    pub fn add_message_wrapper(mut self, content: impl Into<ContextMessage>) -> Self {
+    pub fn add_message(mut self, content: impl Into<ContextMessage>) -> Self {
         let content = content.into();
         debug!(content = ?content, "Adding message to context");
         self.messages.push(content);
@@ -454,7 +453,7 @@ impl Context {
 
     pub fn add_attachments(self, attachments: Vec<Attachment>, model_id: Option<ModelId>) -> Self {
         attachments.into_iter().fold(self, |ctx, attachment| {
-            ctx.add_message(match attachment.content {
+            ctx.add_message_value(match attachment.content {
                 AttachmentContent::Image(image) => ContextMessageValue::Image(image),
                 AttachmentContent::FileContent { content, start_line, end_line, total_lines } => {
                     let elm = Element::new("file_content")
@@ -566,7 +565,7 @@ impl Context {
             .map(|record| record.1.clone())
             .collect::<Vec<_>>();
 
-        self.add_message_wrapper(message.usage(usage))
+        self.add_message(message.usage(usage))
             .add_tool_results(tool_results)
     }
 
@@ -724,7 +723,7 @@ mod tests {
     #[test]
     fn test_override_system_message() {
         let request = Context::default()
-            .add_message(ContextMessageValue::system("Initial system message"))
+            .add_message_value(ContextMessageValue::system("Initial system message"))
             .set_system_messages(vec!["Updated system message"]);
 
         assert_eq!(
@@ -747,7 +746,7 @@ mod tests {
     fn test_insert_system_message() {
         let model = ModelId::new("test-model");
         let request = Context::default()
-            .add_message(ContextMessageValue::user("Do something", Some(model)))
+            .add_message_value(ContextMessageValue::user("Do something", Some(model)))
             .set_system_messages(vec!["A system message"]);
 
         assert_eq!(
@@ -761,9 +760,9 @@ mod tests {
         // Create a context with some messages
         let model = ModelId::new("test-model");
         let context = Context::default()
-            .add_message(ContextMessageValue::system("System message"))
-            .add_message(ContextMessageValue::user("User message", model.into()))
-            .add_message(ContextMessageValue::assistant(
+            .add_message_value(ContextMessageValue::system("System message"))
+            .add_message_value(ContextMessageValue::user("User message", model.into()))
+            .add_message_value(ContextMessageValue::assistant(
                 "Assistant message",
                 None,
                 None,
@@ -789,9 +788,9 @@ mod tests {
     #[test]
     fn test_update_image_tool_calls_no_tool_results() {
         let fixture = Context::default()
-            .add_message(ContextMessageValue::system("System message"))
-            .add_message(ContextMessageValue::user("User message", None))
-            .add_message(ContextMessageValue::assistant(
+            .add_message_value(ContextMessageValue::system("System message"))
+            .add_message_value(ContextMessageValue::user("User message", None))
+            .add_message_value(ContextMessageValue::assistant(
                 "Assistant message",
                 None,
                 None,
@@ -805,7 +804,7 @@ mod tests {
     #[test]
     fn test_update_image_tool_calls_tool_results_no_images() {
         let fixture = Context::default()
-            .add_message(ContextMessageValue::system("System message"))
+            .add_message_value(ContextMessageValue::system("System message"))
             .add_tool_results(vec![
                 ToolResult {
                     name: crate::ToolName::new("text_tool"),
@@ -832,7 +831,7 @@ mod tests {
     fn test_update_image_tool_calls_single_image() {
         let image = Image::new_base64("test123".to_string(), "image/png");
         let fixture = Context::default()
-            .add_message(ContextMessageValue::system("System message"))
+            .add_message_value(ContextMessageValue::system("System message"))
             .add_tool_results(vec![ToolResult {
                 name: crate::ToolName::new("image_tool"),
                 call_id: Some(crate::ToolCallId::new("call1")),
@@ -874,7 +873,7 @@ mod tests {
         let image1 = Image::new_base64("test123".to_string(), "image/png");
         let image2 = Image::new_base64("test456".to_string(), "image/jpeg");
         let fixture = Context::default()
-            .add_message(ContextMessageValue::system("System message"))
+            .add_message_value(ContextMessageValue::system("System message"))
             .add_tool_results(vec![
                 ToolResult {
                     name: crate::ToolName::new("text_tool"),
@@ -903,9 +902,9 @@ mod tests {
     fn test_update_image_tool_calls_mixed_content_with_images() {
         let image = Image::new_base64("test123".to_string(), "image/png");
         let fixture = Context::default()
-            .add_message(ContextMessageValue::system("System message"))
-            .add_message(ContextMessageValue::user("User question", None))
-            .add_message(ContextMessageValue::assistant(
+            .add_message_value(ContextMessageValue::system("System message"))
+            .add_message_value(ContextMessageValue::user("User question", None))
+            .add_message_value(ContextMessageValue::assistant(
                 "Assistant response",
                 None,
                 None,
@@ -972,14 +971,14 @@ mod tests {
         // case 4: context with messages - since total_tokens are not present return
         // estimate
         let fixture = Context::default()
-            .add_message(ContextMessageValue::user("Hello", None))
-            .add_message(ContextMessageValue::assistant("Hi there!", None, None))
-            .add_message(ContextMessageValue::assistant(
+            .add_message_value(ContextMessageValue::user("Hello", None))
+            .add_message_value(ContextMessageValue::assistant("Hi there!", None, None))
+            .add_message_value(ContextMessageValue::assistant(
                 "How can I help you?",
                 None,
                 None,
             ))
-            .add_message(ContextMessageValue::user(
+            .add_message_value(ContextMessageValue::user(
                 "I'm looking for a restaurant.",
                 None,
             ));
@@ -1204,15 +1203,15 @@ mod tests {
     #[test]
     fn test_context_message_statistics() {
         let fixture = Context::default()
-            .add_message(ContextMessageValue::system("System message"))
-            .add_message(ContextMessageValue::user("User message 1", None))
-            .add_message(ContextMessageValue::assistant(
+            .add_message_value(ContextMessageValue::system("System message"))
+            .add_message_value(ContextMessageValue::user("User message 1", None))
+            .add_message_value(ContextMessageValue::assistant(
                 "Assistant response",
                 None,
                 None,
             ))
-            .add_message(ContextMessageValue::user("User message 2", None))
-            .add_message(ContextMessageValue::assistant(
+            .add_message_value(ContextMessageValue::user("User message 2", None))
+            .add_message_value(ContextMessageValue::assistant(
                 "Assistant with tool",
                 None,
                 Some(vec![

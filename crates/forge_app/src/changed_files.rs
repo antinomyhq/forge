@@ -70,7 +70,7 @@ impl<S: FsReadService + EnvironmentService> ChangedFiles<S> {
             .model(self.agent.model.clone());
 
         conversation =
-            conversation.context(context.add_message(ContextMessageValue::from(message)));
+            conversation.context(context.add_message_value(ContextMessageValue::from(message)));
 
         conversation
     }
@@ -177,7 +177,7 @@ mod tests {
             [("/test/file.txt".into(), Some(hash))].into(),
         );
 
-        conversation.context = Some(Context::default().add_message(ContextMessageValue::user(
+        conversation.context = Some(Context::default().add_message_value(ContextMessageValue::user(
             "Hey, there!",
             Some(ModelId::new("test")),
         )));

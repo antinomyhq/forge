@@ -271,8 +271,6 @@ impl<S: AgentService> Orchestrator<S> {
                 "Processing usage information"
             );
 
-            // FIXME: Need to store usage information within into the message
-
             debug!(agent_id = %agent.id, tool_call_count = message.tool_calls.len(), "Tool call count");
 
             // Turn is completed, if finish_reason is 'stop'. Gemini models return stop as

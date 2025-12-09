@@ -50,8 +50,8 @@ impl<S: AS> TitleGenerator<S> {
         let mut ctx = Context::default()
             .temperature(1.0f32)
             .conversation_id(ConversationId::generate())
-            .add_message(ContextMessageValue::system(template))
-            .add_message(ContextMessageValue::user(
+            .add_message_value(ContextMessageValue::system(template))
+            .add_message_value(ContextMessageValue::user(
                 prompt,
                 Some(self.model_id.clone()),
             ));

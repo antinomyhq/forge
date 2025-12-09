@@ -51,11 +51,11 @@ mod tests {
         }];
 
         Context::default()
-            .add_message(ContextMessageValue::Text(
+            .add_message_value(ContextMessageValue::Text(
                 TextMessage::new(Role::User, "User message with reasoning")
                     .reasoning_details(reasoning_details.clone()),
             ))
-            .add_message(ContextMessageValue::Text(
+            .add_message_value(ContextMessageValue::Text(
                 TextMessage::new(Role::Assistant, "Assistant response with reasoning")
                     .reasoning_details(reasoning_details),
             ))
@@ -69,16 +69,16 @@ mod tests {
         }];
 
         Context::default()
-            .add_message(ContextMessageValue::system("System message"))
-            .add_message(ContextMessageValue::Text(
+            .add_message_value(ContextMessageValue::system("System message"))
+            .add_message_value(ContextMessageValue::Text(
                 TextMessage::new(Role::User, "User message with reasoning")
                     .reasoning_details(reasoning_details),
             ))
-            .add_message(ContextMessageValue::user(
+            .add_message_value(ContextMessageValue::user(
                 "User message without reasoning",
                 None,
             ))
-            .add_message(ContextMessageValue::assistant(
+            .add_message_value(ContextMessageValue::assistant(
                 "Assistant response",
                 None,
                 None,
@@ -108,7 +108,7 @@ mod tests {
             ..Default::default()
         }];
 
-        let fixture = Context::default().add_message(ContextMessageValue::Text(
+        let fixture = Context::default().add_message_value(ContextMessageValue::Text(
             TextMessage::new(Role::Assistant, "Assistant message")
                 .model(crate::ModelId::new("gpt-4"))
                 .reasoning_details(reasoning_details),
@@ -136,13 +136,13 @@ mod tests {
     #[test]
     fn test_drop_reasoning_details_already_none() {
         let fixture = Context::default()
-            .add_message(ContextMessageValue::user("User message", None))
-            .add_message(ContextMessageValue::assistant(
+            .add_message_value(ContextMessageValue::user("User message", None))
+            .add_message_value(ContextMessageValue::assistant(
                 "Assistant message",
                 None,
                 None,
             ))
-            .add_message(ContextMessageValue::system("System message"));
+            .add_message_value(ContextMessageValue::system("System message"));
 
         let mut transformer = DropReasoningDetails;
         let actual = transformer.transform(fixture.clone());
@@ -161,11 +161,11 @@ mod tests {
 
         let fixture = Context::default()
             .reasoning(ReasoningConfig::default().enabled(true))
-            .add_message(ContextMessageValue::Text(
+            .add_message_value(ContextMessageValue::Text(
                 TextMessage::new(Role::User, "User with reasoning")
                     .reasoning_details(reasoning_details),
             ))
-            .add_message(ContextMessageValue::Image(crate::Image::new_base64(
+            .add_message_value(ContextMessageValue::Image(crate::Image::new_base64(
                 "image_data".to_string(),
                 "image/png",
             )))

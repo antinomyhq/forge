@@ -188,20 +188,20 @@ mod tests {
         }];
 
         let context = Context::default()
-            .add_message(ContextMessageValue::user("M1", None))
-            .add_message(ContextMessageValue::assistant(
+            .add_message_value(ContextMessageValue::user("M1", None))
+            .add_message_value(ContextMessageValue::assistant(
                 "R1",
                 Some(first_reasoning.clone()),
                 None,
             ))
-            .add_message(ContextMessageValue::user("M2", None))
-            .add_message(ContextMessageValue::assistant(
+            .add_message_value(ContextMessageValue::user("M2", None))
+            .add_message_value(ContextMessageValue::assistant(
                 "R2",
                 Some(last_reasoning.clone()),
                 None,
             ))
-            .add_message(ContextMessageValue::user("M3", None))
-            .add_message(ContextMessageValue::assistant("R3", None, None));
+            .add_message_value(ContextMessageValue::user("M3", None))
+            .add_message_value(ContextMessageValue::assistant("R3", None, None));
 
         let actual = compactor.compress_single_sequence(context, (0, 3)).unwrap();
 
@@ -238,14 +238,14 @@ mod tests {
 
         // First compaction
         let context = Context::default()
-            .add_message(ContextMessageValue::user("M1", None))
-            .add_message(ContextMessageValue::assistant(
+            .add_message_value(ContextMessageValue::user("M1", None))
+            .add_message_value(ContextMessageValue::assistant(
                 "R1",
                 Some(reasoning.clone()),
                 None,
             ))
-            .add_message(ContextMessageValue::user("M2", None))
-            .add_message(ContextMessageValue::assistant("R2", None, None));
+            .add_message_value(ContextMessageValue::user("M2", None))
+            .add_message_value(ContextMessageValue::assistant("R2", None, None));
 
         let context = compactor.compress_single_sequence(context, (0, 1)).unwrap();
 
@@ -262,8 +262,8 @@ mod tests {
 
         // Second compaction - add more messages
         let context = context
-            .add_message(ContextMessageValue::user("M3", None))
-            .add_message(ContextMessageValue::assistant("R3", None, None));
+            .add_message_value(ContextMessageValue::user("M3", None))
+            .add_message_value(ContextMessageValue::assistant("R3", None, None));
 
         let context = compactor.compress_single_sequence(context, (0, 2)).unwrap();
 
@@ -298,16 +298,16 @@ mod tests {
 
         // Most recent message in range has empty reasoning, earlier has non-empty
         let context = Context::default()
-            .add_message(ContextMessageValue::user("M1", None))
-            .add_message(ContextMessageValue::assistant(
+            .add_message_value(ContextMessageValue::user("M1", None))
+            .add_message_value(ContextMessageValue::assistant(
                 "R1",
                 Some(non_empty_reasoning.clone()),
                 None,
             ))
-            .add_message(ContextMessageValue::user("M2", None))
-            .add_message(ContextMessageValue::assistant("R2", Some(vec![]), None)) // Empty - most recent in range
-            .add_message(ContextMessageValue::user("M3", None))
-            .add_message(ContextMessageValue::assistant("R3", None, None)); // Outside range
+            .add_message_value(ContextMessageValue::user("M2", None))
+            .add_message_value(ContextMessageValue::assistant("R2", Some(vec![]), None)) // Empty - most recent in range
+            .add_message_value(ContextMessageValue::user("M3", None))
+            .add_message_value(ContextMessageValue::assistant("R3", None, None)); // Outside range
 
         let actual = compactor.compress_single_sequence(context, (0, 3)).unwrap();
 
@@ -460,17 +460,17 @@ mod tests {
 
         // Create a context with droppable attachment messages
         let context = Context::default()
-            .add_message(ContextMessageValue::user("User message 1", None))
-            .add_message(ContextMessageValue::assistant(
+            .add_message_value(ContextMessageValue::user("User message 1", None))
+            .add_message_value(ContextMessageValue::assistant(
                 "Assistant response 1",
                 None,
                 None,
             ))
-            .add_message(ContextMessageValue::Text(
+            .add_message_value(ContextMessageValue::Text(
                 TextMessage::new(Role::User, "Attachment content").droppable(true),
             ))
-            .add_message(ContextMessageValue::user("User message 2", None))
-            .add_message(ContextMessageValue::assistant(
+            .add_message_value(ContextMessageValue::user("User message 2", None))
+            .add_message_value(ContextMessageValue::assistant(
                 "Assistant response 2",
                 None,
                 None,
@@ -518,11 +518,11 @@ mod tests {
         wrapper6.usage = Some(original_usage.clone());
 
         let context = Context::default()
-            .add_message(msg1.clone())
-            .add_message(msg2.clone())
-            .add_message(msg3.clone())
-            .add_message(msg4.clone())
-            .add_message(msg5.clone())
+            .add_message_value(msg1.clone())
+            .add_message_value(msg2.clone())
+            .add_message_value(msg3.clone())
+            .add_message_value(msg4.clone())
+            .add_message_value(msg5.clone())
             .messages(vec![
                 ContextMessageValue::user("Message 1", None).into(),
                 ContextMessageValue::assistant("Response 1", None, None).into(),
