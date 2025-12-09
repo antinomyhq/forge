@@ -94,13 +94,10 @@ impl ToolOutput {
         }
     }
 
-    pub fn llm(id: ConversationId, output: impl ToString) -> Self {
+    pub fn ai(id: ConversationId, output: impl ToString) -> Self {
         ToolOutput {
             is_error: Default::default(),
-            values: vec![ToolValue::AI {
-                value: output.to_string(),
-                conversation_id: id,
-            }],
+            values: vec![ToolValue::AI { value: output.to_string(), conversation_id: id }],
         }
     }
 

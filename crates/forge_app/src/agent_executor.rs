@@ -88,7 +88,7 @@ impl<S: Services> AgentExecutor<S> {
 
         if let Some(output) = output {
             // Create tool output
-            Ok(ToolOutput::llm(
+            Ok(ToolOutput::ai(
                 conversation.id,
                 Element::new("task_completed")
                     .attr("task", &task)
