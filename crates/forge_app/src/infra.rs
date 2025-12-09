@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::hash::Hash;
 use std::path::{Path, PathBuf};
 
@@ -27,6 +28,7 @@ use crate::{WalkedFile, Walker};
 pub trait EnvironmentInfra: Send + Sync {
     fn get_environment(&self) -> Environment;
     fn get_env_var(&self, key: &str) -> Option<String>;
+    fn get_env_vars(&self) -> BTreeMap<String, String>;
 }
 
 /// Repository for accessing system environment information
@@ -171,7 +173,11 @@ pub trait McpClientInfra: Clone + Send + Sync + 'static {
 #[async_trait::async_trait]
 pub trait McpServerInfra: Send + Sync + 'static {
     type Client: McpClientInfra;
-    async fn connect(&self, config: McpServerConfig) -> anyhow::Result<Self::Client>;
+    async fn connect(
+        &self,
+        config: McpServerConfig,
+        env_vars: &BTreeMap<String, String>,
+    ) -> anyhow::Result<Self::Client>;
 }
 /// Service for walking filesystem directories
 #[async_trait::async_trait]
@@ -341,4 +347,18 @@ pub trait AgentRepository: Send + Sync {
     /// Load all agent definitions from all available sources with conflict
     /// resolution.
     async fn get_agents(&self) -> anyhow::Result<Vec<forge_domain::AgentDefinition>>;
+}
+
+/// Infrastructure trait for providing shared gRPC channel
+///
+/// This trait provides access to a shared gRPC channel for communicating with
+/// the workspace server. The channel is lazily connected and can be cloned
+/// cheaply across multiple clients.
+pub trait GrpcInfra: Send + Sync {
+    /// Returns a cloned gRPC channel for the workspace server
+    fn channel(&self) -> tonic::transport::Channel;
+
+    /// Hydrates the gRPC channel by establishing and then dropping the
+    /// connection
+    fn hydrate(&self);
 }

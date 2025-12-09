@@ -266,18 +266,27 @@ Skip this step only if the skill being developed already exists, and iteration o
 
 Verb-first naming makes it immediately clear what the skill does and follows the imperative/infinitive form used throughout the skill instructions.
 
-When creating a new skill from scratch, create the skill directory structure in `.forge/skills/<skill-name>/` from the current working directory. The structure should include:
+#### Skill Location
+
+**Default: Create project-local skills unless the user explicitly requests a global skill.**
+
+When creating a new skill from scratch, create it in the project-local skills directory:
+
+- **Project-local (default)**: `{{local_skills_path}}/<skill-name>/` - Skills are project-specific and don't affect other projects. This is the safe default for most skills.
+- **Global (only when explicitly requested)**: `{{global_skills_path}}/<skill-name>/` - Skills are available across all projects. Only use this location when the user explicitly asks for a global skill or when the skill is truly reusable across all projects.
+
+The structure should include:
 
 - `SKILL.md` with YAML frontmatter (name, description) and markdown body
 - `scripts/` directory for executable code (e.g., `process.sh`, `validate.sh`)
 - `references/` directory for documentation loaded as needed
 - `assets/` directory for files used in output
 
-Example initialization:
+Example initialization (default project-local):
 
 ```bash
-mkdir -p .forge/skills/edit-pdf/{scripts,references,assets}
-cat > .forge/skills/edit-pdf/SKILL.md << 'EOF'
+mkdir -p {{local_skills_path}}/edit-pdf/{scripts,references,assets}
+cat > {{local_skills_path}}/edit-pdf/SKILL.md << 'EOF'
 ---
 name: edit-pdf
 description: TODO - Describe what this skill does and when to use it
@@ -288,13 +297,37 @@ description: TODO - Describe what this skill does and when to use it
 TODO - Add skill instructions here
 EOF
 
-cat > .forge/skills/edit-pdf/scripts/rotate.sh << 'EOF'
+cat > {{local_skills_path}}/edit-pdf/scripts/rotate.sh << 'EOF'
 #!/bin/bash
 # Rotate PDF using pdftk
 pdftk "$1" cat 1-endright output "$2"
 EOF
 
-chmod +x .forge/skills/edit-pdf/scripts/rotate.sh
+chmod +x {{local_skills_path}}/edit-pdf/scripts/rotate.sh
+```
+
+If the user explicitly requests a global skill, use this instead:
+
+```bash
+mkdir -p {{global_skills_path}}/edit-pdf/{scripts,references,assets}
+cat > {{global_skills_path}}/edit-pdf/SKILL.md << 'EOF'
+---
+name: edit-pdf
+description: TODO - Describe what this skill does and when to use it
+---
+
+# Edit PDF
+
+TODO - Add skill instructions here
+EOF
+
+cat > {{global_skills_path}}/edit-pdf/scripts/rotate.sh << 'EOF'
+#!/bin/bash
+# Rotate PDF using pdftk
+pdftk "$1" cat 1-endright output "$2"
+EOF
+
+chmod +x {{global_skills_path}}/edit-pdf/scripts/rotate.sh
 ```
 
 After initialization, customize the generated files as needed.
@@ -339,7 +372,6 @@ Do not include any other fields in YAML frontmatter.
 ##### Body
 
 Write instructions for using the skill and its bundled resources.
-
 
 #### Loading the New Skill
 

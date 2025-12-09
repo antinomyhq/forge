@@ -17,7 +17,7 @@ struct TemplateSource;
 ///
 /// This is useful for creating standalone Handlebars instances with consistent
 /// configuration across the application.
-fn create_handlerbar() -> Handlebars<'static> {
+fn create_handlebar() -> Handlebars<'static> {
     let mut hb = Handlebars::new();
     hb.set_strict_mode(true);
     hb.register_escape_fn(no_escape);
@@ -80,7 +80,7 @@ lazy_static! {
     ///
     /// Use this instance for template rendering throughout the application to avoid
     /// creating multiple Handlebars instances.
-    static ref HANDLEBARS: Handlebars<'static> = create_handlerbar();
+    static ref HANDLEBARS: Handlebars<'static> = create_handlebar();
 }
 
 /// A wrapper around the Handlebars template engine providing a simplified API.
@@ -89,6 +89,12 @@ lazy_static! {
 /// `Template` type from the domain layer.
 pub struct TemplateEngine<'a> {
     handlebar: Handlebars<'a>,
+}
+
+impl Default for TemplateEngine<'_> {
+    fn default() -> Self {
+        Self { handlebar: HANDLEBARS.clone() }
+    }
 }
 
 impl<'a> TemplateEngine<'a> {
@@ -113,10 +119,6 @@ impl<'a> TemplateEngine<'a> {
     }
 
     pub fn handlebar_instance() -> Handlebars<'static> {
-        create_handlerbar()
-    }
-
-    pub(crate) fn default() -> Self {
-        TemplateEngine { handlebar: HANDLEBARS.clone() }
+        create_handlebar()
     }
 }

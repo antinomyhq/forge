@@ -32,6 +32,11 @@ pub struct Message {
     pub tool_calls: Option<Vec<ToolCall>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_details: Option<Vec<ReasoningDetail>>,
+    // GitHub Copilot format (flat fields instead of array)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_opaque: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
@@ -339,7 +344,7 @@ impl From<Context> for Request {
             prompt: Default::default(),
             response_format: Default::default(),
             stop: Default::default(),
-            stream: Default::default(),
+            stream: Some(context.stream.unwrap_or(true)),
             max_tokens: context.max_tokens.map(|t| t as u32),
             temperature: context.temperature.map(|t| t.value()),
             tool_choice: context.tool_choice.map(|tc| tc.into()),
@@ -398,12 +403,20 @@ impl From<ContextMessage> for Message {
                     details
                         .into_iter()
                         .map(|detail| ReasoningDetail {
-                            r#type: "reasoning.text".to_string(),
+                            r#type: detail
+                                .type_of
+                                .unwrap_or_else(|| "reasoning.text".to_string()),
                             text: detail.text,
                             signature: detail.signature,
+                            data: detail.data,
+                            id: detail.id,
+                            format: detail.format,
+                            index: detail.index,
                         })
                         .collect::<Vec<ReasoningDetail>>()
                 }),
+                reasoning_text: None,
+                reasoning_opaque: None,
             },
             ContextMessage::Tool(tool_result) => Message {
                 role: Role::Tool,
@@ -412,6 +425,8 @@ impl From<ContextMessage> for Message {
                 content: Some(tool_result.into()),
                 tool_calls: None,
                 reasoning_details: None,
+                reasoning_text: None,
+                reasoning_opaque: None,
             },
             ContextMessage::Image(img) => {
                 let content = vec![ContentPart::ImageUrl {
@@ -425,6 +440,8 @@ impl From<ContextMessage> for Message {
                     tool_call_id: None,
                     tool_calls: None,
                     reasoning_details: None,
+                    reasoning_text: None,
+                    reasoning_opaque: None,
                 }
             }
         }
@@ -766,5 +783,29 @@ mod tests {
         };
 
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_context_conversion_stream_defaults_to_true() {
+        let fixture = forge_domain::Context::default();
+        let actual = Request::from(fixture);
+
+        assert_eq!(actual.stream, Some(true));
+    }
+
+    #[test]
+    fn test_context_conversion_stream_explicit_true() {
+        let fixture = forge_domain::Context::default().stream(true);
+        let actual = Request::from(fixture);
+
+        assert_eq!(actual.stream, Some(true));
+    }
+
+    #[test]
+    fn test_context_conversion_stream_explicit_false() {
+        let fixture = forge_domain::Context::default().stream(false);
+        let actual = Request::from(fixture);
+
+        assert_eq!(actual.stream, Some(false));
     }
 }

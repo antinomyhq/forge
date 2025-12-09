@@ -93,7 +93,7 @@ mod tests {
 
         let fixture = Agent::new(
             AgentId::new("test-agent"),
-            ProviderId::Anthropic,
+            ProviderId::ANTHROPIC,
             ModelId::new("claude-3-5-sonnet-20241022"),
         )
         .tools(vec![ToolName::new("read"), ToolName::new("search")]);
@@ -118,7 +118,7 @@ mod tests {
 
         let fixture = Agent::new(
             AgentId::new("test-agent"),
-            ProviderId::Anthropic,
+            ProviderId::ANTHROPIC,
             ModelId::new("claude-3-5-sonnet-20241022"),
         );
 
@@ -139,7 +139,7 @@ mod tests {
 
         let fixture = Agent::new(
             AgentId::new("test-agent"),
-            ProviderId::Anthropic,
+            ProviderId::ANTHROPIC,
             ModelId::new("claude-3-5-sonnet-20241022"),
         )
         .tools(vec![
@@ -164,7 +164,7 @@ mod tests {
 
         let fixture = Agent::new(
             AgentId::new("test-agent"),
-            ProviderId::Anthropic,
+            ProviderId::ANTHROPIC,
             ModelId::new("claude-3-5-sonnet-20241022"),
         )
         .tools(vec![
@@ -195,7 +195,7 @@ mod tests {
 
         let fixture = Agent::new(
             AgentId::new("test-agent"),
-            ProviderId::Anthropic,
+            ProviderId::ANTHROPIC,
             ModelId::new("claude-3-5-sonnet-20241022"),
         )
         .tools(vec![ToolName::new("fs_*")]);
@@ -221,7 +221,7 @@ mod tests {
 
         let fixture = Agent::new(
             AgentId::new("test-agent"),
-            ProviderId::Anthropic,
+            ProviderId::ANTHROPIC,
             ModelId::new("claude-3-5-sonnet-20241022"),
         )
         .tools(vec![ToolName::new("fs_*")]);
@@ -245,7 +245,7 @@ mod tests {
 
         let fixture = Agent::new(
             AgentId::new("test-agent"),
-            ProviderId::Anthropic,
+            ProviderId::ANTHROPIC,
             ModelId::new("claude-3-5-sonnet-20241022"),
         )
         .tools(vec![ToolName::new("fs_*"), ToolName::new("shell")]);
@@ -272,7 +272,7 @@ mod tests {
 
         let fixture = Agent::new(
             AgentId::new("test-agent"),
-            ProviderId::Anthropic,
+            ProviderId::ANTHROPIC,
             ModelId::new("claude-3-5-sonnet-20241022"),
         )
         .tools(vec![ToolName::new("read?")]);
@@ -297,7 +297,7 @@ mod tests {
 
         let fixture = Agent::new(
             AgentId::new("test-agent"),
-            ProviderId::Anthropic,
+            ProviderId::ANTHROPIC,
             ModelId::new("claude-3-5-sonnet-20241022"),
         )
         .tools(vec![

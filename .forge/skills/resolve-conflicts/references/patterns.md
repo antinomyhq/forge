@@ -2,6 +2,8 @@
 
 This document provides detailed patterns for resolving specific types of conflicts.
 
+**Important**: For each conflict you resolve, provide a one-line explanation of your resolution strategy. When the correct resolution isn't clear from the diff, present numbered options to the user.
+
 ## Import Conflicts
 
 When both branches modify import statements, merge both sets of imports:
@@ -50,6 +52,8 @@ use crate::domain::{Account, User};
 - Remove duplicates
 - Follow language-specific style (group by module, alphabetize)
 - Preserve any re-exports or aliases from both sides
+
+**One-line explanation example**: "Merging imports by combining unique imports from both branches and grouping by module."
 
 ## Test Conflicts
 
@@ -126,6 +130,8 @@ fn setup() -> TestContext {
 - If test names conflict but test different things, rename one
 - Preserve all assertions from both sides
 
+**One-line explanation example**: "Including all test cases from both branches and merging test fixtures."
+
 ## Lock File Conflicts
 
 Lock files (Cargo.lock, package-lock.json, yarn.lock, etc.) should be regenerated rather than manually resolved.
@@ -159,6 +165,8 @@ poetry lock --no-update
 - Choose either version (--ours or --theirs), doesn't matter
 - Run the package manager's update/install command
 - The result will include dependencies from both branches
+
+**One-line explanation example**: "Regenerating lock file with package manager to include dependencies from both branches."
 
 ## Configuration File Conflicts
 
@@ -197,6 +205,19 @@ server:
   - Safer/more conservative value
   - Production-ready value
   - Document the choice in commit message
+
+**One-line explanation example**: "Merging all config keys and choosing incoming value for 'timeout' as it's more recent."
+
+**When to ask the user**: If conflicting values have significant implications (e.g., security settings, API endpoints), present options:
+```
+Config conflict in config.yaml for key 'timeout':
+
+**Option 1**: Keep current value (30 seconds)
+**Option 2**: Keep incoming value (60 seconds)
+**Option 3**: Provide a different value
+
+Please select an option.
+```
 
 ## Code Logic Conflicts
 
@@ -237,6 +258,8 @@ fn process(data: &str) -> Result<String> {
 }
 ```
 
+**One-line explanation**: "Merging both validations as they check different conditions (emptiness and validation)."
+
 ### Pattern: Conflicting Logic
 
 If changes represent different approaches:
@@ -258,6 +281,32 @@ fn calculate_price(item: &Item) -> f64 {
 - Check which calculation matches business requirements
 - Consider running tests with both approaches
 - Choose one and document why in commit message
+
+**When to ask the user**: Present this as options when the correct approach isn't clear:
+
+```
+Code logic conflict in calculate_price function:
+
+<<<<<<< HEAD (Current Branch)
+fn calculate_price(item: &Item) -> f64 {
+    item.base_price * (1.0 + item.tax_rate)
+}
+=======
+fn calculate_price(item: &Item) -> f64 {
+    item.base_price + item.tax_amount
+}
+>>>>>>> feature-branch (Incoming Branch)
+
+These represent different calculation methods:
+
+**Option 1**: Keep current branch - calculates tax as percentage (base_price * tax_rate)
+**Option 2**: Keep incoming branch - uses pre-calculated tax amount (base_price + tax_amount)
+**Option 3**: Ask you to clarify the correct business logic
+
+Please select an option.
+```
+
+**One-line explanation example**: "Choosing current branch approach as it calculates tax dynamically based on rate (per user selection)."
 
 ## Struct/Type Definition Conflicts
 
@@ -302,6 +351,19 @@ pub struct User {
 - Update all usages of the struct accordingly
 - Fix compilation errors after merging
 
+**One-line explanation example**: "Including all fields from both branches in User struct."
+
+**When to ask the user**: If the same field has different types:
+```
+Struct conflict - field 'role' has different types:
+
+**Option 1**: Keep current type (role: String)
+**Option 2**: Keep incoming type (role: UserRole enum)
+**Option 3**: Provide more context
+
+Please select an option.
+```
+
 ## Documentation Conflicts
 
 Merge all documentation improvements.
@@ -339,6 +401,8 @@ Merge all documentation improvements.
 - If descriptions conflict, choose the more accurate/detailed one
 - Keep all examples from both sides
 - Maintain consistent formatting
+
+**One-line explanation example**: "Combining all documentation sections from both branches."
 
 ## Deleted File Special Cases
 

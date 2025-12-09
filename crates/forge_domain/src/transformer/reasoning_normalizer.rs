@@ -67,6 +67,7 @@ mod tests {
         let reasoning_details = vec![ReasoningFull {
             text: Some("I need to think about this carefully".to_string()),
             signature: None,
+            ..Default::default()
         }];
 
         Context::default()
@@ -91,6 +92,7 @@ mod tests {
         let reasoning_details = vec![ReasoningFull {
             text: Some("Complex reasoning process".to_string()),
             signature: None,
+            ..Default::default()
         }];
 
         Context::default()

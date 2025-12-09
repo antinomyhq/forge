@@ -99,6 +99,7 @@ mod tests {
             top_k: None,
             reasoning: None,
             usage: None,
+            stream: None,
         };
 
         let request = Request::try_from(context).expect("Failed to convert context to request");
@@ -235,6 +236,7 @@ mod tests {
             top_k: None,
             reasoning: None,
             usage: None,
+            stream: None,
         };
 
         let request = Request::try_from(context).expect("Failed to convert context to request");

@@ -146,6 +146,7 @@ mod tests {
                     start_line: 1,
                     end_line: 1,
                     total_lines: 1,
+                    content_hash: compute_hash(content),
                 })
             } else {
                 Err(anyhow::anyhow!(std::io::Error::from(

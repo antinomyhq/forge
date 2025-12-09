@@ -29,7 +29,7 @@ impl TitleDisplay {
             Category::Debug => "⏺".cyan(),
             Category::Error => "⏺".red(),
             Category::Completion => "⏺".yellow(),
-            Category::Warning => "⏺".bright_yellow(),
+            Category::Warning => "⚠️".bright_yellow(),
         };
 
         buf.push_str(format!("{icon} ").as_str());

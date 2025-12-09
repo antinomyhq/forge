@@ -83,11 +83,18 @@ pub enum Error {
         env_var: String,
     },
 
-    #[error("Provider {provider} is not available. Use 'forge provider login' to configure it.")]
+    #[error("Provider {provider} is not available. Login again to configure it.")]
     ProviderNotAvailable { provider: ProviderId },
 
     #[error("Failed to create VertexAI provider: {message}")]
     VertexAiConfiguration { message: String },
+
+    // Indexing errors
+    #[error("No indexing authentication found")]
+    AuthTokenNotFound,
+
+    #[error("Workspace not found")]
+    WorkspaceNotFound,
 
     #[error("No default provider set.")]
     NoDefaultProvider,

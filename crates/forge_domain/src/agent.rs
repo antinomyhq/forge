@@ -45,9 +45,6 @@ pub struct Agent {
     /// Maximum number of turns the agent can take
     pub max_turns: Option<u64>,
 
-    /// Maximum depth to which the file walker should traverse for this agent
-    pub max_walker_depth: Option<usize>,
-
     /// Configuration for automatic context compaction
     pub compact: Option<Compact>,
 
@@ -90,7 +87,6 @@ impl Agent {
             user_prompt: Default::default(),
             tools: Default::default(),
             max_turns: Default::default(),
-            max_walker_depth: Default::default(),
             compact: Default::default(),
             custom_rules: Default::default(),
             temperature: Default::default(),
@@ -136,10 +132,6 @@ impl Agent {
             } else {
                 agent.custom_rules = Some(custom_rules);
             }
-        }
-
-        if let Some(max_walker_depth) = workflow.max_walker_depth {
-            agent.max_walker_depth = Some(max_walker_depth);
         }
 
         if let Some(temperature) = workflow.temperature {
@@ -231,7 +223,6 @@ impl Agent {
             reasoning: def.reasoning,
             compact: def.compact,
             max_turns: def.max_turns,
-            max_walker_depth: def.max_walker_depth,
             custom_rules: def.custom_rules,
             max_tool_failure_per_turn: def.max_tool_failure_per_turn,
             max_requests_per_turn: def.max_requests_per_turn,

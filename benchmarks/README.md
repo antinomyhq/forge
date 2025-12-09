@@ -56,16 +56,25 @@ before_run:
   - cargo build
   - npm install
 
-# Required: Command to execute for each test case
+# Required: Command(s) to execute for each test case
+# Single command
+run: ../../target/debug/forge -p '{{prompt}}'
+
+# Or multiple commands (executed sequentially)
 run:
-  command: ../../target/debug/forge -p '{{prompt}}'
-  parallelism: 10  # Number of tasks to run in parallel (default: 1)
-  timeout: 60      # Timeout in seconds (optional)
+  - echo "Step 1: {{task}}"
+  - ../../target/debug/forge -p '{{prompt}}'
+  - echo "Step 2: Complete"
+
+# Execution configuration
+parallelism: 10  # Number of tasks to run in parallel (default: 1)
+timeout: 60      # Timeout in seconds (optional)
+early_exit: true # Stop execution when validations pass (optional)
 
 # Optional: Validations to run on output
 validations:
   - name: "Check success message"
-    type: matches_regex
+    type: regex
     regex: \[[0-9:]*\] Skill create-skill
 
 # Required: Data sources for test cases
@@ -76,18 +85,32 @@ sources:
 #### Task File Schema
 
 **`before_run`** (optional): Array of shell commands to execute before running tasks
-- Runs sequentially in the parent directory of the eval
+- Runs sequentially before the main command execution
+- Executes in a temporary directory created for the evaluation run
 - Useful for building binaries or setting up dependencies
 
-**`run`** (required): Configuration for task execution
-- `command`: Command template with placeholders (e.g., `{{variable}}`)
-- `parallelism`: Number of tasks to run concurrently (default: 1)
-- `timeout`: Maximum execution time in seconds per task (optional)
+**`run`** (required): Command(s) to execute for each test case
+- Can be a single string or an array of strings
+- Commands support template placeholders (e.g., `{{variable}}`)
+- Multiple commands are executed sequentially
+- If any command fails, subsequent commands are skipped
+
+**`parallelism`** (optional): Number of tasks to run concurrently (default: 1)
+
+**`timeout`** (optional): Maximum execution time in seconds per task
+
+**`early_exit`** (optional): Stop command execution when all validations pass
 
 **`validations`** (optional): Array of validation rules
 - `name`: Human-readable description
-- `type`: Currently supports `matches_regex`
-- `regex`: Regular expression pattern to match in output
+- `type`: Validation type. Supported values:
+  - `regex`: Match output against a regular expression pattern
+  - `shell`: Execute a shell command with output as stdin
+- For `regex` type:
+  - `regex`: Regular expression pattern to match in output
+- For `shell` type:
+  - `command`: Shell command to execute (receives task output via stdin)
+  - `exit_code`: Expected exit code (default: 0)
 
 **`sources`** (required): Array of data sources
 - Currently supports CSV files: `- csv: filename.csv`
@@ -173,8 +196,7 @@ LOG_LEVEL=debug npm run eval ./evals/my_eval/task.yml
 ### Example 1: Simple Sequential Execution
 
 ```yaml
-run:
-  command: echo "Processing {{name}}"
+run: echo "Processing {{name}}"
 sources:
   - csv: names.csv
 ```
@@ -189,22 +211,59 @@ Charlie
 ### Example 2: Parallel Execution with Timeout
 
 ```yaml
-run:
-  command: ./slow_task --id {{task_id}}
-  parallelism: 5
-  timeout: 30
+run: ./slow_task --id {{task_id}}
+parallelism: 5
+timeout: 30
 sources:
   - csv: tasks.csv
 ```
 
-### Example 3: With Validation
+### Example 3: Multiple Commands
 
 ```yaml
 run:
-  command: cargo test {{test_name}}
+  - echo "Starting task {{id}}"
+  - ./process --input {{file}}
+  - echo "Task {{id}} complete"
+parallelism: 3
+timeout: 120
+sources:
+  - csv: tasks.csv
+```
+
+### Example 4: Shell Command Validation
+
+```yaml
+run: echo "{{message}}"
+parallelism: 3
+validations:
+  # Using grep to check if output contains specific text
+  - name: "Contains 'test' word"
+    type: shell
+    command: grep -q "test"
+    exit_code: 0
+  
+  # Count words and ensure it's greater than 2
+  - name: "More than 2 words"
+    type: shell
+    command: test $(wc -w | awk '{print $1}') -gt 2
+    exit_code: 0
+  
+  # Traditional regex validation (for comparison)
+  - name: "Contains test or validation"
+    type: regex
+    regex: "test|validation"
+sources:
+  - csv: messages.csv
+```
+
+### Example 5: Regex Validation
+
+```yaml
+run: cargo test {{test_name}}
 validations:
   - name: "All tests passed"
-    type: matches_regex
+    type: regex
     regex: test result:\s+ok
 sources:
   - csv: tests.csv
@@ -225,14 +284,12 @@ sources:
 
 3. **Start with low parallelism**: Test with `parallelism: 1` first, then increase:
    ```yaml
-   run:
-     parallelism: 1  # Start here
+   parallelism: 1  # Start here
    ```
 
 4. **Set appropriate timeouts**: Add timeouts to prevent hanging:
    ```yaml
-   run:
-     timeout: 60  # seconds
+   timeout: 60  # seconds
    ```
 
 5. **Check debug logs**: When tasks fail, check the debug directory for full output:

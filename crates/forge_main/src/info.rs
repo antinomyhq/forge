@@ -8,12 +8,13 @@ use forge_app::utils::truncate_key;
 use forge_tracker::VERSION;
 use num_format::{Locale, ToFormattedString};
 
+use crate::display_constants::markers;
 use crate::model::ForgeCommandManager;
 
 #[derive(Debug, PartialEq)]
 pub enum Section {
     Title(String),
-    Items(Option<String>, String), // key, value, subtitle
+    Items(Option<String>, String), // key, value
 }
 
 impl Section {
@@ -25,6 +26,66 @@ impl Section {
     }
 }
 
+/// A structured information display builder for terminal output.
+///
+/// `Info` provides a consistent way to display hierarchical information with
+/// titles, key-value pairs, and values. It handles alignment, formatting, and
+/// color coding automatically.
+///
+/// # Display Conventions
+///
+/// When using Info, follow these conventions for consistency:
+///
+/// ## Keys (Labels)
+/// - Use **Title Case** for keys (e.g., "Default Model", "API Key")
+/// - Keep keys concise but descriptive
+/// - Keys are automatically right-aligned within sections
+/// - Keys are displayed in **green bold**
+///
+/// ## Values
+/// - Use the constants from [`crate::display_constants`] for special values
+/// - For empty values: Use `placeholders::EMPTY` (`[empty]`)
+/// - For statuses: Use `status::ENABLED` (`[enabled]`) or `status::DISABLED`
+///   (`[disabled]`)
+/// - For actual values: Use the raw value (e.g., "gpt-4", "/home/user")
+///
+/// ## Sections
+/// - Use **UPPERCASE** for section titles
+/// - Section titles are displayed in **bold dimmed**
+/// - Each section groups related key-value pairs
+/// - Keys within a section are aligned to the longest key
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// use crate::display_constants::{placeholders, status};
+/// use crate::info::Info;
+///
+/// let info = Info::new()
+///     .add_title("CONFIGURATION")
+///     .add_key_value("Model", "gpt-4")
+///     .add_key_value("Provider", "openai")
+///     .add_key_value("Status", status::ENABLED)
+///     .add_title("METRICS")
+///     .add_key_value("Tokens", "1000")
+///     .add_key_value("Cost", "$0.02");
+///
+/// println!("{}", info);
+/// ```
+///
+/// # Output Format
+///
+/// ```text
+/// 
+/// CONFIGURATION
+///   model gpt-4
+/// provider openai
+///   status [enabled]
+///
+/// METRICS
+/// tokens 1000
+///   cost $0.02
+/// ```
 #[derive(Default)]
 pub struct Info {
     sections: Vec<Section>,
@@ -40,25 +101,131 @@ impl Info {
         &self.sections
     }
 
+    /// Adds a section title to the info display.
+    ///
+    /// Section titles are displayed in UPPERCASE, bold, and dimmed. They group
+    /// related key-value pairs that follow.
+    ///
+    /// # Convention
+    /// - Always use UPPERCASE for section titles
+    /// - Keep titles concise (e.g., "CONFIGURATION", "METRICS", "USER")
+    ///
+    /// # Examples
+    ///
+    /// ```rust,ignore
+    /// let info = Info::new()
+    ///     .add_title("ENVIRONMENT")  // Correct: UPPERCASE
+    ///     .add_key_value("Path", "/home/user");
+    /// ```
     pub fn add_title(mut self, title: impl ToString) -> Self {
         self.sections.push(Section::Title(title.to_string()));
         self
     }
 
-    pub fn add_value(self, value: impl ToString) -> Self {
+    /// Adds a standalone value without a key (displayed as a bullet point).
+    ///
+    /// Values without keys are displayed with a bullet point (⦿) and indented.
+    /// Use this for lists or grouped items under a section.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,ignore
+    /// let info = Info::new()
+    ///     .add_title("AVAILABLE TOOLS")
+    ///     .add_value("read")
+    ///     .add_value("write")
+    ///     .add_value("shell");
+    /// ```
+    ///
+    /// Output:
+    /// ```text
+    /// AVAILABLE TOOLS
+    ///   ⦿ read
+    ///   ⦿ write
+    ///   ⦿ shell
+    /// ```
+    pub fn add_value(self, value: impl IntoInfoValue) -> Self {
         self.add_item(None::<String>, value)
     }
 
-    pub fn add_key_value(self, key: impl ToString, value: impl ToString) -> Self {
+    /// Adds a key without a value (displays as a label).
+    ///
+    /// This is typically used for labels or empty fields. The key is displayed
+    /// without any value following it.
+    ///
+    /// # Convention
+    /// - Use **Title Case** for keys (same as
+    ///   [`add_key_value`](Self::add_key_value))
+    ///
+    /// # Examples
+    ///
+    /// ```rust,ignore
+    /// let info = Info::new()
+    ///     .add_title("EMPTY FIELDS")
+    ///     .add_key("API Key");  // Shows just "api key" without a value
+    /// ```
+    pub fn add_key(self, key: impl ToString) -> Self {
+        self.add_key_value(key, None::<String>)
+    }
+
+    /// Adds a key-value pair to the info display.
+    ///
+    /// The key is displayed in green bold, and the value follows it. Keys are
+    /// automatically aligned within each section.
+    ///
+    /// # Conventions
+    ///
+    /// ## Keys
+    /// - Use **Title Case** (e.g., "Default Model", "API Key", "Working
+    ///   Directory")
+    /// - Be descriptive but concise
+    /// - Avoid abbreviations unless widely known
+    ///
+    /// ## Values
+    /// - Use the constants from [`crate::display_constants`] for special
+    ///   values:
+    ///   - `placeholders::EMPTY` - empty value (`[empty]`)
+    ///   - `status::ENABLED` - enabled/configured (`[enabled]`)
+    ///   - `status::DISABLED` - disabled (`[disabled]`)
+    /// - For actual values: Use the raw value (e.g., "gpt-4", "/home/user")
+    ///
+    /// # Examples
+    ///
+    /// ```rust,ignore
+    /// use crate::display_constants::status;
+    ///
+    /// let info = Info::new()
+    ///     .add_title("CONFIGURATION")
+    ///     // Correct: Raw value for actual data
+    ///     .add_key_value("Default Model", "gpt-4")
+    ///     // Correct: Status constant for status values
+    ///     .add_key_value("Provider Status", status::ENABLED)
+    ///     // Correct: Raw value for actual data
+    ///     .add_key_value("API URL", "https://api.example.com");
+    /// ```
+    ///
+    /// # Incorrect Usage
+    ///
+    /// ```rust,ignore
+    /// // ❌ Wrong: lowercase key
+    /// .add_key_value("model", "gpt-4")
+    ///
+    /// // ❌ Wrong: raw string instead of constant
+    /// .add_key_value("Status", "[enabled]")
+    ///
+    /// // ✅ Correct: Title Case key with constant
+    /// .add_key_value("Status", status::ENABLED)
+    /// ```
+    pub fn add_key_value(self, key: impl ToString, value: impl IntoInfoValue) -> Self {
         let key_str = key.to_string();
         let normalized_key = key_str.to_lowercase();
         self.add_item(Some(normalized_key), value)
     }
 
-    fn add_item(mut self, key: Option<impl ToString>, value: impl ToString) -> Self {
+    fn add_item(mut self, key: Option<impl ToString>, value: impl IntoInfoValue) -> Self {
         self.sections.push(Section::Items(
             key.map(|a| a.to_string()),
-            value.to_string(),
+            value.into_value().unwrap_or(markers::EMPTY.to_string()),
         ));
         self
     }
@@ -66,6 +233,40 @@ impl Info {
     pub fn extend(mut self, other: impl Into<Info>) -> Self {
         self.sections.extend(other.into().sections);
         self
+    }
+}
+
+pub trait IntoInfoValue {
+    fn into_value(self) -> Option<String>;
+}
+
+impl IntoInfoValue for &str {
+    fn into_value(self) -> Option<String> {
+        Some(self.to_string())
+    }
+}
+
+impl IntoInfoValue for &String {
+    fn into_value(self) -> Option<String> {
+        Some(self.to_owned())
+    }
+}
+
+impl IntoInfoValue for String {
+    fn into_value(self) -> Option<String> {
+        Some(self)
+    }
+}
+
+impl IntoInfoValue for crate::display_constants::CommandType {
+    fn into_value(self) -> Option<String> {
+        Some(self.to_string())
+    }
+}
+
+impl<T: IntoInfoValue> IntoInfoValue for Option<T> {
+    fn into_value(self) -> Option<String> {
+        self.and_then(|o| o.into_value())
     }
 }
 
@@ -81,7 +282,7 @@ impl From<&Environment> for Info {
             .add_title("ENVIRONMENT")
             .add_key_value("Version", VERSION)
             .add_key_value("Working Directory", format_path_for_display(env, &env.cwd))
-            .add_key_value("Shell", &env.shell)
+            .add_key_value("Shell", env.shell.as_str())
             .add_key_value("Git Branch", branch_info)
             .add_title("PATHS");
 
@@ -149,7 +350,7 @@ impl From<&Environment> for Info {
                     .min_tls_version
                     .as_ref()
                     .map(|v| format!("{v}"))
-                    .unwrap_or_else(|| "None".to_string()),
+                    .unwrap_or_else(|| markers::EMPTY.to_string()),
             )
             .add_key_value(
                 "Max TLS Version",
@@ -157,15 +358,12 @@ impl From<&Environment> for Info {
                     .max_tls_version
                     .as_ref()
                     .map(|v| format!("{v}"))
-                    .unwrap_or_else(|| "None".to_string()),
+                    .unwrap_or_else(|| markers::EMPTY.to_string()),
             )
             .add_key_value("Adaptive Window", env.http.adaptive_window.to_string())
             .add_key_value(
                 "Keep-Alive Interval",
-                env.http
-                    .keep_alive_interval
-                    .map(|v| format!("{v}s"))
-                    .unwrap_or_else(|| "Disabled".to_string()),
+                env.http.keep_alive_interval.map(|v| format!("{v}s")),
             )
             .add_key_value(
                 "Keep-Alive Timeout",
@@ -185,15 +383,19 @@ impl From<&Environment> for Info {
                     .root_cert_paths
                     .as_ref()
                     .map(|paths| paths.join(", "))
-                    .unwrap_or_else(|| "None".to_string()),
+                    .unwrap_or_else(|| markers::EMPTY.to_string()),
             )
             .add_title("API CONFIGURATION")
             .add_key_value("Forge API URL", env.forge_api_url.to_string())
+            .add_key_value("Workspace Server URL", env.workspace_server_url.to_string())
             .add_title("TOOL CONFIGURATION")
             .add_key_value("Tool Timeout", format!("{}s", env.tool_timeout))
             .add_key_value("Max Image Size", format!("{} bytes", env.max_image_size))
             .add_key_value("Auto Open Dump", env.auto_open_dump.to_string())
-            .add_key_value("Debug Requests", env.debug_requests.to_string())
+            .add_key_value(
+                "Debug Requests",
+                env.debug_requests.as_ref().map(|p| p.display().to_string()),
+            )
             .add_key_value(
                 "Stdout Max Line Length",
                 env.stdout_max_line_length.to_string(),
@@ -242,12 +444,19 @@ impl From<&Metrics> for Info {
                     .and_then(|name| name.to_str())
                     .unwrap_or(path);
 
-                let changes = format!(
-                    "−{} +{}",
-                    file_metrics.lines_removed, file_metrics.lines_added
-                );
+                let removed = if file_metrics.lines_removed == 0 {
+                    "0".to_string()
+                } else {
+                    format!("−{}", file_metrics.lines_removed)
+                };
+                let added = if file_metrics.lines_added == 0 {
+                    "0".to_string()
+                } else {
+                    format!("+{}", file_metrics.lines_added)
+                };
+                let changes = format!("{} {}", removed, added);
 
-                info = info.add_key_value(format!("⦿ {filename}"), changes);
+                info = info.add_key_value(filename, changes);
             }
         }
 
@@ -317,19 +526,17 @@ impl fmt::Display for Info {
                         .map(|key| key.len())
                         .max();
                 }
-                Section::Items(key, value) => {
-                    if let Some(key) = key {
-                        if let Some(width) = width {
-                            writeln!(f, "  {} {}", format!("{key:<width$}:").cyan().bold(), value)?;
-                        } else {
-                            // No section width (items without a title)
-                            writeln!(f, "  {}: {}", key.cyan().bold(), value)?;
-                        }
-                    } else {
-                        // Show value-only items
-                        writeln!(f, "    {} {}", "⦿".cyan(), value)?;
+                Section::Items(key, value) => match (key.as_ref(), width) {
+                    (Some(k), Some(w)) => {
+                        writeln!(f, "  {} {}", format!("{k:<w$}").green().bold(), value)?;
                     }
-                }
+                    (Some(k), None) => {
+                        writeln!(f, "  {} {}", k.green().bold(), value)?;
+                    }
+                    (None, _) => {
+                        writeln!(f, "    {} {}", "⦿".green(), value)?;
+                    }
+                },
             }
         }
         Ok(())
@@ -431,7 +638,7 @@ impl From<&LoginInfo> for Info {
     fn from(login_info: &LoginInfo) -> Self {
         let mut info = Info::new().add_title("ACCOUNT");
 
-        if let Some(email) = &login_info.email {
+        if let Some(email) = login_info.email.as_ref() {
             info = info.add_key_value("Login", email);
         }
 
@@ -748,13 +955,13 @@ mod tests {
         // Verify it contains the task completed section
         assert!(expected_display.contains("TASK COMPLETED"));
 
-        // Verify it contains the files with bullet points
-        assert!(expected_display.contains("⦿ main.rs"));
+        // Verify it contains the files as keys with colons
+        assert!(expected_display.contains("main.rs"));
         assert!(expected_display.contains("−3 +12"));
         assert!(expected_display.contains("mod.rs"));
         assert!(expected_display.contains("−2 +8"));
         assert!(expected_display.contains("test_agent.rs"));
-        assert!(expected_display.contains("−0 +5"));
+        assert!(expected_display.contains("0 +5"));
     }
 
     #[test]
@@ -895,8 +1102,8 @@ mod tests {
         assert!(actual_str.contains("SECTION ONE"));
         assert!(actual_str.contains("SECTION TWO"));
 
-        // Verify padding by checking alignment of colons
-        // All keys in a section should have colons at the same column
+        // Verify padding by checking alignment of values
+        // All keys in a section should have values starting at the same column
         let lines: Vec<&str> = actual_str.lines().collect();
 
         // Find SECTION ONE items
@@ -911,44 +1118,45 @@ mod tests {
 
         let section_one_items: Vec<&str> = lines[section_one_start + 1..section_two_start]
             .iter()
-            .filter(|l| l.contains(':'))
+            .filter(|l| !l.trim().is_empty() && !l.contains("SECTION"))
             .copied()
             .collect();
 
-        // All colons in section one should be at the same position
-        let colon_positions: Vec<usize> = section_one_items
+        // All values in section one should start at the same position
+        // Find where "value" starts in each line
+        let value_positions: Vec<usize> = section_one_items
             .iter()
-            .map(|line| line.find(':').unwrap())
+            .map(|line| line.find("value").unwrap())
             .collect();
 
         assert!(
-            colon_positions.windows(2).all(|w| w[0] == w[1]),
-            "Keys in SECTION ONE should have consistent padding. Colon positions: {:?}",
-            colon_positions
+            value_positions.windows(2).all(|w| w[0] == w[1]),
+            "Values in SECTION ONE should be aligned. Value positions: {:?}",
+            value_positions
         );
 
         // Check SECTION TWO items
         let section_two_items: Vec<&str> = lines[section_two_start + 1..]
             .iter()
-            .filter(|l| l.contains(':'))
+            .filter(|l| !l.trim().is_empty() && !l.contains("SECTION"))
             .copied()
             .collect();
 
-        let colon_positions_two: Vec<usize> = section_two_items
+        let value_positions_two: Vec<usize> = section_two_items
             .iter()
-            .map(|line| line.find(':').unwrap())
+            .map(|line| line.find("value").unwrap())
             .collect();
 
         assert!(
-            colon_positions_two.windows(2).all(|w| w[0] == w[1]),
-            "Keys in SECTION TWO should have consistent padding. Colon positions: {:?}",
-            colon_positions_two
+            value_positions_two.windows(2).all(|w| w[0] == w[1]),
+            "Values in SECTION TWO should be aligned. Value positions: {:?}",
+            value_positions_two
         );
 
         // Verify that different sections can have different padding
         // (SECTION ONE should have wider padding than SECTION TWO)
         assert!(
-            colon_positions[0] > colon_positions_two[0],
+            value_positions[0] > value_positions_two[0],
             "SECTION ONE should have wider padding than SECTION TWO"
         );
     }
@@ -1037,8 +1245,8 @@ mod tests {
         // Verify it contains the task completed section
         assert!(expected_display.contains("TASK COMPLETED"));
 
-        // Verify it contains files with changes
-        assert!(expected_display.contains("⦿ main.rs"));
+        // Verify it contains files with changes as keys
+        assert!(expected_display.contains("main.rs"));
         assert!(expected_display.contains("−3 +12"));
         assert!(expected_display.contains("mod.rs"));
         assert!(expected_display.contains("−2 +8"));

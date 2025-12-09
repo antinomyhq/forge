@@ -102,6 +102,7 @@ impl TryFrom<forge_domain::Context> for Request {
             top_p: request.top_p.map(|t| t.value()),
             top_k: request.top_k.map(|t| t.value() as u64),
             tool_choice: request.tool_choice.map(ToolChoice::from),
+            stream: Some(request.stream.unwrap_or(true)),
             thinking: request.reasoning.and_then(|reasoning| {
                 reasoning.enabled.and_then(|enabled| {
                     if enabled {
@@ -551,5 +552,29 @@ mod tests {
         let actual = Request::try_from(fixture).unwrap();
 
         assert_eq!(actual.thinking, None);
+    }
+
+    #[test]
+    fn test_context_conversion_stream_defaults_to_true() {
+        let fixture = Context::default();
+        let actual = Request::try_from(fixture).unwrap();
+
+        assert_eq!(actual.stream, Some(true));
+    }
+
+    #[test]
+    fn test_context_conversion_stream_explicit_true() {
+        let fixture = Context::default().stream(true);
+        let actual = Request::try_from(fixture).unwrap();
+
+        assert_eq!(actual.stream, Some(true));
+    }
+
+    #[test]
+    fn test_context_conversion_stream_explicit_false() {
+        let fixture = Context::default().stream(false);
+        let actual = Request::try_from(fixture).unwrap();
+
+        assert_eq!(actual.stream, Some(false));
     }
 }

@@ -161,7 +161,7 @@ impl<S: AgentService> Orchestrator<S> {
             .chat_agent(
                 model_id,
                 transformers.transform(context),
-                Some(self.agent.provider),
+                Some(self.agent.provider.clone()),
             )
             .await?;
 
@@ -295,8 +295,9 @@ impl<S: AgentService> Orchestrator<S> {
 
             debug!(agent_id = %agent.id, tool_call_count = tool_calls.len(), "Tool call count");
 
-            // Turn is completed, if finish_reason is 'stop'.
-            is_complete = finish_reason == Some(FinishReason::Stop);
+            // Turn is completed, if finish_reason is 'stop'. Gemini models return stop as
+            // finish reason with tool calls.
+            is_complete = finish_reason == Some(FinishReason::Stop) && tool_calls.is_empty();
 
             // Should yield if a tool is asking for a follow-up
             should_yield = is_complete
@@ -418,7 +419,7 @@ impl<S: AgentService> Orchestrator<S> {
                 self.services.clone(),
                 prompt.to_owned(),
                 model,
-                Some(self.agent.provider),
+                Some(self.agent.provider.clone()),
             )
             .reasoning(self.agent.reasoning.clone());
 

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use derive_more::{Deref, From};
 use url::Url;
 
 use super::{
@@ -7,12 +8,16 @@ use super::{
     URLParamValue, UserCode,
 };
 
+#[derive(Debug, Clone, Deref, From)]
+pub struct URLParameters(HashMap<URLParam, URLParamValue>);
+
 // API Key Flow
 
 /// Request parameters for API key authentication
 #[derive(Debug, Clone)]
 pub struct ApiKeyRequest {
     pub required_params: Vec<URLParam>,
+    pub existing_params: Option<URLParameters>,
 }
 
 /// Response containing API key and URL parameters

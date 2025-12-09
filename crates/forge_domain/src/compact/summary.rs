@@ -4,7 +4,8 @@ use derive_more::From;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Context, ContextMessage, Role, TextMessage, ToolCallFull, ToolCallId, ToolCatalog, ToolResult,
+    Context, ContextMessage, Role, SearchQuery, TextMessage, ToolCallFull, ToolCallId, ToolCatalog,
+    ToolResult,
 };
 
 /// A simplified summary of a context, focusing on messages and their tool calls
@@ -114,6 +115,16 @@ impl SummaryToolCall {
         }
     }
 
+    /// Creates a CodebaseSearch tool call with default values (id: None,
+    /// is_success: true)
+    pub fn codebase_search(queries: Vec<SearchQuery>, file_extension: Option<String>) -> Self {
+        Self {
+            id: None,
+            tool: SummaryTool::SemSearch { queries, file_extension },
+            is_success: true,
+        }
+    }
+
     /// Creates an Undo tool call with default values (id: None, is_success:
     /// true)
     pub fn undo(path: impl Into<String>) -> Self {
@@ -158,16 +169,40 @@ impl SummaryToolCall {
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SummaryTool {
-    FileRead { path: String },
-    FileUpdate { path: String },
-    FileRemove { path: String },
-    Shell { command: String },
-    Search { pattern: String },
-    Undo { path: String },
-    Fetch { url: String },
-    Followup { question: String },
-    Plan { plan_name: String },
-    Skill { name: String },
+    FileRead {
+        path: String,
+    },
+    FileUpdate {
+        path: String,
+    },
+    FileRemove {
+        path: String,
+    },
+    Shell {
+        command: String,
+    },
+    Search {
+        pattern: String,
+    },
+    SemSearch {
+        queries: Vec<SearchQuery>,
+        file_extension: Option<String>,
+    },
+    Undo {
+        path: String,
+    },
+    Fetch {
+        url: String,
+    },
+    Followup {
+        question: String,
+    },
+    Plan {
+        plan_name: String,
+    },
+    Skill {
+        name: String,
+    },
 }
 
 impl From<&Context> for ContextSummary {
@@ -272,6 +307,10 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
             .file_pattern
             .or(input.regex)
             .map(|pattern| SummaryTool::Search { pattern }),
+        ToolCatalog::SemSearch(input) => Some(SummaryTool::SemSearch {
+            queries: input.queries,
+            file_extension: input.file_extension,
+        }),
         ToolCatalog::Undo(input) => Some(SummaryTool::Undo { path: input.path }),
         ToolCatalog::Fetch(input) => Some(SummaryTool::Fetch { url: input.url }),
         ToolCatalog::Followup(input) => Some(SummaryTool::Followup { question: input.question }),
@@ -908,6 +947,38 @@ mod tests {
                     .id("call_1")
                     .is_success(false)
                     .into(),
+            ],
+        )]);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_context_summary_extracts_codebase_search_tool_calls() {
+        let fixture = context(vec![assistant_with_tools(
+            "Searching codebase",
+            vec![
+                ToolCatalog::tool_call_semantic_search(
+                    vec![SearchQuery::new("retry mechanism", "find retry logic")],
+                    None,
+                )
+                .call_id("call_1"),
+            ],
+        )]);
+
+        let actual = ContextSummary::from(&fixture);
+
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
+            Role::Assistant,
+            vec![
+                Block::content("Searching codebase"),
+                SummaryToolCall::codebase_search(
+                    vec![SearchQuery::new("retry mechanism", "find retry logic")],
+                    None,
+                )
+                .id("call_1")
+                .is_success(false)
+                .into(),
             ],
         )]);
 

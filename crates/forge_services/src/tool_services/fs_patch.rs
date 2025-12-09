@@ -3,13 +3,11 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use forge_app::domain::PatchOperation;
-use forge_app::{FileWriterInfra, FsPatchService, PatchOutput};
-use forge_domain::SnapshotRepository;
+use forge_app::{FileWriterInfra, FsPatchService, PatchOutput, compute_hash};
+use forge_domain::{SnapshotRepository, ValidationRepository};
 use thiserror::Error;
 use tokio::fs;
 
-use crate::tool_services;
-// No longer using dissimilar for fuzzy matching
 use crate::utils::assert_absolute_path;
 
 /// A match found in the source text. Represents a range in the source text that
@@ -204,7 +202,9 @@ impl<F> ForgeFsPatch<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: FileWriterInfra + SnapshotRepository> FsPatchService for ForgeFsPatch<F> {
+impl<F: FileWriterInfra + SnapshotRepository + ValidationRepository> FsPatchService
+    for ForgeFsPatch<F>
+{
     async fn patch(
         &self,
         input_path: String,
@@ -233,10 +233,22 @@ impl<F: FileWriterInfra + SnapshotRepository> FsPatchService for ForgeFsPatch<F>
             .write(path, Bytes::from(current_content.clone()))
             .await?;
 
+        // Compute hash of the final file content
+        let content_hash = compute_hash(&current_content);
+
+        // Validate file syntax using remote validation API (graceful failure)
+        let syntax_warning = self
+            .infra
+            .validate_file(path, &current_content)
+            .await
+            .ok()
+            .flatten();
+
         Ok(PatchOutput {
-            warning: tool_services::syn::validate(path, &current_content).map(|e| e.to_string()),
+            warning: syntax_warning,
             before: old_content,
             after: current_content,
+            content_hash,
         })
     }
 }

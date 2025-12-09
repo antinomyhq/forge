@@ -34,7 +34,7 @@
 - Do what has been asked; nothing more, nothing less.
 - NEVER create files unless they're absolutely necessary for achieving your goal.
 - ALWAYS prefer editing an existing file to creating a new one.
-- NEVER proactively create documentation files (\*.md) or README files. Only create documentation files if explicitly requested by the User.
+- NEVER create documentation files (\*.md, \*.txt, README, CHANGELOG, CONTRIBUTING, etc.) unless explicitly requested by the user. Includes summaries/overviews, architecture docs, migration guides/HOWTOs, or any explanatory file about work just completed. Instead, explain in your reply in the final response or use code comments. "Explicitly requested" means the user asks for a specific document by name or purpose.
 - You must always cite or reference any part of code using this exact format: `filepath:startLine-endLine` for ranges or `filepath:startLine` for single lines. Do not use any other format.
 
   **Good examples:**

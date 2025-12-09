@@ -177,7 +177,7 @@ mod tests {
     fn fixture_agent_without_user_prompt() -> Agent {
         Agent::new(
             AgentId::from("test_agent"),
-            ProviderId::OpenAI,
+            ProviderId::OPENAI,
             ModelId::from("test-model"),
         )
     }

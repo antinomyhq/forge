@@ -352,6 +352,12 @@ pub struct Context {
     pub reasoning: Option<crate::agent_definition::ReasoningConfig>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub usage: Option<Usage>,
+    /// Controls whether responses should be streamed. When `true`, responses
+    /// are delivered incrementally as they're generated. When `false`, the
+    /// complete response is returned at once. Defaults to `true` if not
+    /// specified.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub stream: Option<bool>,
 }
 
 impl Context {
@@ -548,6 +554,42 @@ impl Context {
         }
 
         result
+    }
+
+    /// Returns the total number of messages in the context
+    pub fn total_messages(&self) -> usize {
+        self.messages.len()
+    }
+
+    /// Returns the count of user messages in the context
+    pub fn user_message_count(&self) -> usize {
+        self.messages
+            .iter()
+            .filter(|msg| msg.has_role(Role::User))
+            .count()
+    }
+
+    /// Returns the count of assistant messages in the context
+    pub fn assistant_message_count(&self) -> usize {
+        self.messages
+            .iter()
+            .filter(|msg| msg.has_role(Role::Assistant))
+            .count()
+    }
+
+    /// Returns the total count of tool calls across all messages
+    pub fn tool_call_count(&self) -> usize {
+        self.messages
+            .iter()
+            .filter(|msg| msg.has_tool_call())
+            .map(|msg| {
+                if let ContextMessage::Text(text_msg) = msg {
+                    text_msg.tool_calls.as_ref().map_or(0, |calls| calls.len())
+                } else {
+                    0
+                }
+            })
+            .sum()
     }
 }
 
@@ -1062,6 +1104,56 @@ mod tests {
         assert!(text.contains("&lt;file&gt;"));
         // Check that directories use <dir> tag
         assert!(text.contains("&lt;dir&gt;"));
+    }
+
+    #[test]
+    fn test_context_message_statistics() {
+        let fixture = Context::default()
+            .add_message(ContextMessage::system("System message"))
+            .add_message(ContextMessage::user("User message 1", None))
+            .add_message(ContextMessage::assistant("Assistant response", None, None))
+            .add_message(ContextMessage::user("User message 2", None))
+            .add_message(ContextMessage::assistant(
+                "Assistant with tool",
+                None,
+                Some(vec![
+                    ToolCallFull {
+                        call_id: Some(crate::ToolCallId::new("call1")),
+                        name: crate::ToolName::new("tool1"),
+                        arguments: serde_json::json!({"arg": "value"}).into(),
+                    },
+                    ToolCallFull {
+                        call_id: Some(crate::ToolCallId::new("call2")),
+                        name: crate::ToolName::new("tool2"),
+                        arguments: serde_json::json!({"arg": "value"}).into(),
+                    },
+                ]),
+            ))
+            .add_tool_results(vec![
+                ToolResult {
+                    name: crate::ToolName::new("tool1"),
+                    call_id: Some(crate::ToolCallId::new("call1")),
+                    output: crate::ToolOutput::text("Result 1".to_string()),
+                },
+                ToolResult {
+                    name: crate::ToolName::new("tool2"),
+                    call_id: Some(crate::ToolCallId::new("call2")),
+                    output: crate::ToolOutput::text("Result 2".to_string()),
+                },
+            ]);
+
+        // Test total messages (6 messages: 1 system + 2 user + 2 assistant + 2 tool
+        // results)
+        assert_eq!(fixture.total_messages(), 7);
+
+        // Test user message count
+        assert_eq!(fixture.user_message_count(), 2);
+
+        // Test assistant message count
+        assert_eq!(fixture.assistant_message_count(), 2);
+
+        // Test tool call count (2 tool calls in the second assistant message)
+        assert_eq!(fixture.tool_call_count(), 2);
     }
 
     #[test]

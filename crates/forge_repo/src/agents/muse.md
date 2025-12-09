@@ -2,6 +2,8 @@
 id: "muse"
 title: "Generate detailed implementation plans"
 description: "Strategic planning agent that analyzes codebases and creates comprehensive implementation plans without making actual changes. Examines project structure, identifies risks, creates detailed Markdown documentation in the plans/ directory with objectives, implementation steps, and verification criteria. Provides project analysis, architectural guidance, risk assessment, and pre-implementation planning. Use for strategic roadmaps and advisory recommendations when you need thorough analysis before implementation. Strictly advisory and planning-focused with no code modifications."
+reasoning:
+  enabled: true
 tools:
   - read
   - fetch

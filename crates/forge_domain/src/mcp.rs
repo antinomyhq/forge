@@ -2,7 +2,6 @@
 //! Follows the design specifications of Claude's [.mcp.json](https://docs.anthropic.com/en/docs/claude-code/tutorials#set-up-model-context-protocol-mcp)
 
 use std::collections::BTreeMap;
-use std::fmt::{Display, Formatter};
 use std::ops::Deref;
 
 use derive_more::{Deref, Display, From};
@@ -20,7 +19,7 @@ pub enum Scope {
 #[serde(untagged)]
 pub enum McpServerConfig {
     Stdio(McpStdioServer),
-    Sse(McpSseServer),
+    Http(McpHttpServer),
 }
 
 impl McpServerConfig {
@@ -38,15 +37,23 @@ impl McpServerConfig {
         })
     }
 
-    /// Create a new SSE-based MCP server
-    pub fn new_sse(url: impl Into<String>) -> Self {
-        Self::Sse(McpSseServer { url: url.into(), disable: false })
+    /// Create a new HTTP-based MCP server (auto-detects transport type)
+    pub fn new_http(url: impl Into<String>) -> Self {
+        Self::Http(McpHttpServer { url: url.into(), headers: BTreeMap::new(), disable: false })
     }
 
     pub fn is_disabled(&self) -> bool {
         match self {
             McpServerConfig::Stdio(v) => v.disable,
-            McpServerConfig::Sse(v) => v.disable,
+            McpServerConfig::Http(v) => v.disable,
+        }
+    }
+
+    /// Returns the type of MCP server as a string ("STDIO" or "HTTP")
+    pub fn server_type(&self) -> &'static str {
+        match self {
+            McpServerConfig::Stdio(_) => "STDIO",
+            McpServerConfig::Http(_) => "HTTP",
         }
     }
 }
@@ -73,10 +80,15 @@ pub struct McpStdioServer {
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, Hash)]
-pub struct McpSseServer {
-    /// Url of the MCP server
+pub struct McpHttpServer {
+    /// Url of the MCP server (auto-detects HTTP vs SSE transport)
     #[serde(skip_serializing_if = "String::is_empty", alias = "serverUrl")]
     pub url: String,
+
+    /// Optional headers for HTTP requests
+    /// Supports mustache templates for environment variables: {{.env.VAR_NAME}}
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub headers: BTreeMap<String, String>,
 
     /// Disable it temporarily without having to
     /// remove it from the config.
@@ -84,28 +96,7 @@ pub struct McpSseServer {
     pub disable: bool,
 }
 
-impl Display for McpServerConfig {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let mut output = String::new();
-        match self {
-            McpServerConfig::Stdio(stdio) => {
-                output.push_str(&format!("{} ", stdio.command));
-                stdio.args.iter().for_each(|arg| {
-                    output.push_str(&format!("{arg} "));
-                });
-
-                stdio.env.iter().for_each(|(key, value)| {
-                    output.push_str(&format!("{key}={value} "));
-                });
-            }
-            McpServerConfig::Sse(sse) => {
-                output.push_str(&format!("{} ", sse.url));
-            }
-        }
-
-        write!(f, "{}", output.trim())
-    }
-}
+impl McpHttpServer {}
 
 #[derive(
     Clone, Display, Serialize, Deserialize, Debug, PartialEq, Hash, Eq, From, PartialOrd, Ord, Deref,
@@ -163,7 +154,7 @@ mod tests {
             mcp_servers: BTreeMap::from([
                 (
                     "server1".to_string().into(),
-                    McpServerConfig::new_sse("http://localhost:3000"),
+                    McpServerConfig::new_http("http://localhost:3000"),
                 ),
                 (
                     "server2".to_string().into(),
@@ -176,7 +167,7 @@ mod tests {
             mcp_servers: BTreeMap::from([
                 (
                     "server1".to_string().into(),
-                    McpServerConfig::new_sse("http://localhost:3000"),
+                    McpServerConfig::new_http("http://localhost:3000"),
                 ),
                 (
                     "server2".to_string().into(),
@@ -199,14 +190,14 @@ mod tests {
         let fixture1 = McpConfig {
             mcp_servers: BTreeMap::from([(
                 "server1".to_string().into(),
-                McpServerConfig::new_sse("http://localhost:3000"),
+                McpServerConfig::new_http("http://localhost:3000"),
             )]),
         };
 
         let fixture2 = McpConfig {
             mcp_servers: BTreeMap::from([(
                 "server1".to_string().into(),
-                McpServerConfig::new_sse("http://localhost:3001"),
+                McpServerConfig::new_http("http://localhost:3001"),
             )]),
         };
 
@@ -225,11 +216,11 @@ mod tests {
             mcp_servers: BTreeMap::from([
                 (
                     "a_server".to_string().into(),
-                    McpServerConfig::new_sse("http://a"),
+                    McpServerConfig::new_http("http://a"),
                 ),
                 (
                     "z_server".to_string().into(),
-                    McpServerConfig::new_sse("http://z"),
+                    McpServerConfig::new_http("http://z"),
                 ),
             ]),
         };
@@ -239,11 +230,11 @@ mod tests {
             mcp_servers: BTreeMap::from([
                 (
                     "z_server".to_string().into(),
-                    McpServerConfig::new_sse("http://z"),
+                    McpServerConfig::new_http("http://z"),
                 ),
                 (
                     "a_server".to_string().into(),
-                    McpServerConfig::new_sse("http://a"),
+                    McpServerConfig::new_http("http://a"),
                 ),
             ]),
         };
@@ -261,9 +252,9 @@ mod tests {
         let config = McpServerConfig::Stdio(server);
         assert!(config.is_disabled());
 
-        let sse_server = McpSseServer { disable: false, ..Default::default() };
+        let sse_server = McpHttpServer { disable: false, ..Default::default() };
 
-        let config = McpServerConfig::Sse(sse_server);
+        let config = McpServerConfig::Http(sse_server);
         assert!(!config.is_disabled());
     }
 
@@ -313,5 +304,54 @@ mod tests {
         let result = serde_json::from_str::<McpConfig>(json);
 
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_http_server_with_headers() {
+        use pretty_assertions::assert_eq;
+
+        let json = r#"{
+            "mcpServers": {
+                "github": {
+                    "url": "https://api.githubcopilot.com/mcp/",
+                    "headers": {
+                        "Authorization": "Bearer test_token",
+                        "Content-Type": "application/json"
+                    }
+                }
+            }
+        }"#;
+
+        let actual: McpConfig = serde_json::from_str(json).unwrap();
+
+        match actual.mcp_servers.get(&"github".to_string().into()) {
+            Some(McpServerConfig::Http(server)) => {
+                assert_eq!(server.url, "https://api.githubcopilot.com/mcp/");
+                assert_eq!(server.headers.len(), 2);
+                assert_eq!(
+                    server.headers.get("Authorization"),
+                    Some(&"Bearer test_token".to_string())
+                );
+            }
+            _ => panic!("Expected Http variant"),
+        }
+    }
+
+    #[test]
+    fn test_server_type() {
+        use fake::{Fake, Faker};
+        use pretty_assertions::assert_eq;
+
+        let command: String = Faker.fake();
+        let stdio_server = McpServerConfig::new_stdio(&command, vec![], None);
+        let actual = stdio_server.server_type();
+        let expected = "STDIO";
+        assert_eq!(actual, expected);
+
+        let url: String = format!("https://{}.example.com", Faker.fake::<String>());
+        let http_server = McpServerConfig::new_http(&url);
+        let actual = http_server.server_type();
+        let expected = "HTTP";
+        assert_eq!(actual, expected);
     }
 }

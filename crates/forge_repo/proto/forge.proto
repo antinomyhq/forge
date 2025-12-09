@@ -1,0 +1,318 @@
+syntax = "proto3";
+
+import "google/protobuf/timestamp.proto";
+
+package forge.v1;
+
+// Main service for interacting with Forge's context engine
+service ForgeService {
+  // Searches for nodes matching a query
+  rpc Search(SearchRequest) returns (SearchResponse);
+  
+  // Uploads files to the context engine
+  rpc UploadFiles(UploadFilesRequest) returns (UploadFilesResponse);
+
+  // Deletes files from the context engine
+  rpc DeleteFiles(DeleteFilesRequest) returns (DeleteFilesResponse);
+  
+  // Lists all files in a workspace
+  rpc ListFiles(ListFilesRequest) returns (ListFilesResponse);
+  
+  // Splits files into chunks without uploading them
+  rpc ChunkFiles(ChunkFilesRequest) returns (ChunkFilesResponse);
+  
+  // Health check endpoint
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+  
+  // Creates a new workspace
+  rpc CreateWorkspace(CreateWorkspaceRequest) returns (CreateWorkspaceResponse);
+  
+  // Lists all workspaces for a user
+  rpc ListWorkspaces(ListWorkspacesRequest) returns (ListWorkspacesResponse);
+  
+  // Retrieves workspace info for a specific workspace
+  rpc GetWorkspaceInfo(GetWorkspaceInfoRequest) returns (GetWorkspaceInfoResponse);
+  
+  // Deletes a workspace
+  rpc DeleteWorkspace(DeleteWorkspaceRequest) returns (DeleteWorkspaceResponse);
+  
+  // Creates a new API key for a user
+  rpc CreateApiKey(CreateApiKeyRequest) returns (CreateApiKeyResponse);
+  
+  // Validates syntax for a batch of files
+  rpc ValidateFiles(ValidateFilesRequest) returns (ValidateFilesResponse);
+}
+
+// Node types
+enum NodeKind {
+  NODE_KIND_UNSPECIFIED = 0;
+  NODE_KIND_FILE = 1;
+  NODE_KIND_FILE_CHUNK = 2;
+  NODE_KIND_FILE_REF = 3;
+  NODE_KIND_NOTE = 4;
+  NODE_KIND_TASK = 5;
+}
+
+// Relation types
+enum RelationType {
+  RELATION_TYPE_UNSPECIFIED = 0;
+  RELATION_TYPE_CALLS = 1;
+  RELATION_TYPE_EXTENDS = 2;
+  RELATION_TYPE_IMPLEMENTS = 3;
+  RELATION_TYPE_USES = 4;
+  RELATION_TYPE_DEFINES = 5;
+  RELATION_TYPE_REFERENCES = 6;
+  RELATION_TYPE_CONTAINS = 7;
+  RELATION_TYPE_DEPENDS_ON = 8;
+  RELATION_TYPE_RELATED_TO = 9;
+  RELATION_TYPE_INVERSE = 10;
+}
+
+// Messages
+message NodeId {
+  string id = 1;
+}
+
+message WorkspaceId {
+  string id = 1;
+}
+
+message RelationId {
+  string id = 1;
+}
+
+message UserId {
+  string id = 1;
+}
+
+message Workspace {
+  WorkspaceId workspace_id = 1;
+  string working_dir = 2;
+  uint64 node_count = 3;
+  uint64 relation_count = 4;
+  optional google.protobuf.Timestamp last_updated = 5;
+  uint32 min_chunk_size = 6;
+  uint32 max_chunk_size = 7;
+  google.protobuf.Timestamp created_at = 8;
+}
+
+message WorkspaceDefinition {
+  string working_dir = 1;
+  uint32 min_chunk_size = 2;
+  uint32 max_chunk_size = 3;
+}
+
+message GitInfo {
+  optional string commit = 1;
+  optional string branch = 2;
+}
+
+message File {
+  string path = 1;
+  string content = 2;
+}
+
+message FileChunk {
+  string path = 1;
+  string content = 2;
+  uint32 start_line = 3;
+  uint32 end_line = 4;
+}
+
+message FileRef {
+  string path = 1;
+  string file_hash = 2;
+}
+
+message Note {
+  string content = 1;
+}
+
+message Task {
+  string task = 1;
+}
+
+message NodeData {
+  oneof kind {
+    File file = 1;
+    FileChunk file_chunk = 2;
+    FileRef file_ref = 3;
+    Note note = 4;
+    Task task = 5;
+  }
+}
+
+message Node {
+  NodeId node_id = 1;
+  WorkspaceId workspace_id = 2;
+  string hash = 3;
+  optional GitInfo git = 4;
+  NodeData data = 6;
+}
+
+message QueryItem {
+  Node node = 1;
+  optional float distance = 2;
+  optional float similarity = 3;
+  optional uint64 rank = 4;
+  optional float relevance = 5;
+}
+
+message QueryResult {
+  repeated QueryItem data = 1;
+}
+
+message Query {
+  optional string prompt = 1;
+  optional float max_distance = 2;
+  optional uint32 limit = 3;
+  repeated NodeKind kinds = 4;
+  optional uint32 top_k = 5;
+  optional string relevance_query = 6;
+  repeated string starts_with = 7;
+  repeated string ends_with = 8;
+}
+
+message FileUploadContent {
+  repeated File files = 1;
+  optional GitInfo git = 2;
+}
+
+message RelationCreateResult {
+  RelationId relation_id = 1;
+}
+
+message UploadResult {
+  repeated string node_ids = 1;
+  repeated RelationCreateResult relations = 2;
+}
+
+// Request/Response messages
+message SearchRequest {
+  WorkspaceId workspace_id = 1;
+  optional Query query = 2;
+}
+
+message SearchResponse {
+  QueryResult result = 1;
+}
+
+message UploadFilesRequest {
+  WorkspaceId workspace_id = 1;
+  FileUploadContent content = 2;
+}
+
+message UploadFilesResponse {
+  UploadResult result = 1;
+}
+
+message DeleteFilesRequest {
+  WorkspaceId workspace_id = 1;
+  repeated string file_paths = 2;
+}
+
+message DeleteFilesResponse {
+  uint32 deleted_nodes = 1;
+  uint32 deleted_relations = 2;
+}
+
+message ListFilesRequest {
+  WorkspaceId workspace_id = 1;
+}
+
+message ListFilesResponse {
+  repeated FileRefNode files = 1;
+}
+
+message FileRefNode {
+  NodeId node_id = 1;
+  string hash = 2;
+  optional GitInfo git = 3;
+  FileRef data = 4;
+}
+
+message ChunkFilesRequest {
+  repeated File files = 1;
+  optional uint32 min_chunk_size = 2;
+  optional uint32 max_chunk_size = 3;
+}
+
+message ChunkFilesResponse {
+  repeated FileChunk chunks = 1;
+}
+
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  string status = 1;
+}
+
+message CreateWorkspaceRequest {
+  WorkspaceDefinition workspace = 1;
+}
+
+message CreateWorkspaceResponse {
+  Workspace workspace = 1;
+}
+
+message ListWorkspacesRequest {}
+
+message ListWorkspacesResponse {
+  repeated Workspace workspaces = 1;
+}
+
+message GetWorkspaceInfoRequest {
+  WorkspaceId workspace_id = 1;
+}
+
+message GetWorkspaceInfoResponse {
+  optional Workspace workspace = 1;
+}
+
+message DeleteWorkspaceRequest {
+  WorkspaceId workspace_id = 1;
+}
+
+message DeleteWorkspaceResponse {
+  WorkspaceId workspace_id = 1;
+}
+
+
+message CreateApiKeyRequest {
+  optional UserId user_id = 1;
+}
+
+message CreateApiKeyResponse {
+  UserId user_id = 1;
+  string key = 2;
+}
+
+message ValidateFilesRequest {
+  repeated File files = 1;
+}
+
+message SyntaxError {
+  uint32 line = 1;
+  uint32 column = 2;
+  string message = 3;
+}
+
+message ValidationStatus {
+  oneof status {
+    bool valid = 1;
+    SyntaxErrorList errors = 2;
+  }
+}
+
+message SyntaxErrorList {
+  repeated SyntaxError errors = 1;
+}
+
+message FileValidationResult {
+  string file_path = 1;
+  ValidationStatus status = 2;
+}
+
+message ValidateFilesResponse {
+  repeated FileValidationResult results = 1;
+}

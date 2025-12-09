@@ -39,36 +39,6 @@ where
             self.0.get_default_provider().await?
         };
 
-        // Check if credential needs refresh (5 minute buffer before expiry)
-        if let Some(credential) = &provider.credential {
-            let buffer = chrono::Duration::minutes(5);
-
-            if credential.needs_refresh(buffer) {
-                for auth_method in &provider.auth_methods {
-                    match auth_method {
-                        forge_domain::AuthMethod::OAuthDevice(_)
-                        | forge_domain::AuthMethod::OAuthCode(_) => {
-                            match self
-                                .0
-                                .refresh_provider_credential(&provider, auth_method.clone())
-                                .await
-                            {
-                                Ok(refreshed_credential) => {
-                                    let mut updated_provider = provider.clone();
-                                    updated_provider.credential = Some(refreshed_credential);
-                                    return Ok(updated_provider);
-                                }
-                                Err(_) => {
-                                    return Ok(provider);
-                                }
-                            }
-                        }
-                        forge_domain::AuthMethod::ApiKey => {}
-                    }
-                }
-            }
-        }
-
         Ok(provider)
     }
 

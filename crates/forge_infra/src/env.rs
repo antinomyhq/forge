@@ -1,8 +1,9 @@
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use forge_app::EnvironmentInfra;
-use forge_domain::{Environment, RetryConfig, TlsBackend, TlsVersion};
+use forge_domain::{Environment, ModelId, ProviderId, RetryConfig, TlsBackend, TlsVersion};
 use reqwest::Url;
 
 #[derive(Clone)]
@@ -54,6 +55,10 @@ impl ForgeEnvironmentInfra {
         // Parse custom history file path from environment variable
         let custom_history_path = parse_env::<String>("FORGE_HISTORY_FILE").map(PathBuf::from);
 
+        let override_model = parse_env::<String>("FORGE_OVERRIDE_MODEL").map(ModelId::new);
+        let override_provider = parse_env::<String>("FORGE_OVERRIDE_PROVIDER")
+            .and_then(|s| ProviderId::from_str(&s).ok());
+
         Environment {
             os: std::env::consts::OS.to_string(),
             pid: std::process::id(),
@@ -72,7 +77,7 @@ impl ForgeEnvironmentInfra {
             stdout_max_suffix_length: 200,
             tool_timeout: parse_env::<u64>("FORGE_TOOL_TIMEOUT").unwrap_or(300),
             auto_open_dump: parse_env::<bool>("FORGE_DUMP_AUTO_OPEN").unwrap_or(false),
-            debug_requests: parse_env::<bool>("FORGE_DEBUG_REQUESTS").unwrap_or(false),
+            debug_requests: parse_env::<String>("FORGE_DEBUG_REQUESTS").map(PathBuf::from),
             stdout_max_line_length: parse_env::<usize>("FORGE_STDOUT_MAX_LINE_LENGTH")
                 .unwrap_or(2000),
             http: resolve_http_config(),
@@ -81,6 +86,14 @@ impl ForgeEnvironmentInfra {
             forge_api_url,
             custom_history_path,
             max_conversations: parse_env::<usize>("FORGE_MAX_CONVERSATIONS").unwrap_or(100),
+            sem_search_limit: parse_env::<usize>("FORGE_SEM_SEARCH_LIMIT").unwrap_or(100),
+            sem_search_top_k: parse_env::<usize>("FORGE_SEM_SEARCH_TOP_K").unwrap_or(10),
+            workspace_server_url: parse_env::<String>("FORGE_WORKSPACE_SERVER_URL")
+                .as_ref()
+                .and_then(|url| Url::parse(url.as_str()).ok())
+                .unwrap_or_else(|| Url::parse("https://api.forgecode.dev/").unwrap()),
+            override_model,
+            override_provider,
         }
     }
 
@@ -114,6 +127,11 @@ impl EnvironmentInfra for ForgeEnvironmentInfra {
 
     fn get_env_var(&self, key: &str) -> Option<String> {
         std::env::var(key).ok()
+    }
+
+    fn get_env_vars(&self) -> BTreeMap<String, String> {
+        // TODO: Maybe cache it?
+        std::env::vars().collect()
     }
 }
 

@@ -52,8 +52,12 @@ humantime.workspace = true
 num-format.workspace = true
 atty = "0.2"
 url.workspace = true
+rust-embed = { version = "8.5", features = ["interpolate-folder-path"] }
 indexmap.workspace = true
 async-recursion.workspace = true
+
+[target.'cfg(not(target_os = "android"))'.dependencies]
+arboard = "3.4"
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt", "time", "test-util"] }

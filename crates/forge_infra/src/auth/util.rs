@@ -52,10 +52,10 @@ pub(crate) fn build_http_client(
 
         for (key, value) in headers {
             let header_name = reqwest::header::HeaderName::try_from(key.as_str())
-                .map_err(|e| anyhow::anyhow!("Invalid header name '{}': {}", key, e))?;
+                .map_err(|e| anyhow::anyhow!("Invalid header name '{key}': {e}"))?;
             let header_value = value
                 .parse()
-                .map_err(|e| anyhow::anyhow!("Invalid header value for '{}': {}", key, e))?;
+                .map_err(|e| anyhow::anyhow!("Invalid header value for '{key}': {e}"))?;
             header_map.insert(header_name, header_value);
         }
 
@@ -211,7 +211,7 @@ pub(crate) fn handle_oauth_error(error_code: &str) -> Result<(), Error> {
         "authorization_pending" | "slow_down" => Ok(()),
         "expired_token" => Err(Error::Expired),
         "access_denied" => Err(Error::Denied),
-        _ => Err(Error::PollFailed(format!("OAuth error: {}", error_code))),
+        _ => Err(Error::PollFailed(format!("OAuth error: {error_code}"))),
     }
 }
 
@@ -220,7 +220,7 @@ pub(crate) fn parse_token_response(
     body: &str,
 ) -> Result<(String, Option<String>, Option<u64>), Error> {
     let token_response: serde_json::Value = serde_json::from_str(body)
-        .map_err(|e| Error::PollFailed(format!("Failed to parse token response: {}", e)))?;
+        .map_err(|e| Error::PollFailed(format!("Failed to parse token response: {e}")))?;
 
     let access_token = token_response["access_token"]
         .as_str()

@@ -72,7 +72,7 @@ impl<R: AgentRepository + AppConfigRepository + ProviderRepository> ForgeAgentRe
         let app_config = self.repository.get_app_config().await?;
         let default_provider_id = app_config
             .provider
-            .ok_or_else(|| anyhow::anyhow!("No default provider configured"))?;
+            .ok_or(forge_domain::Error::NoDefaultProvider)?;
         let default_provider = self.repository.get_provider(default_provider_id).await?;
         let default_model = app_config
             .model
@@ -90,7 +90,8 @@ impl<R: AgentRepository + AppConfigRepository + ProviderRepository> ForgeAgentRe
 
         // Convert definitions to runtime agents and populate map
         for def in agent_defs {
-            let agent = Agent::from_agent_def(def, default_provider.id, default_model.clone());
+            let agent =
+                Agent::from_agent_def(def, default_provider.id.clone(), default_model.clone());
             agents_map.insert(agent.id.as_str().to_string(), agent);
         }
 

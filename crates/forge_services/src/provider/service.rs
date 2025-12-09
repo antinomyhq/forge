@@ -20,7 +20,7 @@ pub struct ForgeProviderService<I> {
     cached_models: Arc<Mutex<HashMap<ProviderId, Vec<Model>>>>,
     version: String,
     timeout_config: HttpConfig,
-    http_infra: Arc<I>,
+    infra: Arc<I>,
 }
 
 impl<I: EnvironmentInfra + HttpInfra> ForgeProviderService<I> {
@@ -34,12 +34,14 @@ impl<I: EnvironmentInfra + HttpInfra> ForgeProviderService<I> {
             cached_models: Arc::new(Mutex::new(HashMap::new())),
             version,
             timeout_config: env.http,
-            http_infra: infra,
+            infra,
         }
     }
+}
 
+impl<I: EnvironmentInfra + HttpInfra> ForgeProviderService<I> {
     async fn client(&self, provider: Provider<Url>) -> Result<Client<HttpClient<I>>> {
-        let provider_id = provider.id;
+        let provider_id = provider.id.clone();
 
         // Check cache first
         {
@@ -50,7 +52,7 @@ impl<I: EnvironmentInfra + HttpInfra> ForgeProviderService<I> {
         }
 
         // Client not in cache, create new client
-        let infra = self.http_infra.clone();
+        let infra = self.infra.clone();
         let client = ClientBuilder::new(provider, &self.version)
             .retry_config(self.retry_config.clone())
             .timeout_config(self.timeout_config.clone())
@@ -86,7 +88,7 @@ impl<I: EnvironmentInfra + HttpInfra + ProviderRepository> ProviderService
     }
 
     async fn models(&self, provider: Provider<Url>) -> Result<Vec<Model>> {
-        let provider_id = provider.id;
+        let provider_id = provider.id.clone();
 
         // Check cache first
         {
@@ -110,18 +112,18 @@ impl<I: EnvironmentInfra + HttpInfra + ProviderRepository> ProviderService
     }
 
     async fn get_provider(&self, id: ProviderId) -> Result<Provider<Url>> {
-        self.http_infra.get_provider(id).await
+        self.infra.get_provider(id).await
     }
 
     async fn get_all_providers(&self) -> Result<Vec<AnyProvider>> {
-        self.http_infra.get_all_providers().await
+        self.infra.get_all_providers().await
     }
 
     async fn upsert_credential(&self, credential: forge_domain::AuthCredential) -> Result<()> {
-        let provider_id = credential.id;
+        let provider_id = credential.id.clone();
 
         // Save the credential to the repository
-        self.http_infra.upsert_credential(credential).await?;
+        self.infra.upsert_credential(credential).await?;
 
         // Clear the cached client for this provider to force recreation with new
         // credentials
@@ -134,8 +136,7 @@ impl<I: EnvironmentInfra + HttpInfra + ProviderRepository> ProviderService
     }
 
     async fn remove_credential(&self, id: &ProviderId) -> Result<()> {
-        // Remove the credential from the repository
-        self.http_infra.remove_credential(id).await?;
+        self.infra.remove_credential(id).await?;
 
         // Clear the cached client for this provider
         {
@@ -147,6 +148,6 @@ impl<I: EnvironmentInfra + HttpInfra + ProviderRepository> ProviderService
     }
 
     async fn migrate_env_credentials(&self) -> Result<Option<forge_domain::MigrationResult>> {
-        self.http_infra.migrate_env_credentials().await
+        self.infra.migrate_env_credentials().await
     }
 }

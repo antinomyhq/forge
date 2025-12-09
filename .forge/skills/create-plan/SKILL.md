@@ -1,6 +1,6 @@
 ---
 name: create-plan
-description: Generate detailed implementation plans for complex tasks. Creates comprehensive strategic plans in Markdown format with objectives, step-by-step implementation tasks using checkbox format, verification criteria, risk assessments, and alternative approaches. Use when users need thorough analysis and structured planning before implementation, when breaking down complex features into actionable steps, or when they explicitly ask for a plan, roadmap, or strategy. Strictly planning-focused with no code modifications.
+description: Generate detailed implementation plans for complex tasks. Creates comprehensive strategic plans in Markdown format with objectives, step-by-step implementation tasks using checkbox format, verification criteria, risk assessments, and alternative approaches. All plans MUST be validated using the included validation script. Use when users need thorough analysis and structured planning before implementation, when breaking down complex features into actionable steps, or when they explicitly ask for a plan, roadmap, or strategy. Strictly planning-focused with no code modifications.
 ---
 
 # Create Implementation Plan
@@ -33,7 +33,17 @@ Generate a Markdown plan file in `plans/` directory with naming: `plans/{YYYY-MM
 
 Example: `plans/2025-11-24-add-auth-v1.md`
 
-### 3. Plan Structure
+### 3. Validate Plan
+
+**MANDATORY:** Run the validation script to ensure the plan meets all requirements:
+
+```bash
+./.forge/skills/create-plan/validate-plan.sh plans/{YYYY-MM-DD}-{task-name}-v{N}.md
+```
+
+Fix any errors or warnings and re-validate until the plan passes all checks.
+
+### 4. Plan Structure
 
 ```markdown
 # [Task Name]
@@ -69,12 +79,15 @@ Example: `plans/2025-11-24-add-auth-v1.md`
 
 ## Critical Requirements
 
+- **ALWAYS validate the plan** using `./.forge/skills/create-plan/validate-plan.sh` after creation
 - **ALWAYS use checkbox format** (`- [ ]`) for ALL implementation tasks
 - **NEVER use numbered lists** or plain bullet points in Implementation Plan section
+- **NEVER write code, code snippets, or code examples** in the plan
 - Include clear rationale for each task
 - Provide specific, measurable verification criteria
 - Document assumptions made for ambiguous requirements
 - Focus on strategic "what" and "why", not tactical "how"
+- Describe what needs to be done using natural language, not code
 
 ## Best Practices
 
@@ -91,8 +104,10 @@ This is a **planning-only** skill:
 - ✅ Research codebase and analyze structure
 - ✅ Create strategic plans and documentation
 - ✅ Assess risks and propose alternatives
+- ✅ Describe implementations using natural language
 - ❌ Make actual code changes
 - ❌ Modify files or create implementations
 - ❌ Run tests or build commands
+- ❌ Write code, code snippets, or code examples in plans
 
 If user requests implementation work, suggest switching to an implementation agent.

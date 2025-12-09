@@ -80,7 +80,12 @@ jobs:
           target: aarch64-linux-android
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
+    - name: Setup Protobuf Compiler
+      if: ${{ matrix.cross == 'false' }}
+      uses: arduino/setup-protoc@v3
+      with:
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
     - name: Setup Cross Toolchain
       if: ${{ matrix.cross == 'false' }}
       uses: taiki-e/setup-cross-toolchain-action@v1
@@ -123,7 +128,7 @@ jobs:
         - antinomyhq/npm-forgecode
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
       with:
         repository: ${{ matrix.repository }}
         ref: main
@@ -141,7 +146,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
       with:
         repository: antinomyhq/homebrew-code-forge
         ref: main

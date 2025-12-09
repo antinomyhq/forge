@@ -3,8 +3,7 @@ use std::time::Duration;
 
 use forge_app::{AuthStrategy, ProviderAuthService, StrategyFactory};
 use forge_domain::{
-    AuthContextRequest, AuthContextResponse, AuthCredential, AuthMethod, Provider, ProviderId,
-    ProviderRepository,
+    AuthContextRequest, AuthContextResponse, AuthMethod, Provider, ProviderId, ProviderRepository,
 };
 
 /// Forge Provider Authentication Service
@@ -39,7 +38,7 @@ where
             let provider = providers
                 .iter()
                 .find(|p| p.id() == provider_id)
-                .ok_or_else(|| forge_domain::Error::provider_not_available(provider_id))?;
+                .ok_or_else(|| forge_domain::Error::provider_not_available(provider_id.clone()))?;
             provider.url_params().to_vec()
         } else {
             vec![]
@@ -48,8 +47,17 @@ where
         // Create appropriate strategy and initialize
         let strategy =
             self.infra
-                .create_auth_strategy(provider_id, auth_method, required_params)?;
-        strategy.init().await
+                .create_auth_strategy(provider_id.clone(), auth_method, required_params)?;
+        let mut request = strategy.init().await?;
+
+        // For API key flow, attach existing credential if available
+        if let AuthContextRequest::ApiKey(ref mut api_key_request) = request
+            && let Ok(Some(existing_credential)) = self.infra.get_credential(&provider_id).await
+        {
+            api_key_request.existing_params = Some(existing_credential.url_params.into());
+        }
+
+        Ok(request)
     }
 
     /// Complete authentication flow for a provider
@@ -78,7 +86,7 @@ where
             let provider = providers
                 .iter()
                 .find(|p| p.id() == provider_id)
-                .ok_or_else(|| forge_domain::Error::provider_not_available(provider_id))?;
+                .ok_or_else(|| forge_domain::Error::provider_not_available(provider_id.clone()))?;
             provider.url_params().to_vec()
         } else {
             vec![]
@@ -87,42 +95,81 @@ where
         // Create strategy and complete authentication
         let strategy =
             self.infra
-                .create_auth_strategy(provider_id, auth_method, required_params)?;
+                .create_auth_strategy(provider_id.clone(), auth_method, required_params)?;
         let credential = strategy.complete(auth_context_response).await?;
 
         // Store credential
         self.infra.upsert_credential(credential).await
     }
 
-    /// Refresh provider credential
+    /// Refreshes provider credentials if they're about to expire.
+    /// Checks if credential needs refresh (5 minute buffer before expiry),
+    /// iterates through provider's auth methods, and attempts to refresh.
+    /// Returns the provider with updated credentials, or original if refresh
+    /// fails or isn't needed.
     async fn refresh_provider_credential(
         &self,
-        provider: &Provider<url::Url>,
-        auth_method: AuthMethod,
-    ) -> anyhow::Result<AuthCredential> {
-        // Get existing credential
-        let credential = self
-            .infra
-            .get_credential(&provider.id)
-            .await?
-            .ok_or_else(|| forge_domain::Error::ProviderNotAvailable { provider: provider.id })?;
+        mut provider: Provider<url::Url>,
+    ) -> anyhow::Result<Provider<url::Url>> {
+        // Check if credential needs refresh (5 minute buffer before expiry)
+        if let Some(credential) = &provider.credential {
+            let buffer = chrono::Duration::minutes(5);
 
-        // Get required params (only used for API key, but needed for factory)
-        let required_params = if matches!(auth_method, AuthMethod::ApiKey) {
-            provider.url_params.clone()
-        } else {
-            vec![]
-        };
+            if credential.needs_refresh(buffer) {
+                // Iterate through auth methods and try to refresh
+                for auth_method in &provider.auth_methods {
+                    match auth_method {
+                        AuthMethod::OAuthDevice(_) | AuthMethod::OAuthCode(_) => {
+                            // Get existing credential
+                            let existing_credential =
+                                self.infra.get_credential(&provider.id).await?.ok_or_else(
+                                    || forge_domain::Error::ProviderNotAvailable {
+                                        provider: provider.id.clone(),
+                                    },
+                                )?;
 
-        // Create strategy and refresh credential
-        let strategy =
-            self.infra
-                .create_auth_strategy(provider.id, auth_method, required_params)?;
-        let refreshed = strategy.refresh(&credential).await?;
+                            // Get required params (only used for API key, but needed for factory)
+                            let required_params = if matches!(auth_method, AuthMethod::ApiKey) {
+                                provider.url_params.clone()
+                            } else {
+                                vec![]
+                            };
 
-        // Store refreshed credential
-        self.infra.upsert_credential(refreshed.clone()).await?;
+                            // Create strategy and refresh credential
+                            if let Ok(strategy) = self.infra.create_auth_strategy(
+                                provider.id.clone(),
+                                auth_method.clone(),
+                                required_params,
+                            ) {
+                                match strategy.refresh(&existing_credential).await {
+                                    Ok(refreshed) => {
+                                        // Store refreshed credential
+                                        if self
+                                            .infra
+                                            .upsert_credential(refreshed.clone())
+                                            .await
+                                            .is_err()
+                                        {
+                                            continue;
+                                        }
 
-        Ok(refreshed)
+                                        // Update provider with refreshed credential
+                                        provider.credential = Some(refreshed);
+                                        break; // Success, stop trying other methods
+                                    }
+                                    Err(_) => {
+                                        // If refresh fails, continue with
+                                        // existing credentials
+                                    }
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        Ok(provider)
     }
 }

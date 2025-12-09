@@ -10,6 +10,8 @@ use forge_tracker::VERSION;
 use nu_ansi_term::{Color, Style};
 use reedline::{Prompt, PromptHistorySearchStatus};
 
+use crate::display_constants::markers;
+
 // Constants
 const MULTILINE_INDICATOR: &str = "::: ";
 const RIGHT_CHEVRON: &str = "❯";
@@ -37,7 +39,7 @@ impl Prompt for ForgePrompt {
             .file_name()
             .and_then(|name| name.to_str())
             .map(String::from)
-            .unwrap_or_else(|| "unknown".to_string());
+            .unwrap_or_else(|| markers::EMPTY.to_string());
 
         // Get git branch (only if we're in a git repo)
         let branch_opt = get_git_branch();

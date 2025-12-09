@@ -9,6 +9,7 @@ tools:
   - fetch
   - read_image
   - search
+  - sem_search
 user_prompt: |-
   <{{event.name}}>{{event.value}}</{{event.name}}>
   <system_date>{{current_date}}</system_date>
