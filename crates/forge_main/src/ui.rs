@@ -747,7 +747,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.handle_provider_logout(provider.as_ref()).await?;
             }
             ProviderCommand::List { types } => {
-                self.on_show_providers(provider_group.porcelain, types).await?;
+                self.on_show_providers(provider_group.porcelain, types)
+                    .await?;
             }
         }
 
@@ -976,7 +977,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Filter by type if specified
         if !types.is_empty() {
-            providers.retain(|p| types.contains(&p.provider_type()));
+            providers.retain(|p| types.contains(p.provider_type()));
         }
 
         if providers.is_empty() {

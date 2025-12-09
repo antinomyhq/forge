@@ -282,7 +282,8 @@ pub enum ListCommand {
     /// List available API providers.
     #[command(alias = "providers")]
     Provider {
-        /// Filter providers by type (e.g., llm, context_engine). Can be specified multiple times.
+        /// Filter providers by type (e.g., llm, context_engine). Can be
+        /// specified multiple times.
         #[arg(long = "type", short = 't')]
         types: Vec<forge_domain::ProviderType>,
     },
@@ -579,7 +580,8 @@ pub enum ProviderCommand {
 
     /// List available providers.
     List {
-        /// Filter providers by type (e.g., llm, context_engine). Can be specified multiple times.
+        /// Filter providers by type (e.g., llm, context_engine). Can be
+        /// specified multiple times.
         #[arg(long = "type", short = 't')]
         types: Vec<forge_domain::ProviderType>,
     },
