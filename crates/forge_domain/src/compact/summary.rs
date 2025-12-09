@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::Deref};
 
 use derive_more::From;
 use serde::{Deserialize, Serialize};
@@ -212,7 +212,7 @@ impl From<&Context> for ContextSummary {
         let mut tool_results: HashMap<&ToolCallId, &ToolResult> = Default::default();
         let mut current_role = Role::System;
         for msg in &value.messages {
-            match msg {
+            match msg.deref() {
                 ContextMessage::Text(text_msg) => {
                     // Skip system messages
                     if text_msg.role == Role::System {
@@ -332,7 +332,8 @@ mod tests {
     type Block = SummaryMessage;
 
     fn context(messages: Vec<ContextMessage>) -> Context {
-        Context::default().messages(messages)
+        Context::default()
+            .messages(messages.into_iter().map(|m| m.into()).collect::<Vec<_>>())
     }
 
     fn user(content: impl Into<String>) -> ContextMessage {

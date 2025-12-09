@@ -2847,7 +2847,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .ok_or_else(|| anyhow::anyhow!("Conversation has no context"))?;
 
         // Find the last assistant message
-        let message = context.messages.iter().rev().find_map(|msg| match msg {
+        let message = context.messages.iter().rev().find_map(|msg| match &**msg {
             ContextMessage::Text(TextMessage { content, role: Role::Assistant, .. }) => {
                 Some(content)
             }

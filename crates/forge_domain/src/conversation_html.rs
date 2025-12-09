@@ -53,7 +53,7 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
     if let Some(context) = &conversation.context {
         let context_messages =
             Element::new("div.context-section").append(context.messages.iter().map(|message| {
-                match message {
+                match &**message {
                     ContextMessage::Text(content_message) => {
                         // Convert role to lowercase for the class
                         let role_lowercase = content_message.role.to_string().to_lowercase();

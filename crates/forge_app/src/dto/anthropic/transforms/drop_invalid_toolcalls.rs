@@ -54,7 +54,8 @@ mod tests {
                         .arguments(ToolCallArguments::from_json(json_args)),
                 ])
                 .model(ModelId::new("claude-3-5-sonnet-20241022")),
-        )]);
+        )
+        .into()]);
         DropInvalidToolUse.transform(Request::try_from(fixture).unwrap())
     }
 
@@ -122,7 +123,8 @@ mod tests {
         let fixture = Context::default().messages(vec![ContextMessage::Text(TextMessage::new(
             Role::User,
             "Hello",
-        ))]);
+        ))
+        .into()]);
         let actual = DropInvalidToolUse.transform(Request::try_from(fixture).unwrap());
 
         assert_eq!(actual.messages.len(), 1);

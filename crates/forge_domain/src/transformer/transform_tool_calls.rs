@@ -28,34 +28,39 @@ impl Transformer for TransformToolCalls {
         let mut new_messages = Vec::new();
 
         for message in value.messages.into_iter() {
-            match message {
-                ContextMessage::Text(ref text_msg)
+            match &*message {
+                ContextMessage::Text(text_msg)
                     if text_msg.role == Role::Assistant && text_msg.tool_calls.is_some() =>
                 {
                     // Add the assistant message without tool calls
-                    new_messages.push(ContextMessage::Text(TextMessage {
-                        role: text_msg.role,
-                        content: text_msg.content.clone(),
-                        raw_content: text_msg.raw_content.clone(),
-                        tool_calls: None,
-                        reasoning_details: text_msg.reasoning_details.clone(),
-                        model: text_msg.model.clone(),
-                        droppable: text_msg.droppable,
-                    }));
+                    new_messages.push(
+                        ContextMessage::Text(TextMessage {
+                            role: text_msg.role,
+                            content: text_msg.content.clone(),
+                            raw_content: text_msg.raw_content.clone(),
+                            tool_calls: None,
+                            reasoning_details: text_msg.reasoning_details.clone(),
+                            model: text_msg.model.clone(),
+                            droppable: text_msg.droppable,
+                        })
+                        .into(),
+                    );
                 }
                 ContextMessage::Tool(tool_result) => {
                     // Convert tool results to user messages
-                    for output_value in tool_result.output.values {
+                    for output_value in tool_result.output.values.clone() {
                         match output_value {
                             crate::ToolValue::Text(text) => {
-                                new_messages.push(ContextMessage::user(text, self.model.clone()));
+                                new_messages
+                                    .push(ContextMessage::user(text, self.model.clone()).into());
                             }
                             crate::ToolValue::Image(image) => {
-                                new_messages.push(ContextMessage::Image(image));
+                                new_messages.push(ContextMessage::Image(image).into());
                             }
                             crate::ToolValue::Empty => {}
                             crate::ToolValue::AI { value, .. } => {
-                                new_messages.push(ContextMessage::user(value, self.model.clone()))
+                                new_messages
+                                    .push(ContextMessage::user(value, self.model.clone()).into())
                             }
                         }
                     }

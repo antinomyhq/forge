@@ -76,6 +76,7 @@ mod tests {
                         panic!("Invalid character in test message");
                     }
                 })
+                .map(|msg| msg.into())
                 .collect(),
             tools: vec![],
             tool_choice: None,

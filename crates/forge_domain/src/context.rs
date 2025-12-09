@@ -326,6 +326,55 @@ pub enum Role {
     User,
     Assistant,
 }
+#[derive(Clone, Debug, Serialize, Setters, PartialEq)]
+#[setters(into, strip_option)]
+pub struct ContextMessageWrapper {
+    pub message: ContextMessage,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub usage: Option<Usage>,
+}
+
+impl<'de> Deserialize<'de> for ContextMessageWrapper {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum Helper {
+            // Try new format first (with message field)
+            Wrapper { message: ContextMessage, usage: Option<Usage> },
+            // Fall back to old format (direct ContextMessage)
+            Direct(ContextMessage),
+        }
+
+        match Helper::deserialize(deserializer)? {
+            Helper::Wrapper { message, usage } => Ok(ContextMessageWrapper { message, usage }),
+            Helper::Direct(message) => Ok(ContextMessageWrapper { message, usage: None }),
+        }
+    }
+}
+
+impl From<ContextMessage> for ContextMessageWrapper {
+    fn from(value: ContextMessage) -> Self {
+        ContextMessageWrapper { message: value, usage: Default::default() }
+    }
+}
+
+impl Deref for ContextMessageWrapper {
+    type Target = ContextMessage;
+
+    fn deref(&self) -> &Self::Target {
+        &self.message
+    }
+}
+
+
+impl std::ops::DerefMut for ContextMessageWrapper {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.message
+    }
+}
 
 /// Represents a request being made to the LLM provider. By default the request
 /// is created with assuming the model supports use of external tools.
@@ -335,7 +384,7 @@ pub struct Context {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub conversation_id: Option<ConversationId>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub messages: Vec<ContextMessage>,
+    pub messages: Vec<ContextMessageWrapper>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tools: Vec<ToolDefinition>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -351,6 +400,7 @@ pub struct Context {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reasoning: Option<crate::agent_definition::ReasoningConfig>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    // FIXME: Drop usage from Context and keep it messages
     pub usage: Option<Usage>,
     /// Controls whether responses should be streamed. When `true`, responses
     /// are delivered incrementally as they're generated. When `false`, the
@@ -369,7 +419,7 @@ impl Context {
     }
 
     pub fn add_base64_url(mut self, image: Image) -> Self {
-        self.messages.push(ContextMessage::Image(image));
+        self.messages.push(ContextMessage::Image(image).into());
         self
     }
 
@@ -382,7 +432,7 @@ impl Context {
     pub fn add_message(mut self, content: impl Into<ContextMessage>) -> Self {
         let content = content.into();
         debug!(content = ?content, "Adding message to context");
-        self.messages.push(content);
+        self.messages.push(content.into());
 
         self
     }
@@ -430,8 +480,12 @@ impl Context {
     pub fn add_tool_results(mut self, results: Vec<ToolResult>) -> Self {
         if !results.is_empty() {
             debug!(results = ?results, "Adding tool results to context");
-            self.messages
-                .extend(results.into_iter().map(ContextMessage::tool_result));
+            self.messages.extend(
+                results
+                    .into_iter()
+                    .map(ContextMessage::tool_result)
+                    .map(ContextMessageWrapper::from),
+            );
         }
 
         self
@@ -441,7 +495,8 @@ impl Context {
     pub fn set_system_messages<S: Into<String>>(mut self, content: Vec<S>) -> Self {
         if self.messages.is_empty() {
             for message in content {
-                self.messages.push(ContextMessage::system(message.into()));
+                self.messages
+                    .push(ContextMessage::system(message.into()).into());
             }
             self
         } else {
@@ -450,7 +505,7 @@ impl Context {
             // add the system message at the beginning.
             for message in content.into_iter().rev() {
                 self.messages
-                    .insert(0, ContextMessage::system(message.into()));
+                    .insert(0, ContextMessage::system(message.into()).into());
             }
             self
         }
@@ -545,7 +600,7 @@ impl Context {
             if msg.has_role(Role::User) {
                 // Only add the first message of each consecutive user sequence
                 if !is_user {
-                    result.push(msg);
+                    result.push(&**msg);
                     is_user = true;
                 }
             } else {
@@ -583,7 +638,7 @@ impl Context {
             .iter()
             .filter(|msg| msg.has_tool_call())
             .map(|msg| {
-                if let ContextMessage::Text(text_msg) = msg {
+                if let ContextMessage::Text(text_msg) = &**msg {
                     text_msg.tool_calls.as_ref().map_or(0, |calls| calls.len())
                 } else {
                     0
@@ -655,7 +710,7 @@ mod tests {
 
         assert_eq!(
             request.messages[0],
-            ContextMessage::system("Updated system message"),
+            ContextMessage::system("Updated system message").into(),
         );
     }
 
@@ -665,7 +720,7 @@ mod tests {
 
         assert_eq!(
             request.messages[0],
-            ContextMessage::system("A system message"),
+            ContextMessage::system("A system message").into(),
         );
     }
 
@@ -678,7 +733,7 @@ mod tests {
 
         assert_eq!(
             request.messages[0],
-            ContextMessage::system("A system message"),
+            ContextMessage::system("A system message").into(),
         );
     }
 

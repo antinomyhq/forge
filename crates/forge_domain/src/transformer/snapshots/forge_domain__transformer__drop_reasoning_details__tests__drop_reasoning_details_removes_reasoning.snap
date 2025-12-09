@@ -5,33 +5,37 @@ expression: snapshot
 transformation: DropReasoningDetails
 before:
   messages:
-    - text:
-        role: User
-        content: User message with reasoning
-        reasoning_details:
-          - text: I need to think about this
-            signature: ~
-            data: ~
-            id: ~
-            format: ~
-            index: ~
-            type_of: ~
-    - text:
-        role: Assistant
-        content: Assistant response with reasoning
-        reasoning_details:
-          - text: I need to think about this
-            signature: ~
-            data: ~
-            id: ~
-            format: ~
-            index: ~
-            type_of: ~
+    - message:
+        text:
+          role: User
+          content: User message with reasoning
+          reasoning_details:
+            - text: I need to think about this
+              signature: ~
+              data: ~
+              id: ~
+              format: ~
+              index: ~
+              type_of: ~
+    - message:
+        text:
+          role: Assistant
+          content: Assistant response with reasoning
+          reasoning_details:
+            - text: I need to think about this
+              signature: ~
+              data: ~
+              id: ~
+              format: ~
+              index: ~
+              type_of: ~
 after:
   messages:
-    - text:
-        role: User
-        content: User message with reasoning
-    - text:
-        role: Assistant
-        content: Assistant response with reasoning
+    - message:
+        text:
+          role: User
+          content: User message with reasoning
+    - message:
+        text:
+          role: Assistant
+          content: Assistant response with reasoning

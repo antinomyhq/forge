@@ -63,13 +63,15 @@ mod tests {
             messages.push(ContextMessage::Text(TextMessage::new(
                 Role::System,
                 format!("System message {}", i),
-            )));
+            ))
+            .into());
         }
 
         // Add at least one user message
         messages.push(ContextMessage::Text(
             TextMessage::new(Role::User, "Hello").model(ModelId::new("claude-3-5-sonnet-20241022")),
-        ));
+        )
+        .into());
 
         let context = Context {
             conversation_id: None,

@@ -64,11 +64,11 @@ impl Compactor {
 
         // The sequence from the original message that needs to be compacted
         // Filter out droppable messages (e.g., attachments) from compaction
-        let compaction_sequence: Vec<ContextMessage> = context.messages[start..=end]
+        let compaction_sequence = context.messages[start..=end]
             .iter()
             .filter(|msg| !msg.is_droppable())
             .cloned()
-            .collect();
+            .collect::<Vec<_>>();
 
         // Create a temporary context for the sequence to generate summary
         let sequence_context = Context::default().messages(compaction_sequence.clone());
@@ -109,7 +109,7 @@ impl Compactor {
         let reasoning_details = compaction_sequence
             .iter()
             .rev() // Get LAST reasoning (most recent)
-            .find_map(|msg| match msg {
+            .find_map(|msg| match &**msg {
                 ContextMessage::Text(text) => text
                     .reasoning_details
                     .as_ref()
@@ -121,7 +121,7 @@ impl Compactor {
         // Replace the range with the summary
         context.messages.splice(
             start..=end,
-            std::iter::once(ContextMessage::user(summary, None)),
+            std::iter::once(ContextMessage::user(summary, None).into()),
         );
 
         // Remove all droppable messages from the context
@@ -133,6 +133,7 @@ impl Compactor {
                 .messages
                 .iter_mut()
                 .find(|msg| msg.has_role(forge_domain::Role::Assistant))
+                .map(|msg| &mut **msg)
             && msg
                 .reasoning_details
                 .as_ref()
@@ -206,7 +207,7 @@ mod tests {
             .find(|msg| msg.has_role(forge_domain::Role::Assistant))
             .expect("Should have an assistant message");
 
-        if let ContextMessage::Text(text_msg) = assistant_msg {
+        if let ContextMessage::Text(text_msg) = &**assistant_msg {
             assert_eq!(
                 text_msg.reasoning_details.as_ref(),
                 Some(&last_reasoning),
@@ -250,7 +251,7 @@ mod tests {
             .find(|msg| msg.has_role(forge_domain::Role::Assistant))
             .unwrap();
 
-        if let ContextMessage::Text(text_msg) = first_assistant {
+        if let ContextMessage::Text(text_msg) = &**first_assistant {
             assert_eq!(text_msg.reasoning_details.as_ref().unwrap().len(), 1);
         }
 
@@ -268,7 +269,7 @@ mod tests {
             .find(|msg| msg.has_role(forge_domain::Role::Assistant))
             .unwrap();
 
-        if let ContextMessage::Text(text_msg) = first_assistant {
+        if let ContextMessage::Text(text_msg) = &**first_assistant {
             assert_eq!(
                 text_msg.reasoning_details.as_ref().unwrap().len(),
                 1,
@@ -313,7 +314,7 @@ mod tests {
             .find(|msg| msg.has_role(forge_domain::Role::Assistant))
             .expect("Should have an assistant message");
 
-        if let ContextMessage::Text(text_msg) = assistant_msg {
+        if let ContextMessage::Text(text_msg) = &**assistant_msg {
             assert_eq!(
                 text_msg.reasoning_details.as_ref(),
                 Some(&non_empty_reasoning),
@@ -478,7 +479,7 @@ mod tests {
 
         // Verify the droppable attachment message was removed
         for msg in &actual.messages {
-            if let ContextMessage::Text(text_msg) = msg {
+            if let ContextMessage::Text(text_msg) = &**msg {
                 assert!(!text_msg.droppable, "Droppable messages should be removed");
             }
         }
