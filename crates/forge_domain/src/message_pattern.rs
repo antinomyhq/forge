@@ -120,10 +120,12 @@ mod tests {
     fn test_message_pattern_single_user() {
         let fixture = MessagePattern::new("u");
         let actual = fixture.build();
-        let expected = Context::default().messages(vec![ContextMessage::Text(
-            TextMessage::new(Role::User, "Message 1").model(ModelId::new("gpt-4")),
-        )
-        .into()]);
+        let expected = Context::default().messages(vec![
+            ContextMessage::Text(
+                TextMessage::new(Role::User, "Message 1").model(ModelId::new("gpt-4")),
+            )
+            .into(),
+        ]);
         assert_eq!(actual, expected);
     }
 

@@ -343,7 +343,10 @@ impl<'de> Deserialize<'de> for ContextMessageWrapper {
         #[serde(untagged)]
         enum Helper {
             // Try new format first (with message field)
-            Wrapper { message: ContextMessage, usage: Option<Usage> },
+            Wrapper {
+                message: ContextMessage,
+                usage: Option<Usage>,
+            },
             // Fall back to old format (direct ContextMessage)
             Direct(ContextMessage),
         }
@@ -368,7 +371,6 @@ impl Deref for ContextMessageWrapper {
         &self.message
     }
 }
-
 
 impl std::ops::DerefMut for ContextMessageWrapper {
     fn deref_mut(&mut self) -> &mut Self::Target {

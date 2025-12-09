@@ -331,8 +331,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_find_all_conversations() -> anyhow::Result<()> {
-        let context1 = Context::default().messages(vec![ContextMessage::user("Hello", None).into()]);
-        let context2 = Context::default().messages(vec![ContextMessage::user("World", None).into()]);
+        let context1 =
+            Context::default().messages(vec![ContextMessage::user("Hello", None).into()]);
+        let context2 =
+            Context::default().messages(vec![ContextMessage::user("World", None).into()]);
         let conversation1 = Conversation::new(ConversationId::generate())
             .title(Some("Test Conversation".to_string()))
             .context(Some(context1));
@@ -354,8 +356,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_find_all_conversations_with_limit() -> anyhow::Result<()> {
-        let context1 = Context::default().messages(vec![ContextMessage::user("Hello", None).into()]);
-        let context2 = Context::default().messages(vec![ContextMessage::user("World", None).into()]);
+        let context1 =
+            Context::default().messages(vec![ContextMessage::user("Hello", None).into()]);
+        let context2 =
+            Context::default().messages(vec![ContextMessage::user("World", None).into()]);
         let conversation1 = Conversation::new(ConversationId::generate())
             .title(Some("Test Conversation".to_string()))
             .context(Some(context1));

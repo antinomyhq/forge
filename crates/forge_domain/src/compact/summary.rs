@@ -1,4 +1,5 @@
-use std::{collections::HashMap, ops::Deref};
+use std::collections::HashMap;
+use std::ops::Deref;
 
 use derive_more::From;
 use serde::{Deserialize, Serialize};
@@ -332,8 +333,7 @@ mod tests {
     type Block = SummaryMessage;
 
     fn context(messages: Vec<ContextMessage>) -> Context {
-        Context::default()
-            .messages(messages.into_iter().map(|m| m.into()).collect::<Vec<_>>())
+        Context::default().messages(messages.into_iter().map(|m| m.into()).collect::<Vec<_>>())
     }
 
     fn user(content: impl Into<String>) -> ContextMessage {
