@@ -372,13 +372,33 @@ impl TryFrom<Response> for ChatCompletionMessage {
                     Ok(response)
                 } else {
                     // Check if content was filtered
-                    if let Some(filter_results) = prompt_filter_results {
-                        if let Some(filter_result) = filter_results.first() {
+                    if let Some(filter_results) = prompt_filter_results
+                        && let Some(filter_result) = filter_results.first() {
                             let filtered_categories: Vec<String> = [
-                                filter_result.content_filter_results.hate.as_ref().filter(|f| f.filtered).map(|_| "hate"),
-                                filter_result.content_filter_results.self_harm.as_ref().filter(|f| f.filtered).map(|_| "self_harm"),
-                                filter_result.content_filter_results.sexual.as_ref().filter(|f| f.filtered).map(|_| "sexual"),
-                                filter_result.content_filter_results.violence.as_ref().filter(|f| f.filtered).map(|_| "violence"),
+                                filter_result
+                                    .content_filter_results
+                                    .hate
+                                    .as_ref()
+                                    .filter(|f| f.filtered)
+                                    .map(|_| "hate"),
+                                filter_result
+                                    .content_filter_results
+                                    .self_harm
+                                    .as_ref()
+                                    .filter(|f| f.filtered)
+                                    .map(|_| "self_harm"),
+                                filter_result
+                                    .content_filter_results
+                                    .sexual
+                                    .as_ref()
+                                    .filter(|f| f.filtered)
+                                    .map(|_| "sexual"),
+                                filter_result
+                                    .content_filter_results
+                                    .violence
+                                    .as_ref()
+                                    .filter(|f| f.filtered)
+                                    .map(|_| "violence"),
                             ]
                             .into_iter()
                             .flatten()
@@ -387,12 +407,14 @@ impl TryFrom<Response> for ChatCompletionMessage {
 
                             if !filtered_categories.is_empty() {
                                 let error = ErrorResponse::default()
-                                    .message(format!("Content was filtered due to: {}", filtered_categories.join(", ")))
+                                    .message(format!(
+                                        "Content was filtered due to: {}",
+                                        filtered_categories.join(", ")
+                                    ))
                                     .code(ErrorCode::String("content_filter".to_string()));
                                 return Err(Error::Response(error).into());
                             }
                         }
-                    }
 
                     let mut default_response = ChatCompletionMessage::assistant(Content::full(""));
                     // No choices – this can happen with Ollama/LMStudio streaming where the final
@@ -784,7 +806,11 @@ mod tests {
         }"#;
 
         let actual = serde_json::from_str::<Response>(response_json);
-        assert!(actual.is_ok(), "Should parse GitHub Copilot filter response: {:?}", actual.err());
+        assert!(
+            actual.is_ok(),
+            "Should parse GitHub Copilot filter response: {:?}",
+            actual.err()
+        );
     }
 
     #[test]
@@ -801,22 +827,10 @@ mod tests {
             prompt_filter_results: Some(vec![PromptFilterResult {
                 prompt_index: 0,
                 content_filter_results: ContentFilterResults {
-                    hate: Some(FilterResult {
-                        filtered: true,
-                        severity: "high".to_string(),
-                    }),
-                    self_harm: Some(FilterResult {
-                        filtered: false,
-                        severity: "safe".to_string(),
-                    }),
-                    sexual: Some(FilterResult {
-                        filtered: false,
-                        severity: "safe".to_string(),
-                    }),
-                    violence: Some(FilterResult {
-                        filtered: false,
-                        severity: "safe".to_string(),
-                    }),
+                    hate: Some(FilterResult { filtered: true, severity: "high".to_string() }),
+                    self_harm: Some(FilterResult { filtered: false, severity: "safe".to_string() }),
+                    sexual: Some(FilterResult { filtered: false, severity: "safe".to_string() }),
+                    violence: Some(FilterResult { filtered: false, severity: "safe".to_string() }),
                 },
             }]),
         };
