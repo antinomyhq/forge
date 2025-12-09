@@ -168,7 +168,7 @@ impl<S: AgentService> Orchestrator<S> {
         response.into_full(!tool_supported).await
     }
     /// Checks if compaction is needed and performs it if necessary
-    async fn check_and_compact(&self, context: &Context) -> anyhow::Result<Option<Context>> {
+    fn check_and_compact(&self, context: &Context) -> anyhow::Result<Option<Context>> {
         let agent = &self.agent;
         // Estimate token count for compaction decision
         let token_count = context.token_count();
@@ -232,8 +232,25 @@ impl<S: AgentService> Orchestrator<S> {
             self.conversation.context = Some(context.clone());
             self.services.update(self.conversation.clone()).await?;
 
-            // Run the main chat request and compaction check in parallel
-            let main_request = crate::retry::retry_with_config(
+            // Trigger compaction before making a request
+            // Ideally compaction should be implemented as a transformer
+            if let Some(c_context) = self.check_and_compact(&context)? {
+                info!(agent_id = %agent.id, "Using compacted context from execution");
+                context = c_context;
+            } else {
+                debug!(agent_id = %agent.id, "No compaction was needed");
+            }
+
+            let 
+                ChatCompletionMessageFull {
+                    tool_calls,
+                    content,
+                    usage,
+                    reasoning,
+                    reasoning_details,
+                    finish_reason,
+                }
+             = crate::retry::retry_with_config(
                 &self.environment.retry_config,
                 || self.execute_chat_turn(&model_id, context.clone(), context.is_reasoning_supported()),
                 self.sender.as_ref().map(|sender| {
@@ -250,32 +267,7 @@ impl<S: AgentService> Orchestrator<S> {
                         let _ = sender.try_send(Ok(retry_event));
                     }
                 }),
-            );
-
-            // Prepare compaction task that runs in parallel
-            // Execute both operations in parallel
-            let (
-                ChatCompletionMessageFull {
-                    tool_calls,
-                    content,
-                    usage,
-                    reasoning,
-                    reasoning_details,
-                    finish_reason,
-                },
-                compaction_result,
-            ) = tokio::try_join!(main_request, self.check_and_compact(&context),)?;
-
-            // Apply compaction result if it completed successfully
-            match compaction_result {
-                Some(compacted_context) => {
-                    info!(agent_id = %agent.id, "Using compacted context from execution");
-                    context = compacted_context;
-                }
-                None => {
-                    debug!(agent_id = %agent.id, "No compaction was needed");
-                }
-            }
+            ).await?;
 
             info!(
                 conversation_id = %self.conversation.id,
