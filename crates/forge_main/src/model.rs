@@ -1099,7 +1099,7 @@ mod tests {
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = format!("  Anthropic           {}", markers::UNAVAILABLE);
+        let expected = format!("  Anthropic           {}", markers::EMPTY);
         assert_eq!(actual, expected);
     }
 
@@ -1119,7 +1119,7 @@ mod tests {
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = format!("✓ Forge               {}", markers::UNAVAILABLE);
+        let expected = format!("✓ Forge               {}", markers::EMPTY);
         assert_eq!(actual, expected);
     }
 

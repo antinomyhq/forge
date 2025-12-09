@@ -129,8 +129,8 @@ mod tests {
     fn test_markers_have_square_brackets() {
         assert!(markers::BUILT_IN.starts_with('['));
         assert!(markers::BUILT_IN.ends_with(']'));
-        assert!(markers::UNAVAILABLE.starts_with('['));
-        assert!(markers::UNAVAILABLE.ends_with(']'));
+        assert!(markers::EMPTY.starts_with('['));
+        assert!(markers::EMPTY.ends_with(']'));
     }
 
     #[test]
