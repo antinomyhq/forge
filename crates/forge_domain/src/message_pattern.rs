@@ -1,7 +1,7 @@
 use serde_json::json;
 
 use crate::{
-    Context, ContextMessage, ContextMessageWrapper, ModelId, ToolCallFull, ToolCallId, ToolName,
+    Context, ContextMessageValue, ContextMessage, ModelId, ToolCallFull, ToolCallId, ToolName,
     ToolResult,
 };
 
@@ -74,24 +74,24 @@ impl MessagePattern {
             .call_id(ToolCallId::new("call_123"))
             .success(json!({"content": "File content"}).to_string());
 
-        let messages: Vec<ContextMessageWrapper> = self
+        let messages: Vec<ContextMessage> = self
             .pattern
             .chars()
             .enumerate()
             .map(|(i, c)| {
                 let content = format!("Message {}", i + 1);
                 match c {
-                    'u' => ContextMessage::user(&content, Some(model_id.clone())),
-                    'a' => ContextMessage::assistant(&content, None, None),
-                    's' => ContextMessage::system(&content),
-                    't' => ContextMessage::assistant(&content, None, Some(vec![tool_call.clone()])),
-                    'r' => ContextMessage::tool_result(tool_result.clone()),
+                    'u' => ContextMessageValue::user(&content, Some(model_id.clone())),
+                    'a' => ContextMessageValue::assistant(&content, None, None),
+                    's' => ContextMessageValue::system(&content),
+                    't' => ContextMessageValue::assistant(&content, None, Some(vec![tool_call.clone()])),
+                    'r' => ContextMessageValue::tool_result(tool_result.clone()),
                     _ => {
                         panic!("Invalid character '{c}' in pattern. Use 'u', 'a', 's', 't', or 'r'")
                     }
                 }
             })
-            .map(ContextMessageWrapper::from)
+            .map(ContextMessage::from)
             .collect();
         Context::default().messages(messages)
     }
@@ -114,14 +114,14 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::{ContextMessage, ModelId, Role, TextMessage};
+    use crate::{ContextMessageValue, ModelId, Role, TextMessage};
 
     #[test]
     fn test_message_pattern_single_user() {
         let fixture = MessagePattern::new("u");
         let actual = fixture.build();
         let expected = Context::default().messages(vec![
-            ContextMessage::Text(
+            ContextMessageValue::Text(
                 TextMessage::new(Role::User, "Message 1").model(ModelId::new("gpt-4")),
             )
             .into(),
@@ -134,12 +134,12 @@ mod tests {
         let fixture = MessagePattern::new("uau");
         let actual = fixture.build();
         let expected = Context::default().messages(vec![
-            ContextMessage::Text(
+            ContextMessageValue::Text(
                 TextMessage::new(Role::User, "Message 1").model(ModelId::new("gpt-4")),
             )
             .into(),
-            ContextMessage::Text(TextMessage::new(Role::Assistant, "Message 2")).into(),
-            ContextMessage::Text(
+            ContextMessageValue::Text(TextMessage::new(Role::Assistant, "Message 2")).into(),
+            ContextMessageValue::Text(
                 TextMessage::new(Role::User, "Message 3").model(ModelId::new("gpt-4")),
             )
             .into(),

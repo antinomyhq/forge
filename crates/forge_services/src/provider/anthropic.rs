@@ -156,7 +156,7 @@ mod tests {
     use bytes::Bytes;
     use forge_app::HttpClientService;
     use forge_app::domain::{
-        Context, ContextMessage, ToolCallFull, ToolCallId, ToolChoice, ToolName, ToolOutput,
+        Context, ContextMessageValue, ToolCallFull, ToolCallId, ToolChoice, ToolName, ToolOutput,
         ToolResult,
     };
     use reqwest::header::HeaderMap;
@@ -284,14 +284,14 @@ mod tests {
     async fn test_request_conversion() {
         let model_id = ModelId::new("gpt-4");
         let context = Context::default()
-            .add_message(ContextMessage::system(
+            .add_message(ContextMessageValue::system(
                 "You're expert at math, so you should resolve all user queries.",
             ))
-            .add_message(ContextMessage::user(
+            .add_message(ContextMessageValue::user(
                 "what's 2 + 2 ?",
                 model_id.clone().into(),
             ))
-            .add_message(ContextMessage::assistant(
+            .add_message(ContextMessageValue::assistant(
                 "here is the system call.",
                 None,
                 Some(vec![ToolCallFull {

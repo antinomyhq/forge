@@ -1,5 +1,5 @@
 use super::Transformer;
-use crate::{Context, ContextMessage, ModelId, Role, TextMessage};
+use crate::{Context, ContextMessageValue, ModelId, Role, TextMessage};
 
 pub struct TransformToolCalls {
     pub model: Option<ModelId>,
@@ -29,12 +29,12 @@ impl Transformer for TransformToolCalls {
 
         for message in value.messages.into_iter() {
             match &*message {
-                ContextMessage::Text(text_msg)
+                ContextMessageValue::Text(text_msg)
                     if text_msg.role == Role::Assistant && text_msg.tool_calls.is_some() =>
                 {
                     // Add the assistant message without tool calls
                     new_messages.push(
-                        ContextMessage::Text(TextMessage {
+                        ContextMessageValue::Text(TextMessage {
                             role: text_msg.role,
                             content: text_msg.content.clone(),
                             raw_content: text_msg.raw_content.clone(),
@@ -46,20 +46,20 @@ impl Transformer for TransformToolCalls {
                         .into(),
                     );
                 }
-                ContextMessage::Tool(tool_result) => {
+                ContextMessageValue::Tool(tool_result) => {
                     // Convert tool results to user messages
                     for output_value in tool_result.output.values.clone() {
                         match output_value {
                             crate::ToolValue::Text(text) => {
                                 new_messages
-                                    .push(ContextMessage::user(text, self.model.clone()).into());
+                                    .push(ContextMessageValue::user(text, self.model.clone()).into());
                             }
                             crate::ToolValue::Image(image) => {
-                                new_messages.push(ContextMessage::Image(image).into());
+                                new_messages.push(ContextMessageValue::Image(image).into());
                             }
                             crate::ToolValue::Empty => {}
                             crate::ToolValue::AI { value, .. } => new_messages
-                                .push(ContextMessage::user(value, self.model.clone()).into()),
+                                .push(ContextMessageValue::user(value, self.model.clone()).into()),
                         }
                     }
                 }
@@ -105,8 +105,8 @@ mod tests {
         };
 
         Context::default()
-            .add_message(ContextMessage::system("System message"))
-            .add_message(ContextMessage::assistant(
+            .add_message(ContextMessageValue::system("System message"))
+            .add_message(ContextMessageValue::assistant(
                 "I'll help you",
                 None,
                 Some(vec![tool_call]),
@@ -149,9 +149,9 @@ mod tests {
     #[test]
     fn test_transform_tool_calls_no_tool_calls() {
         let fixture = Context::default()
-            .add_message(ContextMessage::system("System message"))
-            .add_message(ContextMessage::user("User message", None))
-            .add_message(ContextMessage::assistant("Assistant response", None, None));
+            .add_message(ContextMessageValue::system("System message"))
+            .add_message(ContextMessageValue::user("User message", None))
+            .add_message(ContextMessageValue::assistant("Assistant response", None, None));
 
         let mut transformer = TransformToolCalls::new();
         let actual = transformer.transform(fixture.clone());
@@ -214,7 +214,7 @@ mod tests {
                 description: "A test tool".to_string(),
                 input_schema: schemars::schema_for!(()),
             })
-            .add_message(ContextMessage::user("Test message", None));
+            .add_message(ContextMessageValue::user("Test message", None));
 
         let mut transformer = TransformToolCalls::new();
         let actual = transformer.transform(fixture);

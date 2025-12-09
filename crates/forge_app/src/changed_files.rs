@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use forge_domain::{Agent, ContextMessage, Conversation, Role, TextMessage};
+use forge_domain::{Agent, ContextMessageValue, Conversation, Role, TextMessage};
 use forge_template::Element;
 
 use crate::utils::format_display_path;
@@ -69,7 +69,7 @@ impl<S: FsReadService + EnvironmentService> ChangedFiles<S> {
             .droppable(true)
             .model(self.agent.model.clone());
 
-        conversation = conversation.context(context.add_message(ContextMessage::from(message)));
+        conversation = conversation.context(context.add_message(ContextMessageValue::from(message)));
 
         conversation
     }
@@ -176,7 +176,7 @@ mod tests {
             [("/test/file.txt".into(), Some(hash))].into(),
         );
 
-        conversation.context = Some(Context::default().add_message(ContextMessage::user(
+        conversation.context = Some(Context::default().add_message(ContextMessageValue::user(
             "Hey, there!",
             Some(ModelId::new("test")),
         )));

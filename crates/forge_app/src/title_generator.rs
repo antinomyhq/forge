@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use derive_setters::Setters;
 use forge_domain::{
-    ChatCompletionMessageFull, Context, ContextMessage, ConversationId, ModelId, ProviderId,
+    ChatCompletionMessageFull, Context, ContextMessageValue, ConversationId, ModelId, ProviderId,
     ReasoningConfig, ResultStreamExt, UserPrompt, extract_tag_content,
 };
 
@@ -50,8 +50,8 @@ impl<S: AS> TitleGenerator<S> {
         let mut ctx = Context::default()
             .temperature(1.0f32)
             .conversation_id(ConversationId::generate())
-            .add_message(ContextMessage::system(template))
-            .add_message(ContextMessage::user(prompt, Some(self.model_id.clone())));
+            .add_message(ContextMessageValue::system(template))
+            .add_message(ContextMessageValue::user(prompt, Some(self.model_id.clone())));
 
         // Set the reasoning if configured.
         if let Some(reasoning) = self.reasoning.as_ref() {

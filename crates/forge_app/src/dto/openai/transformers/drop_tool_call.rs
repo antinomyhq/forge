@@ -35,7 +35,7 @@ impl Transformer for DropToolCalls {
 #[cfg(test)]
 mod tests {
     use forge_domain::{
-        Context, ContextMessage, Role, TextMessage, ToolCallFull, ToolCallId, ToolName, ToolResult,
+        Context, ContextMessageValue, Role, TextMessage, ToolCallFull, ToolCallId, ToolName, ToolResult,
     };
 
     use super::*;
@@ -55,11 +55,11 @@ mod tests {
         let context = Context {
             conversation_id: None,
             messages: vec![
-                ContextMessage::Text(
+                ContextMessageValue::Text(
                     TextMessage::new(Role::Assistant, "Using tool").tool_calls(vec![tool_call]),
                 )
                 .into(),
-                ContextMessage::Tool(tool_result).into(),
+                ContextMessageValue::Tool(tool_result).into(),
             ],
             tools: vec![forge_domain::ToolDefinition::new("test_tool").description("A test tool")],
             tool_choice: None,

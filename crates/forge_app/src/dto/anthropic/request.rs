@@ -1,5 +1,5 @@
 use derive_setters::Setters;
-use forge_domain::{ContextMessage, Image};
+use forge_domain::{ContextMessageValue, Image};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Default, Setters)]
@@ -74,7 +74,7 @@ impl TryFrom<forge_domain::Context> for Request {
             .messages
             .iter()
             .filter_map(|msg| match &**msg {
-                ContextMessage::Text(msg) if msg.has_role(forge_domain::Role::System) => {
+                ContextMessageValue::Text(msg) if msg.has_role(forge_domain::Role::System) => {
                     Some(SystemMessage {
                         r#type: "text".to_string(),
                         text: msg.content.clone(),
@@ -144,11 +144,11 @@ pub struct Message {
     pub role: Role,
 }
 
-impl TryFrom<ContextMessage> for Message {
+impl TryFrom<ContextMessageValue> for Message {
     type Error = anyhow::Error;
-    fn try_from(value: ContextMessage) -> std::result::Result<Self, Self::Error> {
+    fn try_from(value: ContextMessageValue) -> std::result::Result<Self, Self::Error> {
         Ok(match value {
-            ContextMessage::Text(chat_message) => {
+            ContextMessageValue::Text(chat_message) => {
                 let mut content = Vec::with_capacity(
                     chat_message
                         .tool_calls
@@ -191,10 +191,10 @@ impl TryFrom<ContextMessage> for Message {
                     }
                 }
             }
-            ContextMessage::Tool(tool_result) => {
+            ContextMessageValue::Tool(tool_result) => {
                 Message { role: Role::User, content: vec![tool_result.try_into()?] }
             }
-            ContextMessage::Image(img) => {
+            ContextMessageValue::Image(img) => {
                 Message { content: vec![Content::from(img)], role: Role::User }
             }
         })

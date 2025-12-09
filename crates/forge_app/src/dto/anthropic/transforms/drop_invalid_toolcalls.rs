@@ -36,7 +36,7 @@ impl Transformer for DropInvalidToolUse {
 #[cfg(test)]
 mod tests {
     use forge_domain::{
-        Context, ContextMessage, ModelId, Role, TextMessage, ToolCallArguments, ToolCallFull,
+        Context, ContextMessageValue, ModelId, Role, TextMessage, ToolCallArguments, ToolCallFull,
         Transformer,
     };
     use pretty_assertions::assert_eq;
@@ -47,7 +47,7 @@ mod tests {
 
     fn transform_tool_call(json_args: &str) -> Request {
         let fixture = Context::default().messages(vec![
-            ContextMessage::Text(
+            ContextMessageValue::Text(
                 TextMessage::new(Role::User, "Hello")
                     .tool_calls(vec![
                         ToolCallFull::new("test_tool")
@@ -123,7 +123,7 @@ mod tests {
     #[test]
     fn test_preserves_text_content() {
         let fixture = Context::default().messages(vec![
-            ContextMessage::Text(TextMessage::new(Role::User, "Hello")).into(),
+            ContextMessageValue::Text(TextMessage::new(Role::User, "Hello")).into(),
         ]);
         let actual = DropInvalidToolUse.transform(Request::try_from(fixture).unwrap());
 

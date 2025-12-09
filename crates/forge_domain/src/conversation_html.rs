@@ -1,7 +1,7 @@
 use forge_template::Element;
 use serde_json::to_string_pretty;
 
-use crate::context::ContextMessage;
+use crate::context::ContextMessageValue;
 use crate::conversation::Conversation;
 
 pub fn render_conversation_html(conversation: &Conversation) -> String {
@@ -54,7 +54,7 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
         let context_messages =
             Element::new("div.context-section").append(context.messages.iter().map(|message| {
                 match &**message {
-                    ContextMessage::Text(content_message) => {
+                    ContextMessageValue::Text(content_message) => {
                         // Convert role to lowercase for the class
                         let role_lowercase = content_message.role.to_string().to_lowercase();
 
@@ -150,7 +150,7 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
                             message_with_content
                         }
                     }
-                    ContextMessage::Tool(tool_result) => {
+                    ContextMessageValue::Tool(tool_result) => {
                         // Tool Message
                         Element::new("details.message-card.message-tool")
                             .append(
@@ -177,7 +177,7 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
                                 }
                             }))
                     }
-                    ContextMessage::Image(image) => {
+                    ContextMessageValue::Image(image) => {
                         // Image message
                         Element::new("div.message-card.message-user")
                             .append(Element::new("strong").text("Image Attachment"))
@@ -311,7 +311,7 @@ mod tests {
     #[test]
     fn test_render_conversation_with_reasoning_details() {
         use crate::agent_definition::{Effort, ReasoningConfig};
-        use crate::context::{Context, ContextMessage};
+        use crate::context::{Context, ContextMessageValue};
         use crate::conversation::ConversationId;
         use crate::reasoning::ReasoningFull;
 
@@ -326,7 +326,7 @@ mod tests {
         let context =
             Context::default()
                 .reasoning(reasoning_config)
-                .add_message(ContextMessage::assistant(
+                .add_message(ContextMessageValue::assistant(
                     "Main response content",
                     Some(vec![ReasoningFull {
                         text: Some("This is my reasoning process".to_string()),

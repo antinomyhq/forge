@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use super::response::{FunctionCall, ToolCall};
 use super::tool_choice::{FunctionType, ToolChoice};
 use crate::domain::{
-    Context, ContextMessage, ModelId, ToolCallFull, ToolCallId, ToolDefinition, ToolName,
+    Context, ContextMessageValue, ModelId, ToolCallFull, ToolCallId, ToolDefinition, ToolName,
     ToolResult, ToolValue,
 };
 use crate::dto::openai::ReasoningDetail;
@@ -388,10 +388,10 @@ impl From<ToolCallFull> for ToolCall {
     }
 }
 
-impl From<ContextMessage> for Message {
-    fn from(value: ContextMessage) -> Self {
+impl From<ContextMessageValue> for Message {
+    fn from(value: ContextMessageValue) -> Self {
         match value {
-            ContextMessage::Text(chat_message) => Message {
+            ContextMessageValue::Text(chat_message) => Message {
                 role: chat_message.role.into(),
                 content: Some(MessageContent::Text(chat_message.content)),
                 name: None,
@@ -418,7 +418,7 @@ impl From<ContextMessage> for Message {
                 reasoning_text: None,
                 reasoning_opaque: None,
             },
-            ContextMessage::Tool(tool_result) => Message {
+            ContextMessageValue::Tool(tool_result) => Message {
                 role: Role::Tool,
                 tool_call_id: tool_result.call_id.clone(),
                 name: Some(tool_result.name.clone()),
@@ -428,7 +428,7 @@ impl From<ContextMessage> for Message {
                 reasoning_text: None,
                 reasoning_opaque: None,
             },
-            ContextMessage::Image(img) => {
+            ContextMessageValue::Image(img) => {
                 let content = vec![ContentPart::ImageUrl {
                     image_url: ImageUrl { url: img.url().clone(), detail: None },
                     cache_control: None,
@@ -641,13 +641,13 @@ mod tests {
     }
 
     use forge_domain::{
-        ContextMessage, Role, TextMessage, ToolCallFull, ToolCallId, ToolName, ToolResult,
+        ContextMessageValue, Role, TextMessage, ToolCallFull, ToolCallId, ToolName, ToolResult,
     };
     use insta::assert_json_snapshot;
 
     #[test]
     fn test_user_message_conversion() {
-        let user_message = ContextMessage::Text(
+        let user_message = ContextMessageValue::Text(
             TextMessage::new(Role::User, "Hello").model(ModelId::new("gpt-3.5-turbo")),
         );
         let router_message = Message::from(user_message);
@@ -666,7 +666,7 @@ mod tests {
     </data>
 </task>"#;
 
-        let message = ContextMessage::Text(
+        let message = ContextMessageValue::Text(
             TextMessage::new(Role::User, xml_content).model(ModelId::new("gpt-3.5-turbo")),
         );
         let router_message = Message::from(message);
@@ -681,7 +681,7 @@ mod tests {
             arguments: serde_json::json!({"key": "value"}).into(),
         };
 
-        let assistant_message = ContextMessage::Text(
+        let assistant_message = ContextMessageValue::Text(
             TextMessage::new(Role::Assistant, "Using tool")
                 .tool_calls(vec![tool_call])
                 .model(ModelId::new("gpt-3.5-turbo")),
@@ -702,7 +702,7 @@ mod tests {
             }"#,
             );
 
-        let tool_message = ContextMessage::Tool(tool_result);
+        let tool_message = ContextMessageValue::Tool(tool_result);
         let router_message = Message::from(tool_message);
         assert_json_snapshot!(router_message);
     }
@@ -722,7 +722,7 @@ mod tests {
             }"#,
             );
 
-        let tool_message = ContextMessage::Tool(tool_result);
+        let tool_message = ContextMessageValue::Tool(tool_result);
         let router_message = Message::from(tool_message);
         assert_json_snapshot!(router_message);
     }
@@ -733,7 +733,7 @@ mod tests {
             .call_id(ToolCallId::new("456"))
             .success(r#"{ "code": "fn main<T>(gt: T) {let b = &gt; }"}"#);
 
-        let tool_message = ContextMessage::Tool(tool_result);
+        let tool_message = ContextMessageValue::Tool(tool_result);
         let router_message = Message::from(tool_message);
         assert_json_snapshot!(router_message);
     }

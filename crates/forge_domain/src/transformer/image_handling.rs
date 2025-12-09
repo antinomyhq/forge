@@ -1,5 +1,5 @@
 use super::Transformer;
-use crate::{Context, ContextMessage};
+use crate::{Context, ContextMessageValue};
 
 /// Transformer that handles image processing in tool results
 /// Converts image outputs from tool results into separate user messages with
@@ -29,7 +29,7 @@ impl Transformer for ImageHandling {
             .messages
             .iter_mut()
             .filter_map(|message| {
-                if let ContextMessage::Tool(tool_result) = &mut **message {
+                if let ContextMessageValue::Tool(tool_result) = &mut **message {
                     Some(tool_result)
                 } else {
                     None
@@ -53,10 +53,10 @@ impl Transformer for ImageHandling {
         // Step 2: Insert all images at the end
         images.into_iter().for_each(|(id, image)| {
             value.messages.push(
-                ContextMessage::user(format!("[Here is the image attachment for ID {id}]"), None)
+                ContextMessageValue::user(format!("[Here is the image attachment for ID {id}]"), None)
                     .into(),
             );
-            value.messages.push(ContextMessage::Image(image).into());
+            value.messages.push(ContextMessageValue::Image(image).into());
         });
 
         value
@@ -108,7 +108,7 @@ mod tests {
         let image2 = Image::new_base64("image2_data".to_string(), "image/jpeg");
 
         Context::default()
-            .add_message(ContextMessage::user("User message", None))
+            .add_message(ContextMessageValue::user("User message", None))
             .add_tool_results(vec![
                 ToolResult {
                     name: ToolName::new("image_tool_1"),
@@ -136,7 +136,7 @@ mod tests {
     #[test]
     fn test_image_handling_no_images() {
         let fixture = Context::default()
-            .add_message(ContextMessage::system("System message"))
+            .add_message(ContextMessageValue::system("System message"))
             .add_tool_results(vec![ToolResult {
                 name: ToolName::new("text_tool"),
                 call_id: Some(ToolCallId::new("call_text")),
@@ -225,9 +225,9 @@ mod tests {
         let image = Image::new_base64("test_image".to_string(), "image/png");
 
         let fixture = Context::default()
-            .add_message(ContextMessage::system("System message"))
-            .add_message(ContextMessage::user("User message", None))
-            .add_message(ContextMessage::assistant("Assistant message", None, None))
+            .add_message(ContextMessageValue::system("System message"))
+            .add_message(ContextMessageValue::user("User message", None))
+            .add_message(ContextMessageValue::assistant("Assistant message", None, None))
             .add_tool_results(vec![ToolResult {
                 name: ToolName::new("image_tool"),
                 call_id: Some(ToolCallId::new("call_preserve")),

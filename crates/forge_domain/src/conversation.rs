@@ -88,7 +88,7 @@ impl Conversation {
 
     /// Returns a vector of user messages, selecting the first message from
     /// each consecutive sequence of user messages.
-    pub fn first_user_messages(&self) -> Vec<&crate::ContextMessage> {
+    pub fn first_user_messages(&self) -> Vec<&crate::ContextMessageValue> {
         self.context
             .as_ref()
             .map(|ctx| ctx.first_user_messages())

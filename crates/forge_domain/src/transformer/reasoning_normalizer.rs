@@ -26,7 +26,7 @@ impl Transformer for ReasoningNormalizer {
             // Remove reasoning details from all assistant messages
             for message in context.messages.iter_mut() {
                 if message.has_role(crate::Role::Assistant)
-                    && let crate::ContextMessage::Text(text_msg) = &mut **message
+                    && let crate::ContextMessageValue::Text(text_msg) = &mut **message
                 {
                     text_msg.reasoning_details = None;
                 }
@@ -48,7 +48,7 @@ mod tests {
     use serde::Serialize;
 
     use super::*;
-    use crate::{ContextMessage, ReasoningConfig, ReasoningFull, Role, TextMessage};
+    use crate::{ContextMessageValue, ReasoningConfig, ReasoningFull, Role, TextMessage};
 
     #[derive(Serialize)]
     struct TransformationSnapshot {
@@ -72,17 +72,17 @@ mod tests {
 
         Context::default()
             .reasoning(ReasoningConfig::default().enabled(true))
-            .add_message(ContextMessage::user("User question", None))
-            .add_message(ContextMessage::Text(
+            .add_message(ContextMessageValue::user("User question", None))
+            .add_message(ContextMessageValue::Text(
                 TextMessage::new(Role::Assistant, "First assistant response with reasoning")
                     .reasoning_details(reasoning_details.clone()),
             ))
-            .add_message(ContextMessage::user("Follow-up question", None))
-            .add_message(ContextMessage::Text(
+            .add_message(ContextMessageValue::user("Follow-up question", None))
+            .add_message(ContextMessageValue::Text(
                 TextMessage::new(Role::Assistant, "Second assistant response with reasoning")
                     .reasoning_details(reasoning_details.clone()),
             ))
-            .add_message(ContextMessage::Text(TextMessage::new(
+            .add_message(ContextMessageValue::Text(TextMessage::new(
                 Role::Assistant,
                 "Third assistant without reasoning",
             )))
@@ -97,16 +97,16 @@ mod tests {
 
         Context::default()
             .reasoning(ReasoningConfig::default().enabled(true))
-            .add_message(ContextMessage::user("User message", None))
-            .add_message(ContextMessage::Text(TextMessage::new(
+            .add_message(ContextMessageValue::user("User message", None))
+            .add_message(ContextMessageValue::Text(TextMessage::new(
                 Role::Assistant,
                 "First assistant without reasoning",
             )))
-            .add_message(ContextMessage::Text(
+            .add_message(ContextMessageValue::Text(
                 TextMessage::new(Role::Assistant, "Second assistant with reasoning")
                     .reasoning_details(reasoning_details.clone()),
             ))
-            .add_message(ContextMessage::Text(
+            .add_message(ContextMessageValue::Text(
                 TextMessage::new(Role::Assistant, "Third assistant with reasoning")
                     .reasoning_details(reasoning_details),
             ))
@@ -141,8 +141,8 @@ mod tests {
     fn test_reasoning_normalizer_when_no_assistant_message_present() {
         let context = Context::default()
             .reasoning(ReasoningConfig::default().enabled(true))
-            .add_message(ContextMessage::system("System message"))
-            .add_message(ContextMessage::user("User message", None));
+            .add_message(ContextMessageValue::system("System message"))
+            .add_message(ContextMessageValue::user("User message", None));
         let mut transformer = ReasoningNormalizer;
         let actual = transformer.transform(context.clone());
 

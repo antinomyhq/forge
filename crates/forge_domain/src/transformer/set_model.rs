@@ -18,7 +18,7 @@ impl Transformer for SetModel {
     fn transform(&mut self, mut value: Self::Value) -> Self::Value {
         // Set the model for all user messages that don't already have a model set
         for message in value.messages.iter_mut() {
-            if let crate::ContextMessage::Text(text_msg) = &mut **message
+            if let crate::ContextMessageValue::Text(text_msg) = &mut **message
                 && text_msg.role == crate::Role::User
                 && text_msg.model.is_none()
             {
@@ -36,7 +36,7 @@ mod tests {
     use serde::Serialize;
 
     use super::*;
-    use crate::{ContextMessage, Role, TextMessage};
+    use crate::{ContextMessageValue, Role, TextMessage};
 
     #[derive(Serialize)]
     struct TransformationSnapshot {
@@ -64,10 +64,10 @@ mod tests {
     #[test]
     fn test_set_model_for_user_messages() {
         let fixture = Context::default()
-            .add_message(ContextMessage::system("System message"))
-            .add_message(ContextMessage::user("User message 1", None))
-            .add_message(ContextMessage::assistant("Assistant response", None, None))
-            .add_message(ContextMessage::user("User message 2", None));
+            .add_message(ContextMessageValue::system("System message"))
+            .add_message(ContextMessageValue::user("User message 1", None))
+            .add_message(ContextMessageValue::assistant("Assistant response", None, None))
+            .add_message(ContextMessageValue::user("User message 2", None));
 
         let mut transformer = SetModel::new(ModelId::new("gpt-4"));
         let actual = transformer.transform(fixture.clone());
@@ -79,12 +79,12 @@ mod tests {
     #[test]
     fn test_set_model_preserves_existing_models() {
         let fixture = Context::default()
-            .add_message(ContextMessage::user("User message 1", None))
-            .add_message(ContextMessage::user(
+            .add_message(ContextMessageValue::user("User message 1", None))
+            .add_message(ContextMessageValue::user(
                 "User message 2",
                 Some(ModelId::new("claude-3")),
             ))
-            .add_message(ContextMessage::user("User message 3", None));
+            .add_message(ContextMessageValue::user("User message 3", None));
 
         let mut transformer = SetModel::new(ModelId::new("gpt-4"));
         let actual = transformer.transform(fixture.clone());
@@ -97,15 +97,15 @@ mod tests {
     #[test]
     fn test_set_model_only_affects_user_messages() {
         let fixture = Context::default()
-            .add_message(ContextMessage::Text(TextMessage::new(
+            .add_message(ContextMessageValue::Text(TextMessage::new(
                 Role::System,
                 "System message",
             )))
-            .add_message(ContextMessage::Text(TextMessage::new(
+            .add_message(ContextMessageValue::Text(TextMessage::new(
                 Role::Assistant,
                 "Assistant message",
             )))
-            .add_message(ContextMessage::user("User message", None));
+            .add_message(ContextMessageValue::user("User message", None));
 
         let mut transformer = SetModel::new(ModelId::new("gpt-4"));
         let actual = transformer.transform(fixture.clone());

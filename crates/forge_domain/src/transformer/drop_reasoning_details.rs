@@ -7,7 +7,7 @@ impl Transformer for DropReasoningDetails {
     type Value = Context;
     fn transform(&mut self, mut context: Self::Value) -> Self::Value {
         context.messages.iter_mut().for_each(|message| {
-            if let crate::ContextMessage::Text(text) = &mut **message {
+            if let crate::ContextMessageValue::Text(text) = &mut **message {
                 text.reasoning_details = None;
             }
         });
@@ -26,7 +26,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        ContextMessage, ReasoningConfig, ReasoningFull, Role, TextMessage, ToolCallId, ToolName,
+        ContextMessageValue, ReasoningConfig, ReasoningFull, Role, TextMessage, ToolCallId, ToolName,
         ToolOutput, ToolResult,
     };
 
@@ -51,11 +51,11 @@ mod tests {
         }];
 
         Context::default()
-            .add_message(ContextMessage::Text(
+            .add_message(ContextMessageValue::Text(
                 TextMessage::new(Role::User, "User message with reasoning")
                     .reasoning_details(reasoning_details.clone()),
             ))
-            .add_message(ContextMessage::Text(
+            .add_message(ContextMessageValue::Text(
                 TextMessage::new(Role::Assistant, "Assistant response with reasoning")
                     .reasoning_details(reasoning_details),
             ))
@@ -69,13 +69,13 @@ mod tests {
         }];
 
         Context::default()
-            .add_message(ContextMessage::system("System message"))
-            .add_message(ContextMessage::Text(
+            .add_message(ContextMessageValue::system("System message"))
+            .add_message(ContextMessageValue::Text(
                 TextMessage::new(Role::User, "User message with reasoning")
                     .reasoning_details(reasoning_details),
             ))
-            .add_message(ContextMessage::user("User message without reasoning", None))
-            .add_message(ContextMessage::assistant("Assistant response", None, None))
+            .add_message(ContextMessageValue::user("User message without reasoning", None))
+            .add_message(ContextMessageValue::assistant("Assistant response", None, None))
             .add_tool_results(vec![ToolResult {
                 name: ToolName::new("test_tool"),
                 call_id: Some(ToolCallId::new("call_123")),
@@ -101,7 +101,7 @@ mod tests {
             ..Default::default()
         }];
 
-        let fixture = Context::default().add_message(ContextMessage::Text(
+        let fixture = Context::default().add_message(ContextMessageValue::Text(
             TextMessage::new(Role::Assistant, "Assistant message")
                 .model(crate::ModelId::new("gpt-4"))
                 .reasoning_details(reasoning_details),
@@ -129,9 +129,9 @@ mod tests {
     #[test]
     fn test_drop_reasoning_details_already_none() {
         let fixture = Context::default()
-            .add_message(ContextMessage::user("User message", None))
-            .add_message(ContextMessage::assistant("Assistant message", None, None))
-            .add_message(ContextMessage::system("System message"));
+            .add_message(ContextMessageValue::user("User message", None))
+            .add_message(ContextMessageValue::assistant("Assistant message", None, None))
+            .add_message(ContextMessageValue::system("System message"));
 
         let mut transformer = DropReasoningDetails;
         let actual = transformer.transform(fixture.clone());
@@ -150,11 +150,11 @@ mod tests {
 
         let fixture = Context::default()
             .reasoning(ReasoningConfig::default().enabled(true))
-            .add_message(ContextMessage::Text(
+            .add_message(ContextMessageValue::Text(
                 TextMessage::new(Role::User, "User with reasoning")
                     .reasoning_details(reasoning_details),
             ))
-            .add_message(ContextMessage::Image(crate::Image::new_base64(
+            .add_message(ContextMessageValue::Image(crate::Image::new_base64(
                 "image_data".to_string(),
                 "image/png",
             )))

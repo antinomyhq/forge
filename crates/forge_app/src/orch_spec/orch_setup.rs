@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use chrono::{DateTime, Local};
 use derive_setters::Setters;
 use forge_domain::{
-    Agent, AgentId, Attachment, ChatCompletionMessage, ChatResponse, ContextMessageWrapper,
+    Agent, AgentId, Attachment, ChatCompletionMessage, ChatResponse, ContextMessage,
     Conversation, Environment, Event, File, HttpConfig, ModelId, ProviderId, RetryConfig, Role,
     Template, ToolCallFull, ToolDefinition, ToolResult, Workflow,
 };
@@ -138,7 +138,7 @@ impl TestOutput {
             })
     }
 
-    pub fn context_messages(&self) -> Vec<ContextMessageWrapper> {
+    pub fn context_messages(&self) -> Vec<ContextMessage> {
         self.conversation_history
             .last()
             .and_then(|c| c.context.as_ref())

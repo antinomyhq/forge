@@ -60,7 +60,7 @@ impl<S: AttachmentService> UserPromptGenerator<S> {
                 model: Some(self.agent.model.clone()),
                 droppable: true, // Piped input is droppable
             };
-            context = context.add_message(ContextMessage::Text(piped_message));
+            context = context.add_message(ContextMessageValue::Text(piped_message));
         }
 
         Ok(conversation.context(context))
@@ -135,7 +135,7 @@ impl<S: AttachmentService> UserPromptGenerator<S> {
                 model: Some(self.agent.model.clone()),
                 droppable: false,
             };
-            context = context.add_message(ContextMessage::Text(message));
+            context = context.add_message(ContextMessageValue::Text(message));
         }
 
         Ok((conversation.context(context), content))
@@ -160,7 +160,7 @@ impl<S: AttachmentService> UserPromptGenerator<S> {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{AgentId, Context, ContextMessage, ConversationId, ModelId, ProviderId};
+    use forge_domain::{AgentId, Context, ContextMessageValue, ConversationId, ModelId, ProviderId};
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -283,7 +283,7 @@ mod tests {
         let messages = actual.context.unwrap().messages;
         let message = messages.first().unwrap();
 
-        if let ContextMessage::Text(text_msg) = &**message {
+        if let ContextMessageValue::Text(text_msg) = &**message {
             assert!(
                 text_msg.raw_content.is_some(),
                 "Raw content should be preserved"

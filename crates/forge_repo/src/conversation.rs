@@ -272,7 +272,7 @@ impl ConversationRepository for ConversationRepositoryImpl {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::ContextMessage;
+    use forge_domain::ContextMessageValue;
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -332,9 +332,9 @@ mod tests {
     #[tokio::test]
     async fn test_find_all_conversations() -> anyhow::Result<()> {
         let context1 =
-            Context::default().messages(vec![ContextMessage::user("Hello", None).into()]);
+            Context::default().messages(vec![ContextMessageValue::user("Hello", None).into()]);
         let context2 =
-            Context::default().messages(vec![ContextMessage::user("World", None).into()]);
+            Context::default().messages(vec![ContextMessageValue::user("World", None).into()]);
         let conversation1 = Conversation::new(ConversationId::generate())
             .title(Some("Test Conversation".to_string()))
             .context(Some(context1));
@@ -357,9 +357,9 @@ mod tests {
     #[tokio::test]
     async fn test_find_all_conversations_with_limit() -> anyhow::Result<()> {
         let context1 =
-            Context::default().messages(vec![ContextMessage::user("Hello", None).into()]);
+            Context::default().messages(vec![ContextMessageValue::user("Hello", None).into()]);
         let context2 =
-            Context::default().messages(vec![ContextMessage::user("World", None).into()]);
+            Context::default().messages(vec![ContextMessageValue::user("World", None).into()]);
         let conversation1 = Conversation::new(ConversationId::generate())
             .title(Some("Test Conversation".to_string()))
             .context(Some(context1));
@@ -388,7 +388,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_find_last_active_conversation_with_context() -> anyhow::Result<()> {
-        let context = Context::default().messages(vec![ContextMessage::user("Hello", None).into()]);
+        let context = Context::default().messages(vec![ContextMessageValue::user("Hello", None).into()]);
         let conversation_with_context = Conversation::new(ConversationId::generate())
             .title(Some("Conversation with Context".to_string()))
             .context(Some(context));
@@ -459,7 +459,7 @@ mod tests {
 
     #[test]
     fn test_conversation_record_from_conversation_with_context() -> anyhow::Result<()> {
-        let context = Context::default().messages(vec![ContextMessage::user("Hello", None).into()]);
+        let context = Context::default().messages(vec![ContextMessageValue::user("Hello", None).into()]);
         let fixture = Conversation::new(ConversationId::generate())
             .title(Some("Conversation with Context".to_string()))
             .context(Some(context));
