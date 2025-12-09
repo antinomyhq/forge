@@ -413,6 +413,14 @@ pub struct Context {
 }
 
 impl Context {
+    pub fn usage(&self) -> Option<Usage> {
+        self.messages
+            .iter()
+            .filter_map(|msg| msg.usage.as_ref())
+            .cloned()
+            .reduce(|a, b| a.accumulate(&b))
+    }
+
     pub fn system_prompt(&self) -> Option<&str> {
         self.messages
             .iter()
