@@ -56,7 +56,6 @@ pub mod markers {
 
     /// Indicates a built-in (non-user-defined) component
     pub const BUILT_IN: &str = "[built-in]";
-
 }
 
 /// Type discriminator for commands, agents, and custom entries.
