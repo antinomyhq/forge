@@ -77,11 +77,11 @@ impl Display for CliProvider {
                 if let Some(domain) = provider.url.domain() {
                     write!(f, " [{domain}]")?;
                 } else {
-                    write!(f, " {}", markers::UNAVAILABLE)?;
+                    write!(f, " {}", markers::EMPTY)?;
                 }
             }
             AnyProvider::Template(_) => {
-                write!(f, "  {name:<name_width$} {}", markers::UNAVAILABLE)?;
+                write!(f, "  {name:<name_width$} {}", markers::EMPTY)?;
             }
         }
         Ok(())
@@ -1099,7 +1099,7 @@ mod tests {
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = format!("  Anthropic           {}", markers::UNAVAILABLE);
+        let expected = format!("  Anthropic           {}", markers::EMPTY);
         assert_eq!(actual, expected);
     }
 
@@ -1119,7 +1119,7 @@ mod tests {
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = format!("✓ Forge               {}", markers::UNAVAILABLE);
+        let expected = format!("✓ Forge               {}", markers::EMPTY);
         assert_eq!(actual, expected);
     }
 
