@@ -2,8 +2,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use forge_domain::{
-    AppConfigRepository, CodebaseQueryResult, TitleFormat, ToolCallContext, ToolCallFull, ToolCatalog, ToolOutput,
+    ChatResponseContent, CodebaseQueryResult, TitleFormat, ToolCallContext, ToolCallFull, ToolCatalog, ToolOutput,
 };
+use forge_template::Element;
 
 use crate::fmt::content::FormatContent;
 use crate::operation::{TempContentFiles, ToolOperation};
@@ -36,8 +37,7 @@ impl<
         + EnvironmentService
         + PlanCreateService
         + PolicyService
-        + SkillFetchService
-        + AppConfigRepository,
+        + SkillFetchService,
 > ToolExecutor<S>
 {
     pub fn new(services: Arc<S>) -> Self {
@@ -51,14 +51,10 @@ impl<
             return enabled == "1" || enabled.to_lowercase() == "true";
         }
 
-        // Then check existing forge configuration system
-        match self.services.get_app_config().await {
-            Ok(config) => config.policy_enabled.unwrap_or(false),
-            Err(_) => {
-                tracing::warn!("Failed to load app config, policy disabled");
-                false
-            }
-        }
+        // TODO: Implement AppConfig access from Services trait
+        // For now, policy is disabled unless explicitly set via ENV
+        tracing::warn!("Policy system access via config not yet implemented - use FORGE_POLICY_ENABLED");
+        false
     }
 
     /// Check if a tool operation is allowed based on the workflow policies
@@ -353,12 +349,11 @@ impl<
         // Check permissions before executing the tool (only if policy is enabled)
         if self.is_policy_enabled().await && self.check_tool_permission(&tool_input, context).await? {
             let tool_name = tool_input.kind();
-            context
-                .send(ContentFormat::from(
-                    TitleFormat::error("Permission Denied")
-                        .sub_title(format!("Tool '{}' blocked by security policy", tool_name))
-                ))
-                .await?;
+            let error_content = ChatResponseContent::Title(
+                TitleFormat::error("Permission Denied")
+                    .sub_title(format!("Tool '{}' blocked by security policy", tool_name))
+            );
+            context.send(error_content).await?;
 
             return Ok(ToolOutput::text(
                 Element::new("permission_denied")
