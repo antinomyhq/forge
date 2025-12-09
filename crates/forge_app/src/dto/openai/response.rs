@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use super::tool_choice::FunctionType;
 use crate::dto::openai::ReasoningDetail;
-use crate::dto::openai::error::{Error, ErrorResponse};
+use crate::dto::openai::error::{Error, ErrorCode, ErrorResponse};
 
 /// Epsilon for floating point comparison to handle near-zero costs
 const COST_EPSILON: f64 = 1e-9;
@@ -25,16 +25,39 @@ pub enum Response {
     Success {
         id: String,
         provider: Option<String>,
-        model: String,
+        #[serde(default)]
+        model: Option<String>,
         choices: Vec<Choice>,
         created: u64,
         object: Option<String>,
         system_fingerprint: Option<String>,
         usage: Option<ResponseUsage>,
+        #[serde(default)]
+        prompt_filter_results: Option<Vec<PromptFilterResult>>,
     },
     Failure {
         error: ErrorResponse,
     },
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct PromptFilterResult {
+    pub prompt_index: u32,
+    pub content_filter_results: ContentFilterResults,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct ContentFilterResults {
+    pub hate: Option<FilterResult>,
+    pub self_harm: Option<FilterResult>,
+    pub sexual: Option<FilterResult>,
+    pub violence: Option<FilterResult>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct FilterResult {
+    pub filtered: bool,
+    pub severity: String,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -220,7 +243,7 @@ impl TryFrom<Response> for ChatCompletionMessage {
 
     fn try_from(res: Response) -> Result<Self, Self::Error> {
         match res {
-            Response::Success { choices, usage, .. } => {
+            Response::Success { choices, usage, prompt_filter_results, .. } => {
                 if let Some(choice) = choices.first() {
                     // Check if the choice has an error first
                     let error = match choice {
@@ -348,6 +371,29 @@ impl TryFrom<Response> for ChatCompletionMessage {
                     }
                     Ok(response)
                 } else {
+                    // Check if content was filtered
+                    if let Some(filter_results) = prompt_filter_results {
+                        if let Some(filter_result) = filter_results.first() {
+                            let filtered_categories: Vec<String> = [
+                                filter_result.content_filter_results.hate.as_ref().filter(|f| f.filtered).map(|_| "hate"),
+                                filter_result.content_filter_results.self_harm.as_ref().filter(|f| f.filtered).map(|_| "self_harm"),
+                                filter_result.content_filter_results.sexual.as_ref().filter(|f| f.filtered).map(|_| "sexual"),
+                                filter_result.content_filter_results.violence.as_ref().filter(|f| f.filtered).map(|_| "violence"),
+                            ]
+                            .into_iter()
+                            .flatten()
+                            .map(String::from)
+                            .collect();
+
+                            if !filtered_categories.is_empty() {
+                                let error = ErrorResponse::default()
+                                    .message(format!("Content was filtered due to: {}", filtered_categories.join(", ")))
+                                    .code(ErrorCode::String("content_filter".to_string()));
+                                return Err(Error::Response(error).into());
+                            }
+                        }
+                    }
+
                     let mut default_response = ChatCompletionMessage::assistant(Content::full(""));
                     // No choices – this can happen with Ollama/LMStudio streaming where the final
                     // chunk only contains usage information.
@@ -437,7 +483,7 @@ mod tests {
         let response = Response::Success {
             id: "test-id".to_string(),
             provider: Some("test".to_string()),
-            model: "test-model".to_string(),
+            model: Some("test-model".to_string()),
             choices: vec![Choice::NonChat {
                 text: "test content".to_string(),
                 finish_reason: None,
@@ -447,6 +493,7 @@ mod tests {
             object: Some("chat.completion".to_string()),
             system_fingerprint: None,
             usage: None,
+            prompt_filter_results: None,
         };
 
         let result = ChatCompletionMessage::try_from(response);
@@ -463,7 +510,7 @@ mod tests {
         let response = Response::Success {
             id: "test-id".to_string(),
             provider: Some("test".to_string()),
-            model: "test-model".to_string(),
+            model: Some("test-model".to_string()),
             choices: vec![Choice::NonStreaming {
                 logprobs: None,
                 index: 0,
@@ -484,6 +531,7 @@ mod tests {
             object: Some("chat.completion".to_string()),
             system_fingerprint: None,
             usage: None,
+            prompt_filter_results: None,
         };
 
         let result = ChatCompletionMessage::try_from(response);
@@ -500,7 +548,7 @@ mod tests {
         let response = Response::Success {
             id: "test-id".to_string(),
             provider: Some("test".to_string()),
-            model: "test-model".to_string(),
+            model: Some("test-model".to_string()),
             choices: vec![Choice::Streaming {
                 finish_reason: None,
                 delta: ResponseMessage {
@@ -519,6 +567,7 @@ mod tests {
             object: Some("chat.completion".to_string()),
             system_fingerprint: None,
             usage: None,
+            prompt_filter_results: None,
         };
 
         let result = ChatCompletionMessage::try_from(response);
@@ -533,7 +582,7 @@ mod tests {
         let response = Response::Success {
             id: "test-id".to_string(),
             provider: Some("test".to_string()),
-            model: "test-model".to_string(),
+            model: Some("test-model".to_string()),
             choices: vec![Choice::NonStreaming {
                 logprobs: None,
                 index: 0,
@@ -554,6 +603,7 @@ mod tests {
             object: Some("chat.completion".to_string()),
             system_fingerprint: None,
             usage: None,
+            prompt_filter_results: None,
         };
 
         let result = ChatCompletionMessage::try_from(response);
@@ -567,12 +617,13 @@ mod tests {
         let response = Response::Success {
             id: "test-id".to_string(),
             provider: Some("test".to_string()),
-            model: "test-model".to_string(),
+            model: Some("test-model".to_string()),
             choices: vec![],
             created: 123456789,
             object: Some("chat.completion".to_string()),
             system_fingerprint: None,
             usage: None,
+            prompt_filter_results: None,
         };
 
         let result = ChatCompletionMessage::try_from(response);
@@ -713,5 +764,68 @@ mod tests {
 
         let actual: Usage = fixture.into();
         assert_eq!(actual.cost, Some(0.005));
+    }
+
+    #[test]
+    fn test_github_copilot_content_filter_response() {
+        let response_json = r#"{
+            "choices": [],
+            "created": 0,
+            "id": "",
+            "prompt_filter_results": [{
+                "content_filter_results": {
+                    "hate": {"filtered": false, "severity": "safe"},
+                    "self_harm": {"filtered": false, "severity": "safe"},
+                    "sexual": {"filtered": false, "severity": "safe"},
+                    "violence": {"filtered": false, "severity": "safe"}
+                },
+                "prompt_index": 0
+            }]
+        }"#;
+
+        let actual = serde_json::from_str::<Response>(response_json);
+        assert!(actual.is_ok(), "Should parse GitHub Copilot filter response: {:?}", actual.err());
+    }
+
+    #[test]
+    fn test_github_copilot_filtered_content_error() {
+        let response = Response::Success {
+            id: "".to_string(),
+            provider: None,
+            model: Some("gpt-5".to_string()),
+            choices: vec![],
+            created: 0,
+            object: None,
+            system_fingerprint: None,
+            usage: None,
+            prompt_filter_results: Some(vec![PromptFilterResult {
+                prompt_index: 0,
+                content_filter_results: ContentFilterResults {
+                    hate: Some(FilterResult {
+                        filtered: true,
+                        severity: "high".to_string(),
+                    }),
+                    self_harm: Some(FilterResult {
+                        filtered: false,
+                        severity: "safe".to_string(),
+                    }),
+                    sexual: Some(FilterResult {
+                        filtered: false,
+                        severity: "safe".to_string(),
+                    }),
+                    violence: Some(FilterResult {
+                        filtered: false,
+                        severity: "safe".to_string(),
+                    }),
+                },
+            }]),
+        };
+
+        let result = ChatCompletionMessage::try_from(response);
+        assert!(result.is_err());
+        let error = result.unwrap_err();
+        let error_string = format!("{:?}", error);
+        assert!(error_string.contains("Content was filtered"));
+        assert!(error_string.contains("hate"));
     }
 }
