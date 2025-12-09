@@ -383,8 +383,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     ListCommand::Agent => {
                         self.on_show_agents(porcelain).await?;
                     }
-                    ListCommand::Provider => {
-                        self.on_show_providers(porcelain).await?;
+                    ListCommand::Provider { types } => {
+                        self.on_show_providers(porcelain, types).await?;
                     }
                     ListCommand::Model => {
                         self.on_show_models(porcelain).await?;
@@ -746,8 +746,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             ProviderCommand::Logout { provider } => {
                 self.handle_provider_logout(provider.as_ref()).await?;
             }
-            ProviderCommand::List => {
-                self.on_show_providers(provider_group.porcelain).await?;
+            ProviderCommand::List { types } => {
+                self.on_show_providers(provider_group.porcelain, types).await?;
             }
         }
 
@@ -967,8 +967,17 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     }
 
     /// Lists all the providers
-    async fn on_show_providers(&mut self, porcelain: bool) -> anyhow::Result<()> {
-        let providers = self.api.get_providers().await?;
+    async fn on_show_providers(
+        &mut self,
+        porcelain: bool,
+        types: Vec<forge_domain::ProviderType>,
+    ) -> anyhow::Result<()> {
+        let mut providers = self.api.get_providers().await?;
+
+        // Filter by type if specified
+        if !types.is_empty() {
+            providers.retain(|p| types.contains(&p.provider_type()));
+        }
 
         if providers.is_empty() {
             return Ok(());

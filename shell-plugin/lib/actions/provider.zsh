@@ -10,23 +10,18 @@ function _forge_select_provider() {
     local current_provider="${2:-}"
     local filter_type="${3:-}"
     local output
-    output=$($_FORGE_BIN list provider --porcelain 2>/dev/null)
+    
+    # Build the command with type filter if specified
+    local cmd="$_FORGE_BIN list provider --porcelain"
+    if [[ -n "$filter_type" ]]; then
+        cmd="$cmd --type=$filter_type"
+    fi
+    
+    output=$(eval "$cmd" 2>/dev/null)
     
     if [[ -z "$output" ]]; then
         _forge_log error "No providers available"
         return 1
-    fi
-    
-    # Filter by type if specified (e.g., "llm" for LLM providers only)
-    if [[ -n "$filter_type" ]]; then
-        # Preserve the header line and filter the rest by TYPE column
-        local header=$(echo "$output" | head -n 1)
-        local filtered=$(echo "$output" | tail -n +2 | awk -v type="$filter_type" '$4 == type')
-        if [[ -z "$filtered" ]]; then
-            _forge_log error "No ${filter_type} providers found"
-            return 1
-        fi
-        output=$(printf "%s\n%s" "$header" "$filtered")
     fi
     
     # Filter by status if specified (e.g., "available" for configured providers)

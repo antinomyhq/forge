@@ -281,7 +281,11 @@ pub enum ListCommand {
 
     /// List available API providers.
     #[command(alias = "providers")]
-    Provider,
+    Provider {
+        /// Filter providers by type (e.g., llm, context_engine). Can be specified multiple times.
+        #[arg(long = "type", short = 't')]
+        types: Vec<forge_domain::ProviderType>,
+    },
 
     /// List available models.
     #[command(alias = "models")]
@@ -574,7 +578,11 @@ pub enum ProviderCommand {
     },
 
     /// List available providers.
-    List,
+    List {
+        /// Filter providers by type (e.g., llm, context_engine). Can be specified multiple times.
+        #[arg(long = "type", short = 't')]
+        types: Vec<forge_domain::ProviderType>,
+    },
 }
 
 /// Group of Commit-related commands
