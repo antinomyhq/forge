@@ -137,6 +137,7 @@ where
 pub enum ToolValue {
     Text(String),
     // FIXME: Change the order to params
+    // FIXME: Instead of LLM lets call it Agent
     Llm(String, ConversationId),
     Image(Image),
     #[default]
