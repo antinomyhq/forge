@@ -57,8 +57,6 @@ pub mod markers {
     /// Indicates a built-in (non-user-defined) component
     pub const BUILT_IN: &str = "[built-in]";
 
-    /// Indicates a resource is unavailable (e.g., provider not configured)
-    pub const UNAVAILABLE: &str = "[unavailable]";
 }
 
 /// Type discriminator for commands, agents, and custom entries.

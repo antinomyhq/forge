@@ -77,11 +77,11 @@ impl Display for CliProvider {
                 if let Some(domain) = provider.url.domain() {
                     write!(f, " [{domain}]")?;
                 } else {
-                    write!(f, " {}", markers::UNAVAILABLE)?;
+                    write!(f, " {}", markers::EMPTY)?;
                 }
             }
             AnyProvider::Template(_) => {
-                write!(f, "  {name:<name_width$} {}", markers::UNAVAILABLE)?;
+                write!(f, "  {name:<name_width$} {}", markers::EMPTY)?;
             }
         }
         Ok(())
