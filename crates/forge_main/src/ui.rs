@@ -236,7 +236,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .ok()
                 .flatten()
                 .and_then(|conv| conv.context)
-                .and_then(|ctx| ctx.usage())
+                .and_then(|ctx| ctx.total_usage())
         } else {
             None
         };
@@ -2626,7 +2626,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         if let Some(usage) = conversation
             .context
             .as_ref()
-            .and_then(|c| c.usage())
+            .and_then(|c| c.total_usage())
             .as_ref()
         {
             info = info
@@ -2709,7 +2709,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .ok()
                 .flatten()
                 .and_then(|conv| conv.context)
-                .and_then(|ctx| ctx.usage())
+                .and_then(|ctx| ctx.total_usage())
         } else {
             None
         };

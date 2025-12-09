@@ -533,7 +533,7 @@ mod tests {
             ]);
 
         // Verify usage exists before compaction
-        assert_eq!(context.usage(), Some(original_usage.clone()));
+        assert_eq!(context.total_usage(), Some(original_usage.clone()));
         assert_eq!(context.token_count(), TokenCount::Actual(50000));
 
         // Calculate expected token count after compaction
@@ -556,7 +556,7 @@ mod tests {
 
         // Verify usage is cleared after compaction
         assert_eq!(
-            compacted.usage(),
+            compacted.total_usage(),
             None,
             "Usage field should be None after compaction to force token recalculation"
         );

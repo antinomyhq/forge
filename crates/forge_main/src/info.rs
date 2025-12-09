@@ -764,7 +764,7 @@ impl From<&Conversation> for Info {
         if let Some(usage) = conversation
             .context
             .as_ref()
-            .and_then(|c| c.usage())
+            .and_then(|c| c.total_usage())
             .as_ref()
         {
             info = info.extend(usage);

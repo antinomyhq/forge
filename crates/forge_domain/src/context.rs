@@ -413,7 +413,7 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn usage(&self) -> Option<Usage> {
+    pub fn total_usage(&self) -> Option<Usage> {
         self.messages
             .iter()
             .filter_map(|msg| msg.usage.as_ref())
@@ -573,7 +573,7 @@ impl Context {
     /// Returns the token count for context
     pub fn token_count(&self) -> TokenCount {
         let actual = self
-            .usage()
+            .total_usage()
             .as_ref()
             .map(|u| u.total_tokens)
             .unwrap_or_default();
