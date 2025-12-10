@@ -128,8 +128,8 @@ impl<A: Services> DataGenerationApp<A> {
                     serde_json::to_string(&input)?
                 };
 
-                context =
-                    context.add_message_value(ContextMessageValue::user(content, Some(model_id.clone())));
+                context = context
+                    .add_message_value(ContextMessageValue::user(content, Some(model_id.clone())));
 
                 let stream = services.chat(&model_id, context, provider.clone()).await?;
                 let response = stream.into_full(false).await?;

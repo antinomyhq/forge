@@ -177,10 +177,9 @@ mod tests {
             [("/test/file.txt".into(), Some(hash))].into(),
         );
 
-        conversation.context = Some(Context::default().add_message_value(ContextMessageValue::user(
-            "Hey, there!",
-            Some(ModelId::new("test")),
-        )));
+        conversation.context = Some(Context::default().add_message_value(
+            ContextMessageValue::user("Hey, there!", Some(ModelId::new("test"))),
+        ));
 
         let actual = service.update_file_stats(conversation.clone()).await;
 

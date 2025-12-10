@@ -323,8 +323,9 @@ mod tests {
             exclude: Some(false),
         };
 
-        let context = Context::default().reasoning(reasoning_config).add_message_value(
-            ContextMessageValue::assistant(
+        let context = Context::default()
+            .reasoning(reasoning_config)
+            .add_message_value(ContextMessageValue::assistant(
                 "Main response content",
                 Some(vec![ReasoningFull {
                     text: Some("This is my reasoning process".to_string()),
@@ -332,8 +333,7 @@ mod tests {
                     ..Default::default()
                 }]),
                 None,
-            ),
-        );
+            ));
 
         let fixture = Conversation::new(id).context(context);
         let actual = render_conversation_html(&fixture);

@@ -6,11 +6,12 @@ use chrono::{DateTime, NaiveDateTime, Utc};
 use derive_more::From;
 use diesel::prelude::*;
 use forge_domain::{
-    Context, Conversation, ConversationId, ConversationRepository, FileOperation, MetaData,
-    Metrics, ToolKind, WorkspaceHash,
+    Conversation, ConversationId, ConversationRepository, FileOperation, MetaData, Metrics,
+    ToolKind, WorkspaceHash,
 };
 use serde::{Deserialize, Serialize};
 
+use crate::conversation::conversation_dto::ContextRecord;
 use crate::database::schema::conversations;
 use crate::database::DatabasePool;
 
@@ -128,7 +129,8 @@ impl ConversationRecord {
             .context
             .as_ref()
             .filter(|ctx| !ctx.messages.is_empty())
-            .and_then(|ctx| serde_json::to_string(ctx).ok());
+            .map(ContextRecord::from)
+            .and_then(|ctx_record| serde_json::to_string(&ctx_record).ok());
         let updated_at = context.as_ref().map(|_| Utc::now().naive_utc());
         let metrics_record = MetricsRecord::from(&conversation.metrics);
         let metrics = serde_json::to_string(&metrics_record).ok();
@@ -149,10 +151,11 @@ impl TryFrom<ConversationRecord> for Conversation {
     type Error = anyhow::Error;
     fn try_from(record: ConversationRecord) -> anyhow::Result<Self> {
         let id = ConversationId::parse(record.conversation_id)?;
-        let context = if let Some(context) = record.context {
+        let context = if let Some(context_str) = record.context {
             Some(
-                serde_json::from_str::<Context>(&context)
-                    .with_context(|| "Invalid context format")?,
+                serde_json::from_str::<ContextRecord>(&context_str)
+                    .with_context(|| "Invalid context format")?
+                    .try_into()?,
             )
         } else {
             None
@@ -272,7 +275,7 @@ impl ConversationRepository for ConversationRepositoryImpl {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::ContextMessageValue;
+    use forge_domain::{Context, ContextMessageValue};
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -816,5 +819,128 @@ mod tests {
         assert!(json.contains("\"lines_added\":10"));
         assert!(json.contains("\"lines_removed\":5"));
         assert!(json.contains("\"content_hash\":\"abc123\""));
+    }
+
+    #[test]
+    fn test_context_record_conversion_preserves_all_fields() {
+        // This test ensures compile-time safety: if Context schema changes,
+        // this test will fail to compile, alerting us to update ContextRecord
+        use forge_domain::{
+            ContextMessageValue, Effort, Role, ToolCallFull, ToolCallId, ToolChoice,
+            ToolDefinition, ToolName, ToolOutput, ToolResult, ToolValue, Usage,
+        };
+
+        let tool_def = ToolDefinition::new("test_tool").description("A test tool");
+
+        let reasoning = forge_domain::ReasoningConfig {
+            effort: Some(Effort::Medium),
+            max_tokens: Some(2048),
+            exclude: Some(false),
+            enabled: Some(true),
+        };
+
+        // Create a comprehensive set of messages to test all message types
+        let messages = vec![
+            ContextMessageValue::user("Hello", None).into(),
+            ContextMessageValue::system("System prompt").into(),
+            ContextMessageValue::Tool(ToolResult {
+                name: ToolName::new("test_tool"),
+                call_id: Some(ToolCallId::new("call_123".to_string())),
+                output: ToolOutput {
+                    is_error: false,
+                    values: vec![ToolValue::Text("Result text".to_string()), ToolValue::Empty],
+                },
+            })
+            .into(),
+            forge_domain::ContextMessage {
+                message: ContextMessageValue::Text(forge_domain::TextMessage {
+                    role: Role::Assistant,
+                    content: "Assistant response".to_string(),
+                    raw_content: None,
+                    tool_calls: Some(vec![ToolCallFull {
+                        name: ToolName::new("another_tool"),
+                        call_id: Some(ToolCallId::new("call_456".to_string())),
+                        arguments: forge_domain::ToolCallArguments::from(
+                            serde_json::json!({"param": "value"}),
+                        ),
+                    }]),
+                    model: Some(forge_domain::ModelId::from("gpt-4")),
+                    reasoning_details: None,
+                    droppable: false,
+                }),
+                usage: Some(Usage {
+                    prompt_tokens: forge_domain::TokenCount::Actual(100),
+                    completion_tokens: forge_domain::TokenCount::Actual(50),
+                    total_tokens: forge_domain::TokenCount::Actual(150),
+                    cached_tokens: forge_domain::TokenCount::Actual(0),
+                    cost: Some(0.001),
+                }),
+            },
+        ];
+
+        let fixture = Context::default()
+            .conversation_id(ConversationId::generate())
+            .messages(messages)
+            .tools(vec![tool_def.clone()])
+            .tool_choice(ToolChoice::Call(ToolName::new("test_tool")))
+            .max_tokens(1000usize)
+            .temperature(forge_domain::Temperature::new(0.7).unwrap())
+            .top_p(forge_domain::TopP::new(0.9).unwrap())
+            .top_k(forge_domain::TopK::new(50).unwrap())
+            .reasoning(reasoning.clone())
+            .stream(true);
+
+        // Convert to record and back
+        let record = ContextRecord::from(&fixture);
+        let actual = Context::try_from(record).unwrap();
+
+        // Verify all fields are preserved
+        assert_eq!(actual.conversation_id, fixture.conversation_id);
+        assert_eq!(actual.messages.len(), 4);
+        assert_eq!(actual.tools.len(), 1);
+        assert_eq!(actual.tools[0].name.to_string(), "test_tool");
+        assert_eq!(
+            actual.tool_choice,
+            Some(ToolChoice::Call(ToolName::new("test_tool")))
+        );
+        assert_eq!(actual.max_tokens, fixture.max_tokens);
+        assert_eq!(actual.temperature, fixture.temperature);
+        assert_eq!(actual.top_p, fixture.top_p);
+        assert_eq!(actual.top_k, fixture.top_k);
+        assert_eq!(actual.reasoning, Some(reasoning));
+        assert_eq!(actual.stream, fixture.stream);
+
+        // Verify message types and content
+        match &actual.messages[0].message {
+            ContextMessageValue::Text(msg) => {
+                assert_eq!(msg.role, Role::User);
+                assert_eq!(msg.content, "Hello");
+            }
+            _ => panic!("Expected user message"),
+        }
+
+        match &actual.messages[2].message {
+            ContextMessageValue::Tool(tool_result) => {
+                assert_eq!(tool_result.name.to_string(), "test_tool");
+                assert_eq!(
+                    tool_result.call_id.as_ref().map(|id| id.as_str()),
+                    Some("call_123")
+                );
+                assert!(!tool_result.output.is_error);
+                assert_eq!(tool_result.output.values.len(), 2);
+            }
+            _ => panic!("Expected tool result message"),
+        }
+
+        // Verify usage is preserved
+        match &actual.messages[3].usage {
+            Some(usage) => {
+                assert_eq!(*usage.prompt_tokens, 100);
+                assert_eq!(*usage.completion_tokens, 50);
+                assert_eq!(*usage.total_tokens, 150);
+                assert_eq!(usage.cost, Some(0.001));
+            }
+            None => panic!("Expected usage information"),
+        }
     }
 }
