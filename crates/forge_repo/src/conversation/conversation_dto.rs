@@ -215,10 +215,10 @@ impl From<TokenCountRecord> for forge_domain::TokenCount {
 /// Repository-specific representation of Usage
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(super) struct UsageRecord {
-    prompt_tokens: u64,
-    completion_tokens: u64,
-    total_tokens: u64,
-    cached_tokens: u64,
+    prompt_tokens: TokenCountRecord,
+    completion_tokens: TokenCountRecord,
+    total_tokens: TokenCountRecord,
+    cached_tokens: TokenCountRecord,
     #[serde(skip_serializing_if = "Option::is_none")]
     cost: Option<f64>,
 }
@@ -226,10 +226,10 @@ pub(super) struct UsageRecord {
 impl From<&forge_domain::Usage> for UsageRecord {
     fn from(usage: &forge_domain::Usage) -> Self {
         Self {
-            prompt_tokens: *usage.prompt_tokens as u64,
-            completion_tokens: *usage.completion_tokens as u64,
-            total_tokens: *usage.total_tokens as u64,
-            cached_tokens: *usage.cached_tokens as u64,
+            prompt_tokens: TokenCountRecord::from(&usage.prompt_tokens),
+            completion_tokens: TokenCountRecord::from(&usage.completion_tokens),
+            total_tokens: TokenCountRecord::from(&usage.total_tokens),
+            cached_tokens: TokenCountRecord::from(&usage.cached_tokens),
             cost: usage.cost,
         }
     }
@@ -238,10 +238,10 @@ impl From<&forge_domain::Usage> for UsageRecord {
 impl From<UsageRecord> for forge_domain::Usage {
     fn from(record: UsageRecord) -> Self {
         forge_domain::Usage {
-            prompt_tokens: forge_domain::TokenCount::Actual(record.prompt_tokens as usize),
-            completion_tokens: forge_domain::TokenCount::Actual(record.completion_tokens as usize),
-            total_tokens: forge_domain::TokenCount::Actual(record.total_tokens as usize),
-            cached_tokens: forge_domain::TokenCount::Actual(record.cached_tokens as usize),
+            prompt_tokens: record.prompt_tokens.into(),
+            completion_tokens: record.completion_tokens.into(),
+            total_tokens: record.total_tokens.into(),
+            cached_tokens: record.cached_tokens.into(),
             cost: record.cost,
         }
     }
@@ -363,6 +363,7 @@ impl TryFrom<TextMessageRecord> for forge_domain::TextMessage {
 #[serde(rename_all = "camelCase")]
 pub(super) enum ToolValueRecord {
     Text(String),
+    #[serde(alias = "llm", alias = "lLM")]
     AI {
         value: String,
         conversation_id: String,
@@ -515,6 +516,8 @@ impl<'de> Deserialize<'de> for ContextMessageRecord {
             },
             // Fall back to old format (direct ContextMessage)
             Direct(ContextMessageValueRecord),
+
+            Json(serde_json::Value),
         }
 
         match ContextMessageParser::deserialize(deserializer)? {
@@ -523,6 +526,10 @@ impl<'de> Deserialize<'de> for ContextMessageRecord {
             }
             ContextMessageParser::Direct(message) => {
                 Ok(ContextMessageRecord { message, usage: None })
+            }
+            ContextMessageParser::Json(value) => {
+                eprintln!("{}", value);
+                Err(serde::de::Error::custom("Invalid JSON"))
             }
         }
     }
