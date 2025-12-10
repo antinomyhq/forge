@@ -328,39 +328,12 @@ pub enum Role {
     User,
     Assistant,
 }
-#[derive(Clone, Debug, Serialize, Setters, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, Setters, PartialEq)]
 #[setters(into, strip_option)]
 pub struct ContextMessage {
     pub message: ContextMessageValue,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub usage: Option<Usage>,
-}
-
-// TODO: Move this deserialization logic into Conversation repo
-impl<'de> Deserialize<'de> for ContextMessage {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        #[serde(untagged)]
-        enum ContextMessageParser {
-            // Try new format first (with message field)
-            Wrapper {
-                message: ContextMessageValue,
-                usage: Option<Usage>,
-            },
-            // Fall back to old format (direct ContextMessage)
-            Direct(ContextMessageValue),
-        }
-
-        match ContextMessageParser::deserialize(deserializer)? {
-            ContextMessageParser::Wrapper { message, usage } => {
-                Ok(ContextMessage { message, usage })
-            }
-            ContextMessageParser::Direct(message) => Ok(ContextMessage { message, usage: None }),
-        }
-    }
 }
 
 impl From<ContextMessageValue> for ContextMessage {
@@ -670,9 +643,7 @@ impl Context {
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum TokenCount {
-    #[serde(alias = "Actual")]
     Actual(usize),
-    #[serde(alias = "Approx")]
     Approx(usize),
 }
 
