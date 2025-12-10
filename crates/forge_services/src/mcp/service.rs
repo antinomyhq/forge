@@ -133,7 +133,9 @@ where
             match result {
                 Ok(_) => {}
                 Err(error) => {
-                    let error_string = error.to_string();
+                    // Format error with full chain for detailed diagnostics
+                    // Using Debug formatting with alternate flag shows the full error chain
+                    let error_string = format!("{error:?}");
                     self.failed_servers
                         .write()
                         .await

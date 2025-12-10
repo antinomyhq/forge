@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use anyhow::Context as _;
 use chrono::{DateTime, NaiveDateTime, Utc};
 use derive_more::From;
 use diesel::prelude::*;
@@ -148,9 +149,14 @@ impl TryFrom<ConversationRecord> for Conversation {
     type Error = anyhow::Error;
     fn try_from(record: ConversationRecord) -> anyhow::Result<Self> {
         let id = ConversationId::parse(record.conversation_id)?;
-        let context = record
-            .context
-            .and_then(|ctx| serde_json::from_str::<Context>(&ctx).ok());
+        let context = if let Some(context) = record.context {
+            Some(
+                serde_json::from_str::<Context>(&context)
+                    .with_context(|| "Invalid context format")?,
+            )
+        } else {
+            None
+        };
 
         // Deserialize metrics using MetricsRecord for compile-time safety
         let metrics = record

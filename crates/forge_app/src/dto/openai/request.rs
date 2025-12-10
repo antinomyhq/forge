@@ -471,6 +471,9 @@ impl From<ToolResult> for MessageContent {
                 ToolValue::Empty => {
                     // Handle empty case if needed
                 }
+                ToolValue::AI { value, .. } => {
+                    parts.push(ContentPart::Text { text: value, cache_control: None })
+                }
             }
         }
 
