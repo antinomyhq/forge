@@ -1,9 +1,7 @@
 use std::sync::Arc;
 
 use diesel::prelude::*;
-use forge_domain::{
-    Conversation, ConversationId, ConversationRepository, WorkspaceHash,
-};
+use forge_domain::{Conversation, ConversationId, ConversationRepository, WorkspaceHash};
 
 use crate::conversation::conversation_dto::ConversationRecord;
 use crate::database::schema::conversations;
@@ -105,10 +103,12 @@ impl ConversationRepository for ConversationRepositoryImpl {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{Context, ContextMessageValue};
+    use chrono::Utc;
+    use forge_domain::{Context, ContextMessageValue, FileOperation, Metrics, ToolKind};
     use pretty_assertions::assert_eq;
 
     use super::*;
+    use crate::conversation::conversation_dto::{ContextRecord, MetricsRecord};
     use crate::database::DatabasePool;
 
     fn repository() -> anyhow::Result<ConversationRepositoryImpl> {
