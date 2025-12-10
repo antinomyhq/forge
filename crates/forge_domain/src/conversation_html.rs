@@ -4,6 +4,18 @@ use serde_json::to_string_pretty;
 use crate::context::ContextMessage;
 use crate::conversation::Conversation;
 
+/// Renders a conversation as an HTML document
+///
+/// Creates a complete HTML page displaying the conversation's information including:
+/// - Basic information (ID, title)
+/// - Reasoning configuration
+/// - Usage statistics (token counts and costs)
+/// - Context messages with tool calls and reasoning details
+/// - Available tools
+///
+/// # Arguments
+///
+/// * `conversation` - The conversation to render
 pub fn render_conversation_html(conversation: &Conversation) -> String {
     let c_title = format!(
         "Title: {}",
@@ -37,12 +49,72 @@ pub fn render_conversation_html(conversation: &Conversation) -> String {
                 )
                 // Reasoning Configuration Section
                 .append(create_reasoning_config_section(conversation))
+                // Usage Information Section
+                .append(create_usage_section(conversation))
                 // Variables Section
                 // Agent States Section
                 .append(create_conversation_context_section(conversation)),
         );
 
     html.render()
+}
+
+/// Creates a usage information section displaying token counts and costs
+fn create_usage_section(conversation: &Conversation) -> Element {
+    let section =
+        Element::new("div.section").append(Element::new("h2").text("Usage Information"));
+
+    if let Some(context) = &conversation.context {
+        if let Some(usage) = context.total_usage() {
+            // Calculate cache percentage
+            let cache_percentage = if *usage.prompt_tokens > 0 {
+                (*usage.cached_tokens as f64 / *usage.prompt_tokens as f64 * 100.0) as usize
+            } else {
+                0
+            };
+
+            let mut usage_section = section
+                .append(
+                    Element::new("p")
+                        .append(Element::new("strong").text("Input Tokens: "))
+                        .text(format!("{}", usage.prompt_tokens)),
+                )
+                .append(
+                    Element::new("p")
+                        .append(Element::new("strong").text("Cached Tokens: "))
+                        .text(if cache_percentage > 0 {
+                            format!("{} [{}%]", usage.cached_tokens, cache_percentage)
+                        } else {
+                            format!("{}", usage.cached_tokens)
+                        }),
+                )
+                .append(
+                    Element::new("p")
+                        .append(Element::new("strong").text("Output Tokens: "))
+                        .text(format!("{}", usage.completion_tokens)),
+                )
+                .append(
+                    Element::new("p")
+                        .append(Element::new("strong").text("Total Tokens: "))
+                        .text(format!("{}", usage.total_tokens)),
+                );
+
+            // Add cost information if available
+            if let Some(cost) = usage.cost {
+                usage_section = usage_section.append(
+                    Element::new("p")
+                        .append(Element::new("strong").text("Cost: "))
+                        .text(format!("${:.4}", cost)),
+                );
+            }
+
+            usage_section
+        } else {
+            section.append(Element::new("p").text("No usage information available"))
+        }
+    } else {
+        section.append(Element::new("p").text("No context available"))
+    }
 }
 
 fn create_conversation_context_section(conversation: &Conversation) -> Element {
@@ -352,5 +424,136 @@ mod tests {
 
         // Verify reasoning indicator in message header
         assert!(actual.contains("🧠 Reasoning"));
+    }
+
+    #[test]
+    fn test_render_conversation_with_usage_information() {
+        use crate::context::{Context, ContextMessage, MessageEntry, TokenCount};
+        use crate::conversation::ConversationId;
+        use crate::message::Usage;
+
+        let id = ConversationId::generate();
+
+        // Create usage data
+        let usage = Usage {
+            prompt_tokens: TokenCount::Actual(1500),
+            completion_tokens: TokenCount::Actual(500),
+            total_tokens: TokenCount::Actual(2000),
+            cached_tokens: TokenCount::Actual(300),
+            cost: Some(0.0456),
+        };
+
+        // Create a message entry with usage
+        let message_entry =
+            MessageEntry::from(ContextMessage::user("Test message", None)).usage(usage);
+
+        let context = Context::default().messages(vec![message_entry]);
+        let fixture = Conversation::new(id).context(context);
+        let actual = render_conversation_html(&fixture);
+
+        // Verify usage information is displayed
+        assert!(actual.contains("Usage Information"));
+        assert!(actual.contains("Input Tokens:"));
+        assert!(actual.contains("1500"));
+        assert!(actual.contains("Cached Tokens:"));
+        assert!(actual.contains("300"));
+        assert!(actual.contains("20%")); // Cache percentage
+        assert!(actual.contains("Output Tokens:"));
+        assert!(actual.contains("500"));
+        assert!(actual.contains("Total Tokens:"));
+        assert!(actual.contains("2000"));
+        assert!(actual.contains("Cost:"));
+        assert!(actual.contains("$0.0456"));
+    }
+
+    #[test]
+    fn test_render_conversation_without_usage() {
+        let id = crate::conversation::ConversationId::generate();
+        let context = crate::context::Context::default();
+        let fixture = Conversation::new(id).context(context);
+        let actual = render_conversation_html(&fixture);
+
+        // Verify usage section exists but shows no data
+        assert!(actual.contains("Usage Information"));
+        assert!(actual.contains("No usage information available"));
+    }
+
+    #[test]
+    fn test_render_conversation_with_approx_tokens() {
+        use crate::context::{Context, ContextMessage, MessageEntry, TokenCount};
+        use crate::conversation::ConversationId;
+        use crate::message::Usage;
+
+        let id = ConversationId::generate();
+
+        // Create usage data with approximate tokens
+        let usage = Usage {
+            prompt_tokens: TokenCount::Approx(1500),
+            completion_tokens: TokenCount::Approx(500),
+            total_tokens: TokenCount::Approx(2000),
+            cached_tokens: TokenCount::Actual(0),
+            cost: None,
+        };
+
+        // Create a message entry with usage
+        let message_entry =
+            MessageEntry::from(ContextMessage::user("Test message", None)).usage(usage);
+
+        let context = Context::default().messages(vec![message_entry]);
+        let fixture = Conversation::new(id).context(context);
+        let actual = render_conversation_html(&fixture);
+
+        // Verify approximate tokens are displayed with ~ prefix
+        assert!(actual.contains("~1500"));
+        assert!(actual.contains("~500"));
+        assert!(actual.contains("~2000"));
+        // Cost should not be displayed
+        assert!(!actual.contains("Cost:"));
+    }
+
+    #[test]
+    fn test_render_conversation_with_accumulated_usage() {
+        use crate::context::{Context, ContextMessage, MessageEntry, TokenCount};
+        use crate::conversation::ConversationId;
+        use crate::message::Usage;
+
+        let id = ConversationId::generate();
+
+        // Create first message with usage
+        let usage1 = Usage {
+            prompt_tokens: TokenCount::Actual(1000),
+            completion_tokens: TokenCount::Actual(300),
+            total_tokens: TokenCount::Actual(1300),
+            cached_tokens: TokenCount::Actual(200),
+            cost: Some(0.025),
+        };
+
+        let message1 =
+            MessageEntry::from(ContextMessage::user("First message", None)).usage(usage1);
+
+        // Create second message with usage
+        let usage2 = Usage {
+            prompt_tokens: TokenCount::Actual(500),
+            completion_tokens: TokenCount::Actual(200),
+            total_tokens: TokenCount::Actual(700),
+            cached_tokens: TokenCount::Actual(100),
+            cost: Some(0.0156),
+        };
+
+        let message2 =
+            MessageEntry::from(ContextMessage::assistant("Second message", None, None)).usage(usage2);
+
+        let context = Context::default().messages(vec![message1, message2]);
+        let fixture = Conversation::new(id).context(context);
+        let actual = render_conversation_html(&fixture);
+
+        // Verify accumulated usage information is displayed
+        assert!(actual.contains("Usage Information"));
+        assert!(actual.contains("1500")); // Accumulated prompt tokens
+        assert!(actual.contains("500")); // Accumulated completion tokens
+        assert!(actual.contains("2000")); // Accumulated total tokens
+        assert!(actual.contains("300")); // Accumulated cached tokens
+        assert!(actual.contains("20%")); // Cache percentage (300/1500)
+        assert!(actual.contains("$0.0406")); // Accumulated cost (0.025 + 0.0156)
     }
 }
