@@ -176,3 +176,88 @@ function _forge_clone_and_switch() {
         _forge_log error "Failed to clone conversation: $clone_output"
     fi
 }
+
+function _forge_delete_with_confirmation() {
+    local conversation_id="$1"
+    
+    # Check if trying to delete current conversation
+    if [[ "$conversation_id" == "$_FORGE_CONVERSATION_ID" ]]; then
+        _forge_log error "Cannot delete currently active conversation"
+        return 1
+    fi
+    
+    # Load read-from-minibuffer function
+    autoload -Uz read-from-minibuffer
+    
+    # Show conversation info before asking for confirmation
+    echo
+    _forge_log info "Conversation to delete:"
+    _forge_exec conversation info "$conversation_id"
+    echo
+    
+    # Ask for confirmation
+    local REPLY
+    read-from-minibuffer "Delete conversation ${conversation_id}? [y/N]: "
+    
+    if [[ -n "$REPLY" && "$REPLY" =~ ^[Yy]$ ]]; then
+        # Execute delete command
+        _forge_log info "Deleting conversation \033[1m${conversation_id}\033[0m"
+        local delete_output
+        delete_output=$($_FORGE_BIN conversation delete "$conversation_id" 2>&1)
+        local delete_exit_code=$?
+        
+        if [[ $delete_exit_code -eq 0 ]]; then
+            _forge_log success "└─ Conversation \033[1m${conversation_id}\033[0m deleted successfully"
+        else
+            _forge_log error "Failed to delete conversation: $delete_output"
+        fi
+    else
+        _forge_log info "Deletion cancelled"
+    fi
+}
+
+# Action handler: Delete conversation
+function _forge_action_delete() {
+    local input_text="$1"
+    local conversation_id="$input_text"
+    
+    echo
+    
+    # Handle explicit conversation ID if provided
+    if [[ -z "$conversation_id" ]]; then
+        # Get conversations list for fzf selection
+        local conversations_output
+        conversations_output=$($_FORGE_BIN conversation list --porcelain 2>/dev/null)
+        
+        if [[ -z "$conversations_output" ]]; then
+            _forge_log error "No conversations found"
+            _forge_reset
+            return 0
+        fi
+        
+        # Create fzf interface similar to :conversation
+        local prompt_text="Delete Conversation ❯ "
+        local fzf_args=(
+            --prompt="$prompt_text"
+            --delimiter="$_FORGE_DELIMITER"
+            --with-nth="2,3"
+            --preview="CLICOLOR_FORCE=1 $_FORGE_BIN conversation info {1}; echo; CLICOLOR_FORCE=1 $_FORGE_BIN conversation show {1}"
+            $_FORGE_PREVIEW_WINDOW
+        )
+
+        local selected_conversation
+        selected_conversation=$(echo "$conversations_output" | _forge_fzf --header-lines=1 "${fzf_args[@]}")
+        
+        if [[ -n "$selected_conversation" ]]; then
+            # Extract conversation ID
+            conversation_id=$(echo "$selected_conversation" | sed -E 's/  .*//' | tr -d '\n')
+        else
+            _forge_reset
+            return 0
+        fi
+    fi
+    
+    # Execute deletion with confirmation
+    _forge_delete_with_confirmation "$conversation_id"
+    _forge_reset
+}
