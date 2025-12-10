@@ -789,7 +789,7 @@ mod tests {
         };
 
         let result = Conversation::try_from(fixture);
-        
+
         assert!(result.is_err());
         let error_message = result.unwrap_err().to_string();
         assert!(
