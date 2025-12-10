@@ -363,7 +363,6 @@ impl TryFrom<TextMessageRecord> for forge_domain::TextMessage {
 #[serde(rename_all = "camelCase")]
 pub(super) enum ToolValueRecord {
     Text(String),
-    #[serde(alias = "llm", alias = "lLM")]
     AI {
         value: String,
         conversation_id: String,
@@ -516,8 +515,6 @@ impl<'de> Deserialize<'de> for ContextMessageRecord {
             },
             // Fall back to old format (direct ContextMessage)
             Direct(ContextMessageValueRecord),
-
-            Json(serde_json::Value),
         }
 
         match ContextMessageParser::deserialize(deserializer)? {
@@ -526,10 +523,6 @@ impl<'de> Deserialize<'de> for ContextMessageRecord {
             }
             ContextMessageParser::Direct(message) => {
                 Ok(ContextMessageRecord { message, usage: None })
-            }
-            ContextMessageParser::Json(value) => {
-                eprintln!("{}", value);
-                Err(serde::de::Error::custom("Invalid JSON"))
             }
         }
     }
@@ -918,12 +911,26 @@ impl TryFrom<ConversationRecord> for forge_domain::Conversation {
     type Error = anyhow::Error;
 
     fn try_from(record: ConversationRecord) -> anyhow::Result<Self> {
-        let id = ConversationId::parse(record.conversation_id)?;
+        let conversation_id = record.conversation_id.clone();
+        let id = ConversationId::parse(conversation_id.clone())
+            .with_context(|| format!("Failed to parse conversation ID: {}", conversation_id))?;
+
         let context = if let Some(context_str) = record.context {
             Some(
                 serde_json::from_str::<ContextRecord>(&context_str)
-                    .with_context(|| "Invalid context format")?
-                    .try_into()?,
+                    .with_context(|| {
+                        format!(
+                            "Failed to deserialize context for conversation {}",
+                            conversation_id
+                        )
+                    })?
+                    .try_into()
+                    .with_context(|| {
+                        format!(
+                            "Failed to convert context record to domain type for conversation {}",
+                            conversation_id
+                        )
+                    })?,
             )
         } else {
             None

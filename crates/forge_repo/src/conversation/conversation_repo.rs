@@ -3,7 +3,7 @@ use std::sync::Arc;
 use diesel::prelude::*;
 use forge_domain::{Conversation, ConversationId, ConversationRepository, WorkspaceHash};
 
-use crate::conversation::conversation_dto::ConversationRecord;
+use crate::conversation::conversation_record::ConversationRecord;
 use crate::database::schema::conversations;
 use crate::database::DatabasePool;
 
@@ -108,7 +108,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::conversation::conversation_dto::{ContextRecord, MetricsRecord};
+    use crate::conversation::conversation_record::{ContextRecord, MetricsRecord};
     use crate::database::DatabasePool;
 
     fn repository() -> anyhow::Result<ConversationRepositoryImpl> {
@@ -772,5 +772,35 @@ mod tests {
             }
             None => panic!("Expected usage information"),
         }
+    }
+
+    #[test]
+    fn test_conversation_deserialization_error_includes_id() {
+        // Test that deserialization errors include the conversation ID
+        let test_id = ConversationId::generate();
+        let fixture = ConversationRecord {
+            conversation_id: test_id.into_string(),
+            title: Some("Test Conversation".to_string()),
+            context: Some("invalid json".to_string()), // Invalid JSON to trigger error
+            created_at: Utc::now().naive_utc(),
+            updated_at: None,
+            workspace_id: 0,
+            metrics: None,
+        };
+
+        let result = Conversation::try_from(fixture);
+        
+        assert!(result.is_err());
+        let error_message = result.unwrap_err().to_string();
+        assert!(
+            error_message.contains(&test_id.to_string()),
+            "Error message should contain conversation ID. Got: {}",
+            error_message
+        );
+        assert!(
+            error_message.contains("Failed to deserialize context"),
+            "Error message should indicate context deserialization failure. Got: {}",
+            error_message
+        );
     }
 }
