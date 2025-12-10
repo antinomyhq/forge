@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use chrono::{DateTime, Utc};
 use derive_more::derive::Display;
 use derive_setters::Setters;
@@ -25,6 +27,14 @@ impl ConversationId {
         Ok(Self(
             Uuid::parse_str(&value.to_string()).map_err(Error::ConversationId)?,
         ))
+    }
+}
+
+impl FromStr for ConversationId {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        Self::parse(s)
     }
 }
 

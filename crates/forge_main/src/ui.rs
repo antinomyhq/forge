@@ -501,11 +501,6 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 // Make sure to init model
                 self.on_new().await?;
 
-                let conversation_id = conversation_id
-                    .as_deref()
-                    .map(ConversationId::parse)
-                    .transpose()?;
-
                 self.on_info(porcelain, conversation_id).await?;
                 return Ok(());
             }
@@ -630,8 +625,6 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         &mut self,
         conversation_group: crate::cli::ConversationCommandGroup,
     ) -> anyhow::Result<()> {
-        use forge_domain::ConversationId;
-
         match conversation_group.command {
             ConversationCommand::List { porcelain } => {
                 self.on_show_conversations(porcelain).await?;
@@ -640,13 +633,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.handle_generate_conversation_id().await?;
             }
             ConversationCommand::Dump { id, html } => {
-                let conversation_id =
-                    ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
-
-                self.validate_conversation_exists(&conversation_id).await?;
+                self.validate_conversation_exists(&id).await?;
 
                 let original_id = self.state.conversation_id;
-                self.state.conversation_id = Some(conversation_id);
+                self.state.conversation_id = Some(id);
 
                 self.spinner.start(Some("Dumping"))?;
                 self.on_dump(html).await?;
@@ -654,13 +644,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.state.conversation_id = original_id;
             }
             ConversationCommand::Compact { id } => {
-                let conversation_id =
-                    ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
-
-                self.validate_conversation_exists(&conversation_id).await?;
+                self.validate_conversation_exists(&id).await?;
 
                 let original_id = self.state.conversation_id;
-                self.state.conversation_id = Some(conversation_id);
+                self.state.conversation_id = Some(id);
 
                 self.spinner.start(Some("Compacting"))?;
                 self.on_compaction().await?;
@@ -676,13 +663,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.on_conversation_delete(conversation_id).await?;
             }
             ConversationCommand::Retry { id } => {
-                let conversation_id =
-                    ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
-
-                self.validate_conversation_exists(&conversation_id).await?;
+                self.validate_conversation_exists(&id).await?;
 
                 let original_id = self.state.conversation_id;
-                self.state.conversation_id = Some(conversation_id);
+                self.state.conversation_id = Some(id);
 
                 self.spinner.start(None)?;
                 self.on_message(None).await?;
@@ -690,44 +674,29 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.state.conversation_id = original_id;
             }
             ConversationCommand::Resume { id } => {
-                let conversation_id =
-                    ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
+                self.validate_conversation_exists(&id).await?;
 
-                self.validate_conversation_exists(&conversation_id).await?;
-
-                self.state.conversation_id = Some(conversation_id);
+                self.state.conversation_id = Some(id);
                 self.writeln_title(TitleFormat::info(format!("Resumed conversation: {id}")))?;
                 // Interactive mode will be handled by the main loop
             }
             ConversationCommand::Show { id } => {
-                let conversation_id =
-                    ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
-
-                let conversation = self.validate_conversation_exists(&conversation_id).await?;
+                let conversation = self.validate_conversation_exists(&id).await?;
 
                 self.on_show_last_message(conversation).await?;
             }
             ConversationCommand::Info { id } => {
-                let conversation_id =
-                    ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
-
-                let conversation = self.validate_conversation_exists(&conversation_id).await?;
+                let conversation = self.validate_conversation_exists(&id).await?;
 
                 self.on_show_conv_info(conversation).await?;
             }
             ConversationCommand::Stats { id, porcelain } => {
-                let conversation_id =
-                    ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
-
-                let conversation = self.validate_conversation_exists(&conversation_id).await?;
+                let conversation = self.validate_conversation_exists(&id).await?;
 
                 self.on_show_conv_stats(conversation, porcelain).await?;
             }
             ConversationCommand::Clone { id, porcelain } => {
-                let conversation_id =
-                    ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
-
-                let conversation = self.validate_conversation_exists(&conversation_id).await?;
+                let conversation = self.validate_conversation_exists(&id).await?;
 
                 self.spinner.start(Some("Cloning"))?;
                 self.on_clone_conversation(conversation, porcelain).await?;
@@ -2264,9 +2233,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let mut is_new = false;
         let id = if let Some(id) = self.state.conversation_id {
             id
-        } else if let Some(ref id_str) = self.cli.conversation_id {
-            // Parse and use the provided conversation ID
-            let id = ConversationId::parse(id_str).context("Failed to parse conversation ID")?;
+        } else if let Some(id) = self.cli.conversation_id {
+            // Use the provided conversation ID
 
             // Check if conversation exists, if not create it
             if self.api.conversation(&id).await?.is_none() {
