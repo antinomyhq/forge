@@ -4,6 +4,7 @@
 //! `forge_domain` counterparts for compile-time safety while keeping the
 //! storage layer independent from domain model changes.
 
+use anyhow::Context as _;
 use forge_domain::{Context, ConversationId};
 use serde::{Deserialize, Serialize};
 
@@ -179,6 +180,34 @@ impl From<ReasoningFullRecord> for forge_domain::ReasoningFull {
             format: record.format,
             index: record.index,
             type_of: record.type_of,
+        }
+    }
+}
+
+/// Repository-specific representation of TokenCount
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(super) enum TokenCountRecord {
+    #[serde(alias = "Actual")]
+    Actual(usize),
+    #[serde(alias = "Approx")]
+    Approx(usize),
+}
+
+impl From<&forge_domain::TokenCount> for TokenCountRecord {
+    fn from(count: &forge_domain::TokenCount) -> Self {
+        match count {
+            forge_domain::TokenCount::Actual(n) => Self::Actual(*n),
+            forge_domain::TokenCount::Approx(n) => Self::Approx(*n),
+        }
+    }
+}
+
+impl From<TokenCountRecord> for forge_domain::TokenCount {
+    fn from(record: TokenCountRecord) -> Self {
+        match record {
+            TokenCountRecord::Actual(n) => Self::Actual(n),
+            TokenCountRecord::Approx(n) => Self::Approx(n),
         }
     }
 }
@@ -463,11 +492,40 @@ impl TryFrom<ContextMessageValueRecord> for forge_domain::ContextMessageValue {
 }
 
 /// Repository-specific representation of ContextMessage
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 pub(super) struct ContextMessageRecord {
     message: ContextMessageValueRecord,
     #[serde(skip_serializing_if = "Option::is_none")]
     usage: Option<UsageRecord>,
+}
+
+// TODO: Move this deserialization logic into Conversation repo
+impl<'de> Deserialize<'de> for ContextMessageRecord {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum ContextMessageParser {
+            // Try new format first (with message field)
+            Wrapper {
+                message: ContextMessageValueRecord,
+                usage: Option<UsageRecord>,
+            },
+            // Fall back to old format (direct ContextMessage)
+            Direct(ContextMessageValueRecord),
+        }
+
+        match ContextMessageParser::deserialize(deserializer)? {
+            ContextMessageParser::Wrapper { message, usage } => {
+                Ok(ContextMessageRecord { message, usage })
+            }
+            ContextMessageParser::Direct(message) => {
+                Ok(ContextMessageRecord { message, usage: None })
+            }
+        }
+    }
 }
 
 impl From<&forge_domain::ContextMessage> for ContextMessageRecord {
@@ -672,7 +730,7 @@ impl TryFrom<ContextRecord> for Context {
     fn try_from(record: ContextRecord) -> anyhow::Result<Self> {
         let conversation_id = record
             .conversation_id
-            .map(|id| ConversationId::parse(id))
+            .map(ConversationId::parse)
             .transpose()?;
 
         tracing::debug!(
@@ -712,5 +770,174 @@ impl TryFrom<ContextRecord> for Context {
             reasoning: record.reasoning.map(Into::into),
             stream: record.stream,
         })
+    }
+}
+
+/// Repository-specific representation of FileOperation
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(super) struct FileChangeMetricsRecord {
+    lines_added: u64,
+    lines_removed: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    content_hash: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    tool: Option<forge_domain::ToolKind>,
+}
+
+impl From<&forge_domain::FileOperation> for FileChangeMetricsRecord {
+    fn from(metrics: &forge_domain::FileOperation) -> Self {
+        Self {
+            lines_added: metrics.lines_added,
+            lines_removed: metrics.lines_removed,
+            content_hash: metrics.content_hash.clone(),
+            tool: Some(metrics.tool),
+        }
+    }
+}
+
+impl From<FileChangeMetricsRecord> for forge_domain::FileOperation {
+    fn from(record: FileChangeMetricsRecord) -> Self {
+        // Use Write as default tool for old records without tool field
+        let tool = record.tool.unwrap_or(forge_domain::ToolKind::Write);
+        Self::new(tool)
+            .lines_added(record.lines_added)
+            .lines_removed(record.lines_removed)
+            .content_hash(record.content_hash)
+    }
+}
+
+/// Represents either a single file operation or array (for backward
+/// compatibility)
+#[derive(Debug, Clone, Serialize, Deserialize, derive_more::From)]
+#[serde(untagged)]
+pub(super) enum FileOperationOrArray {
+    Single(FileChangeMetricsRecord),
+    Array(Vec<FileChangeMetricsRecord>),
+}
+
+/// Repository-specific representation of Metrics
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(super) struct MetricsRecord {
+    started_at: Option<chrono::DateTime<chrono::Utc>>,
+    files_changed: std::collections::HashMap<String, FileOperationOrArray>,
+}
+
+impl From<&forge_domain::Metrics> for MetricsRecord {
+    fn from(metrics: &forge_domain::Metrics) -> Self {
+        Self {
+            started_at: metrics.started_at,
+            files_changed: metrics
+                .file_operations
+                .iter()
+                .map(|(path, file_metrics)| {
+                    (
+                        path.clone(),
+                        FileOperationOrArray::Single(file_metrics.into()),
+                    )
+                })
+                .collect(),
+        }
+    }
+}
+
+impl From<MetricsRecord> for forge_domain::Metrics {
+    fn from(record: MetricsRecord) -> Self {
+        Self {
+            started_at: record.started_at,
+            file_operations: record
+                .files_changed
+                .into_iter()
+                .filter_map(|(path, file_record)| {
+                    let operation = match file_record {
+                        // If it's an array, take the last operation (most recent)
+                        FileOperationOrArray::Array(mut arr) if !arr.is_empty() => {
+                            arr.pop().unwrap().into()
+                        }
+                        // If it's a single object, use it directly
+                        FileOperationOrArray::Single(record) => record.into(),
+                        // If it's an empty array, skip this file
+                        FileOperationOrArray::Array(_) => return None,
+                    };
+                    Some((path, operation))
+                })
+                .collect(),
+        }
+    }
+}
+
+/// Database model for conversations table
+#[derive(Debug, diesel::Queryable, diesel::Selectable, diesel::Insertable, diesel::AsChangeset)]
+#[diesel(table_name = crate::database::schema::conversations)]
+#[diesel(check_for_backend(diesel::sqlite::Sqlite))]
+pub(super) struct ConversationRecord {
+    pub conversation_id: String,
+    pub title: Option<String>,
+    pub workspace_id: i64,
+    pub context: Option<String>,
+    pub created_at: chrono::NaiveDateTime,
+    pub updated_at: Option<chrono::NaiveDateTime>,
+    pub metrics: Option<String>,
+}
+
+impl ConversationRecord {
+    /// Creates a new ConversationRecord from a Conversation domain object
+    pub fn new(
+        conversation: forge_domain::Conversation,
+        workspace_id: forge_domain::WorkspaceHash,
+    ) -> Self {
+        let context = conversation
+            .context
+            .as_ref()
+            .filter(|ctx| !ctx.messages.is_empty())
+            .map(ContextRecord::from)
+            .and_then(|ctx_record| serde_json::to_string(&ctx_record).ok());
+        let updated_at = context.as_ref().map(|_| chrono::Utc::now().naive_utc());
+        let metrics_record = MetricsRecord::from(&conversation.metrics);
+        let metrics = serde_json::to_string(&metrics_record).ok();
+
+        Self {
+            conversation_id: conversation.id.into_string(),
+            title: conversation.title.clone(),
+            context,
+            created_at: conversation.metadata.created_at.naive_utc(),
+            updated_at,
+            workspace_id: workspace_id.id() as i64,
+            metrics,
+        }
+    }
+}
+
+impl TryFrom<ConversationRecord> for forge_domain::Conversation {
+    type Error = anyhow::Error;
+
+    fn try_from(record: ConversationRecord) -> anyhow::Result<Self> {
+        let id = ConversationId::parse(record.conversation_id)?;
+        let context = if let Some(context_str) = record.context {
+            Some(
+                serde_json::from_str::<ContextRecord>(&context_str)
+                    .with_context(|| "Invalid context format")?
+                    .try_into()?,
+            )
+        } else {
+            None
+        };
+
+        // Deserialize metrics using MetricsRecord for compile-time safety
+        let metrics = record
+            .metrics
+            .and_then(|m| serde_json::from_str::<MetricsRecord>(&m).ok())
+            .map(forge_domain::Metrics::from)
+            .unwrap_or_else(|| {
+                forge_domain::Metrics::default().started_at(record.created_at.and_utc())
+            });
+
+        Ok(forge_domain::Conversation::new(id)
+            .context(context)
+            .title(record.title)
+            .metrics(metrics)
+            .metadata(
+                forge_domain::MetaData::new(record.created_at.and_utc())
+                    .updated_at(record.updated_at.map(|updated_at| updated_at.and_utc())),
+            ))
     }
 }
