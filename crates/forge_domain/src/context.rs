@@ -331,6 +331,7 @@ pub enum Role {
 #[derive(Clone, Debug, Serialize, Deserialize, Setters, PartialEq)]
 #[setters(into, strip_option)]
 pub struct ContextMessage {
+    #[serde(flatten)]
     pub message: ContextMessageValue,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub usage: Option<Usage>,

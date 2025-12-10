@@ -5,12 +5,11 @@ expression: snapshot
 transformation: TransformToolCalls
 before:
   messages:
-    - message:
-        tool:
-          name: empty_tool
-          call_id: call_empty
-          output:
-            is_error: false
-            values:
-              - empty
+    - tool:
+        name: empty_tool
+        call_id: call_empty
+        output:
+          is_error: false
+          values:
+            - empty
 after: {}

@@ -5,61 +5,51 @@ expression: snapshot
 transformation: DropReasoningDetails_mixed_messages
 before:
   messages:
-    - message:
-        text:
-          role: System
-          content: System message
-    - message:
-        text:
-          role: User
-          content: User message with reasoning
-          reasoning_details:
-            - text: Complex reasoning process
-              signature: ~
-              data: ~
-              id: ~
-              format: ~
-              index: ~
-              type_of: ~
-    - message:
-        text:
-          role: User
-          content: User message without reasoning
-    - message:
-        text:
-          role: Assistant
-          content: Assistant response
-    - message:
-        tool:
-          name: test_tool
-          call_id: call_123
-          output:
-            is_error: false
-            values:
-              - text: Tool result
+    - text:
+        role: System
+        content: System message
+    - text:
+        role: User
+        content: User message with reasoning
+        reasoning_details:
+          - text: Complex reasoning process
+            signature: ~
+            data: ~
+            id: ~
+            format: ~
+            index: ~
+            type_of: ~
+    - text:
+        role: User
+        content: User message without reasoning
+    - text:
+        role: Assistant
+        content: Assistant response
+    - tool:
+        name: test_tool
+        call_id: call_123
+        output:
+          is_error: false
+          values:
+            - text: Tool result
 after:
   messages:
-    - message:
-        text:
-          role: System
-          content: System message
-    - message:
-        text:
-          role: User
-          content: User message with reasoning
-    - message:
-        text:
-          role: User
-          content: User message without reasoning
-    - message:
-        text:
-          role: Assistant
-          content: Assistant response
-    - message:
-        tool:
-          name: test_tool
-          call_id: call_123
-          output:
-            is_error: false
-            values:
-              - text: Tool result
+    - text:
+        role: System
+        content: System message
+    - text:
+        role: User
+        content: User message with reasoning
+    - text:
+        role: User
+        content: User message without reasoning
+    - text:
+        role: Assistant
+        content: Assistant response
+    - tool:
+        name: test_tool
+        call_id: call_123
+        output:
+          is_error: false
+          values:
+            - text: Tool result

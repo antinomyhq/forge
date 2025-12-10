@@ -5,39 +5,31 @@ expression: snapshot
 transformation: SetModel(gpt-4)
 before:
   messages:
-    - message:
-        text:
-          role: System
-          content: System message
-    - message:
-        text:
-          role: User
-          content: User message 1
-    - message:
-        text:
-          role: Assistant
-          content: Assistant response
-    - message:
-        text:
-          role: User
-          content: User message 2
+    - text:
+        role: System
+        content: System message
+    - text:
+        role: User
+        content: User message 1
+    - text:
+        role: Assistant
+        content: Assistant response
+    - text:
+        role: User
+        content: User message 2
 after:
   messages:
-    - message:
-        text:
-          role: System
-          content: System message
-    - message:
-        text:
-          role: User
-          content: User message 1
-          model: gpt-4
-    - message:
-        text:
-          role: Assistant
-          content: Assistant response
-    - message:
-        text:
-          role: User
-          content: User message 2
-          model: gpt-4
+    - text:
+        role: System
+        content: System message
+    - text:
+        role: User
+        content: User message 1
+        model: gpt-4
+    - text:
+        role: Assistant
+        content: Assistant response
+    - text:
+        role: User
+        content: User message 2
+        model: gpt-4

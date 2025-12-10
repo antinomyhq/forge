@@ -5,37 +5,33 @@ expression: snapshot
 transformation: ImageHandling
 before:
   messages:
-    - message:
-        tool:
-          name: mixed_tool
-          call_id: call_456
-          output:
-            is_error: false
-            values:
-              - text: First text output
-              - image:
-                  url: "data:image/png;base64,test_image_data"
-                  mime_type: image/png
-              - text: Second text output
-              - empty
+    - tool:
+        name: mixed_tool
+        call_id: call_456
+        output:
+          is_error: false
+          values:
+            - text: First text output
+            - image:
+                url: "data:image/png;base64,test_image_data"
+                mime_type: image/png
+            - text: Second text output
+            - empty
 after:
   messages:
-    - message:
-        tool:
-          name: mixed_tool
-          call_id: call_456
-          output:
-            is_error: false
-            values:
-              - text: First text output
-              - text: "[The image with ID 0 will be sent as an attachment in the next message]"
-              - text: Second text output
-              - empty
-    - message:
-        text:
-          role: User
-          content: "[Here is the image attachment for ID 0]"
-    - message:
-        image:
-          url: "data:image/png;base64,test_image_data"
-          mime_type: image/png
+    - tool:
+        name: mixed_tool
+        call_id: call_456
+        output:
+          is_error: false
+          values:
+            - text: First text output
+            - text: "[The image with ID 0 will be sent as an attachment in the next message]"
+            - text: Second text output
+            - empty
+    - text:
+        role: User
+        content: "[Here is the image attachment for ID 0]"
+    - image:
+        url: "data:image/png;base64,test_image_data"
+        mime_type: image/png

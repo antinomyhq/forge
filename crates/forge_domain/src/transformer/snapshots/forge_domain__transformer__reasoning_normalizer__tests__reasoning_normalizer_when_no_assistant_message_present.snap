@@ -5,25 +5,21 @@ expression: snapshot
 transformation: ReasoningNormalizer_first_no_assistant_message_present
 before:
   messages:
-    - message:
-        text:
-          role: System
-          content: System message
-    - message:
-        text:
-          role: User
-          content: User message
+    - text:
+        role: System
+        content: System message
+    - text:
+        role: User
+        content: User message
   reasoning:
     enabled: true
 after:
   messages:
-    - message:
-        text:
-          role: System
-          content: System message
-    - message:
-        text:
-          role: User
-          content: User message
+    - text:
+        role: System
+        content: System message
+    - text:
+        role: User
+        content: User message
   reasoning:
     enabled: true

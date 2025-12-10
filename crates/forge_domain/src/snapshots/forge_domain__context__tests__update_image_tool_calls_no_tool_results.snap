@@ -3,15 +3,12 @@ source: crates/forge_domain/src/context.rs
 expression: actual
 ---
 messages:
-  - message:
-      text:
-        role: System
-        content: System message
-  - message:
-      text:
-        role: User
-        content: User message
-  - message:
-      text:
-        role: Assistant
-        content: Assistant message
+  - text:
+      role: System
+      content: System message
+  - text:
+      role: User
+      content: User message
+  - text:
+      role: Assistant
+      content: Assistant message

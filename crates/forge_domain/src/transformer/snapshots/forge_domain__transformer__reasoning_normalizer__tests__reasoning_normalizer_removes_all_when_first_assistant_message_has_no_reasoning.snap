@@ -5,55 +5,47 @@ expression: snapshot
 transformation: ReasoningNormalizer_first_no_reasoning
 before:
   messages:
-    - message:
-        text:
-          role: User
-          content: User message
-    - message:
-        text:
-          role: Assistant
-          content: First assistant without reasoning
-    - message:
-        text:
-          role: Assistant
-          content: Second assistant with reasoning
-          reasoning_details:
-            - text: Complex reasoning process
-              signature: ~
-              data: ~
-              id: ~
-              format: ~
-              index: ~
-              type_of: ~
-    - message:
-        text:
-          role: Assistant
-          content: Third assistant with reasoning
-          reasoning_details:
-            - text: Complex reasoning process
-              signature: ~
-              data: ~
-              id: ~
-              format: ~
-              index: ~
-              type_of: ~
+    - text:
+        role: User
+        content: User message
+    - text:
+        role: Assistant
+        content: First assistant without reasoning
+    - text:
+        role: Assistant
+        content: Second assistant with reasoning
+        reasoning_details:
+          - text: Complex reasoning process
+            signature: ~
+            data: ~
+            id: ~
+            format: ~
+            index: ~
+            type_of: ~
+    - text:
+        role: Assistant
+        content: Third assistant with reasoning
+        reasoning_details:
+          - text: Complex reasoning process
+            signature: ~
+            data: ~
+            id: ~
+            format: ~
+            index: ~
+            type_of: ~
   reasoning:
     enabled: true
 after:
   messages:
-    - message:
-        text:
-          role: User
-          content: User message
-    - message:
-        text:
-          role: Assistant
-          content: First assistant without reasoning
-    - message:
-        text:
-          role: Assistant
-          content: Second assistant with reasoning
-    - message:
-        text:
-          role: Assistant
-          content: Third assistant with reasoning
+    - text:
+        role: User
+        content: User message
+    - text:
+        role: Assistant
+        content: First assistant without reasoning
+    - text:
+        role: Assistant
+        content: Second assistant with reasoning
+    - text:
+        role: Assistant
+        content: Third assistant with reasoning
