@@ -542,7 +542,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
                         // If conversation_id is provided, set it in CLI before initializing
                         if let Some(ref cid) = run_group.conversation_id {
-                            self.cli.conversation_id = Some(cid.clone());
+                            self.cli.conversation_id = Some(*cid);
                         }
 
                         self.init_conversation().await?;
