@@ -18,7 +18,7 @@ pub struct Cli {
     /// When provided, executes a single command and exits instead of starting
     /// an interactive session. Content can also be piped: `cat prompt.txt |
     /// forge`.
-    #[arg(long, short = 'p')]
+    #[arg(long, short = 'p', allow_hyphen_values = true)]
     pub prompt: Option<String>,
 
     /// Piped input from stdin (populated internally)
@@ -141,6 +141,9 @@ pub enum TopLevelCommand {
 
     /// Manage workspaces for semantic search.
     Workspace(WorkspaceCommandGroup),
+
+    /// Process JSONL data through LLM with schema-constrained tools.
+    Data(DataCommandGroup),
 }
 
 /// Command group for custom command management.
@@ -278,7 +281,12 @@ pub enum ListCommand {
 
     /// List available API providers.
     #[command(alias = "providers")]
-    Provider,
+    Provider {
+        /// Filter providers by type (e.g., llm, context_engine). Can be
+        /// specified multiple times.
+        #[arg(long = "type", short = 't')]
+        types: Vec<forge_domain::ProviderType>,
+    },
 
     /// List available models.
     #[command(alias = "models")]
@@ -571,7 +579,12 @@ pub enum ProviderCommand {
     },
 
     /// List available providers.
-    List,
+    List {
+        /// Filter providers by type (e.g., llm, context_engine). Can be
+        /// specified multiple times.
+        #[arg(long = "type", short = 't')]
+        types: Vec<forge_domain::ProviderType>,
+    },
 }
 
 /// Group of Commit-related commands
@@ -605,12 +618,70 @@ pub struct CommitCommandGroup {
     pub text: Vec<String>,
 }
 
+/// Group of Data-related commands
+#[derive(Parser, Debug, Clone)]
+pub struct DataCommandGroup {
+    /// Path to JSONL file to process
+    #[arg(long)]
+    pub input: String,
+
+    /// Path to JSON schema file for LLM tool definition
+    #[arg(long)]
+    pub schema: String,
+
+    /// Path to Handlebars template file for system prompt
+    #[arg(long)]
+    pub system_prompt: Option<String>,
+
+    /// Path to Handlebars template file for user prompt
+    #[arg(long)]
+    pub user_prompt: Option<String>,
+
+    /// Maximum number of concurrent LLM requests
+    #[arg(long, default_value = "10")]
+    pub concurrency: usize,
+}
+
+impl From<DataCommandGroup> for forge_domain::DataGenerationParameters {
+    fn from(value: DataCommandGroup) -> Self {
+        Self {
+            input: value.input.into(),
+            schema: value.schema.into(),
+            system_prompt: value.system_prompt.map(Into::into),
+            user_prompt: value.user_prompt.map(Into::into),
+            concurrency: value.concurrency,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use clap::Parser;
     use pretty_assertions::assert_eq;
 
     use super::*;
+
+    #[test]
+    fn test_data_command_group_conversion() {
+        use std::path::PathBuf;
+
+        let fixture = DataCommandGroup {
+            input: "path/to/input.jsonl".to_string(),
+            schema: "path/to/schema.json".to_string(),
+            system_prompt: Some("system prompt".to_string()),
+            user_prompt: None,
+            concurrency: 5,
+        };
+        let actual: forge_domain::DataGenerationParameters = fixture.into();
+        let expected = forge_domain::DataGenerationParameters {
+            input: PathBuf::from("path/to/input.jsonl"),
+            schema: PathBuf::from("path/to/schema.json"),
+            system_prompt: Some(PathBuf::from("system prompt")),
+            user_prompt: None,
+            concurrency: 5,
+        };
+        assert_eq!(actual, expected);
+    }
 
     #[test]
     fn test_commit_default_max_diff_size() {
@@ -1197,5 +1268,23 @@ mod tests {
         };
         let expected = true;
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_prompt_with_leading_hyphen() {
+        let fixture = Cli::parse_from(["forge", "-p", "- hi"]);
+        assert_eq!(fixture.prompt, Some("- hi".to_string()));
+    }
+
+    #[test]
+    fn test_prompt_with_hyphen_flag_like_value() {
+        let fixture = Cli::parse_from(["forge", "-p", "-test"]);
+        assert_eq!(fixture.prompt, Some("-test".to_string()));
+    }
+
+    #[test]
+    fn test_prompt_with_double_hyphen() {
+        let fixture = Cli::parse_from(["forge", "-p", "--something"]);
+        assert_eq!(fixture.prompt, Some("--something".to_string()));
     }
 }

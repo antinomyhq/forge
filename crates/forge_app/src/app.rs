@@ -22,7 +22,7 @@ use crate::tool_resolver::ToolResolver;
 use crate::user_prompt::UserPromptGenerator;
 use crate::{
     AgentProviderResolver, ConversationService, EnvironmentService, FileDiscoveryService,
-    ProviderService, Services, Walker, WorkflowService,
+    ProviderService, Services, WorkflowService,
 };
 
 /// ForgeApp handles the core chat functionality by orchestrating various
@@ -62,22 +62,9 @@ impl<S: Services> ForgeApp<S> {
 
         // Discover files using the discovery service
         let workflow = self.services.read_merged(None).await.unwrap_or_default();
-        let max_depth = workflow.max_walker_depth;
         let environment = services.get_environment();
 
-        let mut walker = Walker::conservative().cwd(environment.cwd.clone());
-
-        if let Some(depth) = max_depth {
-            walker = walker.max_depth(depth);
-        };
-
-        let files = services
-            .collect_files(walker)
-            .await?
-            .into_iter()
-            .filter(|f| !f.is_dir)
-            .map(|f| f.path)
-            .collect::<Vec<_>>();
+        let files = services.list_current_directory().await?;
 
         // Register templates using workflow path or environment fallback
         let template_path = workflow

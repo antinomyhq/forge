@@ -32,7 +32,6 @@ impl ConversationId {
 #[setters(into)]
 pub struct Conversation {
     pub id: ConversationId,
-
     pub title: Option<String>,
     pub context: Option<Context>,
     pub metrics: Metrics,

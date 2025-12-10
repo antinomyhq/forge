@@ -172,11 +172,13 @@ mod tests {
         let first_reasoning = vec![ReasoningFull {
             text: Some("First thought".to_string()),
             signature: Some("sig1".to_string()),
+            ..Default::default()
         }];
 
         let last_reasoning = vec![ReasoningFull {
             text: Some("Last thought".to_string()),
             signature: Some("sig2".to_string()),
+            ..Default::default()
         }];
 
         let context = Context::default()
@@ -225,6 +227,7 @@ mod tests {
         let reasoning = vec![ReasoningFull {
             text: Some("Original thought".to_string()),
             signature: Some("sig1".to_string()),
+            ..Default::default()
         }];
 
         // First compaction
@@ -284,6 +287,7 @@ mod tests {
         let non_empty_reasoning = vec![ReasoningFull {
             text: Some("Valid thought".to_string()),
             signature: Some("sig1".to_string()),
+            ..Default::default()
         }];
 
         // Most recent message in range has empty reasoning, earlier has non-empty

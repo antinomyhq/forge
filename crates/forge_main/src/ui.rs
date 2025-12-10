@@ -41,6 +41,7 @@ use crate::model::{CliModel, CliProvider, ForgeCommandManager, SlashCommand};
 use crate::porcelain::Porcelain;
 use crate::prompt::ForgePrompt;
 use crate::state::UIState;
+use crate::sync_display::SyncProgressDisplay;
 use crate::title_display::TitleDisplayExt;
 use crate::tools_display::format_tools;
 use crate::update::on_update;
@@ -382,8 +383,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     ListCommand::Agent => {
                         self.on_show_agents(porcelain).await?;
                     }
-                    ListCommand::Provider => {
-                        self.on_show_providers(porcelain).await?;
+                    ListCommand::Provider { types } => {
+                        self.on_show_providers(porcelain, types).await?;
                     }
                     ListCommand::Model => {
                         self.on_show_models(porcelain).await?;
@@ -420,7 +421,6 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
                 return Ok(());
             }
-
             TopLevelCommand::Mcp(mcp_command) => match mcp_command.command {
                 McpCommand::Import(import_args) => {
                     let scope: forge_domain::Scope = import_args.scope.into();
@@ -477,9 +477,19 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         .get(&name)
                         .ok_or(anyhow::anyhow!("Server not found"))?;
 
-                    let mut output = String::new();
-                    output.push_str(&format!("{name}: {}", format_mcp_server(server)));
-                    self.writeln_title(TitleFormat::info(output))?;
+                    // Get MCP servers to check for failures
+                    let tools = self.api.get_tools().await?;
+
+                    // Display server configuration
+                    self.writeln_title(TitleFormat::info(format!(
+                        "{name}: {}",
+                        format_mcp_server(server)
+                    )))?;
+
+                    // Display error if the server failed to initialize
+                    if let Some(error) = tools.mcp.get_failures().get(&name) {
+                        self.writeln_title(TitleFormat::error(error))?;
+                    }
                 }
                 McpCommand::Reload => {
                     self.spinner.start(Some("Reloading MCPs"))?;
@@ -512,22 +522,18 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     .await?;
                 return Ok(());
             }
-
             TopLevelCommand::Provider(provider_group) => {
                 self.handle_provider_command(provider_group).await?;
                 return Ok(());
             }
-
             TopLevelCommand::Conversation(conversation_group) => {
                 self.handle_conversation_command(conversation_group).await?;
                 return Ok(());
             }
-
             TopLevelCommand::Suggest { prompt } => {
                 self.on_cmd(UserPrompt::from(prompt)).await?;
                 return Ok(());
             }
-
             TopLevelCommand::Cmd(run_group) => {
                 let porcelain = run_group.porcelain;
                 match run_group.command {
@@ -562,7 +568,6 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
                 return Ok(());
             }
-
             TopLevelCommand::Workspace(index_group) => {
                 match index_group.command {
                     crate::cli::WorkspaceCommand::Sync { path, batch_size } => {
@@ -603,7 +608,6 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
                 return Ok(());
             }
-
             TopLevelCommand::Commit(commit_group) => {
                 let preview = commit_group.preview;
                 let result = self.handle_commit_command(commit_group).await?;
@@ -611,6 +615,12 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     self.writeln(&result.message)?;
                 }
                 return Ok(());
+            }
+            TopLevelCommand::Data(data_command_group) => {
+                let mut stream = self.api.generate_data(data_command_group.into()).await?;
+                while let Some(data) = stream.next().await {
+                    self.writeln(data?)?;
+                }
             }
         }
         Ok(())
@@ -746,8 +756,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             ProviderCommand::Logout { provider } => {
                 self.handle_provider_logout(provider.as_ref()).await?;
             }
-            ProviderCommand::List => {
-                self.on_show_providers(provider_group.porcelain).await?;
+            ProviderCommand::List { types } => {
+                self.on_show_providers(provider_group.porcelain, types)
+                    .await?;
             }
         }
 
@@ -984,8 +995,17 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     }
 
     /// Lists all the providers
-    async fn on_show_providers(&mut self, porcelain: bool) -> anyhow::Result<()> {
-        let providers = self.api.get_providers().await?;
+    async fn on_show_providers(
+        &mut self,
+        porcelain: bool,
+        types: Vec<forge_domain::ProviderType>,
+    ) -> anyhow::Result<()> {
+        let mut providers = self.api.get_providers().await?;
+
+        // Filter by type if specified
+        if !types.is_empty() {
+            providers.retain(|p| types.contains(p.provider_type()));
+        }
 
         if providers.is_empty() {
             return Ok(());
@@ -2875,19 +2895,30 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         let mut stream = self.api.sync_codebase(path.clone(), batch_size).await?;
         let mut progress_bar = ProgressBarManager::default();
-        progress_bar.start(100, "Indexing codebase")?;
 
         while let Some(event) = stream.next().await {
             match event {
                 Ok(ref progress @ SyncProgress::Completed { .. }) => {
                     progress_bar.set_position(100)?;
                     progress_bar.stop(None).await?;
-                    self.writeln_title(TitleFormat::debug(progress.message()))?;
+                    if let Some(msg) = progress.message() {
+                        self.writeln_title(TitleFormat::debug(msg))?;
+                    }
                 }
-                Ok(ref progress) => {
-                    progress_bar.set_message(&progress.message())?;
+                Ok(ref progress @ SyncProgress::Syncing { .. }) => {
+                    if !progress_bar.is_active() {
+                        progress_bar.start(100, "Indexing codebase")?;
+                    }
+                    if let Some(msg) = progress.message() {
+                        progress_bar.set_message(&msg)?;
+                    }
                     if let Some(weight) = progress.weight() {
                         progress_bar.set_position(weight)?;
+                    }
+                }
+                Ok(ref progress) => {
+                    if let Some(msg) = progress.message() {
+                        self.writeln_title(TitleFormat::debug(msg))?;
                     }
                 }
                 Err(e) => {
@@ -2921,23 +2952,27 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         for result in results.iter() {
             match &result.node {
-                forge_domain::NodeData::FileChunk { file_path, start_line, end_line, .. } => {
+                forge_domain::NodeData::FileChunk(chunk) => {
                     info = info.add_key_value(
                         "File",
-                        format!("{}:{}-{}", file_path, start_line, end_line),
+                        format!(
+                            "{}:{}-{}",
+                            chunk.file_path, chunk.start_line, chunk.end_line
+                        ),
                     );
                 }
-                forge_domain::NodeData::File { file_path, .. } => {
-                    info = info.add_key_value("File", format!("{} (full file)", file_path));
+                forge_domain::NodeData::File(file) => {
+                    info = info.add_key_value("File", format!("{} (full file)", file.file_path));
                 }
-                forge_domain::NodeData::FileRef { file_path, .. } => {
-                    info = info.add_key_value("File", format!("{} (reference)", file_path));
+                forge_domain::NodeData::FileRef(file_ref) => {
+                    info =
+                        info.add_key_value("File", format!("{} (reference)", file_ref.file_path));
                 }
-                forge_domain::NodeData::Note { content, .. } => {
-                    info = info.add_key_value("Note", content);
+                forge_domain::NodeData::Note(note) => {
+                    info = info.add_key_value("Note", &note.content);
                 }
-                forge_domain::NodeData::Task { task, .. } => {
-                    info = info.add_key_value("Task", task);
+                forge_domain::NodeData::Task(task) => {
+                    info = info.add_key_value("Task", &task.task);
                 }
             }
         }

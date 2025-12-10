@@ -12,6 +12,7 @@ forge_stream.workspace = true
 forge_services.workspace = true
 forge_repo.workspace = true
 forge_infra.workspace = true
+futures.workspace = true
 
 
 
@@ -21,6 +22,7 @@ forge_infra.workspace = true
 
 
 forge_app.workspace = true
+serde_json.workspace = true
 
 [dev-dependencies]
 

@@ -158,8 +158,8 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
                                     .append(Element::new("strong").text("Tool Result: "))
                                     .append(Element::span(tool_result.name.as_str())),
                             )
-                            .append(tool_result.output.values.iter().filter_map(
-                                |value| match value {
+                            .append(tool_result.output.values.iter().filter_map(|value| {
+                                match value {
                                     crate::ToolValue::Text(text) => {
                                         Some(Element::new("pre").text(text))
                                     }
@@ -167,8 +167,15 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
                                         Some(Element::new("img").attr("src", image.url()))
                                     }
                                     crate::ToolValue::Empty => None,
-                                },
-                            ))
+                                    crate::ToolValue::AI { value, conversation_id } => Some(
+                                        Element::new("div")
+                                            .append(Element::new("b").text(format!(
+                                                "Conversation ID: {conversation_id}"
+                                            )))
+                                            .append(Element::new("pre").text(value)),
+                                    ),
+                                }
+                            }))
                     }
                     ContextMessage::Image(image) => {
                         // Image message
@@ -324,6 +331,7 @@ mod tests {
                     Some(vec![ReasoningFull {
                         text: Some("This is my reasoning process".to_string()),
                         signature: Some("reasoning_signature_123".to_string()),
+                        ..Default::default()
                     }]),
                     None,
                 ));

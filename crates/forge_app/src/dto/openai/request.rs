@@ -32,6 +32,11 @@ pub struct Message {
     pub tool_calls: Option<Vec<ToolCall>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_details: Option<Vec<ReasoningDetail>>,
+    // GitHub Copilot format (flat fields instead of array)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_text: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_opaque: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
@@ -398,12 +403,20 @@ impl From<ContextMessage> for Message {
                     details
                         .into_iter()
                         .map(|detail| ReasoningDetail {
-                            r#type: "reasoning.text".to_string(),
+                            r#type: detail
+                                .type_of
+                                .unwrap_or_else(|| "reasoning.text".to_string()),
                             text: detail.text,
                             signature: detail.signature,
+                            data: detail.data,
+                            id: detail.id,
+                            format: detail.format,
+                            index: detail.index,
                         })
                         .collect::<Vec<ReasoningDetail>>()
                 }),
+                reasoning_text: None,
+                reasoning_opaque: None,
             },
             ContextMessage::Tool(tool_result) => Message {
                 role: Role::Tool,
@@ -412,6 +425,8 @@ impl From<ContextMessage> for Message {
                 content: Some(tool_result.into()),
                 tool_calls: None,
                 reasoning_details: None,
+                reasoning_text: None,
+                reasoning_opaque: None,
             },
             ContextMessage::Image(img) => {
                 let content = vec![ContentPart::ImageUrl {
@@ -425,6 +440,8 @@ impl From<ContextMessage> for Message {
                     tool_call_id: None,
                     tool_calls: None,
                     reasoning_details: None,
+                    reasoning_text: None,
+                    reasoning_opaque: None,
                 }
             }
         }
@@ -453,6 +470,9 @@ impl From<ToolResult> for MessageContent {
                 }
                 ToolValue::Empty => {
                     // Handle empty case if needed
+                }
+                ToolValue::AI { value, .. } => {
+                    parts.push(ContentPart::Text { text: value, cache_control: None })
                 }
             }
         }

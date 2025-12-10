@@ -5,6 +5,7 @@ use forge_app::dto::ToolsOverview;
 use forge_app::{User, UserUsage};
 use forge_domain::{AgentId, InitAuth, ModelId};
 use forge_stream::MpscStream;
+use futures::stream::BoxStream;
 use url::Url;
 
 use crate::*;
@@ -211,4 +212,9 @@ pub trait API: Sync + Send {
     /// credentials. This is a one-time migration that runs only if the
     /// credentials file doesn't exist.
     async fn migrate_env_credentials(&self) -> Result<Option<forge_domain::MigrationResult>>;
+
+    async fn generate_data(
+        &self,
+        data_parameters: DataGenerationParameters,
+    ) -> Result<BoxStream<'static, Result<serde_json::Value, anyhow::Error>>>;
 }

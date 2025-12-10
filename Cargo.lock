@@ -1294,6 +1294,8 @@ dependencies = [
  "forge_repo",
  "forge_services",
  "forge_stream",
+ "futures",
+ "serde_json",
  "tokio",
  "url",
 ]

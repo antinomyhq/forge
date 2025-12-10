@@ -195,8 +195,10 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
         let has_anthropic_url = self.infra.get_env_var("ANTHROPIC_URL").is_some();
 
         for config in configs {
-            // Skip Forge provider
-            if config.id == ProviderId::FORGE {
+            // Skip Forge provider and ContextEngine providers - they're not configurable
+            // via env like other providers
+            if config.id == ProviderId::FORGE || config.provider_type == ProviderType::ContextEngine
+            {
                 continue;
             }
 
@@ -768,6 +770,41 @@ mod env_tests {
             AuthDetails::ApiKey(key) => assert_eq!(key.as_str(), "test-anthropic-key"),
             _ => panic!("Expected API key"),
         }
+    }
+
+    #[tokio::test]
+    async fn test_migration_should_not_create_forge_services_credential() {
+        let mut env_vars = HashMap::new();
+        env_vars.insert("OPENAI_API_KEY".to_string(), "test-key".to_string());
+
+        let infra = Arc::new(MockInfra::new(env_vars));
+        let registry = ForgeProviderRepository::new(infra.clone());
+
+        // Trigger migration
+        registry.migrate_env_to_file().await.unwrap();
+
+        // Verify credentials were written
+        let credentials_guard = infra.credentials.lock().await;
+        let credentials = credentials_guard.as_ref().unwrap();
+
+        // Verify forge_services was NOT created during migration
+        assert!(
+            !credentials
+                .iter()
+                .any(|c| c.id == ProviderId::FORGE_SERVICES),
+            "Should NOT create forge_services credential during environment migration"
+        );
+
+        // Verify only OpenAI credential was created
+        assert_eq!(
+            credentials.len(),
+            1,
+            "Should only have one credential (OpenAI)"
+        );
+        assert!(
+            credentials.iter().any(|c| c.id == ProviderId::OPENAI),
+            "Should have OpenAI credential"
+        );
     }
 
     #[tokio::test]
