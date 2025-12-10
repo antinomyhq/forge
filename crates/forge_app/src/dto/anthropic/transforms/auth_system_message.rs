@@ -46,7 +46,7 @@ impl Transformer for AuthSystemMessage {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{Context, ContextMessageValue, ModelId, Role, TextMessage};
+    use forge_domain::{Context, ContextMessage, ModelId, Role, TextMessage};
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -61,7 +61,7 @@ mod tests {
         // Add system messages
         for i in 0..system_count {
             messages.push(
-                ContextMessageValue::Text(TextMessage::new(
+                ContextMessage::Text(TextMessage::new(
                     Role::System,
                     format!("System message {}", i),
                 ))
@@ -71,7 +71,7 @@ mod tests {
 
         // Add at least one user message
         messages.push(
-            ContextMessageValue::Text(
+            ContextMessage::Text(
                 TextMessage::new(Role::User, "Hello")
                     .model(ModelId::new("claude-3-5-sonnet-20241022")),
             )

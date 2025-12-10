@@ -465,21 +465,21 @@ pub(super) enum ContextMessageValueRecord {
     Image(ImageRecord),
 }
 
-impl From<&forge_domain::ContextMessageValue> for ContextMessageValueRecord {
-    fn from(value: &forge_domain::ContextMessageValue) -> Self {
+impl From<&forge_domain::ContextMessage> for ContextMessageValueRecord {
+    fn from(value: &forge_domain::ContextMessage) -> Self {
         match value {
-            forge_domain::ContextMessageValue::Text(msg) => {
+            forge_domain::ContextMessage::Text(msg) => {
                 Self::Text(TextMessageRecord::from(msg))
             }
-            forge_domain::ContextMessageValue::Tool(result) => {
+            forge_domain::ContextMessage::Tool(result) => {
                 Self::Tool(ToolResultRecord::from(result))
             }
-            forge_domain::ContextMessageValue::Image(img) => Self::Image(ImageRecord::from(img)),
+            forge_domain::ContextMessage::Image(img) => Self::Image(ImageRecord::from(img)),
         }
     }
 }
 
-impl TryFrom<ContextMessageValueRecord> for forge_domain::ContextMessageValue {
+impl TryFrom<ContextMessageValueRecord> for forge_domain::ContextMessage {
     type Error = anyhow::Error;
 
     fn try_from(record: ContextMessageValueRecord) -> anyhow::Result<Self> {
@@ -528,8 +528,8 @@ impl<'de> Deserialize<'de> for ContextMessageRecord {
     }
 }
 
-impl From<&forge_domain::ContextMessage> for ContextMessageRecord {
-    fn from(msg: &forge_domain::ContextMessage) -> Self {
+impl From<&forge_domain::MessageEntry> for ContextMessageRecord {
+    fn from(msg: &forge_domain::MessageEntry) -> Self {
         Self {
             message: ContextMessageValueRecord::from(&msg.message),
             usage: msg.usage.as_ref().map(UsageRecord::from),
@@ -537,11 +537,11 @@ impl From<&forge_domain::ContextMessage> for ContextMessageRecord {
     }
 }
 
-impl TryFrom<ContextMessageRecord> for forge_domain::ContextMessage {
+impl TryFrom<ContextMessageRecord> for forge_domain::MessageEntry {
     type Error = anyhow::Error;
 
     fn try_from(record: ContextMessageRecord) -> anyhow::Result<Self> {
-        Ok(forge_domain::ContextMessage {
+        Ok(forge_domain::MessageEntry {
             message: record.message.try_into()?,
             usage: record.usage.map(Into::into),
         })

@@ -5,7 +5,7 @@ use derive_more::From;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Context, ContextMessageValue, Role, SearchQuery, TextMessage, ToolCallFull, ToolCallId,
+    Context, ContextMessage, Role, SearchQuery, TextMessage, ToolCallFull, ToolCallId,
     ToolCatalog, ToolResult,
 };
 
@@ -214,7 +214,7 @@ impl From<&Context> for ContextSummary {
         let mut current_role = Role::System;
         for msg in &value.messages {
             match msg.deref() {
-                ContextMessageValue::Text(text_msg) => {
+                ContextMessage::Text(text_msg) => {
                     // Skip system messages
                     if text_msg.role == Role::System {
                         continue;
@@ -234,12 +234,12 @@ impl From<&Context> for ContextSummary {
 
                     buffer.extend(Vec::<SummaryMessage>::from(text_msg));
                 }
-                ContextMessageValue::Tool(tool_result) => {
+                ContextMessage::Tool(tool_result) => {
                     if let Some(ref call_id) = tool_result.call_id {
                         tool_results.insert(call_id, tool_result);
                     }
                 }
-                ContextMessageValue::Image(_) => {}
+                ContextMessage::Image(_) => {}
             }
         }
 
@@ -326,37 +326,37 @@ mod tests {
 
     use super::*;
     use crate::{
-        ContextMessageValue, PatchOperation, TextMessage, ToolCallArguments, ToolCallId, ToolName,
+        ContextMessage, PatchOperation, TextMessage, ToolCallArguments, ToolCallId, ToolName,
         ToolOutput,
     };
 
     type Block = SummaryMessage;
 
-    fn context(messages: Vec<ContextMessageValue>) -> Context {
+    fn context(messages: Vec<ContextMessage>) -> Context {
         Context::default().messages(messages.into_iter().map(|m| m.into()).collect::<Vec<_>>())
     }
 
-    fn user(content: impl Into<String>) -> ContextMessageValue {
-        ContextMessageValue::Text(TextMessage::new(Role::User, content))
+    fn user(content: impl Into<String>) -> ContextMessage {
+        ContextMessage::Text(TextMessage::new(Role::User, content))
     }
 
-    fn assistant(content: impl Into<String>) -> ContextMessageValue {
-        ContextMessageValue::Text(TextMessage::new(Role::Assistant, content))
+    fn assistant(content: impl Into<String>) -> ContextMessage {
+        ContextMessage::Text(TextMessage::new(Role::Assistant, content))
     }
 
     fn assistant_with_tools(
         content: impl Into<String>,
         tool_calls: Vec<ToolCallFull>,
-    ) -> ContextMessageValue {
-        ContextMessageValue::Text(TextMessage::new(Role::Assistant, content).tool_calls(tool_calls))
+    ) -> ContextMessage {
+        ContextMessage::Text(TextMessage::new(Role::Assistant, content).tool_calls(tool_calls))
     }
 
-    fn system(content: impl Into<String>) -> ContextMessageValue {
-        ContextMessageValue::Text(TextMessage::new(Role::System, content))
+    fn system(content: impl Into<String>) -> ContextMessage {
+        ContextMessage::Text(TextMessage::new(Role::System, content))
     }
 
-    fn tool_result(name: &str, call_id: &str, is_error: bool) -> ContextMessageValue {
-        ContextMessageValue::Tool(ToolResult {
+    fn tool_result(name: &str, call_id: &str, is_error: bool) -> ContextMessage {
+        ContextMessage::Tool(ToolResult {
             name: ToolName::new(name),
             call_id: Some(ToolCallId::new(call_id)),
             output: ToolOutput::text("result").is_error(is_error),
@@ -715,7 +715,7 @@ mod tests {
                 "Reading file",
                 vec![ToolCatalog::tool_call_read("/test/file.rs").call_id("call_1")],
             ),
-            ContextMessageValue::Tool(ToolResult {
+            ContextMessage::Tool(ToolResult {
                 name: ToolName::new("read"),
                 call_id: None,
                 output: ToolOutput::text("result"),
@@ -790,7 +790,7 @@ mod tests {
     fn test_context_summary_ignores_image_messages() {
         let fixture = context(vec![
             user("User message"),
-            ContextMessageValue::Image(crate::Image::new_base64(
+            ContextMessage::Image(crate::Image::new_base64(
                 "test_image_data".to_string(),
                 "image/png",
             )),

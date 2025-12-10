@@ -51,7 +51,7 @@ impl Transformer for SetCache {
 mod tests {
     use std::collections::HashSet;
 
-    use forge_domain::{Context, ContextMessageValue, ModelId, Role, TextMessage};
+    use forge_domain::{Context, ContextMessage, ModelId, Role, TextMessage};
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -66,7 +66,7 @@ mod tests {
         for c in system_messages.chars() {
             match c {
                 's' => messages.push(
-                    ContextMessageValue::Text(TextMessage::new(Role::System, c.to_string())).into(),
+                    ContextMessage::Text(TextMessage::new(Role::System, c.to_string())).into(),
                 ),
                 _ => panic!("Invalid character in system message: {}", c),
             }
@@ -76,14 +76,14 @@ mod tests {
         for c in conversation_messages.chars() {
             match c {
                 'u' => messages.push(
-                    ContextMessageValue::Text(
+                    ContextMessage::Text(
                         TextMessage::new(Role::User, c.to_string())
                             .model(ModelId::new("claude-3-5-sonnet-20241022")),
                     )
                     .into(),
                 ),
                 'a' => messages.push(
-                    ContextMessageValue::Text(TextMessage::new(Role::Assistant, c.to_string()))
+                    ContextMessage::Text(TextMessage::new(Role::Assistant, c.to_string()))
                         .into(),
                 ),
                 _ => panic!("Invalid character in conversation message: {}", c),
@@ -222,9 +222,9 @@ mod tests {
         let context = Context {
             conversation_id: None,
             messages: vec![
-                ContextMessageValue::Text(TextMessage::new(Role::System, "first")).into(),
-                ContextMessageValue::Text(TextMessage::new(Role::System, "second")).into(),
-                ContextMessageValue::Text(
+                ContextMessage::Text(TextMessage::new(Role::System, "first")).into(),
+                ContextMessage::Text(TextMessage::new(Role::System, "second")).into(),
+                ContextMessage::Text(
                     TextMessage::new(Role::User, "user")
                         .model(ModelId::new("claude-3-5-sonnet-20241022")),
                 )

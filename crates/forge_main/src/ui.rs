@@ -17,7 +17,7 @@ use forge_app::utils::{format_display_path, truncate_key};
 use forge_app::{CommitResult, ToolResolver};
 use forge_display::MarkdownFormat;
 use forge_domain::{
-    AuthMethod, ChatResponseContent, ContextMessageValue, Role, TitleFormat, UserCommand,
+    AuthMethod, ChatResponseContent, ContextMessage, Role, TitleFormat, UserCommand,
 };
 use forge_fs::ForgeFS;
 use forge_select::ForgeSelect;
@@ -2852,7 +2852,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Find the last assistant message
         let message = context.messages.iter().rev().find_map(|msg| match &**msg {
-            ContextMessageValue::Text(TextMessage { content, role: Role::Assistant, .. }) => {
+            ContextMessage::Text(TextMessage { content, role: Role::Assistant, .. }) => {
                 Some(content)
             }
             _ => None,

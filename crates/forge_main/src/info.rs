@@ -714,7 +714,7 @@ pub fn format_reset_time(seconds: u64) -> String {
 }
 
 /// Extracts the first line of raw content from a context message.
-fn format_user_message(msg: &forge_api::ContextMessageValue) -> Option<String> {
+fn format_user_message(msg: &forge_api::ContextMessage) -> Option<String> {
     let content = msg
         .as_value()
         .and_then(|v| v.as_user_prompt())
@@ -1040,7 +1040,7 @@ mod tests {
     #[test]
     fn test_conversation_info_display_with_task() {
         use chrono::Utc;
-        use forge_api::{Context, ContextMessageValue, ConversationId, Role};
+        use forge_api::{Context, ContextMessage, ConversationId, Role};
 
         use super::{Conversation, Metrics};
 
@@ -1049,17 +1049,17 @@ mod tests {
 
         // Create a context with user messages
         let context = Context::default()
-            .add_message_value(ContextMessageValue::system("System prompt"))
-            .add_message_value(ContextMessageValue::Text(
+            .add_message(ContextMessage::system("System prompt"))
+            .add_message(ContextMessage::Text(
                 forge_domain::TextMessage::new(Role::User, "First user message")
                     .raw_content(EventValue::text("First user message")),
             ))
-            .add_message_value(ContextMessageValue::assistant(
+            .add_message(ContextMessage::assistant(
                 "Assistant response",
                 None,
                 None,
             ))
-            .add_message_value(ContextMessageValue::Text(
+            .add_message(ContextMessage::Text(
                 forge_domain::TextMessage::new(Role::User, "Create a new feature")
                     .raw_content(EventValue::text("Create a new feature")),
             ));

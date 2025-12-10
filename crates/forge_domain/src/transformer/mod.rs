@@ -95,7 +95,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        Context, ContextMessageValue, ToolCallFull, ToolCallId, ToolName, ToolOutput, ToolResult,
+        Context, ContextMessage, ToolCallFull, ToolCallId, ToolName, ToolOutput, ToolResult,
     };
 
     #[derive(Serialize)]
@@ -119,8 +119,8 @@ mod tests {
         };
 
         Context::default()
-            .add_message_value(ContextMessageValue::system("System message"))
-            .add_message_value(ContextMessageValue::assistant(
+            .add_message(ContextMessage::system("System message"))
+            .add_message(ContextMessage::assistant(
                 "I'll help you",
                 None,
                 Some(vec![tool_call]),
@@ -135,7 +135,7 @@ mod tests {
     #[test]
     fn test_default_transformation() {
         let fixture =
-            Context::default().add_message_value(ContextMessageValue::user("Test message", None));
+            Context::default().add_message(ContextMessage::user("Test message", None));
 
         let mut transformer = DefaultTransformation::<Context>::new();
         let actual = transformer.transform(fixture.clone());

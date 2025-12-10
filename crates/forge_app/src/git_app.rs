@@ -265,8 +265,8 @@ where
         }
 
         let context = forge_domain::Context::default()
-            .add_message_value(ContextMessageValue::system(rendered_prompt))
-            .add_message_value(ContextMessageValue::user(
+            .add_message(ContextMessage::system(rendered_prompt))
+            .add_message(ContextMessage::user(
                 user_message.to_string(),
                 Some(model.clone()),
             ));

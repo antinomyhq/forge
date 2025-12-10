@@ -1,5 +1,5 @@
 use forge_domain::{
-    Compact, CompactionStrategy, Context, ContextMessageValue, ContextSummary, Environment,
+    Compact, CompactionStrategy, Context, ContextMessage, ContextSummary, Environment,
     Transformer,
 };
 use tracing::info;
@@ -111,7 +111,7 @@ impl Compactor {
             .iter()
             .rev() // Get LAST reasoning (most recent)
             .find_map(|msg| match &**msg {
-                ContextMessageValue::Text(text) => text
+                ContextMessage::Text(text) => text
                     .reasoning_details
                     .as_ref()
                     .filter(|rd| !rd.is_empty())
@@ -122,7 +122,7 @@ impl Compactor {
         // Replace the range with the summary
         context.messages.splice(
             start..=end,
-            std::iter::once(ContextMessageValue::user(summary, None).into()),
+            std::iter::once(ContextMessage::user(summary, None).into()),
         );
 
         // Remove all droppable messages from the context
@@ -130,7 +130,7 @@ impl Compactor {
 
         // Inject preserved reasoning into first assistant message (if empty)
         if let Some(reasoning) = reasoning_details
-            && let Some(ContextMessageValue::Text(msg)) = context
+            && let Some(ContextMessage::Text(msg)) = context
                 .messages
                 .iter_mut()
                 .find(|msg| msg.has_role(forge_domain::Role::Assistant))
@@ -157,7 +157,7 @@ impl Compactor {
 mod tests {
     use std::path::PathBuf;
 
-    use forge_domain::ContextMessage;
+    use forge_domain::MessageEntry;
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -188,20 +188,20 @@ mod tests {
         }];
 
         let context = Context::default()
-            .add_message_value(ContextMessageValue::user("M1", None))
-            .add_message_value(ContextMessageValue::assistant(
+            .add_message(ContextMessage::user("M1", None))
+            .add_message(ContextMessage::assistant(
                 "R1",
                 Some(first_reasoning.clone()),
                 None,
             ))
-            .add_message_value(ContextMessageValue::user("M2", None))
-            .add_message_value(ContextMessageValue::assistant(
+            .add_message(ContextMessage::user("M2", None))
+            .add_message(ContextMessage::assistant(
                 "R2",
                 Some(last_reasoning.clone()),
                 None,
             ))
-            .add_message_value(ContextMessageValue::user("M3", None))
-            .add_message_value(ContextMessageValue::assistant("R3", None, None));
+            .add_message(ContextMessage::user("M3", None))
+            .add_message(ContextMessage::assistant("R3", None, None));
 
         let actual = compactor.compress_single_sequence(context, (0, 3)).unwrap();
 
@@ -212,7 +212,7 @@ mod tests {
             .find(|msg| msg.has_role(forge_domain::Role::Assistant))
             .expect("Should have an assistant message");
 
-        if let ContextMessageValue::Text(text_msg) = &**assistant_msg {
+        if let ContextMessage::Text(text_msg) = &**assistant_msg {
             assert_eq!(
                 text_msg.reasoning_details.as_ref(),
                 Some(&last_reasoning),
@@ -238,14 +238,14 @@ mod tests {
 
         // First compaction
         let context = Context::default()
-            .add_message_value(ContextMessageValue::user("M1", None))
-            .add_message_value(ContextMessageValue::assistant(
+            .add_message(ContextMessage::user("M1", None))
+            .add_message(ContextMessage::assistant(
                 "R1",
                 Some(reasoning.clone()),
                 None,
             ))
-            .add_message_value(ContextMessageValue::user("M2", None))
-            .add_message_value(ContextMessageValue::assistant("R2", None, None));
+            .add_message(ContextMessage::user("M2", None))
+            .add_message(ContextMessage::assistant("R2", None, None));
 
         let context = compactor.compress_single_sequence(context, (0, 1)).unwrap();
 
@@ -256,14 +256,14 @@ mod tests {
             .find(|msg| msg.has_role(forge_domain::Role::Assistant))
             .unwrap();
 
-        if let ContextMessageValue::Text(text_msg) = &**first_assistant {
+        if let ContextMessage::Text(text_msg) = &**first_assistant {
             assert_eq!(text_msg.reasoning_details.as_ref().unwrap().len(), 1);
         }
 
         // Second compaction - add more messages
         let context = context
-            .add_message_value(ContextMessageValue::user("M3", None))
-            .add_message_value(ContextMessageValue::assistant("R3", None, None));
+            .add_message(ContextMessage::user("M3", None))
+            .add_message(ContextMessage::assistant("R3", None, None));
 
         let context = compactor.compress_single_sequence(context, (0, 2)).unwrap();
 
@@ -274,7 +274,7 @@ mod tests {
             .find(|msg| msg.has_role(forge_domain::Role::Assistant))
             .unwrap();
 
-        if let ContextMessageValue::Text(text_msg) = &**first_assistant {
+        if let ContextMessage::Text(text_msg) = &**first_assistant {
             assert_eq!(
                 text_msg.reasoning_details.as_ref().unwrap().len(),
                 1,
@@ -298,16 +298,16 @@ mod tests {
 
         // Most recent message in range has empty reasoning, earlier has non-empty
         let context = Context::default()
-            .add_message_value(ContextMessageValue::user("M1", None))
-            .add_message_value(ContextMessageValue::assistant(
+            .add_message(ContextMessage::user("M1", None))
+            .add_message(ContextMessage::assistant(
                 "R1",
                 Some(non_empty_reasoning.clone()),
                 None,
             ))
-            .add_message_value(ContextMessageValue::user("M2", None))
-            .add_message_value(ContextMessageValue::assistant("R2", Some(vec![]), None)) // Empty - most recent in range
-            .add_message_value(ContextMessageValue::user("M3", None))
-            .add_message_value(ContextMessageValue::assistant("R3", None, None)); // Outside range
+            .add_message(ContextMessage::user("M2", None))
+            .add_message(ContextMessage::assistant("R2", Some(vec![]), None)) // Empty - most recent in range
+            .add_message(ContextMessage::user("M3", None))
+            .add_message(ContextMessage::assistant("R3", None, None)); // Outside range
 
         let actual = compactor.compress_single_sequence(context, (0, 3)).unwrap();
 
@@ -319,7 +319,7 @@ mod tests {
             .find(|msg| msg.has_role(forge_domain::Role::Assistant))
             .expect("Should have an assistant message");
 
-        if let ContextMessageValue::Text(text_msg) = &**assistant_msg {
+        if let ContextMessage::Text(text_msg) = &**assistant_msg {
             assert_eq!(
                 text_msg.reasoning_details.as_ref(),
                 Some(&non_empty_reasoning),
@@ -453,24 +453,24 @@ mod tests {
 
     #[test]
     fn test_compaction_removes_droppable_messages() {
-        use forge_domain::{ContextMessageValue, Role, TextMessage};
+        use forge_domain::{ContextMessage, Role, TextMessage};
 
         let environment = test_environment();
         let compactor = Compactor::new(Compact::new(), environment);
 
         // Create a context with droppable attachment messages
         let context = Context::default()
-            .add_message_value(ContextMessageValue::user("User message 1", None))
-            .add_message_value(ContextMessageValue::assistant(
+            .add_message(ContextMessage::user("User message 1", None))
+            .add_message(ContextMessage::assistant(
                 "Assistant response 1",
                 None,
                 None,
             ))
-            .add_message_value(ContextMessageValue::Text(
+            .add_message(ContextMessage::Text(
                 TextMessage::new(Role::User, "Attachment content").droppable(true),
             ))
-            .add_message_value(ContextMessageValue::user("User message 2", None))
-            .add_message_value(ContextMessageValue::assistant(
+            .add_message(ContextMessage::user("User message 2", None))
+            .add_message(ContextMessage::assistant(
                 "Assistant response 2",
                 None,
                 None,
@@ -484,7 +484,7 @@ mod tests {
 
         // Verify the droppable attachment message was removed
         for msg in &actual.messages {
-            if let ContextMessageValue::Text(text_msg) = &**msg {
+            if let ContextMessage::Text(text_msg) = &**msg {
                 assert!(!text_msg.droppable, "Droppable messages should be removed");
             }
         }
@@ -506,29 +506,29 @@ mod tests {
             cost: Some(1.5),
         };
 
-        let msg1 = ContextMessageValue::user("Message 1", None);
-        let msg2 = ContextMessageValue::assistant("Response 1", None, None);
-        let msg3 = ContextMessageValue::user("Message 2", None);
-        let msg4 = ContextMessageValue::assistant("Response 2", None, None);
-        let msg5 = ContextMessageValue::user("Message 3", None);
-        let msg6 = ContextMessageValue::assistant("Response 3", None, None);
+        let msg1 = ContextMessage::user("Message 1", None);
+        let msg2 = ContextMessage::assistant("Response 1", None, None);
+        let msg3 = ContextMessage::user("Message 2", None);
+        let msg4 = ContextMessage::assistant("Response 2", None, None);
+        let msg5 = ContextMessage::user("Message 3", None);
+        let msg6 = ContextMessage::assistant("Response 3", None, None);
 
         // Add usage to the last message to set context-wide usage
-        let mut wrapper6 = ContextMessage::from(msg6.clone());
+        let mut wrapper6 = MessageEntry::from(msg6.clone());
         wrapper6.usage = Some(original_usage.clone());
 
         let context = Context::default()
-            .add_message_value(msg1.clone())
-            .add_message_value(msg2.clone())
-            .add_message_value(msg3.clone())
-            .add_message_value(msg4.clone())
-            .add_message_value(msg5.clone())
+            .add_message(msg1.clone())
+            .add_message(msg2.clone())
+            .add_message(msg3.clone())
+            .add_message(msg4.clone())
+            .add_message(msg5.clone())
             .messages(vec![
-                ContextMessageValue::user("Message 1", None).into(),
-                ContextMessageValue::assistant("Response 1", None, None).into(),
-                ContextMessageValue::user("Message 2", None).into(),
-                ContextMessageValue::assistant("Response 2", None, None).into(),
-                ContextMessageValue::user("Message 3", None).into(),
+                ContextMessage::user("Message 1", None).into(),
+                ContextMessage::assistant("Response 1", None, None).into(),
+                ContextMessage::user("Message 2", None).into(),
+                ContextMessage::assistant("Response 2", None, None).into(),
+                ContextMessage::user("Message 3", None).into(),
                 wrapper6,
             ]);
 

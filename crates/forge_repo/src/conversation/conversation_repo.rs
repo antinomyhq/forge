@@ -104,7 +104,7 @@ impl ConversationRepository for ConversationRepositoryImpl {
 #[cfg(test)]
 mod tests {
     use chrono::Utc;
-    use forge_domain::{Context, ContextMessageValue, FileOperation, Metrics, ToolKind};
+    use forge_domain::{Context, ContextMessage, FileOperation, Metrics, ToolKind};
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -165,9 +165,9 @@ mod tests {
     #[tokio::test]
     async fn test_find_all_conversations() -> anyhow::Result<()> {
         let context1 =
-            Context::default().messages(vec![ContextMessageValue::user("Hello", None).into()]);
+            Context::default().messages(vec![ContextMessage::user("Hello", None).into()]);
         let context2 =
-            Context::default().messages(vec![ContextMessageValue::user("World", None).into()]);
+            Context::default().messages(vec![ContextMessage::user("World", None).into()]);
         let conversation1 = Conversation::new(ConversationId::generate())
             .title(Some("Test Conversation".to_string()))
             .context(Some(context1));
@@ -190,9 +190,9 @@ mod tests {
     #[tokio::test]
     async fn test_find_all_conversations_with_limit() -> anyhow::Result<()> {
         let context1 =
-            Context::default().messages(vec![ContextMessageValue::user("Hello", None).into()]);
+            Context::default().messages(vec![ContextMessage::user("Hello", None).into()]);
         let context2 =
-            Context::default().messages(vec![ContextMessageValue::user("World", None).into()]);
+            Context::default().messages(vec![ContextMessage::user("World", None).into()]);
         let conversation1 = Conversation::new(ConversationId::generate())
             .title(Some("Test Conversation".to_string()))
             .context(Some(context1));
@@ -222,7 +222,7 @@ mod tests {
     #[tokio::test]
     async fn test_find_last_active_conversation_with_context() -> anyhow::Result<()> {
         let context =
-            Context::default().messages(vec![ContextMessageValue::user("Hello", None).into()]);
+            Context::default().messages(vec![ContextMessage::user("Hello", None).into()]);
         let conversation_with_context = Conversation::new(ConversationId::generate())
             .title(Some("Conversation with Context".to_string()))
             .context(Some(context));
@@ -294,7 +294,7 @@ mod tests {
     #[test]
     fn test_conversation_record_from_conversation_with_context() -> anyhow::Result<()> {
         let context =
-            Context::default().messages(vec![ContextMessageValue::user("Hello", None).into()]);
+            Context::default().messages(vec![ContextMessage::user("Hello", None).into()]);
         let fixture = Conversation::new(ConversationId::generate())
             .title(Some("Conversation with Context".to_string()))
             .context(Some(context));
@@ -656,7 +656,7 @@ mod tests {
         // This test ensures compile-time safety: if Context schema changes,
         // this test will fail to compile, alerting us to update ContextRecord
         use forge_domain::{
-            ContextMessageValue, Effort, Role, ToolCallFull, ToolCallId, ToolChoice,
+            ContextMessage, Effort, Role, ToolCallFull, ToolCallId, ToolChoice,
             ToolDefinition, ToolName, ToolOutput, ToolResult, ToolValue, Usage,
         };
 
@@ -671,9 +671,9 @@ mod tests {
 
         // Create a comprehensive set of messages to test all message types
         let messages = vec![
-            ContextMessageValue::user("Hello", None).into(),
-            ContextMessageValue::system("System prompt").into(),
-            ContextMessageValue::Tool(ToolResult {
+            ContextMessage::user("Hello", None).into(),
+            ContextMessage::system("System prompt").into(),
+            ContextMessage::Tool(ToolResult {
                 name: ToolName::new("test_tool"),
                 call_id: Some(ToolCallId::new("call_123".to_string())),
                 output: ToolOutput {
@@ -682,8 +682,8 @@ mod tests {
                 },
             })
             .into(),
-            forge_domain::ContextMessage {
-                message: ContextMessageValue::Text(forge_domain::TextMessage {
+            forge_domain::MessageEntry {
+                message: ContextMessage::Text(forge_domain::TextMessage {
                     role: Role::Assistant,
                     content: "Assistant response".to_string(),
                     raw_content: None,
@@ -742,7 +742,7 @@ mod tests {
 
         // Verify message types and content
         match &actual.messages[0].message {
-            ContextMessageValue::Text(msg) => {
+            ContextMessage::Text(msg) => {
                 assert_eq!(msg.role, Role::User);
                 assert_eq!(msg.content, "Hello");
             }
@@ -750,7 +750,7 @@ mod tests {
         }
 
         match &actual.messages[2].message {
-            ContextMessageValue::Tool(tool_result) => {
+            ContextMessage::Tool(tool_result) => {
                 assert_eq!(tool_result.name.to_string(), "test_tool");
                 assert_eq!(
                     tool_result.call_id.as_ref().map(|id| id.as_str()),

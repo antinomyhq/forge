@@ -27,7 +27,7 @@ use crate::{
 /// of the message.
 #[derive(Clone, Debug, Deserialize, From, Serialize, PartialEq)]
 #[serde(rename_all = "snake_case")]
-pub enum ContextMessageValue {
+pub enum ContextMessage {
     Text(TextMessage),
     Tool(ToolResult),
     Image(Image),
@@ -55,12 +55,12 @@ fn filter_base64_images_from_tool_output(output: &ToolOutput) -> ToolOutput {
     ToolOutput { is_error: output.is_error, values: filtered_values }
 }
 
-impl ContextMessageValue {
+impl ContextMessage {
     pub fn content(&self) -> Option<&str> {
         match self {
-            ContextMessageValue::Text(text_message) => Some(&text_message.content),
-            ContextMessageValue::Tool(_) => None,
-            ContextMessageValue::Image(_) => None,
+            ContextMessage::Text(text_message) => Some(&text_message.content),
+            ContextMessage::Tool(_) => None,
+            ContextMessage::Image(_) => None,
         }
     }
 
@@ -68,9 +68,9 @@ impl ContextMessageValue {
     /// messages)
     pub fn as_value(&self) -> Option<&EventValue> {
         match self {
-            ContextMessageValue::Text(text_message) => text_message.raw_content.as_ref(),
-            ContextMessageValue::Tool(_) => None,
-            ContextMessageValue::Image(_) => None,
+            ContextMessage::Text(text_message) => text_message.raw_content.as_ref(),
+            ContextMessage::Tool(_) => None,
+            ContextMessage::Image(_) => None,
         }
     }
 
@@ -79,14 +79,14 @@ impl ContextMessageValue {
     /// ref: https://github.com/openai/codex/blob/main/codex-cli/src/utils/approximate-tokens-used.ts
     pub fn token_count_approx(&self) -> usize {
         let char_count = match self {
-            ContextMessageValue::Text(text_message)
+            ContextMessage::Text(text_message)
                 if matches!(text_message.role, Role::User | Role::Assistant) =>
             {
                 text_message.content.chars().count()
                     + tool_call_content_char_count(text_message)
                     + reasoning_content_char_count(text_message)
             }
-            ContextMessageValue::Tool(tool_result) => tool_result
+            ContextMessage::Tool(tool_result) => tool_result
                 .output
                 .values
                 .iter()
@@ -103,7 +103,7 @@ impl ContextMessageValue {
 
     pub fn to_text(&self) -> String {
         match self {
-            ContextMessageValue::Text(message) => {
+            ContextMessage::Text(message) => {
                 let mut message_element = Element::new("message").attr("role", message.role);
 
                 message_element =
@@ -130,7 +130,7 @@ impl ContextMessageValue {
 
                 message_element.render()
             }
-            ContextMessageValue::Tool(result) => {
+            ContextMessage::Tool(result) => {
                 let filtered_output = filter_base64_images_from_tool_output(&result.output);
                 Element::new("message")
                     .attr("role", "tool")
@@ -141,9 +141,7 @@ impl ContextMessageValue {
                     )
                     .render()
             }
-            ContextMessageValue::Image(_) => {
-                Element::new("image").attr("path", "[base64 URL]").render()
-            }
+            ContextMessage::Image(_) => Element::new("image").attr("path", "[base64 URL]").render(),
         }
     }
 
@@ -198,41 +196,41 @@ impl ContextMessageValue {
 
     pub fn has_role(&self, role: Role) -> bool {
         match self {
-            ContextMessageValue::Text(message) => message.role == role,
-            ContextMessageValue::Tool(_) => false,
-            ContextMessageValue::Image(_) => Role::User == role,
+            ContextMessage::Text(message) => message.role == role,
+            ContextMessage::Tool(_) => false,
+            ContextMessage::Image(_) => Role::User == role,
         }
     }
 
     pub fn is_droppable(&self) -> bool {
         match self {
-            ContextMessageValue::Text(message) => message.droppable,
-            ContextMessageValue::Tool(_) => false,
-            ContextMessageValue::Image(_) => false,
+            ContextMessage::Text(message) => message.droppable,
+            ContextMessage::Tool(_) => false,
+            ContextMessage::Image(_) => false,
         }
     }
 
     pub fn has_tool_result(&self) -> bool {
         match self {
-            ContextMessageValue::Text(_) => false,
-            ContextMessageValue::Tool(_) => true,
-            ContextMessageValue::Image(_) => false,
+            ContextMessage::Text(_) => false,
+            ContextMessage::Tool(_) => true,
+            ContextMessage::Image(_) => false,
         }
     }
 
     pub fn has_tool_call(&self) -> bool {
         match self {
-            ContextMessageValue::Text(message) => message.tool_calls.is_some(),
-            ContextMessageValue::Tool(_) => false,
-            ContextMessageValue::Image(_) => false,
+            ContextMessage::Text(message) => message.tool_calls.is_some(),
+            ContextMessage::Tool(_) => false,
+            ContextMessage::Image(_) => false,
         }
     }
 
     pub fn has_reasoning_details(&self) -> bool {
         match self {
-            ContextMessageValue::Text(message) => message.reasoning_details.is_some(),
-            ContextMessageValue::Tool(_) => false,
-            ContextMessageValue::Image(_) => false,
+            ContextMessage::Text(message) => message.reasoning_details.is_some(),
+            ContextMessage::Tool(_) => false,
+            ContextMessage::Image(_) => false,
         }
     }
 }
@@ -330,28 +328,28 @@ pub enum Role {
 }
 #[derive(Clone, Debug, Serialize, Deserialize, Setters, PartialEq)]
 #[setters(into, strip_option)]
-pub struct ContextMessage {
+pub struct MessageEntry {
     #[serde(flatten)]
-    pub message: ContextMessageValue,
+    pub message: ContextMessage,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub usage: Option<Usage>,
 }
 
-impl From<ContextMessageValue> for ContextMessage {
-    fn from(value: ContextMessageValue) -> Self {
-        ContextMessage { message: value, usage: Default::default() }
+impl From<ContextMessage> for MessageEntry {
+    fn from(value: ContextMessage) -> Self {
+        MessageEntry { message: value, usage: Default::default() }
     }
 }
 
-impl Deref for ContextMessage {
-    type Target = ContextMessageValue;
+impl Deref for MessageEntry {
+    type Target = ContextMessage;
 
     fn deref(&self) -> &Self::Target {
         &self.message
     }
 }
 
-impl std::ops::DerefMut for ContextMessage {
+impl std::ops::DerefMut for MessageEntry {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.message
     }
@@ -365,7 +363,7 @@ pub struct Context {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub conversation_id: Option<ConversationId>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub messages: Vec<ContextMessage>,
+    pub messages: Vec<MessageEntry>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tools: Vec<ToolDefinition>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -405,7 +403,7 @@ impl Context {
     }
 
     pub fn add_base64_url(mut self, image: Image) -> Self {
-        self.messages.push(ContextMessageValue::Image(image).into());
+        self.messages.push(ContextMessage::Image(image).into());
         self
     }
 
@@ -415,11 +413,11 @@ impl Context {
         self
     }
 
-    pub fn add_message_value(self, content: impl Into<ContextMessageValue>) -> Self {
-        self.add_message(content.into())
+    pub fn add_message(self, content: impl Into<ContextMessage>) -> Self {
+        self.add_entry(content.into())
     }
 
-    pub fn add_message(mut self, content: impl Into<ContextMessage>) -> Self {
+    pub fn add_entry(mut self, content: impl Into<MessageEntry>) -> Self {
         let content = content.into();
         debug!(content = ?content, "Adding message to context");
         self.messages.push(content);
@@ -429,8 +427,8 @@ impl Context {
 
     pub fn add_attachments(self, attachments: Vec<Attachment>, model_id: Option<ModelId>) -> Self {
         attachments.into_iter().fold(self, |ctx, attachment| {
-            ctx.add_message_value(match attachment.content {
-                AttachmentContent::Image(image) => ContextMessageValue::Image(image),
+            ctx.add_message(match attachment.content {
+                AttachmentContent::Image(image) => ContextMessage::Image(image),
                 AttachmentContent::FileContent { content, start_line, end_line, total_lines } => {
                     let elm = Element::new("file_content")
                         .attr("path", attachment.path)
@@ -473,8 +471,8 @@ impl Context {
             self.messages.extend(
                 results
                     .into_iter()
-                    .map(ContextMessageValue::tool_result)
-                    .map(ContextMessage::from),
+                    .map(ContextMessage::tool_result)
+                    .map(MessageEntry::from),
             );
         }
 
@@ -486,7 +484,7 @@ impl Context {
         if self.messages.is_empty() {
             for message in content {
                 self.messages
-                    .push(ContextMessageValue::system(message.into()).into());
+                    .push(ContextMessage::system(message.into()).into());
             }
             self
         } else {
@@ -495,7 +493,7 @@ impl Context {
             // add the system message at the beginning.
             for message in content.into_iter().rev() {
                 self.messages
-                    .insert(0, ContextMessageValue::system(message.into()).into());
+                    .insert(0, ContextMessage::system(message.into()).into());
             }
             self
         }
@@ -524,7 +522,7 @@ impl Context {
         tool_records: Vec<(ToolCallFull, ToolResult)>,
     ) -> Self {
         // Adding tool calls
-        let message: ContextMessage = ContextMessageValue::assistant(
+        let message: MessageEntry = ContextMessage::assistant(
             content,
             reasoning_details,
             Some(
@@ -541,7 +539,7 @@ impl Context {
             .map(|record| record.1.clone())
             .collect::<Vec<_>>();
 
-        self.add_message(message.usage(usage))
+        self.add_entry(message.usage(usage))
             .add_tool_results(tool_results)
     }
 
@@ -581,7 +579,7 @@ impl Context {
 
     /// Returns a vector of user messages, selecting the first message from
     /// each consecutive sequence of user messages.
-    pub fn first_user_messages(&self) -> Vec<&ContextMessageValue> {
+    pub fn first_user_messages(&self) -> Vec<&ContextMessage> {
         if self.messages.is_empty() {
             return Vec::new();
         }
@@ -631,7 +629,7 @@ impl Context {
             .iter()
             .filter(|msg| msg.has_tool_call())
             .map(|msg| {
-                if let ContextMessageValue::Text(text_msg) = &**msg {
+                if let ContextMessage::Text(text_msg) = &**msg {
                     text_msg.tool_calls.as_ref().map_or(0, |calls| calls.len())
                 } else {
                     0
@@ -699,12 +697,12 @@ mod tests {
     #[test]
     fn test_override_system_message() {
         let request = Context::default()
-            .add_message_value(ContextMessageValue::system("Initial system message"))
+            .add_message(ContextMessage::system("Initial system message"))
             .set_system_messages(vec!["Updated system message"]);
 
         assert_eq!(
             request.messages[0],
-            ContextMessageValue::system("Updated system message").into(),
+            ContextMessage::system("Updated system message").into(),
         );
     }
 
@@ -714,7 +712,7 @@ mod tests {
 
         assert_eq!(
             request.messages[0],
-            ContextMessageValue::system("A system message").into(),
+            ContextMessage::system("A system message").into(),
         );
     }
 
@@ -722,12 +720,12 @@ mod tests {
     fn test_insert_system_message() {
         let model = ModelId::new("test-model");
         let request = Context::default()
-            .add_message_value(ContextMessageValue::user("Do something", Some(model)))
+            .add_message(ContextMessage::user("Do something", Some(model)))
             .set_system_messages(vec!["A system message"]);
 
         assert_eq!(
             request.messages[0],
-            ContextMessageValue::system("A system message").into(),
+            ContextMessage::system("A system message").into(),
         );
     }
 
@@ -736,13 +734,9 @@ mod tests {
         // Create a context with some messages
         let model = ModelId::new("test-model");
         let context = Context::default()
-            .add_message_value(ContextMessageValue::system("System message"))
-            .add_message_value(ContextMessageValue::user("User message", model.into()))
-            .add_message_value(ContextMessageValue::assistant(
-                "Assistant message",
-                None,
-                None,
-            ));
+            .add_message(ContextMessage::system("System message"))
+            .add_message(ContextMessage::user("User message", model.into()))
+            .add_message(ContextMessage::assistant("Assistant message", None, None));
 
         // Get the token count
         let token_count = estimate_token_count(context.to_text().len());
@@ -764,13 +758,9 @@ mod tests {
     #[test]
     fn test_update_image_tool_calls_no_tool_results() {
         let fixture = Context::default()
-            .add_message_value(ContextMessageValue::system("System message"))
-            .add_message_value(ContextMessageValue::user("User message", None))
-            .add_message_value(ContextMessageValue::assistant(
-                "Assistant message",
-                None,
-                None,
-            ));
+            .add_message(ContextMessage::system("System message"))
+            .add_message(ContextMessage::user("User message", None))
+            .add_message(ContextMessage::assistant("Assistant message", None, None));
         let mut transformer = crate::transformer::ImageHandling::new();
         let actual = transformer.transform(fixture);
 
@@ -780,7 +770,7 @@ mod tests {
     #[test]
     fn test_update_image_tool_calls_tool_results_no_images() {
         let fixture = Context::default()
-            .add_message_value(ContextMessageValue::system("System message"))
+            .add_message(ContextMessage::system("System message"))
             .add_tool_results(vec![
                 ToolResult {
                     name: crate::ToolName::new("text_tool"),
@@ -807,7 +797,7 @@ mod tests {
     fn test_update_image_tool_calls_single_image() {
         let image = Image::new_base64("test123".to_string(), "image/png");
         let fixture = Context::default()
-            .add_message_value(ContextMessageValue::system("System message"))
+            .add_message(ContextMessage::system("System message"))
             .add_tool_results(vec![ToolResult {
                 name: crate::ToolName::new("image_tool"),
                 call_id: Some(crate::ToolCallId::new("call1")),
@@ -849,7 +839,7 @@ mod tests {
         let image1 = Image::new_base64("test123".to_string(), "image/png");
         let image2 = Image::new_base64("test456".to_string(), "image/jpeg");
         let fixture = Context::default()
-            .add_message_value(ContextMessageValue::system("System message"))
+            .add_message(ContextMessage::system("System message"))
             .add_tool_results(vec![
                 ToolResult {
                     name: crate::ToolName::new("text_tool"),
@@ -878,13 +868,9 @@ mod tests {
     fn test_update_image_tool_calls_mixed_content_with_images() {
         let image = Image::new_base64("test123".to_string(), "image/png");
         let fixture = Context::default()
-            .add_message_value(ContextMessageValue::system("System message"))
-            .add_message_value(ContextMessageValue::user("User question", None))
-            .add_message_value(ContextMessageValue::assistant(
-                "Assistant response",
-                None,
-                None,
-            ))
+            .add_message(ContextMessage::system("System message"))
+            .add_message(ContextMessage::user("User question", None))
+            .add_message(ContextMessage::assistant("Assistant response", None, None))
             .add_tool_results(vec![ToolResult {
                 name: crate::ToolName::new("mixed_tool"),
                 call_id: Some(crate::ToolCallId::new("call1")),
@@ -932,14 +918,14 @@ mod tests {
 
         // case 2: context with usage - since total_tokens present return that.
         let usage = Usage { total_tokens: TokenCount::Actual(100), ..Default::default() };
-        let mut wrapper = ContextMessage::from(ContextMessageValue::user("Hello", None));
+        let mut wrapper = MessageEntry::from(ContextMessage::user("Hello", None));
         wrapper.usage = Some(usage);
         let fixture = Context::default().messages(vec![wrapper]);
         assert_eq!(fixture.token_count(), TokenCount::Actual(100));
 
         // case 3: context with usage - since total_tokens present return that.
         let usage = Usage { total_tokens: TokenCount::Actual(80), ..Default::default() };
-        let mut wrapper = ContextMessage::from(ContextMessageValue::user("Hello", None));
+        let mut wrapper = MessageEntry::from(ContextMessage::user("Hello", None));
         wrapper.usage = Some(usage);
         let fixture = Context::default().messages(vec![wrapper]);
         assert_eq!(fixture.token_count(), TokenCount::Actual(80));
@@ -947,17 +933,10 @@ mod tests {
         // case 4: context with messages - since total_tokens are not present return
         // estimate
         let fixture = Context::default()
-            .add_message_value(ContextMessageValue::user("Hello", None))
-            .add_message_value(ContextMessageValue::assistant("Hi there!", None, None))
-            .add_message_value(ContextMessageValue::assistant(
-                "How can I help you?",
-                None,
-                None,
-            ))
-            .add_message_value(ContextMessageValue::user(
-                "I'm looking for a restaurant.",
-                None,
-            ));
+            .add_message(ContextMessage::user("Hello", None))
+            .add_message(ContextMessage::assistant("Hi there!", None, None))
+            .add_message(ContextMessage::assistant("How can I help you?", None, None))
+            .add_message(ContextMessage::user("I'm looking for a restaurant.", None));
         assert_eq!(fixture.token_count(), TokenCount::Approx(18));
     }
 
@@ -1179,15 +1158,11 @@ mod tests {
     #[test]
     fn test_context_message_statistics() {
         let fixture = Context::default()
-            .add_message_value(ContextMessageValue::system("System message"))
-            .add_message_value(ContextMessageValue::user("User message 1", None))
-            .add_message_value(ContextMessageValue::assistant(
-                "Assistant response",
-                None,
-                None,
-            ))
-            .add_message_value(ContextMessageValue::user("User message 2", None))
-            .add_message_value(ContextMessageValue::assistant(
+            .add_message(ContextMessage::system("System message"))
+            .add_message(ContextMessage::user("User message 1", None))
+            .add_message(ContextMessage::assistant("Assistant response", None, None))
+            .add_message(ContextMessage::user("User message 2", None))
+            .add_message(ContextMessage::assistant(
                 "Assistant with tool",
                 None,
                 Some(vec![

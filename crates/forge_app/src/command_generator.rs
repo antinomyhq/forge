@@ -66,8 +66,8 @@ where
         model: &ModelId,
     ) -> Context {
         Context::default()
-            .add_message_value(ContextMessageValue::system(system_prompt))
-            .add_message_value(ContextMessageValue::user(user_content, Some(model.clone())))
+            .add_message(ContextMessage::system(system_prompt))
+            .add_message(ContextMessage::user(user_content, Some(model.clone())))
     }
 }
 
