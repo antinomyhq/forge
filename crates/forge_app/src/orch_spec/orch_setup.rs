@@ -4,8 +4,8 @@ use std::path::PathBuf;
 use chrono::{DateTime, Local};
 use derive_setters::Setters;
 use forge_domain::{
-    Agent, AgentId, Attachment, ChatCompletionMessage, ChatResponse, MessageEntry, Conversation,
-    Environment, Event, File, HttpConfig, ModelId, ProviderId, RetryConfig, Role, Template,
+    Agent, AgentId, Attachment, ChatCompletionMessage, ChatResponse, Conversation, Environment,
+    Event, File, HttpConfig, MessageEntry, ModelId, ProviderId, RetryConfig, Role, Template,
     ToolCallFull, ToolDefinition, ToolResult, Workflow,
 };
 use url::Url;

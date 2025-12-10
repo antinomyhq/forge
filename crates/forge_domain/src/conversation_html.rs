@@ -323,17 +323,18 @@ mod tests {
             exclude: Some(false),
         };
 
-        let context = Context::default()
-            .reasoning(reasoning_config)
-            .add_message(ContextMessage::assistant(
-                "Main response content",
-                Some(vec![ReasoningFull {
-                    text: Some("This is my reasoning process".to_string()),
-                    signature: Some("reasoning_signature_123".to_string()),
-                    ..Default::default()
-                }]),
-                None,
-            ));
+        let context =
+            Context::default()
+                .reasoning(reasoning_config)
+                .add_message(ContextMessage::assistant(
+                    "Main response content",
+                    Some(vec![ReasoningFull {
+                        text: Some("This is my reasoning process".to_string()),
+                        signature: Some("reasoning_signature_123".to_string()),
+                        ..Default::default()
+                    }]),
+                    None,
+                ));
 
         let fixture = Conversation::new(id).context(context);
         let actual = render_conversation_html(&fixture);

@@ -134,8 +134,7 @@ mod tests {
 
     #[test]
     fn test_default_transformation() {
-        let fixture =
-            Context::default().add_message(ContextMessage::user("Test message", None));
+        let fixture = Context::default().add_message(ContextMessage::user("Test message", None));
 
         let mut transformer = DefaultTransformation::<Context>::new();
         let actual = transformer.transform(fixture.clone());

@@ -83,8 +83,7 @@ mod tests {
                     .into(),
                 ),
                 'a' => messages.push(
-                    ContextMessage::Text(TextMessage::new(Role::Assistant, c.to_string()))
-                        .into(),
+                    ContextMessage::Text(TextMessage::new(Role::Assistant, c.to_string())).into(),
                 ),
                 _ => panic!("Invalid character in conversation message: {}", c),
             }

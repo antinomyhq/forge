@@ -160,9 +160,7 @@ impl<S: AttachmentService> UserPromptGenerator<S> {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{
-        AgentId, Context, ContextMessage, ConversationId, ModelId, ProviderId,
-    };
+    use forge_domain::{AgentId, Context, ContextMessage, ConversationId, ModelId, ProviderId};
     use pretty_assertions::assert_eq;
 
     use super::*;

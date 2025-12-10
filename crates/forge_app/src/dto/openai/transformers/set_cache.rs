@@ -71,9 +71,7 @@ mod tests {
                     'u' => ContextMessage::Text(
                         TextMessage::new(Role::User, c.to_string()).model(ModelId::new("gpt-4")),
                     ),
-                    'a' => {
-                        ContextMessage::Text(TextMessage::new(Role::Assistant, c.to_string()))
-                    }
+                    'a' => ContextMessage::Text(TextMessage::new(Role::Assistant, c.to_string())),
                     _ => {
                         panic!("Invalid character in test message");
                     }

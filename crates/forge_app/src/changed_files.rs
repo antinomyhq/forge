@@ -69,8 +69,7 @@ impl<S: FsReadService + EnvironmentService> ChangedFiles<S> {
             .droppable(true)
             .model(self.agent.model.clone());
 
-        conversation =
-            conversation.context(context.add_message(ContextMessage::from(message)));
+        conversation = conversation.context(context.add_message(ContextMessage::from(message)));
 
         conversation
     }
@@ -177,9 +176,10 @@ mod tests {
             [("/test/file.txt".into(), Some(hash))].into(),
         );
 
-        conversation.context = Some(Context::default().add_message(
-            ContextMessage::user("Hey, there!", Some(ModelId::new("test"))),
-        ));
+        conversation.context = Some(Context::default().add_message(ContextMessage::user(
+            "Hey, there!",
+            Some(ModelId::new("test")),
+        )));
 
         let actual = service.update_file_stats(conversation.clone()).await;
 

@@ -221,8 +221,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_find_last_active_conversation_with_context() -> anyhow::Result<()> {
-        let context =
-            Context::default().messages(vec![ContextMessage::user("Hello", None).into()]);
+        let context = Context::default().messages(vec![ContextMessage::user("Hello", None).into()]);
         let conversation_with_context = Conversation::new(ConversationId::generate())
             .title(Some("Conversation with Context".to_string()))
             .context(Some(context));
@@ -293,8 +292,7 @@ mod tests {
 
     #[test]
     fn test_conversation_record_from_conversation_with_context() -> anyhow::Result<()> {
-        let context =
-            Context::default().messages(vec![ContextMessage::user("Hello", None).into()]);
+        let context = Context::default().messages(vec![ContextMessage::user("Hello", None).into()]);
         let fixture = Conversation::new(ConversationId::generate())
             .title(Some("Conversation with Context".to_string()))
             .context(Some(context));
@@ -656,8 +654,8 @@ mod tests {
         // This test ensures compile-time safety: if Context schema changes,
         // this test will fail to compile, alerting us to update ContextRecord
         use forge_domain::{
-            ContextMessage, Effort, Role, ToolCallFull, ToolCallId, ToolChoice,
-            ToolDefinition, ToolName, ToolOutput, ToolResult, ToolValue, Usage,
+            ContextMessage, Effort, Role, ToolCallFull, ToolCallId, ToolChoice, ToolDefinition,
+            ToolName, ToolOutput, ToolResult, ToolValue, Usage,
         };
 
         let tool_def = ToolDefinition::new("test_tool").description("A test tool");

@@ -51,9 +51,8 @@ impl Transformer for TransformToolCalls {
                     for output_value in tool_result.output.values.clone() {
                         match output_value {
                             crate::ToolValue::Text(text) => {
-                                new_messages.push(
-                                    ContextMessage::user(text, self.model.clone()).into(),
-                                );
+                                new_messages
+                                    .push(ContextMessage::user(text, self.model.clone()).into());
                             }
                             crate::ToolValue::Image(image) => {
                                 new_messages.push(ContextMessage::Image(image).into());
@@ -152,11 +151,7 @@ mod tests {
         let fixture = Context::default()
             .add_message(ContextMessage::system("System message"))
             .add_message(ContextMessage::user("User message", None))
-            .add_message(ContextMessage::assistant(
-                "Assistant response",
-                None,
-                None,
-            ));
+            .add_message(ContextMessage::assistant("Assistant response", None, None));
 
         let mut transformer = TransformToolCalls::new();
         let actual = transformer.transform(fixture.clone());

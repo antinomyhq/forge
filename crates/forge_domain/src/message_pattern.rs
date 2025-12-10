@@ -1,8 +1,7 @@
 use serde_json::json;
 
 use crate::{
-    Context, MessageEntry, ContextMessage, ModelId, ToolCallFull, ToolCallId, ToolName,
-    ToolResult,
+    Context, ContextMessage, MessageEntry, ModelId, ToolCallFull, ToolCallId, ToolName, ToolResult,
 };
 
 /// Converts a condensed string pattern into a Context with messages.
@@ -84,11 +83,7 @@ impl MessagePattern {
                     'u' => ContextMessage::user(&content, Some(model_id.clone())),
                     'a' => ContextMessage::assistant(&content, None, None),
                     's' => ContextMessage::system(&content),
-                    't' => ContextMessage::assistant(
-                        &content,
-                        None,
-                        Some(vec![tool_call.clone()]),
-                    ),
+                    't' => ContextMessage::assistant(&content, None, Some(vec![tool_call.clone()])),
                     'r' => ContextMessage::tool_result(tool_result.clone()),
                     _ => {
                         panic!("Invalid character '{c}' in pattern. Use 'u', 'a', 's', 't', or 'r'")

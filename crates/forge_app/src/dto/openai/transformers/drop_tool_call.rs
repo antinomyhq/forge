@@ -35,8 +35,7 @@ impl Transformer for DropToolCalls {
 #[cfg(test)]
 mod tests {
     use forge_domain::{
-        Context, ContextMessage, Role, TextMessage, ToolCallFull, ToolCallId, ToolName,
-        ToolResult,
+        Context, ContextMessage, Role, TextMessage, ToolCallFull, ToolCallId, ToolName, ToolResult,
     };
 
     use super::*;

@@ -5,8 +5,8 @@ use derive_more::From;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Context, ContextMessage, Role, SearchQuery, TextMessage, ToolCallFull, ToolCallId,
-    ToolCatalog, ToolResult,
+    Context, ContextMessage, Role, SearchQuery, TextMessage, ToolCallFull, ToolCallId, ToolCatalog,
+    ToolResult,
 };
 
 /// A simplified summary of a context, focusing on messages and their tool calls

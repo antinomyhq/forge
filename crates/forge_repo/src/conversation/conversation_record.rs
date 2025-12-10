@@ -468,9 +468,7 @@ pub(super) enum ContextMessageValueRecord {
 impl From<&forge_domain::ContextMessage> for ContextMessageValueRecord {
     fn from(value: &forge_domain::ContextMessage) -> Self {
         match value {
-            forge_domain::ContextMessage::Text(msg) => {
-                Self::Text(TextMessageRecord::from(msg))
-            }
+            forge_domain::ContextMessage::Text(msg) => Self::Text(TextMessageRecord::from(msg)),
             forge_domain::ContextMessage::Tool(result) => {
                 Self::Tool(ToolResultRecord::from(result))
             }

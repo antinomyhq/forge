@@ -3,8 +3,7 @@ use std::sync::Arc;
 
 use anyhow::{Context as _, Result};
 use forge_domain::{
-    Context, ContextMessage, DataGenerationParameters, ResultStreamExt, Template,
-    ToolDefinition,
+    Context, ContextMessage, DataGenerationParameters, ResultStreamExt, Template, ToolDefinition,
 };
 use futures::StreamExt;
 use futures::stream::{self, BoxStream};
@@ -128,8 +127,8 @@ impl<A: Services> DataGenerationApp<A> {
                     serde_json::to_string(&input)?
                 };
 
-                context = context
-                    .add_message(ContextMessage::user(content, Some(model_id.clone())));
+                context =
+                    context.add_message(ContextMessage::user(content, Some(model_id.clone())));
 
                 let stream = services.chat(&model_id, context, provider.clone()).await?;
                 let response = stream.into_full(false).await?;
