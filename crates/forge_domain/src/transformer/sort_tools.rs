@@ -33,16 +33,21 @@ impl Transformer for SortTools {
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
+    use std::collections::BTreeSet;
 
     use super::*;
     use crate::ToolDefinition;
 
     fn fixture_context_with_tools() -> Context {
-        Context::default().tools(vec![
-            ToolDefinition::new("zebra_tool").description("Z tool"),
-            ToolDefinition::new("alpha_tool").description("A tool"),
-            ToolDefinition::new("beta_tool").description("B tool"),
-        ])
+        Context::default().tools(
+            vec![
+                ToolDefinition::new("zebra_tool").description("Z tool"),
+                ToolDefinition::new("alpha_tool").description("A tool"),
+                ToolDefinition::new("beta_tool").description("B tool"),
+            ]
+            .into_iter()
+            .collect::<BTreeSet<_>>(),
+        )
     }
 
     #[test]

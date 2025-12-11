@@ -775,6 +775,7 @@ mod tests {
 
     use forge_api::{Environment, EventValue};
     use pretty_assertions::assert_eq;
+    use forge_domain::ParentContext;
 
     // Helper to create minimal test environment
     fn create_env(os: &str, home: Option<&str>) -> Environment {
@@ -1058,7 +1059,7 @@ mod tests {
         let fixture = Conversation {
             id: conversation_id,
             title: Some("Test Task".to_string()),
-            context: Some(context),
+            context: Some(ParentContext::default().context(context)),
             metrics,
             metadata: forge_domain::MetaData::new(Utc::now()),
         };

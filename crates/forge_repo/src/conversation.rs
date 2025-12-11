@@ -329,10 +329,10 @@ mod tests {
         let context2 = Context::default().messages(vec![ContextMessage::user("World", None)]);
         let conversation1 = Conversation::new(ConversationId::generate())
             .title(Some("Test Conversation".to_string()))
-            .context(Some(context1));
+            .context(Some(ParentContext::default().context(context1)));
         let conversation2 = Conversation::new(ConversationId::generate())
             .title(Some("Second Conversation".to_string()))
-            .context(Some(context2));
+            .context(Some(ParentContext::default().context(context2)));
         let repo = repository()?;
 
         repo.upsert_conversation(conversation1.clone()).await?;
@@ -352,8 +352,9 @@ mod tests {
         let context2 = Context::default().messages(vec![ContextMessage::user("World", None)]);
         let conversation1 = Conversation::new(ConversationId::generate())
             .title(Some("Test Conversation".to_string()))
-            .context(Some(context1));
-        let conversation2 = Conversation::new(ConversationId::generate()).context(Some(context2));
+            .context(Some(ParentContext::default().context(context1)));
+        let conversation2 = Conversation::new(ConversationId::generate())
+            .context(Some(ParentContext::default().context(context2)));
         let repo = repository()?;
 
         repo.upsert_conversation(conversation1).await?;
@@ -381,7 +382,7 @@ mod tests {
         let context = Context::default().messages(vec![ContextMessage::user("Hello", None)]);
         let conversation_with_context = Conversation::new(ConversationId::generate())
             .title(Some("Conversation with Context".to_string()))
-            .context(Some(context));
+            .context(Some(ParentContext::default().context(context)));
         let conversation_without_context = Conversation::new(ConversationId::generate())
             .title(Some("Test Conversation".to_string()));
         let repo = repository()?;
@@ -417,7 +418,7 @@ mod tests {
     async fn test_find_last_active_conversation_ignores_empty_context() -> anyhow::Result<()> {
         let conversation_with_empty_context = Conversation::new(ConversationId::generate())
             .title(Some("Conversation with Empty Context".to_string()))
-            .context(Some(Context::default()));
+            .context(Some(ParentContext::default()));
         let conversation_without_context = Conversation::new(ConversationId::generate())
             .title(Some("Test Conversation".to_string()));
         let repo = repository()?;
@@ -452,7 +453,7 @@ mod tests {
         let context = Context::default().messages(vec![ContextMessage::user("Hello", None)]);
         let fixture = Conversation::new(ConversationId::generate())
             .title(Some("Conversation with Context".to_string()))
-            .context(Some(context));
+            .context(Some(ParentContext::default().context(context)));
 
         let actual = ConversationRecord::new(fixture.clone(), WorkspaceHash::new(0));
 
@@ -467,7 +468,7 @@ mod tests {
     fn test_conversation_record_from_conversation_with_empty_context() -> anyhow::Result<()> {
         let fixture = Conversation::new(ConversationId::generate())
             .title(Some("Conversation with Empty Context".to_string()))
-            .context(Some(Context::default()));
+            .context(Some(ParentContext::default().context(Context::default())));
 
         let actual = ConversationRecord::new(fixture.clone(), WorkspaceHash::new(0));
 

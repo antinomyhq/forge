@@ -331,10 +331,12 @@ pub enum Role {
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Default, Setters)]
 #[setters(into)]
 pub struct ParentContext {
+    #[serde(flatten)]
     #[serde(default, skip_serializing_if = "ctx_default")]
     pub context: Context,
-    /// Metadata tracking compaction state
+    /// Metadata tracking compaction state (runtime-only, never persisted)
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[serde(skip)]
     pub compaction_metadata: Option<CompactionMetadata>,
 }
 

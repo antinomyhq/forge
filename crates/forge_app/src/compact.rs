@@ -7,6 +7,7 @@ use tracing::info;
 use crate::TemplateEngine;
 use crate::transformers::SummaryTransformer;
 
+#[derive(Clone, Debug, serde::Serialize)]
 pub struct CompactionResult {
     pub context: Context,
     pub metadata: Option<CompactionMetadata>,
@@ -220,10 +221,10 @@ mod tests {
             .add_message(ContextMessage::user("M3", None))
             .add_message(ContextMessage::assistant("R3", None, None));
 
-        let actual = compactor.compress_single_sequence(context, (0, 3)).unwrap();
+        let actual = compactor.compress_single_sequence(context, None, (0, 3)).unwrap();
 
         // Verify only LAST reasoning_details were preserved
-        let assistant_msg = actual
+        let assistant_msg = actual.context
             .messages
             .iter()
             .find(|msg| msg.has_role(forge_domain::Role::Assistant))
@@ -264,7 +265,8 @@ mod tests {
             .add_message(ContextMessage::user("M2", None))
             .add_message(ContextMessage::assistant("R2", None, None));
 
-        let context = compactor.compress_single_sequence(context, (0, 1)).unwrap();
+        let result = compactor.compress_single_sequence(context, None, (0, 1)).unwrap();
+        let mut context = result.context;
 
         // Verify first assistant has the reasoning
         let first_assistant = context
@@ -278,11 +280,12 @@ mod tests {
         }
 
         // Second compaction - add more messages
-        let context = context
+        context = context
             .add_message(ContextMessage::user("M3", None))
             .add_message(ContextMessage::assistant("R3", None, None));
 
-        let context = compactor.compress_single_sequence(context, (0, 2)).unwrap();
+        let result = compactor.compress_single_sequence(context, None, (0, 2)).unwrap();
+        let context = result.context;
 
         // Verify reasoning didn't accumulate - should still be just 1 reasoning block
         let first_assistant = context
@@ -326,11 +329,11 @@ mod tests {
             .add_message(ContextMessage::user("M3", None))
             .add_message(ContextMessage::assistant("R3", None, None)); // Outside range
 
-        let actual = compactor.compress_single_sequence(context, (0, 3)).unwrap();
+        let actual = compactor.compress_single_sequence(context, None, (0, 3)).unwrap();
 
         // After compression: [U-summary, U3, A3]
         // The reasoning from R1 (non-empty) should be injected into A3
-        let assistant_msg = actual
+        let assistant_msg = actual.context
             .messages
             .iter()
             .find(|msg| msg.has_role(forge_domain::Role::Assistant))
@@ -451,7 +454,7 @@ mod tests {
         let compactor = Compactor::new(Compact::new(), environment);
 
         // Create context summary with tool call information
-        let context_summary = ContextSummary::from(&context);
+        let context_summary = ContextSummary::from(&context.context);
 
         // Apply transformers to reduce redundant operations and clean up
         let context_summary = compactor.transform(context_summary);
@@ -463,14 +466,14 @@ mod tests {
         insta::assert_snapshot!(summary);
 
         // Perform a full compaction
-        let mut compacted_context = compactor.compact(context, true).unwrap();
+        let mut compacted_result = compactor.compact(context.context, context.compaction_metadata, true).unwrap();
 
         // Clear the timestamp for snapshot testing (timestamps change on each run)
-        if let Some(ref mut metadata) = compacted_context.compaction_metadata {
+        if let Some(ref mut metadata) = compacted_result.metadata {
             metadata.last_compacted_at = None;
         }
 
-        insta::assert_yaml_snapshot!(compacted_context);
+        insta::assert_yaml_snapshot!(compacted_result);
     }
 
     #[test]
@@ -498,14 +501,14 @@ mod tests {
                 None,
             ));
 
-        let actual = compactor.compress_single_sequence(context, (0, 1)).unwrap();
+        let actual = compactor.compress_single_sequence(context, None, (0, 1)).unwrap();
 
         // The compaction should remove the droppable message
         // Expected: [U-summary, U2, A2]
-        assert_eq!(actual.messages.len(), 3);
+        assert_eq!(actual.context.messages.len(), 3);
 
         // Verify the droppable attachment message was removed
-        for msg in &actual.messages {
+        for msg in &actual.context.messages {
             if let ContextMessage::Text(text_msg) = msg {
                 assert!(!text_msg.droppable, "Droppable messages should be removed");
             }
@@ -557,23 +560,23 @@ mod tests {
             msg5.token_count_approx() + msg6.token_count_approx();
 
         // Compact the sequence (first 4 messages, indices 0-3)
-        let compacted = compactor.compress_single_sequence(context, (0, 3)).unwrap();
+        let compacted = compactor.compress_single_sequence(context, None, (0, 3)).unwrap();
 
         // Verify we have exactly 3 messages after compaction
         assert_eq!(
-            compacted.messages.len(),
+            compacted.context.messages.len(),
             3,
             "Expected 3 messages after compaction: summary + 2 remaining messages"
         );
 
         // Verify usage is cleared after compaction
         assert_eq!(
-            compacted.usage, None,
+            compacted.context.usage, None,
             "Usage field should be None after compaction to force token recalculation"
         );
 
         // Verify token_count returns approximation based on actual messages
-        let token_count = compacted.token_count();
+        let token_count = compacted.context.token_count();
         assert!(
             matches!(token_count, TokenCount::Approx(_)),
             "Expected TokenCount::Approx after compaction, but got {:?}",
@@ -583,7 +586,7 @@ mod tests {
         // Verify the exact token count matches expected calculation
         // Note: Summary message tokens + remaining message tokens
         let actual_tokens = *token_count;
-        let summary_tokens = compacted.messages[0].token_count_approx();
+        let summary_tokens = compacted.context.messages[0].token_count_approx();
 
         assert_eq!(
             actual_tokens,

@@ -91,7 +91,7 @@ mod tests {
         let context = Context {
             conversation_id: None,
             messages,
-            tools: vec![],
+            tools: std::collections::BTreeSet::new(),
             tool_choice: None,
             max_tokens: None,
             temperature: None,
@@ -100,7 +100,6 @@ mod tests {
             reasoning: None,
             usage: None,
             stream: None,
-            compaction_metadata: None,
         };
 
         let request = Request::try_from(context).expect("Failed to convert context to request");
@@ -229,7 +228,7 @@ mod tests {
                         .model(ModelId::new("claude-3-5-sonnet-20241022")),
                 ),
             ],
-            tools: vec![],
+            tools: std::collections::BTreeSet::new(),
             tool_choice: None,
             max_tokens: None,
             temperature: None,
@@ -238,7 +237,6 @@ mod tests {
             reasoning: None,
             usage: None,
             stream: None,
-            compaction_metadata: None,
         };
 
         let request = Request::try_from(context).expect("Failed to convert context to request");

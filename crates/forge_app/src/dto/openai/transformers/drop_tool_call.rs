@@ -60,7 +60,11 @@ mod tests {
                 ),
                 ContextMessage::Tool(tool_result),
             ],
-            tools: vec![forge_domain::ToolDefinition::new("test_tool").description("A test tool")],
+            tools: {
+                let mut set = std::collections::BTreeSet::new();
+                set.insert(forge_domain::ToolDefinition::new("test_tool").description("A test tool"));
+                set
+            },
             tool_choice: None,
             max_tokens: None,
             temperature: None,
@@ -69,7 +73,6 @@ mod tests {
             reasoning: None,
             usage: None,
             stream: None,
-            compaction_metadata: None,
         };
 
         let request = Request::from(context);

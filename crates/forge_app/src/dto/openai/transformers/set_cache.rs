@@ -77,7 +77,7 @@ mod tests {
                     }
                 })
                 .collect(),
-            tools: vec![],
+            tools: std::collections::BTreeSet::new(),
             tool_choice: None,
             max_tokens: None,
             temperature: None,
@@ -86,7 +86,6 @@ mod tests {
             reasoning: None,
             usage: None,
             stream: None,
-            compaction_metadata: None,
         };
 
         let request = Request::from(context);

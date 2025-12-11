@@ -74,7 +74,7 @@ mod tests {
         let context = Context {
             conversation_id: None,
             messages,
-            tools: vec![],
+            tools: std::collections::BTreeSet::new(),
             tool_choice: None,
             max_tokens: None,
             temperature: None,
@@ -83,7 +83,6 @@ mod tests {
             reasoning: None,
             usage: None,
             stream: None,
-            compaction_metadata: None,
         };
 
         Request::try_from(context).unwrap()
