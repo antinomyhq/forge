@@ -95,7 +95,7 @@ impl ForgeEnvironmentInfra {
             override_model,
             override_provider,
             sync_enabled: parse_env::<bool>("FORGE_SYNC_ENABLED").unwrap_or(true),
-            sync_interval_seconds: parse_env::<u64>("FORGE_SYNC_INTERVAL").unwrap_or(300),
+            sync_interval_seconds: parse_env::<u64>("FORGE_SYNC_INTERVAL").unwrap_or(120),
             sync_on_startup: parse_env::<bool>("FORGE_SYNC_ON_STARTUP").unwrap_or(true),
         }
     }

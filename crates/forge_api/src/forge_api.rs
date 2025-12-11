@@ -54,7 +54,6 @@ impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
         ForgeAPI::new(app, repo)
     }
 
-    /// Clear stale sync locks from previous interrupted runs
     /// Attempts to sync the workspace if not already in progress
     ///
     /// Tries to acquire the sync lock and performs synchronization if successful.
@@ -65,46 +64,16 @@ impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
     /// * `Ok(false)` - Sync skipped (already in progress)
     /// * `Err(_)` - Sync failed with error
     pub async fn try_sync_workspace(&self) -> Result<bool> {
-        use forge_app::{ContextEngineService, EnvironmentInfra};
-        use forge_domain::{SyncStatus, WorkspaceSyncRepository};
-        use futures::StreamExt;
-
         let env = self.infra.get_environment();
-        let cwd = env.cwd.clone();
-        let process_id = std::process::id();
-
-        // Try to acquire lock
-        let acquired = self.infra.try_acquire_lock(&cwd, process_id).await?;
-        if !acquired {
-            return Ok(false); // Another process is syncing
-        }
-
-        // Perform sync
-        let mut stream = self.services.sync_codebase(cwd.clone(), 100).await?;
-
-        while let Some(event) = stream.next().await {
-            if let Err(e) = event {
-                let _ = self.infra.update_status(&cwd, SyncStatus::Failed, Some(format!("{:#}", e))).await;
-                return Err(e);
-            }
-        }
-
-        // Update status on success
-        self.infra.update_status(&cwd, SyncStatus::Success, None).await?;
-
-        Ok(true)
+        self.services.context_engine_service().try_sync_workspace(env.cwd.clone()).await
     }
 
     /// Clears any stale sync locks from crashed processes
     ///
     /// Should be called on application startup before beginning sync operations.
     pub async fn clear_stale_sync_locks(&self) -> Result<()> {
-        use forge_app::EnvironmentInfra;
-        use forge_domain::WorkspaceSyncRepository;
-
         let env = self.infra.get_environment();
-        self.infra.clear_stale_locks(&env.cwd).await?;
-        Ok(())
+        self.services.context_engine_service().clear_stale_sync_locks(&env.cwd).await
     }
 
     pub async fn get_skills_internal(&self) -> Result<Vec<Skill>> {

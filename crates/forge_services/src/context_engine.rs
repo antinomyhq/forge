@@ -453,6 +453,100 @@ impl<F> ForgeContextEngineService<F> {
         let all_files: Vec<_> = join_all(read_tasks).await.into_iter().flatten().collect();
         Ok(all_files)
     }
+
+    /// Attempts to sync the workspace if not already in progress
+    ///
+    /// Tries to acquire the sync lock and performs synchronization if successful.
+    /// Updates the sync status in the database upon completion.
+    ///
+    /// # Returns
+    /// * `Ok(true)` - Sync was performed successfully
+    /// * `Ok(false)` - Sync skipped (already in progress)
+    /// * `Err(_)` - Sync failed with error
+    pub async fn try_sync_workspace(&self, path: PathBuf) -> Result<bool>
+    where
+        F: WorkspaceRepository
+            + ProviderRepository
+            + ContextEngineRepository
+            + WalkerInfra
+            + FileReaderInfra
+            + WorkspaceSyncRepository
+            + 'static,
+    {
+        use futures::StreamExt;
+
+        let canonical_path = path
+            .canonicalize()
+            .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
+
+        let process_id = std::process::id();
+
+        // Try to acquire lock
+        let acquired = self.infra.try_acquire_lock(&canonical_path, process_id).await?;
+        if !acquired {
+            return Ok(false); // Another process is syncing
+        }
+
+        // Check if auth already exists and create if needed (same as forge workspace sync command)
+        let auth_check_result = async {
+            if !self.is_authenticated().await? {
+                self.create_auth_credentials().await?;
+            }
+            Ok::<_, anyhow::Error>(())
+        }
+        .await;
+
+        if let Err(e) = auth_check_result {
+            // Failed to authenticate - update status and release lock
+            let _ = self
+                .infra
+                .update_status(
+                    &canonical_path,
+                    forge_domain::SyncStatus::Failed,
+                    Some(format!("{:#}", e)),
+                )
+                .await;
+            return Err(e);
+        }
+
+        // Perform sync
+        let mut stream = self.sync_codebase(canonical_path.clone(), 100).await?;
+
+        while let Some(event) = stream.next().await {
+            if let Err(e) = event {
+                let _ = self
+                    .infra
+                    .update_status(
+                        &canonical_path,
+                        forge_domain::SyncStatus::Failed,
+                        Some(format!("{:#}", e)),
+                    )
+                    .await;
+                return Err(e);
+            }
+        }
+
+        // Update status on success
+        self.infra
+            .update_status(&canonical_path, forge_domain::SyncStatus::Success, None)
+            .await?;
+
+        Ok(true)
+    }
+
+    /// Clears any stale sync locks from crashed processes
+    ///
+    /// Should be called on application startup before beginning sync operations.
+    pub async fn clear_stale_sync_locks(&self, path: &Path) -> Result<()>
+    where
+        F: WorkspaceSyncRepository,
+    {
+        let canonical_path = path
+            .canonicalize()
+            .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
+        self.infra.clear_stale_locks(&canonical_path).await?;
+        Ok(())
+    }
 }
 
 #[async_trait]
