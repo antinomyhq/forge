@@ -2,6 +2,7 @@ use forge_domain::{DefaultTransformation, Provider, ProviderId, Transformer};
 use url::Url;
 
 use super::drop_tool_call::DropToolCalls;
+use super::github_copilot_reasoning::GitHubCopilotReasoning;
 use super::make_cerebras_compat::MakeCerebrasCompat;
 use super::make_openai_compat::MakeOpenAiCompat;
 use super::normalize_tool_schema::NormalizeToolSchema;
@@ -41,11 +42,15 @@ impl Transformer for ProviderPipeline<'_> {
 
         let open_ai_compat = MakeOpenAiCompat.when(move |_| !supports_open_router_params(provider));
 
+        let github_copilot_reasoning =
+            GitHubCopilotReasoning.when(move |_| provider.id == ProviderId::GITHUB_COPILOT);
+
         let cerebras_compat = MakeCerebrasCompat.when(move |_| provider.id == ProviderId::CEREBRAS);
 
         let mut combined = zai_thinking
             .pipe(or_transformers)
             .pipe(open_ai_compat)
+            .pipe(github_copilot_reasoning)
             .pipe(cerebras_compat)
             .pipe(NormalizeToolSchema);
         combined.transform(request)

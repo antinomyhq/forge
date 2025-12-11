@@ -29,7 +29,7 @@ impl Transformer for ImageHandling {
             .messages
             .iter_mut()
             .filter_map(|message| {
-                if let ContextMessage::Tool(tool_result) = message {
+                if let ContextMessage::Tool(tool_result) = &mut **message {
                     Some(tool_result)
                 } else {
                     None
@@ -47,15 +47,16 @@ impl Transformer for ImageHandling {
                 }
                 crate::ToolValue::Text(_) => {}
                 crate::ToolValue::Empty => {}
+                crate::ToolValue::AI { .. } => {}
             });
 
         // Step 2: Insert all images at the end
         images.into_iter().for_each(|(id, image)| {
-            value.messages.push(ContextMessage::user(
-                format!("[Here is the image attachment for ID {id}]"),
-                None,
-            ));
-            value.messages.push(ContextMessage::Image(image));
+            value.messages.push(
+                ContextMessage::user(format!("[Here is the image attachment for ID {id}]"), None)
+                    .into(),
+            );
+            value.messages.push(ContextMessage::Image(image).into());
         });
 
         value

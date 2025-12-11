@@ -139,6 +139,12 @@ impl<F: Send + Sync> ConversationRepository for ForgeRepo<F> {
             .rename_conversation(conversation_id, new_title)
             .await
     }
+
+    async fn delete_conversation(&self, conversation_id: &ConversationId) -> anyhow::Result<()> {
+        self.conversation_repository
+            .delete_conversation(conversation_id)
+            .await
+    }
 }
 
 #[async_trait::async_trait]

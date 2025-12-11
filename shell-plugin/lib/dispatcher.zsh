@@ -3,6 +3,10 @@
 # Main command dispatcher and widget registration
 
 # Action handler: Set active agent or execute command
+# Flow:
+# 1. Check if user_action is a CUSTOM command -> execute with `cmd` subcommand
+# 2. If no input_text -> switch to agent (for AGENT type commands)
+# 3. If input_text -> execute command with active agent context
 function _forge_action_default() {
     local user_action="$1"
     local input_text="$2"
@@ -20,9 +24,11 @@ function _forge_action_default() {
                 return 0
             fi
             
-            # Extract the command type from the last field of the row
-            local command_type="${command_row##* }"
-            if [[ "$command_type" == "custom" ]]; then
+            # Extract the command type from the second field (TYPE column)
+            # Format: "COMMAND_NAME    TYPE    DESCRIPTION"
+            local command_type=$(echo "$command_row" | awk '{print $2}')
+            # Case-insensitive comparison using :l (lowercase) modifier
+            if [[ "${command_type:l}" == "custom" ]]; then
                 # Generate conversation ID if needed
                 [[ -z "$_FORGE_CONVERSATION_ID" ]] && _FORGE_CONVERSATION_ID=$($_FORGE_BIN conversation new)
                 
@@ -100,6 +106,14 @@ function forge-accept-line() {
     
     # Add the original command to history before transformation
     print -s -- "$original_buffer"
+    
+    # CRITICAL: For multiline buffers, move cursor to end so output doesn't overwrite
+    # Don't clear BUFFER yet - let _forge_reset do that after action completes
+    # This keeps buffer state consistent if Ctrl+C is pressed
+    if [[ "$BUFFER" == *$'\n'* ]]; then
+        CURSOR=${#BUFFER}
+        zle redisplay
+    fi
     
     # Handle aliases - convert to their actual agent names
     case "$user_action" in

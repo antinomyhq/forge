@@ -91,6 +91,15 @@ pub trait ConversationRepository: Send + Sync {
         conversation_id: &ConversationId,
         new_title: &str,
     ) -> Result<()>;
+
+    /// Permanently deletes a conversation
+    ///
+    /// # Arguments
+    /// * `conversation_id` - The ID of the conversation to delete
+    ///
+    /// # Errors
+    /// Returns an error if the operation fails
+    async fn delete_conversation(&self, conversation_id: &ConversationId) -> Result<()>;
 }
 
 #[async_trait::async_trait]

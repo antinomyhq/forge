@@ -66,4 +66,10 @@ impl<S: ConversationRepository> ConversationService for ForgeConversationService
             .rename_conversation(id, new_title)
             .await
     }
+
+    async fn delete_conversation(&self, conversation_id: &ConversationId) -> Result<()> {
+        self.conversation_repository
+            .delete_conversation(conversation_id)
+            .await
+    }
 }

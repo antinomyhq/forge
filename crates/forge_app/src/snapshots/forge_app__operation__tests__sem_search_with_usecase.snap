@@ -8,12 +8,11 @@ expression: to_value(actual)
   use_case="need to add similar auth to my endpoint"
   results="1"
 >
-<file_chunk
-  file_path="src/auth.rs"
-  lines="10-12"
-><![CDATA[fn authenticate_user(token: &str) -> Result<User> {
-    verify_jwt(token)
-}]]>
-</file_chunk>
+<file
+  path="src/auth.rs"
+><![CDATA[10:fn authenticate_user(token: &str) -> Result<User> {
+11:    verify_jwt(token)
+12:}]]>
+</file>
 </query_result>
 </sem_search_results>

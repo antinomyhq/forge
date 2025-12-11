@@ -4,13 +4,15 @@ use std::collections::HashMap;
 use derive_more::{AsRef, Deref, From};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use strum_macros::Display;
+use strum_macros::{Display, EnumString};
 use url::Url;
 
 use crate::{ApiKey, AuthCredential, AuthDetails, Model, Template};
 
 /// Distinguishes between different categories of providers
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Display, Default)]
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Display, EnumString, Default,
+)]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
 pub enum ProviderType {
@@ -61,6 +63,7 @@ impl ProviderId {
     pub const OPENAI_COMPATIBLE: ProviderId = ProviderId(Cow::Borrowed("openai_compatible"));
     pub const ANTHROPIC_COMPATIBLE: ProviderId = ProviderId(Cow::Borrowed("anthropic_compatible"));
     pub const FORGE_SERVICES: ProviderId = ProviderId(Cow::Borrowed("forge_services"));
+    pub const IO_INTELLIGENCE: ProviderId = ProviderId(Cow::Borrowed("io_intelligence"));
 
     /// Returns all built-in provider IDs
     ///
@@ -84,6 +87,7 @@ impl ProviderId {
             ProviderId::OPENAI_COMPATIBLE,
             ProviderId::ANTHROPIC_COMPATIBLE,
             ProviderId::FORGE_SERVICES,
+            ProviderId::IO_INTELLIGENCE,
         ]
     }
 
@@ -102,6 +106,7 @@ impl ProviderId {
             "zai" => "ZAI".to_string(),
             "vertex_ai" => "VertexAI".to_string(),
             "openai_compatible" => "OpenAICompatible".to_string(),
+            "io_intelligence" => "IOIntelligence".to_string(),
             _ => {
                 // For other providers, use UpperCamelCase conversion
                 use convert_case::{Case, Casing};
@@ -140,6 +145,7 @@ impl std::str::FromStr for ProviderId {
             "openai_compatible" => ProviderId::OPENAI_COMPATIBLE,
             "anthropic_compatible" => ProviderId::ANTHROPIC_COMPATIBLE,
             "forge_services" => ProviderId::FORGE_SERVICES,
+            "io_intelligence" => ProviderId::IO_INTELLIGENCE,
             // For custom providers, use Cow::Owned to avoid memory leaks
             custom => ProviderId(Cow::Owned(custom.to_string())),
         };
@@ -395,6 +401,23 @@ mod test_helpers {
         }
     }
 
+    /// Test helper for creating an IO Intelligence provider
+    pub(super) fn io_intelligence(key: &str) -> Provider<Url> {
+        Provider {
+            id: ProviderId::IO_INTELLIGENCE,
+            provider_type: Default::default(),
+            response: Some(ProviderResponse::OpenAI),
+            url: Url::parse("https://api.intelligence.io.solutions/api/v1/chat/completions")
+                .unwrap(),
+            auth_methods: vec![crate::AuthMethod::ApiKey],
+            url_params: vec![],
+            credential: make_credential(ProviderId::IO_INTELLIGENCE, key),
+            models: Some(ModelSource::Url(
+                Url::parse("https://api.intelligence.io.solutions/api/v1/models").unwrap(),
+            )),
+        }
+    }
+
     /// Test helper for creating an Azure provider
     pub(super) fn azure(
         key: &str,
@@ -454,6 +477,31 @@ mod tests {
             ProviderId::ANTHROPIC_COMPATIBLE.to_string(),
             "AnthropicCompatible"
         );
+        assert_eq!(ProviderId::IO_INTELLIGENCE.to_string(), "IOIntelligence");
+    }
+
+    #[test]
+    fn test_io_intelligence() {
+        let fixture = "test_key";
+        let actual = io_intelligence(fixture);
+        let expected = Provider {
+            id: ProviderId::IO_INTELLIGENCE,
+            provider_type: Default::default(),
+            response: Some(ProviderResponse::OpenAI),
+            url: Url::from_str("https://api.intelligence.io.solutions/api/v1/chat/completions")
+                .unwrap(),
+            credential: Some(AuthCredential {
+                id: ProviderId::IO_INTELLIGENCE,
+                auth_details: AuthDetails::ApiKey(ApiKey::from(fixture.to_string())),
+                url_params: HashMap::new(),
+            }),
+            auth_methods: vec![crate::AuthMethod::ApiKey],
+            url_params: vec![],
+            models: Some(ModelSource::Url(
+                Url::from_str("https://api.intelligence.io.solutions/api/v1/models").unwrap(),
+            )),
+        };
+        assert_eq!(actual, expected);
     }
 
     #[test]

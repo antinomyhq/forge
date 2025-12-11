@@ -58,15 +58,6 @@
       "format": "uint",
       "minimum": 0.0
     },
-    "max_walker_depth": {
-      "description": "Maximum depth to which the file walker should traverse for all agents If not provided, each agent's individual setting will be used",
-      "type": [
-        "integer",
-        "null"
-      ],
-      "format": "uint",
-      "minimum": 0.0
-    },
     "temperature": {
       "description": "Temperature used for all agents\n\nTemperature controls the randomness in the model's output. - Lower values (e.g., 0.1) make responses more focused, deterministic, and coherent - Higher values (e.g., 0.8) make responses more creative, diverse, and exploratory - Valid range is 0.0 to 2.0 - If not specified, each agent's individual setting or the model provider's default will be used",
       "anyOf": [

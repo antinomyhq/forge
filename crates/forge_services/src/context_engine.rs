@@ -288,8 +288,6 @@ impl<F> ForgeContextEngineService<F> {
         let total_file_count = local_files.len();
         emit(SyncProgress::FilesDiscovered { count: total_file_count }).await;
 
-        // Fetch remote hashes and create sync plan
-        emit(SyncProgress::ComparingFiles).await;
         let remote_files = if is_new_workspace {
             Vec::new()
         } else {
@@ -297,16 +295,28 @@ impl<F> ForgeContextEngineService<F> {
                 .await
         };
 
+        emit(SyncProgress::ComparingFiles {
+            remote_files: remote_files.len(),
+            local_files: total_file_count,
+        })
+        .await;
+
+        // Fetch remote hashes and create sync plan
         let plan = SyncPlan::new(local_files, remote_files);
         let uploaded_files = plan.total();
 
-        // Emit diff computed event with breakdown
-        emit(SyncProgress::DiffComputed {
-            to_delete: plan.files_to_delete.len(),
-            to_upload: plan.files_to_upload.len(),
-            modified: plan.modified_files.len(),
-        })
-        .await;
+        // Only emit diff computed event if there are actual changes
+        if !plan.files_to_delete.is_empty()
+            || !plan.files_to_upload.is_empty()
+            || !plan.modified_files.is_empty()
+        {
+            emit(SyncProgress::DiffComputed {
+                to_delete: plan.files_to_delete.len(),
+                to_upload: plan.files_to_upload.len(),
+                modified: plan.modified_files.len(),
+            })
+            .await;
+        }
 
         plan.execute(
             batch_size,
@@ -799,12 +809,12 @@ mod tests {
     fn search_result() -> Node {
         Node {
             node_id: "n1".into(),
-            node: forge_domain::NodeData::FileChunk {
+            node: forge_domain::NodeData::FileChunk(forge_domain::FileChunk {
                 file_path: "main.rs".into(),
                 content: "fn main() {}".into(),
                 start_line: 1,
                 end_line: 1,
-            },
+            }),
             relevance: Some(0.95),
             distance: Some(0.05),
             similarity: Some(0.95),

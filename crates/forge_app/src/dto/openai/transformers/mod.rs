@@ -1,4 +1,5 @@
 mod drop_tool_call;
+mod github_copilot_reasoning;
 mod make_cerebras_compat;
 mod make_openai_compat;
 mod normalize_tool_schema;
