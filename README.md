@@ -267,6 +267,21 @@ CEREBRAS_API_KEY=<your_cerebras_api_key>
 </details>
 
 <details>
+<summary><strong>IO Intelligence</strong></summary>
+
+```bash
+# .env
+IO_INTELLIGENCE_API_KEY=<your_io_intelligence_api_key>
+```
+
+```yaml
+# forge.yaml
+model: meta-llama/Llama-3.3-70B-Instruct
+```
+
+</details>
+
+<details>
 <summary><strong>OpenAI</strong></summary>
 
 ```bash
