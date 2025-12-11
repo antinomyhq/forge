@@ -3,19 +3,23 @@ use std::sync::Arc;
 
 use chrono::{NaiveDateTime, Utc};
 use diesel::prelude::*;
-use forge_domain::{UserId, Workspace, WorkspaceId, WorkspaceRepository};
+use forge_app::EnvironmentInfra;
+use forge_domain::{
+    SyncStatus, UserId, Workspace, WorkspaceId, WorkspaceRepository, WorkspaceSyncStatus,
+};
 
 use crate::database::schema::workspace;
 use crate::database::DatabasePool;
 
 /// Repository implementation for workspace persistence in local database
-pub struct ForgeWorkspaceRepository {
+pub struct ForgeWorkspaceRepository<E> {
     pool: Arc<DatabasePool>,
+    env: Arc<E>,
 }
 
-impl ForgeWorkspaceRepository {
-    pub fn new(pool: Arc<DatabasePool>) -> Self {
-        Self { pool }
+impl<E> ForgeWorkspaceRepository<E> {
+    pub fn new(pool: Arc<DatabasePool>, env: Arc<E>) -> Self {
+        Self { pool, env }
     }
 }
 
@@ -29,6 +33,9 @@ struct IndexingRecord {
     path: String,
     created_at: NaiveDateTime,
     updated_at: Option<NaiveDateTime>,
+    sync_status: Option<String>,
+    last_synced_at: Option<NaiveDateTime>,
+    sync_error: Option<String>,
 }
 
 impl IndexingRecord {
@@ -39,6 +46,9 @@ impl IndexingRecord {
             path: path.to_string_lossy().into_owned(),
             created_at: Utc::now().naive_utc(),
             updated_at: None,
+            sync_status: None,
+            last_synced_at: None,
+            sync_error: None,
         }
     }
 }
@@ -62,7 +72,7 @@ impl TryFrom<IndexingRecord> for Workspace {
 }
 
 #[async_trait::async_trait]
-impl WorkspaceRepository for ForgeWorkspaceRepository {
+impl<E: EnvironmentInfra> WorkspaceRepository for ForgeWorkspaceRepository<E> {
     async fn upsert(
         &self,
         workspace_id: &WorkspaceId,
@@ -108,21 +118,169 @@ impl WorkspaceRepository for ForgeWorkspaceRepository {
         .execute(&mut connection)?;
         Ok(())
     }
+
+    // Sync lock and status methods
+    async fn try_acquire_lock(
+        &self,
+        path: &std::path::Path,
+    ) -> anyhow::Result<bool> {
+        let mut connection = self.pool.get_connection()?;
+        let canonical_path = path.canonicalize()?.to_string_lossy().to_string();
+
+        // Atomically try to acquire the lock by updating status to IN_PROGRESS
+        // Only succeeds if:
+        // 1. A workspace record exists for this path
+        // 2. Current status is not IN_PROGRESS (or is NULL)
+        let rows_affected = diesel::update(workspace::table)
+            .filter(workspace::path.eq(&canonical_path))
+            .filter(
+                workspace::sync_status
+                    .ne(SyncStatus::InProgress.to_string())
+                    .or(workspace::sync_status.is_null()),
+            )
+            .set((
+                workspace::sync_status.eq(SyncStatus::InProgress.to_string()),
+                workspace::last_synced_at.eq(Some(Utc::now().naive_utc())),
+            ))
+            .execute(&mut connection)?;
+
+        Ok(rows_affected > 0)
+    }
+
+    async fn release_sync_lock(&self, path: &std::path::Path) -> anyhow::Result<()> {
+        let mut connection = self.pool.get_connection()?;
+        let canonical_path = path.canonicalize()?.to_string_lossy().to_string();
+
+        diesel::update(workspace::table)
+            .filter(workspace::path.eq(&canonical_path))
+            .set((
+                workspace::sync_status.eq(SyncStatus::Success.to_string()),
+                workspace::last_synced_at.eq(Some(Utc::now().naive_utc())),
+                workspace::sync_error.eq(None::<String>),
+            ))
+            .execute(&mut connection)?;
+
+        Ok(())
+    }
+
+    async fn update_status(
+        &self,
+        path: &std::path::Path,
+        status: SyncStatus,
+        error_message: Option<String>,
+    ) -> anyhow::Result<()> {
+        let mut connection = self.pool.get_connection()?;
+        let canonical_path = path.canonicalize()?.to_string_lossy().to_string();
+
+        diesel::update(workspace::table)
+            .filter(workspace::path.eq(&canonical_path))
+            .set((
+                workspace::sync_status.eq(status.to_string()),
+                workspace::last_synced_at.eq(Some(Utc::now().naive_utc())),
+                workspace::sync_error.eq(error_message),
+            ))
+            .execute(&mut connection)?;
+
+        Ok(())
+    }
+
+    async fn get_status(
+        &self,
+        path: &std::path::Path,
+    ) -> anyhow::Result<Option<WorkspaceSyncStatus>> {
+        let mut connection = self.pool.get_connection()?;
+        let canonical_path = path.canonicalize()?.to_string_lossy().to_string();
+
+        let record: Option<(Option<String>, Option<NaiveDateTime>, Option<String>)> =
+            workspace::table
+                .filter(workspace::path.eq(&canonical_path))
+                .select((
+                    workspace::sync_status,
+                    workspace::last_synced_at,
+                    workspace::sync_error,
+                ))
+                .first(&mut connection)
+                .optional()?;
+
+        if let Some((status_str, last_synced, error)) = record {
+            let status = status_str
+                .as_deref()
+                .map(|s| s.parse::<SyncStatus>())
+                .transpose()?
+                .unwrap_or(SyncStatus::Success);
+
+            Ok(Some(WorkspaceSyncStatus {
+                path: PathBuf::from(canonical_path),
+                status,
+                last_synced_at: last_synced.map(|dt| dt.and_utc()).unwrap_or(Utc::now()),
+                error_message: error,
+                process_id: 0,
+            }))
+        } else {
+            Ok(None)
+        }
+    }
+
+    async fn clear_stale_locks(&self, path: &std::path::Path) -> anyhow::Result<()> {
+        let mut connection = self.pool.get_connection()?;
+        let canonical_path = path.canonicalize()?.to_string_lossy().to_string();
+
+        // Get the sync interval from environment
+        let env = self.env.get_environment();
+        let stale_threshold_secs = (env.sync_interval_seconds * 2) as i64;
+
+        // Calculate the stale threshold timestamp
+        let stale_threshold = Utc::now().naive_utc()
+            - chrono::Duration::try_seconds(stale_threshold_secs).unwrap();
+
+        // Find and mark stale locks as FAILED
+        diesel::update(workspace::table)
+            .filter(workspace::path.eq(&canonical_path))
+            .filter(workspace::sync_status.eq(SyncStatus::InProgress.to_string()))
+            .filter(workspace::last_synced_at.lt(stale_threshold))
+            .set((
+                workspace::sync_status.eq(SyncStatus::Failed.to_string()),
+                workspace::sync_error.eq(Some(
+                    "Sync timeout - process may have crashed".to_string(),
+                )),
+            ))
+            .execute(&mut connection)?;
+
+        Ok(())
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
 
-    use forge_domain::UserId;
+    use forge_domain::{Environment, UserId};
     use pretty_assertions::assert_eq;
 
     use super::*;
     use crate::database::DatabasePool;
+    use fake::{Fake, Faker};
+    
+    struct MockEnv;
+    
+    impl forge_app::EnvironmentInfra for MockEnv {
+        fn get_environment(&self) -> Environment {
+            Faker.fake()
+        }
+        
+        fn get_env_var(&self, _: &str) -> Option<String> {
+            None
+        }
+        
+        fn get_env_vars(&self) -> std::collections::BTreeMap<String, String> {
+            std::collections::BTreeMap::new()
+        }
+    }
 
-    fn repo_impl() -> ForgeWorkspaceRepository {
+    fn repo_impl() -> ForgeWorkspaceRepository<MockEnv> {
         let pool = Arc::new(DatabasePool::in_memory().unwrap());
-        ForgeWorkspaceRepository::new(pool)
+        let env = Arc::new(MockEnv);
+        ForgeWorkspaceRepository::new(pool, env)
     }
 
     #[tokio::test]
@@ -164,5 +322,45 @@ mod tests {
         let actual = fixture.find_by_path(&path).await.unwrap().unwrap();
 
         assert!(actual.updated_at.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_workspace_sync_lock() {
+        use forge_domain::{SyncStatus, UserId, WorkspaceId};
+        use std::env;
+        
+        let repo = repo_impl();
+        // Use current directory which definitely exists
+        let path = env::current_dir().unwrap();
+        let workspace_id = WorkspaceId::generate();
+        let user_id = UserId::generate();
+        
+        // First, create a workspace record (simulates initial sync from server)
+        repo.upsert(&workspace_id, &user_id, &path).await.unwrap();
+        
+        // Try to acquire lock - should succeed
+        let acquired = repo.try_acquire_lock(&path).await.unwrap();
+        assert!(acquired, "Should acquire lock on first attempt");
+
+        // Check status
+        let status = repo.get_status(&path).await.unwrap();
+        assert!(status.is_some(), "Status should exist");
+        let status = status.unwrap();
+        assert_eq!(status.status, SyncStatus::InProgress);
+
+        // Try to acquire again - should fail (already locked)
+        let acquired2 = repo.try_acquire_lock(&path).await.unwrap();
+        assert!(!acquired2, "Should not acquire lock when already in progress");
+
+        // Release lock
+        repo.release_sync_lock(&path).await.unwrap();
+
+        // Check status is now SUCCESS
+        let status = repo.get_status(&path).await.unwrap().unwrap();
+        assert_eq!(status.status, SyncStatus::Success);
+
+        // Should be able to acquire again
+        let acquired3 = repo.try_acquire_lock(&path).await.unwrap();
+        assert!(acquired3, "Should acquire lock after release");
     }
 }

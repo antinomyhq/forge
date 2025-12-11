@@ -19,17 +19,10 @@ diesel::table! {
         path -> Text,
         created_at -> Timestamp,
         updated_at -> Nullable<Timestamp>,
+        sync_status -> Nullable<Text>,
+        last_synced_at -> Nullable<Timestamp>,
+        sync_error -> Nullable<Text>,
     }
 }
 
-diesel::table! {
-    workspace_sync_status (path) {
-        path -> Text,
-        status -> Text,
-        last_synced_at -> Timestamp,
-        error_message -> Nullable<Text>,
-        process_id -> Integer,
-    }
-}
-
-diesel::allow_tables_to_appear_in_same_query!(conversations, workspace, workspace_sync_status,);
+diesel::allow_tables_to_appear_in_same_query!(conversations, workspace,);

@@ -25,7 +25,7 @@ use crate::fs_snap::ForgeFileSnapshotService;
 use crate::provider::ForgeProviderRepository;
 use crate::{
     AppConfigRepositoryImpl, ConversationRepositoryImpl, DatabasePool, ForgeAgentRepository,
-    ForgeSkillRepository, ForgeWorkspaceSyncRepository, PoolConfig,
+    ForgeSkillRepository, PoolConfig,
 };
 
 /// Repository layer that implements all domain repository traits
@@ -40,12 +40,11 @@ pub struct ForgeRepo<F> {
     app_config_repository: Arc<AppConfigRepositoryImpl<F>>,
     mcp_cache_repository: Arc<CacacheStorage>,
     provider_repository: Arc<ForgeProviderRepository<F>>,
-    indexing_repository: Arc<crate::ForgeWorkspaceRepository>,
+    indexing_repository: Arc<crate::ForgeWorkspaceRepository<F>>,
     codebase_repo: Arc<crate::ForgeContextEngineRepository<F>>,
     agent_repository: Arc<ForgeAgentRepository<F>>,
     skill_repository: Arc<ForgeSkillRepository<F>>,
     validation_repository: Arc<crate::ForgeValidationRepository<F>>,
-    workspace_sync_repository: Arc<ForgeWorkspaceSyncRepository<F>>,
 }
 
 impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra> ForgeRepo<F> {
@@ -68,16 +67,15 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra> ForgeR
 
         let provider_repository = Arc::new(ForgeProviderRepository::new(infra.clone()));
 
-        let indexing_repository = Arc::new(crate::ForgeWorkspaceRepository::new(db_pool.clone()));
+        let indexing_repository = Arc::new(crate::ForgeWorkspaceRepository::new(
+            db_pool.clone(),
+            infra.clone(),
+        ));
 
         let codebase_repo = Arc::new(crate::ForgeContextEngineRepository::new(infra.clone()));
         let agent_repository = Arc::new(ForgeAgentRepository::new(infra.clone()));
         let skill_repository = Arc::new(ForgeSkillRepository::new(infra.clone()));
         let validation_repository = Arc::new(crate::ForgeValidationRepository::new(infra.clone()));
-        let workspace_sync_repository = Arc::new(ForgeWorkspaceSyncRepository::new(
-            db_pool.clone(),
-            infra.clone(),
-        ));
         Self {
             infra,
             file_snapshot_service,
@@ -90,7 +88,6 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra> ForgeR
             agent_repository,
             skill_repository,
             validation_repository,
-            workspace_sync_repository,
         }
     }
 }
@@ -465,7 +462,7 @@ impl<F: StrategyFactory> StrategyFactory for ForgeRepo<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: Send + Sync> forge_domain::WorkspaceRepository for ForgeRepo<F> {
+impl<F: EnvironmentInfra + Send + Sync> forge_domain::WorkspaceRepository for ForgeRepo<F> {
     async fn upsert(
         &self,
         workspace_id: &forge_domain::WorkspaceId,
@@ -491,22 +488,19 @@ impl<F: Send + Sync> forge_domain::WorkspaceRepository for ForgeRepo<F> {
     async fn delete(&self, workspace_id: &forge_domain::WorkspaceId) -> anyhow::Result<()> {
         self.indexing_repository.delete(workspace_id).await
     }
-}
 
-#[async_trait::async_trait]
-impl<F: EnvironmentInfra + Send + Sync> forge_domain::WorkspaceSyncRepository for ForgeRepo<F> {
+    // Sync methods (merged from WorkspaceSyncRepository)
     async fn try_acquire_lock(
         &self,
         path: &std::path::Path,
-        process_id: u32,
     ) -> anyhow::Result<bool> {
-        self.workspace_sync_repository
-            .try_acquire_lock(path, process_id)
+        self.indexing_repository
+            .try_acquire_lock(path)
             .await
     }
 
-    async fn release_lock(&self, path: &std::path::Path) -> anyhow::Result<()> {
-        self.workspace_sync_repository.release_lock(path).await
+    async fn release_sync_lock(&self, path: &std::path::Path) -> anyhow::Result<()> {
+        self.indexing_repository.release_sync_lock(path).await
     }
 
     async fn update_status(
@@ -515,7 +509,7 @@ impl<F: EnvironmentInfra + Send + Sync> forge_domain::WorkspaceSyncRepository fo
         status: forge_domain::SyncStatus,
         error_message: Option<String>,
     ) -> anyhow::Result<()> {
-        self.workspace_sync_repository
+        self.indexing_repository
             .update_status(path, status, error_message)
             .await
     }
@@ -524,11 +518,11 @@ impl<F: EnvironmentInfra + Send + Sync> forge_domain::WorkspaceSyncRepository fo
         &self,
         path: &std::path::Path,
     ) -> anyhow::Result<Option<forge_domain::WorkspaceSyncStatus>> {
-        self.workspace_sync_repository.get_status(path).await
+        self.indexing_repository.get_status(path).await
     }
 
     async fn clear_stale_locks(&self, path: &std::path::Path) -> anyhow::Result<()> {
-        self.workspace_sync_repository.clear_stale_locks(path).await
+        self.indexing_repository.clear_stale_locks(path).await
     }
 }
 

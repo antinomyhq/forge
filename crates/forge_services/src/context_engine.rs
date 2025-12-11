@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use forge_app::{ContextEngineService, FileReaderInfra, Walker, WalkerInfra, compute_hash};
 use forge_domain::{
     AuthCredential, ContextEngineRepository, FileHash, ProviderId, ProviderRepository,
-    SyncProgress, UserId, WorkspaceId, WorkspaceRepository, WorkspaceSyncRepository,
+    SyncProgress, UserId, WorkspaceId, WorkspaceRepository,
 };
 use forge_stream::MpscStream;
 use futures::future::join_all;
@@ -470,7 +470,6 @@ impl<F> ForgeContextEngineService<F> {
             + ContextEngineRepository
             + WalkerInfra
             + FileReaderInfra
-            + WorkspaceSyncRepository
             + 'static,
     {
         use futures::StreamExt;
@@ -482,12 +481,10 @@ impl<F> ForgeContextEngineService<F> {
         // Clear any stale locks before attempting to sync
         self.infra.clear_stale_locks(&canonical_path).await?;
 
-        let process_id = std::process::id();
-
         // Try to acquire lock
         let acquired = self
             .infra
-            .try_acquire_lock(&canonical_path, process_id)
+            .try_acquire_lock(&canonical_path)
             .await?;
         if !acquired {
             return Ok(false); // Another process is syncing
@@ -549,7 +546,6 @@ impl<
         + ContextEngineRepository
         + WalkerInfra
         + FileReaderInfra
-        + WorkspaceSyncRepository
         + 'static,
 > ContextEngineService for ForgeContextEngineService<F>
 {
@@ -1001,6 +997,38 @@ mod tests {
         async fn delete(&self, _: &WorkspaceId) -> Result<()> {
             Ok(())
         }
+        
+        async fn try_acquire_lock(
+            &self,
+            _path: &std::path::Path,
+        ) -> anyhow::Result<bool> {
+            Ok(true) // Always succeed in tests
+        }
+
+        async fn release_sync_lock(&self, _path: &std::path::Path) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn update_status(
+            &self,
+            _path: &std::path::Path,
+            _status: forge_domain::SyncStatus,
+            _error_message: Option<String>,
+        ) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn get_status(
+            &self,
+            _path: &std::path::Path,
+        ) -> anyhow::Result<Option<forge_domain::WorkspaceSyncStatus>> {
+            Ok(None)
+        }
+
+        async fn clear_stale_locks(&self, _path: &std::path::Path) -> anyhow::Result<()> {
+            Ok(())
+        }
+        
     }
 
     #[async_trait]
@@ -1092,41 +1120,6 @@ mod tests {
                 String::new(),
                 FileInfo { total_lines: 1, start_line: 1, end_line: 1 },
             ))
-        }
-    }
-
-    #[async_trait]
-    impl forge_domain::WorkspaceSyncRepository for MockInfra {
-        async fn try_acquire_lock(
-            &self,
-            _path: &std::path::Path,
-            _process_id: u32,
-        ) -> anyhow::Result<bool> {
-            Ok(true) // Always succeed in tests
-        }
-
-        async fn release_lock(&self, _path: &std::path::Path) -> anyhow::Result<()> {
-            Ok(())
-        }
-
-        async fn update_status(
-            &self,
-            _path: &std::path::Path,
-            _status: forge_domain::SyncStatus,
-            _error_message: Option<String>,
-        ) -> anyhow::Result<()> {
-            Ok(())
-        }
-
-        async fn get_status(
-            &self,
-            _path: &std::path::Path,
-        ) -> anyhow::Result<Option<forge_domain::WorkspaceSyncStatus>> {
-            Ok(None)
-        }
-
-        async fn clear_stale_locks(&self, _path: &std::path::Path) -> anyhow::Result<()> {
-            Ok(())
         }
     }
 
