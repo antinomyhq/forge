@@ -297,11 +297,13 @@ impl<S: AgentService> Orchestrator<S> {
 
             // Turn is completed, if finish_reason is 'stop'. Gemini models return stop as
             // finish reason with tool calls.
-            is_complete = message.finish_reason == Some(FinishReason::Stop) && message.tool_calls.is_empty();
+            is_complete =
+                message.finish_reason == Some(FinishReason::Stop) && message.tool_calls.is_empty();
 
             // Should yield if a tool is asking for a follow-up
             should_yield = is_complete
-                || message.tool_calls
+                || message
+                    .tool_calls
                     .iter()
                     .any(|call| ToolCatalog::should_yield(&call.name));
 
@@ -320,7 +322,9 @@ impl<S: AgentService> Orchestrator<S> {
             .await?;
 
             // Process tool calls and update context
-            let mut tool_call_records = self.execute_tool_calls(&message.tool_calls, &tool_context).await?;
+            let mut tool_call_records = self
+                .execute_tool_calls(&message.tool_calls, &tool_context)
+                .await?;
 
             self.error_tracker.adjust_record(&tool_call_records);
             let allowed_max_attempts = self.error_tracker.limit();

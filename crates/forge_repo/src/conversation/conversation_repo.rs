@@ -1,10 +1,7 @@
 use std::sync::Arc;
 
 use diesel::prelude::*;
-use forge_domain::{
-    Conversation, ConversationId, ConversationRepository,
-    WorkspaceHash,
-};
+use forge_domain::{Conversation, ConversationId, ConversationRepository, WorkspaceHash};
 
 use crate::conversation::conversation_record::ConversationRecord;
 use crate::database::schema::conversations;
@@ -120,8 +117,13 @@ impl ConversationRepository for ConversationRepositoryImpl {
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeSet;
+
     use chrono::Utc;
-    use forge_domain::{Context, ContextMessage, Effort, FileOperation, Metrics, ParentContext, Role, ToolCallFull, ToolCallId, ToolChoice, ToolDefinition, ToolKind, ToolName, ToolOutput, ToolResult, ToolValue, Usage};
+    use forge_domain::{
+        Context, ContextMessage, Effort, FileOperation, Metrics, ParentContext, Role, ToolCallFull,
+        ToolCallId, ToolChoice, ToolDefinition, ToolKind, ToolName, ToolOutput, ToolResult,
+        ToolValue, Usage,
+    };
     use pretty_assertions::assert_eq;
 
     use super::*;
