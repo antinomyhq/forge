@@ -1,7 +1,6 @@
 ---
 source: crates/forge_app/src/compact.rs
 expression: compacted_context
-snapshot_kind: text
 ---
 conversation_id: ff7e318b-017e-4db0-b9b4-23e4e2b27391
 messages:
