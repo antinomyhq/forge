@@ -181,7 +181,7 @@ fn create_message_usage_section(usage: &crate::message::Usage) -> Element {
 
 fn create_conversation_context_section(conversation: &Conversation) -> Element {
     let section =
-        Element::new("div.section").append(Element::new("h2").text("Conversation Context"));
+        Element::new("div.section").append(Element::new("h2").text("Messages"));
 
     // Add context if available
     if let Some(context) = &conversation.context {
