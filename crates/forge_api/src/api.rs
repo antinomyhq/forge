@@ -210,8 +210,8 @@ pub trait API: Sync + Send {
 
     /// Attempts to sync the workspace if not already in progress
     ///
-    /// Tries to acquire the sync lock and performs synchronization if successful.
-    /// Updates the sync status in the database upon completion.
+    /// Tries to acquire the sync lock and performs synchronization if
+    /// successful. Updates the sync status in the database upon completion.
     ///
     /// # Returns
     /// * `Ok(true)` - Sync was performed successfully
@@ -221,7 +221,8 @@ pub trait API: Sync + Send {
 
     /// Clears any stale sync locks from crashed processes
     ///
-    /// Should be called on application startup before beginning sync operations.
+    /// Should be called on application startup before beginning sync
+    /// operations.
     async fn clear_stale_sync_locks(&self) -> Result<()>;
 
     /// Migrate environment variable-based credentials to file-based

@@ -365,12 +365,18 @@ impl<
 
     async fn try_sync_workspace(&self) -> Result<bool> {
         let env = self.infra.get_environment();
-        self.services.context_engine_service().try_sync_workspace(env.cwd.clone()).await
+        self.services
+            .context_engine_service()
+            .try_sync_workspace(env.cwd.clone())
+            .await
     }
 
     async fn clear_stale_sync_locks(&self) -> Result<()> {
         let env = self.infra.get_environment();
-        self.services.context_engine_service().clear_stale_sync_locks(&env.cwd).await
+        self.services
+            .context_engine_service()
+            .clear_stale_sync_locks(&env.cwd)
+            .await
     }
 
     async fn migrate_env_credentials(&self) -> Result<Option<forge_domain::MigrationResult>> {

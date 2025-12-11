@@ -74,8 +74,10 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra> ForgeR
         let agent_repository = Arc::new(ForgeAgentRepository::new(infra.clone()));
         let skill_repository = Arc::new(ForgeSkillRepository::new(infra.clone()));
         let validation_repository = Arc::new(crate::ForgeValidationRepository::new(infra.clone()));
-        let workspace_sync_repository =
-            Arc::new(ForgeWorkspaceSyncRepository::new(db_pool.clone(), infra.clone()));
+        let workspace_sync_repository = Arc::new(ForgeWorkspaceSyncRepository::new(
+            db_pool.clone(),
+            infra.clone(),
+        ));
         Self {
             infra,
             file_snapshot_service,

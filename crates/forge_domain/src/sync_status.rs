@@ -59,8 +59,9 @@ pub struct WorkspaceSyncStatus {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use pretty_assertions::assert_eq;
+
+    use super::*;
 
     #[test]
     fn test_sync_status_from_str() {

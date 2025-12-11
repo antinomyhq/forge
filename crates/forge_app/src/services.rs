@@ -284,8 +284,8 @@ pub trait ContextEngineService: Send + Sync {
 
     /// Attempts to sync the workspace if not already in progress
     ///
-    /// Tries to acquire the sync lock and performs synchronization if successful.
-    /// Updates the sync status in the database upon completion.
+    /// Tries to acquire the sync lock and performs synchronization if
+    /// successful. Updates the sync status in the database upon completion.
     ///
     /// # Returns
     /// * `Ok(true)` - Sync was performed successfully
@@ -295,14 +295,16 @@ pub trait ContextEngineService: Send + Sync {
 
     /// Clears any stale sync locks from crashed processes
     ///
-    /// Should be called on application startup before beginning sync operations.
-    /// Clears stale sync locks based on the configured sync interval
+    /// Should be called on application startup before beginning sync
+    /// operations. Clears stale sync locks based on the configured sync
+    /// interval
     ///
     /// # Arguments
     /// * `path` - Path to the workspace
     /// * `sync_interval_seconds` - Configured sync interval in seconds
     ///
-    /// Locks are considered stale if they've been IN_PROGRESS for more than 2x the interval
+    /// Locks are considered stale if they've been IN_PROGRESS for more than 2x
+    /// the interval
     async fn clear_stale_sync_locks(&self, path: &Path) -> anyhow::Result<()>;
 }
 
@@ -1094,9 +1096,7 @@ impl<I: Services> ContextEngineService for I {
     }
 
     async fn try_sync_workspace(&self, path: PathBuf) -> anyhow::Result<bool> {
-        self.context_engine_service()
-            .try_sync_workspace(path)
-            .await
+        self.context_engine_service().try_sync_workspace(path).await
     }
 
     async fn clear_stale_sync_locks(&self, path: &Path) -> anyhow::Result<()> {

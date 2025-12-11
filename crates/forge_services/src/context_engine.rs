@@ -456,8 +456,8 @@ impl<F> ForgeContextEngineService<F> {
 
     /// Attempts to sync the workspace if not already in progress
     ///
-    /// Tries to acquire the sync lock and performs synchronization if successful.
-    /// Updates the sync status in the database upon completion.
+    /// Tries to acquire the sync lock and performs synchronization if
+    /// successful. Updates the sync status in the database upon completion.
     ///
     /// # Returns
     /// * `Ok(true)` - Sync was performed successfully
@@ -482,12 +482,16 @@ impl<F> ForgeContextEngineService<F> {
         let process_id = std::process::id();
 
         // Try to acquire lock
-        let acquired = self.infra.try_acquire_lock(&canonical_path, process_id).await?;
+        let acquired = self
+            .infra
+            .try_acquire_lock(&canonical_path, process_id)
+            .await?;
         if !acquired {
             return Ok(false); // Another process is syncing
         }
 
-        // Check if auth already exists and create if needed (same as forge workspace sync command)
+        // Check if auth already exists and create if needed (same as forge workspace
+        // sync command)
         let auth_check_result = async {
             if !self.is_authenticated().await? {
                 self.create_auth_credentials().await?;
@@ -536,7 +540,8 @@ impl<F> ForgeContextEngineService<F> {
 
     /// Clears any stale sync locks from crashed processes
     ///
-    /// Should be called on application startup before beginning sync operations.
+    /// Should be called on application startup before beginning sync
+    /// operations.
     pub async fn clear_stale_sync_locks(&self, path: &Path) -> Result<()>
     where
         F: WorkspaceSyncRepository,
@@ -644,12 +649,13 @@ impl<
         let (token, _) = Self::extract_workspace_auth(&credential)?;
 
         // List all workspaces for this user
-        let mut workspaces = self.infra
+        let mut workspaces = self
+            .infra
             .as_ref()
             .list_workspaces(&token)
             .await
             .context("Failed to list workspaces")?;
-        
+
         // Enrich each workspace with sync status from local database
         for workspace in &mut workspaces {
             if let Ok(path) = std::path::PathBuf::from(&workspace.working_dir).canonicalize() {
@@ -661,12 +667,15 @@ impl<
                 }
             }
         }
-        
+
         Ok(workspaces)
     }
 
     /// Retrieves workspace information for a specific path.
-    async fn get_workspace_info(&self, path: PathBuf) -> Result<Option<forge_domain::WorkspaceInfo>> {
+    async fn get_workspace_info(
+        &self,
+        path: PathBuf,
+    ) -> Result<Option<forge_domain::WorkspaceInfo>> {
         let path = path
             .canonicalize()
             .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
@@ -685,7 +694,8 @@ impl<
 
         if let Some(workspace) = workspace {
             // Get detailed workspace info from server
-            if let Some(mut info) = self.infra
+            if let Some(mut info) = self
+                .infra
                 .as_ref()
                 .get_workspace(&workspace.workspace_id, &token)
                 .await
@@ -697,7 +707,7 @@ impl<
                     info.sync_status = Some(sync_status.status);
                     info.sync_error = sync_status.error_message;
                 }
-                
+
                 Ok(Some(info))
             } else {
                 Ok(None)

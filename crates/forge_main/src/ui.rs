@@ -104,7 +104,6 @@ pub struct UI<A, F: Fn() -> A> {
 }
 
 impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
-
     /// Writes a line to the console output
     /// Takes anything that implements ToString trait
     fn writeln<T: ToString>(&mut self, content: T) -> anyhow::Result<()> {
@@ -3144,13 +3143,18 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
 
             // Periodic sync loop
-            tracing::info!(interval_secs = env.sync_interval_seconds, "Starting periodic workspace sync");
+            tracing::info!(
+                interval_secs = env.sync_interval_seconds,
+                "Starting periodic workspace sync"
+            );
             loop {
                 tokio::time::sleep(interval).await;
 
                 match api_clone.try_sync_workspace().await {
                     Ok(true) => tracing::info!("Periodic workspace sync completed successfully"),
-                    Ok(false) => tracing::debug!("Periodic workspace sync skipped (already in progress)"),
+                    Ok(false) => {
+                        tracing::debug!("Periodic workspace sync skipped (already in progress)")
+                    }
                     Err(e) => tracing::warn!(error = %e, "Periodic workspace sync failed"),
                 }
             }

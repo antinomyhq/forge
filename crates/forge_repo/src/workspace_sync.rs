@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use chrono::{NaiveDateTime, Utc};
 use diesel::prelude::*;
-use forge_domain::{SyncStatus, WorkspaceSyncRepository, WorkspaceSyncStatus};
 use forge_app::EnvironmentInfra;
+use forge_domain::{SyncStatus, WorkspaceSyncRepository, WorkspaceSyncStatus};
 
 use crate::database::schema::workspace_sync_status;
 use crate::database::DatabasePool;
@@ -60,9 +60,10 @@ impl<E: EnvironmentInfra> WorkspaceSyncRepository for ForgeWorkspaceSyncReposito
         let mut connection = self.pool.get_connection()?;
         let path_str = path.to_string_lossy().into_owned();
 
-        // Strategy: Use a conditional UPDATE that only succeeds if status is NOT 'IN_PROGRESS'
-        // This makes the check-and-set atomic, preventing race conditions
-        
+        // Strategy: Use a conditional UPDATE that only succeeds if status is NOT
+        // 'IN_PROGRESS' This makes the check-and-set atomic, preventing race
+        // conditions
+
         // First, ensure a record exists (idempotent)
         diesel::insert_into(workspace_sync_status::table)
             .values((
@@ -107,7 +108,10 @@ impl<E: EnvironmentInfra> WorkspaceSyncRepository for ForgeWorkspaceSyncReposito
         Ok(())
     }
 
-    async fn get_status(&self, path: &std::path::Path) -> anyhow::Result<Option<WorkspaceSyncStatus>> {
+    async fn get_status(
+        &self,
+        path: &std::path::Path,
+    ) -> anyhow::Result<Option<WorkspaceSyncStatus>> {
         let mut connection = self.pool.get_connection()?;
         let path_str = path.to_string_lossy().into_owned();
 
@@ -174,12 +178,14 @@ impl<E: EnvironmentInfra> WorkspaceSyncRepository for ForgeWorkspaceSyncReposito
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
+    use forge_app::EnvironmentInfra;
+    use forge_domain::Environment;
+    use pretty_assertions::assert_eq;
+
     use super::*;
     use crate::database::DatabasePool;
-    use forge_domain::Environment;
-    use forge_app::EnvironmentInfra;
-    use pretty_assertions::assert_eq;
-    use std::path::PathBuf;
 
     // Test infrastructure that implements EnvironmentInfra
     struct TestInfra {
@@ -356,32 +362,37 @@ mod tests {
     async fn test_race_condition_prevention() {
         let repo = Arc::new(setup_fixture());
         let path = Arc::new(PathBuf::from("/test/workspace"));
-        
-        // Simulate race condition: spawn multiple tasks trying to acquire lock simultaneously
+
+        // Simulate race condition: spawn multiple tasks trying to acquire lock
+        // simultaneously
         let mut handles = vec![];
-        
+
         for i in 0..10 {
             let repo_clone = Arc::clone(&repo);
             let path_clone = Arc::clone(&path);
-            
+
             let handle = tokio::spawn(async move {
                 let process_id = 1000 + i;
                 repo_clone.try_acquire_lock(&path_clone, process_id).await
             });
-            
+
             handles.push(handle);
         }
-        
+
         // Collect results
         let mut results = vec![];
         for handle in handles {
             results.push(handle.await.unwrap().unwrap());
         }
-        
+
         // Exactly ONE task should have acquired the lock
         let acquired_count = results.iter().filter(|&&r| r).count();
-        assert_eq!(acquired_count, 1, "Expected exactly 1 process to acquire lock, got {}", acquired_count);
-        
+        assert_eq!(
+            acquired_count, 1,
+            "Expected exactly 1 process to acquire lock, got {}",
+            acquired_count
+        );
+
         // The other 9 should have failed
         let failed_count = results.iter().filter(|&&r| !r).count();
         assert_eq!(failed_count, 9);
@@ -401,16 +412,22 @@ mod tests {
         let status = repo.get_status(&path).await.unwrap().unwrap();
         assert_eq!(status.status, SyncStatus::InProgress);
 
-        // Call clear_stale_locks - should NOT clear the lock because it's recent (< 10 minutes old)
+        // Call clear_stale_locks - should NOT clear the lock because it's recent (< 10
+        // minutes old)
         repo.clear_stale_locks(&path).await.unwrap();
 
         // Verify lock is STILL in progress (not cleared)
         let status = repo.get_status(&path).await.unwrap().unwrap();
-        assert_eq!(status.status, SyncStatus::InProgress, "Recent lock should not be cleared");
+        assert_eq!(
+            status.status,
+            SyncStatus::InProgress,
+            "Recent lock should not be cleared"
+        );
 
         // Now manually set the timestamp to 11 minutes ago to simulate a stale lock
-        use crate::database::schema::workspace_sync_status;
         use diesel::prelude::*;
+
+        use crate::database::schema::workspace_sync_status;
         {
             let mut connection = repo.pool.get_connection().unwrap();
             let old_timestamp = chrono::Utc::now().naive_utc() - chrono::Duration::minutes(11);
@@ -421,12 +438,17 @@ mod tests {
                 .unwrap();
         } // Connection is dropped here
 
-        // Now call clear_stale_locks - should clear the lock because it's > 10 minutes old
+        // Now call clear_stale_locks - should clear the lock because it's > 10 minutes
+        // old
         repo.clear_stale_locks(&path).await.unwrap();
 
         // Verify lock is now marked as FAILED
         let status = repo.get_status(&path).await.unwrap().unwrap();
-        assert_eq!(status.status, SyncStatus::Failed, "Stale lock should be cleared");
+        assert_eq!(
+            status.status,
+            SyncStatus::Failed,
+            "Stale lock should be cleared"
+        );
         assert!(status.error_message.is_some());
         assert!(status.error_message.unwrap().contains("timeout"));
     }

@@ -306,7 +306,6 @@ fn test_command_path() {
         override_provider: None,
         sync_enabled: true,
         sync_interval_seconds: 300,
-
     };
 
     let actual = fixture.command_path();
@@ -348,7 +347,6 @@ fn test_command_cwd_path() {
         override_provider: None,
         sync_enabled: true,
         sync_interval_seconds: 300,
-
     };
 
     let actual = fixture.command_cwd_path();
@@ -390,7 +388,6 @@ fn test_command_cwd_path_independent_from_command_path() {
         override_provider: None,
         sync_enabled: true,
         sync_interval_seconds: 300,
-
     };
 
     let command_path = fixture.command_path();
