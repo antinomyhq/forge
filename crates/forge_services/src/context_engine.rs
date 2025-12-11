@@ -482,10 +482,7 @@ impl<F> ForgeContextEngineService<F> {
         self.infra.clear_stale_locks(&canonical_path).await?;
 
         // Try to acquire lock
-        let acquired = self
-            .infra
-            .try_acquire_lock(&canonical_path)
-            .await?;
+        let acquired = self.infra.try_acquire_lock(&canonical_path).await?;
         if !acquired {
             return Ok(false); // Another process is syncing
         }
@@ -997,11 +994,8 @@ mod tests {
         async fn delete(&self, _: &WorkspaceId) -> Result<()> {
             Ok(())
         }
-        
-        async fn try_acquire_lock(
-            &self,
-            _path: &std::path::Path,
-        ) -> anyhow::Result<bool> {
+
+        async fn try_acquire_lock(&self, _path: &std::path::Path) -> anyhow::Result<bool> {
             Ok(true) // Always succeed in tests
         }
 
@@ -1028,7 +1022,6 @@ mod tests {
         async fn clear_stale_locks(&self, _path: &std::path::Path) -> anyhow::Result<()> {
             Ok(())
         }
-        
     }
 
     #[async_trait]

@@ -120,10 +120,7 @@ impl<E: EnvironmentInfra> WorkspaceRepository for ForgeWorkspaceRepository<E> {
     }
 
     // Sync lock and status methods
-    async fn try_acquire_lock(
-        &self,
-        path: &std::path::Path,
-    ) -> anyhow::Result<bool> {
+    async fn try_acquire_lock(&self, path: &std::path::Path) -> anyhow::Result<bool> {
         let mut connection = self.pool.get_connection()?;
         let canonical_path = path.canonicalize()?.to_string_lossy().to_string();
 
@@ -230,8 +227,8 @@ impl<E: EnvironmentInfra> WorkspaceRepository for ForgeWorkspaceRepository<E> {
         let stale_threshold_secs = (env.sync_interval_seconds * 2) as i64;
 
         // Calculate the stale threshold timestamp
-        let stale_threshold = Utc::now().naive_utc()
-            - chrono::Duration::try_seconds(stale_threshold_secs).unwrap();
+        let stale_threshold =
+            Utc::now().naive_utc() - chrono::Duration::try_seconds(stale_threshold_secs).unwrap();
 
         // Find and mark stale locks as FAILED
         diesel::update(workspace::table)
@@ -240,9 +237,8 @@ impl<E: EnvironmentInfra> WorkspaceRepository for ForgeWorkspaceRepository<E> {
             .filter(workspace::last_synced_at.lt(stale_threshold))
             .set((
                 workspace::sync_status.eq(SyncStatus::Failed.to_string()),
-                workspace::sync_error.eq(Some(
-                    "Sync timeout - process may have crashed".to_string(),
-                )),
+                workspace::sync_error
+                    .eq(Some("Sync timeout - process may have crashed".to_string())),
             ))
             .execute(&mut connection)?;
 
@@ -254,24 +250,24 @@ impl<E: EnvironmentInfra> WorkspaceRepository for ForgeWorkspaceRepository<E> {
 mod tests {
     use std::path::PathBuf;
 
+    use fake::{Fake, Faker};
     use forge_domain::{Environment, UserId};
     use pretty_assertions::assert_eq;
 
     use super::*;
     use crate::database::DatabasePool;
-    use fake::{Fake, Faker};
-    
+
     struct MockEnv;
-    
+
     impl forge_app::EnvironmentInfra for MockEnv {
         fn get_environment(&self) -> Environment {
             Faker.fake()
         }
-        
+
         fn get_env_var(&self, _: &str) -> Option<String> {
             None
         }
-        
+
         fn get_env_vars(&self) -> std::collections::BTreeMap<String, String> {
             std::collections::BTreeMap::new()
         }
@@ -326,18 +322,19 @@ mod tests {
 
     #[tokio::test]
     async fn test_workspace_sync_lock() {
-        use forge_domain::{SyncStatus, UserId, WorkspaceId};
         use std::env;
-        
+
+        use forge_domain::{SyncStatus, UserId, WorkspaceId};
+
         let repo = repo_impl();
         // Use current directory which definitely exists
         let path = env::current_dir().unwrap();
         let workspace_id = WorkspaceId::generate();
         let user_id = UserId::generate();
-        
+
         // First, create a workspace record (simulates initial sync from server)
         repo.upsert(&workspace_id, &user_id, &path).await.unwrap();
-        
+
         // Try to acquire lock - should succeed
         let acquired = repo.try_acquire_lock(&path).await.unwrap();
         assert!(acquired, "Should acquire lock on first attempt");
@@ -350,7 +347,10 @@ mod tests {
 
         // Try to acquire again - should fail (already locked)
         let acquired2 = repo.try_acquire_lock(&path).await.unwrap();
-        assert!(!acquired2, "Should not acquire lock when already in progress");
+        assert!(
+            !acquired2,
+            "Should not acquire lock when already in progress"
+        );
 
         // Release lock
         repo.release_sync_lock(&path).await.unwrap();

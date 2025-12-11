@@ -135,10 +135,7 @@ pub trait WorkspaceRepository: Send + Sync {
     /// # Returns
     /// * `true` if lock was successfully acquired
     /// * `false` if another process holds the lock
-    async fn try_acquire_lock(
-        &self,
-        path: &std::path::Path,
-    ) -> anyhow::Result<bool>;
+    async fn try_acquire_lock(&self, path: &std::path::Path) -> anyhow::Result<bool>;
 
     /// Releases the sync lock for a workspace
     ///
@@ -166,10 +163,10 @@ pub trait WorkspaceRepository: Send + Sync {
     /// Clears any stale IN_PROGRESS locks for a workspace
     ///
     /// Locks are considered stale if they've been IN_PROGRESS for more than 2x
-    /// the sync interval. The interval is read from the environment configuration.
+    /// the sync interval. The interval is read from the environment
+    /// configuration.
     async fn clear_stale_locks(&self, path: &std::path::Path) -> anyhow::Result<()>;
 }
-
 
 /// Repository for managing codebase indexing and search operations
 #[async_trait::async_trait]

@@ -490,13 +490,8 @@ impl<F: EnvironmentInfra + Send + Sync> forge_domain::WorkspaceRepository for Fo
     }
 
     // Sync methods (merged from WorkspaceSyncRepository)
-    async fn try_acquire_lock(
-        &self,
-        path: &std::path::Path,
-    ) -> anyhow::Result<bool> {
-        self.indexing_repository
-            .try_acquire_lock(path)
-            .await
+    async fn try_acquire_lock(&self, path: &std::path::Path) -> anyhow::Result<bool> {
+        self.indexing_repository.try_acquire_lock(path).await
     }
 
     async fn release_sync_lock(&self, path: &std::path::Path) -> anyhow::Result<()> {
