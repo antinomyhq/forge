@@ -142,12 +142,6 @@ impl Compactor {
             msg.reasoning_details = Some(reasoning);
         }
 
-        // Clear usage from all message wrappers to force recalculation
-        // This ensures token counts reflect the new compacted context
-        for wrapper in &mut context.messages {
-            wrapper.usage = None;
-        }
-
         Ok(context)
     }
 }
@@ -490,7 +484,7 @@ mod tests {
     }
 
     #[test]
-    fn test_compaction_clears_usage_for_token_recalculation() {
+    fn test_compaction_preserves_usage_information() {
         use forge_domain::{TokenCount, Usage};
 
         let environment = test_environment();
@@ -535,14 +529,6 @@ mod tests {
         assert_eq!(context.total_usage(), Some(original_usage.clone()));
         assert_eq!(context.token_count(), TokenCount::Actual(50000));
 
-        // Calculate expected token count after compaction
-        // After compacting indices 0-3, we'll have:
-        // 1. A summary message (replacing indices 0-3)
-        // 2. Message 5 (index 4 -> "Message 3")
-        // 3. Message 6 (index 5 -> "Response 3")
-        let expected_tokens_after_compaction =
-            msg5.token_count_approx() + msg6.token_count_approx();
-
         // Compact the sequence (first 4 messages, indices 0-3)
         let compacted = compactor.compress_single_sequence(context, (0, 3)).unwrap();
 
@@ -553,39 +539,19 @@ mod tests {
             "Expected 3 messages after compaction: summary + 2 remaining messages"
         );
 
-        // Verify usage is cleared after compaction
+        // Verify usage is preserved after compaction
         assert_eq!(
             compacted.total_usage(),
-            None,
-            "Usage field should be None after compaction to force token recalculation"
+            Some(original_usage),
+            "Usage information should be preserved after compaction"
         );
 
-        // Verify token_count returns approximation based on actual messages
+        // Verify token_count returns actual value based on preserved usage
         let token_count = compacted.token_count();
-        assert!(
-            matches!(token_count, TokenCount::Approx(_)),
-            "Expected TokenCount::Approx after compaction, but got {:?}",
-            token_count
-        );
-
-        // Verify the exact token count matches expected calculation
-        // Note: Summary message tokens + remaining message tokens
-        let actual_tokens = *token_count;
-        let summary_tokens = compacted.messages[0].token_count_approx();
-
         assert_eq!(
-            actual_tokens,
-            summary_tokens + expected_tokens_after_compaction,
-            "Token count should equal summary tokens ({}) + remaining message tokens ({})",
-            summary_tokens,
-            expected_tokens_after_compaction
-        );
-
-        // Verify it's significantly less than original
-        assert!(
-            actual_tokens < 50000,
-            "Compacted token count ({}) should be less than original (50000)",
-            actual_tokens
+            token_count,
+            TokenCount::Actual(50000),
+            "Token count should use actual value from preserved usage"
         );
     }
 }
