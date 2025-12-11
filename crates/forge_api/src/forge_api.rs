@@ -374,7 +374,7 @@ impl<
             .context_engine_service()
             .clear_stale_sync_locks(&env.cwd)
             .await?;
-        
+
         // Now attempt the sync
         self.services
             .context_engine_service()
