@@ -104,12 +104,6 @@ pub struct AgentDefinition {
     #[merge(strategy = crate::merge::option)]
     pub max_turns: Option<u64>,
 
-    /// Maximum depth to which the file walker should traverse for this agent
-    /// If not provided, the maximum possible depth will be used
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    #[merge(strategy = crate::merge::option)]
-    pub max_walker_depth: Option<usize>,
-
     /// Configuration for automatic context compaction
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[merge(strategy = crate::merge::option)]
@@ -249,7 +243,6 @@ impl AgentDefinition {
             user_prompt: Default::default(),
             tools: Default::default(),
             max_turns: Default::default(),
-            max_walker_depth: Default::default(),
             compact: Default::default(),
             custom_rules: Default::default(),
             temperature: Default::default(),

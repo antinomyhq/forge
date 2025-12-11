@@ -122,12 +122,12 @@ mod tests {
     fn result(node_id: &str) -> Node {
         Node {
             node_id: node_id.into(),
-            node: NodeData::FileChunk {
+            node: NodeData::FileChunk(forge_domain::FileChunk {
                 file_path: "test.rs".into(),
                 content: "test".into(),
                 start_line: 1,
                 end_line: 1,
-            },
+            }),
             relevance: None,
             distance: None,
             similarity: None,

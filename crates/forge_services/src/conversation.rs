@@ -60,4 +60,10 @@ impl<S: ConversationRepository> ConversationService for ForgeConversationService
     async fn last_conversation(&self) -> Result<Option<Conversation>> {
         self.conversation_repository.get_last_conversation().await
     }
+
+    async fn delete_conversation(&self, conversation_id: &ConversationId) -> Result<()> {
+        self.conversation_repository
+            .delete_conversation(conversation_id)
+            .await
+    }
 }
