@@ -1298,7 +1298,7 @@ mod tests {
         // Fixture: Assistant text message
         let fixture = ContextMessage::assistant("Hello! How can I help you today?", None, None);
         let actual = fixture.token_count_approx();
-        let expected = 9; // 33 chars / 4 = 9 tokens (rounded up)
+        let expected = 8; // 32 chars / 4 = 8 tokens
         assert_eq!(actual, expected);
     }
 
@@ -1328,11 +1328,11 @@ mod tests {
         ];
         let fixture = ContextMessage::assistant("Let me help", None, Some(fixture_tool_calls));
         let actual = fixture.token_count_approx();
-        // Content: "Let me help" = 11 chars = 3 tokens
-        // Tool call 1: "search" (6 chars) + {"query":"test"} (16 chars) = 22 chars = 6
-        // tokens Tool call 2: "calculate" (9 chars) + {"expression":"2+2"} (22
-        // chars) = 31 chars = 8 tokens Total: 3 + 6 + 8 = 17 tokens
-        let expected = 17;
+        // Content: "Let me help" = 11 chars
+        // Tool call 1: "search" (6 chars) + {"query":"test"} (16 chars) = 22 chars
+        // Tool call 2: "calculate" (9 chars) + {"expression":"2+2"} (20 chars) = 29 chars
+        // Total: 11 + 22 + 29 = 62 chars / 4 = 16 tokens
+        let expected = 16;
         assert_eq!(actual, expected);
     }
 
