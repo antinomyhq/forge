@@ -167,8 +167,19 @@ impl<S: AgentService> Orchestrator<S> {
 
         response.into_full(!tool_supported).await
     }
+    /// Generates a RequestContext
+    /// It just clones it, but would be nice to have
+    /// it done explicitly or need to find a better approach.
+    fn generate_request_context(&self, context: &Context) -> Context {
+        context.clone()
+    }
+
     /// Checks if compaction is needed and performs it if necessary
-    async fn check_and_compact(&self, context: &Context) -> anyhow::Result<Option<Context>> {
+    async fn check_and_compact(
+        &self,
+        context: &Context,
+        metadata: &Option<CompactionMetadata>,
+    ) -> anyhow::Result<Option<crate::compact::CompactionResult>> {
         let agent = &self.agent;
         // Estimate token count for compaction decision
         let token_count = context.token_count();
@@ -177,7 +188,7 @@ impl<S: AgentService> Orchestrator<S> {
         {
             info!(agent_id = %agent.id, "Compaction needed");
             Compactor::new(compact, self.environment.clone())
-                .compact(context.clone(), false)
+                .compact(context.clone(), metadata.clone(), false)
                 .map(Some)
         } else {
             debug!(agent_id = %agent.id, "Compaction not needed");
@@ -204,7 +215,7 @@ impl<S: AgentService> Orchestrator<S> {
 
         let model_id = self.get_model();
 
-        let mut context = self.conversation.context.clone().unwrap_or_default();
+        let mut p_context = self.conversation.context.clone().unwrap_or_default();
 
         // Create agent reference for the rest of the method
         let agent = &self.agent;
@@ -229,13 +240,18 @@ impl<S: AgentService> Orchestrator<S> {
 
         while !should_yield {
             // Set context for the current loop iteration
-            self.conversation.context = Some(context.clone());
+            self.conversation.context = Some(p_context.clone());
             self.services.update(self.conversation.clone()).await?;
 
             // Run the main chat request and compaction check in parallel
             let main_request = crate::retry::retry_with_config(
                 &self.environment.retry_config,
-                || self.execute_chat_turn(&model_id, context.clone(), context.is_reasoning_supported()),
+                || {
+                    // Generate "RequestContext" from Context for provider call
+                    let request_context = self.generate_request_context(&p_context);
+                    self.execute_chat_turn(&model_id, request_context, p_context.is_reasoning_supported())
+                },
+
                 self.sender.as_ref().map(|sender| {
                     let sender = sender.clone();
                     let agent_id = agent.id.clone();
@@ -264,13 +280,18 @@ impl<S: AgentService> Orchestrator<S> {
                     finish_reason,
                 },
                 compaction_result,
-            ) = tokio::try_join!(main_request, self.check_and_compact(&context),)?;
+            ) = tokio::try_join!(
+                main_request,
+                self.check_and_compact(&p_context.context, &p_context.compaction_metadata),
+            )?;
 
             // Apply compaction result if it completed successfully
             match compaction_result {
                 Some(compacted_context) => {
                     info!(agent_id = %agent.id, "Using compacted context from execution");
-                    context = compacted_context;
+                    p_context = p_context
+                        .extend_context(compacted_context.context)
+                        .compaction_metadata(compacted_context.metadata);
                 }
                 None => {
                     debug!(agent_id = %agent.id, "No compaction was needed");
@@ -279,7 +300,7 @@ impl<S: AgentService> Orchestrator<S> {
 
             info!(
                 conversation_id = %self.conversation.id,
-                conversation_length = context.messages.len(),
+                conversation_length = p_context.messages.len(),
                 token_usage = format!("{}", usage.prompt_tokens),
                 total_tokens = format!("{}", usage.total_tokens),
                 cached_tokens = format!("{}", usage.cached_tokens),
@@ -291,7 +312,7 @@ impl<S: AgentService> Orchestrator<S> {
             // Send the usage information if available
             self.send(ChatResponse::Usage(usage.clone())).await?;
 
-            context = context.usage(usage);
+            p_context.context = p_context.context.usage(usage);
 
             debug!(agent_id = %agent.id, tool_call_count = tool_calls.len(), "Tool call count");
 
@@ -306,7 +327,7 @@ impl<S: AgentService> Orchestrator<S> {
                     .any(|call| ToolCatalog::should_yield(&call.name));
 
             if let Some(reasoning) = reasoning.as_ref()
-                && context.is_reasoning_supported()
+                && p_context.is_reasoning_supported()
             {
                 // If reasoning is present, send it as a separate message
                 self.send(ChatResponse::TaskReasoning { content: reasoning.to_string() })
@@ -340,7 +361,11 @@ impl<S: AgentService> Orchestrator<S> {
                 }
             }
 
-            context = context.append_message(content.clone(), reasoning_details, tool_call_records);
+            p_context.context = p_context.context.append_message(
+                content.clone(),
+                reasoning_details,
+                tool_call_records,
+            );
 
             if self.error_tracker.limit_reached() {
                 self.send(ChatResponse::Interrupt {
@@ -355,8 +380,8 @@ impl<S: AgentService> Orchestrator<S> {
             }
 
             // Update context in the conversation
-            context = SetModel::new(model_id.clone()).transform(context);
-            self.conversation.context = Some(context.clone());
+            p_context.context = SetModel::new(model_id.clone()).transform(p_context.context);
+            self.conversation.context = Some(p_context.clone());
             self.services.update(self.conversation.clone()).await?;
             request_count += 1;
 

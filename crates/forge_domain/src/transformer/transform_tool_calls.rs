@@ -1,5 +1,6 @@
 use super::Transformer;
 use crate::{Context, ContextMessage, ModelId, Role, TextMessage};
+use std::collections::BTreeSet;
 
 pub struct TransformToolCalls {
     pub model: Option<ModelId>,
@@ -64,7 +65,7 @@ impl Transformer for TransformToolCalls {
         }
 
         value.messages = new_messages;
-        value.tools = Vec::new();
+        value.tools = BTreeSet::new();
         value
     }
 }

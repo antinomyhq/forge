@@ -1,6 +1,7 @@
 use derive_setters::Setters;
 use schemars::schema::RootSchema;
 use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
 
 use crate::ToolName;
 
@@ -13,6 +14,20 @@ pub struct ToolDefinition {
     pub name: ToolName,
     pub description: String,
     pub input_schema: RootSchema,
+}
+
+impl Ord for ToolDefinition {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.name.cmp(&other.name)
+    }
+}
+
+impl Eq for ToolDefinition {}
+
+impl PartialOrd for ToolDefinition {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.name.partial_cmp(&other.name)
+    }
 }
 
 impl ToolDefinition {

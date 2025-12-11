@@ -100,6 +100,7 @@ mod tests {
             reasoning: None,
             usage: None,
             stream: None,
+            compaction_metadata: None,
         };
 
         let request = Request::try_from(context).expect("Failed to convert context to request");
@@ -237,6 +238,7 @@ mod tests {
             reasoning: None,
             usage: None,
             stream: None,
+            compaction_metadata: None,
         };
 
         let request = Request::try_from(context).expect("Failed to convert context to request");

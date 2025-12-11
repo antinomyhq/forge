@@ -236,7 +236,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .ok()
                 .flatten()
                 .and_then(|conv| conv.context)
-                .and_then(|ctx| ctx.usage)
+                .and_then(|ctx| ctx.context.usage)
         } else {
             None
         };
@@ -2684,7 +2684,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .ok()
                 .flatten()
                 .and_then(|conv| conv.context)
-                .and_then(|ctx| ctx.usage)
+                .and_then(|ctx| ctx.context.usage)
         } else {
             None
         };

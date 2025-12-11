@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::fmt::Display;
 use std::ops::Deref;
 
@@ -327,6 +328,65 @@ pub enum Role {
     Assistant,
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Default, Setters)]
+#[setters(into)]
+pub struct ParentContext {
+    #[serde(default, skip_serializing_if = "ctx_default")]
+    pub context: Context,
+    /// Metadata tracking compaction state
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub compaction_metadata: Option<CompactionMetadata>,
+}
+
+fn ctx_default(context: &Context) -> bool {
+    Context::default() == *context
+}
+
+impl Deref for ParentContext {
+    type Target = Context;
+
+    fn deref(&self) -> &Self::Target {
+        &self.context
+    }
+}
+
+impl ParentContext {
+    /// Extends this ParentContext with messages from another Context,
+    /// merging their messages while preserving the parent's compaction metadata.
+    pub fn extend_context(mut self, context: Context) -> Self {
+        self.context.messages.extend(context.messages);
+        self.context.usage = context.usage;
+        self.context.tools.extend(context.tools);
+
+        self
+    }
+}
+
+/// Metadata tracking for compaction state in storage context
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Default, Setters)]
+#[setters(into, strip_option)]
+pub struct CompactionMetadata {
+    /// Index of the last message that was compacted
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_compacted_index: Option<usize>,
+
+    /// Total number of compaction operations performed
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub compaction_count: usize,
+
+    /// Total number of messages that have been compacted
+    #[serde(default, skip_serializing_if = "is_zero")]
+    pub total_messages_compacted: usize,
+
+    /// Timestamp of the last compaction operation
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub last_compacted_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+fn is_zero(v: &usize) -> bool {
+    *v == 0
+}
+
 /// Represents a request being made to the LLM provider. By default the request
 /// is created with assuming the model supports use of external tools.
 #[derive(Clone, Debug, Deserialize, Serialize, Setters, Default, PartialEq)]
@@ -336,8 +396,8 @@ pub struct Context {
     pub conversation_id: Option<ConversationId>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub messages: Vec<ContextMessage>,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub tools: Vec<ToolDefinition>,
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    pub tools: BTreeSet<ToolDefinition>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_choice: Option<ToolChoice>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -375,7 +435,7 @@ impl Context {
 
     pub fn add_tool(mut self, tool: impl Into<ToolDefinition>) -> Self {
         let tool: ToolDefinition = tool.into();
-        self.tools.push(tool);
+        self.tools.insert(tool);
         self
     }
 

@@ -37,9 +37,9 @@ impl<S: SkillFetchService> SystemPrompt<S> {
         &self,
         mut conversation: Conversation,
     ) -> anyhow::Result<Conversation> {
-        let context = conversation.context.take().unwrap_or_default();
+        let mut p_context = conversation.context.take().unwrap_or_default();
         let agent = &self.agent;
-        let context = if let Some(system_prompt) = &agent.system_prompt {
+        p_context.context = if let Some(system_prompt) = &agent.system_prompt {
             let env = self.environment.clone();
             let files = self.files.clone();
 
@@ -77,12 +77,12 @@ impl<S: SkillFetchService> SystemPrompt<S> {
             let non_static_block = TemplateEngine::default()
                 .render_template(Template::new("{{> forge-custom-agent-template.md }}"), &ctx)?;
 
-            context.set_system_messages(vec![static_block, non_static_block])
+            p_context.context.set_system_messages(vec![static_block, non_static_block])
         } else {
-            context
+            p_context.context
         };
 
-        Ok(conversation.context(context))
+        Ok(conversation.context(p_context))
     }
 
     // Returns if agent supports tool or not.

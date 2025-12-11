@@ -6,18 +6,15 @@ pub struct SetConversationId;
 
 impl SetConversationId {
     pub fn apply(self, mut conversation: Conversation) -> Conversation {
-        let ctx = conversation
-            .context
-            .take()
-            .unwrap_or_default()
-            .conversation_id(conversation.id);
-        conversation.context(ctx)
+        let mut p_ctx = conversation.context.take().unwrap_or_default();
+        p_ctx.context = p_ctx.context.conversation_id(conversation.id);
+        conversation.context(p_ctx)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{Context, ConversationId};
+    use forge_domain::{Context, ConversationId, ParentContext};
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -25,7 +22,8 @@ mod tests {
     #[test]
     fn test_sets_conversation_id() {
         let conversation_id = ConversationId::generate();
-        let conversation = Conversation::new(conversation_id).context(Context::default());
+        let conversation = Conversation::new(conversation_id)
+            .context(ParentContext::default().context(Context::default()));
 
         let actual = SetConversationId.apply(conversation);
 

@@ -6,7 +6,7 @@ use derive_more::From;
 use diesel::prelude::*;
 use forge_domain::{
     Context, Conversation, ConversationId, ConversationRepository, FileOperation, MetaData,
-    Metrics, ToolKind, WorkspaceHash,
+    Metrics, ParentContext, ToolKind, WorkspaceHash,
 };
 use serde::{Deserialize, Serialize};
 
@@ -159,14 +159,14 @@ impl TryFrom<ConversationRecord> for Conversation {
             .map(Metrics::from)
             .unwrap_or_else(|| Metrics::default().started_at(record.created_at.and_utc()));
 
-        Ok(Conversation::new(id)
-            .context(context)
-            .title(record.title)
-            .metrics(metrics)
-            .metadata(
-                MetaData::new(record.created_at.and_utc())
-                    .updated_at(record.updated_at.map(|updated_at| updated_at.and_utc())),
-            ))
+        let mut conversation = Conversation::new(id);
+        if let Some(context) = context {
+            conversation = conversation.context(ParentContext::default().context(context));
+        }
+        Ok(conversation.title(record.title).metrics(metrics).metadata(
+            MetaData::new(record.created_at.and_utc())
+                .updated_at(record.updated_at.map(|updated_at| updated_at.and_utc())),
+        ))
     }
 }
 

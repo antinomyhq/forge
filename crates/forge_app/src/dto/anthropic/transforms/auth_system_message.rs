@@ -83,6 +83,7 @@ mod tests {
             reasoning: None,
             usage: None,
             stream: None,
+            compaction_metadata: None,
         };
 
         Request::try_from(context).unwrap()

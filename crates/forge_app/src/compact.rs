@@ -1,10 +1,16 @@
 use forge_domain::{
-    Compact, CompactionStrategy, Context, ContextMessage, ContextSummary, Environment, Transformer,
+    Compact, CompactionMetadata, CompactionStrategy, Context, ContextMessage, ContextSummary,
+    Environment, Transformer,
 };
 use tracing::info;
 
 use crate::TemplateEngine;
 use crate::transformers::SummaryTransformer;
+
+pub struct CompactionResult {
+    pub context: Context,
+    pub metadata: Option<CompactionMetadata>,
+}
 
 /// A service dedicated to handling context compaction.
 pub struct Compactor {
@@ -37,7 +43,12 @@ impl Compactor {
 
 impl Compactor {
     /// Apply compaction to the context if requested.
-    pub fn compact(&self, context: Context, max: bool) -> anyhow::Result<Context> {
+    pub fn compact(
+        &self,
+        context: Context,
+        metadata: Option<CompactionMetadata>,
+        max: bool,
+    ) -> anyhow::Result<CompactionResult> {
         let eviction = CompactionStrategy::evict(self.compact.eviction_window);
         let retention = CompactionStrategy::retain(self.compact.retention_window);
 
@@ -49,8 +60,8 @@ impl Compactor {
         };
 
         match strategy.eviction_range(&context) {
-            Some(sequence) => self.compress_single_sequence(context, sequence),
-            None => Ok(context),
+            Some(sequence) => self.compress_single_sequence(context, metadata, sequence),
+            None => Ok(CompactionResult { context, metadata }),
         }
     }
 
@@ -58,8 +69,9 @@ impl Compactor {
     fn compress_single_sequence(
         &self,
         mut context: Context,
+        metadata: Option<CompactionMetadata>,
         sequence: (usize, usize),
-    ) -> anyhow::Result<Context> {
+    ) -> anyhow::Result<CompactionResult> {
         let (start, end) = sequence;
 
         // The sequence from the original message that needs to be compacted
@@ -144,7 +156,18 @@ impl Compactor {
         // Clear usage field so token_count() recalculates based on new messages
         context.usage = None;
 
-        Ok(context)
+        // Update compaction metadata
+        let now = chrono::Utc::now();
+        let num_compacted = end - start + 1;
+        let mut metadata = metadata.unwrap_or_default();
+        metadata = CompactionMetadata {
+            last_compacted_index: Some(end),
+            compaction_count: metadata.compaction_count + 1,
+            total_messages_compacted: metadata.total_messages_compacted + num_compacted,
+            last_compacted_at: Some(now),
+        };
+
+        Ok(CompactionResult { context, metadata: Some(metadata) })
     }
 }
 
@@ -440,7 +463,12 @@ mod tests {
         insta::assert_snapshot!(summary);
 
         // Perform a full compaction
-        let compacted_context = compactor.compact(context, true).unwrap();
+        let mut compacted_context = compactor.compact(context, true).unwrap();
+
+        // Clear the timestamp for snapshot testing (timestamps change on each run)
+        if let Some(ref mut metadata) = compacted_context.compaction_metadata {
+            metadata.last_compacted_at = None;
+        }
 
         insta::assert_yaml_snapshot!(compacted_context);
     }

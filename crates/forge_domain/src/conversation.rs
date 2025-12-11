@@ -4,7 +4,7 @@ use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{Context, Error, Metrics, Result};
+use crate::{Error, Metrics, ParentContext, Result};
 
 #[derive(Debug, Default, Display, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(transparent)]
@@ -34,7 +34,7 @@ pub struct Conversation {
     pub id: ConversationId,
 
     pub title: Option<String>,
-    pub context: Option<Context>,
+    pub context: Option<ParentContext>,
     pub metrics: Metrics,
     pub metadata: MetaData,
 }

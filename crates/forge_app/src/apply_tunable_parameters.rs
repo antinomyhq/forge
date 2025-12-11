@@ -1,4 +1,5 @@
 use forge_domain::{Agent, Conversation, ToolDefinition};
+use std::collections::BTreeSet;
 
 /// Applies tunable parameters from agent to conversation context
 #[derive(Debug, Clone)]
@@ -16,30 +17,32 @@ impl ApplyTunableParameters {
         let mut ctx = conversation.context.take().unwrap_or_default();
 
         if let Some(temperature) = self.agent.temperature {
-            ctx = ctx.temperature(temperature);
+            ctx.context = ctx.context.temperature(temperature);
         }
         if let Some(top_p) = self.agent.top_p {
-            ctx = ctx.top_p(top_p);
+            ctx.context = ctx.context.top_p(top_p);
         }
         if let Some(top_k) = self.agent.top_k {
-            ctx = ctx.top_k(top_k);
+            ctx.context = ctx.context.top_k(top_k);
         }
         if let Some(max_tokens) = self.agent.max_tokens {
-            ctx = ctx.max_tokens(max_tokens.value() as usize);
+            ctx.context = ctx.context.max_tokens(max_tokens.value() as usize);
         }
         if let Some(ref reasoning) = self.agent.reasoning {
-            ctx = ctx.reasoning(reasoning.clone());
+            ctx.context = ctx.context.reasoning(reasoning.clone());
         }
-
-        conversation.context(ctx.tools(self.tool_definitions))
+        ctx.context = ctx
+            .context
+            .tools(self.tool_definitions.into_iter().collect::<BTreeSet<_>>());
+        conversation.context(ctx)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use forge_domain::{
-        AgentId, Context, ConversationId, MaxTokens, ModelId, ProviderId, ReasoningConfig,
-        Temperature, ToolDefinition, TopK, TopP,
+        AgentId, Context, ConversationId, MaxTokens, ModelId, ParentContext, ProviderId,
+        ReasoningConfig, Temperature, ToolDefinition, TopK, TopP,
     };
     use pretty_assertions::assert_eq;
 
@@ -70,8 +73,8 @@ mod tests {
             .description("A test tool")
             .input_schema(schemars::schema_for!(TestToolInput));
 
-        let conversation =
-            Conversation::new(ConversationId::generate()).context(Context::default());
+        let conversation = Conversation::new(ConversationId::generate())
+            .context(ParentContext::default().context(Context::default()));
 
         let actual = ApplyTunableParameters::new(agent, vec![tool_def.clone()]).apply(conversation);
 
@@ -81,6 +84,6 @@ mod tests {
         assert_eq!(ctx.top_k, Some(TopK::new(50).unwrap()));
         assert_eq!(ctx.top_p, Some(TopP::new(0.9).unwrap()));
         assert_eq!(ctx.reasoning, Some(reasoning));
-        assert_eq!(ctx.tools, vec![tool_def]);
+        assert_eq!(ctx.tools, vec![tool_def].into_iter().collect());
     }
 }

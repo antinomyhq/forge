@@ -86,6 +86,7 @@ mod tests {
             reasoning: None,
             usage: None,
             stream: None,
+            compaction_metadata: None,
         };
 
         let request = Request::from(context);

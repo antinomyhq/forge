@@ -19,11 +19,13 @@ impl Default for SortTools {
 impl Transformer for SortTools {
     type Value = Context;
 
-    fn transform(&mut self, mut context: Self::Value) -> Self::Value {
+    fn transform(&mut self, context: Self::Value) -> Self::Value {
         // Sort tools by name in alphabetical order
-        context
-            .tools
-            .sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
+        // FIXME: Drop me
+        // Since it's BTreeSet, always sorted.
+        // context
+        //     .tools
+        //     .sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
         context
     }
 }

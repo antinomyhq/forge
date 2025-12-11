@@ -196,7 +196,7 @@ impl<S: Services> ForgeApp<S> {
             .ok_or_else(|| forge_domain::Error::ConversationNotFound(*conversation_id))?;
 
         // Get the context from the conversation
-        let context = match conversation.context.as_ref() {
+        let p_context = match conversation.context.as_ref() {
             Some(context) => context.clone(),
             None => {
                 // No context to compact, return zero metrics
@@ -205,8 +205,8 @@ impl<S: Services> ForgeApp<S> {
         };
 
         // Calculate original metrics
-        let original_messages = context.messages.len();
-        let original_token_count = *context.token_count();
+        let original_messages = p_context.messages.len();
+        let original_token_count = *p_context.token_count();
 
         let workflow = self.services.read_merged(None).await.unwrap_or_default();
 
@@ -238,13 +238,23 @@ impl<S: Services> ForgeApp<S> {
 
         // Apply compaction using the Compactor
         let environment = self.services.get_environment();
-        let compacted_context = Compactor::new(compact, environment).compact(context, true)?;
+        let compaction_result = Compactor::new(compact, environment).compact(
+            p_context.context,
+            p_context.compaction_metadata,
+            true,
+        )?;
+
+        let compacted_context = compaction_result.context;
 
         let compacted_messages = compacted_context.messages.len();
         let compacted_tokens = *compacted_context.token_count();
 
         // Update the conversation with the compacted context
-        conversation.context = Some(compacted_context);
+        conversation.context = conversation.context.map(|p_context| {
+            p_context
+                .context(compacted_context)
+                .compaction_metadata(compaction_result.metadata)
+        });
 
         // Save the updated conversation
         self.services.upsert_conversation(conversation).await?;
