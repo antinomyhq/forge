@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use bytes::Bytes;
 use forge_domain::{
-    AuthCodeParams, CommandOutput, Environment, FileInfo, McpServerConfig, OAuthConfig,
+    AuthCodeParams, CommandOutput, Config, FileInfo, McpServerConfig, OAuthConfig,
     OAuthTokenResponse, ToolDefinition, ToolName, ToolOutput,
 };
 use reqwest::Response;
@@ -26,7 +26,7 @@ use crate::{WalkedFile, Walker};
 /// - Project-local agent directory via `agent_cwd_path()` (typically
 ///   .forge/agents)
 pub trait EnvironmentInfra: Send + Sync {
-    fn get_environment(&self) -> Environment;
+    fn get_environment(&self) -> Config;
     fn get_env_var(&self, key: &str) -> Option<String>;
     fn get_env_vars(&self) -> BTreeMap<String, String>;
 }

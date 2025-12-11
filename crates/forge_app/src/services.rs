@@ -5,7 +5,7 @@ use bytes::Bytes;
 use derive_setters::Setters;
 use forge_domain::{
     AgentId, AnyProvider, Attachment, AuthContextRequest, AuthContextResponse, AuthMethod,
-    ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId, Environment, File,
+    ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId, Config, File,
     Image, InitAuth, LoginInfo, McpConfig, McpServers, Model, ModelId, Node, PatchOperation,
     Provider, ProviderId, ResultStream, Scope, SearchParams, SyncProgress, Template, ToolCallFull,
     ToolOutput, Workflow, WorkspaceAuth, WorkspaceId, WorkspaceInfo,
@@ -243,7 +243,7 @@ pub trait AttachmentService {
 }
 
 pub trait EnvironmentService: Send + Sync {
-    fn get_environment(&self) -> Environment;
+    fn get_environment(&self) -> Config;
 }
 #[async_trait::async_trait]
 pub trait CustomInstructionsService: Send + Sync {
@@ -861,7 +861,7 @@ impl<I: Services> ShellService for I {
 }
 
 impl<I: Services> EnvironmentService for I {
-    fn get_environment(&self) -> Environment {
+    fn get_environment(&self) -> Config {
         self.environment_service().get_environment()
     }
 }

@@ -43,7 +43,7 @@ pub trait API: Sync + Send {
     ) -> Result<forge_app::CommitResult>;
 
     /// Returns the current environment
-    fn environment(&self) -> Environment;
+    fn environment(&self) -> Config;
 
     /// Adds a new conversation to the conversation store
     async fn upsert_conversation(&self, conversation: Conversation) -> Result<()>;

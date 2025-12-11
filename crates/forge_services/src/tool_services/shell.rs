@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::bail;
-use forge_app::domain::Environment;
+use forge_app::domain::Config;
 use forge_app::{CommandInfra, EnvironmentInfra, ShellOutput, ShellService};
 use strip_ansi_escapes::strip;
 
@@ -19,7 +19,7 @@ fn strip_ansi(content: String) -> String {
 /// complete output including stdout, stderr, and exit code for diagnostic
 /// purposes.
 pub struct ForgeShell<I> {
-    env: Environment,
+    env: Config,
     infra: Arc<I>,
 }
 
@@ -70,7 +70,7 @@ mod tests {
     use std::sync::Arc;
 
     use async_trait::async_trait;
-    use forge_app::domain::{CommandOutput, Environment};
+    use forge_app::domain::{CommandOutput, Config};
     use forge_app::{CommandInfra, ShellService};
     use pretty_assertions::assert_eq;
 
@@ -111,7 +111,7 @@ mod tests {
     }
 
     impl EnvironmentInfra for MockCommandInfra {
-        fn get_environment(&self) -> Environment {
+        fn get_environment(&self) -> Config {
             use fake::{Fake, Faker};
             Faker.fake()
         }

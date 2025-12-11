@@ -1,12 +1,12 @@
 use std::path::{Path, PathBuf};
 
-use forge_domain::{ChatResponseContent, Environment, TitleFormat, ToolCatalog};
+use forge_domain::{ChatResponseContent, Config, TitleFormat, ToolCatalog};
 
 use crate::fmt::content::FormatContent;
 use crate::utils::format_display_path;
 
 impl FormatContent for ToolCatalog {
-    fn to_content(&self, env: &Environment) -> Option<ChatResponseContent> {
+    fn to_content(&self, env: &Config) -> Option<ChatResponseContent> {
         let display_path_for = |path: &str| format_display_path(Path::new(path), env.cwd.as_path());
 
         match self {

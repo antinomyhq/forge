@@ -2,14 +2,14 @@ use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::Result;
-use forge_domain::{Environment, Snapshot, SnapshotRepository};
+use forge_domain::{Config, Snapshot, SnapshotRepository};
 
 pub struct ForgeFileSnapshotService {
     inner: Arc<forge_snaps::SnapshotService>,
 }
 
 impl ForgeFileSnapshotService {
-    pub fn new(env: Environment) -> Self {
+    pub fn new(env: Config) -> Self {
         Self {
             inner: Arc::new(forge_snaps::SnapshotService::new(env.snapshot_path())),
         }

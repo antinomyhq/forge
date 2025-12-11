@@ -1,5 +1,5 @@
-use forge_domain::{ChatResponseContent, Environment};
+use forge_domain::{ChatResponseContent, Config};
 
 pub trait FormatContent {
-    fn to_content(&self, env: &Environment) -> Option<ChatResponseContent>;
+    fn to_content(&self, env: &Config) -> Option<ChatResponseContent>;
 }

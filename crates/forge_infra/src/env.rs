@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 
 use forge_app::EnvironmentInfra;
-use forge_domain::{Environment, ModelId, ProviderId, RetryConfig, TlsBackend, TlsVersion};
+use forge_domain::{Config, ModelId, ProviderId, RetryConfig, TlsBackend, TlsVersion};
 use reqwest::Url;
 
 #[derive(Clone)]
@@ -37,7 +37,7 @@ impl ForgeEnvironmentInfra {
         }
     }
 
-    fn get(&self) -> Environment {
+    fn get(&self) -> Config {
         let cwd = self.cwd.clone();
         let retry_config = resolve_retry_config();
 
@@ -59,7 +59,7 @@ impl ForgeEnvironmentInfra {
         let override_provider = parse_env::<String>("FORGE_OVERRIDE_PROVIDER")
             .and_then(|s| ProviderId::from_str(&s).ok());
 
-        Environment {
+        Config {
             os: std::env::consts::OS.to_string(),
             pid: std::process::id(),
             cwd,
@@ -121,7 +121,7 @@ impl ForgeEnvironmentInfra {
 }
 
 impl EnvironmentInfra for ForgeEnvironmentInfra {
-    fn get_environment(&self) -> Environment {
+    fn get_environment(&self) -> Config {
         self.get()
     }
 

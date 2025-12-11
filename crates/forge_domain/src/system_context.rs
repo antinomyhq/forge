@@ -1,7 +1,7 @@
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 
-use crate::{Environment, File, Skill};
+use crate::{Config, File, Skill};
 
 #[derive(Debug, Setters, Clone, Serialize, Deserialize)]
 #[setters(strip_option)]
@@ -9,7 +9,7 @@ use crate::{Environment, File, Skill};
 pub struct SystemContext {
     // Environment information to be included in the system context
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub env: Option<Environment>,
+    pub env: Option<Config>,
 
     // Information about available tools that can be used by the agent
     #[serde(skip_serializing_if = "Option::is_none")]

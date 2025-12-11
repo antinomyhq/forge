@@ -5,7 +5,7 @@ use std::time::Duration;
 use anyhow::Context;
 use bytes::Bytes;
 use forge_app::HttpInfra;
-use forge_domain::{Environment, TlsBackend, TlsVersion};
+use forge_domain::{Config, TlsBackend, TlsVersion};
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 use reqwest::redirect::Policy;
 use reqwest::{Certificate, Client, Response, StatusCode, Url};
@@ -19,7 +19,7 @@ const VERSION: &str = match option_env!("APP_VERSION") {
 
 pub struct ForgeHttpInfra<F> {
     client: Client,
-    env: Environment,
+    env: Config,
     file: Arc<F>,
 }
 
@@ -34,7 +34,7 @@ fn to_reqwest_tls(tls: TlsVersion) -> reqwest::tls::Version {
 }
 
 impl<F> ForgeHttpInfra<F> {
-    pub fn new(env: Environment, file_writer: Arc<F>) -> Self {
+    pub fn new(env: Config, file_writer: Arc<F>) -> Self {
         let env = env.clone();
         let env_http = env.clone();
         let mut client = reqwest::Client::builder()
@@ -266,7 +266,7 @@ mod tests {
 
     use fake::{Fake, Faker};
     use forge_app::FileWriterInfra;
-    use forge_domain::{Environment, HttpConfig};
+    use forge_domain::{Config, HttpConfig};
     use tokio::sync::Mutex;
 
     use super::*;
@@ -306,8 +306,8 @@ mod tests {
         }
     }
 
-    fn create_test_env(debug_requests: Option<PathBuf>) -> Environment {
-        Environment { debug_requests, http: HttpConfig::default(), ..Faker.fake() }
+    fn create_test_env(debug_requests: Option<PathBuf>) -> Config {
+        Config { debug_requests, http: HttpConfig::default(), ..Faker.fake() }
     }
 
     #[tokio::test]

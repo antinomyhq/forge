@@ -140,7 +140,7 @@ impl<
             .await
     }
 
-    fn environment(&self) -> Environment {
+    fn environment(&self) -> Config {
         self.services.get_environment().clone()
     }
 

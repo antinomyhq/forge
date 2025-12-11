@@ -10,7 +10,7 @@ use forge_app::{
     StrategyFactory, UserInfra, WalkerInfra,
 };
 use forge_domain::{
-    AuthMethod, CommandOutput, Environment, FileInfo as FileInfoData, McpServerConfig, ProviderId,
+    AuthMethod, CommandOutput, Config, FileInfo as FileInfoData, McpServerConfig, ProviderId,
     URLParam,
 };
 use reqwest::header::HeaderMap;
@@ -88,7 +88,7 @@ impl ForgeInfra {
 }
 
 impl EnvironmentInfra for ForgeInfra {
-    fn get_environment(&self) -> Environment {
+    fn get_environment(&self) -> Config {
         self.environment_service.get_environment()
     }
 

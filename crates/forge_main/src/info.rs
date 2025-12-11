@@ -3,7 +3,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use colored::Colorize;
-use forge_api::{Conversation, Environment, LoginInfo, Metrics, Role, Usage, UserUsage};
+use forge_api::{Conversation, Config, LoginInfo, Metrics, Role, Usage, UserUsage};
 use forge_app::utils::truncate_key;
 use forge_tracker::VERSION;
 use num_format::{Locale, ToFormattedString};
@@ -270,8 +270,8 @@ impl<T: IntoInfoValue> IntoInfoValue for Option<T> {
     }
 }
 
-impl From<&Environment> for Info {
-    fn from(env: &Environment) -> Self {
+impl From<&Config> for Info {
+    fn from(env: &Config) -> Self {
         // Get the current git branch
         let branch_info = match get_git_branch() {
             Some(branch) => branch,
@@ -545,7 +545,7 @@ impl fmt::Display for Info {
 
 /// Formats a path for display, using actual home directory on Windows and tilde
 /// notation on Unix, with proper quoting for paths containing spaces
-fn format_path_for_display(env: &Environment, path: &Path) -> String {
+fn format_path_for_display(env: &Config, path: &Path) -> String {
     // Check if path is under home directory first
     if let Some(home) = &env.home
         && let Ok(rel_path) = path.strip_prefix(home)
@@ -773,13 +773,13 @@ impl From<&Conversation> for Info {
 mod tests {
     use std::path::PathBuf;
 
-    use forge_api::{Environment, EventValue};
+    use forge_api::{Config, EventValue};
     use pretty_assertions::assert_eq;
 
     // Helper to create minimal test environment
-    fn create_env(os: &str, home: Option<&str>) -> Environment {
+    fn create_env(os: &str, home: Option<&str>) -> Config {
         use fake::{Fake, Faker};
-        let mut fixture: Environment = Faker.fake();
+        let mut fixture: Config = Faker.fake();
         fixture = fixture.os(os.to_string());
         if let Some(home_path) = home {
             fixture = fixture.home(PathBuf::from(home_path));

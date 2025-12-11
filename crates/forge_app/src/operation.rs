@@ -6,7 +6,7 @@ use console::strip_ansi_codes;
 use derive_setters::Setters;
 use forge_display::DiffFormat;
 use forge_domain::{
-    CodebaseSearchResults, Environment, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite,
+    CodebaseSearchResults, Config, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite,
     FileOperation, LineNumbers, Metrics, NetFetch, PlanCreate, ToolKind,
 };
 use forge_template::Element;
@@ -194,7 +194,7 @@ impl ToolOperation {
         self,
         tool_kind: ToolKind,
         content_files: TempContentFiles,
-        env: &Environment,
+        env: &Config,
         metrics: &mut Metrics,
     ) -> forge_domain::ToolOutput {
         let tool_name = tool_kind.name();
@@ -579,10 +579,10 @@ mod tests {
     use super::*;
     use crate::{Content, Match, MatchResult};
 
-    fn fixture_environment() -> Environment {
+    fn fixture_environment() -> Config {
         use fake::{Fake, Faker};
         let max_bytes: f64 = 250.0 * 1024.0; // 250 KB
-        let fixture: Environment = Faker.fake();
+        let fixture: Config = Faker.fake();
         fixture
             .max_search_lines(25)
             .max_search_result_bytes(max_bytes.ceil() as usize)
