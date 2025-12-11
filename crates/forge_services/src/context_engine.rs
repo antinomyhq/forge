@@ -479,6 +479,9 @@ impl<F> ForgeContextEngineService<F> {
             .canonicalize()
             .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
 
+        // Clear any stale locks before attempting to sync
+        self.infra.clear_stale_locks(&canonical_path).await?;
+
         let process_id = std::process::id();
 
         // Try to acquire lock
@@ -536,21 +539,6 @@ impl<F> ForgeContextEngineService<F> {
             .await?;
 
         Ok(true)
-    }
-
-    /// Clears any stale sync locks from crashed processes
-    ///
-    /// Should be called on application startup before beginning sync
-    /// operations.
-    pub async fn clear_stale_sync_locks(&self, path: &Path) -> Result<()>
-    where
-        F: WorkspaceSyncRepository,
-    {
-        let canonical_path = path
-            .canonicalize()
-            .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
-        self.infra.clear_stale_locks(&canonical_path).await?;
-        Ok(())
     }
 }
 
@@ -789,10 +777,6 @@ impl<
 
     async fn try_sync_workspace(&self, path: PathBuf) -> Result<bool> {
         self.try_sync_workspace(path).await
-    }
-
-    async fn clear_stale_sync_locks(&self, path: &Path) -> Result<()> {
-        self.clear_stale_sync_locks(path).await
     }
 }
 

@@ -369,13 +369,6 @@ impl<
 
     async fn try_sync_workspace(&self) -> Result<bool> {
         let env = self.infra.get_environment();
-        // Clear stale locks before attempting sync
-        self.services
-            .context_engine_service()
-            .clear_stale_sync_locks(&env.cwd)
-            .await?;
-
-        // Now attempt the sync
         self.services
             .context_engine_service()
             .try_sync_workspace(env.cwd.clone())

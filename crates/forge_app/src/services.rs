@@ -295,20 +295,6 @@ pub trait ContextEngineService: Send + Sync {
     /// * `Ok(false)` - Sync skipped (already in progress)
     /// * `Err(_)` - Sync failed with error
     async fn try_sync_workspace(&self, path: PathBuf) -> anyhow::Result<bool>;
-
-    /// Clears any stale sync locks from crashed processes
-    ///
-    /// Should be called on application startup before beginning sync
-    /// operations. Clears stale sync locks based on the configured sync
-    /// interval
-    ///
-    /// # Arguments
-    /// * `path` - Path to the workspace
-    /// * `sync_interval_seconds` - Configured sync interval in seconds
-    ///
-    /// Locks are considered stale if they've been IN_PROGRESS for more than 2x
-    /// the interval
-    async fn clear_stale_sync_locks(&self, path: &Path) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -1106,11 +1092,5 @@ impl<I: Services> ContextEngineService for I {
 
     async fn try_sync_workspace(&self, path: PathBuf) -> anyhow::Result<bool> {
         self.context_engine_service().try_sync_workspace(path).await
-    }
-
-    async fn clear_stale_sync_locks(&self, path: &Path) -> anyhow::Result<()> {
-        self.context_engine_service()
-            .clear_stale_sync_locks(path)
-            .await
     }
 }
