@@ -232,6 +232,8 @@ impl<S: AgentService> Orchestrator<S> {
             self.conversation.context = Some(context.clone());
             self.services.update(self.conversation.clone()).await?;
 
+
+            // FIXME: Compaction is triggered way to frequently
             // Trigger compaction before making a request
             // Ideally compaction should be implemented as a transformer
             if let Some(c_context) = self.check_and_compact(&context)? {

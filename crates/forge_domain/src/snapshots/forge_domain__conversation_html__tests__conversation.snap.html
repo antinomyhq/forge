@@ -12,7 +12,7 @@
   content="width=device-width, initial-scale=1.0"
 >
 </meta>
-<title>Title: 4c0bb729-32b3-43d6-bd58-e4609788c571</title>
+<title>Title: d0e2b1f5-6405-4e52-9c1e-6410279de630</title>
 <style>body {
   font-family: monospace;
   line-height: 1.6;
@@ -134,10 +134,6 @@ td {
   display: inline-block;
 }
 
-.context-section {
-  padding-top: 15px;
-}
-
 img {
   max-width: 100%;
 }
@@ -147,8 +143,7 @@ img {
   margin: 12px 0;
   padding: 16px;
   background-color: #f0f4f8;
-  border-left: 4px solid #7c3aed;
-  border-radius: 4px;
+  border-left: 4px solid #7c3aed;  
 }
 
 .reasoning-content {
@@ -164,8 +159,7 @@ img {
   margin-top: 8px;
   padding: 12px;
   background-color: #faf5ff;
-  border: 1px solid #e9d5ff;
-  border-radius: 4px;
+  border: 1px solid #e9d5ff;  
   white-space: pre-wrap;
   word-wrap: break-word;
   font-size: 0.95em;
@@ -187,8 +181,7 @@ img {
   margin-top: 8px;
   padding: 12px;
   background-color: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 4px;
+  border: 1px solid #e5e7eb;  
   white-space: pre-wrap;
   word-wrap: break-word;
   font-size: 0.95em;
@@ -236,7 +229,6 @@ img {
 </head>
 <body>
 <h1>Conversation</h1>
-<h2>Title: 4c0bb729-32b3-43d6-bd58-e4609788c571</h2>
 <div
   class="section"
 >
@@ -244,7 +236,7 @@ img {
 <table>
 <tr>
 <th>ID</th>
-<td>4c0bb729-32b3-43d6-bd58-e4609788c571</td>
+<td>d0e2b1f5-6405-4e52-9c1e-6410279de630</td>
 </tr>
 <tr>
 <th>Title</th>
@@ -259,20 +251,24 @@ img {
 <td>None</td>
 </tr>
 <tr>
+<th>Max Output Tokens</th>
+<td>20480</td>
+</tr>
+<tr>
 <th>Input Tokens</th>
-<td>33151</td>
+<td>10575</td>
 </tr>
 <tr>
 <th>Cached Tokens</th>
-<td>25370 [76%]</td>
+<td>0</td>
 </tr>
 <tr>
 <th>Output Tokens</th>
-<td>308</td>
+<td>214</td>
 </tr>
 <tr>
 <th>Total Tokens</th>
-<td>33459</td>
+<td>10789</td>
 </tr>
 </table>
 </div>
@@ -287,7 +283,7 @@ img {
 <details
   class="message-card message-system"
 >
-<summary>System Message</summary>
+<summary>System</summary>
 <div
   class="main-content"
 >
@@ -426,7 +422,7 @@ Use this skill immediately when the user mentions merge conflicts that need to b
 <details
   class="message-card message-system"
 >
-<summary>System Message</summary>
+<summary>System</summary>
 <div
   class="main-content"
 >
@@ -499,6 +495,8 @@ Use this skill immediately when the user mentions merge conflicts that need to b
  - 2025-12-11_08-37-50-dump.html
  - 2025-12-11_08-38-29-dump.html
  - 2025-12-11_08-41-16-dump.html
+ - 2025-12-11_09-20-41-dump.json
+ - 2025-12-11_09-35-18-dump.json
  - AGENTS.md
  - Cargo.lock
  - Cargo.toml
@@ -810,8 +808,9 @@ let service = BadUserService::&lt;PostgresRepo, RedisCache, FileLogger&gt;::new(
 <details
   class="message-card message-user"
 >
-<summary>User Message
-<span> (claude-sonnet-4-5-20250929)</span>
+<summary>User
+<strong> 🤖 model:</strong>
+<span>claude-sonnet-4-5-20250929</span>
 </summary>
 <div
   class="main-content"
@@ -821,314 +820,36 @@ let service = BadUserService::&lt;PostgresRepo, RedisCache, FileLogger&gt;::new(
 </div>
 </details>
 <details
-  class="message-card message-user"
->
-<summary>User Message
-<span> (claude-sonnet-4-5-20250929)</span>
-</summary>
-<div
-  class="main-content"
->
-<pre>Use the following summary frames as the authoritative reference for all coding suggestions and decisions. Do not re-explain or revisit it unless I ask. Additional summary frames will be added as the conversation progresses.
-
-## Summary
-
-### 1. Assistant
-
-````
-Hello! I'm Forge, your software engineering assistant. I'm here to help you with programming tasks, code implementation, refactoring, debugging, and any other development work you need.
-
-I can assist with:
-- Writing and modifying code across multiple languages and frameworks
-- Running tests and verifying changes
-- File operations and project structure management
-- Shell commands and git operations
-- Architectural analysis and code exploration
-- And much more
-
-What would you like to work on today?
-````
-
-### 2. User
-
-````
-&lt;feedback&gt;update @[crates/forge_domain/src/conversation_html.rs] to show usage information with each message also&lt;/feedback&gt;
-&lt;system_date&gt;2025-12-11&lt;/system_date&gt;
-````
-
-### 3. Assistant
-
-````
-I'll update the conversation HTML rendering to show usage information with each message. This will display token counts and costs per message, making it easier to see which messages consumed the most tokens.
-````
-**Update:** `crates/forge_domain/src/conversation_html.rs`
-**Read:** `crates/forge_domain/src/conversation_style.css`
-
-
----
-
-Proceed with implementation based on this context.
-</pre>
-</div>
-</details>
-<details
-  class="message-card message-user"
->
-<summary>User Message
-<span> (claude-sonnet-4-5-20250929)</span>
-</summary>
-<div
-  class="main-content"
->
-<pre>Use the following summary frames as the authoritative reference for all coding suggestions and decisions. Do not re-explain or revisit it unless I ask. Additional summary frames will be added as the conversation progresses.
-
-## Summary
-
-### 1. Assistant
-
-````
-I see I accidentally added CSS to the Rust file. Let me fix that by removing the CSS and adding it to the correct CSS file:
-````
-**Update:** `crates/forge_domain/src/conversation_html.rs`
-**Update:** `crates/forge_domain/src/conversation_style.css`
-````
-Now let me verify the changes by running the tests:
-````
-**Execute:** 
-```
-cd /Volumes/Bran/code-forge-workspace/reviews &amp;&amp; cargo test --package forge_domain --lib conversation_html::tests -- --nocapture
-```
-````
-Perfect! The tests pass. Now let me add a test to verify that the per-message usage information is displayed correctly:
-````
-**Update:** `crates/forge_domain/src/conversation_html.rs`
-````
-Now let's run all the tests to make sure everything works:
-````
-**Execute:** 
-```
-cd /Volumes/Bran/code-forge-workspace/reviews &amp;&amp; cargo test --package forge_domain --lib conversation_html::tests
-```
-````
-Excellent! All tests pass. Let me create a quick visual test to see what the output looks like:
-````
-**Execute:** 
-```
-cd /Volumes/Bran/code-forge-workspace/reviews &amp;&amp; cat &gt; /tmp/test_usage_display.rs &lt;&lt; 'EOF'
-use forge_domain::context::{Context, ContextMessage, MessageEntry, TokenCount};
-use forge_domain::conversation::{Conversation, ConversationId};
-use forge_domain::message::Usage;
-use forge_domain::conversation_html::render_conversation_html;
-
-fn main() {
-    let id = ConversationId::generate();
-
-    let usage1 = Usage {
-        prompt_tokens: TokenCount::Actual(1500),
-        completion_tokens: TokenCount::Actual(450),
-        total_tokens: TokenCount::Actual(1950),
-        cached_tokens: TokenCount::Actual(300),
-        cost: Some(0.0385),
-    };
-
-    let message1 = MessageEntry::from(ContextMessage::user("What's the weather like?", None))
-        .usage(usage1);
-
-    let usage2 = Usage {
-        prompt_tokens: TokenCount::Actual(800),
-        completion_tokens: TokenCount::Actual(200),
-        total_tokens: TokenCount::Actual(1000),
-        cached_tokens: TokenCount::Actual(150),
-        cost: Some(0.0189),
-    };
-
-    let message2 = MessageEntry::from(ContextMessage::assistant(
-        "The weather is sunny with a high of 72°F.",
-        None,
-        None,
-    ))
-    .usage(usage2);
-
-    let context = Context::default().messages(vec![message1, message2]);
-    let conversation = Conversation::new(id).context(context);
-
-    let html = render_conversation_html(&amp;conversation);
-    std::fs::write("/tmp/test_usage_output.html", html).unwrap();
-    println!("Generated HTML at /tmp/test_usage_output.html");
-}
-EOF
-cargo run --quiet --example /tmp/test_usage_display 2&gt;/dev/null || echo "Test script created"
-```
-````
-Perfect! Let me verify the changes work correctly by running the full domain test suite:
-````
-**Execute:** 
-```
-cd /Volumes/Bran/code-forge-workspace/reviews &amp;&amp; cargo test --package forge_domain --quiet
-```
-
-
----
-
-Proceed with implementation based on this context.
-</pre>
-</div>
-</details>
-<details
-  class="message-card message-user"
->
-<summary>User Message
-<span> (claude-sonnet-4-5-20250929)</span>
-</summary>
-<div
-  class="main-content"
->
-<pre>Use the following summary frames as the authoritative reference for all coding suggestions and decisions. Do not re-explain or revisit it unless I ask. Additional summary frames will be added as the conversation progresses.
-
-## Summary
-
-### 1. Assistant
-
-````
-Perfect! All tests pass. Let me also run a quick check to ensure the code compiles cleanly:
-````
-**Execute:** 
-```
-cd /Volumes/Bran/code-forge-workspace/reviews &amp;&amp; cargo check --package forge_domain
-```
-````
-## Summary
-
-Successfully updated the conversation HTML rendering to display usage information with each message. Here's what was implemented:
-
-### Changes Made
-
-**Files Modified:**
-1. `crates/forge_domain/src/conversation_html.rs:127-224` - Added per-message usage display functionality
-2. `crates/forge_domain/src/conversation_style.css:189-219` - Added CSS styles for the usage section
-
-### Key Features
-
-1. **Per-Message Usage Display** - Each message now shows its usage statistics in a dedicated section including:
-   - Input tokens (prompt tokens)
-   - Cached tokens with percentage
-   - Output tokens (completion tokens)
-   - Total tokens
-   - Cost in USD
-
-2. **Helper Function** - Created `create_message_usage_section()` that formats usage information consistently across all messages
-
-3. **Visual Design** - Usage information appears in a light gray box with left border, positioned after message content but before reasoning sections
-
-4. **Comprehensive Test Coverage** - Added `test_render_conversation_with_per_message_usage()` test to verify the functionality works correctly
-
-### Verification
-
-✅ All 433 tests in forge_domain pass  
-✅ Code compiles without warnings  
-✅ New test specifically validates per-message usage rendering  
-✅ CSS properly integrated into the style sheet
-
-The implementation makes it easy to identify which messages consume the most tokens and track costs at a granular level, while maintaining the existing overall usage statistics in the information table at the top.
-````
-
-### 2. User
-
-````
-&lt;feedback&gt;Great! Move the usage section above reasoning section.&lt;/feedback&gt;
-&lt;system_date&gt;2025-12-11&lt;/system_date&gt;
-````
-
-### 3. Assistant
-
-````
-I'll update the order so usage information appears before the reasoning section.
-````
-**Read:** `crates/forge_domain/src/conversation_html.rs`
-````
-Now I can see the structure. Currently the order is:
-1. Reasoning section (lines 208-230)
-2. Main content (lines 233-237)
-3. Usage section (starting at line 240)
-
-I need to reorder so it's:
-1. Main content
-2. Usage section
-3. Reasoning section
-````
-**Update:** `crates/forge_domain/src/conversation_html.rs`
-````
-Let me read the file again to get the exact current content:
-````
-**Read:** `crates/forge_domain/src/conversation_html.rs`
-
-
----
-
-Proceed with implementation based on this context.
-</pre>
-</div>
-</details>
-<details
-  class="message-card message-user"
->
-<summary>User Message
-<span> (claude-sonnet-4-5-20250929)</span>
-</summary>
-<div
-  class="main-content"
->
-<pre>Use the following summary frames as the authoritative reference for all coding suggestions and decisions. Do not re-explain or revisit it unless I ask. Additional summary frames will be added as the conversation progresses.
-
-## Summary
-
-### 1. Assistant
-
-````
-Now I can see the issue - the line at 241 has the method call on the same line. Let me patch this correctly:
-````
-**Update:** `crates/forge_domain/src/conversation_html.rs`
-````
-Perfect! Now let's verify the changes work correctly:
-````
-**Execute:** 
-```
-cargo test --package forge_domain --lib conversation_html::tests --quiet
-```
-````
-I see the issue - the variable is moved and then used later. I need to check how it's used after the reasoning section. Let me read more of the file:
-````
-**Read:** `crates/forge_domain/src/conversation_html.rs`
-````
-I see - there's tool calls section after. I need to use `message_with_reasoning` instead of `message_with_usage` there. Let me fix this:
-````
-**Update:** `crates/forge_domain/src/conversation_html.rs`
-````
-I see there's another usage at line 281. Let me see more of this context:
-````
-**Read:** `crates/forge_domain/src/conversation_html.rs`
-
-
----
-
-Proceed with implementation based on this context.
-</pre>
-</div>
-</details>
-<details
   class="message-card message-assistant"
 >
-<summary>Assistant Message
+<summary>Assistant
+<span>
+<strong>📊 Usage {</strong>
+<span>
+<span
+  class="usage-item"
+>input: 10575
+</span>
+<span
+  class="usage-item"
+>cached: 0
+</span>
+<span
+  class="usage-item"
+>output: 214
+</span>
+<span
+  class="usage-item"
+>total: 10789
+</span>
+</span>
+<strong>}</strong>
+</span>
 <span
   class="reasoning-indicator"
 > 🧠 Reasoning
 </span>
 </summary>
-<div
-  class="main-content"
->
-<pre>I see - line 281 is the else branch when there are no tool calls. This should also be `message_with_reasoning`. Let me fix it:</pre>
-</div>
 <div
   class="reasoning-section"
 >
@@ -1136,307 +857,49 @@ Proceed with implementation based on this context.
   class="reasoning-content"
 >
 <strong>🧠 Reasoning: </strong>
-<pre>The user wants me to move the usage section above the reasoning section. Currently, based on the code I can see, the message rendering likely appends the reasoning section after the message content, and I added the usage section. I need to reorder these so that usage appears before reasoning.
+<pre>The user has just sent a greeting "Hello!". This is a simple greeting and I should respond in a friendly, professional manner. According to my guidelines, I should maintain a professional yet conversational tone and be concise.
 
-Let me check the current order in the `render_message` function to see how elements are being appended to the message div.</pre>
+I should:
+1. Greet them back
+2. Briefly introduce myself and my capabilities
+3. Ask how I can help them
+
+I should not:
+- Use emojis (unless explicitly requested)
+- Be overly verbose
+- Create any files or documentation</pre>
 </div>
 </div>
-<div>
 <div
-  class="tool-call"
+  class="main-content"
 >
-<p>
-<strong>patch</strong>
-</p>
-<p>toolu_01Pa9GsAJZNCqivMosQ6AaNx
-<strong>ID: </strong>
-</p>
-<p>
-<strong>Arguments: </strong>
-</p>
-<pre>{
-  "content": "                        } else {\n                            message_with_reasoning\n                        }",
-  "operation": "replace",
-  "path": "/Volumes/Bran/code-forge-workspace/reviews/crates/forge_domain/src/conversation_html.rs",
-  "search": "                        } else {\n                            message_with_usage\n                        }"
-}</pre>
-</div>
+<pre>Hello! I'm Forge, your software engineering assistant. I'm here to help you with programming tasks, code development, file operations, and software engineering challenges across multiple languages and frameworks.
+
+I can assist you with:
+- Writing and refactoring code
+- Debugging and fixing issues
+- Running tests and verifying changes
+- File operations and shell commands
+- Code exploration and analysis
+- Architecture and design decisions
+
+What would you like to work on today?</pre>
 </div>
 </details>
+</div>
+<div
+  class="tools-section"
+>
+<h2>Tools</h2>
 <details
   class="message-card message-tool"
 >
 <summary>
-<strong>Tool Result: </strong>
-<span>patch</span>
+<span>fetch</span>
 </summary>
-<pre>&lt;tool_call_error&gt;
-&lt;cause&gt;&lt;![CDATA[Multiple matches found for search text: '                        } else {
-                            message_with_usage
-                        }'. Either provide a more specific search pattern or use replace_all to replace all occurrences.]]&gt;&lt;/cause&gt;
-&lt;reflection&gt;You must now deeply reflect on the error above:
-1. Pinpoint exactly what was wrong with the tool call — was it the wrong tool, incorrect or missing parameters, or malformed structure?
-2. Explain why that mistake happened. Did you misunderstand the tool's schema? Miss a required field? Misread the context?
-3. Make the correct tool call as it should have been made.
-
-Do NOT skip this reflection.&lt;/reflection&gt;
-&lt;/tool_call_error&gt;</pre>
-<pre>&lt;retry&gt;Tool call failed
-- **Attempts remaining:** 2
-- **Next steps:** Analyze the error, identify the root cause, and adjust your approach before retrying.&lt;/retry&gt;</pre>
-</details>
-<details
-  class="message-card message-assistant"
->
-<summary>Assistant Message</summary>
 <div
   class="main-content"
 >
-<pre>I need to be more specific - there are multiple else clauses with `message_with_usage`. Let me be more specific with the surrounding context:</pre>
-</div>
-<div>
-<div
-  class="tool-call"
->
-<p>
-<strong>patch</strong>
-</p>
-<p>toolu_014KD6jfMUzm8S8WPdAH2zT8
-<strong>ID: </strong>
-</p>
-<p>
-<strong>Arguments: </strong>
-</p>
-<pre>{
-  "content": "                            } else {\n                                message_with_reasoning\n                            }\n                        } else {\n                            message_with_reasoning\n                        }",
-  "operation": "replace",
-  "path": "/Volumes/Bran/code-forge-workspace/reviews/crates/forge_domain/src/conversation_html.rs",
-  "search": "                            } else {\n                                message_with_reasoning\n                            }\n                        } else {\n                            message_with_usage\n                        }"
-}</pre>
-</div>
-</div>
-</details>
-<details
-  class="message-card message-tool"
->
-<summary>
-<strong>Tool Result: </strong>
-<span>patch</span>
-</summary>
-<pre>&lt;file_diff
-  path="/Volumes/Bran/code-forge-workspace/reviews/crates/forge_domain/src/conversation_html.rs"
-  total_lines="704"
-&gt;&lt;![CDATA[278 278 |                                 message_with_reasoning
-279 279 |                             }
-280 280 |                         } else {
-281     |-                            message_with_usage
-    281 |+                            message_with_reasoning
-282 282 |                         }
-283 283 |                     }
-284 284 |                     ContextMessage::Tool(tool_result) =&gt; {
-]]&gt;
-&lt;/file_diff&gt;</pre>
-</details>
-<details
-  class="message-card message-assistant"
->
-<summary>Assistant Message</summary>
-<div
-  class="main-content"
->
-<pre>Good! Now let's run the tests again:</pre>
-</div>
-<div>
-<div
-  class="tool-call"
->
-<p>
-<strong>shell</strong>
-</p>
-<p>toolu_01LJqvE9heAqThwqDCxxMTru
-<strong>ID: </strong>
-</p>
-<p>
-<strong>Arguments: </strong>
-</p>
-<pre>{
-  "command": "cargo test --package forge_domain --lib conversation_html::tests --quiet",
-  "cwd": "/Volumes/Bran/code-forge-workspace/reviews"
-}</pre>
-</div>
-</div>
-</details>
-<details
-  class="message-card message-tool"
->
-<summary>
-<strong>Tool Result: </strong>
-<span>shell</span>
-</summary>
-<pre>&lt;shell_output
-  command="cargo test --package forge_domain --lib conversation_html::tests --quiet"
-  shell="/bin/zsh"
-  exit_code="0"
-&gt;
-&lt;stdout
-  total_lines="5"
-&gt;&lt;![CDATA[
-running 8 tests
-........
-test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 425 filtered out; finished in 0.00s
-]]&gt;
-&lt;/stdout&gt;
-&lt;/shell_output&gt;</pre>
-</details>
-<details
-  class="message-card message-assistant"
->
-<summary>Assistant Message</summary>
-<div
-  class="main-content"
->
-<pre>Perfect! All tests pass. Let's verify the full package compiles correctly:</pre>
-</div>
-<div
-  class="usage-section"
->
-<strong>📊 Usage:</strong>
-<div
-  class="usage-details"
->
-<span
-  class="usage-item"
->Input: 16453
-</span>
-<span
-  class="usage-item"
->Cached: 8922 [54%]
-</span>
-<span
-  class="usage-item"
->Output: 106
-</span>
-<span
-  class="usage-item"
->Total: 16559
-</span>
-</div>
-</div>
-<div>
-<div
-  class="tool-call"
->
-<p>
-<strong>shell</strong>
-</p>
-<p>toolu_01YY74ZennsjM9pxbkAX74n3
-<strong>ID: </strong>
-</p>
-<p>
-<strong>Arguments: </strong>
-</p>
-<pre>{
-  "command": "cargo check --package forge_domain",
-  "cwd": "/Volumes/Bran/code-forge-workspace/reviews"
-}</pre>
-</div>
-</div>
-</details>
-<details
-  class="message-card message-tool"
->
-<summary>
-<strong>Tool Result: </strong>
-<span>shell</span>
-</summary>
-<pre>&lt;shell_output
-  command="cargo check --package forge_domain"
-  shell="/bin/zsh"
-  exit_code="0"
-&gt;
-&lt;stderr
-  total_lines="2"
-&gt;&lt;![CDATA[    Checking forge_domain v0.1.0 (/Volumes/Bran/code-forge-workspace/reviews/crates/forge_domain)
-    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.13s]]&gt;
-&lt;/stderr&gt;
-&lt;/shell_output&gt;</pre>
-</details>
-<details
-  class="message-card message-assistant"
->
-<summary>Assistant Message</summary>
-<div
-  class="main-content"
->
-<pre>## Summary
-
-Successfully moved the usage section above the reasoning section in the conversation HTML rendering.
-
-### Changes Made
-
-**File Modified:**
-- `crates/forge_domain/src/conversation_html.rs:233-281` - Reordered message sections
-
-### New Message Structure
-
-Messages now display in this order:
-1. **Main Content** - The message text/content
-2. **Usage Section** - Token counts and cost information (if available)
-3. **Reasoning Section** - Model reasoning (if available)
-4. **Tool Calls Section** - Tool invocations (if any)
-
-### Verification
-
-✅ All 8 conversation_html tests pass  
-✅ Package compiles without warnings  
-✅ Usage information now appears immediately after message content and before reasoning
-
-The usage metrics are now more prominent and easier to spot, appearing right after the message content before the reasoning details.</pre>
-</div>
-<div
-  class="usage-section"
->
-<strong>📊 Usage:</strong>
-<div
-  class="usage-details"
->
-<span
-  class="usage-item"
->Input: 16698
-</span>
-<span
-  class="usage-item"
->Cached: 16448 [98%]
-</span>
-<span
-  class="usage-item"
->Output: 202
-</span>
-<span
-  class="usage-item"
->Total: 16900
-</span>
-</div>
-</div>
-</details>
-<p>20480
-<strong>Max Tokens: </strong>
-</p>
-</div>
-<div>
-<strong>Tools</strong>
-<div
-  class="tool-call"
->
-<p>
-<strong>fetch</strong>
-</p>
-<p>Input type for the net fetch tool
-<strong>Description: </strong>
-</p>
-<pre>
-<strong>Input Schema: </strong>
-</pre>
 <pre>{
   "title": "NetFetch",
   "description": "Input type for the net fetch tool",
@@ -1457,523 +920,16 @@ The usage metrics are now more prominent and easier to spot, appearing right aft
   }
 }</pre>
 </div>
-<div
-  class="tool-call"
+</details>
+<details
+  class="message-card message-tool"
 >
-<p>
-<strong>mcp_browsermcp_tool_browser_click</strong>
-</p>
-<p>Perform click on a web page
-<strong>Description: </strong>
-</p>
-<pre>
-<strong>Input Schema: </strong>
-</pre>
-<pre>{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "required": [
-    "element",
-    "ref"
-  ],
-  "properties": {
-    "element": {
-      "description": "Human-readable element description used to obtain permission to interact with the element",
-      "type": "string"
-    },
-    "ref": {
-      "description": "Exact target element reference from the page snapshot",
-      "type": "string"
-    }
-  },
-  "additionalProperties": false
-}</pre>
-</div>
+<summary>
+<span>patch</span>
+</summary>
 <div
-  class="tool-call"
+  class="main-content"
 >
-<p>
-<strong>mcp_browsermcp_tool_browser_get_console_logs</strong>
-</p>
-<p>Get the console logs from the browser
-<strong>Description: </strong>
-</p>
-<pre>
-<strong>Input Schema: </strong>
-</pre>
-<pre>{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "additionalProperties": false
-}</pre>
-</div>
-<div
-  class="tool-call"
->
-<p>
-<strong>mcp_browsermcp_tool_browser_go_back</strong>
-</p>
-<p>Go back to the previous page
-<strong>Description: </strong>
-</p>
-<pre>
-<strong>Input Schema: </strong>
-</pre>
-<pre>{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "additionalProperties": false
-}</pre>
-</div>
-<div
-  class="tool-call"
->
-<p>
-<strong>mcp_browsermcp_tool_browser_go_forward</strong>
-</p>
-<p>Go forward to the next page
-<strong>Description: </strong>
-</p>
-<pre>
-<strong>Input Schema: </strong>
-</pre>
-<pre>{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "additionalProperties": false
-}</pre>
-</div>
-<div
-  class="tool-call"
->
-<p>
-<strong>mcp_browsermcp_tool_browser_hover</strong>
-</p>
-<p>Hover over element on page
-<strong>Description: </strong>
-</p>
-<pre>
-<strong>Input Schema: </strong>
-</pre>
-<pre>{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "required": [
-    "element",
-    "ref"
-  ],
-  "properties": {
-    "element": {
-      "description": "Human-readable element description used to obtain permission to interact with the element",
-      "type": "string"
-    },
-    "ref": {
-      "description": "Exact target element reference from the page snapshot",
-      "type": "string"
-    }
-  },
-  "additionalProperties": false
-}</pre>
-</div>
-<div
-  class="tool-call"
->
-<p>
-<strong>mcp_browsermcp_tool_browser_navigate</strong>
-</p>
-<p>Navigate to a URL
-<strong>Description: </strong>
-</p>
-<pre>
-<strong>Input Schema: </strong>
-</pre>
-<pre>{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "required": [
-    "url"
-  ],
-  "properties": {
-    "url": {
-      "description": "The URL to navigate to",
-      "type": "string"
-    }
-  },
-  "additionalProperties": false
-}</pre>
-</div>
-<div
-  class="tool-call"
->
-<p>
-<strong>mcp_browsermcp_tool_browser_press_key</strong>
-</p>
-<p>Press a key on the keyboard
-<strong>Description: </strong>
-</p>
-<pre>
-<strong>Input Schema: </strong>
-</pre>
-<pre>{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "required": [
-    "key"
-  ],
-  "properties": {
-    "key": {
-      "description": "Name of the key to press or a character to generate, such as `ArrowLeft` or `a`",
-      "type": "string"
-    }
-  },
-  "additionalProperties": false
-}</pre>
-</div>
-<div
-  class="tool-call"
->
-<p>
-<strong>mcp_browsermcp_tool_browser_screenshot</strong>
-</p>
-<p>Take a screenshot of the current page
-<strong>Description: </strong>
-</p>
-<pre>
-<strong>Input Schema: </strong>
-</pre>
-<pre>{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "additionalProperties": false
-}</pre>
-</div>
-<div
-  class="tool-call"
->
-<p>
-<strong>mcp_browsermcp_tool_browser_select_option</strong>
-</p>
-<p>Select an option in a dropdown
-<strong>Description: </strong>
-</p>
-<pre>
-<strong>Input Schema: </strong>
-</pre>
-<pre>{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "required": [
-    "element",
-    "ref",
-    "values"
-  ],
-  "properties": {
-    "element": {
-      "description": "Human-readable element description used to obtain permission to interact with the element",
-      "type": "string"
-    },
-    "ref": {
-      "description": "Exact target element reference from the page snapshot",
-      "type": "string"
-    },
-    "values": {
-      "description": "Array of values to select in the dropdown. This can be a single value or multiple values.",
-      "type": "array",
-      "items": {
-        "type": "string"
-      }
-    }
-  },
-  "additionalProperties": false
-}</pre>
-</div>
-<div
-  class="tool-call"
->
-<p>
-<strong>mcp_browsermcp_tool_browser_snapshot</strong>
-</p>
-<p>Capture accessibility snapshot of the current page. Use this for getting references to elements to interact with.
-<strong>Description: </strong>
-</p>
-<pre>
-<strong>Input Schema: </strong>
-</pre>
-<pre>{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "additionalProperties": false
-}</pre>
-</div>
-<div
-  class="tool-call"
->
-<p>
-<strong>mcp_browsermcp_tool_browser_type</strong>
-</p>
-<p>Type text into editable element
-<strong>Description: </strong>
-</p>
-<pre>
-<strong>Input Schema: </strong>
-</pre>
-<pre>{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "required": [
-    "element",
-    "ref",
-    "submit",
-    "text"
-  ],
-  "properties": {
-    "element": {
-      "description": "Human-readable element description used to obtain permission to interact with the element",
-      "type": "string"
-    },
-    "ref": {
-      "description": "Exact target element reference from the page snapshot",
-      "type": "string"
-    },
-    "submit": {
-      "description": "Whether to submit entered text (press Enter after)",
-      "type": "boolean"
-    },
-    "text": {
-      "description": "Text to type into the element",
-      "type": "string"
-    }
-  },
-  "additionalProperties": false
-}</pre>
-</div>
-<div
-  class="tool-call"
->
-<p>
-<strong>mcp_browsermcp_tool_browser_wait</strong>
-</p>
-<p>Wait for a specified time in seconds
-<strong>Description: </strong>
-</p>
-<pre>
-<strong>Input Schema: </strong>
-</pre>
-<pre>{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "required": [
-    "time"
-  ],
-  "properties": {
-    "time": {
-      "description": "The time to wait in seconds",
-      "type": "number"
-    }
-  },
-  "additionalProperties": false
-}</pre>
-</div>
-<div
-  class="tool-call"
->
-<p>
-<strong>mcp_context7_tool_get_library_docs</strong>
-</p>
-<p>Fetches up-to-date documentation for a library. You must call 'resolve-library-id' first to obtain the exact Context7-compatible library ID required to use this tool, UNLESS the user explicitly provides a library ID in the format '/org/project' or '/org/project/version' in their query. Use mode='code' (default) for API references and code examples, or mode='info' for conceptual guides, narrative information, and architectural questions.
-<strong>Description: </strong>
-</p>
-<pre>
-<strong>Input Schema: </strong>
-</pre>
-<pre>{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "required": [
-    "context7CompatibleLibraryID"
-  ],
-  "properties": {
-    "context7CompatibleLibraryID": {
-      "description": "Exact Context7-compatible library ID (e.g., '/mongodb/docs', '/vercel/next.js', '/supabase/supabase', '/vercel/next.js/v14.3.0-canary.87') retrieved from 'resolve-library-id' or directly from user query in the format '/org/project' or '/org/project/version'.",
-      "type": "string"
-    },
-    "mode": {
-      "description": "Documentation mode: 'code' for API references and code examples (default), 'info' for conceptual guides, narrative information, and architectural questions.",
-      "default": "code",
-      "type": "string",
-      "enum": [
-        "code",
-        "info"
-      ]
-    },
-    "page": {
-      "description": "Page number for pagination (start: 1, default: 1). If the context is not sufficient, try page=2, page=3, page=4, etc. with the same topic.",
-      "type": "integer",
-      "maximum": 10.0,
-      "minimum": 1.0
-    },
-    "topic": {
-      "description": "Topic to focus documentation on (e.g., 'hooks', 'routing').",
-      "type": "string"
-    }
-  },
-  "additionalProperties": false
-}</pre>
-</div>
-<div
-  class="tool-call"
->
-<p>
-<strong>mcp_context7_tool_resolve_library_id</strong>
-</p>
-<p>Resolves a package/product name to a Context7-compatible library ID and returns a list of matching libraries.
-
-You MUST call this function before 'get-library-docs' to obtain a valid Context7-compatible library ID UNLESS the user explicitly provides a library ID in the format '/org/project' or '/org/project/version' in their query.
-
-Selection Process:
-1. Analyze the query to understand what library/package the user is looking for
-2. Return the most relevant match based on:
-- Name similarity to the query (exact matches prioritized)
-- Description relevance to the query's intent
-- Documentation coverage (prioritize libraries with higher Code Snippet counts)
-- Source reputation (consider libraries with High or Medium reputation more authoritative)
-- Benchmark Score: Quality indicator (100 is the highest score)
-
-Response Format:
-- Return the selected library ID in a clearly marked section
-- Provide a brief explanation for why this library was chosen
-- If multiple good matches exist, acknowledge this but proceed with the most relevant one
-- If no good matches exist, clearly state this and suggest query refinements
-
-For ambiguous queries, request clarification before proceeding with a best-guess match.
-<strong>Description: </strong>
-</p>
-<pre>
-<strong>Input Schema: </strong>
-</pre>
-<pre>{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "required": [
-    "libraryName"
-  ],
-  "properties": {
-    "libraryName": {
-      "description": "Library name to search for and retrieve a Context7-compatible library ID.",
-      "type": "string"
-    }
-  },
-  "additionalProperties": false
-}</pre>
-</div>
-<div
-  class="tool-call"
->
-<p>
-<strong>mcp_deepwiki_tool_ask_question</strong>
-</p>
-<p>Ask any question about a GitHub repository
-<strong>Description: </strong>
-</p>
-<pre>
-<strong>Input Schema: </strong>
-</pre>
-<pre>{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "required": [
-    "question",
-    "repoName"
-  ],
-  "properties": {
-    "question": {
-      "description": "The question to ask about the repository",
-      "type": "string"
-    },
-    "repoName": {
-      "description": "GitHub repository: owner/repo (e.g. \"facebook/react\")",
-      "type": "string"
-    }
-  },
-  "additionalProperties": false
-}</pre>
-</div>
-<div
-  class="tool-call"
->
-<p>
-<strong>mcp_deepwiki_tool_read_wiki_contents</strong>
-</p>
-<p>View documentation about a GitHub repository
-<strong>Description: </strong>
-</p>
-<pre>
-<strong>Input Schema: </strong>
-</pre>
-<pre>{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "required": [
-    "repoName"
-  ],
-  "properties": {
-    "repoName": {
-      "description": "GitHub repository: owner/repo (e.g. \"facebook/react\")",
-      "type": "string"
-    }
-  },
-  "additionalProperties": false
-}</pre>
-</div>
-<div
-  class="tool-call"
->
-<p>
-<strong>mcp_deepwiki_tool_read_wiki_structure</strong>
-</p>
-<p>Get a list of documentation topics for a GitHub repository
-<strong>Description: </strong>
-</p>
-<pre>
-<strong>Input Schema: </strong>
-</pre>
-<pre>{
-  "$schema": "http://json-schema.org/draft-07/schema#",
-  "type": "object",
-  "required": [
-    "repoName"
-  ],
-  "properties": {
-    "repoName": {
-      "description": "GitHub repository: owner/repo (e.g. \"facebook/react\")",
-      "type": "string"
-    }
-  },
-  "additionalProperties": false
-}</pre>
-</div>
-<div
-  class="tool-call"
->
-<p>
-<strong>patch</strong>
-</p>
-<p>Modifies files with targeted line operations on matched patterns. Supports
- prepend, append, replace, replace_all, swap operations. Ideal for precise
- changes to configs, code, or docs while preserving context. Not suitable for
- complex refactoring or modifying all pattern occurrences - use `write`
- instead for complete rewrites and `undo` for undoing the last operation.
- Fails if search pattern isn\'t found.\\n\\nUsage Guidelines:\\n-When editing
- text from Read tool output, ensure you preserve new lines and the exact
- indentation (tabs/spaces) as it appears AFTER the line number prefix. The
- line number prefix format is: line number + \':\'. Everything
- after that is the actual file content to match. Never include any part
- of the line number prefix in the search or content
-<strong>Description: </strong>
-</p>
-<pre>
-<strong>Input Schema: </strong>
-</pre>
 <pre>{
   "title": "FSPatch",
   "description": "Modifies files with targeted line operations on matched patterns. Supports prepend, append, replace, replace_all, swap operations. Ideal for precise changes to configs, code, or docs while preserving context. Not suitable for complex refactoring or modifying all pattern occurrences - use `write` instead for complete rewrites and `undo` for undoing the last operation. Fails if search pattern isn't found.\\n\\nUsage Guidelines:\\n-When editing text from Read tool output, ensure you preserve new lines and the exact indentation (tabs/spaces) as it appears AFTER the line number prefix. The line number prefix format is: line number + ':'. Everything after that is the actual file content to match. Never include any part of the line number prefix in the search or content",
@@ -2011,26 +967,16 @@ For ambiguous queries, request clarification before proceeding with a best-guess
   }
 }</pre>
 </div>
-<div
-  class="tool-call"
+</details>
+<details
+  class="message-card message-tool"
 >
-<p>
-<strong>read</strong>
-</p>
-<p>Reads file contents from the specified absolute path. Ideal for analyzing
- code, configuration files, documentation, or textual data. Returns the
- content as a string with line number prefixes by default. For files larger
- than 2,000 lines, the tool automatically returns only the first 2,000 lines.
- You should always rely on this default behavior and avoid specifying custom
- ranges unless absolutely necessary. If needed, specify a range with the
- start_line and end_line parameters, ensuring the total range does not exceed
- 2,000 lines. Specifying a range exceeding this limit will result in an
- error. Binary files are automatically detected and rejected.
-<strong>Description: </strong>
-</p>
-<pre>
-<strong>Input Schema: </strong>
-</pre>
+<summary>
+<span>read</span>
+</summary>
+<div
+  class="main-content"
+>
 <pre>{
   "title": "FSRead",
   "description": "Reads file contents from the specified absolute path. Ideal for analyzing code, configuration files, documentation, or textual data. Returns the content as a string with line number prefixes by default. For files larger than 2,000 lines, the tool automatically returns only the first 2,000 lines. You should always rely on this default behavior and avoid specifying custom ranges unless absolutely necessary. If needed, specify a range with the start_line and end_line parameters, ensuring the total range does not exceed 2,000 lines. Specifying a range exceeding this limit will result in an error. Binary files are automatically detected and rejected.",
@@ -2063,25 +1009,16 @@ For ambiguous queries, request clarification before proceeding with a best-guess
   }
 }</pre>
 </div>
-<div
-  class="tool-call"
+</details>
+<details
+  class="message-card message-tool"
 >
-<p>
-<strong>read_image</strong>
-</p>
-<p>Reads image files from the file system and returns them in base64-encoded
- format for vision-capable models. Supports common image formats: JPEG, PNG,
- WebP, and GIF. The path must be absolute and point to an existing file. Use
- this tool when you need to process, analyze, or display images with vision
- models. Do NOT use this for text files - use the `read` tool instead. Do NOT
- use for other binary files like PDFs, videos, or archives. The tool will
- fail if the file doesn\'t exist or if the format is unsupported. Returns the
- image content encoded in base64 format ready for vision model consumption.
-<strong>Description: </strong>
-</p>
-<pre>
-<strong>Input Schema: </strong>
-</pre>
+<summary>
+<span>read_image</span>
+</summary>
+<div
+  class="main-content"
+>
 <pre>{
   "title": "ReadImage",
   "description": "Reads image files from the file system and returns them in base64-encoded format for vision-capable models. Supports common image formats: JPEG, PNG, WebP, and GIF. The path must be absolute and point to an existing file. Use this tool when you need to process, analyze, or display images with vision models. Do NOT use this for text files - use the `read` tool instead. Do NOT use for other binary files like PDFs, videos, or archives. The tool will fail if the file doesn't exist or if the format is unsupported. Returns the image content encoded in base64 format ready for vision model consumption.",
@@ -2097,20 +1034,16 @@ For ambiguous queries, request clarification before proceeding with a best-guess
   }
 }</pre>
 </div>
-<div
-  class="tool-call"
+</details>
+<details
+  class="message-card message-tool"
 >
-<p>
-<strong>remove</strong>
-</p>
-<p>Request to remove a file at the specified path. Use this when you need to
- delete an existing file. The path must be absolute. This operation cannot
- be undone, so use it carefully.
-<strong>Description: </strong>
-</p>
-<pre>
-<strong>Input Schema: </strong>
-</pre>
+<summary>
+<span>remove</span>
+</summary>
+<div
+  class="main-content"
+>
 <pre>{
   "title": "FSRemove",
   "description": "Request to remove a file at the specified path. Use this when you need to delete an existing file. The path must be absolute. This operation cannot be undone, so use it carefully.",
@@ -2126,18 +1059,16 @@ For ambiguous queries, request clarification before proceeding with a best-guess
   }
 }</pre>
 </div>
-<div
-  class="tool-call"
+</details>
+<details
+  class="message-card message-tool"
 >
-<p>
-<strong>sage</strong>
-</p>
-<p>Research-only tool for systematic codebase exploration and analysis. Performs comprehensive, read-only investigation: maps project architecture and module relationships, traces data/logic flow across files, analyzes API usage patterns, examines test coverage and build configurations, identifies design patterns and technical debt. Accepts detailed research questions or investigation tasks as input parameters. IMPORTANT: Always specify the target directory or file path in your task description to narrow down the scope and improve efficiency. Use when you need to understand how systems work, why architectural decisions were made, or to investigate bugs, dependencies, complex behavior patterns, or code quality issues. Do NOT use for code modifications, running commands, or file operations—choose implementation or planning agents instead. Returns structured reports with research summaries, key findings, technical details, contextual insights, and actionable follow-up suggestions. Strictly read-only with no side effects or system modifications.
-<strong>Description: </strong>
-</p>
-<pre>
-<strong>Input Schema: </strong>
-</pre>
+<summary>
+<span>sage</span>
+</summary>
+<div
+  class="main-content"
+>
 <pre>{
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "AgentInput",
@@ -2157,26 +1088,16 @@ For ambiguous queries, request clarification before proceeding with a best-guess
   }
 }</pre>
 </div>
-<div
-  class="tool-call"
+</details>
+<details
+  class="message-card message-tool"
 >
-<p>
-<strong>search</strong>
-</p>
-<p>Recursively searches directories for files by content (regex) and/or name
- (glob pattern). Provides context-rich results with line numbers for content
- matches. Two modes: content search (when regex provided) or file finder
- (when regex omitted). Uses case-insensitive Rust regex syntax. Requires
- absolute paths. Avoids binary files and excluded directories. Best for code
- exploration, API usage discovery, configuration settings, or finding
- patterns across projects. For large pages, returns the first 200
- lines and stores the complete content in a temporary file for
- subsequent access.
-<strong>Description: </strong>
-</p>
-<pre>
-<strong>Input Schema: </strong>
-</pre>
+<summary>
+<span>search</span>
+</summary>
+<div
+  class="main-content"
+>
 <pre>{
   "title": "FSSearch",
   "description": "Recursively searches directories for files by content (regex) and/or name (glob pattern). Provides context-rich results with line numbers for content matches. Two modes: content search (when regex provided) or file finder (when regex omitted). Uses case-insensitive Rust regex syntax. Requires absolute paths. Avoids binary files and excluded directories. Best for code exploration, API usage discovery, configuration settings, or finding patterns across projects. For large pages, returns the first 200 lines and stores the complete content in a temporary file for subsequent access.",
@@ -2214,28 +1135,16 @@ For ambiguous queries, request clarification before proceeding with a best-guess
   }
 }</pre>
 </div>
-<div
-  class="tool-call"
+</details>
+<details
+  class="message-card message-tool"
 >
-<p>
-<strong>sem_search</strong>
-</p>
-<p>AI-powered semantic code search. YOUR DEFAULT TOOL for code discovery
- tasks. Use this when you need to find code locations, understand
- implementations, or explore functionality - it works with natural language
- about behavior and concepts, not just keyword matching.
- Start with sem_search when: locating code to modify, understanding how
- features work, finding patterns/examples, or exploring unfamiliar areas.
- Understands queries like \"authentication flow\" (finds login), \"retry logic\
- (finds backoff), \"validation\" (finds checking/sanitization).
- Returns file:line locations with code context, ranked by relevance. Use
- multiple varied queries (2-3) for best coverage. For exact string matching
- (TODO comments, specific function names), use regex search instead.
-<strong>Description: </strong>
-</p>
-<pre>
-<strong>Input Schema: </strong>
-</pre>
+<summary>
+<span>sem_search</span>
+</summary>
+<div
+  class="main-content"
+>
 <pre>{
   "title": "SemanticSearch",
   "description": "AI-powered semantic code search. YOUR DEFAULT TOOL for code discovery tasks. Use this when you need to find code locations, understand implementations, or explore functionality - it works with natural language about behavior and concepts, not just keyword matching.\n\nStart with sem_search when: locating code to modify, understanding how features work, finding patterns/examples, or exploring unfamiliar areas. Understands queries like \"authentication flow\" (finds login), \"retry logic\" (finds backoff), \"validation\" (finds checking/sanitization).\n\nReturns file:line locations with code context, ranked by relevance. Use multiple varied queries (2-3) for best coverage. For exact string matching (TODO comments, specific function names), use regex search instead.",
@@ -2274,24 +1183,16 @@ For ambiguous queries, request clarification before proceeding with a best-guess
   }
 }</pre>
 </div>
-<div
-  class="tool-call"
+</details>
+<details
+  class="message-card message-tool"
 >
-<p>
-<strong>shell</strong>
-</p>
-<p>Executes shell commands with safety measures using restricted bash (rbash).
- Prevents potentially harmful operations like absolute path execution and
- directory changes. Use for file system interaction, running utilities,
- installing packages, or executing build commands. For operations requiring
- unrestricted access, advise users to run forge CLI with \'-u\' flag. Returns
- complete output including stdout, stderr, and exit code for diagnostic
- purposes.
-<strong>Description: </strong>
-</p>
-<pre>
-<strong>Input Schema: </strong>
-</pre>
+<summary>
+<span>shell</span>
+</summary>
+<div
+  class="main-content"
+>
 <pre>{
   "title": "Shell",
   "description": "Executes shell commands with safety measures using restricted bash (rbash). Prevents potentially harmful operations like absolute path execution and directory changes. Use for file system interaction, running utilities, installing packages, or executing build commands. For operations requiring unrestricted access, advise users to run forge CLI with '-u' flag. Returns complete output including stdout, stderr, and exit code for diagnostic purposes.",
@@ -2324,22 +1225,16 @@ For ambiguous queries, request clarification before proceeding with a best-guess
   }
 }</pre>
 </div>
-<div
-  class="tool-call"
+</details>
+<details
+  class="message-card message-tool"
 >
-<p>
-<strong>skill</strong>
-</p>
-<p>Fetches detailed information about a specific skill. Use this tool to load
- skill content and instructions when you need to understand how to perform a
- specialized task. Skills provide domain-specific knowledge, workflows, and
- best practices. Only invoke skills that are listed in the available skills
- section. Do not invoke a skill that is already active.
-<strong>Description: </strong>
-</p>
-<pre>
-<strong>Input Schema: </strong>
-</pre>
+<summary>
+<span>skill</span>
+</summary>
+<div
+  class="main-content"
+>
 <pre>{
   "title": "SkillFetch",
   "description": "Fetches detailed information about a specific skill. Use this tool to load skill content and instructions when you need to understand how to perform a specialized task. Skills provide domain-specific knowledge, workflows, and best practices. Only invoke skills that are listed in the available skills section. Do not invoke a skill that is already active.",
@@ -2355,20 +1250,16 @@ For ambiguous queries, request clarification before proceeding with a best-guess
   }
 }</pre>
 </div>
-<div
-  class="tool-call"
+</details>
+<details
+  class="message-card message-tool"
 >
-<p>
-<strong>undo</strong>
-</p>
-<p>Reverts the most recent file operation (create/modify/delete) on a specific
- file. Use this tool when you need to recover from incorrect file changes or
- if a revert is requested by the user.
-<strong>Description: </strong>
-</p>
-<pre>
-<strong>Input Schema: </strong>
-</pre>
+<summary>
+<span>undo</span>
+</summary>
+<div
+  class="main-content"
+>
 <pre>{
   "title": "FSUndo",
   "description": "Reverts the most recent file operation (create/modify/delete) on a specific file. Use this tool when you need to recover from incorrect file changes or if a revert is requested by the user.",
@@ -2384,23 +1275,16 @@ For ambiguous queries, request clarification before proceeding with a best-guess
   }
 }</pre>
 </div>
-<div
-  class="tool-call"
+</details>
+<details
+  class="message-card message-tool"
 >
-<p>
-<strong>write</strong>
-</p>
-<p>Use it to create a new file at a specified path with the provided content.
- Always provide absolute paths for file locations. The tool
- automatically handles the creation of any missing intermediary directories
- in the specified path.
- IMPORTANT: DO NOT attempt to use this tool to move or rename files, use the
- shell tool instead.
-<strong>Description: </strong>
-</p>
-<pre>
-<strong>Input Schema: </strong>
-</pre>
+<summary>
+<span>write</span>
+</summary>
+<div
+  class="main-content"
+>
 <pre>{
   "title": "FSWrite",
   "description": "Use it to create a new file at a specified path with the provided content.\n\nAlways provide absolute paths for file locations. The tool automatically handles the creation of any missing intermediary directories in the specified path. IMPORTANT: DO NOT attempt to use this tool to move or rename files, use the shell tool instead.",
@@ -2425,6 +1309,7 @@ For ambiguous queries, request clarification before proceeding with a best-guess
   }
 }</pre>
 </div>
+</details>
 </div>
 </div>
 </div>

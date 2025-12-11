@@ -119,10 +119,6 @@ td {
   display: inline-block;
 }
 
-.context-section {
-  padding-top: 15px;
-}
-
 img {
   max-width: 100%;
 }
@@ -132,8 +128,7 @@ img {
   margin: 12px 0;
   padding: 16px;
   background-color: #f0f4f8;
-  border-left: 4px solid #7c3aed;
-  border-radius: 4px;
+  border-left: 4px solid #7c3aed;  
 }
 
 .reasoning-content {
@@ -149,8 +144,7 @@ img {
   margin-top: 8px;
   padding: 12px;
   background-color: #faf5ff;
-  border: 1px solid #e9d5ff;
-  border-radius: 4px;
+  border: 1px solid #e9d5ff;  
   white-space: pre-wrap;
   word-wrap: break-word;
   font-size: 0.95em;
@@ -172,8 +166,7 @@ img {
   margin-top: 8px;
   padding: 12px;
   background-color: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 4px;
+  border: 1px solid #e5e7eb;  
   white-space: pre-wrap;
   word-wrap: break-word;
   font-size: 0.95em;
