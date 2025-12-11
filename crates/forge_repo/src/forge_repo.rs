@@ -45,7 +45,7 @@ pub struct ForgeRepo<F> {
     agent_repository: Arc<ForgeAgentRepository<F>>,
     skill_repository: Arc<ForgeSkillRepository<F>>,
     validation_repository: Arc<crate::ForgeValidationRepository<F>>,
-    workspace_sync_repository: Arc<ForgeWorkspaceSyncRepository>,
+    workspace_sync_repository: Arc<ForgeWorkspaceSyncRepository<F>>,
 }
 
 impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra> ForgeRepo<F> {
@@ -75,7 +75,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra> ForgeR
         let skill_repository = Arc::new(ForgeSkillRepository::new(infra.clone()));
         let validation_repository = Arc::new(crate::ForgeValidationRepository::new(infra.clone()));
         let workspace_sync_repository =
-            Arc::new(ForgeWorkspaceSyncRepository::new(db_pool.clone()));
+            Arc::new(ForgeWorkspaceSyncRepository::new(db_pool.clone(), infra.clone()));
         Self {
             infra,
             file_snapshot_service,
@@ -486,7 +486,7 @@ impl<F: Send + Sync> forge_domain::WorkspaceRepository for ForgeRepo<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: Send + Sync> forge_domain::WorkspaceSyncRepository for ForgeRepo<F> {
+impl<F: EnvironmentInfra + Send + Sync> forge_domain::WorkspaceSyncRepository for ForgeRepo<F> {
     async fn try_acquire_lock(
         &self,
         path: &std::path::Path,

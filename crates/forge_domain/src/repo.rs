@@ -194,6 +194,10 @@ pub trait WorkspaceSyncRepository: Send + Sync {
     ///
     /// # Errors
     /// Returns an error if the database operation fails
+    /// Clears stale sync locks based on the configured sync interval
+    ///
+    /// Locks are considered stale if they've been IN_PROGRESS for more than 2x the sync interval
+    /// The interval is read from the environment configuration
     async fn clear_stale_locks(&self, path: &std::path::Path) -> anyhow::Result<()>;
 }
 

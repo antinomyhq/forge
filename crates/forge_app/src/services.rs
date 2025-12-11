@@ -296,6 +296,13 @@ pub trait ContextEngineService: Send + Sync {
     /// Clears any stale sync locks from crashed processes
     ///
     /// Should be called on application startup before beginning sync operations.
+    /// Clears stale sync locks based on the configured sync interval
+    ///
+    /// # Arguments
+    /// * `path` - Path to the workspace
+    /// * `sync_interval_seconds` - Configured sync interval in seconds
+    ///
+    /// Locks are considered stale if they've been IN_PROGRESS for more than 2x the interval
     async fn clear_stale_sync_locks(&self, path: &Path) -> anyhow::Result<()>;
 }
 
