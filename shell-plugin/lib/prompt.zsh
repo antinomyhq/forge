@@ -24,12 +24,12 @@
 #    RPROMPT='$(prompt_forge_model)'
 #
 # 2. Custom ZSH (using environment variables):
-#    PROMPT='%B${(U)_FORGE_ACTIVE_AGENT}%b %F{blue}%~%f %# '
+#    PROMPT='%B${_FORGE_ACTIVE_AGENT:u}%b %F{blue}%~%f %# '
 #    RPROMPT='%F{cyan}${_FORGE_ACTIVE_MODEL}%f %F{green}${_FORGE_MESSAGE_COUNT}%f'
 #
 # 3. Powerlevel10k (add to your .p10k.zsh):
 #    function prompt_forge_agent() {
-#      local agent="${(U)_FORGE_ACTIVE_AGENT}"
+#      local agent="${_FORGE_ACTIVE_AGENT:u}"
 #      [[ -n "$agent" ]] && p10k segment -t "$agent"
 #    }
 #    # Then add 'forge_agent' to POWERLEVEL9K_LEFT_PROMPT_ELEMENTS
@@ -69,7 +69,7 @@ function _prompt_forge_p9k_segment() {
     
     if [[ -n "$styled" ]]; then
         # Check if p10k is available
-        if (( $+functions[p10k] )); then
+        if typeset -f p10k >/dev/null 2>&1; then
             # Powerlevel10k - use p10k segment with our styling
             p10k segment -t "$styled"
         else
@@ -94,9 +94,9 @@ function _prompt_forge_p9k_segment() {
 function prompt_forge_agent_unstyled() {
     if [[ -n "$_FORGE_ACTIVE_AGENT" ]]; then
         if [[ -n "$FORGE_PROMPT_ICON" ]]; then
-            echo "${FORGE_PROMPT_ICON} ${(U)_FORGE_ACTIVE_AGENT}"
+            echo "${FORGE_PROMPT_ICON} ${_FORGE_ACTIVE_AGENT:u}"
         else
-            echo "${(U)_FORGE_ACTIVE_AGENT}"
+            echo "${_FORGE_ACTIVE_AGENT:u}"
         fi
     fi
 }
@@ -208,7 +208,9 @@ function prompt_forge_message_count_unstyled() {
                 # Format tokens in human-readable format
                 if (( tokens >= 1000000 )); then
                     # Format as millions (e.g., 1.2M, 0.7M)
-                    printf "%.1fM" $(( tokens / 100000.0 / 10.0 ))
+                    local million_value=$(( tokens / 100000 ))
+                    local decimal_value=$(( million_value % 10 ))
+                    printf "%d.%dM" $(( million_value / 10 )) $decimal_value
                 elif (( tokens >= 1000 )); then
                     # Format as thousands (e.g., 10k, 100k)
                     printf "%dk" $(( tokens / 1000 ))
@@ -302,10 +304,60 @@ function prompt_forge_message_count_p9k() {
 #################################################################################
 
 
+# Update terminal title based on current forge state
+function _forge_update_terminal_title() {
+    # Skip if not in interactive terminal or if TERM doesn't support titles
+    [[ ! -t 1 || "$TERM" == "dumb" || "$TERM" == "linux" ]] && return
+    
+    local title_parts=()
+    
+    # Add agent name if set
+    if [[ -n "$_FORGE_ACTIVE_AGENT" ]]; then
+        title_parts+=("${_FORGE_ACTIVE_AGENT:u}")
+    fi
+    
+    # Add conversation info if active
+    if [[ -n "$_FORGE_CONVERSATION_ID" ]]; then
+        local conv_title=$(_forge_get_conversation_title "$_FORGE_CONVERSATION_ID")
+        if [[ -n "$conv_title" && "$conv_title" != "<untitled>" ]]; then
+            title_parts+=("$conv_title")
+        else
+            title_parts+=("$_FORGE_CONVERSATION_ID")
+        fi
+    fi
+    
+    # Build and set title
+    if [[ ${#title_parts[@]} -gt 0 ]]; then
+        local title="${title_parts[1]}"
+        local i=2
+        while [[ $i -le ${#title_parts[@]} ]]; do
+            title="$title - ${title_parts[$i]}"
+            ((i++))
+        done
+        printf '\033]0;%s\007' "$title"
+    fi
+}
+
+# Get conversation title by ID
+function _forge_get_conversation_title() {
+    local conv_id="$1"
+    [[ -z "$conv_id" ]] && return
+    
+    local conv_info
+    conv_info=$($_FORGE_BIN conversation info "$conv_id" 2>/dev/null)
+    if [[ -n "$conv_info" ]]; then
+        # Remove ANSI codes and extract title
+        local clean_info=$(echo "$conv_info" | sed 's/\x1b\[[0-9;]*m//g')
+        local title=$(echo "$clean_info" | grep '^  title ' | sed 's/^  title //')
+        [[ -n "$title" ]] && echo "$title"
+    fi
+}
 
 update_forge_variables() {
     export _FORGE_ACTIVE_MODEL=$($_FORGE_BIN config get model)
     export _FORGE_CONVERSATION_MESSAGE_COUNT=$(prompt_forge_message_count_unstyled)
+    # Update terminal title after variables are updated
+    _forge_update_terminal_title
 }
 
 precmd_functions+=(update_forge_variables)

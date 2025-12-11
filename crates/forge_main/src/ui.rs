@@ -702,16 +702,39 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.spinner.stop(None)?;
             }
             ConversationCommand::Rename { id, new_title } => {
+                eprintln!(
+                    "DEBUG: Rename command received with id: {}, new_title: {:?}",
+                    id, new_title
+                );
                 let conversation_id =
                     ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
 
+                eprintln!("DEBUG: Validating conversation exists");
                 let conversation = self.validate_conversation_exists(&conversation_id).await?;
 
                 let final_title = match new_title {
-                    Some(title) => title,
+                    Some(title_parts) => {
+                        eprintln!("DEBUG: Using provided title parts: {:?}", title_parts);
+                        // Join all parts of the title with spaces
+                        title_parts.join(" ")
+                    }
                     None => {
+                        eprintln!("DEBUG: No title provided, prompting for new title");
                         let current = conversation.title.as_deref().unwrap_or("<untitled>");
-                        self.prompt_for_new_title(current).await?
+                        eprintln!("DEBUG: Current title: '{}'", current);
+                        match self.prompt_for_new_title(current).await {
+                            Ok(title) => title,
+                            Err(e) if e.to_string().starts_with("Rename cancelled") => {
+                                // Check if it's the interactive terminal issue
+                                if e.to_string()
+                                    .contains("Interactive input requires a terminal")
+                                {
+                                    self.writeln_title(TitleFormat::error(e.to_string()))?;
+                                }
+                                return Ok(());
+                            }
+                            Err(e) => return Err(e),
+                        }
                     }
                 };
 
@@ -3141,21 +3164,44 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     }
 
     async fn prompt_for_new_title(&mut self, current_title: &str) -> Result<String> {
+        eprintln!(
+            "DEBUG: prompt_for_new_title called with current_title: '{}'",
+            current_title
+        );
         self.spinner.stop(None)?;
 
-        let new_title = ForgeSelect::input(format!("Rename '{}' to:", current_title))
+        eprintln!("DEBUG: Creating ForgeSelect input prompt");
+        let new_title = ForgeSelect::input(format!("Rename \"{}\" to:", current_title))
             .with_default(current_title)
-            .prompt()?
-            .context("Rename cancelled")?;
+            .prompt()?;
 
+        eprintln!("DEBUG: ForgeSelect returned: {:?}", new_title);
+        let new_title = match new_title {
+            Some(title) => {
+                eprintln!("DEBUG: User provided title: '{}'", title);
+                title
+            }
+            None => {
+                eprintln!("DEBUG: new_title is None - user cancelled or not in terminal");
+                anyhow::bail!(
+                    "Rename cancelled: Interactive input requires a terminal. Please provide the new title as a command-line argument: forge conversation rename <id> \"<new title>\""
+                )
+            }
+        };
+
+        eprintln!("DEBUG: Checking if title is empty");
         if new_title.trim().is_empty() {
+            eprintln!("DEBUG: Title is empty, bailing");
             anyhow::bail!("Title cannot be empty");
         }
 
+        eprintln!("DEBUG: Checking if title unchanged");
         if new_title == current_title {
+            eprintln!("DEBUG: Title unchanged, bailing");
             anyhow::bail!("Title unchanged");
         }
 
+        eprintln!("DEBUG: Returning trimmed title: '{}'", new_title.trim());
         Ok(new_title.trim().to_string())
     }
 }

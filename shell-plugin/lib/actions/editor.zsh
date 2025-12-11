@@ -68,7 +68,14 @@ function _forge_action_editor() {
     CURSOR=${#BUFFER}
     
     _forge_log info "Command ready - press Enter to execute"
-    zle reset-prompt
+    # Only reset prompt if ZLE is available
+    if {
+        [[ $- == *i* ]] &&
+        autoload -Uz zle 2>/dev/null &&
+        zle 2>/dev/null
+    }; then
+        zle reset-prompt 2>/dev/null || true
+    fi
 }
 
 # Action handler: Generate shell command from natural language
@@ -88,10 +95,17 @@ function _forge_action_suggest() {
     generated_command=$(FORCE_COLOR=true CLICOLOR_FORCE=1 _forge_exec suggest "$description")
     
     if [[ -n "$generated_command" ]]; then
-        # Replace the buffer with the generated command
+        # Replace the buffer with generated command
         BUFFER="$generated_command"
         CURSOR=${#BUFFER}
-        zle reset-prompt
+        # Only reset prompt if ZLE is available
+        if {
+            [[ $- == *i* ]] &&
+            autoload -Uz zle 2>/dev/null &&
+            zle 2>/dev/null
+        }; then
+            zle reset-prompt 2>/dev/null || true
+        fi
     else
         _forge_log error "Failed to generate command"
         _forge_reset
