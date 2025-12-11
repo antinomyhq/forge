@@ -119,11 +119,9 @@ impl ConversationRepository for ConversationRepositoryImpl {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
     use chrono::Utc;
-    use forge_domain::{
-        Context, ContextMessage, Effort, FileOperation, Metrics, Role, ToolCallFull, ToolCallId,
-        ToolChoice, ToolDefinition, ToolKind, ToolName, ToolOutput, ToolResult, ToolValue, Usage,
-    };
+    use forge_domain::{Context, ContextMessage, Effort, FileOperation, Metrics, ParentContext, Role, ToolCallFull, ToolCallId, ToolChoice, ToolDefinition, ToolKind, ToolName, ToolOutput, ToolResult, ToolValue, Usage};
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -719,7 +717,7 @@ mod tests {
         let fixture = Context::default()
             .conversation_id(ConversationId::generate())
             .messages(messages)
-            .tools(vec![tool_def.clone()])
+            .tools(vec![tool_def.clone()].into_iter().collect::<BTreeSet<_>>())
             .tool_choice(ToolChoice::Call(ToolName::new("test_tool")))
             .max_tokens(1000usize)
             .temperature(forge_domain::Temperature::new(0.7).unwrap())
@@ -736,7 +734,7 @@ mod tests {
         assert_eq!(actual.conversation_id, fixture.conversation_id);
         assert_eq!(actual.messages.len(), 4);
         assert_eq!(actual.tools.len(), 1);
-        assert_eq!(actual.tools[0].name.to_string(), "test_tool");
+        assert_eq!(actual.tools.first().unwrap().name.to_string(), "test_tool");
         assert_eq!(
             actual.tool_choice,
             Some(ToolChoice::Call(ToolName::new("test_tool")))

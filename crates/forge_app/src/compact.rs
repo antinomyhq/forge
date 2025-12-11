@@ -588,13 +588,13 @@ mod tests {
 
         // Verify usage is preserved after compaction
         assert_eq!(
-            compacted.accumulate_usage(),
+            compacted.context.accumulate_usage(),
             Some(original_usage),
             "Usage information should be preserved after compaction"
         );
 
         // Verify token_count returns actual value based on preserved usage
-        let token_count = compacted.token_count();
+        let token_count = compacted.context.token_count();
         assert_eq!(
             token_count,
             TokenCount::Actual(50000),
