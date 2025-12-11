@@ -879,10 +879,7 @@ pub(super) struct ConversationRecord {
 
 impl ConversationRecord {
     /// Creates a new ConversationRecord from a Conversation domain object
-    pub fn new(
-        conversation: forge_domain::Conversation,
-        project_root_id: ProjectRootId,
-    ) -> Self {
+    pub fn new(conversation: forge_domain::Conversation, project_root_id: ProjectRootId) -> Self {
         let context = conversation
             .context
             .as_ref()
