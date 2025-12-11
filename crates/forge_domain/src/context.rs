@@ -964,7 +964,8 @@ mod tests {
 
         let actual = fixture.token_count();
 
-        // Expected: Should use the LAST message's usage (300), not the first (100) or second (200)
+        // Expected: Should use the LAST message's usage (300), not the first (100) or
+        // second (200)
         let expected = TokenCount::Actual(300);
 
         assert_eq!(actual, expected);
@@ -1328,9 +1329,9 @@ mod tests {
         let fixture = ContextMessage::assistant("Let me help", None, Some(fixture_tool_calls));
         let actual = fixture.token_count_approx();
         // Content: "Let me help" = 11 chars = 3 tokens
-        // Tool call 1: "search" (6 chars) + {"query":"test"} (16 chars) = 22 chars = 6 tokens
-        // Tool call 2: "calculate" (9 chars) + {"expression":"2+2"} (22 chars) = 31 chars = 8 tokens
-        // Total: 3 + 6 + 8 = 17 tokens
+        // Tool call 1: "search" (6 chars) + {"query":"test"} (16 chars) = 22 chars = 6
+        // tokens Tool call 2: "calculate" (9 chars) + {"expression":"2+2"} (22
+        // chars) = 31 chars = 8 tokens Total: 3 + 6 + 8 = 17 tokens
         let expected = 17;
         assert_eq!(actual, expected);
     }
