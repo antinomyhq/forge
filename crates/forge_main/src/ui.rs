@@ -3117,11 +3117,6 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     fn start_background_sync(&self) {
         let api_clone = self.api.clone();
         tokio::spawn(async move {
-            // Clear stale sync locks on startup
-            if let Err(e) = api_clone.clear_stale_sync_locks().await {
-                tracing::warn!(error = %e, "Failed to clear stale sync locks");
-            }
-
             let env = api_clone.environment();
 
             if !env.sync_enabled {
@@ -3130,7 +3125,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
             let interval = std::time::Duration::from_secs(env.sync_interval_seconds);
 
-            // Trigger initial sync on startup
+            // Trigger initial sync on startup (stale locks cleared automatically)
             match api_clone.try_sync_workspace().await {
                 Ok(true) => tracing::info!("Initial workspace sync completed successfully"),
                 Ok(false) => tracing::info!("Initial workspace sync skipped (already in progress)"),
