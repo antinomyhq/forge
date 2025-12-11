@@ -235,8 +235,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .await
                 .ok()
                 .flatten()
-                .and_then(|conv| conv.context)
-                .and_then(|ctx| ctx.total_usage())
+                .and_then(|conv| conv.total_usage())
         } else {
             None
         };
@@ -2622,12 +2621,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         // Add token usage if available
-        if let Some(usage) = conversation
-            .context
-            .as_ref()
-            .and_then(|c| c.total_usage())
-            .as_ref()
-        {
+        if let Some(usage) = conversation.total_usage().as_ref() {
             info = info
                 .add_title("TOKEN")
                 .add_key_value("Prompt Tokens", usage.prompt_tokens.to_string())
@@ -2707,8 +2701,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .await
                 .ok()
                 .flatten()
-                .and_then(|conv| conv.context)
-                .and_then(|ctx| ctx.total_usage())
+                .and_then(|conv| conv.total_usage())
         } else {
             None
         };

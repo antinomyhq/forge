@@ -94,4 +94,13 @@ impl Conversation {
             .map(|ctx| ctx.first_user_messages())
             .unwrap_or_default()
     }
+
+
+    /// Returns the total token usage across all messages in the conversation.
+    ///
+    /// This is a convenience method that aggregates usage from the context,
+    /// if available.
+    pub fn total_usage(&self) -> Option<crate::Usage> {
+        self.context.as_ref().and_then(|ctx| ctx.total_usage())
+    }
 }
