@@ -37,7 +37,7 @@ impl TryFrom<SyncStatusRecord> for WorkspaceSyncStatus {
     type Error = anyhow::Error;
 
     fn try_from(record: SyncStatusRecord) -> anyhow::Result<Self> {
-        let status = SyncStatus::from_str(&record.status)?;
+        let status = record.status.parse()?;
         let path = PathBuf::from(record.path);
 
         Ok(Self {

@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use std::str::FromStr;
 
 use chrono::{DateTime, Utc};
 use derive_more::Display;
@@ -18,12 +19,10 @@ pub enum SyncStatus {
     Failed,
 }
 
-impl SyncStatus {
-    /// Parse a sync status from a string representation
-    ///
-    /// # Errors
-    /// Returns an error if the string is not a valid sync status
-    pub fn from_str(s: &str) -> anyhow::Result<Self> {
+impl FromStr for SyncStatus {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
             "IN_PROGRESS" => Ok(Self::InProgress),
             "SUCCESS" => Ok(Self::Success),
@@ -31,7 +30,9 @@ impl SyncStatus {
             _ => Err(anyhow::anyhow!("Invalid sync status: {}", s)),
         }
     }
+}
 
+impl SyncStatus {
     /// Convert the sync status to its string representation
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -66,7 +67,7 @@ mod tests {
     #[test]
     fn test_sync_status_from_str() {
         let fixture = "IN_PROGRESS";
-        let actual = SyncStatus::from_str(fixture).unwrap();
+        let actual: SyncStatus = fixture.parse().unwrap();
         let expected = SyncStatus::InProgress;
         assert_eq!(actual, expected);
     }
@@ -74,7 +75,7 @@ mod tests {
     #[test]
     fn test_sync_status_from_str_success() {
         let fixture = "SUCCESS";
-        let actual = SyncStatus::from_str(fixture).unwrap();
+        let actual: SyncStatus = fixture.parse().unwrap();
         let expected = SyncStatus::Success;
         assert_eq!(actual, expected);
     }
@@ -82,7 +83,7 @@ mod tests {
     #[test]
     fn test_sync_status_from_str_failed() {
         let fixture = "FAILED";
-        let actual = SyncStatus::from_str(fixture).unwrap();
+        let actual: SyncStatus = fixture.parse().unwrap();
         let expected = SyncStatus::Failed;
         assert_eq!(actual, expected);
     }
@@ -90,7 +91,7 @@ mod tests {
     #[test]
     fn test_sync_status_from_str_invalid() {
         let fixture = "INVALID";
-        let actual = SyncStatus::from_str(fixture);
+        let actual: Result<SyncStatus, _> = fixture.parse();
         assert!(actual.is_err());
     }
 
