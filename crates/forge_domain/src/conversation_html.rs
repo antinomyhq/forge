@@ -4,6 +4,19 @@ use serde_json::to_string_pretty;
 use crate::context::ContextMessage;
 use crate::conversation::Conversation;
 
+/// Renders a conversation as an HTML document
+///
+/// Creates a complete HTML page displaying the conversation's information
+/// including:
+/// - Basic information (ID, title)
+/// - Reasoning configuration
+/// - Usage statistics (token counts and costs)
+/// - Context messages with tool calls and reasoning details
+/// - Available tools
+///
+/// # Arguments
+///
+/// * `conversation` - The conversation to render
 pub fn render_conversation_html(conversation: &Conversation) -> String {
     let c_title = format!(
         "Title: {}",
@@ -27,47 +40,201 @@ pub fn render_conversation_html(conversation: &Conversation) -> String {
         )
         .append(
             Element::new("body")
-                .append(Element::new("h1").text("Conversation"))
-                .append(Element::new("h2").text(&c_title))
-                // Basic Information Section
-                .append(
-                    Element::new("div.section")
-                        .append(Element::new("h2").text("Basic Information"))
-                        .append(Element::new("p").text(format!("ID: {}", conversation.id))),
-                )
-                // Reasoning Configuration Section
-                .append(create_reasoning_config_section(conversation))
-                // Variables Section
-                // Agent States Section
-                .append(create_conversation_context_section(conversation)),
+                // Combined Information Table
+                .append(create_info_table(conversation))
+                // Conversation Context Section
+                .append(create_conversation_context_section(conversation))
+                // Tools Section
+                .append(create_tools_section(conversation)),
         );
 
-    html.render()
+    format!("<!DOCTYPE html>\n{}", html.render())
+}
+
+/// Creates a table row with a label and value
+fn create_table_row(label: impl Into<String>, value: impl Into<String>) -> Element {
+    Element::new("tr")
+        .append(Element::new("th").text(label.into()))
+        .append(Element::new("td").text(value.into()))
+}
+
+/// Creates a combined information table with all conversation metadata
+fn create_info_table(conversation: &Conversation) -> Element {
+    let section = Element::new("div.section").append(Element::new("h2").text("Conversation"));
+
+    let mut table = Element::new("table")
+        .append(create_table_row("ID", conversation.id.to_string()))
+        .append(create_table_row(
+            "Title",
+            conversation
+                .title
+                .clone()
+                .unwrap_or_else(|| "No title".to_string()),
+        ));
+
+    // Add reasoning configuration if available
+    if let Some(context) = &conversation.context {
+        if let Some(reasoning_config) = &context.reasoning {
+            let status = match reasoning_config.enabled {
+                Some(true) => "Enabled",
+                Some(false) => "Disabled",
+                None => "Not specified",
+            };
+            table = table
+                .append(create_table_row("Reasoning Status", status))
+                .append(create_table_row(
+                    "Reasoning Effort",
+                    format!("{:?}", reasoning_config.effort),
+                ));
+
+            if let Some(max_tokens) = reasoning_config.max_tokens {
+                table = table.append(create_table_row(
+                    "Reasoning Max Tokens",
+                    format!("{max_tokens:?}"),
+                ));
+            }
+        }
+
+        if let Some(max_tokens) = context.max_tokens {
+            table = table.append(create_table_row(
+                "Max Output Tokens",
+                format!("{:?}", max_tokens),
+            ))
+        }
+
+        // Add usage information if available
+        if let Some(usage) = context.accumulate_usage() {
+            let cache_percentage = if *usage.prompt_tokens > 0 {
+                (*usage.cached_tokens as f64 / *usage.prompt_tokens as f64 * 100.0) as usize
+            } else {
+                0
+            };
+
+            let cached_display = if cache_percentage > 0 {
+                format!("{} [{}%]", usage.cached_tokens, cache_percentage)
+            } else {
+                format!("{}", usage.cached_tokens)
+            };
+
+            table = table
+                .append(create_table_row(
+                    "Input Tokens",
+                    format!("{}", usage.prompt_tokens),
+                ))
+                .append(create_table_row("Cached Tokens", cached_display))
+                .append(create_table_row(
+                    "Output Tokens",
+                    format!("{}", usage.completion_tokens),
+                ))
+                .append(create_table_row(
+                    "Total Tokens",
+                    format!("{}", usage.total_tokens),
+                ));
+
+            if let Some(cost) = usage.cost {
+                table = table.append(create_table_row("Cost", format!("${:.4}", cost)));
+            }
+        }
+    }
+
+    section.append(table)
+}
+
+/// Creates a tools section displaying all available tools
+fn create_tools_section(conversation: &Conversation) -> Element {
+    let section = Element::new("div.section").append(Element::new("h2").text("Tools"));
+
+    if let Some(context) = &conversation.context {
+        if !context.tools.is_empty() {
+            let tools_elm =
+                Element::new("div.tools-section").append(context.tools.iter().map(|tool| {
+                    Element::new("details.message-card.message-tool")
+                        .append(
+                            Element::new("summary").append(Element::span(tool.name.to_string())),
+                        )
+                        .append(
+                            Element::new("div.main-content")
+                                .append(Element::new("pre").text(
+                                    to_string_pretty(&tool.input_schema).unwrap_or_default(),
+                                )),
+                        )
+                }));
+            section.append(tools_elm)
+        } else {
+            section.append(Element::new("p").text("No tools available"))
+        }
+    } else {
+        section.append(Element::new("p").text("No tools available"))
+    }
+}
+
+/// Creates a usage information section for a message
+fn create_message_usage_section(usage: &crate::message::Usage) -> Element {
+    let cache_percentage = if *usage.prompt_tokens > 0 {
+        (*usage.cached_tokens as f64 / *usage.prompt_tokens as f64 * 100.0) as usize
+    } else {
+        0
+    };
+
+    let cached_display = if cache_percentage > 0 {
+        format!("{} [{}%]", usage.cached_tokens, cache_percentage)
+    } else {
+        format!("{}", usage.cached_tokens)
+    };
+
+    let mut usage_div = Element::new("span")
+        .append(Element::new("strong").text("📊 Usage {"))
+        .append(
+            Element::new("span")
+                .append(
+                    Element::new("span.usage-item").text(format!("input: {}", usage.prompt_tokens)),
+                )
+                .append(Element::new("span.usage-item").text(format!("cached: {}", cached_display)))
+                .append(
+                    Element::new("span.usage-item")
+                        .text(format!("output: {}", usage.completion_tokens)),
+                )
+                .append(
+                    Element::new("span.usage-item").text(format!("total: {}", usage.total_tokens)),
+                ),
+        )
+        .append(Element::new("strong").text("}"));
+
+    if let Some(cost) = usage.cost {
+        usage_div = usage_div
+            .append(Element::new("span.usage-item.usage-cost").text(format!("Cost: ${:.4}", cost)));
+    }
+
+    usage_div
 }
 
 fn create_conversation_context_section(conversation: &Conversation) -> Element {
-    let section =
-        Element::new("div.section").append(Element::new("h2").text("Conversation Context"));
+    let section = Element::new("div.section").append(Element::new("h2").text("Messages"));
 
     // Add context if available
     if let Some(context) = &conversation.context {
-        let context_messages =
-            Element::new("div.context-section").append(context.messages.iter().map(|message| {
-                match message {
+        let context_messages = Element::new("div.context-section").append(
+            context.messages.iter().map(|message_entry| {
+                match &**message_entry {
                     ContextMessage::Text(content_message) => {
                         // Convert role to lowercase for the class
                         let role_lowercase = content_message.role.to_string().to_lowercase();
 
-                        let mut header = Element::new("summary")
-                            .text(format!("{} Message", content_message.role));
+                        let mut header =
+                            Element::new("summary").text(format!("{}", content_message.role));
 
                         if let Some(model) = &content_message.model {
-                            header =
-                                header.append(Element::new("span").text(format!(" ({model})")));
+                            header = header
+                                .append(Element::new("strong").text(" 🤖 model:"))
+                                .append(Element::new("span").text(model));
+                        }
+
+                        // Add usage information
+                        if let Some(usage) = &message_entry.usage {
+                            header = header.append(create_message_usage_section(usage))
                         }
 
                         // Add reasoning indicator if reasoning details are present
-
                         if let Some(reasoning_details) = &content_message.reasoning_details
                             && !reasoning_details.is_empty()
                         {
@@ -76,16 +243,16 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
                             );
                         }
 
-                        let message_div =
+                        let message_elm =
                             Element::new(format!("details.message-card.message-{role_lowercase}"))
                                 .append(header);
 
-                        // Add reasoning details first if any (before main content)
-                        let message_with_reasoning = if let Some(reasoning_details) =
+                        // Add reasoning details
+                        let message_elm = if let Some(reasoning_details) =
                             &content_message.reasoning_details
                         {
                             if !reasoning_details.is_empty() {
-                                message_div.append(Element::new("div.reasoning-section").append(
+                                message_elm.append(Element::new("div.reasoning-section").append(
                                     reasoning_details.iter().map(|reasoning_detail| {
                                         if let Some(text) = &reasoning_detail.text {
                                             Element::new("div.reasoning-content")
@@ -99,16 +266,15 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
                                     }),
                                 ))
                             } else {
-                                message_div
+                                message_elm
                             }
                         } else {
-                            message_div
+                            message_elm
                         };
 
-                        // Add main content after reasoning
-                        let message_with_content = message_with_reasoning.append(
+                        // Add main content
+                        let message_elm = message_elm.append(
                             Element::new("div.main-content")
-                                .append(Element::new("strong").text("Response: "))
                                 .append(Element::new("pre").text(&content_message.content)),
                         );
 
@@ -116,7 +282,7 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
 
                         if let Some(tool_calls) = &content_message.tool_calls {
                             if !tool_calls.is_empty() {
-                                message_with_content.append(Element::new("div").append(
+                                message_elm.append(Element::new("div").append(
                                     tool_calls.iter().map(|tool_call| {
                                         Element::new("div.tool-call")
                                             .append(
@@ -144,10 +310,10 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
                                     }),
                                 ))
                             } else {
-                                message_with_content
+                                message_elm
                             }
                         } else {
-                            message_with_content
+                            message_elm
                         }
                     }
                     ContextMessage::Tool(tool_result) => {
@@ -184,33 +350,11 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
                             .append(Element::new("img").attr("src", image.url()))
                     }
                 }
-            }));
-
-        // Create tools section
-        let tools_section = Element::new("div")
-            .append(Element::new("strong").text("Tools"))
-            .append(context.tools.iter().map(|tool| {
-                Element::new("div.tool-call")
-                    .append(
-                        Element::new("p")
-                            .append(Element::new("strong").text(tool.name.to_string())),
-                    )
-                    .append(
-                        Element::new("p")
-                            .append(Element::new("strong").text("Description: "))
-                            .text(&tool.description),
-                    )
-                    .append(
-                        Element::new("pre").append(Element::new("strong").text("Input Schema: ")),
-                    )
-                    .append(
-                        Element::new("pre")
-                            .text(to_string_pretty(&tool.input_schema).unwrap_or_default()),
-                    )
-            }));
+            }),
+        );
 
         // Create tool choice section if available
-        let context_with_tool_choice = if let Some(tool_choice) = &context.tool_choice {
+        let context_elm = if let Some(tool_choice) = &context.tool_choice {
             context_messages
                 .append(Element::new("strong").text("Tool Choice"))
                 .append(Element::new("div.tool-choice").append(
@@ -220,67 +364,18 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
             context_messages
         };
 
-        // Add max tokens if available
-        let context_with_max_tokens = if let Some(max_tokens) = context.max_tokens {
-            context_with_tool_choice.append(
-                Element::new("p")
-                    .append(Element::new("strong").text("Max Tokens: "))
-                    .text(format!("{max_tokens}")),
-            )
-        } else {
-            context_with_tool_choice
-        };
-
         // Add temperature if available
-        let final_context = if let Some(temperature) = context.temperature {
-            context_with_max_tokens.append(
+        let context_elm = if let Some(temperature) = context.temperature {
+            context_elm.append(
                 Element::new("p")
                     .append(Element::new("strong").text("Temperature: "))
                     .text(format!("{temperature}")),
             )
         } else {
-            context_with_max_tokens
+            context_elm
         };
 
-        let context_div = Element::new("div")
-            .append(final_context)
-            .append(tools_section);
-
-        section.append(context_div)
-    } else {
-        section.append(Element::new("p").text("No context available"))
-    }
-}
-
-fn create_reasoning_config_section(conversation: &Conversation) -> Element {
-    let section =
-        Element::new("div.section").append(Element::new("h2").text("Reasoning Configuration"));
-
-    if let Some(context) = &conversation.context {
-        if let Some(reasoning_config) = &context.reasoning {
-            section
-                .append(
-                    Element::new("p")
-                        .append(Element::new("strong").text("Status: "))
-                        .text(match reasoning_config.enabled {
-                            Some(true) => "Enabled",
-                            Some(false) => "Disabled",
-                            None => "Not specified",
-                        }),
-                )
-                .append(
-                    Element::new("p")
-                        .append(Element::new("strong").text("Effort: "))
-                        .text(format!("{:?}", reasoning_config.effort)),
-                )
-                .append(reasoning_config.max_tokens.map(|max_tokens| {
-                    Element::new("p")
-                        .append(Element::new("strong").text("Max Tokens: "))
-                        .text(format!("{max_tokens:?}"))
-                }))
-        } else {
-            section.append(Element::new("p").text("No reasoning configuration found"))
-        }
+        section.append(context_elm)
     } else {
         section.append(Element::new("p").text("No context available"))
     }
@@ -288,69 +383,22 @@ fn create_reasoning_config_section(conversation: &Conversation) -> Element {
 
 #[cfg(test)]
 mod tests {
+    use forge_test_kit::json_fixture;
+
     use super::*;
-    use crate::conversation::Conversation;
 
-    #[test]
-    fn test_render_empty_conversation() {
-        // Create a new empty conversation
-        let id = crate::conversation::ConversationId::generate();
+    #[tokio::test]
+    async fn test_render_conversation_html_snapshot() {
+        // Load the conversation from the fixture file
+        let conversation: Conversation = json_fixture!("tests/fixtures/conversation.json").await;
 
-        let fixture = Conversation::new(id);
-        let actual = render_conversation_html(&fixture);
+        // Render the HTML
+        let html = render_conversation_html(&conversation);
 
-        // We're verifying that the function runs without errors
-        // and returns a non-empty string for an empty conversation
-        assert!(actual.contains("<html"));
-        assert!(actual.contains("</html>"));
-        assert!(actual.contains("Title: "));
-        assert!(actual.contains("Basic Information"));
-        assert!(actual.contains("Conversation Context"));
-    }
+        // Convert HTML string to bytes for binary snapshot
+        let html_bytes = html.into_bytes();
 
-    #[test]
-    fn test_render_conversation_with_reasoning_details() {
-        use crate::agent_definition::{Effort, ReasoningConfig};
-        use crate::context::{Context, ContextMessage};
-        use crate::conversation::ConversationId;
-        use crate::reasoning::ReasoningFull;
-
-        let id = ConversationId::generate();
-        let reasoning_config = ReasoningConfig {
-            enabled: Some(true),
-            effort: Some(Effort::High),
-            max_tokens: Some(5000),
-            exclude: Some(false),
-        };
-
-        let context =
-            Context::default()
-                .reasoning(reasoning_config)
-                .add_message(ContextMessage::assistant(
-                    "Main response content",
-                    Some(vec![ReasoningFull {
-                        text: Some("This is my reasoning process".to_string()),
-                        signature: Some("reasoning_signature_123".to_string()),
-                        ..Default::default()
-                    }]),
-                    None,
-                ));
-
-        let fixture = Conversation::new(id).context(context);
-        let actual = render_conversation_html(&fixture);
-
-        // Verify reasoning details are displayed in messages
-        assert!(actual.contains("reasoning-section"));
-        assert!(actual.contains("reasoning-content"));
-        assert!(actual.contains("🧠 Reasoning:"));
-        assert!(actual.contains("This is my reasoning process"));
-
-        // Verify main content is displayed separately
-        assert!(actual.contains("main-content"));
-        assert!(actual.contains("Response:"));
-        assert!(actual.contains("Main response content"));
-
-        // Verify reasoning indicator in message header
-        assert!(actual.contains("🧠 Reasoning"));
+        // Binary snapshot with exact .html extension
+        insta::assert_binary_snapshot!("conversation.html", html_bytes);
     }
 }

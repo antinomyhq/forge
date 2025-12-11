@@ -73,7 +73,7 @@ impl TryFrom<forge_domain::Context> for Request {
         let system_messages = request
             .messages
             .iter()
-            .filter_map(|msg| match msg {
+            .filter_map(|msg| match &**msg {
                 ContextMessage::Text(msg) if msg.has_role(forge_domain::Role::System) => {
                     Some(SystemMessage {
                         r#type: "text".to_string(),
@@ -90,7 +90,7 @@ impl TryFrom<forge_domain::Context> for Request {
                 .messages
                 .into_iter()
                 .filter(|message| !message.has_role(forge_domain::Role::System))
-                .map(Message::try_from)
+                .map(|msg| Message::try_from(msg.message))
                 .collect::<std::result::Result<Vec<_>, _>>()?,
             tools: request
                 .tools

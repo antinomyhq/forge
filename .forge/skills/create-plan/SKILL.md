@@ -21,11 +21,12 @@ Generate comprehensive implementation plans that provide strategic guidance with
 Research the codebase to understand:
 
 - Project structure and organization
-- Relevant files and components
+- Relevant files and components - read thoroughly to understand complete flows
 - Existing patterns and conventions
 - Potential challenges and risks
+- Data flows from entry points to final usage
 
-Use `search` and `read` tools to examine the codebase. Use `sage` if deeper research is required for the use-case. Explicitly cite sources using `filepath:line` format.
+Use `search`, `sem_search`, and `read` tools to examine the codebase. Use `sage` if deeper research is required for the use-case. Explicitly cite sources using `filepath:line` format in your plan.
 
 ### 2. Create Strategic Plan
 
@@ -83,6 +84,8 @@ Fix any errors or warnings and re-validate until the plan passes all checks.
 - **ALWAYS use checkbox format** (`- [ ]`) for ALL implementation tasks
 - **NEVER use numbered lists** or plain bullet points in Implementation Plan section
 - **NEVER write code, code snippets, or code examples** in the plan
+- Write comprehensive tasks including what, why, affected files, and integration points
+- Use `filepath:line` format for file references (e.g., `crates/forge_repo/src/provider.rs:45`)
 - Include clear rationale for each task
 - Provide specific, measurable verification criteria
 - Document assumptions made for ambiguous requirements

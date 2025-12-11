@@ -232,15 +232,6 @@ impl<S: AgentService> Orchestrator<S> {
             self.conversation.context = Some(context.clone());
             self.services.update(self.conversation.clone()).await?;
 
-            // Trigger compaction before making a request
-            // Ideally compaction should be implemented as a transformer
-            if let Some(c_context) = self.check_and_compact(&context)? {
-                info!(agent_id = %agent.id, "Using compacted context from execution");
-                context = c_context;
-            } else {
-                debug!(agent_id = %agent.id, "No compaction was needed");
-            }
-
             let message = crate::retry::retry_with_config(
                 &self.environment.retry_config,
                 || self.execute_chat_turn(&model_id, context.clone(), context.is_reasoning_supported()),
@@ -260,6 +251,17 @@ impl<S: AgentService> Orchestrator<S> {
                 }),
             ).await?;
 
+            // FIXME: Add a unit test in orch spec, to guarantee that compaction is
+            // triggered after receiving the response Trigger compaction after
+            // making a request NOTE: Ideally compaction should be implemented
+            // as a transformer
+            if let Some(c_context) = self.check_and_compact(&context)? {
+                info!(agent_id = %agent.id, "Using compacted context from execution");
+                context = c_context;
+            } else {
+                debug!(agent_id = %agent.id, "No compaction was needed");
+            }
+
             info!(
                 conversation_id = %self.conversation.id,
                 conversation_length = context.messages.len(),
@@ -270,12 +272,6 @@ impl<S: AgentService> Orchestrator<S> {
                 finish_reason = message.finish_reason.as_ref().map_or("", |reason| reason.into()),
                 "Processing usage information"
             );
-
-            // Send the usage information if available
-            self.send(ChatResponse::Usage(message.usage.clone()))
-                .await?;
-
-            context = context.usage(message.usage);
 
             debug!(agent_id = %agent.id, tool_call_count = message.tool_calls.len(), "Tool call count");
 
@@ -331,6 +327,7 @@ impl<S: AgentService> Orchestrator<S> {
             context = context.append_message(
                 message.content.clone(),
                 message.reasoning_details,
+                message.usage,
                 tool_call_records,
             );
 
