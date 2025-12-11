@@ -6,7 +6,8 @@ use crate::conversation::Conversation;
 
 /// Renders a conversation as an HTML document
 ///
-/// Creates a complete HTML page displaying the conversation's information including:
+/// Creates a complete HTML page displaying the conversation's information
+/// including:
 /// - Basic information (ID, title)
 /// - Reasoning configuration
 /// - Usage statistics (token counts and costs)
@@ -376,8 +377,9 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use forge_test_kit::json_fixture;
+
+    use super::*;
 
     #[tokio::test]
     async fn test_render_conversation_html_snapshot() {

@@ -95,7 +95,6 @@ impl Conversation {
             .unwrap_or_default()
     }
 
-
     /// Returns the total token usage across all messages in the conversation.
     ///
     /// This is a convenience method that aggregates usage from the context,

@@ -40,7 +40,7 @@ impl ResultStreamExt<anyhow::Error> for crate::BoxStream<ChatCompletionMessage, 
                 anyhow::Ok(message?).with_context(|| "Failed to process message stream")?;
             // Process usage information
             if let Some(current_usage) = message.usage.as_ref() {
-                usage = current_usage.clone();
+                usage = *current_usage;
             }
 
             if !tool_interrupted {

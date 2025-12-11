@@ -251,9 +251,10 @@ impl<S: AgentService> Orchestrator<S> {
                 }),
             ).await?;
 
-            // FIXME: Add a unit test in orch spec, to guarantee that compaction is triggered after receiving the response
-            // Trigger compaction after making a request
-            // NOTE: Ideally compaction should be implemented as a transformer
+            // FIXME: Add a unit test in orch spec, to guarantee that compaction is
+            // triggered after receiving the response Trigger compaction after
+            // making a request NOTE: Ideally compaction should be implemented
+            // as a transformer
             if let Some(c_context) = self.check_and_compact(&context)? {
                 info!(agent_id = %agent.id, "Using compacted context from execution");
                 context = c_context;
