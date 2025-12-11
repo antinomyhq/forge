@@ -508,7 +508,7 @@ mod tests {
 
         // Add usage to the last message to set context-wide usage
         let mut wrapper6 = MessageEntry::from(msg6.clone());
-        wrapper6.usage = Some(original_usage.clone());
+        wrapper6.usage = Some(original_usage);
 
         let context = Context::default()
             .add_message(msg1.clone())
@@ -526,7 +526,7 @@ mod tests {
             ]);
 
         // Verify usage exists before compaction
-        assert_eq!(context.accumulate_usage(), Some(original_usage.clone()));
+        assert_eq!(context.accumulate_usage(), Some(original_usage));
         assert_eq!(context.token_count(), TokenCount::Actual(50000));
 
         // Compact the sequence (first 4 messages, indices 0-3)
