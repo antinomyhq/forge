@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use chrono::Local;
 
-use crate::{ToolCallFull, ToolName, ToolResult, Usage};
+use crate::{ToolCallFull, ToolName, ToolResult};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ChatResponseContent {
@@ -51,7 +51,6 @@ pub enum ChatResponse {
     TaskComplete,
     ToolCallStart(ToolCallFull),
     ToolCallEnd(ToolResult),
-    Usage(Usage),
     RetryAttempt { cause: Cause, duration: Duration },
     Interrupt { reason: InterruptionReason },
 }
