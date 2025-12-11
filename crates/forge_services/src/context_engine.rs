@@ -1111,6 +1111,41 @@ mod tests {
         }
     }
 
+    #[async_trait]
+    impl forge_domain::WorkspaceSyncRepository for MockInfra {
+        async fn try_acquire_lock(
+            &self,
+            _path: &std::path::Path,
+            _process_id: u32,
+        ) -> anyhow::Result<bool> {
+            Ok(true) // Always succeed in tests
+        }
+
+        async fn release_lock(&self, _path: &std::path::Path) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn update_status(
+            &self,
+            _path: &std::path::Path,
+            _status: forge_domain::SyncStatus,
+            _error_message: Option<String>,
+        ) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn get_status(
+            &self,
+            _path: &std::path::Path,
+        ) -> anyhow::Result<Option<forge_domain::WorkspaceSyncStatus>> {
+            Ok(None)
+        }
+
+        async fn clear_stale_locks(&self, _path: &std::path::Path) -> anyhow::Result<()> {
+            Ok(())
+        }
+    }
+
     #[tokio::test]
     async fn test_query_returns_results() {
         let mut mock = MockInfra::synced(&["test.rs"]);
