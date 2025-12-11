@@ -102,7 +102,7 @@ fn create_info_table(conversation: &Conversation) -> Element {
         }
 
         // Add usage information if available
-        if let Some(usage) = context.total_usage() {
+        if let Some(usage) = context.accumulate_usage() {
             let cache_percentage = if *usage.prompt_tokens > 0 {
                 (*usage.cached_tokens as f64 / *usage.prompt_tokens as f64 * 100.0) as usize
             } else {

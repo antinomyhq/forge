@@ -526,7 +526,7 @@ mod tests {
             ]);
 
         // Verify usage exists before compaction
-        assert_eq!(context.total_usage(), Some(original_usage.clone()));
+        assert_eq!(context.accumulate_usage(), Some(original_usage.clone()));
         assert_eq!(context.token_count(), TokenCount::Actual(50000));
 
         // Compact the sequence (first 4 messages, indices 0-3)
@@ -541,7 +541,7 @@ mod tests {
 
         // Verify usage is preserved after compaction
         assert_eq!(
-            compacted.total_usage(),
+            compacted.accumulate_usage(),
             Some(original_usage),
             "Usage information should be preserved after compaction"
         );
