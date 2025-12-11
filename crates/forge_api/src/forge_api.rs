@@ -39,11 +39,6 @@ impl<A, F> ForgeAPI<A, F> {
     {
         ForgeApp::new(self.services.clone())
     }
-
-    /// Get access to the infrastructure layer
-    pub fn infra(&self) -> &Arc<F> {
-        &self.infra
-    }
 }
 
 impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
@@ -52,28 +47,6 @@ impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
         let repo = Arc::new(ForgeRepo::new(infra.clone()));
         let app = Arc::new(ForgeServices::new(repo.clone()));
         ForgeAPI::new(app, repo)
-    }
-
-    /// Attempts to sync the workspace if not already in progress
-    ///
-    /// Tries to acquire the sync lock and performs synchronization if successful.
-    /// Updates the sync status in the database upon completion.
-    ///
-    /// # Returns
-    /// * `Ok(true)` - Sync was performed successfully
-    /// * `Ok(false)` - Sync skipped (already in progress)
-    /// * `Err(_)` - Sync failed with error
-    pub async fn try_sync_workspace(&self) -> Result<bool> {
-        let env = self.infra.get_environment();
-        self.services.context_engine_service().try_sync_workspace(env.cwd.clone()).await
-    }
-
-    /// Clears any stale sync locks from crashed processes
-    ///
-    /// Should be called on application startup before beginning sync operations.
-    pub async fn clear_stale_sync_locks(&self) -> Result<()> {
-        let env = self.infra.get_environment();
-        self.services.context_engine_service().clear_stale_sync_locks(&env.cwd).await
     }
 
     pub async fn get_skills_internal(&self) -> Result<Vec<Skill>> {
@@ -388,6 +361,16 @@ impl<
 
     async fn create_auth_credentials(&self) -> Result<forge_domain::WorkspaceAuth> {
         self.services.create_auth_credentials().await
+    }
+
+    async fn try_sync_workspace(&self) -> Result<bool> {
+        let env = self.infra.get_environment();
+        self.services.context_engine_service().try_sync_workspace(env.cwd.clone()).await
+    }
+
+    async fn clear_stale_sync_locks(&self) -> Result<()> {
+        let env = self.infra.get_environment();
+        self.services.context_engine_service().clear_stale_sync_locks(&env.cwd).await
     }
 
     async fn migrate_env_credentials(&self) -> Result<Option<forge_domain::MigrationResult>> {

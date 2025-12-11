@@ -281,6 +281,22 @@ pub trait ContextEngineService: Send + Sync {
 
     /// Create new authentication credentials
     async fn create_auth_credentials(&self) -> anyhow::Result<WorkspaceAuth>;
+
+    /// Attempts to sync the workspace if not already in progress
+    ///
+    /// Tries to acquire the sync lock and performs synchronization if successful.
+    /// Updates the sync status in the database upon completion.
+    ///
+    /// # Returns
+    /// * `Ok(true)` - Sync was performed successfully
+    /// * `Ok(false)` - Sync skipped (already in progress)
+    /// * `Err(_)` - Sync failed with error
+    async fn try_sync_workspace(&self, path: PathBuf) -> anyhow::Result<bool>;
+
+    /// Clears any stale sync locks from crashed processes
+    ///
+    /// Should be called on application startup before beginning sync operations.
+    async fn clear_stale_sync_locks(&self, path: &Path) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -1067,6 +1083,18 @@ impl<I: Services> ContextEngineService for I {
     async fn create_auth_credentials(&self) -> anyhow::Result<WorkspaceAuth> {
         self.context_engine_service()
             .create_auth_credentials()
+            .await
+    }
+
+    async fn try_sync_workspace(&self, path: PathBuf) -> anyhow::Result<bool> {
+        self.context_engine_service()
+            .try_sync_workspace(path)
+            .await
+    }
+
+    async fn clear_stale_sync_locks(&self, path: &Path) -> anyhow::Result<()> {
+        self.context_engine_service()
+            .clear_stale_sync_locks(path)
             .await
     }
 }

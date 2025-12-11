@@ -776,6 +776,14 @@ impl<
 
         Ok(auth)
     }
+
+    async fn try_sync_workspace(&self, path: PathBuf) -> Result<bool> {
+        self.try_sync_workspace(path).await
+    }
+
+    async fn clear_stale_sync_locks(&self, path: &Path) -> Result<()> {
+        self.clear_stale_sync_locks(path).await
+    }
 }
 
 // Additional authentication methods for ForgeIndexingService

@@ -208,6 +208,22 @@ pub trait API: Sync + Send {
     /// Create new authentication credentials
     async fn create_auth_credentials(&self) -> Result<forge_domain::WorkspaceAuth>;
 
+    /// Attempts to sync the workspace if not already in progress
+    ///
+    /// Tries to acquire the sync lock and performs synchronization if successful.
+    /// Updates the sync status in the database upon completion.
+    ///
+    /// # Returns
+    /// * `Ok(true)` - Sync was performed successfully
+    /// * `Ok(false)` - Sync skipped (already in progress)
+    /// * `Err(_)` - Sync failed with error
+    async fn try_sync_workspace(&self) -> Result<bool>;
+
+    /// Clears any stale sync locks from crashed processes
+    ///
+    /// Should be called on application startup before beginning sync operations.
+    async fn clear_stale_sync_locks(&self) -> Result<()>;
+
     /// Migrate environment variable-based credentials to file-based
     /// credentials. This is a one-time migration that runs only if the
     /// credentials file doesn't exist.

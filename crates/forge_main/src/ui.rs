@@ -104,10 +104,6 @@ pub struct UI<A, F: Fn() -> A> {
 }
 
 impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
-    /// Returns a reference to the API instance
-    pub fn api(&self) -> &A {
-        &self.api
-    }
 
     /// Writes a line to the console output
     /// Takes anything that implements ToString trait
@@ -2301,6 +2297,11 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Run the independent initialization tasks in parallel for better performance
         let workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
 
+        // Start background workspace sync on first initialization
+        if first {
+            self.start_background_sync();
+        }
+
         let _ = self.handle_migrate_credentials().await;
         self.install_vscode_extension();
 
@@ -3116,6 +3117,44 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             self.writeln_title(TitleFormat::info(message))?;
         }
         Ok(())
+    }
+
+    /// Start background workspace sync task
+    fn start_background_sync(&self) {
+        let api_clone = self.api.clone();
+        tokio::spawn(async move {
+            // Clear stale sync locks on startup
+            if let Err(e) = api_clone.clear_stale_sync_locks().await {
+                tracing::warn!(error = %e, "Failed to clear stale sync locks");
+            }
+
+            let env = api_clone.environment();
+
+            if !env.sync_enabled {
+                return;
+            }
+
+            let interval = std::time::Duration::from_secs(env.sync_interval_seconds);
+
+            // Trigger initial sync on startup
+            match api_clone.try_sync_workspace().await {
+                Ok(true) => tracing::info!("Initial workspace sync completed successfully"),
+                Ok(false) => tracing::info!("Initial workspace sync skipped (already in progress)"),
+                Err(e) => tracing::warn!(error = %e, "Initial workspace sync failed"),
+            }
+
+            // Periodic sync loop
+            tracing::info!(interval_secs = env.sync_interval_seconds, "Starting periodic workspace sync");
+            loop {
+                tokio::time::sleep(interval).await;
+
+                match api_clone.try_sync_workspace().await {
+                    Ok(true) => tracing::info!("Periodic workspace sync completed successfully"),
+                    Ok(false) => tracing::debug!("Periodic workspace sync skipped (already in progress)"),
+                    Err(e) => tracing::warn!(error = %e, "Periodic workspace sync failed"),
+                }
+            }
+        });
     }
 
     /// Silently install VS Code extension if in VS Code and extension not

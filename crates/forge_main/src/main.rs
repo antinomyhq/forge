@@ -55,46 +55,6 @@ async fn main() -> Result<()> {
 
     // Initialize the ForgeAPI with the restricted mode if specified
     let restricted = cli.restricted;
-    let api = ForgeAPI::init(restricted, cwd.clone());
-    
-    // Clear stale sync locks on startup
-    if let Err(e) = api.clear_stale_sync_locks().await {
-        tracing::warn!(error = %e, "Failed to clear stale sync locks");
-    }
-    
-    // Start background workspace sync if enabled
-    let api_clone = api.clone();
-    tokio::spawn(async move {
-        use forge_app::EnvironmentInfra;
-        
-        let env = api_clone.infra().get_environment();
-        
-        if !env.sync_enabled {
-            return;
-        }
-        
-        let interval = std::time::Duration::from_secs(env.sync_interval_seconds);
-        
-        // Trigger initial sync on startup
-        match api_clone.try_sync_workspace().await {
-            Ok(true) => tracing::info!("Initial workspace sync completed successfully"),
-            Ok(false) => tracing::info!("Initial workspace sync skipped (already in progress)"),
-            Err(e) => tracing::warn!(error = %e, "Initial workspace sync failed"),
-        }
-        
-        // Periodic sync loop
-        tracing::info!(interval_secs = env.sync_interval_seconds, "Starting periodic workspace sync");
-        loop {
-            tokio::time::sleep(interval).await;
-            
-            match api_clone.try_sync_workspace().await {
-                Ok(true) => tracing::info!("Periodic workspace sync completed successfully"),
-                Ok(false) => tracing::debug!("Periodic workspace sync skipped (already in progress)"),
-                Err(e) => tracing::warn!(error = %e, "Periodic workspace sync failed"),
-            }
-        }
-    });
-    
     let mut ui = UI::init(cli, move || ForgeAPI::init(restricted, cwd.clone()))?;
     ui.run().await;
 
