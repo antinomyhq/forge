@@ -57,8 +57,9 @@ mod tests {
             messages: vec![
                 ContextMessage::Text(
                     TextMessage::new(Role::Assistant, "Using tool").tool_calls(vec![tool_call]),
-                ),
-                ContextMessage::Tool(tool_result),
+                )
+                .into(),
+                ContextMessage::Tool(tool_result).into(),
             ],
             tools: {
                 let mut set = std::collections::BTreeSet::new();
@@ -73,7 +74,6 @@ mod tests {
             top_p: None,
             top_k: None,
             reasoning: None,
-            usage: None,
             stream: None,
         };
 

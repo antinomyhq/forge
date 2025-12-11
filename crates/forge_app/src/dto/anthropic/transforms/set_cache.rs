@@ -65,10 +65,9 @@ mod tests {
         // Add system messages to the regular messages array for Anthropic format
         for c in system_messages.chars() {
             match c {
-                's' => messages.push(ContextMessage::Text(TextMessage::new(
-                    Role::System,
-                    c.to_string(),
-                ))),
+                's' => messages.push(
+                    ContextMessage::Text(TextMessage::new(Role::System, c.to_string())).into(),
+                ),
                 _ => panic!("Invalid character in system message: {}", c),
             }
         }
@@ -76,14 +75,16 @@ mod tests {
         // Add conversation messages
         for c in conversation_messages.chars() {
             match c {
-                'u' => messages.push(ContextMessage::Text(
-                    TextMessage::new(Role::User, c.to_string())
-                        .model(ModelId::new("claude-3-5-sonnet-20241022")),
-                )),
-                'a' => messages.push(ContextMessage::Text(TextMessage::new(
-                    Role::Assistant,
-                    c.to_string(),
-                ))),
+                'u' => messages.push(
+                    ContextMessage::Text(
+                        TextMessage::new(Role::User, c.to_string())
+                            .model(ModelId::new("claude-3-5-sonnet-20241022")),
+                    )
+                    .into(),
+                ),
+                'a' => messages.push(
+                    ContextMessage::Text(TextMessage::new(Role::Assistant, c.to_string())).into(),
+                ),
                 _ => panic!("Invalid character in conversation message: {}", c),
             }
         }
@@ -98,7 +99,6 @@ mod tests {
             top_p: None,
             top_k: None,
             reasoning: None,
-            usage: None,
             stream: None,
         };
 
@@ -221,12 +221,13 @@ mod tests {
         let context = Context {
             conversation_id: None,
             messages: vec![
-                ContextMessage::Text(TextMessage::new(Role::System, "first")),
-                ContextMessage::Text(TextMessage::new(Role::System, "second")),
+                ContextMessage::Text(TextMessage::new(Role::System, "first")).into(),
+                ContextMessage::Text(TextMessage::new(Role::System, "second")).into(),
                 ContextMessage::Text(
                     TextMessage::new(Role::User, "user")
                         .model(ModelId::new("claude-3-5-sonnet-20241022")),
-                ),
+                )
+                .into(),
             ],
             tools: std::collections::BTreeSet::new(),
             tool_choice: None,
@@ -235,7 +236,6 @@ mod tests {
             top_p: None,
             top_k: None,
             reasoning: None,
-            usage: None,
             stream: None,
         };
 

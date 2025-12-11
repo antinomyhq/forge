@@ -327,6 +327,34 @@ pub enum Role {
     User,
     Assistant,
 }
+#[derive(Clone, Debug, Serialize, Deserialize, Setters, PartialEq)]
+#[setters(into, strip_option)]
+pub struct MessageEntry {
+    #[serde(flatten)]
+    pub message: ContextMessage,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub usage: Option<Usage>,
+}
+
+impl From<ContextMessage> for MessageEntry {
+    fn from(value: ContextMessage) -> Self {
+        MessageEntry { message: value, usage: Default::default() }
+    }
+}
+
+impl Deref for MessageEntry {
+    type Target = ContextMessage;
+
+    fn deref(&self) -> &Self::Target {
+        &self.message
+    }
+}
+
+impl std::ops::DerefMut for MessageEntry {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.message
+    }
+}
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Default, Setters)]
 #[setters(into)]
@@ -398,7 +426,7 @@ pub struct Context {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub conversation_id: Option<ConversationId>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub messages: Vec<ContextMessage>,
+    pub messages: Vec<MessageEntry>,
     #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
     pub tools: BTreeSet<ToolDefinition>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -413,8 +441,6 @@ pub struct Context {
     pub top_k: Option<TopK>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reasoning: Option<crate::agent_definition::ReasoningConfig>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub usage: Option<Usage>,
     /// Controls whether responses should be streamed. When `true`, responses
     /// are delivered incrementally as they're generated. When `false`, the
     /// complete response is returned at once. Defaults to `true` if not
@@ -424,6 +450,14 @@ pub struct Context {
 }
 
 impl Context {
+    pub fn accumulate_usage(&self) -> Option<Usage> {
+        self.messages
+            .iter()
+            .filter_map(|msg| msg.usage.as_ref())
+            .cloned()
+            .reduce(|a, b| a.accumulate(&b))
+    }
+
     pub fn system_prompt(&self) -> Option<&str> {
         self.messages
             .iter()
@@ -432,7 +466,7 @@ impl Context {
     }
 
     pub fn add_base64_url(mut self, image: Image) -> Self {
-        self.messages.push(ContextMessage::Image(image));
+        self.messages.push(ContextMessage::Image(image).into());
         self
     }
 
@@ -442,7 +476,11 @@ impl Context {
         self
     }
 
-    pub fn add_message(mut self, content: impl Into<ContextMessage>) -> Self {
+    pub fn add_message(self, content: impl Into<ContextMessage>) -> Self {
+        self.add_entry(content.into())
+    }
+
+    pub fn add_entry(mut self, content: impl Into<MessageEntry>) -> Self {
         let content = content.into();
         debug!(content = ?content, "Adding message to context");
         self.messages.push(content);
@@ -493,8 +531,12 @@ impl Context {
     pub fn add_tool_results(mut self, results: Vec<ToolResult>) -> Self {
         if !results.is_empty() {
             debug!(results = ?results, "Adding tool results to context");
-            self.messages
-                .extend(results.into_iter().map(ContextMessage::tool_result));
+            self.messages.extend(
+                results
+                    .into_iter()
+                    .map(ContextMessage::tool_result)
+                    .map(MessageEntry::from),
+            );
         }
 
         self
@@ -504,7 +546,8 @@ impl Context {
     pub fn set_system_messages<S: Into<String>>(mut self, content: Vec<S>) -> Self {
         if self.messages.is_empty() {
             for message in content {
-                self.messages.push(ContextMessage::system(message.into()));
+                self.messages
+                    .push(ContextMessage::system(message.into()).into());
             }
             self
         } else {
@@ -513,7 +556,7 @@ impl Context {
             // add the system message at the beginning.
             for message in content.into_iter().rev() {
                 self.messages
-                    .insert(0, ContextMessage::system(message.into()));
+                    .insert(0, ContextMessage::system(message.into()).into());
             }
             self
         }
@@ -538,10 +581,11 @@ impl Context {
         self,
         content: impl ToString,
         reasoning_details: Option<Vec<ReasoningFull>>,
+        usage: Usage,
         tool_records: Vec<(ToolCallFull, ToolResult)>,
     ) -> Self {
         // Adding tool calls
-        self.add_message(ContextMessage::assistant(
+        let message: MessageEntry = ContextMessage::assistant(
             content,
             reasoning_details,
             Some(
@@ -550,21 +594,25 @@ impl Context {
                     .map(|record| record.0.clone())
                     .collect::<Vec<_>>(),
             ),
-        ))
-        // Adding tool results
-        .add_tool_results(
-            tool_records
-                .iter()
-                .map(|record| record.1.clone())
-                .collect::<Vec<_>>(),
         )
+        .into();
+
+        let tool_results = tool_records
+            .iter()
+            .map(|record| record.1.clone())
+            .collect::<Vec<_>>();
+
+        self.add_entry(message.usage(usage))
+            .add_tool_results(tool_results)
     }
 
     /// Returns the token count for context
     pub fn token_count(&self) -> TokenCount {
         let actual = self
-            .usage
+            .messages
+            .last()
             .as_ref()
+            .and_then(|u| u.usage)
             .map(|u| u.total_tokens)
             .unwrap_or_default();
 
@@ -608,7 +656,7 @@ impl Context {
             if msg.has_role(Role::User) {
                 // Only add the first message of each consecutive user sequence
                 if !is_user {
-                    result.push(msg);
+                    result.push(&**msg);
                     is_user = true;
                 }
             } else {
@@ -646,7 +694,7 @@ impl Context {
             .iter()
             .filter(|msg| msg.has_tool_call())
             .map(|msg| {
-                if let ContextMessage::Text(text_msg) = msg {
+                if let ContextMessage::Text(text_msg) = &**msg {
                     text_msg.tool_calls.as_ref().map_or(0, |calls| calls.len())
                 } else {
                     0
@@ -657,6 +705,7 @@ impl Context {
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
 pub enum TokenCount {
     Actual(usize),
     Approx(usize),
@@ -718,7 +767,7 @@ mod tests {
 
         assert_eq!(
             request.messages[0],
-            ContextMessage::system("Updated system message"),
+            ContextMessage::system("Updated system message").into(),
         );
     }
 
@@ -728,7 +777,7 @@ mod tests {
 
         assert_eq!(
             request.messages[0],
-            ContextMessage::system("A system message"),
+            ContextMessage::system("A system message").into(),
         );
     }
 
@@ -741,7 +790,7 @@ mod tests {
 
         assert_eq!(
             request.messages[0],
-            ContextMessage::system("A system message"),
+            ContextMessage::system("A system message").into(),
         );
     }
 
@@ -934,24 +983,55 @@ mod tests {
 
         // case 2: context with usage - since total_tokens present return that.
         let usage = Usage { total_tokens: TokenCount::Actual(100), ..Default::default() };
-        let fixture = Context::default().usage(usage);
+        let mut wrapper = MessageEntry::from(ContextMessage::user("Hello", None));
+        wrapper.usage = Some(usage);
+        let fixture = Context::default().messages(vec![wrapper]);
         assert_eq!(fixture.token_count(), TokenCount::Actual(100));
 
         // case 3: context with usage - since total_tokens present return that.
         let usage = Usage { total_tokens: TokenCount::Actual(80), ..Default::default() };
-        let fixture = Context::default().usage(usage);
+        let mut wrapper = MessageEntry::from(ContextMessage::user("Hello", None));
+        wrapper.usage = Some(usage);
+        let fixture = Context::default().messages(vec![wrapper]);
         assert_eq!(fixture.token_count(), TokenCount::Actual(80));
 
         // case 4: context with messages - since total_tokens are not present return
         // estimate
-        let usage = Usage::default();
         let fixture = Context::default()
             .add_message(ContextMessage::user("Hello", None))
             .add_message(ContextMessage::assistant("Hi there!", None, None))
             .add_message(ContextMessage::assistant("How can I help you?", None, None))
-            .add_message(ContextMessage::user("I'm looking for a restaurant.", None))
-            .usage(usage);
+            .add_message(ContextMessage::user("I'm looking for a restaurant.", None));
         assert_eq!(fixture.token_count(), TokenCount::Approx(18));
+    }
+
+    #[test]
+    fn test_context_token_count_uses_last_message_usage() {
+        // Setup: Create multiple messages with different usage values
+        let first_usage = Usage { total_tokens: TokenCount::Actual(100), ..Default::default() };
+        let mut first_message = MessageEntry::from(ContextMessage::user("First message", None));
+        first_message.usage = Some(first_usage);
+
+        let second_usage = Usage { total_tokens: TokenCount::Actual(200), ..Default::default() };
+        let mut second_message =
+            MessageEntry::from(ContextMessage::assistant("Second message", None, None));
+        second_message.usage = Some(second_usage);
+
+        let third_usage = Usage { total_tokens: TokenCount::Actual(300), ..Default::default() };
+        let mut third_message = MessageEntry::from(ContextMessage::user("Third message", None));
+        third_message.usage = Some(third_usage);
+
+        // Execute: Create context with all three messages
+        let fixture =
+            Context::default().messages(vec![first_message, second_message, third_message]);
+
+        let actual = fixture.token_count();
+
+        // Expected: Should use the LAST message's usage (300), not the first (100) or
+        // second (200)
+        let expected = TokenCount::Actual(300);
+
+        assert_eq!(actual, expected);
     }
 
     #[test]
@@ -1265,5 +1345,136 @@ mod tests {
                 dir_entries[i]
             );
         }
+    }
+
+    #[test]
+    fn test_context_message_token_count_approx_user_text() {
+        // Fixture: User text message with 40 characters (10 tokens)
+        let fixture = ContextMessage::user("This is a test message with content", None);
+        let actual = fixture.token_count_approx();
+        let expected = 9; // 36 chars / 4 = 9 tokens
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_context_message_token_count_approx_assistant_text() {
+        // Fixture: Assistant text message
+        let fixture = ContextMessage::assistant("Hello! How can I help you today?", None, None);
+        let actual = fixture.token_count_approx();
+        let expected = 8; // 32 chars / 4 = 8 tokens
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_context_message_token_count_approx_system() {
+        // Fixture: System message should return 0 tokens (not counted in approximation)
+        let fixture = ContextMessage::system("System instructions here");
+        let actual = fixture.token_count_approx();
+        let expected = 0; // System messages are not counted in the approximation
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_context_message_token_count_approx_with_tool_calls() {
+        // Fixture: Assistant message with tool calls
+        let fixture_tool_calls = vec![
+            ToolCallFull {
+                call_id: Some(crate::ToolCallId::new("call1")),
+                name: crate::ToolName::new("search"),
+                arguments: serde_json::json!({"query": "test"}).into(),
+            },
+            ToolCallFull {
+                call_id: Some(crate::ToolCallId::new("call2")),
+                name: crate::ToolName::new("calculate"),
+                arguments: serde_json::json!({"expression": "2+2"}).into(),
+            },
+        ];
+        let fixture = ContextMessage::assistant("Let me help", None, Some(fixture_tool_calls));
+        let actual = fixture.token_count_approx();
+        // Content: "Let me help" = 11 chars
+        // Tool call 1: "search" (6 chars) + {"query":"test"} (16 chars) = 22 chars
+        // Tool call 2: "calculate" (9 chars) + {"expression":"2+2"} (20 chars) = 29
+        // chars Total: 11 + 22 + 29 = 62 chars / 4 = 16 tokens
+        let expected = 16;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_context_message_token_count_approx_with_reasoning() {
+        // Fixture: Assistant message with reasoning details
+        let fixture_reasoning = vec![
+            ReasoningFull {
+                text: Some("First reasoning step".to_string()),
+                ..Default::default()
+            },
+            ReasoningFull {
+                text: Some("Second reasoning step".to_string()),
+                ..Default::default()
+            },
+        ];
+        let fixture = ContextMessage::assistant("Final answer", Some(fixture_reasoning), None);
+        let actual = fixture.token_count_approx();
+        // Content: "Final answer" = 12 chars = 3 tokens
+        // Reasoning 1: "First reasoning step" = 20 chars = 5 tokens
+        // Reasoning 2: "Second reasoning step" = 21 chars = 6 tokens
+        // Total: 3 + 5 + 6 = 14 tokens
+        let expected = 14;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_context_message_token_count_approx_tool_result_text() {
+        // Fixture: Tool result with text output
+        let fixture = ContextMessage::tool_result(ToolResult {
+            name: crate::ToolName::new("search"),
+            call_id: Some(crate::ToolCallId::new("call1")),
+            output: crate::ToolOutput::text("Search results: Found 3 items".to_string()),
+        });
+        let actual = fixture.token_count_approx();
+        let expected = 8; // 30 chars / 4 = 8 tokens (rounded up)
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_context_message_token_count_approx_tool_result_image() {
+        // Fixture: Tool result with image (images are not counted)
+        let fixture_image = Image::new_base64("base64data".to_string(), "image/png");
+        let fixture = ContextMessage::tool_result(ToolResult {
+            name: crate::ToolName::new("screenshot"),
+            call_id: Some(crate::ToolCallId::new("call1")),
+            output: crate::ToolOutput::image(fixture_image),
+        });
+        let actual = fixture.token_count_approx();
+        let expected = 0; // Images are not counted in token approximation
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_context_message_token_count_approx_image() {
+        // Fixture: Image message
+        let fixture_image = Image::new_base64("imagedata".to_string(), "image/jpeg");
+        let fixture = ContextMessage::Image(fixture_image);
+        let actual = fixture.token_count_approx();
+        let expected = 0; // Image messages return 0 tokens
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_context_message_token_count_approx_empty_content() {
+        // Fixture: Empty message
+        let fixture = ContextMessage::user("", None);
+        let actual = fixture.token_count_approx();
+        let expected = 0; // 0 chars / 4 = 0 tokens
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_context_message_token_count_approx_unicode() {
+        // Fixture: Message with Unicode characters
+        let fixture = ContextMessage::user("Hello 世界 🌍 émojis", None);
+        let actual = fixture.token_count_approx();
+        // "Hello 世界 🌍 émojis" has 18 Unicode characters
+        let expected = 5; // 18 chars / 4 = 5 tokens (rounded up)
+        assert_eq!(actual, expected);
     }
 }

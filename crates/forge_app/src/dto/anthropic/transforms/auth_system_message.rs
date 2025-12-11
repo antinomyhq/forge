@@ -60,16 +60,23 @@ mod tests {
 
         // Add system messages
         for i in 0..system_count {
-            messages.push(ContextMessage::Text(TextMessage::new(
-                Role::System,
-                format!("System message {}", i),
-            )));
+            messages.push(
+                ContextMessage::Text(TextMessage::new(
+                    Role::System,
+                    format!("System message {}", i),
+                ))
+                .into(),
+            );
         }
 
         // Add at least one user message
-        messages.push(ContextMessage::Text(
-            TextMessage::new(Role::User, "Hello").model(ModelId::new("claude-3-5-sonnet-20241022")),
-        ));
+        messages.push(
+            ContextMessage::Text(
+                TextMessage::new(Role::User, "Hello")
+                    .model(ModelId::new("claude-3-5-sonnet-20241022")),
+            )
+            .into(),
+        );
 
         let context = Context {
             conversation_id: None,
@@ -81,7 +88,6 @@ mod tests {
             top_p: None,
             top_k: None,
             reasoning: None,
-            usage: None,
             stream: None,
         };
 

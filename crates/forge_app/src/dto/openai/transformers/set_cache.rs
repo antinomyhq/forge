@@ -76,6 +76,7 @@ mod tests {
                         panic!("Invalid character in test message");
                     }
                 })
+                .map(|msg| msg.into())
                 .collect(),
             tools: std::collections::BTreeSet::new(),
             tool_choice: None,
@@ -84,7 +85,6 @@ mod tests {
             top_p: None,
             top_k: None,
             reasoning: None,
-            usage: None,
             stream: None,
         };
 

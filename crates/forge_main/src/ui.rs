@@ -235,8 +235,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .await
                 .ok()
                 .flatten()
-                .and_then(|conv| conv.context)
-                .and_then(|ctx| ctx.context.usage)
+                .and_then(|conv| conv.accumulated_usage())
         } else {
             None
         };
@@ -2490,7 +2489,6 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     return Ok(());
                 }
             }
-            ChatResponse::Usage(_) => {}
             ChatResponse::RetryAttempt { cause, duration: _ } => {
                 if !self.api.environment().retry_config.suppress_retry_errors {
                     self.spinner.start(Some("Retrying"))?;
@@ -2618,16 +2616,16 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         // Add token usage if available
-        if let Some(usage) = conversation.context.as_ref().and_then(|c| c.usage.as_ref()) {
+        if let Some(usage) = conversation.usage().as_ref() {
             info = info
                 .add_title("TOKEN")
                 .add_key_value("Prompt Tokens", usage.prompt_tokens.to_string())
                 .add_key_value("Completion Tokens", usage.completion_tokens.to_string())
                 .add_key_value("Total Tokens", usage.total_tokens.to_string());
+        }
 
-            if let Some(cost) = usage.cost {
-                info = info.add_key_value("Cost", format!("${cost:.4}"));
-            }
+        if let Some(cost) = conversation.accumulated_cost() {
+            info = info.add_key_value("Cost", format!("${cost:.4}"));
         }
 
         if porcelain {
@@ -2698,8 +2696,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .await
                 .ok()
                 .flatten()
-                .and_then(|conv| conv.context)
-                .and_then(|ctx| ctx.context.usage)
+                .and_then(|conv| conv.accumulated_usage())
         } else {
             None
         };
@@ -2842,7 +2839,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .ok_or_else(|| anyhow::anyhow!("Conversation has no context"))?;
 
         // Find the last assistant message
-        let message = context.messages.iter().rev().find_map(|msg| match msg {
+        let message = context.messages.iter().rev().find_map(|msg| match &**msg {
             ContextMessage::Text(TextMessage { content, role: Role::Assistant, .. }) => {
                 Some(content)
             }

@@ -243,8 +243,7 @@ impl<S: AgentService> Orchestrator<S> {
             self.conversation.context = Some(p_context.clone());
             self.services.update(self.conversation.clone()).await?;
 
-            // Run the main chat request and compaction check in parallel
-            let main_request = crate::retry::retry_with_config(
+            let message = crate::retry::retry_with_config(
                 &self.environment.retry_config,
                 || {
                     // Generate "RequestContext" from Context for provider call
@@ -298,6 +297,17 @@ impl<S: AgentService> Orchestrator<S> {
                 }
             }
 
+            // FIXME: Add a unit test in orch spec, to guarantee that compaction is
+            // triggered after receiving the response Trigger compaction after
+            // making a request NOTE: Ideally compaction should be implemented
+            // as a transformer
+            if let Some(c_context) = self.check_and_compact(&context)? {
+                info!(agent_id = %agent.id, "Using compacted context from execution");
+                context = c_context;
+            } else {
+                debug!(agent_id = %agent.id, "No compaction was needed");
+            }
+
             info!(
                 conversation_id = %self.conversation.id,
                 conversation_length = p_context.messages.len(),
@@ -309,12 +319,7 @@ impl<S: AgentService> Orchestrator<S> {
                 "Processing usage information"
             );
 
-            // Send the usage information if available
-            self.send(ChatResponse::Usage(usage.clone())).await?;
-
-            p_context.context = p_context.context.usage(usage);
-
-            debug!(agent_id = %agent.id, tool_call_count = tool_calls.len(), "Tool call count");
+            debug!(agent_id = %agent.id, tool_call_count = message.tool_calls.len(), "Tool call count");
 
             // Turn is completed, if finish_reason is 'stop'. Gemini models return stop as
             // finish reason with tool calls.
@@ -364,6 +369,7 @@ impl<S: AgentService> Orchestrator<S> {
             p_context.context = p_context.context.append_message(
                 content.clone(),
                 reasoning_details,
+                message.usage,
                 tool_call_records,
             );
 

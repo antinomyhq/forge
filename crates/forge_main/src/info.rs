@@ -761,7 +761,7 @@ impl From<&Conversation> for Info {
         }
 
         // Insert token usage
-        if let Some(usage) = conversation.context.as_ref().and_then(|c| c.usage.as_ref()) {
+        if let Some(usage) = conversation.accumulated_usage().as_ref() {
             info = info.extend(usage);
         }
 

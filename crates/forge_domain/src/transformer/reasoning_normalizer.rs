@@ -26,7 +26,7 @@ impl Transformer for ReasoningNormalizer {
             // Remove reasoning details from all assistant messages
             for message in context.messages.iter_mut() {
                 if message.has_role(crate::Role::Assistant)
-                    && let crate::ContextMessage::Text(text_msg) = message
+                    && let crate::ContextMessage::Text(text_msg) = &mut **message
                 {
                     text_msg.reasoning_details = None;
                 }
