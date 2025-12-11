@@ -2,10 +2,9 @@ use std::sync::Arc;
 
 use diesel::prelude::*;
 use forge_domain::{
-    Context, Conversation, ConversationId, ConversationRepository, FileOperation, MetaData,
-    Metrics, ParentContext, ToolKind, WorkspaceHash,
+    Conversation, ConversationId, ConversationRepository,
+    WorkspaceHash,
 };
-use serde::{Deserialize, Serialize};
 
 use crate::conversation::conversation_record::ConversationRecord;
 use crate::database::schema::conversations;

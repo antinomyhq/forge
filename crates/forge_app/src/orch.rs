@@ -175,7 +175,7 @@ impl<S: AgentService> Orchestrator<S> {
     }
 
     /// Checks if compaction is needed and performs it if necessary
-    async fn check_and_compact(
+    fn check_and_compact(
         &self,
         context: &Context,
         metadata: &Option<CompactionMetadata>,
@@ -265,45 +265,19 @@ impl<S: AgentService> Orchestrator<S> {
                         let _ = sender.try_send(Ok(retry_event));
                     }
                 }),
-            );
-
-            // Prepare compaction task that runs in parallel
-            // Execute both operations in parallel
-            let (
-                ChatCompletionMessageFull {
-                    tool_calls,
-                    content,
-                    usage,
-                    reasoning,
-                    reasoning_details,
-                    finish_reason,
-                },
-                compaction_result,
-            ) = tokio::try_join!(
-                main_request,
-                self.check_and_compact(&p_context.context, &p_context.compaction_metadata),
-            )?;
-
-            // Apply compaction result if it completed successfully
-            match compaction_result {
-                Some(compacted_context) => {
-                    info!(agent_id = %agent.id, "Using compacted context from execution");
-                    p_context = p_context
-                        .extend_context(compacted_context.context)
-                        .compaction_metadata(compacted_context.metadata);
-                }
-                None => {
-                    debug!(agent_id = %agent.id, "No compaction was needed");
-                }
-            }
+            ).await?;
 
             // FIXME: Add a unit test in orch spec, to guarantee that compaction is
             // triggered after receiving the response Trigger compaction after
             // making a request NOTE: Ideally compaction should be implemented
             // as a transformer
-            if let Some(c_context) = self.check_and_compact(&context)? {
+            if let Some(c_context) =
+                self.check_and_compact(&p_context.context, &p_context.compaction_metadata)?
+            {
                 info!(agent_id = %agent.id, "Using compacted context from execution");
-                context = c_context;
+                p_context = p_context
+                    .context(c_context.context)
+                    .compaction_metadata(c_context.metadata);
             } else {
                 debug!(agent_id = %agent.id, "No compaction was needed");
             }
@@ -311,11 +285,11 @@ impl<S: AgentService> Orchestrator<S> {
             info!(
                 conversation_id = %self.conversation.id,
                 conversation_length = p_context.messages.len(),
-                token_usage = format!("{}", usage.prompt_tokens),
-                total_tokens = format!("{}", usage.total_tokens),
-                cached_tokens = format!("{}", usage.cached_tokens),
-                cost = usage.cost.unwrap_or_default(),
-                finish_reason = finish_reason.as_ref().map_or("", |reason| reason.into()),
+                token_usage = format!("{}", message.usage.prompt_tokens),
+                total_tokens = format!("{}", message.usage.total_tokens),
+                cached_tokens = format!("{}", message.usage.cached_tokens),
+                cost = message.usage.cost.unwrap_or_default(),
+                finish_reason = message.finish_reason.as_ref().map_or("", |reason| reason.into()),
                 "Processing usage information"
             );
 
@@ -323,15 +297,15 @@ impl<S: AgentService> Orchestrator<S> {
 
             // Turn is completed, if finish_reason is 'stop'. Gemini models return stop as
             // finish reason with tool calls.
-            is_complete = finish_reason == Some(FinishReason::Stop) && tool_calls.is_empty();
+            is_complete = message.finish_reason == Some(FinishReason::Stop) && message.tool_calls.is_empty();
 
             // Should yield if a tool is asking for a follow-up
             should_yield = is_complete
-                || tool_calls
+                || message.tool_calls
                     .iter()
                     .any(|call| ToolCatalog::should_yield(&call.name));
 
-            if let Some(reasoning) = reasoning.as_ref()
+            if let Some(reasoning) = message.reasoning.as_ref()
                 && p_context.is_reasoning_supported()
             {
                 // If reasoning is present, send it as a separate message
@@ -341,12 +315,12 @@ impl<S: AgentService> Orchestrator<S> {
 
             // Send the content message
             self.send(ChatResponse::TaskMessage {
-                content: ChatResponseContent::Markdown(content.clone()),
+                content: ChatResponseContent::Markdown(message.content.clone()),
             })
             .await?;
 
             // Process tool calls and update context
-            let mut tool_call_records = self.execute_tool_calls(&tool_calls, &tool_context).await?;
+            let mut tool_call_records = self.execute_tool_calls(&message.tool_calls, &tool_context).await?;
 
             self.error_tracker.adjust_record(&tool_call_records);
             let allowed_max_attempts = self.error_tracker.limit();
@@ -367,8 +341,8 @@ impl<S: AgentService> Orchestrator<S> {
             }
 
             p_context.context = p_context.context.append_message(
-                content.clone(),
-                reasoning_details,
+                message.content.clone(),
+                message.reasoning_details,
                 message.usage,
                 tool_call_records,
             );

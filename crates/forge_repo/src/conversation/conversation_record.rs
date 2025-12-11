@@ -5,7 +5,7 @@
 //! storage layer independent from domain model changes.
 
 use anyhow::Context as _;
-use forge_domain::{Context, ConversationId};
+use forge_domain::{Context, ConversationId, ParentContext};
 use serde::{Deserialize, Serialize};
 
 /// Repository-specific representation of ModelId
@@ -752,7 +752,7 @@ impl TryFrom<ContextRecord> for Context {
             })
             .collect();
 
-        let tools: Result<Vec<_>, _> = record.tools.into_iter().map(TryInto::try_into).collect();
+        let tools: Result<_, _> = record.tools.into_iter().map(TryInto::try_into).collect();
 
         Ok(Context {
             conversation_id,
@@ -885,6 +885,7 @@ impl ConversationRecord {
     ) -> Self {
         let context = conversation
             .context
+            .map(|v| v.context)
             .as_ref()
             .filter(|ctx| !ctx.messages.is_empty())
             .map(ContextRecord::from)
@@ -923,6 +924,7 @@ impl TryFrom<ConversationRecord> for forge_domain::Conversation {
                         )
                     })?
                     .try_into()
+                    .map(|v| ParentContext::default().context(v))
                     .with_context(|| {
                         format!(
                             "Failed to convert context record to domain type for conversation {}",

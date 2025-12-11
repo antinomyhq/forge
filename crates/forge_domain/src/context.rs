@@ -357,7 +357,6 @@ impl std::ops::DerefMut for MessageEntry {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq, Default, Setters)]
-#[setters(into)]
 pub struct ParentContext {
     #[serde(flatten)]
     #[serde(default, skip_serializing_if = "ctx_default")]
@@ -386,7 +385,6 @@ impl ParentContext {
     /// metadata.
     pub fn extend_context(mut self, context: Context) -> Self {
         self.context.messages.extend(context.messages);
-        self.context.usage = context.usage;
         self.context.tools.extend(context.tools);
 
         self
