@@ -49,7 +49,7 @@ expression: tools
 }
 {
   "title": "FSWrite",
-  "description": "Use it to create a new file at the specified path with the provided content.\n\nAlways provide absolute paths for file locations. The tool automatically handles the creation of any missing intermediary directories in the specified path. IMPORTANT: DO NOT attempt to use this tool to move or rename files, use the shell tool instead.",
+  "description": "Use it to create a new file at a specified path with the provided content.\n\nAlways provide absolute paths for file locations. The tool automatically handles the creation of any missing intermediary directories in the specified path. IMPORTANT: DO NOT attempt to use this tool to move or rename files, use the shell tool instead.",
   "type": "object",
   "required": [
     "content",
@@ -131,11 +131,11 @@ expression: tools
         ],
         "properties": {
           "query": {
-            "description": "Describe WHAT code does or its purpose. Include domain-specific terms and technical context. Good: \"retry mechanism with exponential backoff\", \"streaming responses from LLM API\", \"OAuth token refresh flow\". Bad: generic terms like \"retry\" or \"auth\" without context. Think about the behavior and functionality you're looking for.",
+            "description": "Describe WHAT the code does or its purpose. Include domain-specific terms and technical context. Good: \"retry mechanism with exponential backoff\", \"streaming responses from LLM API\", \"OAuth token refresh flow\". Bad: generic terms like \"retry\" or \"auth\" without context. Think about the behavior and functionality you're looking for.",
             "type": "string"
           },
           "use_case": {
-            "description": "A short natural-language description of what you are trying to find. This is query used for document reranking. The query MUST: - express a single, focused information need - describe exactly what agent is searching for - should not be query verbatim - be concise (1–2 sentences)\n\nExamples: - \"Why is `select_model()` returning a Pin<Box<Result>> in Rust?\" - \"How to fix error E0277 for ? operator on a pinned boxed result?\" - \"Steps to run Diesel migrations in Rust without exposing DB.\" - \"How to design a clean architecture service layer with typed errors?\"",
+            "description": "A short natural-language description of what you are trying to find. This is the query used for document reranking. The query MUST: - express a single, focused information need - describe exactly what the agent is searching for - should not be the query verbatim - be concise (1–2 sentences)\n\nExamples: - \"Why is `select_model()` returning a Pin<Box<Result>> in Rust?\" - \"How to fix error E0277 for the ? operator on a pinned boxed result?\" - \"Steps to run Diesel migrations in Rust without exposing the DB.\" - \"How to design a clean architecture service layer with typed errors?\"",
             "type": "string"
           }
         }

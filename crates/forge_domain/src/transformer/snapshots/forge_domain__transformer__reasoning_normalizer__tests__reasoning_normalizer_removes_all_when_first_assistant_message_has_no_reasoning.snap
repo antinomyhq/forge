@@ -49,5 +49,3 @@ after:
     - text:
         role: Assistant
         content: Third assistant with reasoning
-  reasoning:
-    enabled: true
