@@ -5,7 +5,8 @@ use url::Url;
 
 use crate::{
     AnyProvider, AppConfig, AuthCredential, Conversation, ConversationId, MigrationResult,
-    Provider, ProviderId, Skill, Snapshot, UserId, Workspace, WorkspaceAuth, WorkspaceId,
+    Provider, ProviderId, Skill, Snapshot, SyncStatus, UserId, Workspace, WorkspaceAuth,
+    WorkspaceId, WorkspaceSyncStatus,
 };
 
 /// Repository for managing file snapshots
@@ -114,6 +115,86 @@ pub trait WorkspaceRepository: Send + Sync {
 
     /// Delete workspace from local database
     async fn delete(&self, workspace_id: &WorkspaceId) -> anyhow::Result<()>;
+}
+
+/// Repository for managing workspace sync status and coordination
+///
+/// This repository provides operations for coordinating sync operations across
+/// multiple processes, tracking sync status, and preventing concurrent syncs.
+#[async_trait::async_trait]
+pub trait WorkspaceSyncRepository: Send + Sync {
+    /// Attempts to acquire the sync lock for a workspace
+    ///
+    /// Atomically checks if a sync is in progress and sets the status to
+    /// IN_PROGRESS with the current process ID if not.
+    ///
+    /// # Arguments
+    /// * `path` - Canonical path to the workspace
+    /// * `process_id` - Process ID attempting to acquire the lock
+    ///
+    /// # Returns
+    /// * `true` if lock was successfully acquired
+    /// * `false` if another process holds the lock
+    ///
+    /// # Errors
+    /// Returns an error if the database operation fails
+    async fn try_acquire_lock(
+        &self,
+        path: &std::path::Path,
+        process_id: u32,
+    ) -> anyhow::Result<bool>;
+
+    /// Releases the sync lock for a workspace
+    ///
+    /// Marks the sync as complete (SUCCESS status by default).
+    /// Use update_status() to set FAILED status with error message.
+    ///
+    /// # Arguments
+    /// * `path` - Canonical path to the workspace
+    ///
+    /// # Errors
+    /// Returns an error if the database operation fails
+    async fn release_lock(&self, path: &std::path::Path) -> anyhow::Result<()>;
+
+    /// Updates the sync status for a workspace
+    ///
+    /// # Arguments
+    /// * `path` - Canonical path to the workspace
+    /// * `status` - New sync status
+    /// * `error_message` - Optional error message if status is Failed
+    ///
+    /// # Errors
+    /// Returns an error if the database operation fails
+    async fn update_status(
+        &self,
+        path: &std::path::Path,
+        status: SyncStatus,
+        error_message: Option<String>,
+    ) -> anyhow::Result<()>;
+
+    /// Retrieves the current sync status for a workspace
+    ///
+    /// # Arguments
+    /// * `path` - Canonical path to the workspace
+    ///
+    /// # Errors
+    /// Returns an error if the database operation fails
+    async fn get_status(
+        &self,
+        path: &std::path::Path,
+    ) -> anyhow::Result<Option<WorkspaceSyncStatus>>;
+
+    /// Clears any stale IN_PROGRESS locks for a workspace
+    ///
+    /// This should be called on application startup to clear locks from
+    /// crashed or interrupted processes. Resets IN_PROGRESS status to SUCCESS.
+    ///
+    /// # Arguments
+    /// * `path` - Canonical path to the workspace
+    ///
+    /// # Errors
+    /// Returns an error if the database operation fails
+    async fn clear_stale_locks(&self, path: &std::path::Path) -> anyhow::Result<()>;
 }
 
 /// Repository for managing codebase indexing and search operations

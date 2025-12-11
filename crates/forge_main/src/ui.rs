@@ -104,6 +104,11 @@ pub struct UI<A, F: Fn() -> A> {
 }
 
 impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
+    /// Returns a reference to the API instance
+    pub fn api(&self) -> &A {
+        &self.api
+    }
+
     /// Writes a line to the console output
     /// Takes anything that implements ToString trait
     fn writeln<T: ToString>(&mut self, content: T) -> anyhow::Result<()> {

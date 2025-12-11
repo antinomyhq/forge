@@ -90,6 +90,15 @@ pub struct Environment {
     /// If set, this provider will be used as default.
     #[dummy(default)]
     pub override_provider: Option<ProviderId>,
+    /// Whether background workspace sync is enabled.
+    /// Controlled by FORGE_SYNC_ENABLED environment variable.
+    pub sync_enabled: bool,
+    /// Interval in seconds between background sync operations.
+    /// Controlled by FORGE_SYNC_INTERVAL environment variable.
+    pub sync_interval_seconds: u64,
+    /// Whether to trigger sync immediately on startup.
+    /// Controlled by FORGE_SYNC_ON_STARTUP environment variable.
+    pub sync_on_startup: bool,
 }
 
 impl Environment {
@@ -298,6 +307,9 @@ fn test_command_path() {
         workspace_server_url: "http://localhost:8080".parse().unwrap(),
         override_model: None,
         override_provider: None,
+        sync_enabled: true,
+        sync_interval_seconds: 300,
+        sync_on_startup: true,
     };
 
     let actual = fixture.command_path();
@@ -337,6 +349,9 @@ fn test_command_cwd_path() {
         workspace_server_url: "http://localhost:8080".parse().unwrap(),
         override_model: None,
         override_provider: None,
+        sync_enabled: true,
+        sync_interval_seconds: 300,
+        sync_on_startup: true,
     };
 
     let actual = fixture.command_cwd_path();
@@ -376,6 +391,9 @@ fn test_command_cwd_path_independent_from_command_path() {
         workspace_server_url: "http://localhost:8080".parse().unwrap(),
         override_model: None,
         override_provider: None,
+        sync_enabled: true,
+        sync_interval_seconds: 300,
+        sync_on_startup: true,
     };
 
     let command_path = fixture.command_path();

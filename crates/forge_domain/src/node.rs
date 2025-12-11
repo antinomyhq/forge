@@ -249,6 +249,12 @@ pub struct WorkspaceInfo {
     pub last_updated: Option<chrono::DateTime<chrono::Utc>>,
     /// Workspace created time.
     pub created_at: chrono::DateTime<chrono::Utc>,
+    /// Last sync timestamp (when background sync last completed)
+    pub last_synced_at: Option<chrono::DateTime<chrono::Utc>>,
+    /// Current sync status (IN_PROGRESS, SUCCESS, FAILED, or None if never synced)
+    pub sync_status: Option<crate::SyncStatus>,
+    /// Last sync error message (if sync failed)
+    pub sync_error: Option<String>,
 }
 
 /// File hash information from the server

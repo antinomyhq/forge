@@ -22,4 +22,14 @@ diesel::table! {
     }
 }
 
-diesel::allow_tables_to_appear_in_same_query!(conversations, workspace,);
+diesel::table! {
+    workspace_sync_status (path) {
+        path -> Text,
+        status -> Text,
+        last_synced_at -> Timestamp,
+        error_message -> Nullable<Text>,
+        process_id -> Integer,
+    }
+}
+
+diesel::allow_tables_to_appear_in_same_query!(conversations, workspace, workspace_sync_status,);

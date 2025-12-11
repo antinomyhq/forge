@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use forge_app::{ContextEngineService, FileReaderInfra, Walker, WalkerInfra, compute_hash};
 use forge_domain::{
     AuthCredential, ContextEngineRepository, FileHash, ProviderId, ProviderRepository,
-    SyncProgress, UserId, WorkspaceId, WorkspaceRepository,
+    SyncProgress, UserId, WorkspaceId, WorkspaceRepository, WorkspaceSyncRepository,
 };
 use forge_stream::MpscStream;
 use futures::future::join_all;
@@ -462,6 +462,7 @@ impl<
         + ContextEngineRepository
         + WalkerInfra
         + FileReaderInfra
+        + WorkspaceSyncRepository
         + 'static,
 > ContextEngineService for ForgeContextEngineService<F>
 {
@@ -549,18 +550,29 @@ impl<
         let (token, _) = Self::extract_workspace_auth(&credential)?;
 
         // List all workspaces for this user
-        self.infra
+        let mut workspaces = self.infra
             .as_ref()
             .list_workspaces(&token)
             .await
-            .context("Failed to list workspaces")
+            .context("Failed to list workspaces")?;
+        
+        // Enrich each workspace with sync status from local database
+        for workspace in &mut workspaces {
+            if let Ok(path) = std::path::PathBuf::from(&workspace.working_dir).canonicalize() {
+                // Try to get sync status - ignore errors since it's optional enrichment
+                if let Ok(Some(sync_status)) = self.infra.as_ref().get_status(&path).await {
+                    workspace.last_synced_at = Some(sync_status.last_synced_at);
+                    workspace.sync_status = Some(sync_status.status);
+                    workspace.sync_error = sync_status.error_message;
+                }
+            }
+        }
+        
+        Ok(workspaces)
     }
 
     /// Retrieves workspace information for a specific path.
-    async fn get_workspace_info(&self, path: PathBuf) -> Result<Option<forge_domain::WorkspaceInfo>>
-    where
-        F: WorkspaceRepository + ContextEngineRepository + ProviderRepository,
-    {
+    async fn get_workspace_info(&self, path: PathBuf) -> Result<Option<forge_domain::WorkspaceInfo>> {
         let path = path
             .canonicalize()
             .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
@@ -579,11 +591,23 @@ impl<
 
         if let Some(workspace) = workspace {
             // Get detailed workspace info from server
-            self.infra
+            if let Some(mut info) = self.infra
                 .as_ref()
                 .get_workspace(&workspace.workspace_id, &token)
                 .await
-                .context("Failed to get workspace info")
+                .context("Failed to get workspace info")?
+            {
+                // Enrich with sync status from local database - optional, ignore errors
+                if let Ok(Some(sync_status)) = self.infra.as_ref().get_status(&path).await {
+                    info.last_synced_at = Some(sync_status.last_synced_at);
+                    info.sync_status = Some(sync_status.status);
+                    info.sync_error = sync_status.error_message;
+                }
+                
+                Ok(Some(info))
+            } else {
+                Ok(None)
+            }
         } else {
             Ok(None)
         }
@@ -1012,6 +1036,9 @@ mod tests {
             relation_count: 0,
             last_updated: None,
             created_at: chrono::Utc::now(),
+            last_synced_at: None,
+            sync_status: None,
+            sync_error: None,
         });
         let service = ForgeContextEngineService::new(Arc::new(mock));
 
@@ -1112,6 +1139,9 @@ mod tests {
             relation_count: 0,
             last_updated: None,
             created_at: chrono::Utc::now(),
+            last_synced_at: None,
+            sync_status: None,
+            sync_error: None,
         });
         let service = ForgeContextEngineService::new(Arc::new(mock));
 
@@ -1132,6 +1162,9 @@ mod tests {
             relation_count: 10,
             last_updated: Some(chrono::Utc::now()),
             created_at: chrono::Utc::now(),
+            last_synced_at: None,
+            sync_status: None,
+            sync_error: None,
         });
         let service = ForgeContextEngineService::new(Arc::new(mock));
 

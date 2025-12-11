@@ -9,6 +9,7 @@ mod provider;
 mod skill;
 mod validation;
 mod workspace;
+mod workspace_sync;
 
 pub use agent::*;
 pub use app_config::*;
@@ -21,3 +22,4 @@ pub use provider::*;
 pub use skill::*;
 pub use validation::*;
 pub use workspace::*;
+pub use workspace_sync::*;
