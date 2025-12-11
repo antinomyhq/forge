@@ -786,7 +786,7 @@ mod tests {
             context: Some("invalid json".to_string()), // Invalid JSON to trigger error
             created_at: Utc::now().naive_utc(),
             updated_at: None,
-            workspace_id: 0,
+            project_root_path: 0,
             metrics: None,
         };
 

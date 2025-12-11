@@ -199,7 +199,7 @@ impl<
                 let services = self.services.clone();
                 let cwd = env.cwd.clone();
                 let limit = env.sem_search_limit;
-                let top_k = env.sem_search_top_k as u32;
+                let top_k = env.sem_search_top_k;
                 let params: Vec<_> = input
                     .queries
                     .iter()
