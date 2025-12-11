@@ -1,10 +1,22 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex, mpsc};
 
 use anyhow::{Context, Result};
 use derive_setters::Setters;
 use ignore::WalkBuilder;
+use once_cell::sync::Lazy;
 use tokio::task::spawn_blocking;
+
+/// Static cache of binary file extensions for O(1) lookup performance
+static BINARY_EXTENSIONS: Lazy<HashSet<&'static str>> = Lazy::new(|| {
+    include_str!("binary_extensions.txt")
+        .lines()
+        .map(|line| line.trim())
+        .filter(|line| !line.is_empty())
+        .collect()
+});
 
 #[derive(Clone, Debug)]
 pub struct File {
@@ -91,14 +103,8 @@ impl Walker {
     fn is_likely_binary(path: &std::path::Path) -> bool {
         if let Some(extension) = path.extension() {
             let ext = extension.to_string_lossy().to_lowercase();
-            // List of common binary file extensions loaded from file
-            let binary_extensions_str = include_str!("binary_extensions.txt");
-            let binary_extensions: Vec<&str> = binary_extensions_str
-                .lines()
-                .map(|line| line.trim())
-                .filter(|line| !line.is_empty())
-                .collect();
-            binary_extensions.contains(&ext.as_ref())
+            // O(1) hash lookup using cached binary extensions
+            BINARY_EXTENSIONS.contains(ext.as_str())
         } else {
             false
         }
@@ -107,96 +113,144 @@ impl Walker {
     /// Blocking function to scan filesystem. Use this when you already have
     /// a runtime or want to avoid spawning a new one.
     pub fn get_blocking(&self) -> Result<Vec<File>> {
-        let mut files = Vec::new();
-        let mut total_size = 0u64;
-        let mut dir_entries: HashMap<String, usize> = HashMap::new();
-        let mut file_count = 0;
+        // Use channel for lock-free communication between threads
+        let (tx, rx) = mpsc::channel();
+        let total_size = Arc::new(AtomicU64::new(0));
+        let dir_entries = Arc::new(Mutex::new(HashMap::<String, usize>::new()));
+        let file_count = Arc::new(AtomicUsize::new(0));
+        let should_stop = Arc::new(AtomicBool::new(false));
 
-        // TODO: Convert to async and return a stream
-        let walk = WalkBuilder::new(&self.cwd)
-            .standard_filters(true) // use standard ignore filters.
+        let cwd = self.cwd.clone();
+        let max_depth = self.max_depth;
+        let max_breadth = self.max_breadth;
+        let max_file_size = self.max_file_size;
+        let max_files = self.max_files;
+        let max_total_size = self.max_total_size;
+        let skip_binary = self.skip_binary;
+
+        // Spawn collection thread
+        let collector_handle = std::thread::spawn(move || {
+            let mut files = Vec::new();
+            for file in rx {
+                files.push(file);
+            }
+            files
+        });
+
+        WalkBuilder::new(&self.cwd)
+            .standard_filters(true)
             .max_depth(Some(self.max_depth))
-            // TODO: use build_parallel() for better performance
-            .build();
+            .threads(num_cpus::get())
+            .build_parallel()
+            .run(|| {
+                let tx = tx.clone();
+                let total_size = Arc::clone(&total_size);
+                let dir_entries = Arc::clone(&dir_entries);
+                let file_count = Arc::clone(&file_count);
+                let should_stop = Arc::clone(&should_stop);
+                let cwd = cwd.clone();
 
-        'walk_loop: for entry in walk.flatten() {
-            let path = entry.path();
+                Box::new(move |entry_result| {
+                    // Fast path: check stop flag first
+                    if should_stop.load(Ordering::Relaxed) {
+                        return ignore::WalkState::Quit;
+                    }
 
-            // Calculate depth relative to base directory
-            let depth = path
-                .strip_prefix(&self.cwd)
-                .map(|p| p.components().count())
-                .unwrap_or(0);
+                    let entry = match entry_result {
+                        Ok(entry) => entry,
+                        Err(_) => return ignore::WalkState::Continue,
+                    };
 
-            if depth > self.max_depth {
-                continue;
-            }
+                    let path = entry.path();
 
-            // Handle breadth limit
-            if let Some(parent) = path.parent() {
-                let parent_path = parent.to_string_lossy().to_string();
-                let entry_count = dir_entries.entry(parent_path).or_insert(0);
-                *entry_count += 1;
+                    // Quick depth check
+                    let depth = path
+                        .strip_prefix(&cwd)
+                        .map(|p| p.components().count())
+                        .unwrap_or(0);
 
-                if *entry_count > self.max_breadth {
-                    continue;
-                }
-            }
+                    if depth > max_depth {
+                        return ignore::WalkState::Continue;
+                    }
 
-            let is_dir = path.is_dir();
+                    // Breadth limit check
+                    if let Some(parent) = path.parent() {
+                        let parent_path = parent.to_string_lossy().to_string();
+                        let mut dir_entries_guard = dir_entries.lock().unwrap();
+                        let entry_count = dir_entries_guard.entry(parent_path).or_insert(0);
+                        *entry_count += 1;
 
-            // Skip binary files if configured
-            if self.skip_binary && !is_dir && Self::is_likely_binary(path) {
-                continue;
-            }
+                        if *entry_count > max_breadth {
+                            return ignore::WalkState::Continue;
+                        }
+                    }
 
-            let metadata = match path.metadata() {
-                Ok(meta) => meta,
-                Err(_) => continue, // Skip files we can't read metadata for
-            };
+                    let is_dir = path.is_dir();
 
-            let file_size = metadata.len();
+                    // Binary file check
+                    if skip_binary && !is_dir && Self::is_likely_binary(path) {
+                        return ignore::WalkState::Continue;
+                    }
 
-            // Skip files that exceed size limit
-            if !is_dir && file_size > self.max_file_size {
-                continue;
-            }
+                    let metadata = match path.metadata() {
+                        Ok(meta) => meta,
+                        Err(_) => return ignore::WalkState::Continue,
+                    };
 
-            // Check total size limit
-            if total_size + file_size > self.max_total_size {
-                break 'walk_loop;
-            }
+                    let file_size = metadata.len();
 
-            // Check if we've hit the file count limit (only count non-directories)
-            if !is_dir {
-                file_count += 1;
-                if file_count > self.max_files {
-                    break 'walk_loop;
-                }
-            }
+                    // Size limit check
+                    if !is_dir && file_size > max_file_size {
+                        return ignore::WalkState::Continue;
+                    }
 
-            let relative_path = path
-                .strip_prefix(&self.cwd)
-                .with_context(|| format!("Failed to strip prefix from path: {}", path.display()))?;
-            let path_string = relative_path.to_string_lossy().to_string();
+                    // Atomic total size check
+                    let current_total = total_size.fetch_add(file_size, Ordering::Relaxed);
+                    if current_total + file_size > max_total_size {
+                        should_stop.store(true, Ordering::Relaxed);
+                        return ignore::WalkState::Quit;
+                    }
 
-            let file_name = path
-                .file_name()
-                .map(|name| name.to_string_lossy().to_string());
+                    // Atomic file count check
+                    if !is_dir {
+                        let current_count = file_count.fetch_add(1, Ordering::Relaxed);
+                        if current_count + 1 > max_files {
+                            should_stop.store(true, Ordering::Relaxed);
+                            return ignore::WalkState::Quit;
+                        }
+                    }
 
-            // Ensure directory paths end with '/' for is_dir() function
-            let path_string = if is_dir {
-                format!("{path_string}/")
-            } else {
-                path_string
-            };
+                    let relative_path = match path.strip_prefix(&cwd) {
+                        Ok(p) => p,
+                        Err(_) => return ignore::WalkState::Continue,
+                    };
 
-            files.push(File { path: path_string, file_name, size: file_size });
+                    let path_string = relative_path.to_string_lossy();
+                    let file_name = path
+                        .file_name()
+                        .map(|name| name.to_string_lossy().to_string());
 
-            if !is_dir {
-                total_size += file_size;
-            }
-        }
+                    // Avoid string allocation when not needed
+                    let path_string = if is_dir {
+                        format!("{}/", path_string)
+                    } else {
+                        path_string.to_string()
+                    };
+
+                    // Send directly via channel (no mutex contention)
+                    let _ = tx.send(File { path: path_string, file_name, size: file_size });
+
+                    ignore::WalkState::Continue
+                })
+            });
+
+        // Drop sender to signal completion
+        drop(tx);
+
+        // Collect results from collector thread
+        let files = collector_handle
+            .join()
+            .map_err(|_| anyhow::anyhow!("Failed to join collector thread"))?;
 
         Ok(files)
     }
