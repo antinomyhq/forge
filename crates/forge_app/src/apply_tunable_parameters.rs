@@ -1,5 +1,6 @@
-use forge_domain::{Agent, Conversation, ToolDefinition};
 use std::collections::BTreeSet;
+
+use forge_domain::{Agent, Conversation, ToolDefinition};
 
 /// Applies tunable parameters from agent to conversation context
 #[derive(Debug, Clone)]

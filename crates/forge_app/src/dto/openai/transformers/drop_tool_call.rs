@@ -62,7 +62,9 @@ mod tests {
             ],
             tools: {
                 let mut set = std::collections::BTreeSet::new();
-                set.insert(forge_domain::ToolDefinition::new("test_tool").description("A test tool"));
+                set.insert(
+                    forge_domain::ToolDefinition::new("test_tool").description("A test tool"),
+                );
                 set
             },
             tool_choice: None,

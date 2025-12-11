@@ -1,6 +1,7 @@
+use std::collections::BTreeSet;
+
 use super::Transformer;
 use crate::{Context, ContextMessage, ModelId, Role, TextMessage};
-use std::collections::BTreeSet;
 
 pub struct TransformToolCalls {
     pub model: Option<ModelId>,

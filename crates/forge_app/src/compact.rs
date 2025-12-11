@@ -221,10 +221,13 @@ mod tests {
             .add_message(ContextMessage::user("M3", None))
             .add_message(ContextMessage::assistant("R3", None, None));
 
-        let actual = compactor.compress_single_sequence(context, None, (0, 3)).unwrap();
+        let actual = compactor
+            .compress_single_sequence(context, None, (0, 3))
+            .unwrap();
 
         // Verify only LAST reasoning_details were preserved
-        let assistant_msg = actual.context
+        let assistant_msg = actual
+            .context
             .messages
             .iter()
             .find(|msg| msg.has_role(forge_domain::Role::Assistant))
@@ -265,7 +268,9 @@ mod tests {
             .add_message(ContextMessage::user("M2", None))
             .add_message(ContextMessage::assistant("R2", None, None));
 
-        let result = compactor.compress_single_sequence(context, None, (0, 1)).unwrap();
+        let result = compactor
+            .compress_single_sequence(context, None, (0, 1))
+            .unwrap();
         let mut context = result.context;
 
         // Verify first assistant has the reasoning
@@ -284,7 +289,9 @@ mod tests {
             .add_message(ContextMessage::user("M3", None))
             .add_message(ContextMessage::assistant("R3", None, None));
 
-        let result = compactor.compress_single_sequence(context, None, (0, 2)).unwrap();
+        let result = compactor
+            .compress_single_sequence(context, None, (0, 2))
+            .unwrap();
         let context = result.context;
 
         // Verify reasoning didn't accumulate - should still be just 1 reasoning block
@@ -329,11 +336,14 @@ mod tests {
             .add_message(ContextMessage::user("M3", None))
             .add_message(ContextMessage::assistant("R3", None, None)); // Outside range
 
-        let actual = compactor.compress_single_sequence(context, None, (0, 3)).unwrap();
+        let actual = compactor
+            .compress_single_sequence(context, None, (0, 3))
+            .unwrap();
 
         // After compression: [U-summary, U3, A3]
         // The reasoning from R1 (non-empty) should be injected into A3
-        let assistant_msg = actual.context
+        let assistant_msg = actual
+            .context
             .messages
             .iter()
             .find(|msg| msg.has_role(forge_domain::Role::Assistant))
@@ -466,7 +476,9 @@ mod tests {
         insta::assert_snapshot!(summary);
 
         // Perform a full compaction
-        let mut compacted_result = compactor.compact(context.context, context.compaction_metadata, true).unwrap();
+        let mut compacted_result = compactor
+            .compact(context.context, context.compaction_metadata, true)
+            .unwrap();
 
         // Clear the timestamp for snapshot testing (timestamps change on each run)
         if let Some(ref mut metadata) = compacted_result.metadata {
@@ -501,7 +513,9 @@ mod tests {
                 None,
             ));
 
-        let actual = compactor.compress_single_sequence(context, None, (0, 1)).unwrap();
+        let actual = compactor
+            .compress_single_sequence(context, None, (0, 1))
+            .unwrap();
 
         // The compaction should remove the droppable message
         // Expected: [U-summary, U2, A2]
@@ -560,7 +574,9 @@ mod tests {
             msg5.token_count_approx() + msg6.token_count_approx();
 
         // Compact the sequence (first 4 messages, indices 0-3)
-        let compacted = compactor.compress_single_sequence(context, None, (0, 3)).unwrap();
+        let compacted = compactor
+            .compress_single_sequence(context, None, (0, 3))
+            .unwrap();
 
         // Verify we have exactly 3 messages after compaction
         assert_eq!(

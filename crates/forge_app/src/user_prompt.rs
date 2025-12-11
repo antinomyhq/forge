@@ -60,7 +60,9 @@ impl<S: AttachmentService> UserPromptGenerator<S> {
                 model: Some(self.agent.model.clone()),
                 droppable: true, // Piped input is droppable
             };
-            p_context.context = p_context.context.add_message(ContextMessage::Text(piped_message));
+            p_context.context = p_context
+                .context
+                .add_message(ContextMessage::Text(piped_message));
         }
 
         Ok(conversation.context(p_context))
@@ -152,7 +154,9 @@ impl<S: AttachmentService> UserPromptGenerator<S> {
 
         // Parse Attachments (do NOT parse piped input for attachments)
         let attachments = self.services.attachments(content).await?;
-        context.context = context.context.add_attachments(attachments, Some(self.agent.model.clone()));
+        context.context = context
+            .context
+            .add_attachments(attachments, Some(self.agent.model.clone()));
 
         Ok(conversation.context(context))
     }
@@ -183,7 +187,8 @@ mod tests {
     }
 
     fn fixture_conversation() -> Conversation {
-        Conversation::new(ConversationId::default()).context(ParentContext::default().context(Context::default()))
+        Conversation::new(ConversationId::default())
+            .context(ParentContext::default().context(Context::default()))
     }
 
     fn fixture_generator(agent: Agent, event: Event) -> UserPromptGenerator<MockService> {

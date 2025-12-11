@@ -32,8 +32,9 @@ impl Transformer for SortTools {
 
 #[cfg(test)]
 mod tests {
-    use pretty_assertions::assert_eq;
     use std::collections::BTreeSet;
+
+    use pretty_assertions::assert_eq;
 
     use super::*;
     use crate::ToolDefinition;

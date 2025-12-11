@@ -774,8 +774,8 @@ mod tests {
     use std::path::PathBuf;
 
     use forge_api::{Environment, EventValue};
-    use pretty_assertions::assert_eq;
     use forge_domain::ParentContext;
+    use pretty_assertions::assert_eq;
 
     // Helper to create minimal test environment
     fn create_env(os: &str, home: Option<&str>) -> Environment {

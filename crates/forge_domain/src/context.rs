@@ -354,7 +354,8 @@ impl Deref for ParentContext {
 
 impl ParentContext {
     /// Extends this ParentContext with messages from another Context,
-    /// merging their messages while preserving the parent's compaction metadata.
+    /// merging their messages while preserving the parent's compaction
+    /// metadata.
     pub fn extend_context(mut self, context: Context) -> Self {
         self.context.messages.extend(context.messages);
         self.context.usage = context.usage;

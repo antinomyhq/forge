@@ -289,8 +289,8 @@ fn create_reasoning_config_section(conversation: &Conversation) -> Element {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::conversation::Conversation;
     use crate::ParentContext;
+    use crate::conversation::Conversation;
 
     #[test]
     fn test_render_empty_conversation() {
@@ -337,7 +337,8 @@ mod tests {
                     None,
                 ));
 
-        let fixture = Conversation::new(id).context(Some(ParentContext::default().context(context)));
+        let fixture =
+            Conversation::new(id).context(Some(ParentContext::default().context(context)));
         let actual = render_conversation_html(&fixture);
 
         // Verify reasoning details are displayed in messages

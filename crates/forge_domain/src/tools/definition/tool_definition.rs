@@ -1,7 +1,8 @@
+use std::cmp::Ordering;
+
 use derive_setters::Setters;
 use schemars::schema::RootSchema;
 use serde::{Deserialize, Serialize};
-use std::cmp::Ordering;
 
 use crate::ToolName;
 
