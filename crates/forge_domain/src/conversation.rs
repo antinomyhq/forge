@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use chrono::{DateTime, Utc};
 use derive_more::derive::Display;
 use derive_setters::Setters;
@@ -28,11 +30,18 @@ impl ConversationId {
     }
 }
 
+impl FromStr for ConversationId {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        Self::parse(s)
+    }
+}
+
 #[derive(Debug, Setters, Serialize, Deserialize, Clone)]
 #[setters(into)]
 pub struct Conversation {
     pub id: ConversationId,
-
     pub title: Option<String>,
     pub context: Option<ParentContext>,
     pub metrics: Metrics,
