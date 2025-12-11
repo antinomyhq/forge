@@ -40,11 +40,12 @@ pub fn render_conversation_html(conversation: &Conversation) -> String {
         )
         .append(
             Element::new("body")
-                .append(Element::new("h1").text("Conversation"))
                 // Combined Information Table
                 .append(create_info_table(conversation))
                 // Conversation Context Section
-                .append(create_conversation_context_section(conversation)),
+                .append(create_conversation_context_section(conversation))
+                // Tools Section
+                .append(create_tools_section(conversation)),
         );
 
     format!("<!DOCTYPE html>\n{}", html.render())
@@ -59,7 +60,7 @@ fn create_table_row(label: impl Into<String>, value: impl Into<String>) -> Eleme
 
 /// Creates a combined information table with all conversation metadata
 fn create_info_table(conversation: &Conversation) -> Element {
-    let section = Element::new("div.section").append(Element::new("h2").text("Information"));
+    let section = Element::new("div.section").append(Element::new("h2").text("Conversation"));
 
     let mut table = Element::new("table")
         .append(create_table_row("ID", conversation.id.to_string()))
@@ -137,6 +138,34 @@ fn create_info_table(conversation: &Conversation) -> Element {
     }
 
     section.append(table)
+}
+
+/// Creates a tools section displaying all available tools
+fn create_tools_section(conversation: &Conversation) -> Element {
+    let section = Element::new("div.section").append(Element::new("h2").text("Tools"));
+
+    if let Some(context) = &conversation.context {
+        if !context.tools.is_empty() {
+            let tools_elm =
+                Element::new("div.tools-section").append(context.tools.iter().map(|tool| {
+                    Element::new("details.message-card.message-tool")
+                        .append(
+                            Element::new("summary").append(Element::span(tool.name.to_string())),
+                        )
+                        .append(
+                            Element::new("div.main-content")
+                                .append(Element::new("pre").text(
+                                    to_string_pretty(&tool.input_schema).unwrap_or_default(),
+                                )),
+                        )
+                }));
+            section.append(tools_elm)
+        } else {
+            section.append(Element::new("p").text("No tools available"))
+        }
+    } else {
+        section.append(Element::new("p").text("No tools available"))
+    }
 }
 
 /// Creates a usage information section for a message
@@ -324,26 +353,6 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
             }),
         );
 
-        // Create tools section - each tool displayed as a section like context messages
-        let tools_elm = if !context.tools.is_empty() {
-            Element::new("div.tools-section")
-                .append(Element::new("h2").text("Tools"))
-                .append(context.tools.iter().map(|tool| {
-                    Element::new("details.message-card.message-tool")
-                        .append(
-                            Element::new("summary").append(Element::span(tool.name.to_string())),
-                        )
-                        .append(
-                            Element::new("div.main-content")
-                                .append(Element::new("pre").text(
-                                    to_string_pretty(&tool.input_schema).unwrap_or_default(),
-                                )),
-                        )
-                }))
-        } else {
-            Element::new("div")
-        };
-
         // Create tool choice section if available
         let context_elm = if let Some(tool_choice) = &context.tool_choice {
             context_messages
@@ -365,8 +374,6 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
         } else {
             context_elm
         };
-
-        let context_elm = Element::new("div").append(context_elm).append(tools_elm);
 
         section.append(context_elm)
     } else {
