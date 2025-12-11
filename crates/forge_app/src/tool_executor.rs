@@ -208,7 +208,7 @@ impl<
                             &search_query.query,
                             &search_query.use_case,
                         )
-                        .limit(limit)
+                        .limit(limit as usize)
                         .top_k(top_k);
                         if let Some(ext) = &input.file_extension {
                             params = params.ends_with(ext);

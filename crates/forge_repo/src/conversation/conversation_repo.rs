@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use diesel::prelude::*;
-use forge_domain::{Conversation, ConversationId, ConversationRepository, WorkspaceHash};
+use forge_domain::{Conversation, ConversationId, ConversationRepository, ProjectRootId};
 
 use crate::conversation::conversation_record::ConversationRecord;
 use crate::database::schema::conversations;
@@ -104,7 +104,7 @@ impl ConversationRepository for ConversationRepositoryImpl {
 
         // Security: Ensure users can only delete conversations within their workspace
         diesel::delete(conversations::table)
-            .filter(conversations::workspace_id.eq(&workspace_id))
+            .filter(conversations::project_root_path.eq(&workspace_id))
             .filter(conversations::conversation_id.eq(conversation_id.into_string()))
             .execute(&mut connection)?;
 

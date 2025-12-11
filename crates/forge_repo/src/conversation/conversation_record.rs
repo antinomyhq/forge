@@ -5,7 +5,7 @@
 //! storage layer independent from domain model changes.
 
 use anyhow::Context as _;
-use forge_domain::{Context, ConversationId};
+use forge_domain::{Context, ConversationId, ProjectRootId};
 use serde::{Deserialize, Serialize};
 
 /// Repository-specific representation of ModelId
@@ -870,7 +870,7 @@ impl From<MetricsRecord> for forge_domain::Metrics {
 pub(super) struct ConversationRecord {
     pub conversation_id: String,
     pub title: Option<String>,
-    pub workspace_id: i64,
+    pub project_root_path: i64,
     pub context: Option<String>,
     pub created_at: chrono::NaiveDateTime,
     pub updated_at: Option<chrono::NaiveDateTime>,
@@ -881,7 +881,7 @@ impl ConversationRecord {
     /// Creates a new ConversationRecord from a Conversation domain object
     pub fn new(
         conversation: forge_domain::Conversation,
-        workspace_id: forge_domain::WorkspaceHash,
+        project_root_id: ProjectRootId,
     ) -> Self {
         let context = conversation
             .context
@@ -899,7 +899,7 @@ impl ConversationRecord {
             context,
             created_at: conversation.metadata.created_at.naive_utc(),
             updated_at,
-            workspace_id: workspace_id.id() as i64,
+            project_root_path: project_root_id.id() as i64,
             metrics,
         }
     }
