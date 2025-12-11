@@ -6,7 +6,7 @@ use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::{HttpConfig, ModelId, ProviderId, RetryConfig};
+use crate::{HttpConfig, RetryConfig};
 
 const VERSION: &str = match option_env!("APP_VERSION") {
     Some(val) => val,
@@ -85,11 +85,11 @@ pub struct Config {
     /// variable. If set, this model will be used instead of configured
     /// models.
     #[dummy(default)]
-    pub override_model: Option<ModelId>,
+    pub override_model: Option<String>,
     /// Override provider from FORGE_OVERRIDE_PROVIDER environment variable.
     /// If set, this provider will be used as default.
     #[dummy(default)]
-    pub override_provider: Option<ProviderId>,
+    pub override_provider: Option<String>,
 }
 
 impl Config {

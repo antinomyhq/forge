@@ -1359,6 +1359,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "forge_config"
+version = "0.1.0"
+dependencies = [
+ "derive_more",
+ "derive_setters",
+ "fake",
+ "merge",
+ "pretty_assertions",
+ "serde",
+ "strum 0.27.2",
+ "strum_macros 0.27.2",
+ "url",
+]
+
+[[package]]
 name = "forge_display"
 version = "0.1.0"
 dependencies = [
@@ -1387,6 +1402,7 @@ dependencies = [
  "eserde",
  "fake",
  "fnv_rs",
+ "forge_config",
  "forge_json_repair",
  "forge_template",
  "forge_test_kit",

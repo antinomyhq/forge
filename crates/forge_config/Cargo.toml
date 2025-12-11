@@ -1,0 +1,17 @@
+[package]
+name = "forge_config"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+derive_more.workspace = true
+derive_setters.workspace = true
+serde.workspace = true
+url.workspace = true
+merge.workspace = true
+strum.workspace = true
+strum_macros.workspace = true
+fake = { version = "4.4.0", features = ["derive"] }
+
+[dev-dependencies]
+pretty_assertions.workspace = true

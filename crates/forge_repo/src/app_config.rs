@@ -42,7 +42,10 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> AppConfigRepositor
 
     fn get_overrides(&self) -> (Option<ModelId>, Option<ProviderId>) {
         let env = self.infra.get_environment();
-        (env.override_model, env.override_provider)
+        (
+            env.override_model.clone().map(ModelId::new),
+            env.override_provider.clone().map(ProviderId::from),
+        )
     }
 
     fn apply_overrides(&self, mut config: AppConfig) -> AppConfig {
