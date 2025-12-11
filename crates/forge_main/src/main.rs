@@ -75,13 +75,11 @@ async fn main() -> Result<()> {
         
         let interval = std::time::Duration::from_secs(env.sync_interval_seconds);
         
-        // Trigger startup sync if configured
-        if env.sync_on_startup {
-            match api_clone.try_sync_workspace().await {
-                Ok(true) => tracing::info!("Startup workspace sync completed successfully"),
-                Ok(false) => tracing::info!("Startup workspace sync skipped (already in progress)"),
-                Err(e) => tracing::warn!(error = %e, "Startup workspace sync failed"),
-            }
+        // Trigger initial sync on startup
+        match api_clone.try_sync_workspace().await {
+            Ok(true) => tracing::info!("Initial workspace sync completed successfully"),
+            Ok(false) => tracing::info!("Initial workspace sync skipped (already in progress)"),
+            Err(e) => tracing::warn!(error = %e, "Initial workspace sync failed"),
         }
         
         // Periodic sync loop

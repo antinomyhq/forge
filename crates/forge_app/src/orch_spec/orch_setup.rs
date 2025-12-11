@@ -75,7 +75,6 @@ impl Default for TestContext {
                 stdout_max_prefix_length: 256,
                 sync_enabled: true,
                 sync_interval_seconds: 300,
-                sync_on_startup: true,
                 stdout_max_suffix_length: 256,
                 max_read_size: 4096,
                 http: HttpConfig::default(),
