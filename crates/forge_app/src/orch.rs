@@ -232,17 +232,6 @@ impl<S: AgentService> Orchestrator<S> {
             self.conversation.context = Some(context.clone());
             self.services.update(self.conversation.clone()).await?;
 
-
-            // FIXME: Compaction is triggered way to frequently
-            // Trigger compaction before making a request
-            // Ideally compaction should be implemented as a transformer
-            if let Some(c_context) = self.check_and_compact(&context)? {
-                info!(agent_id = %agent.id, "Using compacted context from execution");
-                context = c_context;
-            } else {
-                debug!(agent_id = %agent.id, "No compaction was needed");
-            }
-
             let message = crate::retry::retry_with_config(
                 &self.environment.retry_config,
                 || self.execute_chat_turn(&model_id, context.clone(), context.is_reasoning_supported()),
@@ -261,6 +250,16 @@ impl<S: AgentService> Orchestrator<S> {
                     }
                 }),
             ).await?;
+
+            // FIXME: Add a unit test in orch spec, to guarantee that compaction is triggered after receiving the response
+            // Trigger compaction after making a request
+            // NOTE: Ideally compaction should be implemented as a transformer
+            if let Some(c_context) = self.check_and_compact(&context)? {
+                info!(agent_id = %agent.id, "Using compacted context from execution");
+                context = c_context;
+            } else {
+                debug!(agent_id = %agent.id, "No compaction was needed");
+            }
 
             info!(
                 conversation_id = %self.conversation.id,
