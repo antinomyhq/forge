@@ -109,7 +109,18 @@ impl Conversation {
     ///
     /// This is a convenience method that aggregates usage from the context,
     /// if available.
-    pub fn total_usage(&self) -> Option<crate::Usage> {
+    pub fn accumulated_usage(&self) -> Option<crate::Usage> {
         self.context.as_ref().and_then(|ctx| ctx.accumulate_usage())
+    }
+
+    pub fn usage(&self) -> Option<crate::Usage> {
+        self.context
+            .as_ref()
+            .and_then(|ctx| ctx.messages.last())
+            .and_then(|msg| msg.usage)
+    }
+
+    pub fn accumulated_cost(&self) -> Option<f64> {
+        self.accumulated_usage().and_then(|usage| usage.cost)
     }
 }

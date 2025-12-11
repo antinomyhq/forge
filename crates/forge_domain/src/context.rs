@@ -1330,8 +1330,8 @@ mod tests {
         let actual = fixture.token_count_approx();
         // Content: "Let me help" = 11 chars
         // Tool call 1: "search" (6 chars) + {"query":"test"} (16 chars) = 22 chars
-        // Tool call 2: "calculate" (9 chars) + {"expression":"2+2"} (20 chars) = 29 chars
-        // Total: 11 + 22 + 29 = 62 chars / 4 = 16 tokens
+        // Tool call 2: "calculate" (9 chars) + {"expression":"2+2"} (20 chars) = 29
+        // chars Total: 11 + 22 + 29 = 62 chars / 4 = 16 tokens
         let expected = 16;
         assert_eq!(actual, expected);
     }

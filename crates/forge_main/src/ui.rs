@@ -235,7 +235,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .await
                 .ok()
                 .flatten()
-                .and_then(|conv| conv.total_usage())
+                .and_then(|conv| conv.accumulated_usage())
         } else {
             None
         };
@@ -2616,16 +2616,16 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         // Add token usage if available
-        if let Some(usage) = conversation.total_usage().as_ref() {
+        if let Some(usage) = conversation.usage().as_ref() {
             info = info
                 .add_title("TOKEN")
                 .add_key_value("Prompt Tokens", usage.prompt_tokens.to_string())
                 .add_key_value("Completion Tokens", usage.completion_tokens.to_string())
                 .add_key_value("Total Tokens", usage.total_tokens.to_string());
+        }
 
-            if let Some(cost) = usage.cost {
-                info = info.add_key_value("Cost", format!("${cost:.4}"));
-            }
+        if let Some(cost) = conversation.accumulated_cost() {
+            info = info.add_key_value("Cost", format!("${cost:.4}"));
         }
 
         if porcelain {
@@ -2696,7 +2696,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .await
                 .ok()
                 .flatten()
-                .and_then(|conv| conv.total_usage())
+                .and_then(|conv| conv.accumulated_usage())
         } else {
             None
         };
