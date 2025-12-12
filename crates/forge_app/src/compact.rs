@@ -1,5 +1,6 @@
 use forge_domain::{
-    Compact, CompactionStrategy, Context, ContextMessage, ContextSummary, Environment, Transformer,
+    Compact, CompactionStrategy, Context, ContextMessage, ContextSummary, Environment,
+    Transformer, ContextCompactor,
 };
 use tracing::info;
 
@@ -32,6 +33,12 @@ impl Compactor {
     /// * `context_summary` - The context summary to transform
     fn transform(&self, context_summary: ContextSummary) -> ContextSummary {
         SummaryTransformer::new(&self.environment.cwd).transform(context_summary)
+    }
+}
+
+impl ContextCompactor for Compactor {
+    fn compact(&self, context: Context, max: bool) -> anyhow::Result<Context> {
+        self.compact(context, max)
     }
 }
 

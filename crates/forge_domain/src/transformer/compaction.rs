@@ -13,7 +13,7 @@ use crate::{Agent, Context, Transformer};
 /// 4. Replaces the sequence with the summary message
 pub struct CompactionTransformer<C> {
     agent: Agent,
-    compactor: C,
+    compactor: Option<C>,
 }
 
 impl<C> CompactionTransformer<C> {
@@ -23,7 +23,7 @@ impl<C> CompactionTransformer<C> {
     ///
     /// * `agent` - The agent configuration containing compaction settings
     /// * `compactor` - The compaction service implementation
-    pub fn new(agent: Agent, compactor: C) -> Self {
+    pub fn new(agent: Agent, compactor: Option<C>) -> Self {
         Self { agent, compactor }
     }
 }
@@ -45,11 +45,11 @@ impl<C: ContextCompactor> Transformer for CompactionTransformer<C> {
         // Check if compaction is needed
         let token_count = context.token_count();
         if self.agent.should_compact(&context, *token_count)
-            && self.agent.compact.is_some()
+            && let Some(compactor) = self.compactor.as_ref()
         {
             tracing::info!(agent_id = %self.agent.id, "Compaction triggered by transformer");
 
-            match self.compactor.compact(context.clone(), false) {
+            match compactor.compact(context.clone(), false) {
                 Ok(compacted) => {
                     tracing::info!(
                         agent_id = %self.agent.id,
@@ -87,8 +87,7 @@ mod tests {
     impl ContextCompactor for MockCompactor {
         fn compact(&self, _context: Context, _max: bool) -> anyhow::Result<Context> {
             // Simple mock: just return a context with fewer messages
-            Ok(Context::default()
-                .add_message(ContextMessage::user("Compacted summary", None)))
+            Ok(Context::default().add_message(ContextMessage::user("Compacted summary", None)))
         }
     }
 
@@ -98,7 +97,11 @@ mod tests {
             ProviderId::from("openai".to_string()),
             ModelId::from("gpt-4".to_string()),
         )
-        .compact(Compact::default())
+        .compact(
+            Compact::new()
+                .eviction_window(5.0)
+                .retention_window(10usize),
+        )
     }
 
     #[test]
@@ -111,7 +114,7 @@ mod tests {
             .add_message(ContextMessage::user("Message 1", None))
             .add_message(ContextMessage::assistant("Response 1", None, None));
 
-        let mut transformer = CompactionTransformer::new(agent, compactor);
+        let mut transformer = CompactionTransformer::new(agent, Some(compactor));
         let actual = transformer.transform(fixture.clone());
 
         // Context should remain unchanged because compaction threshold not reached
