@@ -4,6 +4,22 @@ A flexible evaluation framework for running automated tests and benchmarks again
 
 ## Quick Start
 
+### Setup
+
+Before running evaluations, create a `forgee` symlink to the debug binary:
+
+```bash
+# Create symlink in your PATH (e.g., ~/bin or /usr/local/bin)
+ln -sf /path/to/code-forge/target/debug/forge ~/forgee
+
+# Or if ~/bin is in your PATH
+ln -sf $(pwd)/target/debug/forge ~/bin/forgee
+```
+
+**Why is this needed?** Tasks execute in temporary directories, so relative paths like `../../target/debug/forge` won't work. The `forgee` symlink provides a stable absolute path that works from any directory.
+
+### Running Evaluations
+
 ```bash
 # Run an evaluation
 npm run eval ./evals/create_skill/task.yml
@@ -58,12 +74,12 @@ before_run:
 
 # Required: Command(s) to execute for each test case
 # Single command
-run: ../../target/debug/forge -p '{{prompt}}'
+run: forgee -p '{{prompt}}'
 
 # Or multiple commands (executed sequentially)
 run:
   - echo "Step 1: {{task}}"
-  - ../../target/debug/forge -p '{{prompt}}'
+  - forgee -p '{{prompt}}'
   - echo "Step 2: Complete"
 
 # Execution configuration
