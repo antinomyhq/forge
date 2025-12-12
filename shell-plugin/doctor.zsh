@@ -104,72 +104,7 @@ else
     print_result fail "Forge binary not found in PATH" "Install from: https://github.com/your-org/forge"
 fi
 
-# 3. Check forge plugin loading
-print_section "Plugin Status"
-
-# Check if forge-accept-line function exists (indicates plugin is loaded)
-if (( $+functions[forge-accept-line] )); then
-    print_result pass "Forge plugin is loaded"
-else
-    print_result fail "Forge plugin is not loaded" "Add to .zshrc: source <(forge zsh plugin)"
-fi
-
-# Check if _forge_action_default exists
-if (( $+functions[_forge_action_default] )); then
-    print_result pass "Forge dispatcher is loaded"
-else
-    print_result warn "Forge dispatcher not found"
-fi
-
-# 4. Check environment variables
-print_section "Environment"
-
-if [[ -n "$FORGE_CONVERSATION_ID" ]]; then
-    print_result info "Conversation: ${FORGE_CONVERSATION_ID}"
-else
-    print_result info "Conversation: none"
-fi
-
-if [[ -n "$FORGE_AGENT" ]]; then
-    print_result info "Agent: ${FORGE_AGENT}"
-fi
-
-if [[ -n "$FORGE_MODEL" ]]; then
-    print_result info "Model: ${FORGE_MODEL}"
-fi
-
-if [[ -n "$FORGE_PROVIDER" ]]; then
-    print_result info "Provider: ${FORGE_PROVIDER}"
-fi
-
-# 5. Check completion system
-print_section "Completion System"
-
-if (( $+functions[compinit] )); then
-    print_result pass "ZSH completion system initialized"
-else
-    print_result warn "ZSH completion system not initialized" "Add to .zshrc: autoload -Uz compinit && compinit"
-fi
-
-# Check if forge completion is available
-if (( $+functions[_forge] )); then
-    print_result pass "Forge completion function loaded"
-else
-    print_result warn "Forge completion not loaded" "Ensure plugin is sourced before compinit"
-fi
-
-# 6. Check key bindings
-print_section "Key Bindings"
-
-local widget=$(bindkey | grep "forge-accept-line" | head -n1)
-if [[ -n "$widget" ]]; then
-    print_result pass "Accept-line widget bound"
-    print_result info "$(echo $widget | awk '{print $1}')"
-else
-    print_result warn "Accept-line widget not bound" "Check plugin initialization"
-fi
-
-# 7. Check theme
+# 3. Check theme
 print_section "Theme"
 
 if (( $+functions[_update_forge_vars] )); then
@@ -182,23 +117,7 @@ else
     print_result info "Default theme"
 fi
 
-# 8. Check config file
-print_section "Configuration"
-
-local config_file="${HOME}/.config/forge/config.yaml"
-if [[ -f "$config_file" ]]; then
-    if [[ -r "$config_file" ]]; then
-        print_result pass "Config file readable"
-        print_result info "${config_file}"
-    else
-        print_result fail "Config file not readable"
-        print_result info "${config_file}"
-    fi
-else
-    print_result warn "Config file not found" "Using defaults"
-fi
-
-# 9. Check for common issues
+# 4. Check for common issues
 print_section "System"
 
 # Check if EDITOR is set
@@ -215,24 +134,60 @@ else
     print_result warn "PATH missing /usr/local/bin"
 fi
 
-# curl check
-if command -v curl &> /dev/null; then
-    print_result pass "curl available"
+# 10. Check recommended ZSH plugins
+print_section "Recommended Plugins"
+
+# Check for zsh-autosuggestions
+if [[ " ${plugins[*]} " =~ " zsh-autosuggestions " ]] || \
+   [[ -n "$fpath[(r)*zsh-autosuggestions*]" ]] || \
+   (( $+functions[_zsh_autosuggest_accept] )); then
+    print_result pass "zsh-autosuggestions installed"
 else
-    print_result warn "curl not found" "May affect some features"
+    print_result warn "zsh-autosuggestions not found"
+    print_result info "Install plugin and add to plugins=() in .zshrc"
+    print_result info "Installation guide: https://github.com/zsh-users/zsh-autosuggestions/blob/master/INSTALL.md"
 fi
 
-# Check for notable plugins
-local notable_plugins=(
-    "zsh-autosuggestions"
-    "zsh-syntax-highlighting"
-)
+# Check for zsh-syntax-highlighting
+if [[ " ${plugins[*]} " =~ " zsh-syntax-highlighting " ]] || \
+   [[ -n "$fpath[(r)*zsh-syntax-highlighting*]" ]] || \
+   (( $+functions[_zsh_highlight] )); then
+    print_result pass "zsh-syntax-highlighting installed"
+else
+    print_result warn "zsh-syntax-highlighting not found"
+    print_result info "Install plugin and add to plugins=() in .zshrc"
+    print_result info "Installation guide: https://github.com/zsh-users/zsh-syntax-highlighting/blob/master/INSTALL.md"
+fi
 
-for plugin in $notable_plugins; do
-    if [[ -n "$fpath[(r)*${plugin}*]" ]] || (( $+functions[${plugin}] )); then
-        print_result info "Plugin: ${plugin}"
-    fi
-done
+# 5. Check dependencies
+print_section "Dependencies"
+
+# Check for fzf - required for interactive selection
+if command -v fzf &> /dev/null; then
+    local fzf_version=$(fzf --version 2>&1 | head -n1 | awk '{print $1}')
+    print_result pass "fzf: ${fzf_version}"
+else
+    print_result fail "fzf not found" "Required for interactive features: brew install fzf"
+fi
+
+# Check for fd/fdfind - used for file discovery
+if command -v fd &> /dev/null; then
+    local fd_version=$(fd --version 2>&1 | awk '{print $2}')
+    print_result pass "fd: ${fd_version}"
+elif command -v fdfind &> /dev/null; then
+    local fd_version=$(fdfind --version 2>&1 | awk '{print $2}')
+    print_result pass "fdfind: ${fd_version}"
+else
+    print_result warn "fd/fdfind not found" "Enhanced file discovery: brew install fd"
+fi
+
+# Check for bat - used for syntax highlighting
+if command -v bat &> /dev/null; then
+    local bat_version=$(bat --version 2>&1 | awk '{print $2}')
+    print_result pass "bat: ${bat_version}"
+else
+    print_result warn "bat not found" "Enhanced preview: brew install bat"
+fi
 
 # Summary
 echo ""
