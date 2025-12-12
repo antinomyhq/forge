@@ -453,42 +453,43 @@ impl<F> ForgeContextEngineService<F> {
         let all_files: Vec<_> = join_all(read_tasks).await.into_iter().flatten().collect();
         Ok(all_files)
     }
+}
 
-    /// Attempts to sync the workspace if not already in progress
-    ///
-    /// Tries to acquire the sync lock and performs synchronization if
-    /// successful. Updates the sync status in the database upon completion.
-    ///
-    /// # Returns
-    /// * `Ok(true)` - Sync was performed successfully
-    /// * `Ok(false)` - Sync skipped (already in progress)
-    /// * `Err(_)` - Sync failed with error
-    pub async fn try_sync_workspace(&self, path: PathBuf) -> Result<bool>
-    where
-        F: WorkspaceRepository
-            + ProviderRepository
-            + ContextEngineRepository
-            + WalkerInfra
-            + FileReaderInfra
-            + 'static,
-    {
-        use futures::StreamExt;
-
+#[async_trait]
+impl<
+    F: WorkspaceRepository
+        + ProviderRepository
+        + ContextEngineRepository
+        + WalkerInfra
+        + FileReaderInfra
+        + 'static,
+> ContextEngineService for ForgeContextEngineService<F>
+{
+    async fn sync_codebase(
+        &self,
+        path: PathBuf,
+        batch_size: usize,
+    ) -> Result<MpscStream<Result<SyncProgress>>> {
         let canonical_path = path
             .canonicalize()
             .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
 
-        // Clear any stale locks before attempting to sync
+        // Clear stale locks before attempting sync
         self.infra.clear_stale_locks(&canonical_path).await?;
 
         // Try to acquire lock
-        let acquired = self.infra.try_acquire_lock(&canonical_path).await?;
+        let acquired = self
+            .infra
+            .try_acquire_lock(&canonical_path)
+            .await?;
+        
         if !acquired {
-            return Ok(false); // Another process is syncing
+            // Lock already held - return empty stream
+            tracing::debug!("Sync skipped - lock already held for path: {}", canonical_path.display());
+            return Ok(MpscStream::empty());
         }
 
-        // Check if auth already exists and create if needed (same as forge workspace
-        // sync command)
+        // Check auth and create if needed
         let auth_check_result = async {
             if !self.is_authenticated().await? {
                 self.create_auth_credentials().await?;
@@ -510,47 +511,7 @@ impl<F> ForgeContextEngineService<F> {
             return Err(e);
         }
 
-        // Perform sync
-        let mut stream = self.sync_codebase(canonical_path.clone(), 100).await?;
-
-        while let Some(event) = stream.next().await {
-            if let Err(e) = event {
-                let _ = self
-                    .infra
-                    .update_status(
-                        &canonical_path,
-                        forge_domain::SyncStatus::Failed,
-                        Some(format!("{:#}", e)),
-                    )
-                    .await;
-                return Err(e);
-            }
-        }
-
-        // Update status on success
-        self.infra
-            .update_status(&canonical_path, forge_domain::SyncStatus::Success, None)
-            .await?;
-
-        Ok(true)
-    }
-}
-
-#[async_trait]
-impl<
-    F: WorkspaceRepository
-        + ProviderRepository
-        + ContextEngineRepository
-        + WalkerInfra
-        + FileReaderInfra
-        + 'static,
-> ContextEngineService for ForgeContextEngineService<F>
-{
-    async fn sync_codebase(
-        &self,
-        path: PathBuf,
-        batch_size: usize,
-    ) -> Result<MpscStream<Result<SyncProgress>>> {
+        // Return progress stream
         let service = Clone::clone(self);
 
         let stream = MpscStream::spawn(move |tx| async move {
@@ -563,11 +524,33 @@ impl<
             };
 
             // Run the sync and emit progress events
-            let result = service.sync_codebase_internal(path, batch_size, emit).await;
+            let result = service
+                .sync_codebase_internal(canonical_path.clone(), batch_size, emit)
+                .await;
 
-            // If there was an error, send it through the channel
-            if let Err(e) = result {
-                let _ = tx.send(Err(e)).await;
+            // Update status based on result
+            match result {
+                Ok(_) => {
+                    let _ = service
+                        .infra
+                        .update_status(
+                            &canonical_path,
+                            forge_domain::SyncStatus::Success,
+                            None,
+                        )
+                        .await;
+                }
+                Err(e) => {
+                    let _ = service
+                        .infra
+                        .update_status(
+                            &canonical_path,
+                            forge_domain::SyncStatus::Failed,
+                            Some(format!("{:#}", e)),
+                        )
+                        .await;
+                    let _ = tx.send(Err(e)).await;
+                }
             }
         });
 
@@ -766,10 +749,6 @@ impl<
             .context("Failed to store authentication credentials")?;
 
         Ok(auth)
-    }
-
-    async fn try_sync_workspace(&self, path: PathBuf) -> Result<bool> {
-        self.try_sync_workspace(path).await
     }
 }
 
@@ -1180,7 +1159,10 @@ mod tests {
             .push(FileHash { path: "old.rs".into(), hash: "x".into() });
         let service = ForgeContextEngineService::new(Arc::new(mock.clone()));
 
-        let mut stream = service.sync_codebase(PathBuf::from("."), 20).await.unwrap();
+        let mut stream = service
+            .sync_codebase(PathBuf::from("."), 20)
+            .await
+            .unwrap();
 
         // Consume the stream and collect events
         let mut events = Vec::new();
@@ -1208,7 +1190,10 @@ mod tests {
         let mock = MockInfra::out_of_sync(&["file1.rs", "file2.rs"], &[]);
         let service = ForgeContextEngineService::new(Arc::new(mock));
 
-        let mut stream = service.sync_codebase(PathBuf::from("."), 20).await.unwrap();
+        let mut stream = service
+            .sync_codebase(PathBuf::from("."), 20)
+            .await
+            .unwrap();
 
         // Collect all events
         let mut events = Vec::new();
@@ -1234,7 +1219,10 @@ mod tests {
         let mock = MockInfra::out_of_sync(&["new_file.rs"], &[]);
         let service = ForgeContextEngineService::new(Arc::new(mock.clone()));
 
-        let mut stream = service.sync_codebase(PathBuf::from("."), 20).await.unwrap();
+        let mut stream = service
+            .sync_codebase(PathBuf::from("."), 20)
+            .await
+            .unwrap();
 
         // Consume all events
         while let Some(_event) = stream.next().await {}

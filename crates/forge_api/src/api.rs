@@ -183,6 +183,20 @@ pub trait API: Sync + Send {
     async fn remove_provider(&self, provider_id: &ProviderId) -> Result<()>;
 
     /// Sync a codebase directory for semantic search
+    ///
+    /// Returns a stream of progress events. The caller decides how to use it:
+    /// - Consume the stream to show progress (manual sync)
+    /// - Spawn it in the background for fire-and-forget (automatic sync)
+    ///
+    /// # Arguments
+    /// * `path` - Path to the codebase directory
+    /// * `batch_size` - Number of files to process in each batch
+    ///
+    /// Automatically handles:
+    /// - Clearing stale locks before attempting sync
+    /// - Acquiring sync lock (skips if already in progress)
+    /// - Creating auth credentials if needed
+    /// - Updating sync status in database
     async fn sync_codebase(
         &self,
         path: PathBuf,
@@ -216,18 +230,6 @@ pub trait API: Sync + Send {
 
     /// Create new authentication credentials
     async fn create_auth_credentials(&self) -> Result<forge_domain::WorkspaceAuth>;
-
-    /// Attempts to sync the workspace if not already in progress
-    ///
-    /// Automatically clears any stale sync locks before attempting to sync.
-    /// Tries to acquire the sync lock and performs synchronization if
-    /// successful. Updates the sync status in the database upon completion.
-    ///
-    /// # Returns
-    /// * `Ok(true)` - Sync was performed successfully
-    /// * `Ok(false)` - Sync skipped (already in progress)
-    /// * `Err(_)` - Sync failed with error
-    async fn try_sync_workspace(&self) -> Result<bool>;
 
     /// Migrate environment variable-based credentials to file-based
     /// credentials. This is a one-time migration that runs only if the

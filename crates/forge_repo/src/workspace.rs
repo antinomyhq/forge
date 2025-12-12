@@ -124,10 +124,22 @@ impl<E: EnvironmentInfra> WorkspaceRepository for ForgeWorkspaceRepository<E> {
         let mut connection = self.pool.get_connection()?;
         let canonical_path = path.canonicalize()?.to_string_lossy().to_string();
 
+        // First, ensure a workspace record exists
+        // Insert a placeholder record if one doesn't exist yet
+        // We use temporary UUIDs that will be replaced during the actual sync
+        diesel::insert_into(workspace::table)
+            .values((
+                workspace::remote_workspace_id.eq(WorkspaceId::generate().to_string()),
+                workspace::user_id.eq(UserId::generate().to_string()),
+                workspace::path.eq(&canonical_path),
+                workspace::created_at.eq(Utc::now().naive_utc()),
+            ))
+            .on_conflict(workspace::path)
+            .do_nothing()
+            .execute(&mut connection)?;
+
         // Atomically try to acquire the lock by updating status to IN_PROGRESS
-        // Only succeeds if:
-        // 1. A workspace record exists for this path
-        // 2. Current status is not IN_PROGRESS (or is NULL)
+        // Only succeeds if current status is not IN_PROGRESS (or is NULL)
         let rows_affected = diesel::update(workspace::table)
             .filter(workspace::path.eq(&canonical_path))
             .filter(

@@ -3122,28 +3122,25 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
             let interval = std::time::Duration::from_secs(env.sync_interval_seconds);
 
-            // Trigger initial sync on startup (stale locks cleared automatically)
-            match api_clone.try_sync_workspace().await {
-                Ok(true) => tracing::info!("Initial workspace sync completed successfully"),
-                Ok(false) => tracing::info!("Initial workspace sync skipped (already in progress)"),
-                Err(e) => tracing::warn!(error = %e, "Initial workspace sync failed"),
-            }
-
-            // Periodic sync loop
             tracing::info!(
                 interval_secs = env.sync_interval_seconds,
                 "Starting periodic workspace sync"
             );
-            loop {
-                tokio::time::sleep(interval).await;
 
-                match api_clone.try_sync_workspace().await {
-                    Ok(true) => tracing::info!("Periodic workspace sync completed successfully"),
-                    Ok(false) => {
-                        tracing::debug!("Periodic workspace sync skipped (already in progress)")
-                    }
-                    Err(e) => tracing::warn!(error = %e, "Periodic workspace sync failed"),
+            // Periodic sync loop (syncs immediately on startup, then after each interval)
+            loop {
+                // Fire and forget - sync_codebase handles locking, auth, and status updates
+                if let Ok(stream) = api_clone.sync_codebase(env.cwd.clone(), 100).await {
+                    // Spawn to consume stream in background without blocking
+                    tokio::spawn(async move {
+                        let mut stream = stream;
+                        while let Some(_) = stream.next().await {
+                            // Discard events for background sync
+                        }
+                    });
                 }
+
+                tokio::time::sleep(interval).await;
             }
         });
     }

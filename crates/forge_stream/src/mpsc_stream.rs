@@ -10,6 +10,18 @@ pub struct MpscStream<T> {
 }
 
 impl<T> MpscStream<T> {
+    /// Creates an empty stream that immediately ends
+    pub fn empty() -> MpscStream<T>
+    where
+        T: Send + 'static,
+    {
+        let (_, rx) = tokio::sync::mpsc::channel(1);
+        MpscStream {
+            join_handle: tokio::spawn(async {}),
+            receiver: rx,
+        }
+    }
+
     pub fn spawn<F, S>(f: F) -> MpscStream<T>
     where
         F: (FnOnce(Sender<T>) -> S) + Send + 'static,

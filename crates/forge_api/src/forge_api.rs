@@ -333,7 +333,9 @@ impl<
         path: PathBuf,
         batch_size: usize,
     ) -> Result<MpscStream<Result<forge_domain::SyncProgress>>> {
-        self.services.sync_codebase(path, batch_size).await
+        self.services
+            .sync_codebase(path, batch_size)
+            .await
     }
 
     async fn query_codebase(
@@ -365,14 +367,6 @@ impl<
 
     async fn create_auth_credentials(&self) -> Result<forge_domain::WorkspaceAuth> {
         self.services.create_auth_credentials().await
-    }
-
-    async fn try_sync_workspace(&self) -> Result<bool> {
-        let env = self.infra.get_environment();
-        self.services
-            .context_engine_service()
-            .try_sync_workspace(env.cwd.clone())
-            .await
     }
 
     async fn migrate_env_credentials(&self) -> Result<Option<forge_domain::MigrationResult>> {

@@ -254,6 +254,21 @@ pub trait CustomInstructionsService: Send + Sync {
 #[async_trait::async_trait]
 pub trait ContextEngineService: Send + Sync {
     /// Index the codebase at the given path
+    ///
+    /// # Arguments
+    /// * `path` - Path to the codebase directory
+    /// * `batch_size` - Number of files to process in each batch
+    /// * `show_progress` - If true, returns progress stream; if false, syncs in background
+    ///
+    /// # Behavior
+    /// - When `show_progress` is true: Blocks and returns a progress stream (manual sync)
+    /// - When `show_progress` is false: Fire-and-forget background sync (automatic/periodic)
+    ///
+    /// Automatically handles:
+    /// - Clearing stale locks before attempting sync
+    /// - Acquiring sync lock (skips if already in progress)
+    /// - Creating auth credentials if needed
+    /// - Updating sync status in database
     async fn sync_codebase(
         &self,
         path: PathBuf,
@@ -284,17 +299,6 @@ pub trait ContextEngineService: Send + Sync {
 
     /// Create new authentication credentials
     async fn create_auth_credentials(&self) -> anyhow::Result<WorkspaceAuth>;
-
-    /// Attempts to sync the workspace if not already in progress
-    ///
-    /// Tries to acquire the sync lock and performs synchronization if
-    /// successful. Updates the sync status in the database upon completion.
-    ///
-    /// # Returns
-    /// * `Ok(true)` - Sync was performed successfully
-    /// * `Ok(false)` - Sync skipped (already in progress)
-    /// * `Err(_)` - Sync failed with error
-    async fn try_sync_workspace(&self, path: PathBuf) -> anyhow::Result<bool>;
 }
 
 #[async_trait::async_trait]
@@ -1088,9 +1092,5 @@ impl<I: Services> ContextEngineService for I {
         self.context_engine_service()
             .create_auth_credentials()
             .await
-    }
-
-    async fn try_sync_workspace(&self, path: PathBuf) -> anyhow::Result<bool> {
-        self.context_engine_service().try_sync_workspace(path).await
     }
 }
