@@ -87,7 +87,7 @@ pub fn generate_zsh_theme() -> Result<String> {
 /// invocation fails.
 pub fn run_zsh_doctor() -> Result<String> {
     // Get the embedded doctor script
-    let script_content = include_str!("../../../shell-plugin/lib/doctor.zsh");
+    let script_content = include_str!("../../../shell-plugin/doctor.zsh");
     
     // Execute the script in a zsh subprocess
     let output = std::process::Command::new("zsh")

@@ -80,6 +80,19 @@ fi
 
 # 2. Check if forge is installed and in PATH
 print_section "Forge Installation"
+
+# Check FORGE_BIN environment variable
+if [[ -n "$FORGE_BIN" ]]; then
+    if [[ -f "$FORGE_BIN" && -x "$FORGE_BIN" ]]; then
+        print_result pass "FORGE_BIN set: ${FORGE_BIN}"
+    else
+        print_result fail "FORGE_BIN set but not executable: ${FORGE_BIN}"
+    fi
+else
+    print_result info "FORGE_BIN not set"
+fi
+
+# Check if forge is in PATH
 if command -v forge &> /dev/null; then
     local forge_path=$(command -v forge)
     print_result pass "Forge binary found: ${forge_path}"
