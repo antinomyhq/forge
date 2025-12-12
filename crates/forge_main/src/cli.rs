@@ -327,7 +327,7 @@ pub enum ListCommand {
 /// Command group for generating shell extensions.
 #[derive(Parser, Debug, Clone)]
 pub struct TerminalCommandGroup {
-    #[arg(value_enum)]
+    #[arg(long = "init", value_enum)]
     pub shell: Shell,
 }
 
