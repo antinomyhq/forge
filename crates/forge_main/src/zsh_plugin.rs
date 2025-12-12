@@ -65,10 +65,7 @@ pub fn generate_zsh_plugin() -> Result<String> {
 /// forge terminal theme zsh >> ~/.zshrc
 /// ```
 pub fn generate_zsh_theme() -> Result<String> {
-    let theme_file = ZshPluginLib::get("forge.theme.zsh")
-        .ok_or_else(|| anyhow::anyhow!("ZSH theme file not found"))?;
-
-    let content = std::str::from_utf8(theme_file.data.as_ref())?;
+    let content = include_str!("../../../shell-plugin/forge.theme.zsh");
     Ok(content.to_string())
 }
 
