@@ -3,23 +3,36 @@
 # ZSH Doctor - Diagnostic tool for Forge shell environment
 # Checks for common configuration issues and environment setup
 
-# Color codes for output
-local RED='\033[0;31m'
-local GREEN='\033[0;32m'
-local YELLOW='\033[1;33m'
-local BLUE='\033[0;34m'
-local NC='\033[0m' # No Color
+# ANSI codes
+local RESET='\033[0m'
+local _BOLD='\033[1m'
+local _DIM='\033[2m'
+local _GREEN='\033[0;32m'
+local _RED='\033[0;31m'
+local _YELLOW='\033[0;33m'
 
-# Symbols
-local CHECK="✓"
-local CROSS="✗"
-local WARNING="⚠"
-local INFO="ℹ"
+# Text formatting helpers - auto-reset
+function bold() { echo "${_BOLD}${1}${RESET}"; }
+function dim() { echo "${_DIM}${1}${RESET}"; }
+function green() { echo "${_GREEN}${1}${RESET}"; }
+function red() { echo "${_RED}${1}${RESET}"; }
+function yellow() { echo "${_YELLOW}${1}${RESET}"; }
+
+# Simple ASCII symbols
+local PASS="[OK]"
+local FAIL="[!!]"
+local WARN="[--]"
 
 # Counters
 local passed=0
 local failed=0
 local warnings=0
+
+# Helper function to print section headers
+function print_section() {
+    echo ""
+    echo "$(bold "$1")"
+}
 
 # Helper function to print results
 function print_result() {
@@ -29,50 +42,44 @@ function print_result() {
     
     case $result_status in
         pass)
-            echo "${GREEN}${CHECK}${NC} ${message}"
+            echo "  $(green "${PASS}") ${message}"
             ((passed++))
             ;;
         fail)
-            echo "${RED}${CROSS}${NC} ${message}"
-            [[ -n "$detail" ]] && echo "  ${detail}"
+            echo "  $(red "${FAIL}") ${message}"
+            [[ -n "$detail" ]] && echo "       $(dim "${detail}")"
             ((failed++))
             ;;
         warn)
-            echo "${YELLOW}${WARNING}${NC} ${message}"
-            [[ -n "$detail" ]] && echo "  ${detail}"
+            echo "  $(yellow "${WARN}") ${message}"
+            [[ -n "$detail" ]] && echo "       $(dim "${detail}")"
             ((warnings++))
             ;;
         info)
-            echo "${BLUE}${INFO}${NC} ${message}"
+            echo "       $(dim "${message}")"
             ;;
     esac
 }
 
-echo "╔════════════════════════════════════════════════════════════╗"
-echo "║          Forge ZSH Environment Diagnostics                 ║"
-echo "╚════════════════════════════════════════════════════════════╝"
-echo ""
+echo "$(bold "Forge Environment Diagnostics")"
 
 # 1. Check ZSH version
-echo "🔍 Shell Environment"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+print_section "Shell Environment"
 local zsh_version="${ZSH_VERSION}"
 if [[ -n "$zsh_version" ]]; then
     local major=$(echo $zsh_version | cut -d. -f1)
     local minor=$(echo $zsh_version | cut -d. -f2)
     if [[ $major -ge 5 ]] && [[ $minor -ge 0 ]]; then
-        print_result pass "ZSH version: ${zsh_version}"
+        print_result pass "ZSH ${zsh_version}"
     else
-        print_result warn "ZSH version: ${zsh_version}" "Recommended: 5.0 or higher"
+        print_result warn "ZSH ${zsh_version}" "Recommended: 5.0+"
     fi
 else
     print_result fail "Unable to detect ZSH version"
 fi
 
 # 2. Check if forge is installed and in PATH
-echo ""
-echo "🔧 Forge Installation"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+print_section "Forge Installation"
 if command -v forge &> /dev/null; then
     local forge_path=$(command -v forge)
     print_result pass "Forge binary found: ${forge_path}"
@@ -85,9 +92,7 @@ else
 fi
 
 # 3. Check forge plugin loading
-echo ""
-echo "🔌 Forge Plugin Status"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+print_section "Plugin Status"
 
 # Check if forge-accept-line function exists (indicates plugin is loaded)
 if (( $+functions[forge-accept-line] )); then
@@ -104,38 +109,28 @@ else
 fi
 
 # 4. Check environment variables
-echo ""
-echo "🌍 Environment Variables"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+print_section "Environment"
 
 if [[ -n "$FORGE_CONVERSATION_ID" ]]; then
-    print_result info "Active conversation: ${FORGE_CONVERSATION_ID}"
+    print_result info "Conversation: ${FORGE_CONVERSATION_ID}"
 else
-    print_result info "No active conversation"
+    print_result info "Conversation: none"
 fi
 
 if [[ -n "$FORGE_AGENT" ]]; then
-    print_result info "Current agent: ${FORGE_AGENT}"
-else
-    print_result info "Using default agent"
+    print_result info "Agent: ${FORGE_AGENT}"
 fi
 
 if [[ -n "$FORGE_MODEL" ]]; then
-    print_result info "Current model: ${FORGE_MODEL}"
-else
-    print_result info "Using default model"
+    print_result info "Model: ${FORGE_MODEL}"
 fi
 
 if [[ -n "$FORGE_PROVIDER" ]]; then
-    print_result info "Current provider: ${FORGE_PROVIDER}"
-else
-    print_result info "Using default provider"
+    print_result info "Provider: ${FORGE_PROVIDER}"
 fi
 
 # 5. Check completion system
-echo ""
-echo "📝 Completion System"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+print_section "Completion System"
 
 if (( $+functions[compinit] )); then
     print_result pass "ZSH completion system initialized"
@@ -151,113 +146,92 @@ else
 fi
 
 # 6. Check key bindings
-echo ""
-echo "⌨️  Key Bindings"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+print_section "Key Bindings"
 
 local widget=$(bindkey | grep "forge-accept-line" | head -n1)
 if [[ -n "$widget" ]]; then
-    print_result pass "Forge accept-line widget bound"
-    print_result info "$(echo $widget | awk '{print $1 " -> " $2}')"
+    print_result pass "Accept-line widget bound"
+    print_result info "$(echo $widget | awk '{print $1}')"
 else
-    print_result warn "Forge accept-line widget not bound" "Check plugin initialization"
+    print_result warn "Accept-line widget not bound" "Check plugin initialization"
 fi
 
 # 7. Check theme
-echo ""
-echo "🎨 Theme Status"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+print_section "Theme"
 
 if (( $+functions[_update_forge_vars] )); then
-    print_result pass "Forge theme functions loaded"
-else
-    print_result info "Forge theme not loaded (optional)"
-fi
-
-if (( $+functions[p10k] )); then
+    print_result pass "Forge theme loaded"
+elif (( $+functions[p10k] )); then
     print_result info "Powerlevel10k detected"
 elif [[ -n "$ZSH_THEME" ]]; then
-    print_result info "Theme: ${ZSH_THEME}"
+    print_result info "${ZSH_THEME}"
 else
-    print_result info "No Oh-My-Zsh theme detected"
+    print_result info "Default theme"
 fi
 
 # 8. Check config file
-echo ""
-echo "⚙️  Configuration"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+print_section "Configuration"
 
 local config_file="${HOME}/.config/forge/config.yaml"
 if [[ -f "$config_file" ]]; then
-    print_result pass "Config file exists: ${config_file}"
-    
-    # Check if file is readable
     if [[ -r "$config_file" ]]; then
-        print_result pass "Config file is readable"
+        print_result pass "Config file readable"
+        print_result info "${config_file}"
     else
-        print_result fail "Config file is not readable"
+        print_result fail "Config file not readable"
+        print_result info "${config_file}"
     fi
 else
-    print_result warn "Config file not found: ${config_file}" "Will use default configuration"
+    print_result warn "Config file not found" "Using defaults"
 fi
 
 # 9. Check for common issues
-echo ""
-echo "🔎 Common Issues"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+print_section "System"
 
 # Check if EDITOR is set
 if [[ -n "$EDITOR" ]]; then
-    print_result pass "EDITOR is set: ${EDITOR}"
+    print_result pass "EDITOR: ${EDITOR}"
 else
-    print_result warn "EDITOR is not set" "Some features may not work. Set it in .zshrc: export EDITOR=vim"
+    print_result warn "EDITOR not set" "export EDITOR=vim"
 fi
 
 # Check PATH for common issues
 if [[ "$PATH" == *"/usr/local/bin"* ]]; then
-    print_result pass "PATH includes /usr/local/bin"
+    print_result pass "PATH configured"
 else
-    print_result warn "PATH does not include /usr/local/bin"
+    print_result warn "PATH missing /usr/local/bin"
 fi
 
-# Check for conflicting plugins
-local conflicting_plugins=(
+# curl check
+if command -v curl &> /dev/null; then
+    print_result pass "curl available"
+else
+    print_result warn "curl not found" "May affect some features"
+fi
+
+# Check for notable plugins
+local notable_plugins=(
     "zsh-autosuggestions"
     "zsh-syntax-highlighting"
 )
 
-for plugin in $conflicting_plugins; do
+for plugin in $notable_plugins; do
     if [[ -n "$fpath[(r)*${plugin}*]" ]] || (( $+functions[${plugin}] )); then
-        print_result info "Plugin detected: ${plugin} (may affect Forge)"
+        print_result info "Plugin: ${plugin}"
     fi
 done
 
-# 10. Network connectivity (basic check)
-echo ""
-echo "🌐 Network"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-
-if command -v curl &> /dev/null; then
-    print_result pass "curl is available"
-else
-    print_result warn "curl not found" "May affect some Forge features"
-fi
-
 # Summary
 echo ""
-echo "╔════════════════════════════════════════════════════════════╗"
-echo "║                        Summary                             ║"
-echo "╚════════════════════════════════════════════════════════════╝"
-echo ""
-echo "${GREEN}Passed:${NC}   ${passed}"
-echo "${RED}Failed:${NC}   ${failed}"
-echo "${YELLOW}Warnings:${NC} ${warnings}"
-echo ""
+echo "$(dim "────────────────────────────────────────")"
 
-if [[ $failed -eq 0 ]]; then
-    echo "${GREEN}${CHECK} All critical checks passed!${NC}"
+if [[ $failed -eq 0 && $warnings -eq 0 ]]; then
+    echo "$(green "${PASS}") $(bold "All checks passed") $(dim "(${passed})")"
+    exit 0
+elif [[ $failed -eq 0 ]]; then
+    echo "$(yellow "${WARN}") $(bold "${warnings} warnings") $(dim "(${passed} passed)")"
     exit 0
 else
-    echo "${RED}${CROSS} Some critical checks failed. Please review the issues above.${NC}"
+    echo "$(red "${FAIL}") $(bold "${failed} failed") $(dim "(${warnings} warnings, ${passed} passed)")"
     exit 1
 fi
