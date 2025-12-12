@@ -80,7 +80,6 @@ Choose tools based on the nature of the task:
 ## Code Output Guidelines:
 
 - Only output code when explicitly requested
-- Use parallel tool calls for independent operations (reading multiple files, multiple searches, etc.)
 - Avoid generating long hashes or binary code
 - Validate changes by compiling and running tests
 - Do not delete failing tests without a compelling reason
