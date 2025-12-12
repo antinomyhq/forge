@@ -118,10 +118,8 @@ impl ConversationRepository for ConversationRepositoryImpl {
 mod tests {
     use chrono::Utc;
     use forge_domain::{
-        Context, ContextMessage, Effort, FileOperation, Metrics, Role, ToolCallFull,
-        ToolCallId,
-        ToolChoice, ToolDefinition, ToolKind, ToolName, ToolOutput, ToolResult,
-        ToolValue, Usage,
+        Context, ContextMessage, Effort, FileOperation, Metrics, Role, ToolCallFull, ToolCallId,
+        ToolChoice, ToolDefinition, ToolKind, ToolName, ToolOutput, ToolResult, ToolValue, Usage,
     };
     use pretty_assertions::assert_eq;
 

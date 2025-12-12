@@ -1,6 +1,6 @@
 use forge_domain::{
-    Compact, CompactionStrategy, Context, ContextMessage, ContextSummary, Environment,
-    Transformer, ContextCompactor,
+    Compact, CompactionStrategy, Context, ContextCompactor, ContextMessage, ContextSummary,
+    Environment, Transformer,
 };
 use tracing::info;
 
