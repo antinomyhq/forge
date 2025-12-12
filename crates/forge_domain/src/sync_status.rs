@@ -50,12 +50,10 @@ pub struct WorkspaceSyncStatus {
     pub path: PathBuf,
     /// Current sync status
     pub status: SyncStatus,
-    /// Timestamp of the last sync attempt
+    /// Timestamp of the last sync state transition (attempt start or completion)
     pub last_synced_at: DateTime<Utc>,
     /// Error message if the sync failed
     pub error_message: Option<String>,
-    /// Process ID that initiated the sync
-    pub process_id: u32,
 }
 
 #[cfg(test)]

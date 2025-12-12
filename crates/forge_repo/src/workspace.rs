@@ -83,9 +83,13 @@ impl<E: EnvironmentInfra> WorkspaceRepository for ForgeWorkspaceRepository<E> {
         let record = IndexingRecord::new(workspace_id, user_id, path);
         diesel::insert_into(workspace::table)
             .values(&record)
-            .on_conflict(workspace::remote_workspace_id)
+            .on_conflict(workspace::path)
             .do_update()
-            .set(workspace::updated_at.eq(Utc::now().naive_utc()))
+            .set((
+                workspace::remote_workspace_id.eq(workspace_id.to_string()),
+                workspace::user_id.eq(user_id.to_string()),
+                workspace::updated_at.eq(Utc::now().naive_utc()),
+            ))
             .execute(&mut connection)?;
         Ok(())
     }
@@ -223,7 +227,6 @@ impl<E: EnvironmentInfra> WorkspaceRepository for ForgeWorkspaceRepository<E> {
                 status,
                 last_synced_at: last_synced.map(|dt| dt.and_utc()).unwrap_or(Utc::now()),
                 error_message: error,
-                process_id: 0,
             }))
         } else {
             Ok(None)

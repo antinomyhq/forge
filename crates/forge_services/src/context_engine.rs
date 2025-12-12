@@ -514,7 +514,7 @@ impl<
         // Return progress stream
         let service = Clone::clone(self);
 
-        let stream = MpscStream::spawn(move |tx| async move {
+        let stream = MpscStream::spawn_with_capacity(8, move |tx| async move {
             // Create emit closure that captures the sender
             let emit = |progress: SyncProgress| {
                 let tx = tx.clone();

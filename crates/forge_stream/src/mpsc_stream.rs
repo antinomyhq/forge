@@ -19,13 +19,21 @@ impl<T> MpscStream<T> {
         MpscStream { join_handle: tokio::spawn(async {}), receiver: rx }
     }
 
+    pub fn spawn_with_capacity<F, S>(capacity: usize, f: F) -> MpscStream<T>
+    where
+        F: (FnOnce(Sender<T>) -> S) + Send + 'static,
+        S: Future<Output = ()> + Send + 'static,
+    {
+        let (tx, rx) = tokio::sync::mpsc::channel(capacity);
+        MpscStream { join_handle: tokio::spawn(f(tx)), receiver: rx }
+    }
+
     pub fn spawn<F, S>(f: F) -> MpscStream<T>
     where
         F: (FnOnce(Sender<T>) -> S) + Send + 'static,
         S: Future<Output = ()> + Send + 'static,
     {
-        let (tx, rx) = tokio::sync::mpsc::channel(1);
-        MpscStream { join_handle: tokio::spawn(f(tx)), receiver: rx }
+        Self::spawn_with_capacity(1, f)
     }
 }
 

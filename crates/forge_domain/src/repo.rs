@@ -130,7 +130,7 @@ pub trait WorkspaceRepository: Send + Sync {
     /// Attempts to acquire the sync lock for a workspace
     ///
     /// Atomically checks if a sync is in progress and sets the status to
-    /// IN_PROGRESS with the current process ID if not.
+    /// IN_PROGRESS if not.
     ///
     /// # Returns
     /// * `true` if lock was successfully acquired
