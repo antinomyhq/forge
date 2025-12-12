@@ -419,10 +419,11 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     ExtensionCommand::Zsh => {
                         self.on_zsh_prompt().await?;
                     }
-                    ExtensionCommand::Completion { shell } => {
-                        self.on_generate_completions(shell)?;
-                    }
                 }
+                return Ok(());
+            }
+            TopLevelCommand::Completion { shell } => {
+                self.on_generate_completions(shell)?;
                 return Ok(());
             }
             TopLevelCommand::Mcp(mcp_command) => match mcp_command.command {
