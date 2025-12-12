@@ -92,7 +92,7 @@ pub enum TopLevelCommand {
 
     /// Generate shell extension scripts.
     #[command(alias = "extension")]
-    Shell(ShellCommandGroup),
+    Terminal(TerminalCommandGroup),
 
     /// List agents, models, providers, tools, or MCP servers.
     List(ListCommandGroup),
@@ -326,9 +326,9 @@ pub enum ListCommand {
 
 /// Command group for generating shell extensions.
 #[derive(Parser, Debug, Clone)]
-pub struct ShellCommandGroup {
+pub struct TerminalCommandGroup {
     #[command(subcommand)]
-    pub command: Shell,
+    pub shell: Shell,
 }
 
 #[derive(Subcommand, Debug, Clone)]

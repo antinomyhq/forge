@@ -412,8 +412,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
                 return Ok(());
             }
-            TopLevelCommand::Shell(extension_group) => {
-                match extension_group.command {
+            TopLevelCommand::Terminal(extension_group) => {
+                match extension_group.shell {
                     Shell::Zsh => {
                         self.on_zsh_prompt().await?;
                     }
