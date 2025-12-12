@@ -65,15 +65,18 @@ impl<R: AgentRepository + AppConfigRepository + ProviderRepository> ForgeAgentRe
 
     /// Load agents from repository
     async fn load_agents(&self) -> anyhow::Result<DashMap<String, Agent>> {
-        // Load agent definitions from repository
-        let agent_defs = self.repository.get_agents().await?;
+        // Load agent definitions and app config in parallel
+        let (agent_defs, app_config) = tokio::try_join!(
+            self.repository.get_agents(),
+            self.repository.get_app_config()
+        )?;
 
-        // Get default provider and model from app config
-        let app_config = self.repository.get_app_config().await?;
         let default_provider_id = app_config
             .provider
             .ok_or(forge_domain::Error::NoDefaultProvider)?;
+
         let default_provider = self.repository.get_provider(default_provider_id).await?;
+
         let default_model = app_config
             .model
             .get(&default_provider.id)
@@ -86,7 +89,7 @@ impl<R: AgentRepository + AppConfigRepository + ProviderRepository> ForgeAgentRe
             })?;
 
         // Create the agents map
-        let agents_map = DashMap::new();
+        let agents_map = DashMap::with_capacity(agent_defs.len());
 
         // Convert definitions to runtime agents and populate map
         for def in agent_defs {
