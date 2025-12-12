@@ -297,19 +297,19 @@ impl JsonSchema for PatchOperation {
     }
 }
 
-/// **Single-file text modification tool**. Modifies files with targeted line 
-/// operations on matched patterns. Supports prepend, append, replace, replace_all, 
-/// swap operations. **Operates on one file at a time** - for multi-file changes, 
-/// call this tool multiple times. **NOT for applying git-style patches or unified 
-/// diffs** - use this for simple find-and-replace operations within a single file. 
-/// Ideal for precise changes to configs, code, or docs while preserving context. 
-/// Use `write` instead for complete file rewrites and `undo` for undoing the last 
-/// operation. Fails if search pattern isn't found.\n\nUsage Guidelines:\n-When editing
-/// text from Read tool output, ensure you preserve new lines and the exact
-/// indentation (tabs/spaces) as it appears AFTER the line number prefix. The
-/// line number prefix format is: line number + ':'. Everything
-/// after that is the actual file content to match. Never include any part
-/// of the line number prefix in the search or content
+/// **Single-file text modification tool**. Modifies files with targeted line
+/// operations on matched patterns. Supports prepend, append, replace,
+/// replace_all, swap operations. **Operates on one file at a time** - for
+/// multi-file changes, call this tool multiple times. **NOT for applying
+/// git-style patches or unified diffs** - use this for simple find-and-replace
+/// operations within a single file. Ideal for precise changes to configs, code,
+/// or docs while preserving context. Use `write` instead for complete file
+/// rewrites and `undo` for undoing the last operation. Fails if search pattern
+/// isn't found.\n\nUsage Guidelines:\n-When editing text from Read tool output,
+/// ensure you preserve new lines and the exact indentation (tabs/spaces) as it
+/// appears AFTER the line number prefix. The line number prefix format is: line
+/// number + ':'. Everything after that is the actual file content to match.
+/// Never include any part of the line number prefix in the search or content
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct FSPatch {
     /// The path to the file to modify
