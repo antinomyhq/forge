@@ -124,7 +124,7 @@ function _update_forge_vars() {
 precmd_functions+=(_update_forge_vars)
 
 # Main prompt: directory + git + chevron
-PROMPT='$(_forge_directory)$(_forge_git) %F{green}❯%f '
+PROMPT='$(_forge_directory)$(_forge_git)%F{green} %f '
 
 # Right prompt: model + agent with token count
 RPROMPT='$(_forge_agent) $(_forge_model)'
