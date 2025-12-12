@@ -113,11 +113,15 @@ fi
 # Check if forge is in PATH
 if command -v forge &> /dev/null; then
     local forge_path=$(command -v forge)
-    print_result pass "Forge binary found: ${forge_path}"
     
-    # Get forge version
-    local forge_version=$(forge --version 2>&1 | head -n1 || echo "unknown")
-    print_result info "Version: ${forge_version}"
+    # Get forge version and extract just the version number
+    local forge_version=$(forge --version 2>&1 | head -n1 | awk '{print $2}')
+    if [[ -n "$forge_version" ]]; then
+        print_result pass "Forge: ${forge_version}"
+        print_result info "${forge_path}"
+    else
+        print_result pass "Forge binary found: ${forge_path}"
+    fi
 else
     print_result fail "Forge binary not found in PATH" "Install from: https://github.com/your-org/forge"
 fi
