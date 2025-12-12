@@ -3131,13 +3131,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             loop {
                 // Fire and forget - sync_codebase handles locking, auth, and status updates
                 if let Ok(stream) = api_clone.sync_codebase(env.cwd.clone(), 100).await {
-                    // Spawn to consume stream in background without blocking
-                    tokio::spawn(async move {
-                        let mut stream = stream;
-                        while let Some(_) = stream.next().await {
-                            // Discard events for background sync
-                        }
-                    });
+                    let _ = stream.collect::<Vec<_>>().await;
                 }
 
                 tokio::time::sleep(interval).await;
