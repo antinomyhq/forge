@@ -74,5 +74,9 @@
   {
     "command": "clone",
     "description": "Clone and manage conversation context"
+  },
+  {
+    "command": "delete",
+    "description": "Delete a conversation [alias: del]"
   }
 ]
