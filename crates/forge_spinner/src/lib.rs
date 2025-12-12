@@ -29,10 +29,7 @@ impl SpinnerManager {
     pub fn test_with_tick_counter(
         tick_counter: std::sync::Arc<std::sync::atomic::AtomicU64>,
     ) -> Self {
-        Self {
-            tick_counter: Some(tick_counter),
-            ..Self::default()
-        }
+        Self { tick_counter: Some(tick_counter), ..Self::default() }
     }
 
     /// Start the spinner with a message
@@ -185,10 +182,8 @@ impl SpinnerManager {
 }
 #[cfg(test)]
 mod tests {
-    use std::sync::{
-        Arc,
-        atomic::{AtomicU64, Ordering},
-    };
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicU64, Ordering};
 
     use pretty_assertions::assert_eq;
 
