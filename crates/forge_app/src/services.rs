@@ -244,6 +244,7 @@ pub trait AttachmentService {
 
 pub trait EnvironmentService: Send + Sync {
     fn get_environment(&self) -> Environment;
+    fn get_env_var(&self, key: &str) -> Option<String>;
 }
 #[async_trait::async_trait]
 pub trait CustomInstructionsService: Send + Sync {
@@ -863,6 +864,10 @@ impl<I: Services> ShellService for I {
 impl<I: Services> EnvironmentService for I {
     fn get_environment(&self) -> Environment {
         self.environment_service().get_environment()
+    }
+
+    fn get_env_var(&self, key: &str) -> Option<String> {
+        self.environment_service().get_env_var(key)
     }
 }
 

@@ -113,6 +113,10 @@ mod tests {
         fn get_environment(&self) -> Environment {
             self.environment.clone()
         }
+
+        fn get_env_var(&self, _key: &str) -> Option<String> {
+            None
+        }
     }
 
     #[async_trait::async_trait]
