@@ -419,6 +419,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     crate::cli::ZshCommandGroup::Theme => {
                         self.on_zsh_theme().await?;
                     }
+                    crate::cli::ZshCommandGroup::Doctor => {
+                        self.on_zsh_doctor().await?;
+                    }
                 }
                 return Ok(());
             }
@@ -1424,6 +1427,14 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     async fn on_zsh_theme(&self) -> anyhow::Result<()> {
         let theme = crate::zsh_plugin::generate_zsh_theme()?;
         println!("{theme}");
+        Ok(())
+    }
+
+
+    /// Run ZSH environment diagnostics
+    async fn on_zsh_doctor(&self) -> anyhow::Result<()> {
+        let report = crate::zsh_plugin::run_zsh_doctor()?;
+        println!("{report}");
         Ok(())
     }
 

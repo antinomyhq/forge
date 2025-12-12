@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::CommandFactory;
 use clap_complete::generate;
 use clap_complete::shells::Zsh;
@@ -67,6 +67,46 @@ pub fn generate_zsh_plugin() -> Result<String> {
 pub fn generate_zsh_theme() -> Result<String> {
     let content = include_str!("../../../shell-plugin/forge.theme.zsh");
     Ok(content.to_string())
+}
+
+
+/// Run diagnostics on the ZSH shell environment
+///
+/// Returns a diagnostic report that checks for common configuration issues,
+/// plugin conflicts, and environment setup problems.
+///
+/// # Example
+///
+/// ```bash
+/// forge zsh doctor
+/// ```
+///
+/// # Errors
+///
+/// Returns an error if the doctor script cannot be executed or if the shell
+/// invocation fails.
+pub fn run_zsh_doctor() -> Result<String> {
+    // Get the embedded doctor script
+    let script_content = include_str!("../../../shell-plugin/lib/doctor.zsh");
+    
+    // Execute the script in a zsh subprocess
+    let output = std::process::Command::new("zsh")
+        .arg("-c")
+        .arg(script_content)
+        .output()
+        .context("Failed to execute zsh doctor script")?;
+    
+    // Combine stdout and stderr for complete diagnostic output
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    
+    let mut result = stdout.to_string();
+    if !stderr.is_empty() {
+        result.push_str("\n\nErrors:\n");
+        result.push_str(&stderr);
+    }
+    
+    Ok(result)
 }
 
 #[cfg(test)]

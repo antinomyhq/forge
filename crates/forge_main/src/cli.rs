@@ -331,6 +331,8 @@ pub enum ZshCommandGroup {
     Plugin,
     /// Generate shell theme
     Theme,
+    /// Run diagnostics on shell environment
+    Doctor,
 }
 
 /// Command group for MCP server management.
@@ -1443,6 +1445,18 @@ mod tests {
         let actual = match fixture.subcommands {
             Some(TopLevelCommand::Zsh(terminal)) => {
                 matches!(terminal, ZshCommandGroup::Plugin)
+            }
+            _ => false,
+        };
+        assert_eq!(actual, true);
+    }
+
+    #[test]
+    fn test_zsh_doctor() {
+        let fixture = Cli::parse_from(["forge", "zsh", "doctor"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Zsh(terminal)) => {
+                matches!(terminal, ZshCommandGroup::Doctor)
             }
             _ => false,
         };
