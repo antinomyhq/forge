@@ -91,8 +91,8 @@ pub enum TopLevelCommand {
     Agent(AgentCommandGroup),
 
     /// Generate shell extension scripts.
-    #[command(alias = "extension")]
-    Terminal(TerminalCommandGroup),
+    #[command(subcommand, alias = "extension")]
+    Zsh(ZshCommandGroup),
 
     /// List agents, models, providers, tools, or MCP servers.
     List(ListCommandGroup),
@@ -324,33 +324,13 @@ pub enum ListCommand {
     Skill,
 }
 
-/// Command group for generating shell extensions.
-#[derive(Parser, Debug, Clone)]
-pub struct TerminalCommandGroup {
-    #[command(subcommand)]
-    pub command: TerminalCommand,
-}
-
+/// Shell extension commands.
 #[derive(Subcommand, Debug, Clone)]
-pub enum TerminalCommand {
+pub enum ZshCommandGroup {
     /// Generate shell plugin script
-    Plugin {
-        /// Shell type
-        #[arg(value_enum)]
-        shell: Shell,
-    },
+    Plugin,
     /// Generate shell theme
-    Theme {
-        /// Shell type
-        #[arg(value_enum)]
-        shell: Shell,
-    },
-}
-
-#[derive(ValueEnum, Debug, Clone, Copy)]
-pub enum Shell {
-    /// ZSH shell
-    Zsh,
+    Theme,
 }
 
 /// Command group for MCP server management.
@@ -1447,12 +1427,11 @@ mod tests {
 
     #[test]
     fn test_terminal_theme_zsh() {
-        let fixture = Cli::parse_from(["forge", "terminal", "theme", "zsh"]);
+        let fixture = Cli::parse_from(["forge", "zsh", "theme"]);
         let actual = match fixture.subcommands {
-            Some(TopLevelCommand::Terminal(terminal)) => match terminal.command {
-                TerminalCommand::Theme { shell } => matches!(shell, Shell::Zsh),
-                _ => false,
-            },
+            Some(TopLevelCommand::Zsh(terminal)) => {
+                matches!(terminal, ZshCommandGroup::Theme)
+            }
             _ => false,
         };
         assert_eq!(actual, true);
@@ -1460,12 +1439,11 @@ mod tests {
 
     #[test]
     fn test_terminal_plugin_zsh() {
-        let fixture = Cli::parse_from(["forge", "terminal", "plugin", "zsh"]);
+        let fixture = Cli::parse_from(["forge", "zsh", "plugin"]);
         let actual = match fixture.subcommands {
-            Some(TopLevelCommand::Terminal(terminal)) => match terminal.command {
-                TerminalCommand::Plugin { shell } => matches!(shell, Shell::Zsh),
-                _ => false,
-            },
+            Some(TopLevelCommand::Zsh(terminal)) => {
+                matches!(terminal, ZshCommandGroup::Plugin)
+            }
             _ => false,
         };
         assert_eq!(actual, true);

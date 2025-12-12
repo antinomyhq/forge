@@ -8,10 +8,10 @@ use crate::cli::Cli;
 
 /// Embeds all shell plugin and theme files for zsh integration
 #[derive(RustEmbed)]
-#[folder = "$CARGO_MANIFEST_DIR/../../shell-plugin"]
+#[folder = "$CARGO_MANIFEST_DIR/../../shell-plugin/lib"]
 #[include = "**/*.zsh"]
 #[exclude = "forge.plugin.zsh"]
-struct ZshPlugin;
+struct ZshPluginLib;
 
 /// Generates the complete zsh plugin by combining all embedded files
 /// Strips out comments and empty lines for minimal output (except theme)
@@ -20,10 +20,7 @@ pub fn generate_zsh_plugin() -> Result<String> {
     let mut output = String::new();
 
     // Iterate through all embedded files and combine them
-    for file in ZshPlugin::iter()
-        .filter(|path| path.contains("lib"))
-        .flat_map(|path| ZshPlugin::get(&path).into_iter())
-    {
+    for file in ZshPluginLib::iter().flat_map(|path| ZshPluginLib::get(&path).into_iter()) {
         let content = std::str::from_utf8(file.data.as_ref())?;
 
         // Process other files to strip comments and empty lines
@@ -68,7 +65,7 @@ pub fn generate_zsh_plugin() -> Result<String> {
 /// forge terminal theme zsh >> ~/.zshrc
 /// ```
 pub fn generate_zsh_theme() -> Result<String> {
-    let theme_file = ZshPlugin::get("forge.theme.zsh")
+    let theme_file = ZshPluginLib::get("forge.theme.zsh")
         .ok_or_else(|| anyhow::anyhow!("ZSH theme file not found"))?;
 
     let content = std::str::from_utf8(theme_file.data.as_ref())?;

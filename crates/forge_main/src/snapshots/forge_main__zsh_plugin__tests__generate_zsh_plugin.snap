@@ -1,7 +1,6 @@
 ---
 source: crates/forge_main/src/zsh_plugin.rs
 expression: output
-snapshot_kind: text
 ---
 function _forge_action_login() {
     echo
@@ -890,37 +889,35 @@ esac
     ;;
 esac
 ;;
-(terminal)
+(zsh)
 _arguments "${_arguments_options[@]}" : \
 '-h[Print help]' \
 '--help[Print help]' \
-":: :_forge__terminal_commands" \
-"*::: :->terminal" \
+":: :_forge__zsh_commands" \
+"*::: :->zsh" \
 && ret=0
 
     case $state in
-    (terminal)
+    (zsh)
         words=($line[1] "${words[@]}")
         (( CURRENT += 1 ))
-        curcontext="${curcontext%:*:*}:forge-terminal-command-$line[1]:"
+        curcontext="${curcontext%:*:*}:forge-zsh-command-$line[1]:"
         case $line[1] in
             (plugin)
 _arguments "${_arguments_options[@]}" : \
-'-h[Print help (see more with '\''--help'\'')]' \
-'--help[Print help (see more with '\''--help'\'')]' \
-':shell -- Shell type:((zsh\:"ZSH shell"))' \
+'-h[Print help]' \
+'--help[Print help]' \
 && ret=0
 ;;
 (theme)
 _arguments "${_arguments_options[@]}" : \
-'-h[Print help (see more with '\''--help'\'')]' \
-'--help[Print help (see more with '\''--help'\'')]' \
-':shell -- Shell type:((zsh\:"ZSH shell"))' \
+'-h[Print help]' \
+'--help[Print help]' \
 && ret=0
 ;;
 (help)
 _arguments "${_arguments_options[@]}" : \
-":: :_forge__terminal__help_commands" \
+":: :_forge__zsh__help_commands" \
 "*::: :->help" \
 && ret=0
 
@@ -928,7 +925,7 @@ _arguments "${_arguments_options[@]}" : \
     (help)
         words=($line[1] "${words[@]}")
         (( CURRENT += 1 ))
-        curcontext="${curcontext%:*:*}:forge-terminal-help-command-$line[1]:"
+        curcontext="${curcontext%:*:*}:forge-zsh-help-command-$line[1]:"
         case $line[1] in
             (plugin)
 _arguments "${_arguments_options[@]}" : \
@@ -1755,17 +1752,17 @@ _arguments "${_arguments_options[@]}" : \
     ;;
 esac
 ;;
-(terminal)
+(zsh)
 _arguments "${_arguments_options[@]}" : \
-":: :_forge__help__terminal_commands" \
-"*::: :->terminal" \
+":: :_forge__help__zsh_commands" \
+"*::: :->zsh" \
 && ret=0
 
     case $state in
-    (terminal)
+    (zsh)
         words=($line[1] "${words[@]}")
         (( CURRENT += 1 ))
-        curcontext="${curcontext%:*:*}:forge-help-terminal-command-$line[1]:"
+        curcontext="${curcontext%:*:*}:forge-help-zsh-command-$line[1]:"
         case $line[1] in
             (plugin)
 _arguments "${_arguments_options[@]}" : \
@@ -2084,7 +2081,7 @@ esac
 _forge_commands() {
     local commands; commands=(
 'agent:Manage agents' \
-'terminal:Generate shell extension scripts' \
+'zsh:Generate shell extension scripts' \
 'list:List agents, models, providers, tools, or MCP servers' \
 'banner:Display the banner with version information' \
 'info:Show configuration, active model, and environment status' \
@@ -2394,7 +2391,7 @@ _forge__env_commands() {
 _forge__help_commands() {
     local commands; commands=(
 'agent:Manage agents' \
-'terminal:Generate shell extension scripts' \
+'zsh:Generate shell extension scripts' \
 'list:List agents, models, providers, tools, or MCP servers' \
 'banner:Display the banner with version information' \
 'info:Show configuration, active model, and environment status' \
@@ -2693,24 +2690,6 @@ _forge__help__suggest_commands() {
     local commands; commands=()
     _describe -t commands 'forge help suggest commands' commands "$@"
 }
-(( $+functions[_forge__help__terminal_commands] )) ||
-_forge__help__terminal_commands() {
-    local commands; commands=(
-'plugin:Generate shell plugin script' \
-'theme:Generate shell theme' \
-    )
-    _describe -t commands 'forge help terminal commands' commands "$@"
-}
-(( $+functions[_forge__help__terminal__plugin_commands] )) ||
-_forge__help__terminal__plugin_commands() {
-    local commands; commands=()
-    _describe -t commands 'forge help terminal plugin commands' commands "$@"
-}
-(( $+functions[_forge__help__terminal__theme_commands] )) ||
-_forge__help__terminal__theme_commands() {
-    local commands; commands=()
-    _describe -t commands 'forge help terminal theme commands' commands "$@"
-}
 (( $+functions[_forge__help__workspace_commands] )) ||
 _forge__help__workspace_commands() {
     local commands; commands=(
@@ -2746,6 +2725,24 @@ _forge__help__workspace__query_commands() {
 _forge__help__workspace__sync_commands() {
     local commands; commands=()
     _describe -t commands 'forge help workspace sync commands' commands "$@"
+}
+(( $+functions[_forge__help__zsh_commands] )) ||
+_forge__help__zsh_commands() {
+    local commands; commands=(
+'plugin:Generate shell plugin script' \
+'theme:Generate shell theme' \
+    )
+    _describe -t commands 'forge help zsh commands' commands "$@"
+}
+(( $+functions[_forge__help__zsh__plugin_commands] )) ||
+_forge__help__zsh__plugin_commands() {
+    local commands; commands=()
+    _describe -t commands 'forge help zsh plugin commands' commands "$@"
+}
+(( $+functions[_forge__help__zsh__theme_commands] )) ||
+_forge__help__zsh__theme_commands() {
+    local commands; commands=()
+    _describe -t commands 'forge help zsh theme commands' commands "$@"
 }
 (( $+functions[_forge__info_commands] )) ||
 _forge__info_commands() {
@@ -3030,49 +3027,6 @@ _forge__suggest_commands() {
     local commands; commands=()
     _describe -t commands 'forge suggest commands' commands "$@"
 }
-(( $+functions[_forge__terminal_commands] )) ||
-_forge__terminal_commands() {
-    local commands; commands=(
-'plugin:Generate shell plugin script' \
-'theme:Generate shell theme' \
-'help:Print this message or the help of the given subcommand(s)' \
-    )
-    _describe -t commands 'forge terminal commands' commands "$@"
-}
-(( $+functions[_forge__terminal__help_commands] )) ||
-_forge__terminal__help_commands() {
-    local commands; commands=(
-'plugin:Generate shell plugin script' \
-'theme:Generate shell theme' \
-'help:Print this message or the help of the given subcommand(s)' \
-    )
-    _describe -t commands 'forge terminal help commands' commands "$@"
-}
-(( $+functions[_forge__terminal__help__help_commands] )) ||
-_forge__terminal__help__help_commands() {
-    local commands; commands=()
-    _describe -t commands 'forge terminal help help commands' commands "$@"
-}
-(( $+functions[_forge__terminal__help__plugin_commands] )) ||
-_forge__terminal__help__plugin_commands() {
-    local commands; commands=()
-    _describe -t commands 'forge terminal help plugin commands' commands "$@"
-}
-(( $+functions[_forge__terminal__help__theme_commands] )) ||
-_forge__terminal__help__theme_commands() {
-    local commands; commands=()
-    _describe -t commands 'forge terminal help theme commands' commands "$@"
-}
-(( $+functions[_forge__terminal__plugin_commands] )) ||
-_forge__terminal__plugin_commands() {
-    local commands; commands=()
-    _describe -t commands 'forge terminal plugin commands' commands "$@"
-}
-(( $+functions[_forge__terminal__theme_commands] )) ||
-_forge__terminal__theme_commands() {
-    local commands; commands=()
-    _describe -t commands 'forge terminal theme commands' commands "$@"
-}
 (( $+functions[_forge__workspace_commands] )) ||
 _forge__workspace_commands() {
     local commands; commands=(
@@ -3151,6 +3105,49 @@ _forge__workspace__query_commands() {
 _forge__workspace__sync_commands() {
     local commands; commands=()
     _describe -t commands 'forge workspace sync commands' commands "$@"
+}
+(( $+functions[_forge__zsh_commands] )) ||
+_forge__zsh_commands() {
+    local commands; commands=(
+'plugin:Generate shell plugin script' \
+'theme:Generate shell theme' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'forge zsh commands' commands "$@"
+}
+(( $+functions[_forge__zsh__help_commands] )) ||
+_forge__zsh__help_commands() {
+    local commands; commands=(
+'plugin:Generate shell plugin script' \
+'theme:Generate shell theme' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'forge zsh help commands' commands "$@"
+}
+(( $+functions[_forge__zsh__help__help_commands] )) ||
+_forge__zsh__help__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'forge zsh help help commands' commands "$@"
+}
+(( $+functions[_forge__zsh__help__plugin_commands] )) ||
+_forge__zsh__help__plugin_commands() {
+    local commands; commands=()
+    _describe -t commands 'forge zsh help plugin commands' commands "$@"
+}
+(( $+functions[_forge__zsh__help__theme_commands] )) ||
+_forge__zsh__help__theme_commands() {
+    local commands; commands=()
+    _describe -t commands 'forge zsh help theme commands' commands "$@"
+}
+(( $+functions[_forge__zsh__plugin_commands] )) ||
+_forge__zsh__plugin_commands() {
+    local commands; commands=()
+    _describe -t commands 'forge zsh plugin commands' commands "$@"
+}
+(( $+functions[_forge__zsh__theme_commands] )) ||
+_forge__zsh__theme_commands() {
+    local commands; commands=()
+    _describe -t commands 'forge zsh theme commands' commands "$@"
 }
 
 if [ "$funcstack[1]" = "_forge" ]; then

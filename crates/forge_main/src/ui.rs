@@ -29,7 +29,7 @@ use tracing::debug;
 use url::Url;
 
 use crate::cli::{
-    Cli, CommitCommandGroup, ConversationCommand, ListCommand, McpCommand, Shell, TopLevelCommand,
+    Cli, CommitCommandGroup, ConversationCommand, ListCommand, McpCommand, TopLevelCommand,
 };
 use crate::conversation_selector::ConversationSelector;
 use crate::display_constants::{CommandType, headers, markers, status};
@@ -411,18 +411,14 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
                 return Ok(());
             }
-            TopLevelCommand::Terminal(terminal_group) => {
-                match terminal_group.command {
-                    crate::cli::TerminalCommand::Plugin { shell } => match shell {
-                        Shell::Zsh => {
-                            self.on_zsh_plugin().await?;
-                        }
-                    },
-                    crate::cli::TerminalCommand::Theme { shell } => match shell {
-                        Shell::Zsh => {
-                            self.on_zsh_theme().await?;
-                        }
-                    },
+            TopLevelCommand::Zsh(terminal_group) => {
+                match terminal_group {
+                    crate::cli::ZshCommandGroup::Plugin => {
+                        self.on_zsh_plugin().await?;
+                    }
+                    crate::cli::ZshCommandGroup::Theme => {
+                        self.on_zsh_theme().await?;
+                    }
                 }
                 return Ok(());
             }
