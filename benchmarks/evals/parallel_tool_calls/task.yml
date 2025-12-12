@@ -2,7 +2,7 @@
 run:
   - # Clone into `tmp/task` dir
   - git clone --depth=1 --branch main https://github.com/antinomyhq/forge .
-  - FORGE_DEBUG_REQUESTS='{{dir}}/context.json' FORGE_OVERRIDE_PROVIDER=open_router FORGE_OVERRIDE_MODEL=openai/gpt-5.2 forgee -p '{{prompt}}'
+  - FORGE_OVERRIDE_PROVIDER=open_router FORGE_OVERRIDE_MODEL={{model}} FORGE_DEBUG_REQUESTS='{{dir}}/context.json' forgee -p '{{task}}'
 parallelism: 5
 timeout: 120
 early_exit: true
@@ -13,4 +13,6 @@ validations:
       # Check if there's at least one message with 2 or more tool calls executed in parallel
       jq -e '[.messages[]?.tool_calls? | select(. != null and length >= 2)] | length > 0' {{dir}}/context.json
 sources:
+  - value:
+      - model: "openai/gpt-5.2"
   - csv: parallel_tool_calls_tasks.csv
