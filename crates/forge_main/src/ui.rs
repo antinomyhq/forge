@@ -2184,7 +2184,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Check if the current model is available for the new provider
         let current_model = self.api.get_default_model().await;
         if let Some(current_model) = current_model {
-            let models = self.api.get_models().await?;
+            let models = self.get_models().await?;
             let model_available = models.iter().any(|m| m.id == current_model);
 
             if !model_available {
