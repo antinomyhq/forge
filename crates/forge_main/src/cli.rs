@@ -327,11 +327,11 @@ pub enum ListCommand {
 /// Command group for generating shell extensions.
 #[derive(Parser, Debug, Clone)]
 pub struct TerminalCommandGroup {
-    #[command(subcommand)]
+    #[arg(value_enum)]
     pub shell: Shell,
 }
 
-#[derive(Subcommand, Debug, Clone)]
+#[derive(ValueEnum, Debug, Clone)]
 pub enum Shell {
     /// Generate ZSH extension script.
     Zsh,
