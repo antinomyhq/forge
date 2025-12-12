@@ -46,6 +46,9 @@ use crate::title_display::TitleDisplayExt;
 use crate::tools_display::format_tools;
 use crate::update::on_update;
 use crate::utils::humanize_time;
+use clap::CommandFactory;
+use clap_complete::aot::{generate, Shell as CompletionShell};
+
 use crate::{TRACKER, banner, tracker};
 
 // File-specific constants
@@ -416,6 +419,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 match extension_group.command {
                     ExtensionCommand::Zsh => {
                         self.on_zsh_prompt().await?;
+                    }
+                    ExtensionCommand::Completion { shell } => {
+                        self.on_generate_completions(shell)?;
                     }
                 }
                 return Ok(());
@@ -1414,6 +1420,27 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     async fn on_zsh_prompt(&self) -> anyhow::Result<()> {
         let plugin = crate::zsh_plugin::generate_zsh_plugin()?;
         println!("{plugin}");
+        Ok(())
+    }
+
+    /// Generate shell completion scripts
+    fn on_generate_completions(&self, shell: crate::cli::Shell) -> anyhow::Result<()> {
+        use crate::cli::Shell;
+        
+        // Convert our Shell enum to clap_complete's Shell
+        let completion_shell = match shell {
+            Shell::Bash => CompletionShell::Bash,
+            Shell::Elvish => CompletionShell::Elvish,
+            Shell::Fish => CompletionShell::Fish,
+            Shell::PowerShell => CompletionShell::PowerShell,
+            Shell::Zsh => CompletionShell::Zsh,
+        };
+
+        let mut cmd = Cli::command();
+        let bin_name = cmd.get_name().to_string();
+        
+        generate(completion_shell, &mut cmd, bin_name, &mut std::io::stdout());
+        
         Ok(())
     }
 

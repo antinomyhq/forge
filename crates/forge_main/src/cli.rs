@@ -335,6 +335,28 @@ pub struct ExtensionCommandGroup {
 pub enum ExtensionCommand {
     /// Generate ZSH extension script.
     Zsh,
+
+    /// Generate shell completion scripts.
+    Completion {
+        /// Shell to generate completions for.
+        #[arg(value_enum)]
+        shell: Shell,
+    },
+}
+
+/// Supported shells for completion generation
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub enum Shell {
+    /// Bash shell
+    Bash,
+    /// Elvish shell
+    Elvish,
+    /// Fish shell
+    Fish,
+    /// PowerShell
+    PowerShell,
+    /// Zsh shell
+    Zsh,
 }
 
 /// Command group for MCP server management.
@@ -1427,5 +1449,76 @@ mod tests {
     fn test_prompt_with_double_hyphen() {
         let fixture = Cli::parse_from(["forge", "-p", "--something"]);
         assert_eq!(fixture.prompt, Some("--something".to_string()));
+    }
+
+
+    #[test]
+    fn test_extension_completion_bash() {
+        let fixture = Cli::parse_from(["forge", "extension", "completion", "bash"]);
+        match fixture.subcommands {
+            Some(TopLevelCommand::Extension(ext)) => match ext.command {
+                ExtensionCommand::Completion { shell } => {
+                    assert!(matches!(shell, Shell::Bash));
+                }
+                _ => panic!("Expected Completion command"),
+            },
+            _ => panic!("Expected Extension command"),
+        }
+    }
+
+    #[test]
+    fn test_extension_completion_zsh() {
+        let fixture = Cli::parse_from(["forge", "extension", "completion", "zsh"]);
+        match fixture.subcommands {
+            Some(TopLevelCommand::Extension(ext)) => match ext.command {
+                ExtensionCommand::Completion { shell } => {
+                    assert!(matches!(shell, Shell::Zsh));
+                }
+                _ => panic!("Expected Completion command"),
+            },
+            _ => panic!("Expected Extension command"),
+        }
+    }
+
+    #[test]
+    fn test_extension_completion_fish() {
+        let fixture = Cli::parse_from(["forge", "extension", "completion", "fish"]);
+        match fixture.subcommands {
+            Some(TopLevelCommand::Extension(ext)) => match ext.command {
+                ExtensionCommand::Completion { shell } => {
+                    assert!(matches!(shell, Shell::Fish));
+                }
+                _ => panic!("Expected Completion command"),
+            },
+            _ => panic!("Expected Extension command"),
+        }
+    }
+
+    #[test]
+    fn test_extension_completion_powershell() {
+        let fixture = Cli::parse_from(["forge", "extension", "completion", "power-shell"]);
+        match fixture.subcommands {
+            Some(TopLevelCommand::Extension(ext)) => match ext.command {
+                ExtensionCommand::Completion { shell } => {
+                    assert!(matches!(shell, Shell::PowerShell));
+                }
+                _ => panic!("Expected Completion command"),
+            },
+            _ => panic!("Expected Extension command"),
+        }
+    }
+
+    #[test]
+    fn test_extension_completion_elvish() {
+        let fixture = Cli::parse_from(["forge", "extension", "completion", "elvish"]);
+        match fixture.subcommands {
+            Some(TopLevelCommand::Extension(ext)) => match ext.command {
+                ExtensionCommand::Completion { shell } => {
+                    assert!(matches!(shell, Shell::Elvish));
+                }
+                _ => panic!("Expected Completion command"),
+            },
+            _ => panic!("Expected Extension command"),
+        }
     }
 }

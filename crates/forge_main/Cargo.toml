@@ -11,6 +11,7 @@ path = "src/main.rs"
 [dependencies]
 thiserror = { workspace = true }
 clap.workspace = true
+clap_complete = "4.5"
 console.workspace = true
 forge_app.workspace = true
 forge_api.workspace = true
