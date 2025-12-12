@@ -96,6 +96,22 @@ else
     print_result info "Terminal: unknown"
 fi
 
+# Check font and Nerd Font support
+# Show actual icons used in Forge theme
+echo ""
+echo "$(bold "Font Check")"
+echo "  Forge theme uses these icons (with theme colors):"
+echo "       Folder icon (directory)"
+echo "       Git branch icon"
+echo "       Model indicator"
+echo "      󱙺 Agent indicator"
+echo "       Prompt chevron"
+echo ""
+echo "  $(dim "Can you see all 5 icons clearly?")"
+echo "  $(dim "If you see boxes (□) or question marks (?), install a Nerd Font from:")"
+echo "  $(dim "https://www.nerdfonts.com/")"
+echo ""
+
 # 2. Check if forge is installed and in PATH
 print_section "Forge Installation"
 
