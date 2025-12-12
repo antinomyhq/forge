@@ -9,12 +9,10 @@ precmd_vcs_info() { vcs_info }
 precmd_functions+=(precmd_vcs_info)
 setopt prompt_subst
 
-# Configure vcs_info for git with detailed stats
+# Configure vcs_info for git (optimized and cached by zsh)
 zstyle ':vcs_info:*' enable git
-zstyle ':vcs_info:*' check-for-changes true
-zstyle ':vcs_info:*' get-revision true
-zstyle ':vcs_info:git:*' formats ' %F{green} %b%f'
-zstyle ':vcs_info:git:*' actionformats ' %F{green} %b%f %F{red}(%a)%f'
+zstyle ':vcs_info:git:*' formats ' %F{green}${FORGE_GIT_ICON} %b%f'
+zstyle ':vcs_info:git:*' actionformats ' %F{green}${FORGE_GIT_ICON} %b%f %F{red}(%a)%f'
 
 # Icons
 FORGE_FOLDER_ICON="${FORGE_FOLDER_ICON:-}"
@@ -23,13 +21,30 @@ FORGE_MODEL_ICON="${FORGE_MODEL_ICON:-}"
 FORGE_AGENT_ICON="${FORGE_AGENT_ICON:-󱙺}"
 FORGE_PROMPT_SYMBOL="${FORGE_PROMPT_SYMBOL:-}"
 
-# Get git stats (modified, staged, untracked)
+# Get git stats (modified, staged, untracked) using a single git call
+# Only runs if vcs_info detected a git repo (optimized)
 function _git_stats() {
-    if git rev-parse --git-dir > /dev/null 2>&1; then
-        local modified=$(git diff --name-only 2>/dev/null | wc -l | tr -d ' ')
-        local staged=$(git diff --cached --name-only 2>/dev/null | wc -l | tr -d ' ')
-        local untracked=$(git ls-files --others --exclude-standard 2>/dev/null | wc -l | tr -d ' ')
+    # Only run if we're in a git repo (vcs_info already checked this)
+    if [[ -n "$vcs_info_msg_0_" ]]; then
+        local status_output=$(git status --porcelain 2>/dev/null)
+
+        # Early exit if no changes
+        [[ -z "$status_output" ]] && return
         
+        local modified=0 staged=0 untracked=0
+        
+        # Parse status in a single pass
+        while IFS= read -r line; do
+            [[ -z "$line" ]] && continue
+            case "${line:0:2}" in
+                "??") ((untracked++)) ;;
+                " M"|" D") ((modified++)) ;;
+                "M "|"A "|"D "|"R "|"C ") ((staged++)) ;;
+                "MM"|"AM"|"DM") ((modified++)); ((staged++)) ;;
+            esac
+        done <<< "$status_output"
+
+        # Build stats string
         local stats=""
         if [[ $modified -gt 0 ]] || [[ $staged -gt 0 ]]; then
             stats="${modified} ${staged}!"
@@ -51,10 +66,10 @@ function _forge_directory() {
 }
 
 # Git branch with icon and stats
+# Uses vcs_info (cached by zsh) for branch name + single git call for stats
 function _forge_git() {
-    if git rev-parse --git-dir > /dev/null 2>&1; then
-        local branch=$(git symbolic-ref --short HEAD 2>/dev/null || git rev-parse --short HEAD 2>/dev/null)
-        echo " %F{green}${FORGE_GIT_ICON} ${branch}%f$(_git_stats)"
+    if [[ -n "$vcs_info_msg_0_" ]]; then
+        echo "${vcs_info_msg_0_}$(_git_stats)"
     fi
 }
 
@@ -125,7 +140,7 @@ function _update_forge_vars() {
 precmd_functions+=(_update_forge_vars)
 
 # Main prompt: directory + git + chevron
-PROMPT='$(_forge_directory)$(_forge_git)%F{green}${FORGE_PROMPT_SYMBOL} %f '
+PROMPT='$(_forge_directory)$(_forge_git) %F{green}${FORGE_PROMPT_SYMBOL}%f '
 
 # Right prompt: model + agent with token count
 RPROMPT='$(_forge_agent) $(_forge_model)'
