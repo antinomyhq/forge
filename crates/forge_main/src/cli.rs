@@ -1451,7 +1451,6 @@ mod tests {
         assert_eq!(fixture.prompt, Some("--something".to_string()));
     }
 
-
     #[test]
     fn test_extension_completion_bash() {
         let fixture = Cli::parse_from(["forge", "extension", "completion", "bash"]);
