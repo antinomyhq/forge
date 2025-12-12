@@ -9,6 +9,8 @@ function _forge_action_new() {
     
     echo
     _forge_exec banner
+    # Update terminal title after starting new conversation
+    _forge_update_terminal_title
     _forge_reset
 }
 

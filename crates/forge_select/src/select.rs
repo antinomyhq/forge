@@ -1,3 +1,5 @@
+use std::io::IsTerminal;
+
 use anyhow::Result;
 use console::{strip_ansi_codes, style};
 use dialoguer::theme::ColorfulTheme;
@@ -152,11 +154,10 @@ impl<T: 'static> SelectBuilder<T> {
             return Ok(None);
         }
 
-        // Disable bracketed paste mode to prevent ~0 and ~1 markers during
-        // fuzzy search input
-        let _paste_guard = BracketedPasteGuard::new()?;
+        // Only disable terminal modes if we're in a terminal
+        let _paste_guard = BracketedPasteGuard::new().ok();
         // Disable application cursor keys to ensure arrow keys work correctly
-        let _cursor_guard = ApplicationCursorKeysGuard::new()?;
+        let _cursor_guard = ApplicationCursorKeysGuard::new().ok();
 
         let theme = ForgeSelect::default_theme();
 
@@ -222,11 +223,10 @@ impl<T> SelectBuilderOwned<T> {
             return Ok(None);
         }
 
-        // Disable bracketed paste mode to prevent ~0 and ~1 markers during
-        // fuzzy search input
-        let _paste_guard = BracketedPasteGuard::new()?;
+        // Only disable terminal modes if we're in a terminal
+        let _paste_guard = BracketedPasteGuard::new().ok();
         // Disable application cursor keys to ensure arrow keys work correctly
-        let _cursor_guard = ApplicationCursorKeysGuard::new()?;
+        let _cursor_guard = ApplicationCursorKeysGuard::new().ok();
 
         let theme = ForgeSelect::default_theme();
 
@@ -285,31 +285,88 @@ impl InputBuilder {
     /// # Returns
     ///
     /// - `Ok(Some(String))` - User provided input
-    /// - `Ok(None)` - User cancelled (CTRL+C)
+    /// - `Ok(None)` - User cancelled (CTRL+C) or not in terminal
     ///
     /// # Errors
     ///
     /// Returns an error if the terminal interaction fails for reasons other
     /// than user cancellation
     pub fn prompt(self) -> Result<Option<String>> {
-        // Disable bracketed paste mode to prevent ~0 and ~1 markers during input
-        let _paste_guard = BracketedPasteGuard::new()?;
-        // Disable application cursor keys to ensure arrow keys work correctly
-        let _cursor_guard = ApplicationCursorKeysGuard::new()?;
+        // DEBUG: Print initial state
+        eprintln!("DEBUG: InputBuilder::prompt() called");
+        eprintln!("DEBUG: Message: {}", self.message);
+        eprintln!("DEBUG: Allow empty: {}", self.allow_empty);
+        eprintln!("DEBUG: Default: {:?}", self.default);
 
+        // Check for environment variable input first
+        if let Ok(input) = std::env::var("FORGE_INPUT") {
+            eprintln!("DEBUG: Found FORGE_INPUT env var: '{}'", input);
+            return Ok(Some(input));
+        }
+
+        // Check for temporary file input
+        if let Ok(input_file) = std::env::var("FORGE_INPUT_FILE") {
+            eprintln!("DEBUG: Trying to read from file: {}", input_file);
+            match std::fs::read_to_string(&input_file) {
+                Ok(content) => {
+                    let input = content.trim().to_string();
+                    eprintln!("DEBUG: Read from file: '{}'", input);
+                    return Ok(Some(input));
+                }
+                Err(e) => {
+                    eprintln!("DEBUG: Failed to read file {}: {:?}", input_file, e);
+                }
+            }
+        }
+
+        // Check for force interactive mode environment variable
+        let force_interactive = std::env::var("FORCE_INTERACTIVE").is_ok();
+        eprintln!("DEBUG: FORCE_INTERACTIVE: {}", force_interactive);
+
+        // Check if we're in a terminal
+        let stdout_is_terminal = std::io::stdout().is_terminal();
+        let stderr_is_terminal = std::io::stderr().is_terminal();
+        let stdin_is_terminal = std::io::stdin().is_terminal();
+
+        eprintln!("DEBUG: stdout is_terminal: {}", stdout_is_terminal);
+        eprintln!("DEBUG: stderr is_terminal: {}", stderr_is_terminal);
+        eprintln!("DEBUG: stdin is_terminal: {}", stdin_is_terminal);
+
+        // Try using stdin instead of stdout for terminal detection, but allow override
+        if !force_interactive && !stdin_is_terminal {
+            eprintln!("DEBUG: stdin is not terminal and not forced, returning None");
+            return Ok(None);
+        }
+
+        // Temporarily disable terminal guards to fix typing display issues
+        // let _paste_guard = BracketedPasteGuard::new().ok();
+        // let _cursor_guard = ApplicationCursorKeysGuard::new().ok();
+
+        eprintln!("DEBUG: Creating Input with theme");
         let theme = ForgeSelect::default_theme();
         let mut input = Input::with_theme(&theme)
             .with_prompt(&self.message)
             .allow_empty(self.allow_empty);
 
         if let Some(default) = self.default {
+            eprintln!("DEBUG: Setting default value: {}", default);
             input = input.default(default);
         }
 
+        eprintln!("DEBUG: Starting interact_text()");
         match input.interact_text() {
-            Ok(value) => Ok(Some(value)),
-            Err(e) if is_interrupted_error(&e) => Ok(None),
-            Err(e) => Err(e.into()),
+            Ok(value) => {
+                eprintln!("DEBUG: Got input value: '{}'", value);
+                Ok(Some(value))
+            }
+            Err(e) if is_interrupted_error(&e) => {
+                eprintln!("DEBUG: User interrupted (CTRL+C)");
+                Ok(None)
+            }
+            Err(e) => {
+                eprintln!("DEBUG: Error during input: {:?}", e);
+                Err(e.into())
+            }
         }
     }
 }
@@ -340,10 +397,10 @@ impl<T> MultiSelectBuilder<T> {
             return Ok(None);
         }
 
-        // Disable bracketed paste mode to prevent ~0 and ~1 markers
-        let _paste_guard = BracketedPasteGuard::new()?;
+        // Only disable terminal modes if we're in a terminal
+        let _paste_guard = BracketedPasteGuard::new().ok();
         // Disable application cursor keys to ensure arrow keys work correctly
-        let _cursor_guard = ApplicationCursorKeysGuard::new()?;
+        let _cursor_guard = ApplicationCursorKeysGuard::new().ok();
 
         let theme = ForgeSelect::default_theme();
         let multi_select = MultiSelect::with_theme(&theme)

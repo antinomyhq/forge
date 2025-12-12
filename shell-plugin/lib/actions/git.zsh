@@ -32,8 +32,14 @@ function _forge_action_commit() {
         fi
         # Move cursor to end of buffer for immediate execution
         CURSOR=${#BUFFER}
-        # Refresh display to show the new command
-        zle reset-prompt
+        # Refresh display to show new command - only if ZLE is available
+        if {
+            [[ $- == *i* ]] &&
+            autoload -Uz zle 2>/dev/null &&
+            zle 2>/dev/null
+        }; then
+            zle reset-prompt 2>/dev/null || true
+        fi
     else
         echo "$commit_message"
         _forge_reset

@@ -548,6 +548,15 @@ pub enum ConversationCommand {
         porcelain: bool,
     },
 
+    /// Rename a conversation.
+    Rename {
+        /// Conversation ID to rename.
+        id: String,
+        /// New title for the conversation.
+        #[arg(num_args = 0.., trailing_var_arg = true)]
+        new_title: Option<Vec<String>>,
+    },
+
     /// Delete a conversation permanently.
     Delete {
         /// Conversation ID to delete.
@@ -1071,6 +1080,49 @@ mod tests {
         };
         let expected = false;
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_conversation_rename_with_id_and_title() {
+        let fixture = Cli::parse_from([
+            "forge",
+            "conversation",
+            "rename",
+            "abc123",
+            "New",
+            "Conversation",
+            "Title",
+        ]);
+        let (id, title_parts) = match fixture.subcommands {
+            Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
+                ConversationCommand::Rename { id, new_title } => (id, new_title),
+                _ => (String::new(), None),
+            },
+            _ => (String::new(), None),
+        };
+        assert_eq!(id, "abc123");
+        assert_eq!(
+            title_parts,
+            Some(vec![
+                "New".to_string(),
+                "Conversation".to_string(),
+                "Title".to_string()
+            ])
+        );
+    }
+
+    #[test]
+    fn test_conversation_rename_with_id_only() {
+        let fixture = Cli::parse_from(["forge", "conversation", "rename", "abc123"]);
+        let (id, title_parts) = match fixture.subcommands {
+            Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
+                ConversationCommand::Rename { id, new_title } => (id, new_title),
+                _ => (String::new(), None),
+            },
+            _ => (String::new(), None),
+        };
+        assert_eq!(id, "abc123");
+        assert_eq!(title_parts, None);
     }
 
     #[test]

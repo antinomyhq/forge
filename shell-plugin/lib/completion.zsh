@@ -28,7 +28,14 @@ function forge-completion() {
             CURSOR=$((${#LBUFFER} + ${#selected}))
         fi
         
-        zle reset-prompt
+        # Only reset prompt if ZLE is available
+        if {
+            [[ $- == *i* ]] &&
+            autoload -Uz zle 2>/dev/null &&
+            zle 2>/dev/null
+        }; then
+            zle reset-prompt 2>/dev/null || true
+        fi
         return 0
     fi
     
@@ -57,10 +64,23 @@ function forge-completion() {
             fi
         fi
         
-        zle reset-prompt
+        # Only reset prompt if ZLE is available
+        if {
+            [[ $- == *i* ]] &&
+            autoload -Uz zle 2>/dev/null &&
+            zle 2>/dev/null
+        }; then
+            zle reset-prompt 2>/dev/null || true
+        fi
         return 0
     fi
     
-    # Fall back to default completion
-    zle expand-or-complete
+    # Fall back to default completion - only if ZLE is available
+    if {
+        [[ $- == *i* ]] &&
+        autoload -Uz zle 2>/dev/null &&
+        zle 2>/dev/null
+    }; then
+        zle expand-or-complete 2>/dev/null || true
+    fi
 }

@@ -2,11 +2,85 @@
 
 # Main command dispatcher and widget registration
 
+# ZLE widget for rename command with minibuffer support
+function _forge_rename_widget() {
+    local input_text="$1"
+    
+    # If we have input_text, call the action directly
+    if [[ -n "$input_text" ]]; then
+        _forge_action_rename "$input_text"
+        return
+    fi
+    
+    # Get conversations list for fzf selection
+    local conversations_output
+    conversations_output=$($_FORGE_BIN conversation list --porcelain 2>/dev/null)
+    
+    if [[ -z "$conversations_output" ]]; then
+        _forge_log error "No conversations found"
+        return
+    fi
+    
+    # Get current conversation ID if set
+    local current_id="$_FORGE_CONVERSATION_ID"
+    
+    # Create fzf interface similar to :conversation
+    local prompt_text="Rename Conversation ❯ "
+    local fzf_args=(
+        --prompt="$prompt_text"
+        --delimiter="$_FORGE_DELIMITER"
+        --with-nth="2,3"
+        --preview="CLICOLOR_FORCE=1 $_FORGE_BIN conversation info {1}; echo; CLICOLOR_FORCE=1 $_FORGE_BIN conversation show {1}"
+        $_FORGE_PREVIEW_WINDOW
+    )
+
+    # Position cursor on current conversation if available
+    if [[ -n "$current_id" ]]; then
+        local index=$(_forge_find_index "$conversations_output" "$current_id" 1)
+        fzf_args+=(--bind="start:pos($index)")
+    fi
+
+    local selected_conversation
+    selected_conversation=$(echo "$conversations_output" | _forge_fzf --header-lines=1 "${fzf_args[@]}")
+    
+    if [[ -n "$selected_conversation" ]]; then
+        # Extract conversation ID
+        local conversation_id=$(echo "$selected_conversation" | sed -E 's/  .*//' | tr -d '\n')
+        
+        # Now use minibuffer to get new title
+        local new_title
+        # Always use fallback to regular read since ZLE is not reliable
+        printf "\033[37m⏺\033[0m \033[90m[%s]\033[0m \033[37mRename conversation to:\033[0m " "$(date '+%H:%M:%S')" >&2
+        if [[ -t 0 ]]; then
+            read -e -r new_title
+        elif [[ -t /dev/tty ]]; then
+            read -e -r new_title < /dev/tty
+        else
+            read -e -r new_title
+        fi
+        
+        if [[ -n "$new_title" ]]; then
+            # Set WIDGET to ensure minibuffer context in rename function
+            local old_widget="$WIDGET"
+            WIDGET="_forge_rename_widget"
+            
+            # Call the rename function with FORGE_INPUT
+            local old_forge_input="$FORGE_INPUT"
+            FORGE_INPUT="$new_title"
+            _forge_rename_conversation_with_prompt "$conversation_id"
+            
+            # Restore original values
+            WIDGET="$old_widget"
+            FORGE_INPUT="$old_forge_input"
+        else
+            _forge_log info "Rename cancelled"
+        fi
+    fi
+    
+    _forge_reset
+}
+
 # Action handler: Set active agent or execute command
-# Flow:
-# 1. Check if user_action is a CUSTOM command -> execute with `cmd` subcommand
-# 2. If no input_text -> switch to agent (for AGENT type commands)
-# 3. If input_text -> execute command with active agent context
 function _forge_action_default() {
     local user_action="$1"
     local input_text="$2"
@@ -24,11 +98,9 @@ function _forge_action_default() {
                 return 0
             fi
             
-            # Extract the command type from the second field (TYPE column)
-            # Format: "COMMAND_NAME    TYPE    DESCRIPTION"
-            local command_type=$(echo "$command_row" | awk '{print $2}')
-            # Case-insensitive comparison using :l (lowercase) modifier
-            if [[ "${command_type:l}" == "custom" ]]; then
+            # Extract the command type from the last field of the row
+            local command_type="${command_row##* }"
+            if [[ "$command_type" == "custom" ]]; then
                 # Generate conversation ID if needed
                 [[ -z "$_FORGE_CONVERSATION_ID" ]] && _FORGE_CONVERSATION_ID=$($_FORGE_BIN conversation new)
                 
@@ -52,6 +124,8 @@ function _forge_action_default() {
             # Set the agent in the local variable
             _FORGE_ACTIVE_AGENT="$user_action"
             _forge_log info "\033[1;37m${_FORGE_ACTIVE_AGENT:u}\033[0m \033[90mis now the active agent\033[0m"
+            # Update terminal title after agent change
+            _forge_update_terminal_title
         fi
         _forge_reset
         return 0
@@ -74,6 +148,9 @@ function _forge_action_default() {
     
     # Reset the prompt
     _forge_reset
+    
+    # Update terminal title after command execution
+    _forge_update_terminal_title
 }
 
 function forge-accept-line() {
@@ -99,21 +176,19 @@ function forge-accept-line() {
         user_action=""
         input_text="${match[1]}"
     else
-        # For non-:commands, use normal accept-line
-        zle accept-line
+        # For non-:commands, use normal accept-line - only if ZLE is available
+        if {
+            [[ $- == *i* ]] &&
+            autoload -Uz zle 2>/dev/null &&
+            zle 2>/dev/null
+        }; then
+            zle accept-line 2>/dev/null || true
+        fi
         return
     fi
     
     # Add the original command to history before transformation
     print -s -- "$original_buffer"
-    
-    # CRITICAL: For multiline buffers, move cursor to end so output doesn't overwrite
-    # Don't clear BUFFER yet - let _forge_reset do that after action completes
-    # This keeps buffer state consistent if Ctrl+C is pressed
-    if [[ "$BUFFER" == *$'\n'* ]]; then
-        CURSOR=${#BUFFER}
-        zle redisplay
-    fi
     
     # Handle aliases - convert to their actual agent names
     case "$user_action" in
@@ -179,6 +254,10 @@ function forge-accept-line() {
         clone)
             _forge_action_clone "$input_text"
         ;;
+        rename|rn)
+            # Use ZLE widget for rename to enable minibuffer input
+            _forge_rename_widget
+            ;;
         sync)
             _forge_action_sync
         ;;

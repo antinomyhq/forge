@@ -37,7 +37,14 @@ function _forge_reset() {
    BUFFER=""
    CURSOR=0
 
-   zle reset-prompt 
+   # Only reset prompt if ZLE is available
+   if {
+       [[ $- == *i* ]] &&
+       autoload -Uz zle 2>/dev/null &&
+       zle 2>/dev/null
+   }; then
+       zle reset-prompt 2>/dev/null || true
+   fi 
     
 }
 

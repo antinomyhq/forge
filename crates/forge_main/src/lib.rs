@@ -23,7 +23,7 @@ mod zsh_plugin;
 
 mod update;
 
-pub use cli::{Cli, TopLevelCommand};
+pub use cli::{Cli, ConversationCommand, TopLevelCommand};
 use lazy_static::lazy_static;
 pub use sandbox::Sandbox;
 pub use title_display::*;
