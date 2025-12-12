@@ -74,5 +74,9 @@
   {
     "command": "clone",
     "description": "Clone and manage conversation context"
+  },
+  {
+    "command": "worktree",
+    "description": "Create new git worktree with directory structure [alias: sandbox]"
   }
 ]
