@@ -1,0 +1,16 @@
+# No before_run needed - binary should be pre-built
+run:
+  - # Clone into `tmp/task` dir
+  - git clone --depth=1 --branch main https://github.com/antinomyhq/forge .
+  - FORGE_DEBUG_REQUESTS='{{dir}}/context.json' FORGE_OVERRIDE_PROVIDER=open_router FORGE_OVERRIDE_MODEL=openai/gpt-5.2 forgee -p '{{prompt}}'
+parallelism: 5
+timeout: 120
+early_exit: true
+validations:
+  - name: "Uses parallel tool calls"
+    type: shell
+    command: |
+      # Check if there's at least one message with 2 or more tool calls executed in parallel
+      jq -e '[.messages[]?.tool_calls? | select(. != null and length >= 2)] | length > 0' {{dir}}/context.json
+sources:
+  - csv: parallel_tool_calls_tasks.csv
