@@ -63,14 +63,13 @@ impl<S: FsReadService + EnvironmentService> ChangedFiles<S> {
             .append(Element::new("files").append(file_elements))
             .to_string();
 
-        let mut p_context = conversation.context.take().unwrap_or_default();
+        let context = conversation.context.take().unwrap_or_default();
 
         let message = TextMessage::new(Role::User, notification)
             .droppable(true)
             .model(self.agent.model.clone());
 
-        p_context.context = p_context.context.add_message(ContextMessage::from(message));
-        conversation = conversation.context(p_context);
+        conversation = conversation.context(context.add_message(ContextMessage::from(message)));
 
         conversation
     }
@@ -83,7 +82,7 @@ mod tests {
 
     use forge_domain::{
         Agent, AgentId, Context, Conversation, ConversationId, Environment, FileOperation, Metrics,
-        ModelId, ParentContext, ProviderId, ToolKind,
+        ModelId, ProviderId, ToolKind,
     };
     use pretty_assertions::assert_eq;
 
@@ -177,13 +176,10 @@ mod tests {
             [("/test/file.txt".into(), Some(hash))].into(),
         );
 
-        conversation.context = Some(ParentContext {
-            context: Context::default().add_message(ContextMessage::user(
-                "Hey, there!",
-                Some(ModelId::new("test")),
-            )),
-            compaction_metadata: None,
-        });
+        conversation.context = Some(Context::default().add_message(ContextMessage::user(
+            "Hey, there!",
+            Some(ModelId::new("test")),
+        )));
 
         let actual = service.update_file_stats(conversation.clone()).await;
 

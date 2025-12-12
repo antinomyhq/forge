@@ -1,5 +1,3 @@
-use std::collections::BTreeSet;
-
 use super::Transformer;
 use crate::{Context, ContextMessage, ModelId, Role, TextMessage};
 
@@ -72,7 +70,7 @@ impl Transformer for TransformToolCalls {
         }
 
         value.messages = new_messages;
-        value.tools = BTreeSet::new();
+        value.tools = Vec::new();
         value
     }
 }

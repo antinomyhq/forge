@@ -116,12 +116,11 @@ impl ConversationRepository for ConversationRepositoryImpl {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeSet;
-
     use chrono::Utc;
     use forge_domain::{
-        Context, ContextMessage, Effort, FileOperation, Metrics, ParentContext, Role, ToolCallFull,
-        ToolCallId, ToolChoice, ToolDefinition, ToolKind, ToolName, ToolOutput, ToolResult,
+        Context, ContextMessage, Effort, FileOperation, Metrics, Role, ToolCallFull,
+        ToolCallId,
+        ToolChoice, ToolDefinition, ToolKind, ToolName, ToolOutput, ToolResult,
         ToolValue, Usage,
     };
     use pretty_assertions::assert_eq;
@@ -189,10 +188,10 @@ mod tests {
             Context::default().messages(vec![ContextMessage::user("World", None).into()]);
         let conversation1 = Conversation::new(ConversationId::generate())
             .title(Some("Test Conversation".to_string()))
-            .context(Some(ParentContext::default().context(context1)));
+            .context(Some(context1));
         let conversation2 = Conversation::new(ConversationId::generate())
             .title(Some("Second Conversation".to_string()))
-            .context(Some(ParentContext::default().context(context2)));
+            .context(Some(context2));
         let repo = repository()?;
 
         repo.upsert_conversation(conversation1.clone()).await?;
@@ -214,9 +213,8 @@ mod tests {
             Context::default().messages(vec![ContextMessage::user("World", None).into()]);
         let conversation1 = Conversation::new(ConversationId::generate())
             .title(Some("Test Conversation".to_string()))
-            .context(Some(ParentContext::default().context(context1)));
-        let conversation2 = Conversation::new(ConversationId::generate())
-            .context(Some(ParentContext::default().context(context2)));
+            .context(Some(context1));
+        let conversation2 = Conversation::new(ConversationId::generate()).context(Some(context2));
         let repo = repository()?;
 
         repo.upsert_conversation(conversation1).await?;
@@ -244,7 +242,7 @@ mod tests {
         let context = Context::default().messages(vec![ContextMessage::user("Hello", None).into()]);
         let conversation_with_context = Conversation::new(ConversationId::generate())
             .title(Some("Conversation with Context".to_string()))
-            .context(Some(ParentContext::default().context(context)));
+            .context(Some(context));
         let conversation_without_context = Conversation::new(ConversationId::generate())
             .title(Some("Test Conversation".to_string()));
         let repo = repository()?;
@@ -280,7 +278,7 @@ mod tests {
     async fn test_find_last_active_conversation_ignores_empty_context() -> anyhow::Result<()> {
         let conversation_with_empty_context = Conversation::new(ConversationId::generate())
             .title(Some("Conversation with Empty Context".to_string()))
-            .context(Some(ParentContext::default()));
+            .context(Some(Context::default()));
         let conversation_without_context = Conversation::new(ConversationId::generate())
             .title(Some("Test Conversation".to_string()));
         let repo = repository()?;
@@ -314,7 +312,7 @@ mod tests {
         let context = Context::default().messages(vec![ContextMessage::user("Hello", None).into()]);
         let fixture = Conversation::new(ConversationId::generate())
             .title(Some("Conversation with Context".to_string()))
-            .context(Some(ParentContext::default().context(context)));
+            .context(Some(context));
 
         let actual = ConversationRecord::new(fixture.clone(), WorkspaceHash::new(0));
 
@@ -328,7 +326,7 @@ mod tests {
     fn test_conversation_record_from_conversation_with_empty_context() -> anyhow::Result<()> {
         let fixture = Conversation::new(ConversationId::generate())
             .title(Some("Conversation with Empty Context".to_string()))
-            .context(Some(ParentContext::default().context(Context::default())));
+            .context(Some(Context::default()));
 
         let actual = ConversationRecord::new(fixture.clone(), WorkspaceHash::new(0));
 
@@ -719,7 +717,7 @@ mod tests {
         let fixture = Context::default()
             .conversation_id(ConversationId::generate())
             .messages(messages)
-            .tools(vec![tool_def.clone()].into_iter().collect::<BTreeSet<_>>())
+            .tools(vec![tool_def.clone()])
             .tool_choice(ToolChoice::Call(ToolName::new("test_tool")))
             .max_tokens(1000usize)
             .temperature(forge_domain::Temperature::new(0.7).unwrap())
@@ -736,7 +734,7 @@ mod tests {
         assert_eq!(actual.conversation_id, fixture.conversation_id);
         assert_eq!(actual.messages.len(), 4);
         assert_eq!(actual.tools.len(), 1);
-        assert_eq!(actual.tools.first().unwrap().name.to_string(), "test_tool");
+        assert_eq!(actual.tools[0].name.to_string(), "test_tool");
         assert_eq!(
             actual.tool_choice,
             Some(ToolChoice::Call(ToolName::new("test_tool")))

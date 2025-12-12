@@ -151,7 +151,8 @@ impl TestOutput {
         self.conversation_history
             .last()
             .and_then(|c| c.context.as_ref())
-            .map(|c| c.tools.iter().cloned().collect())
+            .map(|c| c.tools.clone())
+            .clone()
             .unwrap_or_default()
     }
 }

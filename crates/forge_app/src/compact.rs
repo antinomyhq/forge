@@ -1,17 +1,10 @@
 use forge_domain::{
-    Compact, CompactionMetadata, CompactionStrategy, Context, ContextMessage, ContextSummary,
-    Environment, Transformer,
+    Compact, CompactionStrategy, Context, ContextMessage, ContextSummary, Environment, Transformer,
 };
 use tracing::info;
 
 use crate::TemplateEngine;
 use crate::transformers::SummaryTransformer;
-
-#[derive(Clone, Debug, serde::Serialize)]
-pub struct CompactionResult {
-    pub context: Context,
-    pub metadata: Option<CompactionMetadata>,
-}
 
 /// A service dedicated to handling context compaction.
 pub struct Compactor {
@@ -44,12 +37,7 @@ impl Compactor {
 
 impl Compactor {
     /// Apply compaction to the context if requested.
-    pub fn compact(
-        &self,
-        context: Context,
-        metadata: Option<CompactionMetadata>,
-        max: bool,
-    ) -> anyhow::Result<CompactionResult> {
+    pub fn compact(&self, context: Context, max: bool) -> anyhow::Result<Context> {
         let eviction = CompactionStrategy::evict(self.compact.eviction_window);
         let retention = CompactionStrategy::retain(self.compact.retention_window);
 
@@ -61,8 +49,8 @@ impl Compactor {
         };
 
         match strategy.eviction_range(&context) {
-            Some(sequence) => self.compress_single_sequence(context, metadata, sequence),
-            None => Ok(CompactionResult { context, metadata }),
+            Some(sequence) => self.compress_single_sequence(context, sequence),
+            None => Ok(context),
         }
     }
 
@@ -70,9 +58,8 @@ impl Compactor {
     fn compress_single_sequence(
         &self,
         mut context: Context,
-        metadata: Option<CompactionMetadata>,
         sequence: (usize, usize),
-    ) -> anyhow::Result<CompactionResult> {
+    ) -> anyhow::Result<Context> {
         let (start, end) = sequence;
 
         // The sequence from the original message that needs to be compacted
@@ -155,18 +142,7 @@ impl Compactor {
             msg.reasoning_details = Some(reasoning);
         }
 
-        // Update compaction metadata
-        let now = chrono::Utc::now();
-        let num_compacted = end - start + 1;
-        let mut metadata = metadata.unwrap_or_default();
-        metadata = CompactionMetadata {
-            last_compacted_index: Some(end),
-            compaction_count: metadata.compaction_count + 1,
-            total_messages_compacted: metadata.total_messages_compacted + num_compacted,
-            last_compacted_at: Some(now),
-        };
-
-        Ok(CompactionResult { context, metadata: Some(metadata) })
+        Ok(context)
     }
 }
 
@@ -220,13 +196,10 @@ mod tests {
             .add_message(ContextMessage::user("M3", None))
             .add_message(ContextMessage::assistant("R3", None, None));
 
-        let actual = compactor
-            .compress_single_sequence(context, None, (0, 3))
-            .unwrap();
+        let actual = compactor.compress_single_sequence(context, (0, 3)).unwrap();
 
         // Verify only LAST reasoning_details were preserved
         let assistant_msg = actual
-            .context
             .messages
             .iter()
             .find(|msg| msg.has_role(forge_domain::Role::Assistant))
@@ -267,10 +240,7 @@ mod tests {
             .add_message(ContextMessage::user("M2", None))
             .add_message(ContextMessage::assistant("R2", None, None));
 
-        let result = compactor
-            .compress_single_sequence(context, None, (0, 1))
-            .unwrap();
-        let mut context = result.context;
+        let context = compactor.compress_single_sequence(context, (0, 1)).unwrap();
 
         // Verify first assistant has the reasoning
         let first_assistant = context
@@ -284,14 +254,11 @@ mod tests {
         }
 
         // Second compaction - add more messages
-        context = context
+        let context = context
             .add_message(ContextMessage::user("M3", None))
             .add_message(ContextMessage::assistant("R3", None, None));
 
-        let result = compactor
-            .compress_single_sequence(context, None, (0, 2))
-            .unwrap();
-        let context = result.context;
+        let context = compactor.compress_single_sequence(context, (0, 2)).unwrap();
 
         // Verify reasoning didn't accumulate - should still be just 1 reasoning block
         let first_assistant = context
@@ -335,14 +302,11 @@ mod tests {
             .add_message(ContextMessage::user("M3", None))
             .add_message(ContextMessage::assistant("R3", None, None)); // Outside range
 
-        let actual = compactor
-            .compress_single_sequence(context, None, (0, 3))
-            .unwrap();
+        let actual = compactor.compress_single_sequence(context, (0, 3)).unwrap();
 
         // After compression: [U-summary, U3, A3]
         // The reasoning from R1 (non-empty) should be injected into A3
         let assistant_msg = actual
-            .context
             .messages
             .iter()
             .find(|msg| msg.has_role(forge_domain::Role::Assistant))
@@ -463,7 +427,7 @@ mod tests {
         let compactor = Compactor::new(Compact::new(), environment);
 
         // Create context summary with tool call information
-        let context_summary = ContextSummary::from(&context.context);
+        let context_summary = ContextSummary::from(&context);
 
         // Apply transformers to reduce redundant operations and clean up
         let context_summary = compactor.transform(context_summary);
@@ -475,16 +439,9 @@ mod tests {
         insta::assert_snapshot!(summary);
 
         // Perform a full compaction
-        let mut compacted_result = compactor
-            .compact(context.context, context.compaction_metadata, true)
-            .unwrap();
+        let compacted_context = compactor.compact(context, true).unwrap();
 
-        // Clear the timestamp for snapshot testing (timestamps change on each run)
-        if let Some(ref mut metadata) = compacted_result.metadata {
-            metadata.last_compacted_at = None;
-        }
-
-        insta::assert_yaml_snapshot!(compacted_result);
+        insta::assert_yaml_snapshot!(compacted_context);
     }
 
     #[test]
@@ -512,16 +469,14 @@ mod tests {
                 None,
             ));
 
-        let actual = compactor
-            .compress_single_sequence(context, None, (0, 1))
-            .unwrap();
+        let actual = compactor.compress_single_sequence(context, (0, 1)).unwrap();
 
         // The compaction should remove the droppable message
         // Expected: [U-summary, U2, A2]
-        assert_eq!(actual.context.messages.len(), 3);
+        assert_eq!(actual.messages.len(), 3);
 
         // Verify the droppable attachment message was removed
-        for msg in &actual.context.messages {
+        for msg in &actual.messages {
             if let ContextMessage::Text(text_msg) = &**msg {
                 assert!(!text_msg.droppable, "Droppable messages should be removed");
             }
@@ -575,26 +530,24 @@ mod tests {
         assert_eq!(context.token_count(), TokenCount::Actual(50000));
 
         // Compact the sequence (first 4 messages, indices 0-3)
-        let compacted = compactor
-            .compress_single_sequence(context, None, (0, 3))
-            .unwrap();
+        let compacted = compactor.compress_single_sequence(context, (0, 3)).unwrap();
 
         // Verify we have exactly 3 messages after compaction
         assert_eq!(
-            compacted.context.messages.len(),
+            compacted.messages.len(),
             3,
             "Expected 3 messages after compaction: summary + 2 remaining messages"
         );
 
         // Verify usage is preserved after compaction
         assert_eq!(
-            compacted.context.accumulate_usage(),
+            compacted.accumulate_usage(),
             Some(original_usage),
             "Usage information should be preserved after compaction"
         );
 
         // Verify token_count returns actual value based on preserved usage
-        let token_count = compacted.context.token_count();
+        let token_count = compacted.token_count();
         assert_eq!(
             token_count,
             TokenCount::Actual(50000),

@@ -6,7 +6,7 @@ use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::{Error, Metrics, ParentContext, Result};
+use crate::{Context, Error, Metrics, Result};
 
 #[derive(Debug, Default, Display, Serialize, Deserialize, Clone, PartialEq, Eq, Hash)]
 #[serde(transparent)]
@@ -43,7 +43,7 @@ impl FromStr for ConversationId {
 pub struct Conversation {
     pub id: ConversationId,
     pub title: Option<String>,
-    pub context: Option<ParentContext>,
+    pub context: Option<Context>,
     pub metrics: Metrics,
     pub metadata: MetaData,
 }

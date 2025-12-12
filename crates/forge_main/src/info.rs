@@ -774,7 +774,6 @@ mod tests {
     use std::path::PathBuf;
 
     use forge_api::{Environment, EventValue};
-    use forge_domain::ParentContext;
     use pretty_assertions::assert_eq;
 
     // Helper to create minimal test environment
@@ -1059,7 +1058,7 @@ mod tests {
         let fixture = Conversation {
             id: conversation_id,
             title: Some("Test Task".to_string()),
-            context: Some(ParentContext::default().context(context)),
+            context: Some(context),
             metrics,
             metadata: forge_domain::MetaData::new(Utc::now()),
         };

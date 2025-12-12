@@ -19,36 +19,28 @@ impl Default for SortTools {
 impl Transformer for SortTools {
     type Value = Context;
 
-    fn transform(&mut self, context: Self::Value) -> Self::Value {
+    fn transform(&mut self, mut context: Self::Value) -> Self::Value {
         // Sort tools by name in alphabetical order
-        // FIXME: Drop me
-        // Since it's BTreeSet, always sorted.
-        // context
-        //     .tools
-        //     .sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
+        context
+            .tools
+            .sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
         context
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeSet;
-
     use pretty_assertions::assert_eq;
 
     use super::*;
     use crate::ToolDefinition;
 
     fn fixture_context_with_tools() -> Context {
-        Context::default().tools(
-            vec![
-                ToolDefinition::new("zebra_tool").description("Z tool"),
-                ToolDefinition::new("alpha_tool").description("A tool"),
-                ToolDefinition::new("beta_tool").description("B tool"),
-            ]
-            .into_iter()
-            .collect::<BTreeSet<_>>(),
-        )
+        Context::default().tools(vec![
+            ToolDefinition::new("zebra_tool").description("Z tool"),
+            ToolDefinition::new("alpha_tool").description("A tool"),
+            ToolDefinition::new("beta_tool").description("B tool"),
+        ])
     }
 
     #[test]

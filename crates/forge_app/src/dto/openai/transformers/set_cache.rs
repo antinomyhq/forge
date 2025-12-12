@@ -78,7 +78,7 @@ mod tests {
                 })
                 .map(|msg| msg.into())
                 .collect(),
-            tools: std::collections::BTreeSet::new(),
+            tools: vec![],
             tool_choice: None,
             max_tokens: None,
             temperature: None,

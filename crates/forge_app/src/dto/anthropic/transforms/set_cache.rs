@@ -92,7 +92,7 @@ mod tests {
         let context = Context {
             conversation_id: None,
             messages,
-            tools: std::collections::BTreeSet::new(),
+            tools: vec![],
             tool_choice: None,
             max_tokens: None,
             temperature: None,
@@ -229,7 +229,7 @@ mod tests {
                 )
                 .into(),
             ],
-            tools: std::collections::BTreeSet::new(),
+            tools: vec![],
             tool_choice: None,
             max_tokens: None,
             temperature: None,

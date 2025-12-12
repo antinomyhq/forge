@@ -167,19 +167,8 @@ impl<S: AgentService> Orchestrator<S> {
 
         response.into_full(!tool_supported).await
     }
-    /// Generates a RequestContext
-    /// It just clones it, but would be nice to have
-    /// it done explicitly or need to find a better approach.
-    fn generate_request_context(&self, context: &Context) -> Context {
-        context.clone()
-    }
-
     /// Checks if compaction is needed and performs it if necessary
-    fn check_and_compact(
-        &self,
-        context: &Context,
-        metadata: &Option<CompactionMetadata>,
-    ) -> anyhow::Result<Option<crate::compact::CompactionResult>> {
+    fn check_and_compact(&self, context: &Context) -> anyhow::Result<Option<Context>> {
         let agent = &self.agent;
         // Estimate token count for compaction decision
         let token_count = context.token_count();
@@ -188,7 +177,7 @@ impl<S: AgentService> Orchestrator<S> {
         {
             info!(agent_id = %agent.id, "Compaction needed");
             Compactor::new(compact, self.environment.clone())
-                .compact(context.clone(), metadata.clone(), false)
+                .compact(context.clone(), false)
                 .map(Some)
         } else {
             debug!(agent_id = %agent.id, "Compaction not needed");
@@ -215,7 +204,7 @@ impl<S: AgentService> Orchestrator<S> {
 
         let model_id = self.get_model();
 
-        let mut p_context = self.conversation.context.clone().unwrap_or_default();
+        let mut context = self.conversation.context.clone().unwrap_or_default();
 
         // Create agent reference for the rest of the method
         let agent = &self.agent;
@@ -240,17 +229,12 @@ impl<S: AgentService> Orchestrator<S> {
 
         while !should_yield {
             // Set context for the current loop iteration
-            self.conversation.context = Some(p_context.clone());
+            self.conversation.context = Some(context.clone());
             self.services.update(self.conversation.clone()).await?;
 
             let message = crate::retry::retry_with_config(
                 &self.environment.retry_config,
-                || {
-                    // Generate "RequestContext" from Context for provider call
-                    let request_context = self.generate_request_context(&p_context);
-                    self.execute_chat_turn(&model_id, request_context, p_context.is_reasoning_supported())
-                },
-
+                || self.execute_chat_turn(&model_id, context.clone(), context.is_reasoning_supported()),
                 self.sender.as_ref().map(|sender| {
                     let sender = sender.clone();
                     let agent_id = agent.id.clone();
@@ -271,20 +255,16 @@ impl<S: AgentService> Orchestrator<S> {
             // triggered after receiving the response Trigger compaction after
             // making a request NOTE: Ideally compaction should be implemented
             // as a transformer
-            if let Some(c_context) =
-                self.check_and_compact(&p_context.context, &p_context.compaction_metadata)?
-            {
+            if let Some(c_context) = self.check_and_compact(&context)? {
                 info!(agent_id = %agent.id, "Using compacted context from execution");
-                p_context = p_context
-                    .context(c_context.context)
-                    .compaction_metadata(c_context.metadata);
+                context = c_context;
             } else {
                 debug!(agent_id = %agent.id, "No compaction was needed");
             }
 
             info!(
                 conversation_id = %self.conversation.id,
-                conversation_length = p_context.messages.len(),
+                conversation_length = context.messages.len(),
                 token_usage = format!("{}", message.usage.prompt_tokens),
                 total_tokens = format!("{}", message.usage.total_tokens),
                 cached_tokens = format!("{}", message.usage.cached_tokens),
@@ -308,7 +288,7 @@ impl<S: AgentService> Orchestrator<S> {
                     .any(|call| ToolCatalog::should_yield(&call.name));
 
             if let Some(reasoning) = message.reasoning.as_ref()
-                && p_context.is_reasoning_supported()
+                && context.is_reasoning_supported()
             {
                 // If reasoning is present, send it as a separate message
                 self.send(ChatResponse::TaskReasoning { content: reasoning.to_string() })
@@ -344,7 +324,7 @@ impl<S: AgentService> Orchestrator<S> {
                 }
             }
 
-            p_context.context = p_context.context.append_message(
+            context = context.append_message(
                 message.content.clone(),
                 message.reasoning_details,
                 message.usage,
@@ -364,8 +344,8 @@ impl<S: AgentService> Orchestrator<S> {
             }
 
             // Update context in the conversation
-            p_context.context = SetModel::new(model_id.clone()).transform(p_context.context);
-            self.conversation.context = Some(p_context.clone());
+            context = SetModel::new(model_id.clone()).transform(context);
+            self.conversation.context = Some(context.clone());
             self.services.update(self.conversation.clone()).await?;
             request_count += 1;
 

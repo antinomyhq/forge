@@ -61,13 +61,7 @@ mod tests {
                 .into(),
                 ContextMessage::Tool(tool_result).into(),
             ],
-            tools: {
-                let mut set = std::collections::BTreeSet::new();
-                set.insert(
-                    forge_domain::ToolDefinition::new("test_tool").description("A test tool"),
-                );
-                set
-            },
+            tools: vec![forge_domain::ToolDefinition::new("test_tool").description("A test tool")],
             tool_choice: None,
             max_tokens: None,
             temperature: None,

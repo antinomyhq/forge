@@ -48,7 +48,7 @@ impl<S: AttachmentService> UserPromptGenerator<S> {
         &self,
         mut conversation: Conversation,
     ) -> anyhow::Result<Conversation> {
-        let mut p_context = conversation.context.take().unwrap_or_default();
+        let mut context = conversation.context.take().unwrap_or_default();
 
         if let Some(piped_input) = &self.event.additional_context {
             let piped_message = TextMessage {
@@ -60,12 +60,10 @@ impl<S: AttachmentService> UserPromptGenerator<S> {
                 model: Some(self.agent.model.clone()),
                 droppable: true, // Piped input is droppable
             };
-            p_context.context = p_context
-                .context
-                .add_message(ContextMessage::Text(piped_message));
+            context = context.add_message(ContextMessage::Text(piped_message));
         }
 
-        Ok(conversation.context(p_context))
+        Ok(conversation.context(context))
     }
 
     /// Renders the user message content and adds it to the conversation
@@ -137,7 +135,7 @@ impl<S: AttachmentService> UserPromptGenerator<S> {
                 model: Some(self.agent.model.clone()),
                 droppable: false,
             };
-            context.context = context.context.add_message(ContextMessage::Text(message));
+            context = context.add_message(ContextMessage::Text(message));
         }
 
         Ok((conversation.context(context), content))
@@ -154,9 +152,7 @@ impl<S: AttachmentService> UserPromptGenerator<S> {
 
         // Parse Attachments (do NOT parse piped input for attachments)
         let attachments = self.services.attachments(content).await?;
-        context.context = context
-            .context
-            .add_attachments(attachments, Some(self.agent.model.clone()));
+        context = context.add_attachments(attachments, Some(self.agent.model.clone()));
 
         Ok(conversation.context(context))
     }
@@ -187,8 +183,7 @@ mod tests {
     }
 
     fn fixture_conversation() -> Conversation {
-        Conversation::new(ConversationId::default())
-            .context(ParentContext::default().context(Context::default()))
+        Conversation::new(ConversationId::default()).context(Context::default())
     }
 
     fn fixture_generator(agent: Agent, event: Event) -> UserPromptGenerator<MockService> {
@@ -204,7 +199,7 @@ mod tests {
 
         let actual = generator.add_user_prompt(conversation).await.unwrap();
 
-        let messages = actual.context.unwrap().context.messages;
+        let messages = actual.context.unwrap().messages;
         assert_eq!(
             messages.len(),
             2,
@@ -237,7 +232,7 @@ mod tests {
 
         let actual = generator.add_user_prompt(conversation).await.unwrap();
 
-        let messages = actual.context.unwrap().context.messages;
+        let messages = actual.context.unwrap().messages;
         assert_eq!(messages.len(), 2);
 
         // Verify order: main message first, then additional context
@@ -254,7 +249,7 @@ mod tests {
 
         let actual = generator.add_user_prompt(conversation).await.unwrap();
 
-        let messages = actual.context.unwrap().context.messages;
+        let messages = actual.context.unwrap().messages;
         assert_eq!(messages.len(), 1, "Should only have the main message");
         assert_eq!(messages[0].content().unwrap(), "Simple task");
     }
@@ -268,7 +263,7 @@ mod tests {
 
         let actual = generator.add_user_prompt(conversation).await.unwrap();
 
-        let messages = actual.context.unwrap().context.messages;
+        let messages = actual.context.unwrap().messages;
         assert_eq!(
             messages.len(),
             0,
@@ -285,7 +280,7 @@ mod tests {
 
         let actual = generator.add_user_prompt(conversation).await.unwrap();
 
-        let messages = actual.context.unwrap().context.messages;
+        let messages = actual.context.unwrap().messages;
         let message = messages.first().unwrap();
 
         if let ContextMessage::Text(text_msg) = &**message {
