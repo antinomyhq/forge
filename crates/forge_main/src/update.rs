@@ -26,7 +26,7 @@ async fn execute_update_command(api: Arc<impl API>) {
                 let answer = forge_select::ForgeSelect::confirm(
                     "You need to close forge to complete update. Do you want to close it now?",
                 )
-                .with_default(true)
+                .default(true)
                 .prompt();
                 if answer.unwrap_or_default().unwrap_or_default() {
                     std::process::exit(0);
@@ -49,7 +49,7 @@ async fn confirm_update(version: Version) -> bool {
         VERSION.to_string().bold().white(),
         version.to_string().bold().white()
     ))
-    .with_default(true)
+    .default(true)
     .prompt();
 
     match answer {

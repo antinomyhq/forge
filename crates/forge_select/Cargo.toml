@@ -6,7 +6,8 @@ edition = "2021"
 [dependencies]
 anyhow.workspace = true
 console.workspace = true
-dialoguer.workspace = true
+cliclack.workspace = true
+derive_setters.workspace = true
 
 crossterm.workspace = true
 
