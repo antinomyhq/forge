@@ -29,8 +29,7 @@ use tracing::debug;
 use url::Url;
 
 use crate::cli::{
-    Cli, CommitCommandGroup, ConversationCommand, Shell, ListCommand, McpCommand,
-    TopLevelCommand,
+    Cli, CommitCommandGroup, ConversationCommand, ListCommand, McpCommand, Shell, TopLevelCommand,
 };
 use crate::conversation_selector::ConversationSelector;
 use crate::display_constants::{CommandType, headers, markers, status};
@@ -412,11 +411,18 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
                 return Ok(());
             }
-            TopLevelCommand::Terminal(extension_group) => {
-                match extension_group.shell {
-                    Shell::Zsh => {
-                        self.on_zsh_prompt().await?;
-                    }
+            TopLevelCommand::Terminal(terminal_group) => {
+                match terminal_group.command {
+                    crate::cli::TerminalCommand::Plugin { shell } => match shell {
+                        Shell::Zsh => {
+                            self.on_zsh_plugin().await?;
+                        }
+                    },
+                    crate::cli::TerminalCommand::Theme { shell } => match shell {
+                        Shell::Zsh => {
+                            self.on_zsh_theme().await?;
+                        }
+                    },
                 }
                 return Ok(());
             }
@@ -1411,9 +1417,17 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(())
     }
 
-    async fn on_zsh_prompt(&self) -> anyhow::Result<()> {
+    /// Generate ZSH plugin script
+    async fn on_zsh_plugin(&self) -> anyhow::Result<()> {
         let plugin = crate::zsh_plugin::generate_zsh_plugin()?;
         println!("{plugin}");
+        Ok(())
+    }
+
+    /// Generate ZSH theme
+    async fn on_zsh_theme(&self) -> anyhow::Result<()> {
+        let theme = crate::zsh_plugin::generate_zsh_theme()?;
+        println!("{theme}");
         Ok(())
     }
 

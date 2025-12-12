@@ -327,13 +327,29 @@ pub enum ListCommand {
 /// Command group for generating shell extensions.
 #[derive(Parser, Debug, Clone)]
 pub struct TerminalCommandGroup {
-    #[arg(long = "init", value_enum)]
-    pub shell: Shell,
+    #[command(subcommand)]
+    pub command: TerminalCommand,
 }
 
-#[derive(ValueEnum, Debug, Clone)]
+#[derive(Subcommand, Debug, Clone)]
+pub enum TerminalCommand {
+    /// Generate shell plugin script
+    Plugin {
+        /// Shell type
+        #[arg(value_enum)]
+        shell: Shell,
+    },
+    /// Generate shell theme
+    Theme {
+        /// Shell type
+        #[arg(value_enum)]
+        shell: Shell,
+    },
+}
+
+#[derive(ValueEnum, Debug, Clone, Copy)]
 pub enum Shell {
-    /// Generate ZSH extension script.
+    /// ZSH shell
     Zsh,
 }
 
@@ -1427,5 +1443,31 @@ mod tests {
     fn test_prompt_with_double_hyphen() {
         let fixture = Cli::parse_from(["forge", "-p", "--something"]);
         assert_eq!(fixture.prompt, Some("--something".to_string()));
+    }
+
+    #[test]
+    fn test_terminal_theme_zsh() {
+        let fixture = Cli::parse_from(["forge", "terminal", "theme", "zsh"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Terminal(terminal)) => match terminal.command {
+                TerminalCommand::Theme { shell } => matches!(shell, Shell::Zsh),
+                _ => false,
+            },
+            _ => false,
+        };
+        assert_eq!(actual, true);
+    }
+
+    #[test]
+    fn test_terminal_plugin_zsh() {
+        let fixture = Cli::parse_from(["forge", "terminal", "plugin", "zsh"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Terminal(terminal)) => match terminal.command {
+                TerminalCommand::Plugin { shell } => matches!(shell, Shell::Zsh),
+                _ => false,
+            },
+            _ => false,
+        };
+        assert_eq!(actual, true);
     }
 }
