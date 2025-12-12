@@ -94,7 +94,15 @@ impl ForgeEnvironmentInfra {
                 .unwrap_or_else(|| Url::parse("https://api.forgecode.dev/").unwrap()),
             override_model,
             override_provider,
+            title_format: parse_env::<String>("FORGE_TITLE_FORMAT")
+                .unwrap_or_else(Self::load_default_title_format),
         }
+    }
+
+    /// Loads the default title format template from the bundled template file
+    fn load_default_title_format() -> String {
+        const DEFAULT_TEMPLATE: &str = include_str!("../templates/title_format.hbs");
+        DEFAULT_TEMPLATE.trim().to_string()
     }
 
     /// Load all `.env` files with priority to lower (closer) files.

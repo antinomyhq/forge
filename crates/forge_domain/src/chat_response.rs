@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use chrono::Local;
+use derive_more::Display;
 
 use crate::{ToolCallFull, ToolName, ToolResult};
 
@@ -110,7 +111,7 @@ impl From<&anyhow::Error> for Cause {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Display)]
 pub enum Category {
     Action,
     Info,
