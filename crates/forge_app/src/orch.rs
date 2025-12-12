@@ -150,12 +150,22 @@ impl<S: AgentService> Orchestrator<S> {
         reasoning_supported: bool,
     ) -> anyhow::Result<ChatCompletionMessageFull> {
         let tool_supported = self.is_tool_supported()?;
+        let compaction_transformer = CompactionTransformer::new(
+            self.agent.clone(),
+            self.agent
+                .compact
+                .as_ref()
+                .map(|compact| Compactor::new(compact.clone(), self.environment.clone())),
+        );
+
         let mut transformers = DefaultTransformation::default()
             .pipe(SortTools::new())
             .pipe(TransformToolCalls::new().when(|_| !tool_supported))
             .pipe(ImageHandling::new())
             .pipe(DropReasoningDetails.when(|_| !reasoning_supported))
-            .pipe(ReasoningNormalizer.when(|_| reasoning_supported));
+            .pipe(ReasoningNormalizer.when(|_| reasoning_supported))
+            .pipe(compaction_transformer.when(|_| self.agent.compact.is_some()));
+
         let response = self
             .services
             .chat_agent(
@@ -166,23 +176,6 @@ impl<S: AgentService> Orchestrator<S> {
             .await?;
 
         response.into_full(!tool_supported).await
-    }
-    /// Checks if compaction is needed and performs it if necessary
-    fn check_and_compact(&self, context: &Context) -> anyhow::Result<Option<Context>> {
-        let agent = &self.agent;
-        // Estimate token count for compaction decision
-        let token_count = context.token_count();
-        if agent.should_compact(context, *token_count)
-            && let Some(compact) = agent.compact.clone()
-        {
-            info!(agent_id = %agent.id, "Compaction needed");
-            Compactor::new(compact, self.environment.clone())
-                .compact(context.clone(), false)
-                .map(Some)
-        } else {
-            debug!(agent_id = %agent.id, "Compaction not needed");
-            Ok(None)
-        }
     }
 
     // Create a helper method with the core functionality
@@ -250,17 +243,6 @@ impl<S: AgentService> Orchestrator<S> {
                     }
                 }),
             ).await?;
-
-            // FIXME: Add a unit test in orch spec, to guarantee that compaction is
-            // triggered after receiving the response Trigger compaction after
-            // making a request NOTE: Ideally compaction should be implemented
-            // as a transformer
-            if let Some(c_context) = self.check_and_compact(&context)? {
-                info!(agent_id = %agent.id, "Using compacted context from execution");
-                context = c_context;
-            } else {
-                debug!(agent_id = %agent.id, "No compaction was needed");
-            }
 
             info!(
                 conversation_id = %self.conversation.id,

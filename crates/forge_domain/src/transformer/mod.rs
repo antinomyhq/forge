@@ -73,6 +73,7 @@ where
 }
 
 // Re-export specific transformers
+mod compaction;
 mod drop_reasoning_details;
 mod image_handling;
 mod reasoning_normalizer;
@@ -80,6 +81,7 @@ mod set_model;
 mod sort_tools;
 mod transform_tool_calls;
 
+pub use compaction::{CompactionTransformer, ContextCompactor};
 pub use drop_reasoning_details::DropReasoningDetails;
 pub use image_handling::ImageHandling;
 pub use reasoning_normalizer::ReasoningNormalizer;
