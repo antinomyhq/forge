@@ -114,7 +114,7 @@ impl WorkspaceRepository for ForgeWorkspaceRepository {
 mod tests {
     use std::path::PathBuf;
 
-    use forge_domain::UserId;
+    use forge_domain::{UserId, WorkspaceId};
     use pretty_assertions::assert_eq;
 
     use super::*;

@@ -157,6 +157,7 @@ Forge is designed for developers who want to enhance their workflow with AI assi
 - **Multi-provider support** - Use OpenAI, Anthropic, or other LLM providers
 - **Secure by design** - Your code stays on your machine
 - **Open-source** - Transparent, extensible, and community-driven
+- **Workspace-aware** - Automatically isolates conversations and prompt history per project for clean project boundaries
 
 Forge helps you code faster, solve complex problems, and learn new technologies without leaving your terminal.
 
@@ -534,6 +535,33 @@ FORGE_MAX_CONVERSATIONS=100            # Maximum number of conversations to show
 SHELL=/bin/zsh                         # Shell to use for command execution (Unix/Linux/macOS)
 COMSPEC=cmd.exe                        # Command processor to use (Windows)
 ```
+
+</details>
+
+<details>
+<summary><strong>Workspace Configuration</strong></summary>
+
+Configure workspace detection and history isolation:
+
+```bash
+# .env
+FORGE_MAX_PROJECT_ROOT_DEPTH=10           # Maximum directories to traverse when finding project root (default: 10)
+FORGE_PROJECT_ROOT_MARKERS=".git,forge.yaml,.forge,forge/.config.json"  # Comma-separated project root markers
+FORGE_HISTORY_FILE=/path/to/history    # Custom history path override (takes priority over project-based history)
+```
+
+**How it works:**
+- Forge automatically detects your project root by traversing up from current directory looking for markers
+- Each project root gets its own isolated history file (`{project_root}/.forge/.forge_history`) for **conversations and prompt history**
+- All directories within the same project root share the same project root ID and history
+- This ensures **project isolation** - conversations and prompt history stay within project boundaries
+- Custom history path (`FORGE_HISTORY_FILE`) still takes priority when set
+
+**Default project root markers (in priority order):**
+1. `.git` - Git repository (directory or worktree file)
+2. `forge.yaml` - Forge configuration file
+3. `.forge` - Forge directory  
+4. `forge/.config.json` - Forge config file in forge directory
 
 </details>
 

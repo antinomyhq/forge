@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use diesel::prelude::*;
-use forge_domain::{Conversation, ConversationId, ConversationRepository, WorkspaceHash};
+use forge_domain::{Conversation, ConversationId, ConversationRepository, ProjectRootId};
 
 use crate::conversation::conversation_record::ConversationRecord;
 use crate::database::schema::conversations;
@@ -9,12 +9,12 @@ use crate::database::DatabasePool;
 
 pub struct ConversationRepositoryImpl {
     pool: Arc<DatabasePool>,
-    wid: WorkspaceHash,
+    wid: ProjectRootId,
 }
 
 impl ConversationRepositoryImpl {
-    pub fn new(pool: Arc<DatabasePool>, workspace_id: WorkspaceHash) -> Self {
-        Self { pool, wid: workspace_id }
+    pub fn new(pool: Arc<DatabasePool>, project_root_id: ProjectRootId) -> Self {
+        Self { pool, wid: project_root_id }
     }
 }
 
@@ -62,9 +62,8 @@ impl ConversationRepository for ConversationRepositoryImpl {
     ) -> anyhow::Result<Option<Vec<Conversation>>> {
         let mut connection = self.pool.get_connection()?;
 
-        let workspace_id = self.wid.id() as i64;
         let mut query = conversations::table
-            .filter(conversations::workspace_id.eq(&workspace_id))
+            .filter(conversations::project_root_path.eq(self.wid.id() as i64))
             .filter(conversations::context.is_not_null())
             .order(conversations::updated_at.desc())
             .into_boxed();
@@ -86,9 +85,8 @@ impl ConversationRepository for ConversationRepositoryImpl {
 
     async fn get_last_conversation(&self) -> anyhow::Result<Option<Conversation>> {
         let mut connection = self.pool.get_connection()?;
-        let workspace_id = self.wid.id() as i64;
         let record: Option<ConversationRecord> = conversations::table
-            .filter(conversations::workspace_id.eq(&workspace_id))
+            .filter(conversations::project_root_path.eq(self.wid.id() as i64))
             .filter(conversations::context.is_not_null())
             .order(conversations::updated_at.desc())
             .first(&mut connection)
@@ -106,7 +104,7 @@ impl ConversationRepository for ConversationRepositoryImpl {
 
         // Security: Ensure users can only delete conversations within their workspace
         diesel::delete(conversations::table)
-            .filter(conversations::workspace_id.eq(&workspace_id))
+            .filter(conversations::project_root_path.eq(&workspace_id))
             .filter(conversations::conversation_id.eq(conversation_id.into_string()))
             .execute(&mut connection)?;
 
@@ -129,7 +127,7 @@ mod tests {
 
     fn repository() -> anyhow::Result<ConversationRepositoryImpl> {
         let pool = Arc::new(DatabasePool::in_memory()?);
-        Ok(ConversationRepositoryImpl::new(pool, WorkspaceHash::new(0)))
+        Ok(ConversationRepositoryImpl::new(pool, ProjectRootId::new(0)))
     }
 
     #[tokio::test]
@@ -297,7 +295,7 @@ mod tests {
         let fixture = Conversation::new(ConversationId::generate())
             .title(Some("Test Conversation".to_string()));
 
-        let actual = ConversationRecord::new(fixture.clone(), WorkspaceHash::new(0));
+        let actual = ConversationRecord::new(fixture.clone(), ProjectRootId::new(0));
 
         assert_eq!(actual.conversation_id, fixture.id.into_string());
         assert_eq!(actual.title, Some("Test Conversation".to_string()));
@@ -312,7 +310,7 @@ mod tests {
             .title(Some("Conversation with Context".to_string()))
             .context(Some(context));
 
-        let actual = ConversationRecord::new(fixture.clone(), WorkspaceHash::new(0));
+        let actual = ConversationRecord::new(fixture.clone(), ProjectRootId::new(0));
 
         assert_eq!(actual.conversation_id, fixture.id.into_string());
         assert_eq!(actual.title, Some("Conversation with Context".to_string()));
@@ -326,7 +324,7 @@ mod tests {
             .title(Some("Conversation with Empty Context".to_string()))
             .context(Some(Context::default()));
 
-        let actual = ConversationRecord::new(fixture.clone(), WorkspaceHash::new(0));
+        let actual = ConversationRecord::new(fixture.clone(), ProjectRootId::new(0));
 
         assert_eq!(actual.conversation_id, fixture.id.into_string());
         assert_eq!(
@@ -347,7 +345,7 @@ mod tests {
             context: None,
             created_at: Utc::now().naive_utc(),
             updated_at: None,
-            workspace_id: 0,
+            project_root_path: 0,
             metrics: None,
         };
 
@@ -788,7 +786,7 @@ mod tests {
             context: Some("invalid json".to_string()), // Invalid JSON to trigger error
             created_at: Utc::now().naive_utc(),
             updated_at: None,
-            workspace_id: 0,
+            project_root_path: 0,
             metrics: None,
         };
 

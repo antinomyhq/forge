@@ -1,5 +1,5 @@
 use std::hash::{DefaultHasher, Hash, Hasher};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use derive_more::Display;
 use derive_setters::Setters;
@@ -70,17 +70,6 @@ pub struct Environment {
     /// Maximum number of conversations to show in list.
     /// Controlled by FORGE_MAX_CONVERSATIONS environment variable.
     pub max_conversations: usize,
-    /// Maximum number of results to return from initial vector search.
-    /// Controlled by FORGE_SEM_SEARCH_LIMIT environment variable.
-    pub sem_search_limit: usize,
-    /// Top-k parameter for relevance filtering during semantic search.
-    /// Controls the number of nearest neighbors to consider.
-    /// Controlled by FORGE_SEM_SEARCH_TOP_K environment variable.
-    pub sem_search_top_k: usize,
-    /// URL for the indexing server.
-    /// Controlled by FORGE_WORKSPACE_SERVER_URL environment variable.
-    #[dummy(expr = "url::Url::parse(\"http://localhost:8080\").unwrap()")]
-    pub workspace_server_url: Url,
     /// Override model for all providers from FORGE_OVERRIDE_MODEL environment
     /// variable. If set, this model will be used instead of configured
     /// models.
@@ -90,17 +79,60 @@ pub struct Environment {
     /// If set, this provider will be used as default.
     #[dummy(default)]
     pub override_provider: Option<ProviderId>,
+    /// Maximum number of parent directories to traverse when finding project
+    /// root. Default: 10 (reasonable limit to prevent infinite loops)
+    #[dummy(expr = "Some(10)")]
+    pub max_project_root_depth: Option<usize>,
+    /// Detected project root path if found
+    #[dummy(default)]
+    pub detected_project_root: Option<PathBuf>,
+    /// List of marker files/directories that identify project root
+    #[dummy(expr = "vec![\"Cargo.toml\".to_string(), \"package.json\".to_string()]")]
+    pub project_root_markers: Vec<String>,
+    /// Maximum number of semantic search results
+    #[dummy(expr = "10")]
+    pub sem_search_limit: u32,
+    /// Maximum number of top results for semantic search
+    #[dummy(expr = "5")]
+    pub sem_search_top_k: u32,
+    /// URL for workspace server
+    #[dummy(expr = "\"https://localhost:8080\".parse().unwrap()")]
+    pub workspace_server_url: Url,
 }
 
 impl Environment {
+    /// Find project root by traversing up the directory tree looking for
+    /// project root markers
+    pub fn project_root_path(&self) -> PathBuf {
+        find_project_root(&self.cwd, self.max_project_root_depth)
+    }
+
+    /// Get the hash of the project root path for workspace identification
+    pub fn project_root_id(&self) -> ProjectRootId {
+        let project_root = self.project_root_path();
+        let mut hasher = DefaultHasher::default();
+        project_root.hash(&mut hasher);
+        ProjectRootId(hasher.finish())
+    }
+
     pub fn log_path(&self) -> PathBuf {
         self.base_path.join("logs")
     }
 
     pub fn history_path(&self) -> PathBuf {
-        self.custom_history_path
-            .clone()
-            .unwrap_or(self.base_path.join(".forge_history"))
+        if let Some(custom_path) = &self.custom_history_path {
+            return custom_path.clone();
+        }
+
+        let project_root = self.project_root_path();
+        let forge_dir = project_root.join(".forge");
+
+        // Create .forge directory if it doesn't exist
+        if let Err(e) = std::fs::create_dir_all(&forge_dir) {
+            eprintln!("Warning: Failed to create .forge directory: {}", e);
+        }
+
+        forge_dir.join(".forge_history")
     }
     pub fn snapshot_path(&self) -> PathBuf {
         self.base_path.join("snapshots")
@@ -160,25 +192,56 @@ impl Environment {
     pub fn local_skills_path(&self) -> PathBuf {
         self.cwd.join(".forge/skills")
     }
-
-    pub fn workspace_hash(&self) -> WorkspaceHash {
-        let mut hasher = DefaultHasher::default();
-        self.cwd.hash(&mut hasher);
-
-        WorkspaceHash(hasher.finish())
-    }
 }
 
 #[derive(Clone, Copy, Display)]
-pub struct WorkspaceHash(u64);
-impl WorkspaceHash {
+pub struct ProjectRootId(u64);
+impl ProjectRootId {
     pub fn new(id: u64) -> Self {
-        WorkspaceHash(id)
+        ProjectRootId(id)
     }
 
     pub fn id(&self) -> u64 {
         self.0
     }
+}
+
+fn find_project_root(cwd: &Path, max_depth: Option<usize>) -> PathBuf {
+    let markers_str = std::env::var("FORGE_PROJECT_ROOT_MARKERS")
+        .unwrap_or_else(|_| ".git,forge.yaml,.forge,forge/.config.json".to_string());
+
+    let markers = markers_str
+        .split(',')
+        .map(|s| s.trim())
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>();
+
+    let mut current = cwd.to_path_buf();
+    let mut depth = 0;
+
+    loop {
+        for marker in &markers {
+            if current.join(marker).exists() {
+                return current;
+            }
+        }
+
+        if let Some(max_depth) = max_depth
+            && depth >= max_depth
+        {
+            break;
+        }
+
+        match current.parent() {
+            Some(parent) => {
+                current = parent.to_path_buf();
+                depth += 1;
+            }
+            None => break,
+        }
+    }
+
+    cwd.to_path_buf()
 }
 
 #[cfg(test)]
@@ -292,12 +355,15 @@ fn test_command_path() {
         debug_requests: None,
         custom_history_path: None,
         max_conversations: 100,
-        sem_search_limit: 100,
-        sem_search_top_k: 10,
         max_image_size: 262144,
-        workspace_server_url: "http://localhost:8080".parse().unwrap(),
         override_model: None,
         override_provider: None,
+        max_project_root_depth: Some(10),
+        sem_search_limit: 10,
+        sem_search_top_k: 5,
+        workspace_server_url: "https://workspace.example.com".parse().unwrap(),
+        detected_project_root: Some(PathBuf::from("/project/root")),
+        project_root_markers: vec!["Cargo.toml".to_string(), "package.json".to_string()],
     };
 
     let actual = fixture.command_path();
@@ -331,12 +397,15 @@ fn test_command_cwd_path() {
         debug_requests: None,
         custom_history_path: None,
         max_conversations: 100,
-        sem_search_limit: 100,
-        sem_search_top_k: 10,
         max_image_size: 262144,
-        workspace_server_url: "http://localhost:8080".parse().unwrap(),
         override_model: None,
         override_provider: None,
+        max_project_root_depth: Some(10),
+        sem_search_limit: 10,
+        sem_search_top_k: 5,
+        workspace_server_url: "https://workspace.example.com".parse().unwrap(),
+        detected_project_root: Some(PathBuf::from("/project/root")),
+        project_root_markers: vec!["Cargo.toml".to_string(), "package.json".to_string()],
     };
 
     let actual = fixture.command_cwd_path();
@@ -370,12 +439,15 @@ fn test_command_cwd_path_independent_from_command_path() {
         debug_requests: None,
         custom_history_path: None,
         max_conversations: 100,
-        sem_search_limit: 100,
-        sem_search_top_k: 10,
         max_image_size: 262144,
-        workspace_server_url: "http://localhost:8080".parse().unwrap(),
         override_model: None,
         override_provider: None,
+        max_project_root_depth: Some(10),
+        sem_search_limit: 10,
+        sem_search_top_k: 5,
+        workspace_server_url: "https://workspace.example.com".parse().unwrap(),
+        detected_project_root: Some(PathBuf::from("/project/root")),
+        project_root_markers: vec!["Cargo.toml".to_string(), "package.json".to_string()],
     };
 
     let command_path = fixture.command_path();

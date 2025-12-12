@@ -5,8 +5,8 @@ use std::sync::Arc;
 use bytes::Bytes;
 use forge_app::{
     AgentRepository, CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra,
-    FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra, GrpcInfra, HttpInfra,
-    KVStore, McpServerInfra, StrategyFactory, UserInfra, WalkedFile, Walker, WalkerInfra,
+    FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, KVStore,
+    McpServerInfra, StrategyFactory, UserInfra, WalkedFile, Walker, WalkerInfra,
 };
 use forge_domain::{
     AnyProvider, AppConfig, AppConfigRepository, AuthCredential, CommandOutput, Conversation,
@@ -25,7 +25,8 @@ use crate::fs_snap::ForgeFileSnapshotService;
 use crate::provider::ForgeProviderRepository;
 use crate::{
     AppConfigRepositoryImpl, ConversationRepositoryImpl, DatabasePool, ForgeAgentRepository,
-    ForgeSkillRepository, PoolConfig,
+    ForgeContextEngineRepository, ForgeSkillRepository, ForgeValidationRepository,
+    ForgeWorkspaceRepository, PoolConfig,
 };
 
 /// Repository layer that implements all domain repository traits
@@ -37,25 +38,31 @@ pub struct ForgeRepo<F> {
     infra: Arc<F>,
     file_snapshot_service: Arc<ForgeFileSnapshotService>,
     conversation_repository: Arc<ConversationRepositoryImpl>,
+    workspace_repository: Arc<ForgeWorkspaceRepository>,
+    context_engine_repository: Arc<ForgeContextEngineRepository<F>>,
+    validation_repository: Arc<ForgeValidationRepository<F>>,
     app_config_repository: Arc<AppConfigRepositoryImpl<F>>,
     mcp_cache_repository: Arc<CacacheStorage>,
     provider_repository: Arc<ForgeProviderRepository<F>>,
-    indexing_repository: Arc<crate::ForgeWorkspaceRepository>,
-    codebase_repo: Arc<crate::ForgeContextEngineRepository<F>>,
     agent_repository: Arc<ForgeAgentRepository<F>>,
     skill_repository: Arc<ForgeSkillRepository<F>>,
-    validation_repository: Arc<crate::ForgeValidationRepository<F>>,
 }
 
-impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra> ForgeRepo<F> {
+impl<
+        F: forge_app::GrpcInfra
+            + forge_app::EnvironmentInfra
+            + forge_app::FileReaderInfra
+            + forge_app::FileWriterInfra,
+    > ForgeRepo<F>
+{
     pub fn new(infra: Arc<F>) -> Self {
         let env = infra.get_environment();
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
         let db_pool =
             Arc::new(DatabasePool::try_from(PoolConfig::new(env.database_path())).unwrap());
         let conversation_repository = Arc::new(ConversationRepositoryImpl::new(
-            db_pool.clone(),
-            env.workspace_hash(),
+            db_pool,
+            env.project_root_id(),
         ));
 
         let app_config_repository = Arc::new(AppConfigRepositoryImpl::new(infra.clone()));
@@ -65,26 +72,27 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra> ForgeR
             Some(3600),
         )); // 1 hour TTL
 
+        let workspace_repository = Arc::new(ForgeWorkspaceRepository::new(Arc::new(
+            DatabasePool::try_from(PoolConfig::new(env.database_path())).unwrap(),
+        )));
+        let context_engine_repository = Arc::new(ForgeContextEngineRepository::new(infra.clone()));
+        let validation_repository = Arc::new(ForgeValidationRepository::new(infra.clone()));
+
         let provider_repository = Arc::new(ForgeProviderRepository::new(infra.clone()));
-
-        let indexing_repository = Arc::new(crate::ForgeWorkspaceRepository::new(db_pool.clone()));
-
-        let codebase_repo = Arc::new(crate::ForgeContextEngineRepository::new(infra.clone()));
         let agent_repository = Arc::new(ForgeAgentRepository::new(infra.clone()));
         let skill_repository = Arc::new(ForgeSkillRepository::new(infra.clone()));
-        let validation_repository = Arc::new(crate::ForgeValidationRepository::new(infra.clone()));
         Self {
             infra,
             file_snapshot_service,
             conversation_repository,
+            workspace_repository,
+            context_engine_repository,
+            validation_repository,
             app_config_repository,
             mcp_cache_repository,
             provider_repository,
-            indexing_repository,
-            codebase_repo,
             agent_repository,
             skill_repository,
-            validation_repository,
         }
     }
 }
@@ -150,7 +158,6 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Send + Sync> Prov
     }
 
     async fn upsert_credential(&self, credential: AuthCredential) -> anyhow::Result<()> {
-        // All providers now use file-based credentials
         self.provider_repository.upsert_credential(credential).await
     }
 
@@ -159,7 +166,6 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Send + Sync> Prov
     }
 
     async fn remove_credential(&self, id: &ProviderId) -> anyhow::Result<()> {
-        // All providers now use file-based credentials
         self.provider_repository.remove_credential(id).await
     }
 
@@ -458,15 +464,19 @@ impl<F: StrategyFactory> StrategyFactory for ForgeRepo<F> {
     }
 }
 
+// Implement the required repository traits for ForgeRepo
 #[async_trait::async_trait]
-impl<F: Send + Sync> forge_domain::WorkspaceRepository for ForgeRepo<F> {
+impl<F> forge_domain::WorkspaceRepository for ForgeRepo<F>
+where
+    F: Send + Sync,
+{
     async fn upsert(
         &self,
         workspace_id: &forge_domain::WorkspaceId,
         user_id: &forge_domain::UserId,
         path: &std::path::Path,
     ) -> anyhow::Result<()> {
-        self.indexing_repository
+        self.workspace_repository
             .upsert(workspace_id, user_id, path)
             .await
     }
@@ -475,22 +485,25 @@ impl<F: Send + Sync> forge_domain::WorkspaceRepository for ForgeRepo<F> {
         &self,
         path: &std::path::Path,
     ) -> anyhow::Result<Option<forge_domain::Workspace>> {
-        self.indexing_repository.find_by_path(path).await
+        self.workspace_repository.find_by_path(path).await
     }
 
     async fn get_user_id(&self) -> anyhow::Result<Option<forge_domain::UserId>> {
-        self.indexing_repository.get_user_id().await
+        self.workspace_repository.get_user_id().await
     }
 
     async fn delete(&self, workspace_id: &forge_domain::WorkspaceId) -> anyhow::Result<()> {
-        self.indexing_repository.delete(workspace_id).await
+        self.workspace_repository.delete(workspace_id).await
     }
 }
 
 #[async_trait::async_trait]
-impl<F: GrpcInfra + Send + Sync> forge_domain::ContextEngineRepository for ForgeRepo<F> {
+impl<F> forge_domain::ContextEngineRepository for ForgeRepo<F>
+where
+    F: forge_app::GrpcInfra + Send + Sync,
+{
     async fn authenticate(&self) -> anyhow::Result<forge_domain::WorkspaceAuth> {
-        self.codebase_repo.authenticate().await
+        self.context_engine_repository.authenticate().await
     }
 
     async fn create_workspace(
@@ -498,7 +511,7 @@ impl<F: GrpcInfra + Send + Sync> forge_domain::ContextEngineRepository for Forge
         working_dir: &std::path::Path,
         auth_token: &forge_domain::ApiKey,
     ) -> anyhow::Result<forge_domain::WorkspaceId> {
-        self.codebase_repo
+        self.context_engine_repository
             .create_workspace(working_dir, auth_token)
             .await
     }
@@ -508,7 +521,9 @@ impl<F: GrpcInfra + Send + Sync> forge_domain::ContextEngineRepository for Forge
         upload: &forge_domain::FileUpload,
         auth_token: &forge_domain::ApiKey,
     ) -> anyhow::Result<forge_domain::FileUploadInfo> {
-        self.codebase_repo.upload_files(upload, auth_token).await
+        self.context_engine_repository
+            .upload_files(upload, auth_token)
+            .await
     }
 
     async fn search(
@@ -516,14 +531,18 @@ impl<F: GrpcInfra + Send + Sync> forge_domain::ContextEngineRepository for Forge
         query: &forge_domain::CodeSearchQuery<'_>,
         auth_token: &forge_domain::ApiKey,
     ) -> anyhow::Result<Vec<forge_domain::Node>> {
-        self.codebase_repo.search(query, auth_token).await
+        self.context_engine_repository
+            .search(query, auth_token)
+            .await
     }
 
     async fn list_workspaces(
         &self,
         auth_token: &forge_domain::ApiKey,
     ) -> anyhow::Result<Vec<forge_domain::WorkspaceInfo>> {
-        self.codebase_repo.list_workspaces(auth_token).await
+        self.context_engine_repository
+            .list_workspaces(auth_token)
+            .await
     }
 
     async fn get_workspace(
@@ -531,7 +550,7 @@ impl<F: GrpcInfra + Send + Sync> forge_domain::ContextEngineRepository for Forge
         workspace_id: &forge_domain::WorkspaceId,
         auth_token: &forge_domain::ApiKey,
     ) -> anyhow::Result<Option<forge_domain::WorkspaceInfo>> {
-        self.codebase_repo
+        self.context_engine_repository
             .get_workspace(workspace_id, auth_token)
             .await
     }
@@ -541,7 +560,7 @@ impl<F: GrpcInfra + Send + Sync> forge_domain::ContextEngineRepository for Forge
         workspace: &forge_domain::WorkspaceFiles,
         auth_token: &forge_domain::ApiKey,
     ) -> anyhow::Result<Vec<forge_domain::FileHash>> {
-        self.codebase_repo
+        self.context_engine_repository
             .list_workspace_files(workspace, auth_token)
             .await
     }
@@ -551,7 +570,9 @@ impl<F: GrpcInfra + Send + Sync> forge_domain::ContextEngineRepository for Forge
         deletion: &forge_domain::FileDeletion,
         auth_token: &forge_domain::ApiKey,
     ) -> anyhow::Result<()> {
-        self.codebase_repo.delete_files(deletion, auth_token).await
+        self.context_engine_repository
+            .delete_files(deletion, auth_token)
+            .await
     }
 
     async fn delete_workspace(
@@ -559,14 +580,17 @@ impl<F: GrpcInfra + Send + Sync> forge_domain::ContextEngineRepository for Forge
         workspace_id: &forge_domain::WorkspaceId,
         auth_token: &forge_domain::ApiKey,
     ) -> anyhow::Result<()> {
-        self.codebase_repo
+        self.context_engine_repository
             .delete_workspace(workspace_id, auth_token)
             .await
     }
 }
 
 #[async_trait::async_trait]
-impl<F: GrpcInfra + Send + Sync> forge_domain::ValidationRepository for ForgeRepo<F> {
+impl<F> forge_domain::ValidationRepository for ForgeRepo<F>
+where
+    F: forge_app::GrpcInfra + Send + Sync,
+{
     async fn validate_file(
         &self,
         path: impl AsRef<std::path::Path> + Send,
@@ -577,13 +601,12 @@ impl<F: GrpcInfra + Send + Sync> forge_domain::ValidationRepository for ForgeRep
             .await
     }
 }
-
-impl<F: GrpcInfra> GrpcInfra for ForgeRepo<F> {
+impl<F: forge_app::GrpcInfra> forge_app::GrpcInfra for ForgeRepo<F> {
     fn channel(&self) -> tonic::transport::Channel {
         self.infra.channel()
     }
 
     fn hydrate(&self) {
-        self.infra.hydrate();
+        self.infra.hydrate()
     }
 }
