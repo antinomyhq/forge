@@ -91,8 +91,8 @@ pub enum TopLevelCommand {
     Agent(AgentCommandGroup),
 
     /// Generate shell extension scripts.
-    #[command(hide = true)]
-    Extension(ExtensionCommandGroup),
+    #[command(alias = "extension")]
+    Shell(ShellCommandGroup),
 
     /// List agents, models, providers, tools, or MCP servers.
     List(ListCommandGroup),
@@ -326,13 +326,13 @@ pub enum ListCommand {
 
 /// Command group for generating shell extensions.
 #[derive(Parser, Debug, Clone)]
-pub struct ExtensionCommandGroup {
+pub struct ShellCommandGroup {
     #[command(subcommand)]
-    pub command: ExtensionCommand,
+    pub command: Shell,
 }
 
 #[derive(Subcommand, Debug, Clone)]
-pub enum ExtensionCommand {
+pub enum Shell {
     /// Generate ZSH extension script.
     Zsh,
 }
