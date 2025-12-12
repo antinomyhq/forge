@@ -333,9 +333,7 @@ impl<
         path: PathBuf,
         batch_size: usize,
     ) -> Result<MpscStream<Result<forge_domain::SyncProgress>>> {
-        self.services
-            .sync_codebase(path, batch_size)
-            .await
+        self.services.sync_codebase(path, batch_size).await
     }
 
     async fn query_codebase(

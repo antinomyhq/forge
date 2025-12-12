@@ -258,11 +258,14 @@ pub trait ContextEngineService: Send + Sync {
     /// # Arguments
     /// * `path` - Path to the codebase directory
     /// * `batch_size` - Number of files to process in each batch
-    /// * `show_progress` - If true, returns progress stream; if false, syncs in background
+    /// * `show_progress` - If true, returns progress stream; if false, syncs in
+    ///   background
     ///
     /// # Behavior
-    /// - When `show_progress` is true: Blocks and returns a progress stream (manual sync)
-    /// - When `show_progress` is false: Fire-and-forget background sync (automatic/periodic)
+    /// - When `show_progress` is true: Blocks and returns a progress stream
+    ///   (manual sync)
+    /// - When `show_progress` is false: Fire-and-forget background sync
+    ///   (automatic/periodic)
     ///
     /// Automatically handles:
     /// - Clearing stale locks before attempting sync

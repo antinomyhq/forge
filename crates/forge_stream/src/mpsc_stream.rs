@@ -16,10 +16,7 @@ impl<T> MpscStream<T> {
         T: Send + 'static,
     {
         let (_, rx) = tokio::sync::mpsc::channel(1);
-        MpscStream {
-            join_handle: tokio::spawn(async {}),
-            receiver: rx,
-        }
+        MpscStream { join_handle: tokio::spawn(async {}), receiver: rx }
     }
 
     pub fn spawn<F, S>(f: F) -> MpscStream<T>

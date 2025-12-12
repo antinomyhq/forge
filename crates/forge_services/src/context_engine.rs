@@ -478,14 +478,14 @@ impl<
         self.infra.clear_stale_locks(&canonical_path).await?;
 
         // Try to acquire lock
-        let acquired = self
-            .infra
-            .try_acquire_lock(&canonical_path)
-            .await?;
-        
+        let acquired = self.infra.try_acquire_lock(&canonical_path).await?;
+
         if !acquired {
             // Lock already held - return empty stream
-            tracing::debug!("Sync skipped - lock already held for path: {}", canonical_path.display());
+            tracing::debug!(
+                "Sync skipped - lock already held for path: {}",
+                canonical_path.display()
+            );
             return Ok(MpscStream::empty());
         }
 
@@ -533,11 +533,7 @@ impl<
                 Ok(_) => {
                     let _ = service
                         .infra
-                        .update_status(
-                            &canonical_path,
-                            forge_domain::SyncStatus::Success,
-                            None,
-                        )
+                        .update_status(&canonical_path, forge_domain::SyncStatus::Success, None)
                         .await;
                 }
                 Err(e) => {
@@ -1159,10 +1155,7 @@ mod tests {
             .push(FileHash { path: "old.rs".into(), hash: "x".into() });
         let service = ForgeContextEngineService::new(Arc::new(mock.clone()));
 
-        let mut stream = service
-            .sync_codebase(PathBuf::from("."), 20)
-            .await
-            .unwrap();
+        let mut stream = service.sync_codebase(PathBuf::from("."), 20).await.unwrap();
 
         // Consume the stream and collect events
         let mut events = Vec::new();
@@ -1190,10 +1183,7 @@ mod tests {
         let mock = MockInfra::out_of_sync(&["file1.rs", "file2.rs"], &[]);
         let service = ForgeContextEngineService::new(Arc::new(mock));
 
-        let mut stream = service
-            .sync_codebase(PathBuf::from("."), 20)
-            .await
-            .unwrap();
+        let mut stream = service.sync_codebase(PathBuf::from("."), 20).await.unwrap();
 
         // Collect all events
         let mut events = Vec::new();
@@ -1219,10 +1209,7 @@ mod tests {
         let mock = MockInfra::out_of_sync(&["new_file.rs"], &[]);
         let service = ForgeContextEngineService::new(Arc::new(mock.clone()));
 
-        let mut stream = service
-            .sync_codebase(PathBuf::from("."), 20)
-            .await
-            .unwrap();
+        let mut stream = service.sync_codebase(PathBuf::from("."), 20).await.unwrap();
 
         // Consume all events
         while let Some(_event) = stream.next().await {}
