@@ -28,3 +28,6 @@ export _FORGE_ACTIVE_AGENT=forge
 
 # Store conversation ID in a temporary variable (local to plugin)
 export _FORGE_CONVERSATION_ID=""
+
+# Store restricted mode status (from environment variable, default to false)
+typeset -h _FORGE_RESTRICTED_MODE="${FORGE_RESTRICTED_MODE:-false}"

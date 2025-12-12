@@ -1,6 +1,6 @@
 # Forge ZSH Plugin
 
-A powerful ZSH plugin that provides intelligent command transformation, file tagging, and conversation management for the Forge AI assistant.
+A powerful ZSH plugin that provides intelligent command transformation, file tagging, and conversation management for Forge AI assistant.
 
 ## Features
 
@@ -10,6 +10,7 @@ A powerful ZSH plugin that provides intelligent command transformation, file tag
 - **Syntax Highlighting**: Visual feedback for commands and tagged files
 - **Conversation Continuity**: Automatic session management across commands
 - **Interactive Completion**: Fuzzy finding for files and agents
+- **Security Mode**: Restricted mode for enhanced security
 
 ## Prerequisites
 
@@ -53,7 +54,7 @@ Specify an agent by name after the colon:
 :muse Create a deployment strategy for my app
 ```
 
-**Tab Completion**: Type `:` followed by partial agent name and press `TAB` for interactive selection.
+**Tab Completion**: Type `:` followed by a partial agent name and press `TAB` for interactive selection.
 
 ### File Tagging
 
@@ -64,7 +65,7 @@ Tag files in your commands using the `@[filename]` syntax:
 : Explain the configuration in @[config.yaml]
 ```
 
-**Interactive Selection**: Type `@` and press `TAB` to search and select files interactively using fuzzy finder.
+**Interactive Selection**: Type `@` and press `TAB` to search and select files interactively using the fuzzy finder.
 
 ### Conversation Continuity
 
@@ -97,7 +98,7 @@ This will:
 - Clear the current conversation ID
 - Show the banner with helpful information
 - Reset the session state
-- Display a confirmation message with timestamp
+- Display a confirmation message with a timestamp
 
 #### System Information
 
@@ -114,8 +115,7 @@ This displays:
 - System information
 - Project details
 - Current configuration
-
-- Current configuration
+- Security mode status
 
 #### Cloning Conversations
 
@@ -146,7 +146,6 @@ This is useful when you want to:
 #### Session Status
 
 The plugin automatically displays session information including:
-
 - Conversation ID when starting new sessions
 - Active agent information
 - New session confirmations with timestamps
@@ -154,7 +153,6 @@ The plugin automatically displays session information including:
 ## Syntax Highlighting
 
 The plugin provides visual feedback through syntax highlighting:
-
 - **Tagged Files** (`@[filename]`): Displayed in **green bold**
 - **Agent Commands** (`:agent`): Agent names in **yellow bold**
 - **Command Text**: Remaining text in **white bold**
@@ -174,6 +172,60 @@ export FORGE_BIN="/path/to/custom/forge"
 - Internal pattern matching for conversation syntax (`:`)
 - New session command keyword: `:new` or `:n`
 
+### Security Mode
+
+The plugin supports restricted mode for enhanced security when using Forge commands.
+
+#### Environment Variable
+
+Control the security mode using the `FORGE_RESTRICTED_MODE` environment variable:
+
+```bash
+# Enable restricted mode (default: disabled)
+export FORGE_RESTRICTED_MODE=true
+
+# Disable restricted mode
+unset FORGE_RESTRICTED_MODE
+```
+
+#### Behavior
+
+When **restricted mode is enabled**:
+- All Forge commands are executed with `--restricted` flag
+- Forge runs in a restricted shell environment (rbash)
+- Limited access to system files and commands
+- Enhanced security for production or shared environments
+
+When **restricted mode is disabled** (default):
+- Full access to system resources
+- Standard shell environment
+- Complete Forge functionality
+
+#### Checking Current Mode
+
+View the current security mode status:
+
+```bash
+:info
+```
+
+The output will show:
+- `Security mode: restricted` - when restricted mode is enabled
+- `Security mode: fullaccess` - when restricted mode is disabled
+
+#### Use Cases
+
+**Restricted mode** is recommended for:
+- Production environments
+- Shared systems
+- CI/CD pipelines
+- Security-sensitive deployments
+
+**Full access mode** is suitable for:
+- Development environments
+- Personal workstations
+- Trusted environments
+
 ### Codebase Indexing
 
 Sync your codebase for semantic search:
@@ -187,7 +239,6 @@ This will index the current directory for semantic code search.
 ### .forge Directory
 
 The plugin creates a `.forge` directory in your current working directory (similar to `.git`) for temporary files:
-
 - `FORGE_EDITMSG.md`: Temporary file used when opening an external editor with `:edit`
 
 ## Advanced Features
@@ -195,7 +246,6 @@ The plugin creates a `.forge` directory in your current working directory (simil
 ### Command History
 
 All transformed commands are properly saved to ZSH history, allowing you to:
-
 - Navigate command history with arrow keys
 - Search previous forge commands with `Ctrl+R`
 - Reuse complex commands with file tags
@@ -233,7 +283,6 @@ All transformed commands are properly saved to ZSH history, allowing you to:
 :new
 : New conversation starts here
 ```
-
 
 ### Codebase Indexing
 
