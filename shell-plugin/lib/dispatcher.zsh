@@ -179,6 +179,9 @@ function forge-accept-line() {
         clone)
             _forge_action_clone "$input_text"
         ;;
+        rename)
+            _forge_action_rename "$input_text"
+        ;;
         sync)
             _forge_action_sync
         ;;
