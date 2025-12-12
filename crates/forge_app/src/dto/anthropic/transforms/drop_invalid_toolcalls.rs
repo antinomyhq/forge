@@ -46,15 +46,18 @@ mod tests {
     use crate::dto::anthropic::Request;
 
     fn transform_tool_call(json_args: &str) -> Request {
-        let fixture = Context::default().messages(vec![ContextMessage::Text(
-            TextMessage::new(Role::User, "Hello")
-                .tool_calls(vec![
-                    ToolCallFull::new("test_tool")
-                        .call_id("call_123")
-                        .arguments(ToolCallArguments::from_json(json_args)),
-                ])
-                .model(ModelId::new("claude-3-5-sonnet-20241022")),
-        )]);
+        let fixture = Context::default().messages(vec![
+            ContextMessage::Text(
+                TextMessage::new(Role::User, "Hello")
+                    .tool_calls(vec![
+                        ToolCallFull::new("test_tool")
+                            .call_id("call_123")
+                            .arguments(ToolCallArguments::from_json(json_args)),
+                    ])
+                    .model(ModelId::new("claude-3-5-sonnet-20241022")),
+            )
+            .into(),
+        ]);
         DropInvalidToolUse.transform(Request::try_from(fixture).unwrap())
     }
 
@@ -119,10 +122,9 @@ mod tests {
 
     #[test]
     fn test_preserves_text_content() {
-        let fixture = Context::default().messages(vec![ContextMessage::Text(TextMessage::new(
-            Role::User,
-            "Hello",
-        ))]);
+        let fixture = Context::default().messages(vec![
+            ContextMessage::Text(TextMessage::new(Role::User, "Hello")).into(),
+        ]);
         let actual = DropInvalidToolUse.transform(Request::try_from(fixture).unwrap());
 
         assert_eq!(actual.messages.len(), 1);

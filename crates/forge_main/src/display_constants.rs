@@ -56,9 +56,6 @@ pub mod markers {
 
     /// Indicates a built-in (non-user-defined) component
     pub const BUILT_IN: &str = "[built-in]";
-
-    /// Indicates a resource is unavailable (e.g., provider not configured)
-    pub const UNAVAILABLE: &str = "[unavailable]";
 }
 
 /// Type discriminator for commands, agents, and custom entries.
@@ -131,8 +128,8 @@ mod tests {
     fn test_markers_have_square_brackets() {
         assert!(markers::BUILT_IN.starts_with('['));
         assert!(markers::BUILT_IN.ends_with(']'));
-        assert!(markers::UNAVAILABLE.starts_with('['));
-        assert!(markers::UNAVAILABLE.ends_with(']'));
+        assert!(markers::EMPTY.starts_with('['));
+        assert!(markers::EMPTY.ends_with(']'));
     }
 
     #[test]

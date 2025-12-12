@@ -1,3 +1,5 @@
+use std::str::FromStr;
+
 use chrono::{DateTime, Utc};
 use derive_more::derive::Display;
 use derive_setters::Setters;
@@ -28,11 +30,18 @@ impl ConversationId {
     }
 }
 
+impl FromStr for ConversationId {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        Self::parse(s)
+    }
+}
+
 #[derive(Debug, Setters, Serialize, Deserialize, Clone)]
 #[setters(into)]
 pub struct Conversation {
     pub id: ConversationId,
-
     pub title: Option<String>,
     pub context: Option<Context>,
     pub metrics: Metrics,
@@ -94,5 +103,24 @@ impl Conversation {
             .as_ref()
             .map(|ctx| ctx.first_user_messages())
             .unwrap_or_default()
+    }
+
+    /// Returns the total token usage across all messages in the conversation.
+    ///
+    /// This is a convenience method that aggregates usage from the context,
+    /// if available.
+    pub fn accumulated_usage(&self) -> Option<crate::Usage> {
+        self.context.as_ref().and_then(|ctx| ctx.accumulate_usage())
+    }
+
+    pub fn usage(&self) -> Option<crate::Usage> {
+        self.context
+            .as_ref()
+            .and_then(|ctx| ctx.messages.last())
+            .and_then(|msg| msg.usage)
+    }
+
+    pub fn accumulated_cost(&self) -> Option<f64> {
+        self.accumulated_usage().and_then(|usage| usage.cost)
     }
 }

@@ -327,7 +327,7 @@ impl From<Context> for Request {
                 let messages = context
                     .messages
                     .into_iter()
-                    .map(Message::from)
+                    .map(|msg| Message::from(msg.message))
                     .collect::<Vec<_>>();
 
                 Some(messages)
@@ -470,6 +470,9 @@ impl From<ToolResult> for MessageContent {
                 }
                 ToolValue::Empty => {
                     // Handle empty case if needed
+                }
+                ToolValue::AI { value, .. } => {
+                    parts.push(ContentPart::Text { text: value, cache_control: None })
                 }
             }
         }

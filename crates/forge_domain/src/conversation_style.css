@@ -66,6 +66,25 @@ td {
 
 th {
   background-color: #f2f2f2;
+  font-weight: 600;
+  width: 30%;
+}
+
+td {
+  background-color: #ffffff;
+}
+
+.section table {
+  margin-top: 10px;
+  border: 1px solid #ddd;
+}
+
+.section table th {
+  border-bottom: 1px solid #ddd;
+}
+
+.section table tr:not(:last-child) td {
+  border-bottom: 1px solid #eee;
 }
 
 .message-card {
@@ -100,10 +119,6 @@ th {
   display: inline-block;
 }
 
-.context-section {
-  padding-top: 15px;
-}
-
 img {
   max-width: 100%;
 }
@@ -113,8 +128,7 @@ img {
   margin: 12px 0;
   padding: 16px;
   background-color: #f0f4f8;
-  border-left: 4px solid #7c3aed;
-  border-radius: 4px;
+  border-left: 4px solid #7c3aed;  
 }
 
 .reasoning-content {
@@ -130,8 +144,7 @@ img {
   margin-top: 8px;
   padding: 12px;
   background-color: #faf5ff;
-  border: 1px solid #e9d5ff;
-  border-radius: 4px;
+  border: 1px solid #e9d5ff;  
   white-space: pre-wrap;
   word-wrap: break-word;
   font-size: 0.95em;
@@ -153,8 +166,7 @@ img {
   margin-top: 8px;
   padding: 12px;
   background-color: #ffffff;
-  border: 1px solid #e5e7eb;
-  border-radius: 4px;
+  border: 1px solid #e5e7eb;  
   white-space: pre-wrap;
   word-wrap: break-word;
   font-size: 0.95em;
@@ -166,4 +178,35 @@ img {
   margin-left: 8px;
   color: #7c3aed;
   font-size: 0.9em;
+}
+
+/* Usage Section Styles */
+.usage-section {
+  background-color: #f8f9fa;
+  border-left: 3px solid #6c757d;
+  padding: 8px 12px;
+  margin-top: 12px;
+  font-size: 0.9em;
+}
+
+.usage-section strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #495057;
+}
+
+.usage-details {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.usage-item {
+  color: #6c757d;
+  font-weight: 500;
+}
+
+.usage-cost {
+  color: #28a745;
+  font-weight: 600;
 }
