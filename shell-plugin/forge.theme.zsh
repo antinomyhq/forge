@@ -21,6 +21,7 @@ FORGE_FOLDER_ICON="${FORGE_FOLDER_ICON:-}"
 FORGE_GIT_ICON="${FORGE_GIT_ICON:-}"
 FORGE_MODEL_ICON="${FORGE_MODEL_ICON:-}"
 FORGE_AGENT_ICON="${FORGE_AGENT_ICON:-󱙺}"
+FORGE_PROMPT_SYMBOL="${FORGE_PROMPT_SYMBOL:-}"
 
 # Get git stats (modified, staged, untracked)
 function _git_stats() {
@@ -124,7 +125,7 @@ function _update_forge_vars() {
 precmd_functions+=(_update_forge_vars)
 
 # Main prompt: directory + git + chevron
-PROMPT='$(_forge_directory)$(_forge_git)%F{green} %f '
+PROMPT='$(_forge_directory)$(_forge_git)%F{green}${FORGE_PROMPT_SYMBOL} %f '
 
 # Right prompt: model + agent with token count
 RPROMPT='$(_forge_agent) $(_forge_model)'
