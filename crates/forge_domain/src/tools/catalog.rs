@@ -297,12 +297,14 @@ impl JsonSchema for PatchOperation {
     }
 }
 
-/// Modifies files with targeted line operations on matched patterns. Supports
-/// prepend, append, replace, replace_all, swap operations. Ideal for precise
-/// changes to configs, code, or docs while preserving context. Not suitable for
-/// complex refactoring or modifying all pattern occurrences - use `write`
-/// instead for complete rewrites and `undo` for undoing the last operation.
-/// Fails if search pattern isn't found.\n\nUsage Guidelines:\n-When editing
+/// **Single-file text modification tool**. Modifies files with targeted line 
+/// operations on matched patterns. Supports prepend, append, replace, replace_all, 
+/// swap operations. **Operates on one file at a time** - for multi-file changes, 
+/// call this tool multiple times. **NOT for applying git-style patches or unified 
+/// diffs** - use this for simple find-and-replace operations within a single file. 
+/// Ideal for precise changes to configs, code, or docs while preserving context. 
+/// Use `write` instead for complete file rewrites and `undo` for undoing the last 
+/// operation. Fails if search pattern isn't found.\n\nUsage Guidelines:\n-When editing
 /// text from Read tool output, ensure you preserve new lines and the exact
 /// indentation (tabs/spaces) as it appears AFTER the line number prefix. The
 /// line number prefix format is: line number + ':'. Everything
