@@ -1,5 +1,9 @@
 use anyhow::Result;
+use clap::CommandFactory;
+use clap_complete::{generate, shells::Zsh};
 use rust_embed::RustEmbed;
+
+use crate::cli::Cli;
 
 /// Embeds all shell plugin files for zsh integration
 #[derive(RustEmbed)]
@@ -31,6 +35,16 @@ pub fn generate_zsh_plugin() -> Result<String> {
         }
     }
 
+    // Generate clap completions for the CLI
+    let mut cmd = Cli::command();
+    let mut completions = Vec::new();
+    generate(Zsh, &mut cmd, "forge", &mut completions);
+
+    // Append completions to the output with clear separator
+    let completions_str = String::from_utf8(completions)?;
+    output.push_str("\n# --- Clap Completions ---\n");
+    output.push_str(&completions_str);
+
     Ok(output)
 }
 
@@ -45,22 +59,35 @@ mod tests {
         // Verify it's not empty
         assert!(!actual.is_empty(), "Generated plugin should not be empty");
 
-        // Verify it doesn't contain comments (lines starting with #)
-        for line in actual.lines() {
-            let trimmed = line.trim();
-            assert!(
-                !trimmed.starts_with('#'),
-                "Output should not contain comments, found: {}",
-                line
-            );
-        }
+        // Verify it contains the clap completions directive
+        assert!(
+            actual.contains("#compdef forge"),
+            "Output should contain clap completion directive"
+        );
 
-        // Verify it doesn't contain empty lines
-        for line in actual.lines() {
-            assert!(
-                !line.trim().is_empty(),
-                "Output should not contain empty lines"
-            );
+        // Verify it contains the completions separator
+        assert!(
+            actual.contains("# --- Clap Completions ---"),
+            "Output should contain completions separator"
+        );
+
+        // Verify that the plugin content (before completions) doesn't contain comments
+        // The completions section legitimately contains comments for zsh
+        let lines: Vec<&str> = actual.lines().collect();
+        let separator_index = lines
+            .iter()
+            .position(|line| line.contains("# --- Clap Completions ---"))
+            .unwrap_or(lines.len());
+
+        for line in &lines[..separator_index] {
+            let trimmed = line.trim();
+            if !trimmed.is_empty() {
+                assert!(
+                    !trimmed.starts_with('#'),
+                    "Plugin content should not contain comments, found: {}",
+                    line
+                );
+            }
         }
     }
 
