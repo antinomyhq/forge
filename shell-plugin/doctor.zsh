@@ -3,6 +3,11 @@
 # ZSH Doctor - Diagnostic tool for Forge shell environment
 # Checks for common configuration issues and environment setup
 
+# Source user's .zshrc to get their environment (suppress errors from non-interactive mode)
+if [[ -f "${ZDOTDIR:-$HOME}/.zshrc" ]]; then
+    source "${ZDOTDIR:-$HOME}/.zshrc" 2>/dev/null
+fi
+
 # ANSI codes
 local RESET='\033[0m'
 local _BOLD='\033[1m'
@@ -76,6 +81,19 @@ if [[ -n "$zsh_version" ]]; then
     fi
 else
     print_result fail "Unable to detect ZSH version"
+fi
+
+# Check terminal information
+if [[ -n "$TERM_PROGRAM" ]]; then
+    if [[ -n "$TERM_PROGRAM_VERSION" ]]; then
+        print_result pass "Terminal: ${TERM_PROGRAM} ${TERM_PROGRAM_VERSION}"
+    else
+        print_result pass "Terminal: ${TERM_PROGRAM}"
+    fi
+elif [[ -n "$TERM" ]]; then
+    print_result pass "Terminal: ${TERM}"
+else
+    print_result info "Terminal: unknown"
 fi
 
 # 2. Check if forge is installed and in PATH
