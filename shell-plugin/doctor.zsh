@@ -128,17 +128,74 @@ else
     print_result fail "Forge binary not found in PATH" "Install from: https://github.com/your-org/forge"
 fi
 
-# 3. Check theme
+# 3. Check shell plugin and completions
+print_section "Plugin & Completions"
+
+# Check if forge plugin is loaded by looking for key functions
+local plugin_loaded=false
+if (( $+functions[forge-accept-line] )) || \
+   (( $+functions[_forge_action_default] )); then
+    print_result pass "Forge plugin loaded"
+    plugin_loaded=true
+    
+    # Verify plugin setup command
+    local zshrc="${ZDOTDIR:-$HOME}/.zshrc"
+    if [[ -f "$zshrc" ]]; then
+        if grep -q 'eval.*FORGE_BIN.*zsh plugin' "$zshrc" 2>/dev/null; then
+            print_result pass "Plugin setup found in .zshrc"
+        else
+            print_result warn "Plugin loaded but setup command not found in .zshrc"
+            print_result info "Add to your ~/.zshrc:"
+            print_result info "  eval \"\$(\$FORGE_BIN zsh plugin)\""
+        fi
+    fi
+else
+    print_result fail "Forge plugin not loaded"
+    print_result info "Add to your ~/.zshrc:"
+    print_result info "  eval \"\$(\$FORGE_BIN zsh plugin)\""
+fi
+
+# Check if completions are available
+if [[ -n "${fpath[(r)*forge*]}" ]] || (( $+functions[_forge] )); then
+    print_result pass "Forge completions available"
+else
+    if [[ "$plugin_loaded" == true ]]; then
+        print_result warn "Completions may not be properly initialized"
+        print_result info "Ensure 'compinit' is called after loading the plugin"
+    else
+        print_result fail "Forge completions not loaded"
+        print_result info "Load the plugin first (see above)"
+    fi
+fi
+
+# 4. Check theme
 print_section "Theme"
 
+# Check if forge theme is loaded
 if (( $+functions[_update_forge_vars] )); then
     print_result pass "Forge theme loaded"
+    
+    # Verify theme setup command
+    local zshrc="${ZDOTDIR:-$HOME}/.zshrc"
+    if [[ -f "$zshrc" ]]; then
+        if grep -q 'eval.*FORGE_BIN.*zsh theme' "$zshrc" 2>/dev/null; then
+            print_result pass "Theme setup found in .zshrc"
+        else
+            print_result warn "Theme loaded but setup command not found in .zshrc"
+            print_result info "Add to your ~/.zshrc:"
+            print_result info "  eval \"\$(\$FORGE_BIN zsh theme)\""
+        fi
+    fi
 elif (( $+functions[p10k] )); then
-    print_result info "Powerlevel10k detected"
+    print_result info "Powerlevel10k detected (not using Forge theme)"
 elif [[ -n "$ZSH_THEME" ]]; then
-    print_result info "${ZSH_THEME}"
+    print_result info "Using theme: ${ZSH_THEME}"
+    print_result info "To use Forge theme, add to ~/.zshrc:"
+    print_result info "  eval \"\$(\$FORGE_BIN zsh theme)\""
 else
-    print_result info "Default theme"
+    print_result warn "No theme loaded"
+    print_result info "To use Forge theme, add to ~/.zshrc:"
+    print_result info "  eval \"\$(\$FORGE_BIN zsh theme)\""
 fi
 
 # 4. Check for common issues
@@ -222,7 +279,7 @@ echo "  $(cyan "")  ${_DIM} configured via \$FORGE_FOLDER_ICON${RESET}"
 echo "  $(cyan "")  ${_DIM} configured via \$FORGE_GIT_ICON${RESET}"
 echo "  $(cyan "")  ${_DIM} configured via \$FORGE_MODEL_ICON${RESET}"
 echo "  $(cyan "󱙺")  ${_DIM} configured via \$FORGE_AGENT_ICON${RESET}"
-echo "  $(cyan "")  ${_DIM} configured via \$FORGE_CHEVRON${RESET}"
+echo "  $(cyan "")  ${_DIM} configured via \$FORGE_PROMPT_SYMBOL${RESET}"
 echo ""
 echo "  Forge uses Nerd Fonts to enrich cli experience, can you see all 5 icons clearly?"
 echo "  If you see boxes (□) or question marks (?), install a Nerd Font from:"

@@ -915,6 +915,12 @@ _arguments "${_arguments_options[@]}" : \
 '--help[Print help]' \
 && ret=0
 ;;
+(doctor)
+_arguments "${_arguments_options[@]}" : \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
 (help)
 _arguments "${_arguments_options[@]}" : \
 ":: :_forge__zsh__help_commands" \
@@ -932,6 +938,10 @@ _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
 (theme)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(doctor)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -1769,6 +1779,10 @@ _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
 (theme)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(doctor)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -2731,8 +2745,14 @@ _forge__help__zsh_commands() {
     local commands; commands=(
 'plugin:Generate shell plugin script' \
 'theme:Generate shell theme' \
+'doctor:Run diagnostics on shell environment' \
     )
     _describe -t commands 'forge help zsh commands' commands "$@"
+}
+(( $+functions[_forge__help__zsh__doctor_commands] )) ||
+_forge__help__zsh__doctor_commands() {
+    local commands; commands=()
+    _describe -t commands 'forge help zsh doctor commands' commands "$@"
 }
 (( $+functions[_forge__help__zsh__plugin_commands] )) ||
 _forge__help__zsh__plugin_commands() {
@@ -3111,18 +3131,30 @@ _forge__zsh_commands() {
     local commands; commands=(
 'plugin:Generate shell plugin script' \
 'theme:Generate shell theme' \
+'doctor:Run diagnostics on shell environment' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'forge zsh commands' commands "$@"
+}
+(( $+functions[_forge__zsh__doctor_commands] )) ||
+_forge__zsh__doctor_commands() {
+    local commands; commands=()
+    _describe -t commands 'forge zsh doctor commands' commands "$@"
 }
 (( $+functions[_forge__zsh__help_commands] )) ||
 _forge__zsh__help_commands() {
     local commands; commands=(
 'plugin:Generate shell plugin script' \
 'theme:Generate shell theme' \
+'doctor:Run diagnostics on shell environment' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'forge zsh help commands' commands "$@"
+}
+(( $+functions[_forge__zsh__help__doctor_commands] )) ||
+_forge__zsh__help__doctor_commands() {
+    local commands; commands=()
+    _describe -t commands 'forge zsh help doctor commands' commands "$@"
 }
 (( $+functions[_forge__zsh__help__help_commands] )) ||
 _forge__zsh__help__help_commands() {
