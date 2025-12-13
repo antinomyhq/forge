@@ -1,46 +1,25 @@
 use std::path::PathBuf;
-use std::str::FromStr;
 
 use chrono::{DateTime, Utc};
 use derive_more::Display;
 use serde::{Deserialize, Serialize};
+use strum_macros::EnumString;
 
 /// Represents the current status of a workspace sync operation
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Display)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Display, EnumString)]
 pub enum SyncStatus {
     /// Sync is currently in progress
     #[display("IN_PROGRESS")]
+    #[strum(serialize = "IN_PROGRESS")]
     InProgress,
     /// Sync completed successfully
     #[display("SUCCESS")]
+    #[strum(serialize = "SUCCESS")]
     Success,
     /// Sync failed with an error
     #[display("FAILED")]
+    #[strum(serialize = "FAILED")]
     Failed,
-}
-
-impl FromStr for SyncStatus {
-    type Err = anyhow::Error;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "IN_PROGRESS" => Ok(Self::InProgress),
-            "SUCCESS" => Ok(Self::Success),
-            "FAILED" => Ok(Self::Failed),
-            _ => Err(anyhow::anyhow!("Invalid sync status: {}", s)),
-        }
-    }
-}
-
-impl SyncStatus {
-    /// Convert the sync status to its string representation
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::InProgress => "IN_PROGRESS",
-            Self::Success => "SUCCESS",
-            Self::Failed => "FAILED",
-        }
-    }
 }
 
 /// Domain entity representing workspace sync status
@@ -95,18 +74,18 @@ mod tests {
     }
 
     #[test]
-    fn test_sync_status_as_str() {
-        let fixture = SyncStatus::InProgress;
-        let actual = fixture.as_str();
-        let expected = "IN_PROGRESS";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
     fn test_sync_status_display() {
         let fixture = SyncStatus::Success;
         let actual = format!("{}", fixture);
         let expected = "SUCCESS";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_sync_status_display_in_progress() {
+        let fixture = SyncStatus::InProgress;
+        let actual = format!("{}", fixture);
+        let expected = "IN_PROGRESS";
         assert_eq!(actual, expected);
     }
 }
