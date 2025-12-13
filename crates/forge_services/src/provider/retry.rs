@@ -68,20 +68,18 @@ fn is_async_openai_transport_error(error: &anyhow::Error) -> bool {
                 }
                 _ => false,
             },
-            AsyncOpenAIError::ApiError(api_error) => api_error
-                .code
-                .as_deref()
-                .is_some_and(|code| {
+            AsyncOpenAIError::ApiError(api_error) => {
+                api_error.code.as_deref().is_some_and(|code| {
                     TRANSPORT_ERROR_CODES.iter().any(|message| message == &code)
                         || matches!(
                             code,
                             "rate_limit_exceeded" | "server_error" | "timeout" | "overloaded"
                         )
-                }),
+                })
+            }
             _ => false,
         })
 }
-
 
 fn get_req_status_code(error: &anyhow::Error) -> Option<u16> {
     error
@@ -157,9 +155,8 @@ fn is_event_transport_error(error: &anyhow::Error) -> bool {
 #[cfg(test)]
 mod tests {
     use anyhow::anyhow;
-    use forge_app::dto::openai::{Error, ErrorCode, ErrorResponse};
     use async_openai::error::{ApiError, OpenAIError as AsyncOpenAIError};
-
+    use forge_app::dto::openai::{Error, ErrorCode, ErrorResponse};
 
     use super::*;
 
@@ -453,7 +450,6 @@ mod tests {
         assert!(!actual);
     }
 
-
     #[test]
     fn test_into_retry_with_async_openai_rate_limit_code_is_retryable() {
         let retry_config = RetryConfig::default().retry_status_codes(vec![]);
@@ -468,5 +464,4 @@ mod tests {
         let actual = into_retry(error, &retry_config);
         assert!(is_retryable(actual));
     }
-
 }

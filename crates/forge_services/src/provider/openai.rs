@@ -1,26 +1,22 @@
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
-};
+use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 use anyhow::{Context as _, Result};
-use async_openai::{
-    config::OpenAIConfig,
-    traits::RequestOptionsBuilder as _,
-    types::responses as oai,
-    Client as AsyncOpenAIClient,
-};
+use async_openai::Client as AsyncOpenAIClient;
+use async_openai::config::OpenAIConfig;
+use async_openai::traits::RequestOptionsBuilder as _;
+use async_openai::types::responses as oai;
 use forge_app::HttpClientService;
 use forge_app::domain::{
     ChatCompletionMessage, Content, Context as ChatContext, ContextMessage, FinishReason, ModelId,
-    ProviderId, ResultStream, Role, ToolCall, ToolCallId, ToolCallPart, ToolChoice,
-    ToolName, TokenCount, Transformer, Usage,
+    ProviderId, ResultStream, Role, TokenCount, ToolCall, ToolCallId, ToolCallPart, ToolChoice,
+    ToolName, Transformer, Usage,
 };
 use forge_app::dto::openai::{ListModelResponse, ProviderPipeline, Request, Response};
 use forge_domain::Provider;
+use futures::StreamExt;
 use lazy_static::lazy_static;
 use reqwest::header::AUTHORIZATION;
-use futures::StreamExt;
 use tracing::{debug, info};
 use url::Url;
 
@@ -132,7 +128,6 @@ impl<H: HttpClientService> OpenAIProvider<H> {
         Ok(Box::pin(stream))
     }
 
-
     async fn inner_chat_codex(
         &self,
         model: &ModelId,
@@ -180,8 +175,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
                 .headers(headers)
                 .create_stream(request)
                 .await
-                .with_context(|| format_http_context(None, "POST", &responses_url))
-                .map_err(anyhow::Error::from)?;
+                .with_context(|| format_http_context(None, "POST", &responses_url))?;
 
             let stream = into_chat_completion_message_codex(responses_url.clone(), stream);
 
@@ -192,8 +186,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
                 .headers(headers)
                 .create(request)
                 .await
-                .with_context(|| format_http_context(None, "POST", &responses_url))
-                .map_err(anyhow::Error::from)?;
+                .with_context(|| format_http_context(None, "POST", &responses_url))?;
 
             let message = codex_response_into_full_message(response)?;
             let stream = tokio_stream::iter([Ok(message)]);
@@ -279,33 +272,37 @@ impl<H: HttpClientService> OpenAIProvider<H> {
     }
 }
 
-
-/// Returns `true` when the model ID should be routed through the Codex (Responses API) path.
+/// Returns `true` when the model ID should be routed through the Codex
+/// (Responses API) path.
 ///
-/// Matching rules are intentionally conservative and deterministic: we only match on the model ID
-/// string itself. Today, all Codex models include `codex` in their ID (e.g. `codex-mini-latest`,
-/// `gpt-4.1-codex`).
+/// Matching rules are intentionally conservative and deterministic: we only
+/// match on the model ID string itself. Today, all Codex models include `codex`
+/// in their ID (e.g. `codex-mini-latest`, `gpt-4.1-codex`).
 fn is_codex_model(model: &ModelId) -> bool {
     model.as_str().to_ascii_lowercase().contains("codex")
 }
 
-/// Returns `true` if we should use the OpenAI Responses API path for this provider + model.
+/// Returns `true` if we should use the OpenAI Responses API path for this
+/// provider + model.
 ///
 /// Currently supported:
 /// - OpenAI: Codex models (gpt-5.1-codex, codex-mini-latest, etc.)
-/// - GitHub Copilot: Codex models (same pattern - per sst/opencode implementation)
+/// - GitHub Copilot: Codex models (same pattern - per sst/opencode
+///   implementation)
 ///
 /// Other OpenAI-compatible providers may not implement `/responses`.
 fn should_use_responses_api(provider: &Provider<Url>, model: &ModelId) -> bool {
-    let is_supported_provider = provider.id == ProviderId::OPENAI || provider.id == ProviderId::GITHUB_COPILOT;
+    let is_supported_provider =
+        provider.id == ProviderId::OPENAI || provider.id == ProviderId::GITHUB_COPILOT;
     is_supported_provider && is_codex_model(model)
 }
 
-
-/// Derives an API base URL suitable for `async-openai` from a configured endpoint URL.
+/// Derives an API base URL suitable for `async-openai` from a configured
+/// endpoint URL.
 ///
-/// The OpenAI provider config in Forge is typically an endpoint URL (e.g. `/v1/chat/completions`).
-/// `async-openai` expects a base URL (e.g. `/v1`) and will append the specific endpoint path.
+/// The OpenAI provider config in Forge is typically an endpoint URL (e.g.
+/// `/v1/chat/completions`). `async-openai` expects a base URL (e.g. `/v1`) and
+/// will append the specific endpoint path.
 ///
 /// Special handling:
 /// - OpenAI: strips `/chat/completions` to keep `/v1`
@@ -336,17 +333,17 @@ fn api_base_from_endpoint_url(endpoint: &Url) -> anyhow::Result<Url> {
     }
 
     let base_segments = &segments[..segments.len() - to_trim];
-    
-    // GitHub Copilot needs /v1 prefix even though their endpoint URL doesn't include it
-    let base_path = if base_segments.is_empty() 
-        && endpoint.host_str() == Some("api.githubcopilot.com")
-    {
-        "/v1".to_string()
-    } else if base_segments.is_empty() {
-        "/".to_string()
-    } else {
-        format!("/{}", base_segments.join("/"))
-    };
+
+    // GitHub Copilot needs /v1 prefix even though their endpoint URL doesn't
+    // include it
+    let base_path =
+        if base_segments.is_empty() && endpoint.host_str() == Some("api.githubcopilot.com") {
+            "/v1".to_string()
+        } else if base_segments.is_empty() {
+            "/".to_string()
+        } else {
+            format!("/{}", base_segments.join("/"))
+        };
 
     let mut base = endpoint.clone();
     base.set_path(&base_path);
@@ -380,9 +377,9 @@ fn codex_tool_choice(choice: ToolChoice) -> oai::ToolChoiceParam {
         ToolChoice::None => oai::ToolChoiceParam::Mode(oai::ToolChoiceOptions::None),
         ToolChoice::Auto => oai::ToolChoiceParam::Mode(oai::ToolChoiceOptions::Auto),
         ToolChoice::Required => oai::ToolChoiceParam::Mode(oai::ToolChoiceOptions::Required),
-        ToolChoice::Call(name) => oai::ToolChoiceParam::Function(oai::ToolChoiceFunction {
-            name: name.to_string(),
-        }),
+        ToolChoice::Call(name) => {
+            oai::ToolChoiceParam::Function(oai::ToolChoiceFunction { name: name.to_string() })
+        }
     }
 }
 
@@ -444,18 +441,21 @@ fn normalize_openai_json_schema(schema: &mut serde_json::Value) {
     }
 }
 
-fn codex_tool_parameters(schema: &schemars::schema::RootSchema) -> anyhow::Result<serde_json::Value> {
+fn codex_tool_parameters(
+    schema: &schemars::schema::RootSchema,
+) -> anyhow::Result<serde_json::Value> {
     let mut params =
         serde_json::to_value(schema).with_context(|| "Failed to serialize tool schema")?;
 
-    // The Responses API performs strict JSON Schema validation for tools; normalize schemars output
-    // into the subset OpenAI accepts.
+    // The Responses API performs strict JSON Schema validation for tools; normalize
+    // schemars output into the subset OpenAI accepts.
     normalize_openai_json_schema(&mut params);
 
     Ok(params)
 }
 
-/// Converts Forge's domain-level Context into an async-openai Responses API request.
+/// Converts Forge's domain-level Context into an async-openai Responses API
+/// request.
 ///
 /// Supported subset (first iteration):
 /// - Text messages (system/user/assistant)
@@ -463,59 +463,60 @@ fn codex_tool_parameters(schema: &schemars::schema::RootSchema) -> anyhow::Resul
 /// - Tool results
 /// - tools + tool_choice
 /// - max_tokens, temperature, top_p
-fn codex_request_from_context(model: &ModelId, context: ChatContext) -> anyhow::Result<oai::CreateResponse> {
+fn codex_request_from_context(
+    model: &ModelId,
+    context: ChatContext,
+) -> anyhow::Result<oai::CreateResponse> {
     let mut instructions: Vec<String> = Vec::new();
     let mut items: Vec<oai::InputItem> = Vec::new();
 
     for entry in context.messages {
         match entry.message {
-            ContextMessage::Text(message) => {
-                match message.role {
-                    Role::System => {
-                        instructions.push(message.content);
-                    }
-                    Role::User => {
+            ContextMessage::Text(message) => match message.role {
+                Role::System => {
+                    instructions.push(message.content);
+                }
+                Role::User => {
+                    items.push(oai::InputItem::EasyMessage(oai::EasyInputMessage {
+                        r#type: oai::MessageType::Message,
+                        role: oai::Role::User,
+                        content: oai::EasyInputContent::Text(message.content),
+                    }));
+                }
+                Role::Assistant => {
+                    if !message.content.trim().is_empty() {
                         items.push(oai::InputItem::EasyMessage(oai::EasyInputMessage {
                             r#type: oai::MessageType::Message,
-                            role: oai::Role::User,
+                            role: oai::Role::Assistant,
                             content: oai::EasyInputContent::Text(message.content),
                         }));
                     }
-                    Role::Assistant => {
-                        if !message.content.trim().is_empty() {
-                            items.push(oai::InputItem::EasyMessage(oai::EasyInputMessage {
-                                r#type: oai::MessageType::Message,
-                                role: oai::Role::Assistant,
-                                content: oai::EasyInputContent::Text(message.content),
-                            }));
-                        }
 
-                        if let Some(tool_calls) = message.tool_calls {
-                            for call in tool_calls {
-                                let call_id = call
-                                    .call_id
-                                    .as_ref()
-                                    .map(|id| id.as_str().to_string())
-                                    .ok_or_else(|| {
-                                        anyhow::anyhow!(
-                                            "Tool call is missing call_id; cannot be sent to Responses API"
-                                        )
-                                    })?;
+                    if let Some(tool_calls) = message.tool_calls {
+                        for call in tool_calls {
+                            let call_id = call
+                                .call_id
+                                .as_ref()
+                                .map(|id| id.as_str().to_string())
+                                .ok_or_else(|| {
+                                anyhow::anyhow!(
+                                    "Tool call is missing call_id; cannot be sent to Responses API"
+                                )
+                            })?;
 
-                                items.push(oai::InputItem::Item(oai::Item::FunctionCall(
-                                    oai::FunctionToolCall {
-                                        arguments: call.arguments.into_string(),
-                                        call_id,
-                                        name: call.name.to_string(),
-                                        id: None,
-                                        status: None,
-                                    },
-                                )));
-                            }
+                            items.push(oai::InputItem::Item(oai::Item::FunctionCall(
+                                oai::FunctionToolCall {
+                                    arguments: call.arguments.into_string(),
+                                    call_id,
+                                    name: call.name.to_string(),
+                                    id: None,
+                                    status: None,
+                                },
+                            )));
                         }
                     }
                 }
-            }
+            },
             ContextMessage::Tool(result) => {
                 let call_id = result
                     .call_id
@@ -587,8 +588,9 @@ fn codex_request_from_context(model: &ModelId, context: ChatContext) -> anyhow::
         builder.temperature(temperature);
     }
 
-    // Some OpenAI Codex/"reasoning" models reject `top_p` entirely (even when set to defaults).
-    // To avoid hard failures, we currently omit it for the Responses API path.
+    // Some OpenAI Codex/"reasoning" models reject `top_p` entirely (even when set
+    // to defaults). To avoid hard failures, we currently omit it for the
+    // Responses API path.
 
     if let Some(tools) = tools {
         builder.tools(tools);
@@ -611,7 +613,9 @@ fn codex_usage_into_domain(usage: oai::ResponseUsage) -> Usage {
     }
 }
 
-fn codex_response_into_full_message(response: oai::Response) -> anyhow::Result<ChatCompletionMessage> {
+fn codex_response_into_full_message(
+    response: oai::Response,
+) -> anyhow::Result<ChatCompletionMessage> {
     let mut message = ChatCompletionMessage::default();
 
     if let Some(text) = response.output_text() {
@@ -655,126 +659,140 @@ fn into_chat_completion_message_codex(
     stream: oai::ResponseStream,
 ) -> impl tokio_stream::Stream<Item = anyhow::Result<ChatCompletionMessage>> {
     stream
-        .scan(CodexStreamState::default(), move |state, event| futures::future::ready({
-            let item: Option<anyhow::Result<ChatCompletionMessage>> = match event {
-                Ok(event) => match event {
-                    oai::ResponseStreamEvent::ResponseOutputTextDelta(delta) => {
-                        Some(Ok(ChatCompletionMessage::assistant(Content::part(delta.delta))))
-                    }
-                    oai::ResponseStreamEvent::ResponseOutputItemAdded(added) => match added.item {
-                        oai::OutputItem::FunctionCall(call) => {
-                            state.saw_tool_call = true;
+        .scan(CodexStreamState::default(), move |state, event| {
+            futures::future::ready({
+                let item: Option<anyhow::Result<ChatCompletionMessage>> = match event {
+                    Ok(event) => match event {
+                        oai::ResponseStreamEvent::ResponseOutputTextDelta(delta) => Some(Ok(
+                            ChatCompletionMessage::assistant(Content::part(delta.delta)),
+                        )),
+                        oai::ResponseStreamEvent::ResponseOutputItemAdded(added) => {
+                            match added.item {
+                                oai::OutputItem::FunctionCall(call) => {
+                                    state.saw_tool_call = true;
 
-                            let item_id = call.id.clone().unwrap_or_else(|| call.call_id.clone());
-                            let tool_call_id = ToolCallId::new(call.call_id);
-                            let tool_name = ToolName::new(call.name);
+                                    let item_id =
+                                        call.id.clone().unwrap_or_else(|| call.call_id.clone());
+                                    let tool_call_id = ToolCallId::new(call.call_id);
+                                    let tool_name = ToolName::new(call.name);
 
-                            state
+                                    state.item_id_to_tool_call.insert(
+                                        item_id.clone(),
+                                        (tool_call_id.clone(), tool_name.clone()),
+                                    );
+
+                                    // Some providers include initial arguments here (possibly
+                                    // empty).
+                                    Some(Ok(ChatCompletionMessage::default().add_tool_call(
+                                        ToolCall::Part(ToolCallPart {
+                                            call_id: Some(tool_call_id),
+                                            name: Some(tool_name),
+                                            arguments_part: call.arguments,
+                                        }),
+                                    )))
+                                }
+                                _ => None,
+                            }
+                        }
+                        oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDelta(delta) => {
+                            state.item_id_has_delta.insert(delta.item_id.clone());
+                            let (call_id, name) = state
                                 .item_id_to_tool_call
-                                .insert(item_id.clone(), (tool_call_id.clone(), tool_name.clone()));
+                                .get(&delta.item_id)
+                                .cloned()
+                                .unwrap_or_else(|| {
+                                    (ToolCallId::new(delta.item_id.clone()), ToolName::new(""))
+                                });
 
-                            // Some providers include initial arguments here (possibly empty).
-                            Some(Ok(ChatCompletionMessage::default().add_tool_call(ToolCall::Part(
-                                ToolCallPart {
-                                    call_id: Some(tool_call_id),
-                                    name: Some(tool_name),
-                                    arguments_part: call.arguments,
-                                },
-                            ))))
+                            let name = (!name.as_str().is_empty()).then_some(name);
+
+                            Some(Ok(ChatCompletionMessage::default().add_tool_call(
+                                ToolCall::Part(ToolCallPart {
+                                    call_id: Some(call_id),
+                                    name,
+                                    arguments_part: delta.delta,
+                                }),
+                            )))
+                        }
+                        oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDone(done) => {
+                            // Only emit the final arguments if we didn't receive deltas, to avoid
+                            // duplicating the JSON.
+                            if state.item_id_has_delta.contains(&done.item_id) {
+                                if let Some(name) = done.name
+                                    && let Some((_, tool_name)) =
+                                        state.item_id_to_tool_call.get_mut(&done.item_id)
+                                    && tool_name.as_str().is_empty()
+                                {
+                                    *tool_name = ToolName::new(name);
+                                }
+                                None
+                            } else {
+                                state.saw_tool_call = true;
+
+                                let (call_id, name) = state
+                                    .item_id_to_tool_call
+                                    .get(&done.item_id)
+                                    .cloned()
+                                    .unwrap_or_else(|| {
+                                        (ToolCallId::new(done.item_id.clone()), ToolName::new(""))
+                                    });
+
+                                let name = done
+                                    .name
+                                    .map(ToolName::new)
+                                    .or_else(|| (!name.as_str().is_empty()).then_some(name));
+
+                                Some(Ok(ChatCompletionMessage::default().add_tool_call(
+                                    ToolCall::Part(ToolCallPart {
+                                        call_id: Some(call_id),
+                                        name,
+                                        arguments_part: done.arguments,
+                                    }),
+                                )))
+                            }
+                        }
+                        oai::ResponseStreamEvent::ResponseCompleted(done) => {
+                            let mut message = ChatCompletionMessage::default().finish_reason_opt(
+                                Some(if state.saw_tool_call {
+                                    FinishReason::ToolCalls
+                                } else {
+                                    FinishReason::Stop
+                                }),
+                            );
+
+                            if let Some(usage) = done.response.usage {
+                                message = message.usage(codex_usage_into_domain(usage));
+                            }
+
+                            Some(Ok(message))
+                        }
+                        oai::ResponseStreamEvent::ResponseIncomplete(done) => {
+                            let mut message = ChatCompletionMessage::default()
+                                .finish_reason_opt(Some(FinishReason::Length));
+
+                            if let Some(usage) = done.response.usage {
+                                message = message.usage(codex_usage_into_domain(usage));
+                            }
+
+                            Some(Ok(message))
+                        }
+                        oai::ResponseStreamEvent::ResponseFailed(failed) => {
+                            Some(Err(anyhow::anyhow!(
+                                "Upstream response failed: {:?}",
+                                failed.response.error
+                            )))
+                        }
+                        oai::ResponseStreamEvent::ResponseError(err) => {
+                            Some(Err(anyhow::anyhow!("Upstream error: {}", err.message)))
                         }
                         _ => None,
                     },
-                    oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDelta(delta) => {
-                        state.item_id_has_delta.insert(delta.item_id.clone());
-                        let (call_id, name) = state
-                            .item_id_to_tool_call
-                            .get(&delta.item_id)
-                            .cloned()
-                            .unwrap_or_else(|| (ToolCallId::new(delta.item_id.clone()), ToolName::new("")));
+                    Err(err) => Some(Err(anyhow::Error::from(err))),
+                };
 
-                        let name = (!name.as_str().is_empty()).then_some(name);
-
-                        Some(Ok(ChatCompletionMessage::default().add_tool_call(ToolCall::Part(
-                            ToolCallPart {
-                                call_id: Some(call_id),
-                                name,
-                                arguments_part: delta.delta,
-                            },
-                        ))))
-                    }
-                    oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDone(done) => {
-                        // Only emit the final arguments if we didn't receive deltas, to avoid
-                        // duplicating the JSON.
-                        if state.item_id_has_delta.contains(&done.item_id) {
-                            if let Some(name) = done.name
-                                && let Some((_, tool_name)) = state.item_id_to_tool_call.get_mut(&done.item_id)
-                                && tool_name.as_str().is_empty()
-                            {
-                                *tool_name = ToolName::new(name);
-                            }
-                            None
-                        } else {
-                            state.saw_tool_call = true;
-
-                            let (call_id, name) = state
-                                .item_id_to_tool_call
-                                .get(&done.item_id)
-                                .cloned()
-                                .unwrap_or_else(|| (ToolCallId::new(done.item_id.clone()), ToolName::new("")));
-
-                            let name = done
-                                .name
-                                .map(ToolName::new)
-                                .or_else(|| (!name.as_str().is_empty()).then_some(name));
-
-                            Some(Ok(ChatCompletionMessage::default().add_tool_call(ToolCall::Part(
-                                ToolCallPart {
-                                    call_id: Some(call_id),
-                                    name,
-                                    arguments_part: done.arguments,
-                                },
-                            ))))
-                        }
-                    }
-                    oai::ResponseStreamEvent::ResponseCompleted(done) => {
-                        let mut message = ChatCompletionMessage::default().finish_reason_opt(Some(
-                            if state.saw_tool_call {
-                                FinishReason::ToolCalls
-                            } else {
-                                FinishReason::Stop
-                            },
-                        ));
-
-                        if let Some(usage) = done.response.usage {
-                            message = message.usage(codex_usage_into_domain(usage));
-                        }
-
-                        Some(Ok(message))
-                    }
-                    oai::ResponseStreamEvent::ResponseIncomplete(done) => {
-                        let mut message =
-                            ChatCompletionMessage::default().finish_reason_opt(Some(FinishReason::Length));
-
-                        if let Some(usage) = done.response.usage {
-                            message = message.usage(codex_usage_into_domain(usage));
-                        }
-
-                        Some(Ok(message))
-                    }
-                    oai::ResponseStreamEvent::ResponseFailed(failed) => Some(Err(anyhow::anyhow!(
-                        "Upstream response failed: {:?}",
-                        failed.response.error
-                    ))),
-                    oai::ResponseStreamEvent::ResponseError(err) => {
-                        Some(Err(anyhow::anyhow!("Upstream error: {}", err.message)))
-                    }
-                    _ => None,
-                },
-                Err(err) => Some(Err(anyhow::Error::from(err))),
-            };
-
-            Some(item)
-        }))
+                Some(item)
+            })
+        })
         .filter_map(|item| async move { item })
         .map(move |result| result.with_context(|| format_http_context(None, "POST", url.clone())))
 }
@@ -807,13 +825,11 @@ mod tests {
     use forge_app::domain::{Provider, ProviderId, ProviderResponse};
     use reqwest::header::HeaderMap;
     use reqwest_eventsource::EventSource;
+    use tokio_stream::StreamExt;
     use url::Url;
 
     use super::*;
     use crate::provider::mock_server::{MockServer, normalize_ports};
-    use tokio_stream::StreamExt;
-
-
 
     #[test]
     fn test_is_codex_model_matches_expected_ids() {
@@ -825,7 +841,6 @@ mod tests {
         assert!(is_codex_model(&codex_2));
         assert!(!is_codex_model(&non_codex));
     }
-
 
     #[test]
     fn test_api_base_from_endpoint_url_trims_expected_suffixes() -> anyhow::Result<()> {
@@ -900,7 +915,6 @@ mod tests {
         }
     }
 
-
     fn zai_coding(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::ZAI_CODING,
@@ -954,16 +968,18 @@ mod tests {
 
     // Mock implementation of HttpClientService for testing
 
-
     #[test]
     fn test_codex_request_from_context_converts_messages_tools_and_results() -> anyhow::Result<()> {
         let model = ModelId::from("codex-mini-latest");
 
-        let tool_definition = forge_app::domain::ToolDefinition::new("shell").description("Run a shell command");
+        let tool_definition =
+            forge_app::domain::ToolDefinition::new("shell").description("Run a shell command");
 
         let tool_call = forge_app::domain::ToolCallFull::new("shell")
             .call_id(ToolCallId::new("call_1"))
-            .arguments(forge_app::domain::ToolCallArguments::from_json(r#"{"cmd":"echo hi"}"#));
+            .arguments(forge_app::domain::ToolCallArguments::from_json(
+                r#"{"cmd":"echo hi"}"#,
+            ));
 
         let tool_result = forge_app::domain::ToolResult::new("shell")
             .call_id(Some(ToolCallId::new("call_1")))
@@ -981,7 +997,10 @@ mod tests {
         let actual = codex_request_from_context(&model, context)?;
 
         assert_eq!(actual.model.as_deref(), Some("codex-mini-latest"));
-        assert_eq!(actual.instructions.as_deref(), Some("You are a helpful assistant."));
+        assert_eq!(
+            actual.instructions.as_deref(),
+            Some("You are a helpful assistant.")
+        );
         assert_eq!(actual.max_output_tokens, Some(123));
 
         let oai::InputParam::Items(items) = actual.input else {
@@ -1038,7 +1057,9 @@ mod tests {
         ]));
 
         let url = Url::parse("https://api.openai.com/v1/chat/completions")?;
-        let mut actual = into_chat_completion_message_codex(url, stream).collect::<Vec<_>>().await;
+        let mut actual = into_chat_completion_message_codex(url, stream)
+            .collect::<Vec<_>>()
+            .await;
 
         let first = actual.remove(0)?;
         assert_eq!(first.content, Some(Content::part("hello")));
@@ -1115,11 +1136,9 @@ mod tests {
                 "finish_reason": null
             }]
         });
-        let sse_body = format!("data: {}\n\ndata: [DONE]\n\n", event.to_string());
+        let sse_body = format!("data: {}\n\ndata: [DONE]\n\n", event);
 
-        let mock = fixture
-            .mock_chat_completions_stream(sse_body, 200)
-            .await;
+        let mock = fixture.mock_chat_completions_stream(sse_body, 200).await;
 
         let provider = Provider {
             id: ProviderId::OPENAI,
@@ -1147,7 +1166,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_openai_provider_codex_uses_responses_api_via_async_openai() -> anyhow::Result<()> {
+    async fn test_openai_provider_codex_uses_responses_api_via_async_openai() -> anyhow::Result<()>
+    {
         let mut fixture = MockServer::new().await;
 
         let response = serde_json::json!({

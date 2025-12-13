@@ -19,7 +19,6 @@ impl MockServer {
             .await
     }
 
-
     pub async fn mock_chat_completions_stream(&mut self, body: String, status: usize) -> Mock {
         self.server
             .mock("POST", "/v1/chat/completions")
@@ -39,7 +38,6 @@ impl MockServer {
             .create_async()
             .await
     }
-
 
     pub fn url(&self) -> String {
         self.server.url()
