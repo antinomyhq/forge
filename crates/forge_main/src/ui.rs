@@ -1430,7 +1430,6 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(())
     }
 
-
     /// Run ZSH environment diagnostics
     async fn on_zsh_doctor(&self) -> anyhow::Result<()> {
         let report = crate::zsh_plugin::run_zsh_doctor()?;

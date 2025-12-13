@@ -45,6 +45,9 @@ pub fn generate_zsh_plugin() -> Result<String> {
     output.push_str("\n# --- Clap Completions ---\n");
     output.push_str(&completions_str);
 
+    // Set environment variable to indicate plugin is loaded (with timestamp)
+    output.push_str("\nexport _FORGE_PLUGIN_LOADED=$(date +%s)\n");
+
     Ok(output)
 }
 
@@ -65,10 +68,13 @@ pub fn generate_zsh_plugin() -> Result<String> {
 /// forge terminal theme zsh >> ~/.zshrc
 /// ```
 pub fn generate_zsh_theme() -> Result<String> {
-    let content = include_str!("../../../shell-plugin/forge.theme.zsh");
-    Ok(content.to_string())
-}
+    let mut content = include_str!("../../../shell-plugin/forge.theme.zsh").to_string();
 
+    // Set environment variable to indicate theme is loaded (with timestamp)
+    content.push_str("\nexport _FORGE_THEME_LOADED=$(date +%s)\n");
+
+    Ok(content)
+}
 
 /// Run diagnostics on the ZSH shell environment
 ///
@@ -88,24 +94,24 @@ pub fn generate_zsh_theme() -> Result<String> {
 pub fn run_zsh_doctor() -> Result<String> {
     // Get the embedded doctor script
     let script_content = include_str!("../../../shell-plugin/doctor.zsh");
-    
+
     // Execute the script in a zsh subprocess
     let output = std::process::Command::new("zsh")
         .arg("-c")
         .arg(script_content)
         .output()
         .context("Failed to execute zsh doctor script")?;
-    
+
     // Combine stdout and stderr for complete diagnostic output
     let stdout = String::from_utf8_lossy(&output.stdout);
     let stderr = String::from_utf8_lossy(&output.stderr);
-    
+
     let mut result = stdout.to_string();
     if !stderr.is_empty() {
         result.push_str("\n\nErrors:\n");
         result.push_str(&stderr);
     }
-    
+
     Ok(result)
 }
 

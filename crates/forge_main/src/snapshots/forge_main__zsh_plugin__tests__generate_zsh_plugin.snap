@@ -3187,3 +3187,5 @@ if [ "$funcstack[1]" = "_forge" ]; then
 else
     compdef _forge forge
 fi
+
+export _FORGE_PLUGIN_LOADED=$(date +%s)
