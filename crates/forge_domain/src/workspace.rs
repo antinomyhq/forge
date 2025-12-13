@@ -1,8 +1,11 @@
+use std::path::PathBuf;
+
+use chrono::{DateTime, Utc};
 use derive_more::Display;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::UserId;
+use crate::{SyncStatus, UserId};
 
 /// Workspace identifier (UUID) from codebase server.
 ///
@@ -39,4 +42,18 @@ pub struct Workspace {
     pub path: std::path::PathBuf,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: Option<chrono::DateTime<chrono::Utc>>,
+}
+
+/// Domain entity representing workspace sync status
+#[derive(Debug, Clone, PartialEq)]
+pub struct WorkspaceSyncStatus {
+    /// Canonical path to the workspace
+    pub path: PathBuf,
+    /// Current sync status
+    pub status: SyncStatus,
+    /// Timestamp of the last sync state transition (attempt start or
+    /// completion)
+    pub last_synced_at: DateTime<Utc>,
+    /// Error message if the sync failed
+    pub error_message: Option<String>,
 }

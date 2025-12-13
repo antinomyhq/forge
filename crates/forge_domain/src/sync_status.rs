@@ -1,6 +1,3 @@
-use std::path::PathBuf;
-
-use chrono::{DateTime, Utc};
 use derive_more::Display;
 use serde::{Deserialize, Serialize};
 use strum_macros::EnumString;
@@ -20,20 +17,6 @@ pub enum SyncStatus {
     #[display("FAILED")]
     #[strum(serialize = "FAILED")]
     Failed,
-}
-
-/// Domain entity representing workspace sync status
-#[derive(Debug, Clone, PartialEq)]
-pub struct WorkspaceSyncStatus {
-    /// Canonical path to the workspace
-    pub path: PathBuf,
-    /// Current sync status
-    pub status: SyncStatus,
-    /// Timestamp of the last sync state transition (attempt start or
-    /// completion)
-    pub last_synced_at: DateTime<Utc>,
-    /// Error message if the sync failed
-    pub error_message: Option<String>,
 }
 
 #[cfg(test)]
