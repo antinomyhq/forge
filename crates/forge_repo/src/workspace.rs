@@ -223,7 +223,6 @@ impl<E: EnvironmentInfra> WorkspaceRepository for ForgeWorkspaceRepository<E> {
                 .unwrap_or(SyncStatus::Success);
 
             Ok(Some(WorkspaceSyncStatus {
-                path: PathBuf::from(canonical_path),
                 status,
                 last_synced_at: last_synced.map(|dt| dt.and_utc()).unwrap_or(Utc::now()),
                 error_message: error,

@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use chrono::{DateTime, Utc};
 use derive_more::Display;
 use serde::{Deserialize, Serialize};
@@ -45,10 +43,8 @@ pub struct Workspace {
 }
 
 /// Domain entity representing workspace sync status
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WorkspaceSyncStatus {
-    /// Canonical path to the workspace
-    pub path: PathBuf,
     /// Current sync status
     pub status: SyncStatus,
     /// Timestamp of the last sync state transition (attempt start or

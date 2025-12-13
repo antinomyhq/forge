@@ -621,9 +621,7 @@ impl<
             if let Ok(path) = std::path::PathBuf::from(&workspace.working_dir).canonicalize() {
                 // Try to get sync status - ignore errors since it's optional enrichment
                 if let Ok(Some(sync_status)) = self.infra.as_ref().get_status(&path).await {
-                    workspace.last_synced_at = Some(sync_status.last_synced_at);
-                    workspace.sync_status = Some(sync_status.status);
-                    workspace.sync_error = sync_status.error_message;
+                    workspace.sync_status = Some(sync_status);
                 }
             }
         }
@@ -663,9 +661,7 @@ impl<
             {
                 // Enrich with sync status from local database - optional, ignore errors
                 if let Ok(Some(sync_status)) = self.infra.as_ref().get_status(&path).await {
-                    info.last_synced_at = Some(sync_status.last_synced_at);
-                    info.sync_status = Some(sync_status.status);
-                    info.sync_error = sync_status.error_message;
+                    info.sync_status = Some(sync_status);
                 }
 
                 Ok(Some(info))
@@ -1128,9 +1124,7 @@ mod tests {
             relation_count: 0,
             last_updated: None,
             created_at: chrono::Utc::now(),
-            last_synced_at: None,
             sync_status: None,
-            sync_error: None,
         });
         let service = ForgeContextEngineService::new(Arc::new(mock));
 
@@ -1231,9 +1225,7 @@ mod tests {
             relation_count: 0,
             last_updated: None,
             created_at: chrono::Utc::now(),
-            last_synced_at: None,
             sync_status: None,
-            sync_error: None,
         });
         let service = ForgeContextEngineService::new(Arc::new(mock));
 
@@ -1254,9 +1246,7 @@ mod tests {
             relation_count: 10,
             last_updated: Some(chrono::Utc::now()),
             created_at: chrono::Utc::now(),
-            last_synced_at: None,
             sync_status: None,
-            sync_error: None,
         });
         let service = ForgeContextEngineService::new(Arc::new(mock));
 
