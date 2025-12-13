@@ -1243,6 +1243,40 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_read_utf8_skips_files_with_null_bytes() {
+        use tempfile::NamedTempFile;
+
+        // Create a file with null bytes (binary)
+        let binary_file = NamedTempFile::new().unwrap();
+        tokio::fs::write(binary_file.path(), b"Hello\x00World").await.unwrap();
+
+        // Attempt to read the file as UTF-8 - should fail
+        let actual = forge_fs::ForgeFS::read_utf8(binary_file.path()).await;
+
+        assert!(actual.is_err(), "Reading file with null bytes should fail");
+        let error_msg = actual.unwrap_err().to_string();
+        assert!(
+            error_msg.contains("null bytes") || error_msg.contains("binary"),
+            "Error should mention null bytes or binary: {}",
+            error_msg
+        );
+    }
+
+    #[tokio::test]
+    async fn test_read_utf8_accepts_valid_text() {
+        use tempfile::NamedTempFile;
+
+        // Create a valid text file
+        let text_file = NamedTempFile::new().unwrap();
+        tokio::fs::write(text_file.path(), b"Hello, world!").await.unwrap();
+
+        // Should successfully read as UTF-8
+        let actual = forge_fs::ForgeFS::read_utf8(text_file.path()).await.unwrap();
+        let expected = "Hello, world!";
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
     async fn test_sync_plan_execute_with_modified_files() {
         use std::sync::Mutex;
 
