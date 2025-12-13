@@ -1,37 +1,118 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
+use clap::CommandFactory;
+use clap_complete::generate;
+use clap_complete::shells::Zsh;
 use rust_embed::RustEmbed;
 
-/// Embeds all shell plugin files for zsh integration
+use crate::cli::Cli;
+
+/// Embeds all shell plugin and theme files for zsh integration
 #[derive(RustEmbed)]
-#[folder = "$CARGO_MANIFEST_DIR/../../shell-plugin"]
+#[folder = "$CARGO_MANIFEST_DIR/../../shell-plugin/lib"]
 #[include = "**/*.zsh"]
 #[exclude = "forge.plugin.zsh"]
-struct ZshPlugin;
+struct ZshPluginLib;
 
 /// Generates the complete zsh plugin by combining all embedded files
-/// Strips out comments and empty lines for minimal output
+/// Strips out comments and empty lines for minimal output (except theme)
+/// Includes the theme file for a complete Forge experience
 pub fn generate_zsh_plugin() -> Result<String> {
     let mut output = String::new();
 
     // Iterate through all embedded files and combine them
-    for file_path in ZshPlugin::iter() {
-        if let Some(file) = ZshPlugin::get(&file_path) {
-            let content = std::str::from_utf8(file.data.as_ref())?;
+    for file in ZshPluginLib::iter().flat_map(|path| ZshPluginLib::get(&path).into_iter()) {
+        let content = std::str::from_utf8(file.data.as_ref())?;
 
-            // Process each line to strip comments and empty lines
-            for line in content.lines() {
-                let trimmed = line.trim();
+        // Process other files to strip comments and empty lines
+        for line in content.lines() {
+            let trimmed = line.trim();
 
-                // Skip empty lines and comment lines
-                if !trimmed.is_empty() && !trimmed.starts_with('#') {
-                    output.push_str(line);
-                    output.push('\n');
-                }
+            // Skip empty lines and comment lines
+            if !trimmed.is_empty() && !trimmed.starts_with('#') {
+                output.push_str(line);
+                output.push('\n');
             }
         }
     }
 
+    // Generate clap completions for the CLI
+    let mut cmd = Cli::command();
+    let mut completions = Vec::new();
+    generate(Zsh, &mut cmd, "forge", &mut completions);
+
+    // Append completions to the output with clear separator
+    let completions_str = String::from_utf8(completions)?;
+    output.push_str("\n# --- Clap Completions ---\n");
+    output.push_str(&completions_str);
+
+    // Set environment variable to indicate plugin is loaded (with timestamp)
+    output.push_str("\nexport _FORGE_PLUGIN_LOADED=$(date +%s)\n");
+
     Ok(output)
+}
+
+/// Generates the ZSH theme for Forge
+///
+/// Returns the theme file content that can be saved to a `.zsh-theme` file
+/// or sourced directly in `.zshrc`.
+///
+/// # Example
+///
+/// Save to a theme file:
+/// ```bash
+/// forge terminal theme zsh > ~/.oh-my-zsh/custom/themes/forge.zsh-theme
+/// ```
+///
+/// Or source directly:
+/// ```bash
+/// forge terminal theme zsh >> ~/.zshrc
+/// ```
+pub fn generate_zsh_theme() -> Result<String> {
+    let mut content = include_str!("../../../shell-plugin/forge.theme.zsh").to_string();
+
+    // Set environment variable to indicate theme is loaded (with timestamp)
+    content.push_str("\nexport _FORGE_THEME_LOADED=$(date +%s)\n");
+
+    Ok(content)
+}
+
+/// Run diagnostics on the ZSH shell environment
+///
+/// Returns a diagnostic report that checks for common configuration issues,
+/// plugin conflicts, and environment setup problems.
+///
+/// # Example
+///
+/// ```bash
+/// forge zsh doctor
+/// ```
+///
+/// # Errors
+///
+/// Returns an error if the doctor script cannot be executed or if the shell
+/// invocation fails.
+pub fn run_zsh_doctor() -> Result<String> {
+    // Get the embedded doctor script
+    let script_content = include_str!("../../../shell-plugin/doctor.zsh");
+
+    // Execute the script in a zsh subprocess
+    let output = std::process::Command::new("zsh")
+        .arg("-c")
+        .arg(script_content)
+        .output()
+        .context("Failed to execute zsh doctor script")?;
+
+    // Combine stdout and stderr for complete diagnostic output
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+
+    let mut result = stdout.to_string();
+    if !stderr.is_empty() {
+        result.push_str("\n\nErrors:\n");
+        result.push_str(&stderr);
+    }
+
+    Ok(result)
 }
 
 #[cfg(test)]
@@ -40,72 +121,7 @@ mod tests {
 
     #[test]
     fn test_generate_zsh_plugin() {
-        let actual = generate_zsh_plugin().unwrap();
-
-        // Verify it's not empty
-        assert!(!actual.is_empty(), "Generated plugin should not be empty");
-
-        // Verify it doesn't contain comments (lines starting with #)
-        for line in actual.lines() {
-            let trimmed = line.trim();
-            assert!(
-                !trimmed.starts_with('#'),
-                "Output should not contain comments, found: {}",
-                line
-            );
-        }
-
-        // Verify it doesn't contain empty lines
-        for line in actual.lines() {
-            assert!(
-                !line.trim().is_empty(),
-                "Output should not contain empty lines"
-            );
-        }
-    }
-
-    #[test]
-    fn test_all_files_loadable() {
-        let file_count = ZshPlugin::iter().count();
-
-        // Should have at least some files embedded
-        assert!(file_count > 0, "Should have embedded files");
-
-        // Verify all files are loadable
-        for file_path in ZshPlugin::iter() {
-            let file = ZshPlugin::get(&file_path);
-            assert!(file.is_some(), "File {} should be embedded", file_path);
-        }
-    }
-
-    #[test]
-    fn test_glob_pattern_includes_all_directories() {
-        let files: Vec<_> = ZshPlugin::iter().collect();
-
-        // Should have files embedded
-        assert!(!files.is_empty(), "Should have embedded files");
-
-        // Should NOT include forge.plugin.zsh (it's excluded)
-        let has_plugin_file = files.iter().any(|f| f == "forge.plugin.zsh");
-        assert!(!has_plugin_file, "Should exclude forge.plugin.zsh");
-
-        // Should include files from lib/ directory
-        let has_lib_files = files
-            .iter()
-            .any(|f| f.starts_with("lib/") && !f.contains("actions"));
-        assert!(has_lib_files, "Should include lib/*.zsh files");
-
-        // Should include files from lib/actions/ directory
-        let has_action_files = files.iter().any(|f| f.starts_with("lib/actions/"));
-        assert!(has_action_files, "Should include lib/actions/*.zsh files");
-
-        // All files should end with .zsh
-        for file in &files {
-            assert!(
-                file.ends_with(".zsh"),
-                "All files should end with .zsh: {}",
-                file
-            );
-        }
+        let output = generate_zsh_plugin().unwrap();
+        insta::assert_snapshot!(output);
     }
 }

@@ -29,8 +29,7 @@ use tracing::debug;
 use url::Url;
 
 use crate::cli::{
-    Cli, CommitCommandGroup, ConversationCommand, ExtensionCommand, ListCommand, McpCommand,
-    TopLevelCommand,
+    Cli, CommitCommandGroup, ConversationCommand, ListCommand, McpCommand, TopLevelCommand,
 };
 use crate::conversation_selector::ConversationSelector;
 use crate::display_constants::{CommandType, headers, markers, status};
@@ -412,10 +411,16 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
                 return Ok(());
             }
-            TopLevelCommand::Extension(extension_group) => {
-                match extension_group.command {
-                    ExtensionCommand::Zsh => {
-                        self.on_zsh_prompt().await?;
+            TopLevelCommand::Zsh(terminal_group) => {
+                match terminal_group {
+                    crate::cli::ZshCommandGroup::Plugin => {
+                        self.on_zsh_plugin().await?;
+                    }
+                    crate::cli::ZshCommandGroup::Theme => {
+                        self.on_zsh_theme().await?;
+                    }
+                    crate::cli::ZshCommandGroup::Doctor => {
+                        self.on_zsh_doctor().await?;
                     }
                 }
                 return Ok(());
@@ -1411,9 +1416,24 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(())
     }
 
-    async fn on_zsh_prompt(&self) -> anyhow::Result<()> {
+    /// Generate ZSH plugin script
+    async fn on_zsh_plugin(&self) -> anyhow::Result<()> {
         let plugin = crate::zsh_plugin::generate_zsh_plugin()?;
         println!("{plugin}");
+        Ok(())
+    }
+
+    /// Generate ZSH theme
+    async fn on_zsh_theme(&self) -> anyhow::Result<()> {
+        let theme = crate::zsh_plugin::generate_zsh_theme()?;
+        println!("{theme}");
+        Ok(())
+    }
+
+    /// Run ZSH environment diagnostics
+    async fn on_zsh_doctor(&self) -> anyhow::Result<()> {
+        let report = crate::zsh_plugin::run_zsh_doctor()?;
+        println!("{report}");
         Ok(())
     }
 
