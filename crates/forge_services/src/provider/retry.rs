@@ -1,3 +1,4 @@
+use async_openai::error::{OpenAIError as AsyncOpenAIError, StreamError as AsyncStreamError};
 use forge_app::domain::{Error as DomainError, RetryConfig};
 use forge_app::dto::openai::{Error, ErrorResponse};
 
@@ -7,6 +8,7 @@ pub fn into_retry(error: anyhow::Error, retry_config: &RetryConfig) -> anyhow::E
     if let Some(code) = get_req_status_code(&error)
         .or(get_event_req_status_code(&error))
         .or(get_api_status_code(&error))
+        .or(get_async_openai_status_code(&error))
         && retry_config.retry_status_codes.contains(&code)
     {
         return DomainError::Retryable(error).into();
@@ -15,6 +17,7 @@ pub fn into_retry(error: anyhow::Error, retry_config: &RetryConfig) -> anyhow::E
     if is_api_transport_error(&error)
         || is_req_transport_error(&error)
         || is_event_transport_error(&error)
+        || is_async_openai_transport_error(&error)
         || is_empty_error(&error)
     {
         return DomainError::Retryable(error).into();
@@ -32,6 +35,53 @@ fn get_api_status_code(error: &anyhow::Error) -> Option<u16> {
         Error::InvalidStatusCode(code) => Some(*code),
     })
 }
+
+fn get_async_openai_status_code(error: &anyhow::Error) -> Option<u16> {
+    error
+        .downcast_ref::<AsyncOpenAIError>()
+        .and_then(|error| match error {
+            AsyncOpenAIError::Reqwest(err) => err.status().map(|status| status.as_u16()),
+            AsyncOpenAIError::StreamError(err) => match err.as_ref() {
+                AsyncStreamError::ReqwestEventSource(inner) => match inner {
+                    reqwest_eventsource::Error::InvalidStatusCode(status, _) => {
+                        Some(status.as_u16())
+                    }
+                    reqwest_eventsource::Error::InvalidContentType(_, response) => {
+                        Some(response.status().as_u16())
+                    }
+                    _ => None,
+                },
+                _ => None,
+            },
+            _ => None,
+        })
+}
+
+fn is_async_openai_transport_error(error: &anyhow::Error) -> bool {
+    error
+        .downcast_ref::<AsyncOpenAIError>()
+        .is_some_and(|error| match error {
+            AsyncOpenAIError::Reqwest(err) => err.is_timeout() || err.is_connect(),
+            AsyncOpenAIError::StreamError(err) => match err.as_ref() {
+                AsyncStreamError::ReqwestEventSource(inner) => {
+                    matches!(inner, reqwest_eventsource::Error::Transport(_))
+                }
+                _ => false,
+            },
+            AsyncOpenAIError::ApiError(api_error) => api_error
+                .code
+                .as_deref()
+                .is_some_and(|code| {
+                    TRANSPORT_ERROR_CODES.iter().any(|message| message == &code)
+                        || matches!(
+                            code,
+                            "rate_limit_exceeded" | "server_error" | "timeout" | "overloaded"
+                        )
+                }),
+            _ => false,
+        })
+}
+
 
 fn get_req_status_code(error: &anyhow::Error) -> Option<u16> {
     error
@@ -108,6 +158,8 @@ fn is_event_transport_error(error: &anyhow::Error) -> bool {
 mod tests {
     use anyhow::anyhow;
     use forge_app::dto::openai::{Error, ErrorCode, ErrorResponse};
+    use async_openai::error::{ApiError, OpenAIError as AsyncOpenAIError};
+
 
     use super::*;
 
@@ -400,4 +452,21 @@ mod tests {
         // Verify
         assert!(!actual);
     }
+
+
+    #[test]
+    fn test_into_retry_with_async_openai_rate_limit_code_is_retryable() {
+        let retry_config = RetryConfig::default().retry_status_codes(vec![]);
+        let api_error = ApiError {
+            message: "Rate limit".to_string(),
+            r#type: Some("rate_limit_error".to_string()),
+            param: None,
+            code: Some("rate_limit_exceeded".to_string()),
+        };
+
+        let error = anyhow::Error::from(AsyncOpenAIError::ApiError(api_error));
+        let actual = into_retry(error, &retry_config);
+        assert!(is_retryable(actual));
+    }
+
 }
