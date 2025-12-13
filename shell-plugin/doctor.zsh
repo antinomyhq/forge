@@ -68,7 +68,7 @@ function print_result() {
     esac
 }
 
-echo "$(bold "Forge Environment Diagnostics")"
+echo "$(bold "FORGE ENVIRONMENT DIAGNOSTICS")"
 
 # 1. Check ZSH version
 print_section "Shell Environment"
@@ -131,24 +131,9 @@ fi
 # 3. Check shell plugin and completions
 print_section "Plugin & Completions"
 
-# Check if forge plugin is loaded by looking for key functions
-local plugin_loaded=false
-if (( $+functions[forge-accept-line] )) || \
-   (( $+functions[_forge_action_default] )); then
+# Check if forge plugin is loaded by checking environment variable
+if [[ -n "$_FORGE_PLUGIN_LOADED" ]]; then
     print_result pass "Forge plugin loaded"
-    plugin_loaded=true
-    
-    # Verify plugin setup command
-    local zshrc="${ZDOTDIR:-$HOME}/.zshrc"
-    if [[ -f "$zshrc" ]]; then
-        if grep -q 'eval.*FORGE_BIN.*zsh plugin' "$zshrc" 2>/dev/null; then
-            print_result pass "Plugin setup found in .zshrc"
-        else
-            print_result warn "Plugin loaded but setup command not found in .zshrc"
-            print_result info "Add to your ~/.zshrc:"
-            print_result info "  eval \"\$(\$FORGE_BIN zsh plugin)\""
-        fi
-    fi
 else
     print_result fail "Forge plugin not loaded"
     print_result info "Add to your ~/.zshrc:"
@@ -156,10 +141,10 @@ else
 fi
 
 # Check if completions are available
-if [[ -n "${fpath[(r)*forge*]}" ]] || (( $+functions[_forge] )); then
+if (( $+functions[_forge] )); then
     print_result pass "Forge completions available"
 else
-    if [[ "$plugin_loaded" == true ]]; then
+    if [[ -n "$_FORGE_PLUGIN_LOADED" ]]; then
         print_result warn "Completions may not be properly initialized"
         print_result info "Ensure 'compinit' is called after loading the plugin"
     else
@@ -171,21 +156,9 @@ fi
 # 4. Check theme
 print_section "Theme"
 
-# Check if forge theme is loaded
-if (( $+functions[_update_forge_vars] )); then
+# Check if forge theme is loaded by checking environment variable
+if [[ -n "$_FORGE_THEME_LOADED" ]]; then
     print_result pass "Forge theme loaded"
-    
-    # Verify theme setup command
-    local zshrc="${ZDOTDIR:-$HOME}/.zshrc"
-    if [[ -f "$zshrc" ]]; then
-        if grep -q 'eval.*FORGE_BIN.*zsh theme' "$zshrc" 2>/dev/null; then
-            print_result pass "Theme setup found in .zshrc"
-        else
-            print_result warn "Theme loaded but setup command not found in .zshrc"
-            print_result info "Add to your ~/.zshrc:"
-            print_result info "  eval \"\$(\$FORGE_BIN zsh theme)\""
-        fi
-    fi
 elif (( $+functions[p10k] )); then
     print_result info "Powerlevel10k detected (not using Forge theme)"
 elif [[ -n "$ZSH_THEME" ]]; then
@@ -273,8 +246,7 @@ fi
 # Check font and Nerd Font support
 # Show actual icons used in Forge theme
 echo ""
-echo "$(bold "Font Check")"
-echo ""
+echo "$(bold "Font Check [Manual Verification Required]")"
 echo "  $(cyan "")  ${_DIM} configured via \$FORGE_FOLDER_ICON${RESET}"
 echo "  $(cyan "")  ${_DIM} configured via \$FORGE_GIT_ICON${RESET}"
 echo "  $(cyan "")  ${_DIM} configured via \$FORGE_MODEL_ICON${RESET}"
