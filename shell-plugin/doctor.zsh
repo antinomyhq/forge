@@ -154,7 +154,7 @@ else
 fi
 
 # 4. Check theme
-print_section "Theme"
+print_section "ZSH Theme"
 
 # Check if forge theme is loaded by checking environment variable
 if [[ -n "$_FORGE_THEME_LOADED" ]]; then
