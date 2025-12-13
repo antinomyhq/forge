@@ -1248,7 +1248,9 @@ mod tests {
 
         // Create a file with null bytes (binary)
         let binary_file = NamedTempFile::new().unwrap();
-        tokio::fs::write(binary_file.path(), b"Hello\x00World").await.unwrap();
+        tokio::fs::write(binary_file.path(), b"Hello\x00World")
+            .await
+            .unwrap();
 
         // Attempt to read the file as UTF-8 - should fail
         let actual = forge_fs::ForgeFS::read_utf8(binary_file.path()).await;
@@ -1268,10 +1270,14 @@ mod tests {
 
         // Create a valid text file
         let text_file = NamedTempFile::new().unwrap();
-        tokio::fs::write(text_file.path(), b"Hello, world!").await.unwrap();
+        tokio::fs::write(text_file.path(), b"Hello, world!")
+            .await
+            .unwrap();
 
         // Should successfully read as UTF-8
-        let actual = forge_fs::ForgeFS::read_utf8(text_file.path()).await.unwrap();
+        let actual = forge_fs::ForgeFS::read_utf8(text_file.path())
+            .await
+            .unwrap();
         let expected = "Hello, world!";
         assert_eq!(actual, expected);
     }

@@ -4,9 +4,9 @@ use anyhow::{Context, Result};
 
 impl crate::ForgeFS {
     /// Reads a file as UTF-8 text.
-    /// 
+    ///
     /// # Errors
-    /// 
+    ///
     /// Returns an error if:
     /// - The file cannot be read
     /// - The file contains invalid UTF-8 sequences
@@ -15,7 +15,7 @@ impl crate::ForgeFS {
     pub async fn read_utf8<T: AsRef<Path>>(path: T) -> Result<String> {
         let path_ref = path.as_ref();
         let bytes = Self::read(path_ref).await?;
-        
+
         // First check for null bytes which are not allowed in UTF-8 text
         // and cause issues with PostgreSQL and other databases
         if bytes.contains(&0) {
@@ -24,7 +24,7 @@ impl crate::ForgeFS {
                 path_ref.display()
             );
         }
-        
+
         // Now validate proper UTF-8 encoding
         String::from_utf8(bytes).with_context(|| {
             format!(
@@ -47,12 +47,12 @@ impl crate::ForgeFS {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
-    use super::*;
     use pretty_assertions::assert_eq;
     use tempfile::NamedTempFile;
+
+    use super::*;
 
     async fn create_test_file_fixture(content: &[u8]) -> Result<NamedTempFile> {
         let file = NamedTempFile::new()?;
@@ -73,7 +73,7 @@ mod tests {
         let content = b"Hello\x00World";
         let fixture = create_test_file_fixture(content).await.unwrap();
         let actual = crate::ForgeFS::read_utf8(fixture.path()).await;
-        
+
         assert!(actual.is_err());
         let error_msg = actual.unwrap_err().to_string();
         assert!(
@@ -89,7 +89,7 @@ mod tests {
         let content = vec![0xFF, 0xFE, 0xFD];
         let fixture = create_test_file_fixture(&content).await.unwrap();
         let actual = crate::ForgeFS::read_utf8(fixture.path()).await;
-        
+
         assert!(actual.is_err());
         let error_msg = actual.unwrap_err().to_string();
         assert!(
