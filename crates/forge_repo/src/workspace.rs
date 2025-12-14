@@ -17,9 +17,102 @@ pub struct ForgeWorkspaceRepository<E> {
     env: Arc<E>,
 }
 
-impl<E> ForgeWorkspaceRepository<E> {
+impl<E: EnvironmentInfra> ForgeWorkspaceRepository<E> {
     pub fn new(pool: Arc<DatabasePool>, env: Arc<E>) -> Self {
         Self { pool, env }
+    }
+
+    /// Attempts to acquire the sync lock by checking status first, then
+    /// updating This avoids holding a write lock during the conditional
+    /// check
+    fn try_acquire_lock_internal(&self, canonical_path: &std::path::Path) -> anyhow::Result<bool> {
+        let mut connection = self.pool.get_connection()?;
+        let path_str = canonical_path.to_string_lossy().to_string();
+
+        // First, ensure a workspace record exists
+        diesel::insert_into(workspace::table)
+            .values((
+                workspace::remote_workspace_id.eq(WorkspaceId::generate().to_string()),
+                workspace::user_id.eq(UserId::generate().to_string()),
+                workspace::path.eq(&path_str),
+                workspace::created_at.eq(Utc::now().naive_utc()),
+            ))
+            .on_conflict(workspace::path)
+            .do_nothing()
+            .execute(&mut connection)?;
+
+        // Check current status with a read operation (doesn't block other reads)
+        let current_status: Option<Option<String>> = workspace::table
+            .filter(workspace::path.eq(&path_str))
+            .select(workspace::sync_status)
+            .first(&mut connection)
+            .optional()?;
+
+        // If already in progress, cannot acquire lock
+        if let Some(Some(status)) = current_status {
+            if status == SyncStatus::InProgress.to_string() {
+                return Ok(false);
+            }
+        }
+
+        // Not in progress, acquire the lock with a simple update (brief write lock)
+        diesel::update(workspace::table)
+            .filter(workspace::path.eq(&path_str))
+            .set((
+                workspace::sync_status.eq(SyncStatus::InProgress.to_string()),
+                workspace::last_synced_at.eq(Some(Utc::now().naive_utc())),
+            ))
+            .execute(&mut connection)?;
+
+        Ok(true)
+    }
+
+    /// Updates the sync status
+    fn update_status_internal(
+        &self,
+        canonical_path: &std::path::Path,
+        status: SyncStatus,
+        error_message: Option<String>,
+    ) -> anyhow::Result<()> {
+        let mut connection = self.pool.get_connection()?;
+        let path_str = canonical_path.to_string_lossy().to_string();
+
+        diesel::update(workspace::table)
+            .filter(workspace::path.eq(&path_str))
+            .set((
+                workspace::sync_status.eq(status.to_string()),
+                workspace::last_synced_at.eq(Some(Utc::now().naive_utc())),
+                workspace::sync_error.eq(error_message),
+            ))
+            .execute(&mut connection)?;
+
+        Ok(())
+    }
+
+    /// Clears stale locks that have been held too long
+    fn clear_stale_locks_internal(&self, canonical_path: &std::path::Path) -> anyhow::Result<()> {
+        let mut connection = self.pool.get_connection()?;
+        let path_str = canonical_path.to_string_lossy().to_string();
+
+        let env = self.env.get_environment();
+        let stale_threshold_secs =
+            (env.sync_interval_seconds.saturating_mul(2) as i64).min(i64::MAX / 2);
+        let stale_threshold = Utc::now().naive_utc()
+            - chrono::Duration::try_seconds(stale_threshold_secs)
+                .unwrap_or(chrono::Duration::seconds(600));
+
+        diesel::update(workspace::table)
+            .filter(workspace::path.eq(&path_str))
+            .filter(workspace::sync_status.eq(SyncStatus::InProgress.to_string()))
+            .filter(workspace::last_synced_at.lt(stale_threshold))
+            .set((
+                workspace::sync_status.eq(SyncStatus::Failed.to_string()),
+                workspace::sync_error
+                    .eq(Some("Sync timeout - process may have crashed".to_string())),
+            ))
+            .execute(&mut connection)?;
+
+        Ok(())
     }
 }
 
@@ -123,78 +216,23 @@ impl<E: EnvironmentInfra> WorkspaceRepository for ForgeWorkspaceRepository<E> {
         Ok(())
     }
 
-    // Sync lock and status methods
-    async fn try_acquire_lock(&self, path: &std::path::Path) -> anyhow::Result<bool> {
-        let mut connection = self.pool.get_connection()?;
-        let canonical_path = path.canonicalize()?.to_string_lossy().to_string();
-
-        // First, ensure a workspace record exists
-        // Insert a placeholder record if one doesn't exist yet
-        // We use temporary UUIDs that will be replaced during the actual sync
-        diesel::insert_into(workspace::table)
-            .values((
-                workspace::remote_workspace_id.eq(WorkspaceId::generate().to_string()),
-                workspace::user_id.eq(UserId::generate().to_string()),
-                workspace::path.eq(&canonical_path),
-                workspace::created_at.eq(Utc::now().naive_utc()),
-            ))
-            .on_conflict(workspace::path)
-            .do_nothing()
-            .execute(&mut connection)?;
-
-        // Atomically try to acquire the lock by updating status to IN_PROGRESS
-        // Only succeeds if current status is not IN_PROGRESS (or is NULL)
-        let rows_affected = diesel::update(workspace::table)
-            .filter(workspace::path.eq(&canonical_path))
-            .filter(
-                workspace::sync_status
-                    .ne(SyncStatus::InProgress.to_string())
-                    .or(workspace::sync_status.is_null()),
-            )
-            .set((
-                workspace::sync_status.eq(SyncStatus::InProgress.to_string()),
-                workspace::last_synced_at.eq(Some(Utc::now().naive_utc())),
-            ))
-            .execute(&mut connection)?;
-
-        Ok(rows_affected > 0)
-    }
-
-    async fn release_sync_lock(&self, path: &std::path::Path) -> anyhow::Result<()> {
-        let mut connection = self.pool.get_connection()?;
-        let canonical_path = path.canonicalize()?.to_string_lossy().to_string();
-
-        diesel::update(workspace::table)
-            .filter(workspace::path.eq(&canonical_path))
-            .set((
-                workspace::sync_status.eq(SyncStatus::Success.to_string()),
-                workspace::last_synced_at.eq(Some(Utc::now().naive_utc())),
-                workspace::sync_error.eq(None::<String>),
-            ))
-            .execute(&mut connection)?;
-
-        Ok(())
-    }
-
     async fn update_status(
         &self,
         path: &std::path::Path,
         status: SyncStatus,
         error_message: Option<String>,
-    ) -> anyhow::Result<()> {
-        let mut connection = self.pool.get_connection()?;
-        let canonical_path = path.canonicalize()?.to_string_lossy().to_string();
+    ) -> anyhow::Result<bool> {
+        let canonical_path = path.canonicalize()?;
 
-        diesel::update(workspace::table)
-            .filter(workspace::path.eq(&canonical_path))
-            .set((
-                workspace::sync_status.eq(status.to_string()),
-                workspace::last_synced_at.eq(Some(Utc::now().naive_utc())),
-                workspace::sync_error.eq(error_message),
-            ))
-            .execute(&mut connection)?;
-
-        Ok(())
+        // For InProgress status, clear stale locks and try to acquire lock
+        if status == SyncStatus::InProgress {
+            self.clear_stale_locks_internal(&canonical_path)?;
+            self.try_acquire_lock_internal(&canonical_path)
+        } else {
+            // For other statuses, just update the status
+            self.update_status_internal(&canonical_path, status, error_message)?;
+            Ok(true)
+        }
     }
 
     async fn get_status(
@@ -231,33 +269,6 @@ impl<E: EnvironmentInfra> WorkspaceRepository for ForgeWorkspaceRepository<E> {
             Ok(None)
         }
     }
-
-    async fn clear_stale_locks(&self, path: &std::path::Path) -> anyhow::Result<()> {
-        let mut connection = self.pool.get_connection()?;
-        let canonical_path = path.canonicalize()?.to_string_lossy().to_string();
-
-        // Get the sync interval from environment
-        let env = self.env.get_environment();
-        let stale_threshold_secs = (env.sync_interval_seconds * 2) as i64;
-
-        // Calculate the stale threshold timestamp
-        let stale_threshold =
-            Utc::now().naive_utc() - chrono::Duration::try_seconds(stale_threshold_secs).unwrap();
-
-        // Find and mark stale locks as FAILED
-        diesel::update(workspace::table)
-            .filter(workspace::path.eq(&canonical_path))
-            .filter(workspace::sync_status.eq(SyncStatus::InProgress.to_string()))
-            .filter(workspace::last_synced_at.lt(stale_threshold))
-            .set((
-                workspace::sync_status.eq(SyncStatus::Failed.to_string()),
-                workspace::sync_error
-                    .eq(Some("Sync timeout - process may have crashed".to_string())),
-            ))
-            .execute(&mut connection)?;
-
-        Ok(())
-    }
 }
 
 #[cfg(test)]
@@ -275,7 +286,10 @@ mod tests {
 
     impl forge_app::EnvironmentInfra for MockEnv {
         fn get_environment(&self) -> Environment {
-            Faker.fake()
+            let mut env: Environment = Faker.fake();
+            // Set a reasonable sync_interval_seconds for testing (5 minutes)
+            env.sync_interval_seconds = 300;
+            env
         }
 
         fn get_env_var(&self, _: &str) -> Option<String> {
@@ -349,8 +363,11 @@ mod tests {
         // First, create a workspace record (simulates initial sync from server)
         repo.upsert(&workspace_id, &user_id, &path).await.unwrap();
 
-        // Try to acquire lock - should succeed
-        let acquired = repo.try_acquire_lock(&path).await.unwrap();
+        // Try to start sync - should succeed
+        let acquired = repo
+            .update_status(&path, SyncStatus::InProgress, None)
+            .await
+            .unwrap();
         assert!(acquired, "Should acquire lock on first attempt");
 
         // Check status
@@ -359,22 +376,35 @@ mod tests {
         let status = status.unwrap();
         assert_eq!(status.status, SyncStatus::InProgress);
 
-        // Try to acquire again - should fail (already locked)
-        let acquired2 = repo.try_acquire_lock(&path).await.unwrap();
+        // Try to start sync again - should fail (already locked)
+        let acquired2 = repo
+            .update_status(&path, SyncStatus::InProgress, None)
+            .await
+            .unwrap();
         assert!(
             !acquired2,
             "Should not acquire lock when already in progress"
         );
 
-        // Release lock
-        repo.release_sync_lock(&path).await.unwrap();
+        // Update status to success (releases lock)
+        let updated = repo
+            .update_status(&path, SyncStatus::Success, None)
+            .await
+            .unwrap();
+        assert!(updated, "Should update status successfully");
 
         // Check status is now SUCCESS
         let status = repo.get_status(&path).await.unwrap().unwrap();
         assert_eq!(status.status, SyncStatus::Success);
 
-        // Should be able to acquire again
-        let acquired3 = repo.try_acquire_lock(&path).await.unwrap();
-        assert!(acquired3, "Should acquire lock after release");
+        // Should be able to start sync again
+        let acquired3 = repo
+            .update_status(&path, SyncStatus::InProgress, None)
+            .await
+            .unwrap();
+        assert!(
+            acquired3,
+            "Should acquire lock after previous sync completed"
+        );
     }
 }

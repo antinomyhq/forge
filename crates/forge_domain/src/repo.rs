@@ -125,47 +125,39 @@ pub trait WorkspaceRepository: Send + Sync {
     /// Delete workspace from local database
     async fn delete(&self, workspace_id: &WorkspaceId) -> anyhow::Result<()>;
 
-    // Sync coordination methods
-
-    /// Attempts to acquire the sync lock for a workspace
-    ///
-    /// Atomically checks if a sync is in progress and sets the status to
-    /// IN_PROGRESS if not.
-    ///
-    /// # Returns
-    /// * `true` if lock was successfully acquired
-    /// * `false` if another process holds the lock
-    async fn try_acquire_lock(&self, path: &std::path::Path) -> anyhow::Result<bool>;
-
-    /// Releases the sync lock for a workspace
-    ///
-    /// Marks the sync as complete (SUCCESS status by default).
-    async fn release_sync_lock(&self, path: &std::path::Path) -> anyhow::Result<()>;
-
     /// Updates the sync status for a workspace
+    ///
+    /// When status is `InProgress`, clears any stale locks and attempts to
+    /// acquire the lock atomically. Lock acquisition is performed as a
+    /// single database operation to ensure consistency.
     ///
     /// # Arguments
     /// * `status` - New sync status
     /// * `error_message` - Optional error message if status is Failed
+    ///
+    /// # Returns
+    /// * `Ok(true)` - Status updated successfully (for InProgress: lock
+    ///   acquired)
+    /// * `Ok(false)` - Status is InProgress but lock already held by another
+    ///   process
+    ///
+    /// # Errors
+    /// Returns an error if the database update fails
     async fn update_status(
         &self,
         path: &std::path::Path,
         status: SyncStatus,
         error_message: Option<String>,
-    ) -> anyhow::Result<()>;
+    ) -> anyhow::Result<bool>;
 
     /// Retrieves the current sync status for a workspace
+    ///
+    /// # Errors
+    /// Returns an error if the database query fails
     async fn get_status(
         &self,
         path: &std::path::Path,
     ) -> anyhow::Result<Option<WorkspaceSyncStatus>>;
-
-    /// Clears any stale IN_PROGRESS locks for a workspace
-    ///
-    /// Locks are considered stale if they've been IN_PROGRESS for more than 2x
-    /// the sync interval. The interval is read from the environment
-    /// configuration.
-    async fn clear_stale_locks(&self, path: &std::path::Path) -> anyhow::Result<()>;
 }
 
 /// Repository for managing codebase indexing and search operations

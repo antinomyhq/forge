@@ -474,11 +474,12 @@ impl<
             .canonicalize()
             .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
 
-        // Clear stale locks before attempting sync
-        self.infra.clear_stale_locks(&canonical_path).await?;
-
-        // Try to acquire lock
-        let acquired = self.infra.try_acquire_lock(&canonical_path).await?;
+        // Try to start sync by setting status to InProgress (clears stale locks and
+        // acquires lock internally)
+        let acquired = self
+            .infra
+            .update_status(&canonical_path, forge_domain::SyncStatus::InProgress, None)
+            .await?;
 
         if !acquired {
             // Lock already held - return empty stream
@@ -966,21 +967,13 @@ mod tests {
             Ok(())
         }
 
-        async fn try_acquire_lock(&self, _path: &std::path::Path) -> anyhow::Result<bool> {
-            Ok(true) // Always succeed in tests
-        }
-
-        async fn release_sync_lock(&self, _path: &std::path::Path) -> anyhow::Result<()> {
-            Ok(())
-        }
-
         async fn update_status(
             &self,
             _path: &std::path::Path,
             _status: forge_domain::SyncStatus,
             _error_message: Option<String>,
-        ) -> anyhow::Result<()> {
-            Ok(())
+        ) -> anyhow::Result<bool> {
+            Ok(true) // Always succeed in tests
         }
 
         async fn get_status(
@@ -988,10 +981,6 @@ mod tests {
             _path: &std::path::Path,
         ) -> anyhow::Result<Option<forge_domain::WorkspaceSyncStatus>> {
             Ok(None)
-        }
-
-        async fn clear_stale_locks(&self, _path: &std::path::Path) -> anyhow::Result<()> {
-            Ok(())
         }
     }
 

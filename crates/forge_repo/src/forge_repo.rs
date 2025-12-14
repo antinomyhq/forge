@@ -489,21 +489,12 @@ impl<F: EnvironmentInfra + Send + Sync> forge_domain::WorkspaceRepository for Fo
         self.indexing_repository.delete(workspace_id).await
     }
 
-    // Sync methods (merged from WorkspaceSyncRepository)
-    async fn try_acquire_lock(&self, path: &std::path::Path) -> anyhow::Result<bool> {
-        self.indexing_repository.try_acquire_lock(path).await
-    }
-
-    async fn release_sync_lock(&self, path: &std::path::Path) -> anyhow::Result<()> {
-        self.indexing_repository.release_sync_lock(path).await
-    }
-
     async fn update_status(
         &self,
         path: &std::path::Path,
         status: forge_domain::SyncStatus,
         error_message: Option<String>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<bool> {
         self.indexing_repository
             .update_status(path, status, error_message)
             .await
@@ -514,10 +505,6 @@ impl<F: EnvironmentInfra + Send + Sync> forge_domain::WorkspaceRepository for Fo
         path: &std::path::Path,
     ) -> anyhow::Result<Option<forge_domain::WorkspaceSyncStatus>> {
         self.indexing_repository.get_status(path).await
-    }
-
-    async fn clear_stale_locks(&self, path: &std::path::Path) -> anyhow::Result<()> {
-        self.indexing_repository.clear_stale_locks(path).await
     }
 }
 
