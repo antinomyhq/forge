@@ -13,7 +13,8 @@ use crate::cli::Cli;
 #[exclude = "forge.plugin.zsh"]
 struct ZshPluginLib;
 
-/// Generates the complete zsh plugin by combining embedded files and clap completions
+/// Generates the complete zsh plugin by combining embedded files and clap
+/// completions
 pub fn generate_zsh_plugin() -> Result<String> {
     let mut output = String::new();
 
