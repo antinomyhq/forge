@@ -2,9 +2,9 @@
 source: crates/forge_app/src/operation.rs
 expression: to_value(actual)
 ---
-<file_content
+<file
   path="/home/user/test.txt"
   display_lines="1-1"
   total_lines="1"
-><![CDATA[struct Foo<T>{ name: T }]]>
-</file_content>
+><![CDATA[1:struct Foo<T>{ name: T }]]>
+</file>

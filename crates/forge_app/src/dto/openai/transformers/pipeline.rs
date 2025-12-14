@@ -2,6 +2,7 @@ use forge_domain::{DefaultTransformation, Provider, ProviderId, Transformer};
 use url::Url;
 
 use super::drop_tool_call::DropToolCalls;
+use super::github_copilot_reasoning::GitHubCopilotReasoning;
 use super::make_cerebras_compat::MakeCerebrasCompat;
 use super::make_openai_compat::MakeOpenAiCompat;
 use super::normalize_tool_schema::NormalizeToolSchema;
@@ -41,11 +42,15 @@ impl Transformer for ProviderPipeline<'_> {
 
         let open_ai_compat = MakeOpenAiCompat.when(move |_| !supports_open_router_params(provider));
 
+        let github_copilot_reasoning =
+            GitHubCopilotReasoning.when(move |_| provider.id == ProviderId::GITHUB_COPILOT);
+
         let cerebras_compat = MakeCerebrasCompat.when(move |_| provider.id == ProviderId::CEREBRAS);
 
         let mut combined = zai_thinking
             .pipe(or_transformers)
             .pipe(open_ai_compat)
+            .pipe(github_copilot_reasoning)
             .pipe(cerebras_compat)
             .pipe(NormalizeToolSchema);
         combined.transform(request)
@@ -72,7 +77,7 @@ mod tests {
     use url::Url;
 
     use super::*;
-    use crate::domain::{Models, ProviderResponse};
+    use crate::domain::{ModelSource, ProviderResponse};
 
     // Test helper functions
     fn make_credential(provider_id: ProviderId, key: &str) -> Option<forge_domain::AuthCredential> {
@@ -88,96 +93,120 @@ mod tests {
     fn forge(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::FORGE,
-            response: ProviderResponse::OpenAI,
+            provider_type: Default::default(),
+            response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://antinomy.ai/api/v1/chat/completions").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::FORGE, key),
-            models: Models::Url(Url::parse("https://antinomy.ai/api/v1/models").unwrap()),
+            models: Some(ModelSource::Url(
+                Url::parse("https://antinomy.ai/api/v1/models").unwrap(),
+            )),
         }
     }
 
     fn zai(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::ZAI,
-            response: ProviderResponse::OpenAI,
+            provider_type: Default::default(),
+            response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.z.ai/api/paas/v4/chat/completions").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::ZAI, key),
-            models: Models::Url(Url::parse("https://api.z.ai/api/paas/v4/models").unwrap()),
+            models: Some(ModelSource::Url(
+                Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
+            )),
         }
     }
 
     fn zai_coding(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::ZAI_CODING,
-            response: ProviderResponse::OpenAI,
+            provider_type: Default::default(),
+            response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.z.ai/api/coding/paas/v4/chat/completions").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::ZAI_CODING, key),
-            models: Models::Url(Url::parse("https://api.z.ai/api/paas/v4/models").unwrap()),
+            models: Some(ModelSource::Url(
+                Url::parse("https://api.z.ai/api/paas/v4/models").unwrap(),
+            )),
         }
     }
 
     fn openai(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::OPENAI,
-            response: ProviderResponse::OpenAI,
+            provider_type: Default::default(),
+            response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::OPENAI, key),
-            models: Models::Url(Url::parse("https://api.openai.com/v1/models").unwrap()),
+            models: Some(ModelSource::Url(
+                Url::parse("https://api.openai.com/v1/models").unwrap(),
+            )),
         }
     }
 
     fn xai(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::XAI,
-            response: ProviderResponse::OpenAI,
+            provider_type: Default::default(),
+            response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.x.ai/v1/chat/completions").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::XAI, key),
-            models: Models::Url(Url::parse("https://api.x.ai/v1/models").unwrap()),
+            models: Some(ModelSource::Url(
+                Url::parse("https://api.x.ai/v1/models").unwrap(),
+            )),
         }
     }
 
     fn requesty(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::REQUESTY,
-            response: ProviderResponse::OpenAI,
+            provider_type: Default::default(),
+            response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.requesty.ai/v1/chat/completions").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::REQUESTY, key),
-            models: Models::Url(Url::parse("https://api.requesty.ai/v1/models").unwrap()),
+            models: Some(ModelSource::Url(
+                Url::parse("https://api.requesty.ai/v1/models").unwrap(),
+            )),
         }
     }
 
     fn open_router(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::OPEN_ROUTER,
-            response: ProviderResponse::OpenAI,
+            provider_type: Default::default(),
+            response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://openrouter.ai/api/v1/chat/completions").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::OPEN_ROUTER, key),
-            models: Models::Url(Url::parse("https://openrouter.ai/api/v1/models").unwrap()),
+            models: Some(ModelSource::Url(
+                Url::parse("https://openrouter.ai/api/v1/models").unwrap(),
+            )),
         }
     }
 
     fn anthropic(key: &str) -> Provider<Url> {
         Provider {
             id: ProviderId::ANTHROPIC,
-            response: ProviderResponse::Anthropic,
+            provider_type: Default::default(),
+            response: Some(ProviderResponse::Anthropic),
             url: Url::parse("https://api.anthropic.com/v1/messages").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: make_credential(ProviderId::ANTHROPIC, key),
-            models: Models::Url(Url::parse("https://api.anthropic.com/v1/models").unwrap()),
+            models: Some(ModelSource::Url(
+                Url::parse("https://api.anthropic.com/v1/models").unwrap(),
+            )),
         }
     }
 

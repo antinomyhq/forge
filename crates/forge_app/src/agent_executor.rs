@@ -80,7 +80,6 @@ impl<S: Services> AgentExecutor<S> {
                 ChatResponse::TaskComplete => {}
                 ChatResponse::ToolCallStart(_) => ctx.send(message).await?,
                 ChatResponse::ToolCallEnd(_) => ctx.send(message).await?,
-                ChatResponse::Usage(_) => ctx.send(message).await?,
                 ChatResponse::RetryAttempt { .. } => ctx.send(message).await?,
                 ChatResponse::Interrupt { .. } => ctx.send(message).await?,
             }
@@ -88,7 +87,8 @@ impl<S: Services> AgentExecutor<S> {
 
         if let Some(output) = output {
             // Create tool output
-            Ok(ToolOutput::text(
+            Ok(ToolOutput::ai(
+                conversation.id,
                 Element::new("task_completed")
                     .attr("task", &task)
                     .append(Element::new("output").text(output)),

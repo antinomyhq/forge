@@ -107,6 +107,43 @@ expression: tools
   }
 }
 {
+  "title": "SemanticSearch",
+  "description": "AI-powered semantic code search. YOUR DEFAULT TOOL for code discovery tasks. Use this when you need to find code locations, understand implementations, or explore functionality - it works with natural language about behavior and concepts, not just keyword matching.\n\nStart with sem_search when: locating code to modify, understanding how features work, finding patterns/examples, or exploring unfamiliar areas. Understands queries like \"authentication flow\" (finds login), \"retry logic\" (finds backoff), \"validation\" (finds checking/sanitization).\n\nReturns file:line locations with code context, ranked by relevance. Use multiple varied queries (2-3) for best coverage. For exact string matching (TODO comments, specific function names), use regex search instead.",
+  "type": "object",
+  "required": [
+    "queries"
+  ],
+  "properties": {
+    "file_extension": {
+      "description": "Optional file extension filter (e.g., \".rs\", \".ts\", \".py\"). If provided, only files with this extension will be included in the search results.",
+      "type": "string",
+      "nullable": true
+    },
+    "queries": {
+      "description": "List of search queries to execute in parallel. Using multiple queries (2-3) with varied phrasings significantly improves results - each query captures different aspects of what you're looking for. Each query pairs a search term with a use_case for reranking. Example: for authentication, try \"user login verification\", \"token generation\", \"OAuth flow\".",
+      "type": "array",
+      "items": {
+        "description": "A paired query and use_case for semantic search. Each query must have a corresponding use_case for document reranking.",
+        "type": "object",
+        "required": [
+          "query",
+          "use_case"
+        ],
+        "properties": {
+          "query": {
+            "description": "Describe WHAT the code does or its purpose. Include domain-specific terms and technical context. Good: \"retry mechanism with exponential backoff\", \"streaming responses from LLM API\", \"OAuth token refresh flow\". Bad: generic terms like \"retry\" or \"auth\" without context. Think about the behavior and functionality you're looking for.",
+            "type": "string"
+          },
+          "use_case": {
+            "description": "A short natural-language description of what you are trying to find. This is the query used for document reranking. The query MUST: - express a single, focused information need - describe exactly what the agent is searching for - should not be the query verbatim - be concise (1–2 sentences)\n\nExamples: - \"Why is `select_model()` returning a Pin<Box<Result>> in Rust?\" - \"How to fix error E0277 for the ? operator on a pinned boxed result?\" - \"Steps to run Diesel migrations in Rust without exposing the DB.\" - \"How to design a clean architecture service layer with typed errors?\"",
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
+{
   "title": "FSRemove",
   "description": "Request to remove a file at the specified path. Use this when you need to delete an existing file. The path must be absolute. This operation cannot be undone, so use it carefully.",
   "type": "object",

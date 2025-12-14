@@ -97,7 +97,7 @@ mod tests {
     use std::sync::Mutex;
 
     use forge_domain::{
-        AnyProvider, AppConfig, MigrationResult, Model, Models, Provider, ProviderId,
+        AnyProvider, AppConfig, MigrationResult, Model, ModelSource, Provider, ProviderId,
         ProviderResponse,
     };
     use pretty_assertions::assert_eq;
@@ -118,7 +118,8 @@ mod tests {
                 providers: vec![
                     Provider {
                         id: ProviderId::OPENAI,
-                        response: ProviderResponse::OpenAI,
+                        provider_type: Default::default(),
+                        response: Some(ProviderResponse::OpenAI),
                         url: Url::parse("https://api.openai.com").unwrap(),
                         credential: Some(forge_domain::AuthCredential {
                             id: ProviderId::OPENAI,
@@ -129,7 +130,7 @@ mod tests {
                         }),
                         auth_methods: vec![forge_domain::AuthMethod::ApiKey],
                         url_params: vec![],
-                        models: Models::Hardcoded(vec![Model {
+                        models: Some(ModelSource::Hardcoded(vec![Model {
                             id: "gpt-4".to_string().into(),
                             name: Some("GPT-4".to_string()),
                             description: None,
@@ -137,11 +138,12 @@ mod tests {
                             tools_supported: Some(true),
                             supports_parallel_tool_calls: Some(true),
                             supports_reasoning: Some(false),
-                        }]),
+                        }])),
                     },
                     Provider {
                         id: ProviderId::ANTHROPIC,
-                        response: ProviderResponse::Anthropic,
+                        provider_type: Default::default(),
+                        response: Some(ProviderResponse::Anthropic),
                         url: Url::parse("https://api.anthropic.com").unwrap(),
                         auth_methods: vec![forge_domain::AuthMethod::ApiKey],
                         url_params: vec![],
@@ -152,7 +154,7 @@ mod tests {
                             ),
                             url_params: HashMap::new(),
                         }),
-                        models: Models::Hardcoded(vec![Model {
+                        models: Some(ModelSource::Hardcoded(vec![Model {
                             id: "claude-3".to_string().into(),
                             name: Some("Claude 3".to_string()),
                             description: None,
@@ -160,7 +162,7 @@ mod tests {
                             tools_supported: Some(true),
                             supports_parallel_tool_calls: Some(true),
                             supports_reasoning: Some(true),
-                        }]),
+                        }])),
                     },
                 ],
             }

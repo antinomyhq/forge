@@ -6,8 +6,8 @@ use std::sync::Arc;
 use bytes::Bytes;
 use forge_app::{
     CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra,
-    FileReaderInfra, FileRemoverInfra, FileWriterInfra, HttpInfra, McpServerInfra, StrategyFactory,
-    UserInfra, WalkerInfra,
+    FileReaderInfra, FileRemoverInfra, FileWriterInfra, GrpcInfra, HttpInfra, McpServerInfra,
+    StrategyFactory, UserInfra, WalkerInfra,
 };
 use forge_domain::{
     AuthMethod, CommandOutput, Environment, FileInfo as FileInfoData, McpServerConfig, ProviderId,
@@ -26,6 +26,7 @@ use crate::fs_read::ForgeFileReadService;
 use crate::fs_read_dir::ForgeDirectoryReaderService;
 use crate::fs_remove::ForgeFileRemoveService;
 use crate::fs_write::ForgeFileWriteService;
+use crate::grpc::ForgeGrpcClient;
 use crate::http::ForgeHttpInfra;
 use crate::inquire::ForgeInquire;
 use crate::mcp_client::ForgeMcpClient;
@@ -49,6 +50,7 @@ pub struct ForgeInfra {
     walker_service: Arc<ForgeWalkerService>,
     http_service: Arc<ForgeHttpInfra<ForgeFileWriteService>>,
     strategy_factory: Arc<ForgeAuthStrategyFactory>,
+    grpc_client: Arc<ForgeGrpcClient>,
 }
 
 impl ForgeInfra {
@@ -61,6 +63,7 @@ impl ForgeInfra {
         let file_read_service = Arc::new(ForgeFileReadService::new());
         let file_meta_service = Arc::new(ForgeFileMetaService);
         let directory_reader_service = Arc::new(ForgeDirectoryReaderService);
+        let grpc_client = Arc::new(ForgeGrpcClient::new(env.workspace_server_url.clone()));
 
         Self {
             file_read_service,
@@ -79,6 +82,7 @@ impl ForgeInfra {
             walker_service: Arc::new(ForgeWalkerService::new()),
             strategy_factory: Arc::new(ForgeAuthStrategyFactory::new()),
             http_service,
+            grpc_client,
         }
     }
 }
@@ -235,24 +239,24 @@ impl WalkerInfra for ForgeInfra {
 
 #[async_trait::async_trait]
 impl HttpInfra for ForgeInfra {
-    async fn get(&self, url: &Url, headers: Option<HeaderMap>) -> anyhow::Result<Response> {
-        self.http_service.get(url, headers).await
+    async fn http_get(&self, url: &Url, headers: Option<HeaderMap>) -> anyhow::Result<Response> {
+        self.http_service.http_get(url, headers).await
     }
 
-    async fn post(&self, url: &Url, body: Bytes) -> anyhow::Result<Response> {
-        self.http_service.post(url, body).await
+    async fn http_post(&self, url: &Url, body: Bytes) -> anyhow::Result<Response> {
+        self.http_service.http_post(url, body).await
     }
 
-    async fn delete(&self, url: &Url) -> anyhow::Result<Response> {
-        self.http_service.delete(url).await
+    async fn http_delete(&self, url: &Url) -> anyhow::Result<Response> {
+        self.http_service.http_delete(url).await
     }
-    async fn eventsource(
+    async fn http_eventsource(
         &self,
         url: &Url,
         headers: Option<HeaderMap>,
         body: Bytes,
     ) -> anyhow::Result<EventSource> {
-        self.http_service.eventsource(url, headers, body).await
+        self.http_service.http_eventsource(url, headers, body).await
     }
 }
 #[async_trait::async_trait]
@@ -287,5 +291,15 @@ impl StrategyFactory for ForgeInfra {
     ) -> anyhow::Result<Self::Strategy> {
         self.strategy_factory
             .create_auth_strategy(provider_id, method, required_params)
+    }
+}
+
+impl GrpcInfra for ForgeInfra {
+    fn channel(&self) -> tonic::transport::Channel {
+        self.grpc_client.channel()
+    }
+
+    fn hydrate(&self) {
+        self.grpc_client.hydrate();
     }
 }

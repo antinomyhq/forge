@@ -57,8 +57,9 @@ mod tests {
             messages: vec![
                 ContextMessage::Text(
                     TextMessage::new(Role::Assistant, "Using tool").tool_calls(vec![tool_call]),
-                ),
-                ContextMessage::Tool(tool_result),
+                )
+                .into(),
+                ContextMessage::Tool(tool_result).into(),
             ],
             tools: vec![forge_domain::ToolDefinition::new("test_tool").description("A test tool")],
             tool_choice: None,
@@ -67,7 +68,7 @@ mod tests {
             top_p: None,
             top_k: None,
             reasoning: None,
-            usage: None,
+            stream: None,
         };
 
         let request = Request::from(context);

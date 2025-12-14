@@ -6,6 +6,8 @@ use colored::Colorize;
 use forge_api::Conversation;
 use forge_select::ForgeSelect;
 
+use crate::display_constants::markers;
+
 /// Logic for selecting conversations from a list
 pub struct ConversationSelector;
 
@@ -49,7 +51,7 @@ impl ConversationSelector {
                         title.to_owned()
                     }
                 })
-                .unwrap_or_else(|| format!("<unknown> [{}]", c.id).to_string())
+                .unwrap_or_else(|| format!("{} [{}]", markers::EMPTY, c.id).to_string())
         });
 
         let max_title_length: usize = titles.clone().map(|s| s.len()).max().unwrap_or(0);

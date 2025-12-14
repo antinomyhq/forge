@@ -190,12 +190,12 @@ pub trait WalkerInfra: Send + Sync {
 /// HTTP service trait for making HTTP requests
 #[async_trait::async_trait]
 pub trait HttpInfra: Send + Sync + 'static {
-    async fn get(&self, url: &Url, headers: Option<HeaderMap>) -> anyhow::Result<Response>;
-    async fn post(&self, url: &Url, body: bytes::Bytes) -> anyhow::Result<Response>;
-    async fn delete(&self, url: &Url) -> anyhow::Result<Response>;
+    async fn http_get(&self, url: &Url, headers: Option<HeaderMap>) -> anyhow::Result<Response>;
+    async fn http_post(&self, url: &Url, body: bytes::Bytes) -> anyhow::Result<Response>;
+    async fn http_delete(&self, url: &Url) -> anyhow::Result<Response>;
 
     /// Posts JSON data and returns a server-sent events stream
-    async fn eventsource(
+    async fn http_eventsource(
         &self,
         url: &Url,
         headers: Option<HeaderMap>,
@@ -347,4 +347,18 @@ pub trait AgentRepository: Send + Sync {
     /// Load all agent definitions from all available sources with conflict
     /// resolution.
     async fn get_agents(&self) -> anyhow::Result<Vec<forge_domain::AgentDefinition>>;
+}
+
+/// Infrastructure trait for providing shared gRPC channel
+///
+/// This trait provides access to a shared gRPC channel for communicating with
+/// the workspace server. The channel is lazily connected and can be cloned
+/// cheaply across multiple clients.
+pub trait GrpcInfra: Send + Sync {
+    /// Returns a cloned gRPC channel for the workspace server
+    fn channel(&self) -> tonic::transport::Channel;
+
+    /// Hydrates the gRPC channel by establishing and then dropping the
+    /// connection
+    fn hydrate(&self);
 }

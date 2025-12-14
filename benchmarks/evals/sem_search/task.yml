@@ -1,0 +1,134 @@
+run:
+  # Clone into `tmp/task` dir
+  - git clone --depth=1 --branch main https://github.com/antinomyhq/forge .
+  - forgee workspace sync
+  - FORGE_OVERRIDE_PROVIDER=open_router FORGE_OVERRIDE_MODEL={{model}} FORGE_DEBUG_REQUESTS='{{dir}}/context.json' forgee -p '{{task}}'
+parallelism: 50
+timeout: 120
+early_exit: true
+validations:
+  - name: "Uses codebase search tool"
+    type: shell
+    command: cat '{{dir}}/context.json' | jq -e '[.messages[]?.tool_calls[]? | select(.function.name == "sem_search")] | any'
+sources:
+  - value:
+      # - model: "x-ai/grok-code-fast-1"
+      - model: "anthropic/claude-sonnet-4.5"
+  - value:
+      # # Location questions - "where is"
+      # - task: "Where is the code that transforms messages between different AI provider formats?"
+      # - task: "Where is the error handling code for network failures?"
+      # - task: "Where is file upload validation and size checking implemented?"
+      # - task: "Where are environment variables parsed and configuration loaded?"
+      # - task: "Where is the logic for selecting which AI model to use for a task?"
+
+      # # Discovery questions - "find"
+      # - task: "Find the code that caches API responses to reduce costs"
+      # - task: "Find where tool definitions are registered and made available to the AI"
+      # - task: "Find the code that manages API keys, tokens, and credentials securely"
+      # - task: "Find where Git operations like commit, diff, and status are implemented"
+
+      # # Understanding questions - "how does"
+      # - task: "How does the system handle differences between OpenAI and Anthropic APIs?"
+      # - task: "How does the tool execution pipeline process and validate tool calls?"
+      # - task: "How are streaming responses from LLMs processed?"
+
+      # # Need-based questions - "I need to"
+      # - task: "I need to find retry logic with exponential backoff for API calls"
+      # - task: "I need to understand how streaming responses from LLM APIs work"
+      # - task: "I need to see how conversation history is truncated when context is too large"
+      # - task: "I need to find examples of rate limiting implementations"
+
+      # # Show me questions
+      # - task: "Show me where authentication tokens are validated and refreshed"
+      # - task: "Show me the code that handles rate limiting for API requests"
+      # - task: "Show me the code that compacts conversation context when tokens exceed limits"
+      # - task: "Show me how the system handles request timeouts and cancellation"
+      # - task: "Show me the permission checking and security policy enforcement code"
+
+      # # Strategy/pattern questions
+      # - task: "I want to understand the caching strategy for semantic search embeddings"
+      # - task: "What's the strategy for managing concurrent API requests?"
+      # - task: "What's the approach for handling API errors and retries?"
+
+      # # Troubleshooting questions
+      # - task: "What could cause API requests to fail?"
+      # - task: "How are timeout errors handled in the system?"
+
+      # # Architecture questions
+      # - task: "How do the different AI provider adapters integrate with the main system?"
+      # - task: "What's the flow of a user request from input to response?"
+      # - task: "How are tools registered and executed?"
+
+      # # Capability questions
+      # - task: "How does the system track token usage?"
+      # - task: "What mechanism prevents infinite loops in tool execution?"
+
+      # Human review tasks - integrated from human-review-sem-search-tasks.json
+      - task: "Now that we support piping, how can I use an external editor to type a large command and pipe it to the forge cli?"
+      - task: "Is there a type-safe version of commander that can make sure the command is parsed into a type-safe object"
+      - task: "Search for ZAI-related model fetching code in the codebase"
+      - task: "Look for API endpoints and authentication patterns used for ZAI"
+      - task: "Starting a new session always loads the older node version"
+      - task: "Examine any existing curl examples or HTTP client implementations"
+      - task: "Before  sorting the tools we will dedupe all the tools"
+      - task: "Identify the current embedding implementation and how it interfaces with OpenRouter"
+      - task: "Is there a place in the code base where we are subscribing to events?"
+      - task: "There is a bug, where when I paste text the syntax highlighting is lost for a moment until some key is pressed again."
+      - task: "Search for any existing validation patterns in the forge_domain crate, particularly looking for validation methods, validate functions, or error types used for domain validation"
+      - task: "Show me the temperature type"
+      - task: "Search for cancellation mechanisms including cancellation tokens, abort signals, task cancellation, and how the system handles user interrupts or cancellation of in-flight requests across all crates"
+      - task: "In the workspace info, we should return the creation time of the workspace too."
+      - task: "token cost is being sent but we are not able to show it on the ui. Our cost conversation in some place is getting missed."
+      - task: "Look at workflow-related files to understand how model should be obtained from API"
+      - task: "Lets use the newtype crate for all the type in domain that are newtypes so that we don't need to implement all this boilerplate"
+      - task: "Look for any existing patterns in the codebase for ensuring migrations run exactly once across all tests, such as global mutexes or initialization guards"
+      - task: "The clear conversation doesn't happen on CMD+K."
+      - task: "Use plimit and prompt.all to run it concurrently"
+      - task: "Like infra I need another crate called - test_infra that looks similar and has a ForgeInfra struct that has test implementations of stuff."
+      - task: "Infra query nodes should take Query<Embedding> instead of each param as a separate arg."
+      - task: "Add health check endpoints for monitoring"
+      - task: "Examine conversation ID generation and management in domain layer"      
+      - task: "Lets recursively derive Dummy from fake, on Node and its children."
+      - task: "Add a new infra component called Reranker. It takes a list of nodes and reranks them."
+      - task: "Update the implementations of Cache based on the new trait implementation."
+      - task: "In skill lets add description also"
+      - task: "Investigate signal handling and graceful shutdown mechanisms in /Volumes/Bran/code-forge-workspace/code-forge, particularly looking for SIGINT, SIGTERM handling and how they affect ongoing operations"
+      - task: "Lets add a new range.rs under arbitrary/ and implement Arbitrary for all the std Range types eg: Range, RangeFrom etc."
+      - task: "Make `-v` optional. It should not be required."
+      - task: "in ProviderRegistry I need a few more methods - get_active_provider, set_active_provider and get_all_providers"
+      - task: "Lets use derive_setters on Config. Drop the handwritten setters"
+      - task: "Lets drop path and env from the `info` command. Its a bit too noisy."
+      - task: "The Secret type should print the last 4 chars of the secret in debug."
+      - task: "What's the purpose of ModelId?"
+      - task: "Where is the Agent struct defined?"
+      - task: "**Questions**\n\n1. Switching agent happens via CLI `forge config --set-agent muse`  or `forge config -i` opens up an interactive configuration manager (RATATUI)\n2. How do I know the active agent and model? `forge config --get-agent` show in via a ZSH theme\n3. Additional CLI commands to be added\n    1.  `forge conversation --set-active <cid>`\n    2. `forge info` Show current info including agent, model etc."
+      - task: "Find all places where event names are constructed or used, particularly in relation to agent IDs. Look for patterns like 'forge', 'muse', 'sage' in event names and how they map to agents."
+      - task: "Change the structure to be a simple - Vec of Vec of Option of String."
+      - task: "Where are the fixtures located?"
+      - task: "Move McpToolCache to forge_app dto"
+      - task: "based on your understanding of the project, where are the tables created in supbase?"
+      - task: "Examine how the truncation functions are called and where the results are used. Identify the call sites and understand the data flow from truncation to final output."
+      - task: "Like ShowCommands, I need ShowModels and ShowConversations"                              
+      - task: "Lets implement a function on SummaryMessage that can merge consecutive calls together. If the nth can be merged with nth-1, then we should remove the nth-1 and insert the new value."
+      - task: "Lets have upload take a glob pattern for upload"      
+      - task: "Check this for security issues: eval(user_input)"
+      - task: "Update the vector dimension to be 4096"
+      - task: "Fix this - 'docker run antinomyhq/forge-ce'"      
+      - task: "Document the adapter registration and discovery mechanism"
+      - task: "There are multiple places where we throw - \"Conversation not found\" how do u suggest we consolidate and reuse."      
+      - task: "Is there a crate for humanizing date time format that we are using?"            
+      - task: "Lets move the domain compaction transformers into app/compact/transformers. Make sure you move them in bulk."
+      - task: "Identify the main entry point (main.rs or equivalent) and understand how the application initializes and starts the server."
+      - task: "Lets use chrono-humanize instead of humantime in forge_main everywhere."      
+      - task: "Look at all the docs in .rs files and remove the args and return info from the docs."
+      - task: "Investigate why each approach (1-4) has failed - what are the technical limitations we're hitting with ZLE widgets, terminal control sequences, and shell execution contexts"
+      - task: "as per rust best practices, what would you recommend should we call arbit? and how should the file be structured. Show me the best examples - purest form"            
+      - task: "Explain the flow of authentication in the project. I need to understand it deeply, going from high level to micro details."
+      - task: "Research xml.rs in forge_domain and create a plan to add helper functions for common XML operations"
+      - task: "Add JWT-based authentication system"
+      - task: "How does FinishReason work?"
+      - task: "Check what changes were made to api_key.rs conversions and identify why the key field might be getting the wrong value"
+      - task: "Trace the flow from skill listing to system prompt generation to identify where the integration is missing or broken"
+      - task: "What could cause memory leaks in long-running sessions?"      
+      - task: "I am not able to make send of these name - DefinitionBatchGenerator DefinitionBatch. I need something much better,"                  

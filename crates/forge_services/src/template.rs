@@ -165,8 +165,8 @@ mod tests {
             },
             "current_time": "2024-01-01 12:00:00 UTC",
             "files": [
-                "/file1.txt",
-                "/file2.txt"
+                {"path": "file1.txt", "is_dir": false},
+                {"path": "file2.txt", "is_dir": false}
             ]
         });
 
@@ -177,7 +177,10 @@ mod tests {
             .unwrap();
 
         // Expected: Result should contain the rendered system info with substituted
+        // values
         assert!(actual.contains("<operating_system>test-os</operating_system>"));
+        assert!(actual.contains("file1.txt"));
+        assert!(actual.contains("file2.txt"));
     }
 
     #[test]

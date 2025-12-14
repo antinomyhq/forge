@@ -1,5 +1,5 @@
 [print_schema]
-file = "crates/forge_infra/src/database/schema.rs"
+file = "crates/forge_repo/src/database/schema.rs"
 
 [migrations_directory]
-dir = "crates/forge_infra/src/database/migrations"
+dir = "crates/forge_repo/src/database/migrations"

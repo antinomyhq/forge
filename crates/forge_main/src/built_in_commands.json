@@ -68,6 +68,10 @@
     "description": "Select and switch between agents [alias: a]"
   },
   {
+    "command": "sync",
+    "description": "Sync the current workspace for codebase search"
+  },
+  {
     "command": "clone",
     "description": "Clone and manage conversation context"
   }

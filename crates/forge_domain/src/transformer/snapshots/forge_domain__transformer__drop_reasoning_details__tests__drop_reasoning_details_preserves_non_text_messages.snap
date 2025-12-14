@@ -11,6 +11,11 @@ before:
         reasoning_details:
           - text: User reasoning
             signature: ~
+            data: ~
+            id: ~
+            format: ~
+            index: ~
+            type_of: ~
     - image:
         url: "data:image/png;base64,image_data"
         mime_type: image/png

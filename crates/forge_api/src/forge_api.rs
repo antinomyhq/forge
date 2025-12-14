@@ -6,15 +6,17 @@ use anyhow::Result;
 use forge_app::dto::ToolsOverview;
 use forge_app::{
     AgentProviderResolver, AgentRegistry, AppConfigService, AuthService, CommandInfra,
-    CommandLoaderService, ConversationService, EnvironmentInfra, EnvironmentService,
-    FileDiscoveryService, ForgeApp, GitApp, McpConfigManager, McpService, ProviderAuthService,
-    ProviderService, Services, User, UserUsage, Walker, WorkflowService,
+    CommandLoaderService, ContextEngineService, ConversationService, DataGenerationApp,
+    EnvironmentInfra, EnvironmentService, FileDiscoveryService, ForgeApp, GitApp, GrpcInfra,
+    McpConfigManager, McpService, ProviderAuthService, ProviderService, Services, User, UserUsage,
+    Walker,
 };
 use forge_domain::{Agent, InitAuth, LoginInfo, *};
 use forge_infra::ForgeInfra;
 use forge_repo::ForgeRepo;
 use forge_services::ForgeServices;
 use forge_stream::MpscStream;
+use futures::stream::BoxStream;
 use url::Url;
 
 use crate::API;
@@ -53,8 +55,10 @@ impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
 }
 
 #[async_trait::async_trait]
-impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + AppConfigRepository> API
-    for ForgeAPI<A, F>
+impl<
+    A: Services,
+    F: CommandInfra + EnvironmentInfra + SkillRepository + AppConfigRepository + GrpcInfra,
+> API for ForgeAPI<A, F>
 {
     async fn discover(&self) -> Result<Vec<File>> {
         let environment = self.services.get_environment();
@@ -148,17 +152,6 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + AppConf
         self.app().read_workflow_merged(path).await
     }
 
-    async fn write_workflow(&self, path: Option<&Path>, workflow: &Workflow) -> anyhow::Result<()> {
-        self.app().write_workflow(path, workflow).await
-    }
-
-    async fn update_workflow<T>(&self, path: Option<&Path>, f: T) -> anyhow::Result<Workflow>
-    where
-        T: FnOnce(&mut Workflow) + Send,
-    {
-        self.services.update_workflow(path, f).await
-    }
-
     async fn conversation(
         &self,
         conversation_id: &ConversationId,
@@ -176,6 +169,10 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + AppConf
 
     async fn last_conversation(&self) -> anyhow::Result<Option<Conversation>> {
         self.services.last_conversation().await
+    }
+
+    async fn delete_conversation(&self, conversation_id: &ConversationId) -> anyhow::Result<()> {
+        self.services.delete_conversation(conversation_id).await
     }
 
     async fn execute_shell_command(
@@ -327,14 +324,66 @@ impl<A: Services, F: CommandInfra + EnvironmentInfra + SkillRepository + AppConf
     }
 
     async fn remove_provider(&self, provider_id: &ProviderId) -> Result<()> {
-        Ok(self.services.remove_credential(provider_id).await?)
+        self.services.remove_credential(provider_id).await
+    }
+
+    async fn sync_codebase(
+        &self,
+        path: PathBuf,
+        batch_size: usize,
+    ) -> Result<MpscStream<Result<forge_domain::SyncProgress>>> {
+        self.services.sync_codebase(path, batch_size).await
+    }
+
+    async fn query_codebase(
+        &self,
+        path: PathBuf,
+        params: forge_domain::SearchParams<'_>,
+    ) -> Result<Vec<forge_domain::Node>> {
+        self.services.query_codebase(path, params).await
+    }
+
+    async fn list_codebases(&self) -> Result<Vec<forge_domain::WorkspaceInfo>> {
+        self.services.list_codebase().await
+    }
+
+    async fn get_workspace_info(
+        &self,
+        path: PathBuf,
+    ) -> Result<Option<forge_domain::WorkspaceInfo>> {
+        self.services.get_workspace_info(path).await
+    }
+
+    async fn delete_codebase(&self, workspace_id: forge_domain::WorkspaceId) -> Result<()> {
+        self.services.delete_codebase(&workspace_id).await
+    }
+
+    async fn is_authenticated(&self) -> Result<bool> {
+        self.services.is_authenticated().await
+    }
+
+    async fn create_auth_credentials(&self) -> Result<forge_domain::WorkspaceAuth> {
+        self.services.create_auth_credentials().await
     }
 
     async fn migrate_env_credentials(&self) -> Result<Option<forge_domain::MigrationResult>> {
         Ok(self.services.migrate_env_credentials().await?)
     }
 
+    async fn generate_data(
+        &self,
+        data_parameters: DataGenerationParameters,
+    ) -> Result<BoxStream<'static, Result<serde_json::Value, anyhow::Error>>> {
+        let app = DataGenerationApp::new(self.services.clone());
+        app.execute(data_parameters).await
+    }
+
     async fn get_default_provider(&self) -> Result<Provider<Url>> {
         self.services.get_default_provider().await
+    }
+
+    fn hydrate_channel(&self) -> Result<()> {
+        self.infra.hydrate();
+        Ok(())
     }
 }

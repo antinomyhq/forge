@@ -85,36 +85,10 @@ tokio = { version = "1.47.1", features = [
 ] }
 tokio-stream = "0.1.17"
 tokio-util = "0.7"
+tonic = { version = "0.14.2", features = ["tls-webpki-roots"] }
 tracing = "0.1.41"
 tracing-appender = "0.2.3"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter", "json"] }
-tree-sitter = "0.25.1"
-tree-sitter-rust = "0.24"
-tree-sitter-python = "0.23"
-tree-sitter-typescript = { version = "0.23" }
-tree-sitter-css = "0.23"
-tree-sitter-java = "0.23"
-tree-sitter-scala = "0.24"
-tree-sitter-go = "0.23"
-tree-sitter-cpp = "0.23"
-tree-sitter-ruby = "0.23"
-# Phase 1 - New Tree-sitter language support
-tree-sitter-c-sharp = "0.23.1"
-tree-sitter-c = "0.24.1"
-tree-sitter-php = "0.24.2"
-tree-sitter-swift = "0.7.1"
-tree-sitter-kotlin-ng = "1.1.0"
-tree-sitter-dart = "0.0.4"
-tree-sitter-yaml = "0.7.2"
-# tree-sitter-toml = "0.20.0" # Replaced with devgen-tree-sitter-toml
-devgen-tree-sitter-toml = "0.21.0"
-tree-sitter-bash = "0.25.0"
-tree-sitter-html = "0.23.2"
-tree-sitter-json = "0.24.8"
-tree-sitter-sequel = "0.3.11"
-# tree-sitter-markdown = "0.7.1" # Replaced with tree-sitter-md
-tree-sitter-toml-ng = "0.7.0"
-tree-sitter-powershell = "0.25.9"
 url = { version = "2.5.4", features = ["serde"] }
 backon = "1.5.2"
 eserde = "0.1.7"

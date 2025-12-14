@@ -6,7 +6,7 @@ use forge_app::domain::{ProviderId, ProviderResponse};
 use forge_app::{EnvironmentInfra, FileReaderInfra, FileWriterInfra};
 use forge_domain::{
     AnyProvider, ApiKey, AuthCredential, AuthDetails, Error, MigrationResult, Provider,
-    ProviderRepository, URLParam, URLParamValue,
+    ProviderRepository, ProviderType, URLParam, URLParamValue,
 };
 use handlebars::Handlebars;
 use merge::Merge;
@@ -27,16 +27,23 @@ enum Models {
 struct ProviderConfig {
     #[merge(strategy = overwrite)]
     id: ProviderId,
+    #[serde(default)]
     #[merge(strategy = overwrite)]
-    api_key_vars: String,
+    provider_type: ProviderType,
+    #[serde(default)]
+    #[merge(strategy = overwrite)]
+    api_key_vars: Option<String>,
+    #[serde(default)]
     #[merge(strategy = merge::vec::append)]
     url_param_vars: Vec<String>,
+    #[serde(default)]
     #[merge(strategy = overwrite)]
-    response_type: ProviderResponse,
+    response_type: Option<ProviderResponse>,
     #[merge(strategy = overwrite)]
     url: String,
+    #[serde(default)]
     #[merge(strategy = overwrite)]
-    models: Models,
+    models: Option<Models>,
     #[merge(strategy = merge::vec::append)]
     auth_methods: Vec<forge_domain::AuthMethod>,
 }
@@ -71,14 +78,18 @@ impl From<&ProviderConfig>
     >
 {
     fn from(config: &ProviderConfig) -> Self {
-        let models = match &config.models {
+        let models = config.models.as_ref().map(|m| match m {
             Models::Url(model_url_template) => {
-                forge_domain::Models::Url(forge_domain::Template::new(model_url_template))
+                forge_domain::ModelSource::Url(forge_domain::Template::new(model_url_template))
             }
-            Models::Hardcoded(model_list) => forge_domain::Models::Hardcoded(model_list.clone()),
-        };
+            Models::Hardcoded(model_list) => {
+                forge_domain::ModelSource::Hardcoded(model_list.clone())
+            }
+        });
+
         Provider {
             id: config.id.clone(),
+            provider_type: config.provider_type,
             response: config.response_type.clone(),
             url: forge_domain::Template::new(&config.url),
             auth_methods: config.auth_methods.clone(),
@@ -184,8 +195,10 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
         let has_anthropic_url = self.infra.get_env_var("ANTHROPIC_URL").is_some();
 
         for config in configs {
-            // Skip Forge provider
-            if config.id == ProviderId::FORGE {
+            // Skip Forge provider and ContextEngine providers - they're not configurable
+            // via env like other providers
+            if config.id == ProviderId::FORGE || config.provider_type == ProviderType::ContextEngine
+            {
                 continue;
             }
 
@@ -223,11 +236,15 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
         &self,
         config: &ProviderConfig,
     ) -> anyhow::Result<AuthCredential> {
-        // Check API key environment variable
-        let api_key = self
-            .infra
-            .get_env_var(&config.api_key_vars)
-            .ok_or_else(|| Error::env_var_not_found(config.id.clone(), &config.api_key_vars))?;
+        // Check API key environment variable (if specified)
+        let api_key = if let Some(api_key_var) = &config.api_key_vars {
+            self.infra
+                .get_env_var(api_key_var)
+                .ok_or_else(|| Error::env_var_not_found(config.id.clone(), api_key_var))?
+        } else {
+            // For context engine, we don't use env vars for API key
+            String::new()
+        };
 
         // Check URL parameter environment variables
         let mut url_params = std::collections::HashMap::new();
@@ -271,11 +288,10 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
             .map_err(|e| {
                 anyhow::anyhow!("Failed to render URL template for {}: {}", config.id, e)
             })?;
-
         let final_url = Url::parse(&url)?;
 
         // Handle models based on the variant
-        let models = match &config.models {
+        let models = config.models.as_ref().map(|m| match m {
             Models::Url(model_url_template) => {
                 let model_url = Url::parse(
                     &self
@@ -287,15 +303,20 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
                                 config.id,
                                 e
                             )
-                        })?,
-                )?;
-                forge_domain::Models::Url(model_url)
+                        })
+                        .unwrap(),
+                )
+                .unwrap();
+                forge_domain::ModelSource::Url(model_url)
             }
-            Models::Hardcoded(model_list) => forge_domain::Models::Hardcoded(model_list.clone()),
-        };
+            Models::Hardcoded(model_list) => {
+                forge_domain::ModelSource::Hardcoded(model_list.clone())
+            }
+        });
 
         Ok(Provider {
             id: config.id.clone(),
+            provider_type: config.provider_type,
             response: config.response_type.clone(),
             url: final_url,
             auth_methods: config.auth_methods.clone(),
@@ -438,11 +459,17 @@ mod tests {
             .iter()
             .find(|c| c.id == ProviderId::OPEN_ROUTER)
             .unwrap();
-        assert_eq!(openrouter_config.api_key_vars, "OPENROUTER_API_KEY");
-        assert_eq!(openrouter_config.url_param_vars, Vec::<String>::new());
-        assert_eq!(openrouter_config.response_type, ProviderResponse::OpenAI);
         assert_eq!(
-            openrouter_config.url,
+            openrouter_config.api_key_vars,
+            Some("OPENROUTER_API_KEY".to_string())
+        );
+        assert_eq!(openrouter_config.url_param_vars, Vec::<String>::new());
+        assert_eq!(
+            openrouter_config.response_type,
+            Some(ProviderResponse::OpenAI)
+        );
+        assert_eq!(
+            openrouter_config.url.as_str(),
             "https://openrouter.ai/api/v1/chat/completions"
         );
     }
@@ -455,14 +482,17 @@ mod tests {
             .find(|c| c.id == ProviderId::VERTEX_AI)
             .unwrap();
         assert_eq!(config.id, ProviderId::VERTEX_AI);
-        assert_eq!(config.api_key_vars, "VERTEX_AI_AUTH_TOKEN");
+        assert_eq!(
+            config.api_key_vars,
+            Some("VERTEX_AI_AUTH_TOKEN".to_string())
+        );
         assert_eq!(
             config.url_param_vars,
             vec!["PROJECT_ID".to_string(), "LOCATION".to_string()]
         );
-        assert_eq!(config.response_type, ProviderResponse::OpenAI);
-        assert!(config.url.contains("{{"));
-        assert!(config.url.contains("}}"));
+        assert_eq!(config.response_type, Some(ProviderResponse::OpenAI));
+        assert!(&config.url.contains("{{"));
+        assert!(&config.url.contains("}}"));
     }
 
     #[test]
@@ -470,7 +500,7 @@ mod tests {
         let configs = get_provider_configs();
         let config = configs.iter().find(|c| c.id == ProviderId::AZURE).unwrap();
         assert_eq!(config.id, ProviderId::AZURE);
-        assert_eq!(config.api_key_vars, "AZURE_API_KEY");
+        assert_eq!(config.api_key_vars, Some("AZURE_API_KEY".to_string()));
         assert_eq!(
             config.url_param_vars,
             vec![
@@ -479,18 +509,19 @@ mod tests {
                 "AZURE_API_VERSION".to_string()
             ]
         );
-        assert_eq!(config.response_type, ProviderResponse::OpenAI);
+        assert_eq!(config.response_type, Some(ProviderResponse::OpenAI));
 
         // Check URL (now contains full chat completion URL)
-        assert!(config.url.contains("{{"));
-        assert!(config.url.contains("}}"));
-        assert!(config.url.contains("openai.azure.com"));
-        assert!(config.url.contains("api-version"));
-        assert!(config.url.contains("deployments"));
-        assert!(config.url.contains("chat/completions"));
+        let url = &config.url;
+        assert!(url.contains("{{"));
+        assert!(url.contains("}}"));
+        assert!(url.contains("openai.azure.com"));
+        assert!(url.contains("api-version"));
+        assert!(url.contains("deployments"));
+        assert!(url.contains("chat/completions"));
 
         // Check models exists and contains expected elements
-        match &config.models {
+        match config.models.as_ref().unwrap() {
             Models::Url(model_url) => {
                 assert!(model_url.contains("api-version"));
                 assert!(model_url.contains("/models"));
@@ -507,10 +538,10 @@ mod tests {
             .find(|c| c.id == ProviderId::OPENAI_COMPATIBLE)
             .unwrap();
         assert_eq!(config.id, ProviderId::OPENAI_COMPATIBLE);
-        assert_eq!(config.api_key_vars, "OPENAI_API_KEY");
+        assert_eq!(config.api_key_vars, Some("OPENAI_API_KEY".to_string()));
         assert_eq!(config.url_param_vars, vec!["OPENAI_URL".to_string()]);
-        assert_eq!(config.response_type, ProviderResponse::OpenAI);
-        assert!(config.url.contains("{{OPENAI_URL}}"));
+        assert_eq!(config.response_type, Some(ProviderResponse::OpenAI));
+        assert!(&config.url.contains("{{OPENAI_URL}}"));
     }
 
     #[test]
@@ -521,10 +552,30 @@ mod tests {
             .find(|c| c.id == ProviderId::ANTHROPIC_COMPATIBLE)
             .unwrap();
         assert_eq!(config.id, ProviderId::ANTHROPIC_COMPATIBLE);
-        assert_eq!(config.api_key_vars, "ANTHROPIC_API_KEY");
+        assert_eq!(config.api_key_vars, Some("ANTHROPIC_API_KEY".to_string()));
         assert_eq!(config.url_param_vars, vec!["ANTHROPIC_URL".to_string()]);
-        assert_eq!(config.response_type, ProviderResponse::Anthropic);
+        assert_eq!(config.response_type, Some(ProviderResponse::Anthropic));
         assert!(config.url.contains("{{ANTHROPIC_URL}}"));
+    }
+
+    #[test]
+    fn test_io_intelligence_config() {
+        let configs = get_provider_configs();
+        let config = configs
+            .iter()
+            .find(|c| c.id == ProviderId::IO_INTELLIGENCE)
+            .unwrap();
+        assert_eq!(config.id, ProviderId::IO_INTELLIGENCE);
+        assert_eq!(
+            config.api_key_vars,
+            Some("IO_INTELLIGENCE_API_KEY".to_string())
+        );
+        assert_eq!(config.url_param_vars, Vec::<String>::new());
+        assert_eq!(config.response_type, Some(ProviderResponse::OpenAI));
+        assert_eq!(
+            config.url.as_str(),
+            "https://api.intelligence.io.solutions/api/v1/chat/completions"
+        );
     }
 }
 
@@ -741,6 +792,41 @@ mod env_tests {
     }
 
     #[tokio::test]
+    async fn test_migration_should_not_create_forge_services_credential() {
+        let mut env_vars = HashMap::new();
+        env_vars.insert("OPENAI_API_KEY".to_string(), "test-key".to_string());
+
+        let infra = Arc::new(MockInfra::new(env_vars));
+        let registry = ForgeProviderRepository::new(infra.clone());
+
+        // Trigger migration
+        registry.migrate_env_to_file().await.unwrap();
+
+        // Verify credentials were written
+        let credentials_guard = infra.credentials.lock().await;
+        let credentials = credentials_guard.as_ref().unwrap();
+
+        // Verify forge_services was NOT created during migration
+        assert!(
+            !credentials
+                .iter()
+                .any(|c| c.id == ProviderId::FORGE_SERVICES),
+            "Should NOT create forge_services credential during environment migration"
+        );
+
+        // Verify only OpenAI credential was created
+        assert_eq!(
+            credentials.len(),
+            1,
+            "Should only have one credential (OpenAI)"
+        );
+        assert!(
+            credentials.iter().any(|c| c.id == ProviderId::OPENAI),
+            "Should have OpenAI credential"
+        );
+    }
+
+    #[tokio::test]
     async fn test_migration_both_compatible_urls() {
         let mut env_vars = HashMap::new();
         env_vars.insert("OPENAI_API_KEY".to_string(), "test-openai-key".to_string());
@@ -861,15 +947,55 @@ mod env_tests {
         );
 
         // Check model URL
-        match &provider.models {
-            forge_domain::Models::Url(model_url) => {
+        match &provider.models.as_ref().unwrap() {
+            forge_domain::ModelSource::Url(model_url) => {
                 assert_eq!(
                     model_url.as_str(),
                     "https://my-test-resource.openai.azure.com/openai/models?api-version=2024-02-01-preview"
                 );
             }
-            forge_domain::Models::Hardcoded(_) => panic!("Expected Models::Url variant"),
+            forge_domain::ModelSource::Hardcoded(_) => panic!("Expected Models::Url variant"),
         }
+    }
+
+    #[tokio::test]
+    async fn test_default_provider_urls() {
+        let mut env_vars = HashMap::new();
+        env_vars.insert("OPENAI_API_KEY".to_string(), "test-key".to_string());
+        env_vars.insert("ANTHROPIC_API_KEY".to_string(), "test-key".to_string());
+
+        let infra = Arc::new(MockInfra::new(env_vars));
+        let registry = ForgeProviderRepository::new(infra);
+
+        // Migrate environment variables to .credentials.json
+        registry.migrate_env_to_file().await.unwrap();
+
+        let providers = registry.get_all_providers().await.unwrap();
+
+        let openai_provider = providers
+            .iter()
+            .find_map(|p| match p {
+                AnyProvider::Url(cp) if cp.id == ProviderId::OPENAI => Some(cp),
+                _ => None,
+            })
+            .unwrap();
+        let anthropic_provider = providers
+            .iter()
+            .find_map(|p| match p {
+                AnyProvider::Url(cp) if cp.id == ProviderId::ANTHROPIC => Some(cp),
+                _ => None,
+            })
+            .unwrap();
+
+        // Regular OpenAI and Anthropic providers use hardcoded URLs
+        assert_eq!(
+            openai_provider.url.as_str(),
+            "https://api.openai.com/v1/chat/completions"
+        );
+        assert_eq!(
+            anthropic_provider.url.as_str(),
+            "https://api.anthropic.com/v1/messages"
+        );
     }
 
     #[tokio::test]
@@ -1011,9 +1137,12 @@ mod env_tests {
             .iter()
             .find(|c| c.id == ProviderId::OPENAI)
             .expect("OpenAI config should exist");
-        assert_eq!(openai_config.api_key_vars, "CUSTOM_OPENAI_KEY");
         assert_eq!(
-            openai_config.url,
+            openai_config.api_key_vars,
+            Some("CUSTOM_OPENAI_KEY".to_string())
+        );
+        assert_eq!(
+            openai_config.url.as_str(),
             "https://custom.openai.com/v1/chat/completions"
         );
 

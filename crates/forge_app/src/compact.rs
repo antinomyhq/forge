@@ -64,11 +64,11 @@ impl Compactor {
 
         // The sequence from the original message that needs to be compacted
         // Filter out droppable messages (e.g., attachments) from compaction
-        let compaction_sequence: Vec<ContextMessage> = context.messages[start..=end]
+        let compaction_sequence = context.messages[start..=end]
             .iter()
             .filter(|msg| !msg.is_droppable())
             .cloned()
-            .collect();
+            .collect::<Vec<_>>();
 
         // Create a temporary context for the sequence to generate summary
         let sequence_context = Context::default().messages(compaction_sequence.clone());
@@ -109,7 +109,7 @@ impl Compactor {
         let reasoning_details = compaction_sequence
             .iter()
             .rev() // Get LAST reasoning (most recent)
-            .find_map(|msg| match msg {
+            .find_map(|msg| match &**msg {
                 ContextMessage::Text(text) => text
                     .reasoning_details
                     .as_ref()
@@ -121,7 +121,7 @@ impl Compactor {
         // Replace the range with the summary
         context.messages.splice(
             start..=end,
-            std::iter::once(ContextMessage::user(summary, None)),
+            std::iter::once(ContextMessage::user(summary, None).into()),
         );
 
         // Remove all droppable messages from the context
@@ -133,6 +133,7 @@ impl Compactor {
                 .messages
                 .iter_mut()
                 .find(|msg| msg.has_role(forge_domain::Role::Assistant))
+                .map(|msg| &mut **msg)
             && msg
                 .reasoning_details
                 .as_ref()
@@ -140,9 +141,6 @@ impl Compactor {
         {
             msg.reasoning_details = Some(reasoning);
         }
-
-        // Clear usage field so token_count() recalculates based on new messages
-        context.usage = None;
 
         Ok(context)
     }
@@ -152,6 +150,7 @@ impl Compactor {
 mod tests {
     use std::path::PathBuf;
 
+    use forge_domain::MessageEntry;
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -172,11 +171,13 @@ mod tests {
         let first_reasoning = vec![ReasoningFull {
             text: Some("First thought".to_string()),
             signature: Some("sig1".to_string()),
+            ..Default::default()
         }];
 
         let last_reasoning = vec![ReasoningFull {
             text: Some("Last thought".to_string()),
             signature: Some("sig2".to_string()),
+            ..Default::default()
         }];
 
         let context = Context::default()
@@ -204,7 +205,7 @@ mod tests {
             .find(|msg| msg.has_role(forge_domain::Role::Assistant))
             .expect("Should have an assistant message");
 
-        if let ContextMessage::Text(text_msg) = assistant_msg {
+        if let ContextMessage::Text(text_msg) = &**assistant_msg {
             assert_eq!(
                 text_msg.reasoning_details.as_ref(),
                 Some(&last_reasoning),
@@ -225,6 +226,7 @@ mod tests {
         let reasoning = vec![ReasoningFull {
             text: Some("Original thought".to_string()),
             signature: Some("sig1".to_string()),
+            ..Default::default()
         }];
 
         // First compaction
@@ -247,7 +249,7 @@ mod tests {
             .find(|msg| msg.has_role(forge_domain::Role::Assistant))
             .unwrap();
 
-        if let ContextMessage::Text(text_msg) = first_assistant {
+        if let ContextMessage::Text(text_msg) = &**first_assistant {
             assert_eq!(text_msg.reasoning_details.as_ref().unwrap().len(), 1);
         }
 
@@ -265,7 +267,7 @@ mod tests {
             .find(|msg| msg.has_role(forge_domain::Role::Assistant))
             .unwrap();
 
-        if let ContextMessage::Text(text_msg) = first_assistant {
+        if let ContextMessage::Text(text_msg) = &**first_assistant {
             assert_eq!(
                 text_msg.reasoning_details.as_ref().unwrap().len(),
                 1,
@@ -284,6 +286,7 @@ mod tests {
         let non_empty_reasoning = vec![ReasoningFull {
             text: Some("Valid thought".to_string()),
             signature: Some("sig1".to_string()),
+            ..Default::default()
         }];
 
         // Most recent message in range has empty reasoning, earlier has non-empty
@@ -309,7 +312,7 @@ mod tests {
             .find(|msg| msg.has_role(forge_domain::Role::Assistant))
             .expect("Should have an assistant message");
 
-        if let ContextMessage::Text(text_msg) = assistant_msg {
+        if let ContextMessage::Text(text_msg) = &**assistant_msg {
             assert_eq!(
                 text_msg.reasoning_details.as_ref(),
                 Some(&non_empty_reasoning),
@@ -324,6 +327,84 @@ mod tests {
         TemplateEngine::default()
             .render("forge-partial-summary-frame.md", data)
             .unwrap()
+    }
+
+    #[test]
+    fn test_template_engine_renders_summary_frame() {
+        use forge_domain::{ContextSummary, Role, SummaryBlock, SummaryMessage, SummaryToolCall};
+
+        // Create test data with various tool calls and text content
+        let messages = vec![
+            SummaryBlock::new(
+                Role::User,
+                vec![SummaryMessage::content("Please read the config file")],
+            ),
+            SummaryBlock::new(
+                Role::Assistant,
+                vec![
+                    SummaryToolCall::read("config.toml")
+                        .id("call_1")
+                        .is_success(false)
+                        .into(),
+                ],
+            ),
+            SummaryBlock::new(
+                Role::User,
+                vec![SummaryMessage::content("Now update the version number")],
+            ),
+            SummaryBlock::new(
+                Role::Assistant,
+                vec![SummaryToolCall::update("Cargo.toml").id("call_2").into()],
+            ),
+            SummaryBlock::new(
+                Role::User,
+                vec![SummaryMessage::content("Search for TODO comments")],
+            ),
+            SummaryBlock::new(
+                Role::Assistant,
+                vec![
+                    SummaryToolCall::search("TODO")
+                        .id("call_3")
+                        .is_success(false)
+                        .into(),
+                ],
+            ),
+            SummaryBlock::new(
+                Role::Assistant,
+                vec![
+                    SummaryToolCall::codebase_search(
+                        vec![forge_domain::SearchQuery::new(
+                            "authentication logic",
+                            "Find authentication implementation",
+                        )],
+                        Some(".rs".to_string()),
+                    )
+                    .id("call_4")
+                    .is_success(false)
+                    .into(),
+                ],
+            ),
+            SummaryBlock::new(
+                Role::Assistant,
+                vec![
+                    SummaryToolCall::shell("cargo test")
+                        .id("call_5")
+                        .is_success(false)
+                        .into(),
+                ],
+            ),
+            SummaryBlock::new(
+                Role::User,
+                vec![SummaryMessage::content("Great! Everything looks good.")],
+            ),
+        ];
+
+        let context_summary = ContextSummary { messages };
+        let data = serde_json::json!({"messages": context_summary.messages});
+
+        let actual = render_template(&data);
+
+        insta::assert_snapshot!(actual);
     }
 
     #[tokio::test]
@@ -396,14 +477,14 @@ mod tests {
 
         // Verify the droppable attachment message was removed
         for msg in &actual.messages {
-            if let ContextMessage::Text(text_msg) = msg {
+            if let ContextMessage::Text(text_msg) = &**msg {
                 assert!(!text_msg.droppable, "Droppable messages should be removed");
             }
         }
     }
 
     #[test]
-    fn test_compaction_clears_usage_for_token_recalculation() {
+    fn test_compaction_preserves_usage_information() {
         use forge_domain::{TokenCount, Usage};
 
         let environment = test_environment();
@@ -425,26 +506,28 @@ mod tests {
         let msg5 = ContextMessage::user("Message 3", None);
         let msg6 = ContextMessage::assistant("Response 3", None, None);
 
+        // Add usage to the last message to set context-wide usage
+        let mut wrapper6 = MessageEntry::from(msg6.clone());
+        wrapper6.usage = Some(original_usage);
+
         let context = Context::default()
             .add_message(msg1.clone())
             .add_message(msg2.clone())
             .add_message(msg3.clone())
             .add_message(msg4.clone())
             .add_message(msg5.clone())
-            .add_message(msg6.clone())
-            .usage(original_usage.clone());
+            .messages(vec![
+                ContextMessage::user("Message 1", None).into(),
+                ContextMessage::assistant("Response 1", None, None).into(),
+                ContextMessage::user("Message 2", None).into(),
+                ContextMessage::assistant("Response 2", None, None).into(),
+                ContextMessage::user("Message 3", None).into(),
+                wrapper6,
+            ]);
 
         // Verify usage exists before compaction
-        assert_eq!(context.usage, Some(original_usage.clone()));
+        assert_eq!(context.accumulate_usage(), Some(original_usage));
         assert_eq!(context.token_count(), TokenCount::Actual(50000));
-
-        // Calculate expected token count after compaction
-        // After compacting indices 0-3, we'll have:
-        // 1. A summary message (replacing indices 0-3)
-        // 2. Message 5 (index 4 -> "Message 3")
-        // 3. Message 6 (index 5 -> "Response 3")
-        let expected_tokens_after_compaction =
-            msg5.token_count_approx() + msg6.token_count_approx();
 
         // Compact the sequence (first 4 messages, indices 0-3)
         let compacted = compactor.compress_single_sequence(context, (0, 3)).unwrap();
@@ -456,38 +539,19 @@ mod tests {
             "Expected 3 messages after compaction: summary + 2 remaining messages"
         );
 
-        // Verify usage is cleared after compaction
+        // Verify usage is preserved after compaction
         assert_eq!(
-            compacted.usage, None,
-            "Usage field should be None after compaction to force token recalculation"
+            compacted.accumulate_usage(),
+            Some(original_usage),
+            "Usage information should be preserved after compaction"
         );
 
-        // Verify token_count returns approximation based on actual messages
+        // Verify token_count returns actual value based on preserved usage
         let token_count = compacted.token_count();
-        assert!(
-            matches!(token_count, TokenCount::Approx(_)),
-            "Expected TokenCount::Approx after compaction, but got {:?}",
-            token_count
-        );
-
-        // Verify the exact token count matches expected calculation
-        // Note: Summary message tokens + remaining message tokens
-        let actual_tokens = *token_count;
-        let summary_tokens = compacted.messages[0].token_count_approx();
-
         assert_eq!(
-            actual_tokens,
-            summary_tokens + expected_tokens_after_compaction,
-            "Token count should equal summary tokens ({}) + remaining message tokens ({})",
-            summary_tokens,
-            expected_tokens_after_compaction
-        );
-
-        // Verify it's significantly less than original
-        assert!(
-            actual_tokens < 50000,
-            "Compacted token count ({}) should be less than original (50000)",
-            actual_tokens
+            token_count,
+            TokenCount::Actual(50000),
+            "Token count should use actual value from preserved usage"
         );
     }
 }

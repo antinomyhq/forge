@@ -14,6 +14,11 @@ before:
         reasoning_details:
           - text: I need to think about this carefully
             signature: ~
+            data: ~
+            id: ~
+            format: ~
+            index: ~
+            type_of: ~
     - text:
         role: User
         content: Follow-up question
@@ -23,6 +28,11 @@ before:
         reasoning_details:
           - text: I need to think about this carefully
             signature: ~
+            data: ~
+            id: ~
+            format: ~
+            index: ~
+            type_of: ~
     - text:
         role: Assistant
         content: Third assistant without reasoning
@@ -39,6 +49,11 @@ after:
         reasoning_details:
           - text: I need to think about this carefully
             signature: ~
+            data: ~
+            id: ~
+            format: ~
+            index: ~
+            type_of: ~
     - text:
         role: User
         content: Follow-up question
@@ -48,6 +63,11 @@ after:
         reasoning_details:
           - text: I need to think about this carefully
             signature: ~
+            data: ~
+            id: ~
+            format: ~
+            index: ~
+            type_of: ~
     - text:
         role: Assistant
         content: Third assistant without reasoning

@@ -1,8 +1,10 @@
 import * as fs from "fs";
 import * as path from "path";
 import { spawn } from "child_process";
+import stripAnsi from "strip-ansi";
 import type { Validation, Task } from "./model.js";
 import { runValidations, allValidationsPassed } from "./verification.js";
+import { formatTimestamp } from "./utils.js";
 
 export type TaskExecutionResult = {
   index: number;
@@ -15,35 +17,23 @@ export type TaskExecutionResult = {
 };
 
 /**
- * Formats a date with local timezone information
- */
-function formatTimestamp(date: Date): string {
-  const offset = -date.getTimezoneOffset();
-  const sign = offset >= 0 ? "+" : "-";
-  const hours = Math.floor(Math.abs(offset) / 60)
-    .toString()
-    .padStart(2, "0");
-  const minutes = (Math.abs(offset) % 60).toString().padStart(2, "0");
-  const timezone = `${sign}${hours}:${minutes}`;
-
-  return `${date.toISOString().replace("Z", "")}${timezone}`;
-}
-
-/**
  * Executes a single task command and returns the result
  */
 export async function executeTask(
   command: string,
   index: number,
   logFile: string,
-  evalDir: string,
+  cwd: string,
   task: Task,
-  context?: Record<string, string>
+  context?: Record<string, string>,
+  append: boolean = false,
 ): Promise<TaskExecutionResult> {
   const startTime = Date.now();
 
-  // Create log stream for this task
-  const logStream = fs.createWriteStream(logFile);
+  // Create log stream for this task (append if this is not the first command)
+  const logStream = fs.createWriteStream(logFile, {
+    flags: append ? "a" : "w",
+  });
 
   // Write command at the top of the log file
   logStream.write(`Command: ${command}\n`);
@@ -54,12 +44,12 @@ export async function executeTask(
     // Track timeout state outside the promise
     let timedOut = false;
     let exitedEarly = false;
-    
+
     // Execute command and stream output to log file
     const output = await new Promise<string>((resolve, reject) => {
       const child = spawn(command, {
         shell: true,
-        cwd: task.run.cwd ?? path.dirname(evalDir),
+        cwd: cwd,
         stdio: ["ignore", "pipe", "pipe"],
       });
 
@@ -68,20 +58,32 @@ export async function executeTask(
       let timeoutId: NodeJS.Timeout | null = null;
 
       // Helper function to check validations after each write
-      const checkValidations = () => {
+      const checkValidations = async () => {
         if (exitedEarly || timedOut) return;
-        
-        if (task.run.early_exit && task.validations && task.validations.length > 0) {
+
+        if (
+          task.early_exit &&
+          task.validations &&
+          task.validations.length > 0
+        ) {
           const currentOutput = stdout + stderr;
           if (currentOutput) {
-            const results = runValidations(currentOutput, task.validations, context);
+            const results = await runValidations(
+              currentOutput,
+              task.validations,
+              context,
+            );
             if (allValidationsPassed(results)) {
               exitedEarly = true;
               if (timeoutId) clearTimeout(timeoutId);
-              logStream.write(`\n${"=".repeat(80)}\n`);
-              logStream.write(`Early exit: All validations passed\n`);
-              logStream.write(`Killing process...\n`);
-              logStream.end();
+              if (logStream.writable) {
+                logStream.write(
+                  `\n${"=".repeat(80)}\nEarly exit: All validations passed\nKilling process...\n`,
+                  () => {
+                    logStream.end();
+                  },
+                );
+              }
               child.kill("SIGTERM");
               resolve(currentOutput);
             }
@@ -90,17 +92,19 @@ export async function executeTask(
       };
 
       // Set up timeout if configured
-      if (task.run.timeout) {
+      if (task.timeout) {
         timeoutId = setTimeout(() => {
           timedOut = true;
-          logStream.write(`\n${"=".repeat(80)}\n`);
-          logStream.write(`Timeout: ${task.run.timeout}s exceeded\n`);
-          logStream.write(`Killing process...\n`);
-          logStream.end();
+          if (logStream.writable) {
+            logStream.write(`\n${"=".repeat(80)}\n`);
+            logStream.write(`Timeout: ${task.timeout}s exceeded\n`);
+            logStream.write(`Killing process...\n`);
+            logStream.end();
+          }
           child.kill("SIGKILL");
           // Resolve with captured output so far
           resolve(stdout + stderr);
-        }, task.run.timeout * 1000);
+        }, task.timeout * 1000);
       }
 
       // Stream stdout to both log file and capture for validation
@@ -108,7 +112,7 @@ export async function executeTask(
         const text = data.toString();
         stdout += text;
         if (logStream.writable) {
-          logStream.write(text);
+          logStream.write(stripAnsi(text));
         }
         checkValidations();
       });
@@ -118,7 +122,7 @@ export async function executeTask(
         const text = data.toString();
         stderr += text;
         if (logStream.writable) {
-          logStream.write(text);
+          logStream.write(stripAnsi(text));
         }
         checkValidations();
       });
@@ -165,7 +169,8 @@ export async function executeTask(
     };
   } catch (error) {
     const duration = Date.now() - startTime;
-    const errorMessage = error instanceof Error ? error.message : "Command failed";
+    const errorMessage =
+      error instanceof Error ? error.message : "Command failed";
 
     return {
       index,

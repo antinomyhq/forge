@@ -21,7 +21,7 @@ pub struct Anthropic<T> {
     http: Arc<T>,
     api_key: String,
     chat_url: Url,
-    models: forge_domain::Models<Url>,
+    models: forge_domain::ModelSource<Url>,
     anthropic_version: String,
     use_oauth: bool,
 }
@@ -31,7 +31,7 @@ impl<H: HttpClientService> Anthropic<H> {
         http: Arc<H>,
         api_key: String,
         chat_url: Url,
-        models: forge_domain::Models<Url>,
+        models: forge_domain::ModelSource<Url>,
         version: String,
         use_oauth: bool,
     ) -> Self {
@@ -82,7 +82,6 @@ impl<T: HttpClientService> Anthropic<T> {
 
         let request = Request::try_from(context)?
             .model(model.as_str().to_string())
-            .stream(true)
             .max_tokens(max_tokens as u64);
 
         let request = AuthSystemMessage::default()
@@ -113,7 +112,7 @@ impl<T: HttpClientService> Anthropic<T> {
 
     pub async fn models(&self) -> anyhow::Result<Vec<Model>> {
         match &self.models {
-            forge_domain::Models::Url(url) => {
+            forge_domain::ModelSource::Url(url) => {
                 debug!(url = %url, "Fetching models");
 
                 let response = self
@@ -143,7 +142,7 @@ impl<T: HttpClientService> Anthropic<T> {
                         .with_context(|| "Failed to fetch the models")
                 }
             }
-            forge_domain::Models::Hardcoded(models) => {
+            forge_domain::ModelSource::Hardcoded(models) => {
                 debug!("Using hardcoded models");
                 Ok(models.clone())
             }
@@ -218,7 +217,7 @@ mod tests {
             Arc::new(MockHttpClient::new()),
             "sk-test-key".to_string(),
             chat_url,
-            forge_domain::Models::Url(model_url),
+            forge_domain::ModelSource::Url(model_url),
             "2023-06-01".to_string(),
             false,
         ))
@@ -269,12 +268,12 @@ mod tests {
             Arc::new(MockHttpClient::new()),
             "sk-some-key".to_string(),
             chat_url,
-            forge_domain::Models::Url(model_url.clone()),
+            forge_domain::ModelSource::Url(model_url.clone()),
             "v1".to_string(),
             false,
         );
         match &anthropic.models {
-            forge_domain::Models::Url(url) => {
+            forge_domain::ModelSource::Url(url) => {
                 assert_eq!(url.as_str(), "https://api.anthropic.com/v1/models");
             }
             _ => panic!("Expected Models::Url variant"),

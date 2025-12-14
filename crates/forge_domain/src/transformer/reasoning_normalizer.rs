@@ -26,7 +26,7 @@ impl Transformer for ReasoningNormalizer {
             // Remove reasoning details from all assistant messages
             for message in context.messages.iter_mut() {
                 if message.has_role(crate::Role::Assistant)
-                    && let crate::ContextMessage::Text(text_msg) = message
+                    && let crate::ContextMessage::Text(text_msg) = &mut **message
                 {
                     text_msg.reasoning_details = None;
                 }
@@ -67,6 +67,7 @@ mod tests {
         let reasoning_details = vec![ReasoningFull {
             text: Some("I need to think about this carefully".to_string()),
             signature: None,
+            ..Default::default()
         }];
 
         Context::default()
@@ -91,6 +92,7 @@ mod tests {
         let reasoning_details = vec![ReasoningFull {
             text: Some("Complex reasoning process".to_string()),
             signature: None,
+            ..Default::default()
         }];
 
         Context::default()

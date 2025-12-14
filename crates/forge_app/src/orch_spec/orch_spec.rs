@@ -443,3 +443,60 @@ async fn test_raw_user_message_is_stored() {
     );
     assert_eq!(actual, expected);
 }
+
+#[tokio::test]
+async fn test_is_complete_when_stop_with_no_tool_calls() {
+    // Test: is_complete = true when finish_reason is Stop AND no tool calls
+    let mut ctx = TestContext::default().mock_assistant_responses(vec![
+        ChatCompletionMessage::assistant(Content::full("Task is done"))
+            .finish_reason(FinishReason::Stop),
+    ]);
+
+    ctx.run("Complete this task").await.unwrap();
+
+    // Verify TaskComplete is sent (which happens when is_complete is true)
+    let has_task_complete = ctx
+        .output
+        .chat_responses
+        .iter()
+        .filter_map(|r| r.as_ref().ok())
+        .any(|response| matches!(response, ChatResponse::TaskComplete));
+
+    assert!(
+        has_task_complete,
+        "Should have TaskComplete when finish_reason is Stop with no tool calls"
+    );
+}
+
+#[tokio::test]
+async fn test_not_complete_when_stop_with_tool_calls() {
+    // Test: is_complete = false when finish_reason is Stop BUT there are tool calls
+    // (Gemini models return stop as finish reason with tool calls)
+    let tool_call = ToolCallFull::new("fs_read")
+        .arguments(ToolCallArguments::from(json!({"path": "test.txt"})));
+    let tool_result = ToolResult::new("fs_read").output(Ok(ToolOutput::text("file content")));
+
+    let mut ctx = TestContext::default()
+        .mock_tool_call_responses(vec![(tool_call.clone(), tool_result)])
+        .mock_assistant_responses(vec![
+            ChatCompletionMessage::assistant("Reading file")
+                .tool_calls(vec![tool_call.into()])
+                .finish_reason(FinishReason::Stop), // Stop with tool calls
+            ChatCompletionMessage::assistant("File read successfully")
+                .finish_reason(FinishReason::Stop),
+        ]);
+
+    ctx.run("Read a file").await.unwrap();
+
+    let messages = ctx.output.context_messages();
+
+    // Verify we have multiple assistant messages (conversation continued)
+    let assistant_message_count = messages
+        .iter()
+        .filter(|message| message.has_role(Role::Assistant))
+        .count();
+    assert_eq!(
+        assistant_message_count, 2,
+        "Should have 2 assistant messages, confirming is_complete was false with tool calls"
+    );
+}

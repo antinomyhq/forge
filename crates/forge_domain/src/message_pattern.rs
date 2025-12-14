@@ -1,6 +1,8 @@
 use serde_json::json;
 
-use crate::{Context, ContextMessage, ModelId, ToolCallFull, ToolCallId, ToolName, ToolResult};
+use crate::{
+    Context, ContextMessage, MessageEntry, ModelId, ToolCallFull, ToolCallId, ToolName, ToolResult,
+};
 
 /// Converts a condensed string pattern into a Context with messages.
 ///
@@ -71,7 +73,7 @@ impl MessagePattern {
             .call_id(ToolCallId::new("call_123"))
             .success(json!({"content": "File content"}).to_string());
 
-        let messages: Vec<ContextMessage> = self
+        let messages: Vec<MessageEntry> = self
             .pattern
             .chars()
             .enumerate()
@@ -88,6 +90,7 @@ impl MessagePattern {
                     }
                 }
             })
+            .map(MessageEntry::from)
             .collect();
         Context::default().messages(messages)
     }
@@ -116,9 +119,12 @@ mod tests {
     fn test_message_pattern_single_user() {
         let fixture = MessagePattern::new("u");
         let actual = fixture.build();
-        let expected = Context::default().messages(vec![ContextMessage::Text(
-            TextMessage::new(Role::User, "Message 1").model(ModelId::new("gpt-4")),
-        )]);
+        let expected = Context::default().messages(vec![
+            ContextMessage::Text(
+                TextMessage::new(Role::User, "Message 1").model(ModelId::new("gpt-4")),
+            )
+            .into(),
+        ]);
         assert_eq!(actual, expected);
     }
 
@@ -129,11 +135,13 @@ mod tests {
         let expected = Context::default().messages(vec![
             ContextMessage::Text(
                 TextMessage::new(Role::User, "Message 1").model(ModelId::new("gpt-4")),
-            ),
-            ContextMessage::Text(TextMessage::new(Role::Assistant, "Message 2")),
+            )
+            .into(),
+            ContextMessage::Text(TextMessage::new(Role::Assistant, "Message 2")).into(),
             ContextMessage::Text(
                 TextMessage::new(Role::User, "Message 3").model(ModelId::new("gpt-4")),
-            ),
+            )
+            .into(),
         ]);
         assert_eq!(actual, expected);
     }

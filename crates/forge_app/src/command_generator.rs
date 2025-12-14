@@ -5,7 +5,6 @@ use forge_domain::{extract_tag_content, *};
 
 use crate::{
     AppConfigService, EnvironmentService, FileDiscoveryService, ProviderService, TemplateEngine,
-    Walker,
 };
 
 /// CommandGenerator handles shell command generation from natural language
@@ -27,18 +26,7 @@ where
         // Get system information for context
         let env = self.services.get_environment();
 
-        let walker = Walker::conservative()
-            .cwd(env.cwd.clone())
-            .max_depth(1usize);
-        let mut files = self
-            .services
-            .collect_files(walker)
-            .await?
-            .into_iter()
-            .filter(|f| !f.is_dir)
-            .map(|f| f.path)
-            .collect::<Vec<_>>();
-        files.sort();
+        let files = self.services.list_current_directory().await?;
 
         let rendered_system_prompt = TemplateEngine::default().render(
             "forge-command-generator-prompt.md",
@@ -87,12 +75,13 @@ where
 mod tests {
     use forge_domain::{
         AuthCredential, AuthDetails, AuthMethod, ChatCompletionMessage, Content, FinishReason,
-        Models, ProviderId, ProviderResponse, ResultStream,
+        ModelSource, ProviderId, ProviderResponse, ResultStream,
     };
     use tokio::sync::Mutex;
     use url::Url;
 
     use super::*;
+    use crate::Walker;
 
     struct MockServices {
         files: Vec<(String, bool)>,
@@ -135,6 +124,23 @@ mod tests {
                 .map(|(path, is_dir)| File { path: path.clone(), is_dir: *is_dir })
                 .collect())
         }
+
+        async fn list_current_directory(&self) -> Result<Vec<File>> {
+            let mut files: Vec<File> = self
+                .files
+                .iter()
+                .map(|(path, is_dir)| File { path: path.clone(), is_dir: *is_dir })
+                .collect();
+
+            // Sort: directories first (alphabetically), then files (alphabetically)
+            files.sort_by(|a, b| match (a.is_dir, b.is_dir) {
+                (true, false) => std::cmp::Ordering::Less,
+                (false, true) => std::cmp::Ordering::Greater,
+                _ => a.path.cmp(&b.path),
+            });
+
+            Ok(files)
+        }
     }
 
     #[async_trait::async_trait]
@@ -160,9 +166,12 @@ mod tests {
         async fn get_provider(&self, _id: ProviderId) -> Result<Provider<Url>> {
             Ok(Provider {
                 id: ProviderId::OPENAI,
-                response: ProviderResponse::OpenAI,
+                provider_type: Default::default(),
+                response: Some(ProviderResponse::OpenAI),
                 url: Url::parse("https://api.test.com").unwrap(),
-                models: Models::Url(Url::parse("https://api.test.com/models").unwrap()),
+                models: Some(ModelSource::Url(
+                    Url::parse("https://api.test.com/models").unwrap(),
+                )),
                 auth_methods: vec![AuthMethod::ApiKey],
                 url_params: vec![],
                 credential: Some(AuthCredential {

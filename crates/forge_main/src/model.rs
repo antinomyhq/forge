@@ -7,6 +7,7 @@ use forge_domain::UserCommand;
 use strum::{EnumProperty, IntoEnumIterator};
 use strum_macros::{EnumIter, EnumProperty};
 
+use crate::display_constants::markers;
 use crate::info::Info;
 
 /// Wrapper for displaying models in selection menus
@@ -76,11 +77,11 @@ impl Display for CliProvider {
                 if let Some(domain) = provider.url.domain() {
                     write!(f, " [{domain}]")?;
                 } else {
-                    write!(f, " [unavailable]")?;
+                    write!(f, " {}", markers::EMPTY)?;
                 }
             }
             AnyProvider::Template(_) => {
-                write!(f, "  {name:<name_width$} [unavailable]")?;
+                write!(f, "  {name:<name_width$} {}", markers::EMPTY)?;
             }
         }
         Ok(())
@@ -112,7 +113,7 @@ impl From<&[Model]> for Info {
             if let Some(context_length) = model.context_length {
                 info = info.add_key_value(&model.id, humanize_context_length(context_length));
             } else {
-                info = info.add_value(&model.id);
+                info = info.add_value(model.id.as_str());
             }
         }
 
@@ -361,6 +362,7 @@ impl ForgeCommandManager {
                 let max_diff_size = parameters.iter().find_map(|&p| p.parse::<usize>().ok());
                 Ok(SlashCommand::Commit { max_diff_size })
             }
+            "/index" => Ok(SlashCommand::Index),
             text => {
                 let parts = text.split_ascii_whitespace().collect::<Vec<&str>>();
 
@@ -495,6 +497,10 @@ pub enum SlashCommand {
     #[strum(props(usage = "List all conversations for the active workspace"))]
     Conversations,
 
+    /// Delete a conversation permanently
+    #[strum(props(usage = "Delete a conversation permanently"))]
+    Delete,
+
     /// Switch directly to a specific agent by ID
     #[strum(props(usage = "Switch directly to a specific agent"))]
     AgentSwitch(String),
@@ -508,6 +514,10 @@ pub enum SlashCommand {
         usage = "Generate AI commit message and commit changes. Format: /commit <max-diff|preview>"
     ))]
     Commit { max_diff_size: Option<usize> },
+
+    /// Index the current workspace for semantic code search
+    #[strum(props(usage = "Index the current workspace for semantic search"))]
+    Index,
 }
 
 impl SlashCommand {
@@ -537,7 +547,9 @@ impl SlashCommand {
             SlashCommand::Logout => "logout",
             SlashCommand::Retry => "retry",
             SlashCommand::Conversations => "conversation",
+            SlashCommand::Delete => "delete",
             SlashCommand::AgentSwitch(agent_id) => agent_id,
+            SlashCommand::Index => "index",
         }
     }
 
@@ -550,7 +562,7 @@ impl SlashCommand {
 #[cfg(test)]
 mod tests {
     use console::strip_ansi_codes;
-    use forge_api::{ModelId, Models, ProviderId, ProviderResponse};
+    use forge_api::{ModelId, ModelSource, ProviderId, ProviderResponse};
     use forge_domain::{AnyProvider, Provider};
     use pretty_assertions::assert_eq;
     use url::Url;
@@ -1020,12 +1032,15 @@ mod tests {
     fn test_cli_provider_display_minimal() {
         let fixture = AnyProvider::Url(Provider {
             id: ProviderId::OPENAI,
-            response: ProviderResponse::OpenAI,
+            provider_type: forge_domain::ProviderType::Llm,
+            response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: None,
-            models: Models::Url(Url::parse("https://api.openai.com/v1/models").unwrap()),
+            models: Some(ModelSource::Url(
+                Url::parse("https://api.openai.com/v1/models").unwrap(),
+            )),
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
@@ -1037,12 +1052,15 @@ mod tests {
     fn test_cli_provider_display_with_subdomain() {
         let fixture = AnyProvider::Url(Provider {
             id: ProviderId::OPEN_ROUTER,
-            response: ProviderResponse::OpenAI,
+            provider_type: forge_domain::ProviderType::Llm,
+            response: Some(ProviderResponse::OpenAI),
             url: Url::parse("https://openrouter.ai/api/v1/chat/completions").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: None,
-            models: Models::Url(Url::parse("https://openrouter.ai/api/v1/models").unwrap()),
+            models: Some(ModelSource::Url(
+                Url::parse("https://openrouter.ai/api/v1/models").unwrap(),
+            )),
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
@@ -1054,12 +1072,15 @@ mod tests {
     fn test_cli_provider_display_no_domain() {
         let fixture = AnyProvider::Url(Provider {
             id: ProviderId::FORGE,
-            response: ProviderResponse::OpenAI,
+            provider_type: forge_domain::ProviderType::Llm,
+            response: Some(ProviderResponse::OpenAI),
             url: Url::parse("http://localhost:8080/chat/completions").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: None,
-            models: Models::Url(Url::parse("http://localhost:8080/models").unwrap()),
+            models: Some(ModelSource::Url(
+                Url::parse("http://localhost:8080/models").unwrap(),
+            )),
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
@@ -1071,16 +1092,19 @@ mod tests {
     fn test_cli_provider_display_template() {
         let fixture = AnyProvider::Template(Provider {
             id: ProviderId::ANTHROPIC,
-            response: ProviderResponse::Anthropic,
+            provider_type: Default::default(),
+            response: Some(ProviderResponse::Anthropic),
             url: Template::new("https://api.anthropic.com/v1/messages"),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: None,
-            models: Models::Url(Template::new("https://api.anthropic.com/v1/models")),
+            models: Some(ModelSource::Url(Template::new(
+                "https://api.anthropic.com/v1/models",
+            ))),
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "  Anthropic           [unavailable]";
+        let expected = format!("  Anthropic           {}", markers::EMPTY);
         assert_eq!(actual, expected);
     }
 
@@ -1088,16 +1112,19 @@ mod tests {
     fn test_cli_provider_display_ip_address() {
         let fixture = AnyProvider::Url(Provider {
             id: ProviderId::FORGE,
-            response: ProviderResponse::OpenAI,
+            provider_type: forge_domain::ProviderType::Llm,
+            response: Some(ProviderResponse::OpenAI),
             url: Url::parse("http://192.168.1.1:8080/chat/completions").unwrap(),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
             url_params: vec![],
             credential: None,
-            models: Models::Url(Url::parse("http://192.168.1.1:8080/models").unwrap()),
+            models: Some(ModelSource::Url(
+                Url::parse("http://192.168.1.1:8080/models").unwrap(),
+            )),
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "✓ Forge               [unavailable]";
+        let expected = format!("✓ Forge               {}", markers::EMPTY);
         assert_eq!(actual, expected);
     }
 

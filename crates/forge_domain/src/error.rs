@@ -89,6 +89,13 @@ pub enum Error {
     #[error("Failed to create VertexAI provider: {message}")]
     VertexAiConfiguration { message: String },
 
+    // Indexing errors
+    #[error("No indexing authentication found")]
+    AuthTokenNotFound,
+
+    #[error("Workspace not found")]
+    WorkspaceNotFound,
+
     #[error("No default provider set.")]
     NoDefaultProvider,
 

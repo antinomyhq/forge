@@ -8,7 +8,7 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand, ValueEnum};
-use forge_domain::{AgentId, ProviderId};
+use forge_domain::{AgentId, ConversationId, ProviderId};
 
 #[derive(Parser)]
 #[command(version = env!("CARGO_PKG_VERSION"))]
@@ -18,7 +18,7 @@ pub struct Cli {
     /// When provided, executes a single command and exits instead of starting
     /// an interactive session. Content can also be piped: `cat prompt.txt |
     /// forge`.
-    #[arg(long, short = 'p')]
+    #[arg(long, short = 'p', allow_hyphen_values = true)]
     pub prompt: Option<String>,
 
     /// Piped input from stdin (populated internally)
@@ -38,7 +38,7 @@ pub struct Cli {
     /// When provided, resumes or continues an existing conversation instead of
     /// generating a new conversation ID.
     #[arg(long, alias = "cid")]
-    pub conversation_id: Option<String>,
+    pub conversation_id: Option<ConversationId>,
 
     /// Working directory to use before starting the session.
     ///
@@ -104,7 +104,7 @@ pub enum TopLevelCommand {
     Info {
         /// Conversation ID for session-specific information.
         #[arg(long, alias = "cid")]
-        conversation_id: Option<String>,
+        conversation_id: Option<ConversationId>,
 
         /// Output in machine-readable format.
         #[arg(long)]
@@ -138,6 +138,12 @@ pub enum TopLevelCommand {
 
     /// Run or list custom commands.
     Cmd(CmdCommandGroup),
+
+    /// Manage workspaces for semantic search.
+    Workspace(WorkspaceCommandGroup),
+
+    /// Process JSONL data through LLM with schema-constrained tools.
+    Data(DataCommandGroup),
 }
 
 /// Command group for custom command management.
@@ -148,7 +154,7 @@ pub struct CmdCommandGroup {
 
     /// Conversation ID to execute the command within.
     #[arg(long, alias = "cid", global = true)]
-    pub conversation_id: Option<String>,
+    pub conversation_id: Option<ConversationId>,
 
     /// Output in machine-readable format.
     #[arg(long, global = true)]
@@ -184,6 +190,78 @@ pub enum AgentCommand {
     List,
 }
 
+/// Command group for codebase management.
+#[derive(Parser, Debug, Clone)]
+pub struct WorkspaceCommandGroup {
+    #[command(subcommand)]
+    pub command: WorkspaceCommand,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum WorkspaceCommand {
+    /// Synchronize a directory for semantic search.
+    Sync {
+        /// Path to the directory to sync
+        #[arg(default_value = ".")]
+        path: PathBuf,
+
+        /// Number of files to upload per batch. Reduce this if you encounter
+        /// token limit errors.
+        #[arg(long, default_value = "10")]
+        batch_size: usize,
+    },
+    /// List all workspaces.
+    List {
+        /// Output in machine-readable format
+        #[arg(short, long)]
+        porcelain: bool,
+    },
+
+    /// Query the codebase.
+    Query {
+        /// Search query.
+        query: String,
+
+        /// Path to the directory to index (used when no subcommand is
+        /// provided).
+        #[arg(default_value = ".")]
+        path: PathBuf,
+
+        /// Maximum number of results to return.
+        #[arg(short, long, default_value = "10")]
+        limit: usize,
+
+        /// Number of highest probability tokens to consider (1-1000).
+        #[arg(long)]
+        top_k: Option<u32>,
+
+        /// Describe your intent or goal to filter results for relevance.
+        #[arg(long, short = 'r')]
+        use_case: String,
+
+        /// Filter results to files starting with this prefix.
+        #[arg(long)]
+        starts_with: Option<String>,
+
+        /// Filter results to files ending with this suffix.
+        #[arg(long)]
+        ends_with: Option<String>,
+    },
+
+    /// Show workspace information for an indexed directory.
+    Info {
+        /// Path to the directory to get information for
+        #[arg(default_value = ".")]
+        path: PathBuf,
+    },
+
+    /// Delete a workspace.
+    Delete {
+        /// Workspace ID to delete
+        workspace_id: String,
+    },
+}
+
 /// Command group for listing resources.
 #[derive(Parser, Debug, Clone)]
 pub struct ListCommandGroup {
@@ -203,7 +281,12 @@ pub enum ListCommand {
 
     /// List available API providers.
     #[command(alias = "providers")]
-    Provider,
+    Provider {
+        /// Filter providers by type (e.g., llm, context_engine). Can be
+        /// specified multiple times.
+        #[arg(long = "type", short = 't')]
+        types: Vec<forge_domain::ProviderType>,
+    },
 
     /// List available models.
     #[command(alias = "models")]
@@ -408,7 +491,7 @@ pub enum ConversationCommand {
     /// Export conversation as JSON or HTML.
     Dump {
         /// Conversation ID to export.
-        id: String,
+        id: ConversationId,
 
         /// Export as HTML instead of JSON.
         #[arg(long)]
@@ -418,37 +501,37 @@ pub enum ConversationCommand {
     /// Compact conversation to reduce token usage.
     Compact {
         /// Conversation ID to compact.
-        id: String,
+        id: ConversationId,
     },
 
     /// Retry last command without modifying context.
     Retry {
         /// Conversation ID to retry.
-        id: String,
+        id: ConversationId,
     },
 
     /// Resume conversation in interactive mode.
     Resume {
         /// Conversation ID to resume.
-        id: String,
+        id: ConversationId,
     },
 
     /// Show last assistant message.
     Show {
         /// Conversation ID.
-        id: String,
+        id: ConversationId,
     },
 
     /// Show conversation details.
     Info {
         /// Conversation ID.
-        id: String,
+        id: ConversationId,
     },
 
     /// Show conversation statistics.
     Stats {
         /// Conversation ID.
-        id: String,
+        id: ConversationId,
 
         /// Output in machine-readable format.
         #[arg(long)]
@@ -458,11 +541,17 @@ pub enum ConversationCommand {
     /// Clone conversation with a new ID.
     Clone {
         /// Conversation ID to clone.
-        id: String,
+        id: ConversationId,
 
         /// Output in machine-readable format.
         #[arg(long)]
         porcelain: bool,
+    },
+
+    /// Delete a conversation permanently.
+    Delete {
+        /// Conversation ID to delete.
+        id: String,
     },
 }
 
@@ -496,7 +585,12 @@ pub enum ProviderCommand {
     },
 
     /// List available providers.
-    List,
+    List {
+        /// Filter providers by type (e.g., llm, context_engine). Can be
+        /// specified multiple times.
+        #[arg(long = "type", short = 't')]
+        types: Vec<forge_domain::ProviderType>,
+    },
 }
 
 /// Group of Commit-related commands
@@ -530,12 +624,70 @@ pub struct CommitCommandGroup {
     pub text: Vec<String>,
 }
 
+/// Group of Data-related commands
+#[derive(Parser, Debug, Clone)]
+pub struct DataCommandGroup {
+    /// Path to JSONL file to process
+    #[arg(long)]
+    pub input: String,
+
+    /// Path to JSON schema file for LLM tool definition
+    #[arg(long)]
+    pub schema: String,
+
+    /// Path to Handlebars template file for system prompt
+    #[arg(long)]
+    pub system_prompt: Option<String>,
+
+    /// Path to Handlebars template file for user prompt
+    #[arg(long)]
+    pub user_prompt: Option<String>,
+
+    /// Maximum number of concurrent LLM requests
+    #[arg(long, default_value = "10")]
+    pub concurrency: usize,
+}
+
+impl From<DataCommandGroup> for forge_domain::DataGenerationParameters {
+    fn from(value: DataCommandGroup) -> Self {
+        Self {
+            input: value.input.into(),
+            schema: value.schema.into(),
+            system_prompt: value.system_prompt.map(Into::into),
+            user_prompt: value.user_prompt.map(Into::into),
+            concurrency: value.concurrency,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use clap::Parser;
     use pretty_assertions::assert_eq;
 
     use super::*;
+
+    #[test]
+    fn test_data_command_group_conversion() {
+        use std::path::PathBuf;
+
+        let fixture = DataCommandGroup {
+            input: "path/to/input.jsonl".to_string(),
+            schema: "path/to/schema.json".to_string(),
+            system_prompt: Some("system prompt".to_string()),
+            user_prompt: None,
+            concurrency: 5,
+        };
+        let actual: forge_domain::DataGenerationParameters = fixture.into();
+        let expected = forge_domain::DataGenerationParameters {
+            input: PathBuf::from("path/to/input.jsonl"),
+            schema: PathBuf::from("path/to/schema.json"),
+            system_prompt: Some(PathBuf::from("system prompt")),
+            user_prompt: None,
+            concurrency: 5,
+        };
+        assert_eq!(actual, expected);
+    }
 
     #[test]
     fn test_commit_default_max_diff_size() {
@@ -673,82 +825,131 @@ mod tests {
 
     #[test]
     fn test_conversation_dump_json_with_id() {
-        let fixture = Cli::parse_from(["forge", "conversation", "dump", "abc123"]);
+        let fixture = Cli::parse_from([
+            "forge",
+            "conversation",
+            "dump",
+            "550e8400-e29b-41d4-a716-446655440000",
+        ]);
         let (id, html) = match fixture.subcommands {
             Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
                 ConversationCommand::Dump { id, html } => (id, html),
-                _ => (String::new(), true),
+                _ => (ConversationId::default(), true),
             },
-            _ => (String::new(), true),
+            _ => (ConversationId::default(), true),
         };
-        assert_eq!(id, "abc123");
+        assert_eq!(
+            id,
+            ConversationId::parse("550e8400-e29b-41d4-a716-446655440000").unwrap()
+        );
         assert_eq!(html, false); // JSON is default
     }
 
     #[test]
     fn test_conversation_dump_html_with_id() {
-        let fixture = Cli::parse_from(["forge", "conversation", "dump", "abc123", "--html"]);
+        let fixture = Cli::parse_from([
+            "forge",
+            "conversation",
+            "dump",
+            "550e8400-e29b-41d4-a716-446655440001",
+            "--html",
+        ]);
         let (id, html) = match fixture.subcommands {
             Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
                 ConversationCommand::Dump { id, html } => (id, html),
-                _ => (String::new(), false),
+                _ => (ConversationId::default(), false),
             },
-            _ => (String::new(), false),
+            _ => (ConversationId::default(), false),
         };
-        assert_eq!(id, "abc123");
+        assert_eq!(
+            id,
+            ConversationId::parse("550e8400-e29b-41d4-a716-446655440001").unwrap()
+        );
         assert_eq!(html, true);
     }
 
     #[test]
     fn test_conversation_retry_with_id() {
-        let fixture = Cli::parse_from(["forge", "conversation", "retry", "xyz789"]);
+        let fixture = Cli::parse_from([
+            "forge",
+            "conversation",
+            "retry",
+            "550e8400-e29b-41d4-a716-446655440002",
+        ]);
         let id = match fixture.subcommands {
             Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
                 ConversationCommand::Retry { id } => id,
-                _ => String::new(),
+                _ => ConversationId::default(),
             },
-            _ => String::new(),
+            _ => ConversationId::default(),
         };
-        assert_eq!(id, "xyz789");
+        assert_eq!(
+            id,
+            ConversationId::parse("550e8400-e29b-41d4-a716-446655440002").unwrap()
+        );
     }
 
     #[test]
     fn test_conversation_compact_with_id() {
-        let fixture = Cli::parse_from(["forge", "conversation", "compact", "abc123"]);
+        let fixture = Cli::parse_from([
+            "forge",
+            "conversation",
+            "compact",
+            "550e8400-e29b-41d4-a716-446655440003",
+        ]);
         let id = match fixture.subcommands {
             Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
                 ConversationCommand::Compact { id } => id,
-                _ => String::new(),
+                _ => ConversationId::default(),
             },
-            _ => String::new(),
+            _ => ConversationId::default(),
         };
-        assert_eq!(id, "abc123");
+        assert_eq!(
+            id,
+            ConversationId::parse("550e8400-e29b-41d4-a716-446655440003").unwrap()
+        );
     }
 
     #[test]
     fn test_conversation_last_with_id() {
-        let fixture = Cli::parse_from(["forge", "conversation", "show", "test123"]);
+        let fixture = Cli::parse_from([
+            "forge",
+            "conversation",
+            "show",
+            "550e8400-e29b-41d4-a716-446655440004",
+        ]);
         let id = match fixture.subcommands {
             Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
                 ConversationCommand::Show { id } => id,
-                _ => String::new(),
+                _ => ConversationId::default(),
             },
-            _ => String::new(),
+            _ => ConversationId::default(),
         };
-        assert_eq!(id, "test123");
+        assert_eq!(
+            id,
+            ConversationId::parse("550e8400-e29b-41d4-a716-446655440004").unwrap()
+        );
     }
 
     #[test]
     fn test_conversation_resume() {
-        let fixture = Cli::parse_from(["forge", "conversation", "resume", "def456"]);
+        let fixture = Cli::parse_from([
+            "forge",
+            "conversation",
+            "resume",
+            "550e8400-e29b-41d4-a716-446655440005",
+        ]);
         let id = match fixture.subcommands {
             Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
                 ConversationCommand::Resume { id } => id,
-                _ => String::new(),
+                _ => ConversationId::default(),
             },
-            _ => String::new(),
+            _ => ConversationId::default(),
         };
-        assert_eq!(id, "def456");
+        assert_eq!(
+            id,
+            ConversationId::parse("550e8400-e29b-41d4-a716-446655440005").unwrap()
+        );
     }
 
     #[test]
@@ -809,36 +1010,55 @@ mod tests {
 
     #[test]
     fn test_info_command_with_conversation_id() {
-        let fixture = Cli::parse_from(["forge", "info", "--conversation-id", "abc123"]);
+        let fixture = Cli::parse_from([
+            "forge",
+            "info",
+            "--conversation-id",
+            "550e8400-e29b-41d4-a716-446655440006",
+        ]);
         let actual = match fixture.subcommands {
             Some(TopLevelCommand::Info { conversation_id, .. }) => conversation_id,
             _ => None,
         };
-        let expected = Some("abc123".to_string());
+        let expected = Some(ConversationId::parse("550e8400-e29b-41d4-a716-446655440006").unwrap());
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_info_command_with_cid_alias() {
-        let fixture = Cli::parse_from(["forge", "info", "--cid", "xyz789"]);
+        let fixture = Cli::parse_from([
+            "forge",
+            "info",
+            "--cid",
+            "550e8400-e29b-41d4-a716-446655440007",
+        ]);
         let actual = match fixture.subcommands {
             Some(TopLevelCommand::Info { conversation_id, .. }) => conversation_id,
             _ => None,
         };
-        let expected = Some("xyz789".to_string());
+        let expected = Some(ConversationId::parse("550e8400-e29b-41d4-a716-446655440007").unwrap());
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_info_command_with_conversation_id_and_porcelain() {
-        let fixture = Cli::parse_from(["forge", "info", "--cid", "test123", "--porcelain"]);
+        let fixture = Cli::parse_from([
+            "forge",
+            "info",
+            "--cid",
+            "550e8400-e29b-41d4-a716-446655440008",
+            "--porcelain",
+        ]);
         let (conversation_id, porcelain) = match fixture.subcommands {
             Some(TopLevelCommand::Info { conversation_id, porcelain }) => {
                 (conversation_id, porcelain)
             }
             _ => (None, false),
         };
-        assert_eq!(conversation_id, Some("test123".to_string()));
+        assert_eq!(
+            conversation_id,
+            Some(ConversationId::parse("550e8400-e29b-41d4-a716-446655440008").unwrap())
+        );
         assert_eq!(porcelain, true);
     }
 
@@ -913,56 +1133,89 @@ mod tests {
 
     #[test]
     fn test_conversation_info_with_id() {
-        let fixture = Cli::parse_from(["forge", "conversation", "info", "abc123"]);
+        let fixture = Cli::parse_from([
+            "forge",
+            "conversation",
+            "info",
+            "550e8400-e29b-41d4-a716-446655440009",
+        ]);
         let id = match fixture.subcommands {
             Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
                 ConversationCommand::Info { id } => id,
-                _ => String::new(),
+                _ => ConversationId::default(),
             },
-            _ => String::new(),
+            _ => ConversationId::default(),
         };
-        assert_eq!(id, "abc123");
+        assert_eq!(
+            id,
+            ConversationId::parse("550e8400-e29b-41d4-a716-446655440009").unwrap()
+        );
     }
 
     #[test]
     fn test_conversation_stats_with_porcelain() {
-        let fixture = Cli::parse_from(["forge", "conversation", "stats", "test123", "--porcelain"]);
+        let fixture = Cli::parse_from([
+            "forge",
+            "conversation",
+            "stats",
+            "550e8400-e29b-41d4-a716-446655440010",
+            "--porcelain",
+        ]);
         let (id, porcelain) = match fixture.subcommands {
             Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
                 ConversationCommand::Stats { id, porcelain } => (id, porcelain),
-                _ => (String::new(), false),
+                _ => (ConversationId::default(), false),
             },
-            _ => (String::new(), false),
+            _ => (ConversationId::default(), false),
         };
-        assert_eq!(id, "test123");
+        assert_eq!(
+            id,
+            ConversationId::parse("550e8400-e29b-41d4-a716-446655440010").unwrap()
+        );
         assert_eq!(porcelain, true);
     }
 
     #[test]
     fn test_session_alias_dump() {
-        let fixture = Cli::parse_from(["forge", "session", "dump", "abc123"]);
+        let fixture = Cli::parse_from([
+            "forge",
+            "session",
+            "dump",
+            "550e8400-e29b-41d4-a716-446655440011",
+        ]);
         let (id, html) = match fixture.subcommands {
             Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
                 ConversationCommand::Dump { id, html } => (id, html),
-                _ => (String::new(), true),
+                _ => (ConversationId::default(), true),
             },
-            _ => (String::new(), true),
+            _ => (ConversationId::default(), true),
         };
-        assert_eq!(id, "abc123");
+        assert_eq!(
+            id,
+            ConversationId::parse("550e8400-e29b-41d4-a716-446655440011").unwrap()
+        );
         assert_eq!(html, false);
     }
 
     #[test]
     fn test_session_alias_retry() {
-        let fixture = Cli::parse_from(["forge", "session", "retry", "xyz789"]);
+        let fixture = Cli::parse_from([
+            "forge",
+            "session",
+            "retry",
+            "550e8400-e29b-41d4-a716-446655440012",
+        ]);
         let id = match fixture.subcommands {
             Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
                 ConversationCommand::Retry { id } => id,
-                _ => String::new(),
+                _ => ConversationId::default(),
             },
-            _ => String::new(),
+            _ => ConversationId::default(),
         };
-        assert_eq!(id, "xyz789");
+        assert_eq!(
+            id,
+            ConversationId::parse("550e8400-e29b-41d4-a716-446655440012").unwrap()
+        );
     }
 
     #[test]
@@ -975,7 +1228,7 @@ mod tests {
             "550e8400-e29b-41d4-a716-446655440000",
         ]);
         let actual = fixture.conversation_id;
-        let expected = Some("550e8400-e29b-41d4-a716-446655440000".to_string());
+        let expected = Some(ConversationId::parse("550e8400-e29b-41d4-a716-446655440000").unwrap());
         assert_eq!(actual, expected);
     }
 
@@ -987,34 +1240,51 @@ mod tests {
             "550e8400-e29b-41d4-a716-446655440000",
         ]);
         let actual = fixture.conversation_id;
-        let expected = Some("550e8400-e29b-41d4-a716-446655440000".to_string());
+        let expected = Some(ConversationId::parse("550e8400-e29b-41d4-a716-446655440000").unwrap());
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_conversation_clone_with_id() {
-        let fixture = Cli::parse_from(["forge", "conversation", "clone", "abc123"]);
+        let fixture = Cli::parse_from([
+            "forge",
+            "conversation",
+            "clone",
+            "550e8400-e29b-41d4-a716-446655440013",
+        ]);
         let id = match fixture.subcommands {
             Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
                 ConversationCommand::Clone { id, .. } => id,
-                _ => String::new(),
+                _ => ConversationId::default(),
             },
-            _ => String::new(),
+            _ => ConversationId::default(),
         };
-        assert_eq!(id, "abc123");
+        assert_eq!(
+            id,
+            ConversationId::parse("550e8400-e29b-41d4-a716-446655440013").unwrap()
+        );
     }
 
     #[test]
     fn test_conversation_clone_with_porcelain() {
-        let fixture = Cli::parse_from(["forge", "conversation", "clone", "test123", "--porcelain"]);
+        let fixture = Cli::parse_from([
+            "forge",
+            "conversation",
+            "clone",
+            "550e8400-e29b-41d4-a716-446655440014",
+            "--porcelain",
+        ]);
         let (id, porcelain) = match fixture.subcommands {
             Some(TopLevelCommand::Conversation(conversation)) => match conversation.command {
                 ConversationCommand::Clone { id, porcelain } => (id, porcelain),
-                _ => (String::new(), false),
+                _ => (ConversationId::default(), false),
             },
-            _ => (String::new(), false),
+            _ => (ConversationId::default(), false),
         };
-        assert_eq!(id, "test123");
+        assert_eq!(
+            id,
+            ConversationId::parse("550e8400-e29b-41d4-a716-446655440014").unwrap()
+        );
         assert_eq!(porcelain, true);
     }
 
@@ -1114,6 +1384,23 @@ mod tests {
     }
 
     #[test]
+    fn test_conversation_delete_with_id() {
+        let fixture = Cli::parse_from([
+            "forge",
+            "conversation",
+            "delete",
+            "550e8400-e29b-41d4-a716-446655440000",
+        ]);
+        let is_delete_with_id = match fixture.subcommands {
+            Some(TopLevelCommand::Conversation(conversation)) => {
+                matches!(conversation.command, ConversationCommand::Delete { id: _ })
+            }
+            _ => false,
+        };
+        assert_eq!(is_delete_with_id, true);
+    }
+
+    #[test]
     fn test_list_skill_with_porcelain() {
         let fixture = Cli::parse_from(["forge", "list", "skill", "--porcelain"]);
         let actual = match fixture.subcommands {
@@ -1122,5 +1409,23 @@ mod tests {
         };
         let expected = true;
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_prompt_with_leading_hyphen() {
+        let fixture = Cli::parse_from(["forge", "-p", "- hi"]);
+        assert_eq!(fixture.prompt, Some("- hi".to_string()));
+    }
+
+    #[test]
+    fn test_prompt_with_hyphen_flag_like_value() {
+        let fixture = Cli::parse_from(["forge", "-p", "-test"]);
+        assert_eq!(fixture.prompt, Some("-test".to_string()));
+    }
+
+    #[test]
+    fn test_prompt_with_double_hyphen() {
+        let fixture = Cli::parse_from(["forge", "-p", "--something"]);
+        assert_eq!(fixture.prompt, Some("--something".to_string()));
     }
 }

@@ -4,9 +4,9 @@ use std::path::PathBuf;
 use chrono::{DateTime, Local};
 use derive_setters::Setters;
 use forge_domain::{
-    Agent, AgentId, Attachment, ChatCompletionMessage, ChatResponse, ContextMessage, Conversation,
-    Environment, Event, HttpConfig, ModelId, ProviderId, RetryConfig, Role, Template, ToolCallFull,
-    ToolDefinition, ToolResult, Workflow,
+    Agent, AgentId, Attachment, ChatCompletionMessage, ChatResponse, Conversation, Environment,
+    Event, File, HttpConfig, MessageEntry, ModelId, ProviderId, RetryConfig, Role, Template,
+    ToolCallFull, ToolDefinition, ToolResult, Workflow,
 };
 use url::Url;
 
@@ -25,7 +25,7 @@ pub struct TestContext {
     pub mock_assistant_responses: Vec<ChatCompletionMessage>,
     pub workflow: Workflow,
     pub templates: HashMap<String, String>,
-    pub files: Vec<String>,
+    pub files: Vec<File>,
     pub env: Environment,
     pub current_time: DateTime<Local>,
     pub title: Option<String>,
@@ -83,7 +83,10 @@ impl Default for TestContext {
                 debug_requests: None,
                 custom_history_path: None,
                 max_conversations: 100,
+                sem_search_limit: 100,
+                sem_search_top_k: 10,
                 max_image_size: 262144,
+                workspace_server_url: Url::parse("http://localhost:8080").unwrap(),
                 override_model: None,
                 override_provider: None,
             },
@@ -135,7 +138,7 @@ impl TestOutput {
             })
     }
 
-    pub fn context_messages(&self) -> Vec<ContextMessage> {
+    pub fn context_messages(&self) -> Vec<MessageEntry> {
         self.conversation_history
             .last()
             .and_then(|c| c.context.as_ref())

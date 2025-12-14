@@ -26,8 +26,8 @@ async fn test_system_prompt_tool_supported() {
                 .custom_rules("Do it nicely"),
         )
         .files(vec![
-            "/users/john/foo.txt".to_string(),
-            "/users/jason/bar.txt".to_string(),
+            forge_domain::File { path: "/users/john/foo.txt".to_string(), is_dir: false },
+            forge_domain::File { path: "/users/jason/bar.txt".to_string(), is_dir: false },
         ])
         .mock_assistant_responses(vec![
             ChatCompletionMessage::assistant(Content::full("Sure"))

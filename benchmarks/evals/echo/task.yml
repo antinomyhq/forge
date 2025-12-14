@@ -1,7 +1,10 @@
 run:
-  command: echo "{{message}}"
-  parallelism: 5
-  timeout: 10
+  - git clone --depth=1 --branch main https://github.com/antinomyhq/forge
+  - ls -la
+  - echo "Forge deployment: $(readlink $(which forgee))"
+  - echo '{{message}}'
+parallelism: 5
+timeout: 10
 validations:
   - name: "Output contains Hello"
     type: regex
