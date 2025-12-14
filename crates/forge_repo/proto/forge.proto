@@ -299,13 +299,13 @@ message SyntaxError {
   string message = 3;
 }
 
-message UnsupportedLanguageError {}
+message UnsupportedLanguage {}
 
 message ValidationStatus {
   oneof status {
     bool valid = 1;
     SyntaxErrorList errors = 2;
-    UnsupportedLanguageError unsupported_language = 3;
+    UnsupportedLanguage unsupported_language = 3;
   }
 }
 
