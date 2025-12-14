@@ -184,6 +184,24 @@ Sync your codebase for semantic search:
 
 This will index the current directory for semantic code search.
 
+### Environment Diagnostics
+
+Run comprehensive environment diagnostics to check your Forge setup:
+
+```bash
+:doctor
+```
+
+This will check:
+- ZSH version and terminal information
+- Forge installation and version
+- Plugin and theme loading status
+- Completions availability
+- Dependencies (fzf, fd, bat)
+- ZSH plugins (autosuggestions, syntax-highlighting)
+- Editor configuration and PATH setup
+- Nerd Font support for icons
+
 ### .forge Directory
 
 The plugin creates a `.forge` directory in your current working directory (similar to `.git`) for temporary files:
