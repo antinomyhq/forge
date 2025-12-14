@@ -28,13 +28,12 @@ impl Default for TokioBackgroundTaskService {
 impl Drop for TokioBackgroundTaskService {
     fn drop(&mut self) {
         // Only abort if this is the last reference
-        if Arc::strong_count(&self.handles) == 1 {
-            if let Ok(mut handles) = self.handles.lock() {
+        if Arc::strong_count(&self.handles) == 1
+            && let Ok(mut handles) = self.handles.lock() {
                 for handle in handles.drain(..) {
                     handle.abort();
                 }
             }
-        }
     }
 }
 
