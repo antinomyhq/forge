@@ -103,13 +103,17 @@ print_section "Forge Installation"
 
 # Check FORGE_BIN environment variable
 if [[ -n "$FORGE_BIN" ]]; then
-    if [[ -f "$FORGE_BIN" && -x "$FORGE_BIN" ]]; then
-        print_result pass "FORGE_BIN set: ${FORGE_BIN}"
+    if [[ ! -e "$FORGE_BIN" ]]; then
+        print_result fail "FORGE_BIN path does not exist: ${FORGE_BIN}"
+    elif [[ ! -f "$FORGE_BIN" ]]; then
+        print_result fail "FORGE_BIN is not a file: ${FORGE_BIN}"
+    elif [[ ! -x "$FORGE_BIN" ]]; then
+        print_result fail "FORGE_BIN is not executable: ${FORGE_BIN}"
     else
-        print_result fail "FORGE_BIN set but not executable: ${FORGE_BIN}"
+        print_result pass "FORGE_BIN: ${FORGE_BIN}"
     fi
 else
-    print_result info "FORGE_BIN not set"
+    print_result warn "FORGE_BIN not set" "export FORGE_BIN=\$(which forge)"
 fi
 
 # Check if forge is in PATH
@@ -174,11 +178,17 @@ fi
 # 4. Check for common issues
 print_section "System"
 
-# Check if EDITOR is set
-if [[ -n "$EDITOR" ]]; then
+# Check editor configuration (FORGE_EDITOR takes precedence over EDITOR)
+if [[ -n "$FORGE_EDITOR" ]]; then
+    print_result pass "FORGE_EDITOR: ${FORGE_EDITOR}"
+    if [[ -n "$EDITOR" ]]; then
+        print_result info "EDITOR also set: ${EDITOR} (ignored)"
+    fi
+elif [[ -n "$EDITOR" ]]; then
     print_result pass "EDITOR: ${EDITOR}"
+    print_result info "Tip: Set FORGE_EDITOR for forge-specific editor"
 else
-    print_result warn "EDITOR not set" "export EDITOR=vim"
+    print_result warn "No editor configured" "export EDITOR=vim or export FORGE_EDITOR=vim"
 fi
 
 # Check PATH for common issues
