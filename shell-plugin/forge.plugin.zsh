@@ -10,9 +10,6 @@ source "${0:A:h}/lib/config.zsh"
 # Syntax highlighting
 source "${0:A:h}/lib/highlight.zsh"
 
-# Prompt customization
-source "${0:A:h}/lib/prompt.zsh"
-
 # Core utilities (includes logging)
 source "${0:A:h}/lib/helpers.zsh"
 
