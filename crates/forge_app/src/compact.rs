@@ -44,10 +44,7 @@ impl ContextCompactor for Compactor {
 
         let summary = self.render_summary_frame(&context.messages[0..=end_index])?;
 
-        info!(
-            end_index = end_index,
-            "Created context compaction summary"
-        );
+        info!(end_index = end_index, "Created context compaction summary");
 
         Ok(ContextMessage::user(summary, None))
     }
