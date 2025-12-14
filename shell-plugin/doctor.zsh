@@ -126,7 +126,8 @@ if command -v forge &> /dev/null; then
         print_result pass "Forge: ${forge_version}"
         print_result info "${forge_path}"
     else
-        print_result pass "Forge binary found: ${forge_path}"
+        print_result pass "Forge installed"
+        print_result info "${forge_path}"
     fi
 else
     print_result fail "Forge binary not found in PATH" "Install from: https://github.com/your-org/forge"
@@ -157,7 +158,7 @@ else
     fi
 fi
 
-# 4. Check theme
+# 4. Check ZSH theme
 print_section "ZSH Theme"
 
 # Check if forge theme is loaded by checking environment variable
@@ -175,30 +176,53 @@ else
     print_result info "  eval \"\$(\$FORGE_BIN zsh theme)\""
 fi
 
-# 4. Check for common issues
-print_section "System"
+# 5. Check dependencies
+print_section "Dependencies"
 
-# Check editor configuration (FORGE_EDITOR takes precedence over EDITOR)
-if [[ -n "$FORGE_EDITOR" ]]; then
-    print_result pass "FORGE_EDITOR: ${FORGE_EDITOR}"
-    if [[ -n "$EDITOR" ]]; then
-        print_result info "EDITOR also set: ${EDITOR} (ignored)"
+# Check for fzf - required for interactive selection
+if command -v fzf &> /dev/null; then
+    local fzf_version=$(fzf --version 2>&1 | head -n1 | awk '{print $1}')
+    if [[ -n "$fzf_version" ]]; then
+        print_result pass "fzf: ${fzf_version}"
+    else
+        print_result pass "fzf installed"
     fi
-elif [[ -n "$EDITOR" ]]; then
-    print_result pass "EDITOR: ${EDITOR}"
-    print_result info "Tip: Set FORGE_EDITOR for forge-specific editor"
 else
-    print_result warn "No editor configured" "export EDITOR=vim or export FORGE_EDITOR=vim"
+    print_result fail "fzf not found" "Required for interactive features: brew install fzf"
 fi
 
-# Check PATH for common issues
-if [[ "$PATH" == *"/usr/local/bin"* ]]; then
-    print_result pass "PATH configured"
+# Check for fd/fdfind - used for file discovery
+if command -v fd &> /dev/null; then
+    local fd_version=$(fd --version 2>&1 | awk '{print $2}')
+    if [[ -n "$fd_version" ]]; then
+        print_result pass "fd: ${fd_version}"
+    else
+        print_result pass "fd installed"
+    fi
+elif command -v fdfind &> /dev/null; then
+    local fd_version=$(fdfind --version 2>&1 | awk '{print $2}')
+    if [[ -n "$fd_version" ]]; then
+        print_result pass "fdfind: ${fd_version}"
+    else
+        print_result pass "fdfind installed"
+    fi
 else
-    print_result warn "PATH missing /usr/local/bin"
+    print_result warn "fd/fdfind not found" "Enhanced file discovery: brew install fd"
 fi
 
-# 10. Check recommended ZSH plugins
+# Check for bat - used for syntax highlighting
+if command -v bat &> /dev/null; then
+    local bat_version=$(bat --version 2>&1 | awk '{print $2}')
+    if [[ -n "$bat_version" ]]; then
+        print_result pass "bat: ${bat_version}"
+    else
+        print_result pass "bat installed"
+    fi
+else
+    print_result warn "bat not found" "Enhanced preview: brew install bat"
+fi
+
+# 6. Check recommended ZSH plugins
 print_section "Recommended Plugins"
 
 # Check for zsh-autosuggestions
@@ -223,34 +247,27 @@ else
     print_result info "Installation guide: https://github.com/zsh-users/zsh-syntax-highlighting/blob/master/INSTALL.md"
 fi
 
-# 5. Check dependencies
-print_section "Dependencies"
+# 7. Check system configuration
+print_section "System"
 
-# Check for fzf - required for interactive selection
-if command -v fzf &> /dev/null; then
-    local fzf_version=$(fzf --version 2>&1 | head -n1 | awk '{print $1}')
-    print_result pass "fzf: ${fzf_version}"
+# Check editor configuration (FORGE_EDITOR takes precedence over EDITOR)
+if [[ -n "$FORGE_EDITOR" ]]; then
+    print_result pass "FORGE_EDITOR: ${FORGE_EDITOR}"
+    if [[ -n "$EDITOR" ]]; then
+        print_result info "EDITOR also set: ${EDITOR} (ignored)"
+    fi
+elif [[ -n "$EDITOR" ]]; then
+    print_result pass "EDITOR: ${EDITOR}"
+    print_result info "Tip: Set FORGE_EDITOR for forge-specific editor"
 else
-    print_result fail "fzf not found" "Required for interactive features: brew install fzf"
+    print_result warn "No editor configured" "export EDITOR=vim or export FORGE_EDITOR=vim"
 fi
 
-# Check for fd/fdfind - used for file discovery
-if command -v fd &> /dev/null; then
-    local fd_version=$(fd --version 2>&1 | awk '{print $2}')
-    print_result pass "fd: ${fd_version}"
-elif command -v fdfind &> /dev/null; then
-    local fd_version=$(fdfind --version 2>&1 | awk '{print $2}')
-    print_result pass "fdfind: ${fd_version}"
+# Check PATH for common issues
+if [[ "$PATH" == *"/usr/local/bin"* ]]; then
+    print_result pass "PATH configured"
 else
-    print_result warn "fd/fdfind not found" "Enhanced file discovery: brew install fd"
-fi
-
-# Check for bat - used for syntax highlighting
-if command -v bat &> /dev/null; then
-    local bat_version=$(bat --version 2>&1 | awk '{print $2}')
-    print_result pass "bat: ${bat_version}"
-else
-    print_result warn "bat not found" "Enhanced preview: brew install bat"
+    print_result warn "PATH missing /usr/local/bin"
 fi
 
 # Check font and Nerd Font support
