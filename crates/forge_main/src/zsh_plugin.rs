@@ -6,16 +6,14 @@ use rust_embed::RustEmbed;
 
 use crate::cli::Cli;
 
-/// Embeds all shell plugin and theme files for zsh integration
+/// Embeds shell plugin files for zsh integration
 #[derive(RustEmbed)]
 #[folder = "$CARGO_MANIFEST_DIR/../../shell-plugin/lib"]
 #[include = "**/*.zsh"]
 #[exclude = "forge.plugin.zsh"]
 struct ZshPluginLib;
 
-/// Generates the complete zsh plugin by combining all embedded files
-/// Strips out comments and empty lines for minimal output (except theme)
-/// Includes the theme file for a complete Forge experience
+/// Generates the complete zsh plugin by combining embedded files and clap completions
 pub fn generate_zsh_plugin() -> Result<String> {
     let mut output = String::new();
 
@@ -52,21 +50,6 @@ pub fn generate_zsh_plugin() -> Result<String> {
 }
 
 /// Generates the ZSH theme for Forge
-///
-/// Returns the theme file content that can be saved to a `.zsh-theme` file
-/// or sourced directly in `.zshrc`.
-///
-/// # Example
-///
-/// Save to a theme file:
-/// ```bash
-/// forge terminal theme zsh > ~/.oh-my-zsh/custom/themes/forge.zsh-theme
-/// ```
-///
-/// Or source directly:
-/// ```bash
-/// forge terminal theme zsh >> ~/.zshrc
-/// ```
 pub fn generate_zsh_theme() -> Result<String> {
     let mut content = include_str!("../../../shell-plugin/forge.theme.zsh").to_string();
 
@@ -76,21 +59,11 @@ pub fn generate_zsh_theme() -> Result<String> {
     Ok(content)
 }
 
-/// Run diagnostics on the ZSH shell environment
-///
-/// Returns a diagnostic report that checks for common configuration issues,
-/// plugin conflicts, and environment setup problems.
-///
-/// # Example
-///
-/// ```bash
-/// forge zsh doctor
-/// ```
+/// Runs diagnostics on the ZSH shell environment
 ///
 /// # Errors
 ///
-/// Returns an error if the doctor script cannot be executed or if the shell
-/// invocation fails.
+/// Returns error if the doctor script cannot be executed
 pub fn run_zsh_doctor() -> Result<String> {
     // Get the embedded doctor script
     let script_content = include_str!("../../../shell-plugin/doctor.zsh");
