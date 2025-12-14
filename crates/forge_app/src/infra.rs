@@ -362,3 +362,36 @@ pub trait GrpcInfra: Send + Sync {
     /// connection
     fn hydrate(&self);
 }
+
+/// Infrastructure trait for spawning background tasks.
+///
+/// Provides an abstraction for spawning asynchronous tasks that run in the
+/// background. Tasks can be aborted using the returned handle.
+pub trait BackgroundTaskInfra: Send + Sync {
+    /// The handle type returned by spawn_bg
+    type Handle: TaskHandle;
+
+    /// Spawns a background task.
+    ///
+    /// The task will run asynchronously in the background. The returned handle
+    /// can be used to abort the task if needed.
+    ///
+    /// # Arguments
+    /// * `task` - The future to execute in the background
+    ///
+    /// # Returns
+    /// A handle that can be used to abort the background task
+    fn spawn_bg<F>(&self, task: F) -> Self::Handle
+    where
+        F: std::future::Future + Send + 'static;
+}
+
+/// Handle to a background task that allows manual abortion.
+pub trait TaskHandle: Send {
+    /// Aborts the background task.
+    ///
+    /// After calling this method, the task will be cancelled and will not
+    /// complete. This is a best-effort operation - the task may have already
+    /// completed.
+    fn abort(&mut self);
+}
