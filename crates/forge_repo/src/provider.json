@@ -367,6 +367,15 @@
     "auth_methods": ["api_key"]
   },
   {
+    "id": "io_intelligence",
+    "api_key_vars": "IO_INTELLIGENCE_API_KEY",
+    "url_param_vars": [],
+    "response_type": "OpenAI",
+    "url": "https://api.intelligence.io.solutions/api/v1/chat/completions",
+    "models": "https://api.intelligence.io.solutions/api/v1/models",
+    "auth_methods": ["api_key"]
+  },
+  {
     "id": "bedrock",
     "url_param_vars": ["AWS_REGION"],
     "response_type": "Bedrock",

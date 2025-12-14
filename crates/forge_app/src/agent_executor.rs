@@ -80,7 +80,6 @@ impl<S: Services> AgentExecutor<S> {
                 ChatResponse::TaskComplete => {}
                 ChatResponse::ToolCallStart(_) => ctx.send(message).await?,
                 ChatResponse::ToolCallEnd(_) => ctx.send(message).await?,
-                ChatResponse::Usage(_) => ctx.send(message).await?,
                 ChatResponse::RetryAttempt { .. } => ctx.send(message).await?,
                 ChatResponse::Interrupt { .. } => ctx.send(message).await?,
             }

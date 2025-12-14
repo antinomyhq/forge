@@ -106,7 +106,7 @@ impl<I: GrpcInfra> ValidationRepository for ForgeValidationRepository<I> {
                             Element::new("error")
                                 .attr("line", error.line.to_string())
                                 .attr("column", error.column.to_string())
-                                .text(&error.message)
+                                .cdata(&error.message)
                         }))
                         .append(
                             Element::new("suggestion").text("Review and fix the syntax issues"),

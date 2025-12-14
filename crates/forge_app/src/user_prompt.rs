@@ -283,7 +283,7 @@ mod tests {
         let messages = actual.context.unwrap().messages;
         let message = messages.first().unwrap();
 
-        if let ContextMessage::Text(text_msg) = message {
+        if let ContextMessage::Text(text_msg) = &**message {
             assert!(
                 text_msg.raw_content.is_some(),
                 "Raw content should be preserved"
