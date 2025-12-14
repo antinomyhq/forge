@@ -58,7 +58,7 @@ pub use context::*;
 pub use conversation::*;
 pub use conversation_html::*;
 pub use data_gen::*;
-pub use forge_config::*;
+pub use forge_env::*;
 pub use error::*;
 pub use event::*;
 pub use file::*;
