@@ -114,8 +114,20 @@ impl<I: GrpcInfra> ValidationRepository for ForgeValidationRepository<I> {
 
                     Ok(Some(error_element.render()))
                 }
+                proto_generated::validation_status::Status::UnsupportedLanguage(_) => {
+                    let ext = path
+                        .extension()
+                        .and_then(|e| e.to_str())
+                        .unwrap_or("unknown");
+                    debug!(
+                        path = %path_str,
+                        extension = ext,
+                        "Syntax validation skipped: unsupported language"
+                    );
+                    Ok(None)
+                }
             },
-            _ => Ok(None), // No status or unsupported file type
+            _ => Ok(None),
         }
     }
 }
