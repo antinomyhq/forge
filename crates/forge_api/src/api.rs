@@ -226,4 +226,20 @@ pub trait API: Sync + Send {
         &self,
         data_parameters: DataGenerationParameters,
     ) -> Result<BoxStream<'static, Result<serde_json::Value, anyhow::Error>>>;
+
+    /// Spawns a background task.
+    ///
+    /// The task will run asynchronously in the background. All spawned tasks
+    /// are tracked and will be aborted when the API instance is dropped.
+    ///
+    /// # Arguments
+    /// * `task` - The pinned future to execute in the background
+    ///
+    /// # Returns
+    /// A boxed handle that can be used to abort the background task
+    fn spawn_bg(
+        &self,
+        task: std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'static>>,
+        // FIXME: The boxing here is unnecessary, we can return the TaskHandle type as it is
+    ) -> Box<dyn forge_app::TaskHandle>;
 }

@@ -5,11 +5,11 @@ use std::time::Duration;
 use anyhow::Result;
 use forge_app::dto::ToolsOverview;
 use forge_app::{
-    AgentProviderResolver, AgentRegistry, AppConfigService, AuthService, CommandInfra,
-    CommandLoaderService, ContextEngineService, ConversationService, DataGenerationApp,
-    EnvironmentInfra, EnvironmentService, FileDiscoveryService, ForgeApp, GitApp, GrpcInfra,
-    McpConfigManager, McpService, ProviderAuthService, ProviderService, Services, User, UserUsage,
-    Walker,
+    AgentProviderResolver, AgentRegistry, AppConfigService, AuthService, BackgroundTaskInfra,
+    CommandInfra, CommandLoaderService, ContextEngineService, ConversationService,
+    DataGenerationApp, EnvironmentInfra, EnvironmentService, FileDiscoveryService, ForgeApp,
+    GitApp, GrpcInfra, McpConfigManager, McpService, ProviderAuthService, ProviderService,
+    Services, User, UserUsage, Walker,
 };
 use forge_domain::{Agent, InitAuth, LoginInfo, *};
 use forge_infra::ForgeInfra;
@@ -38,6 +38,24 @@ impl<A, F> ForgeAPI<A, F> {
     {
         ForgeApp::new(self.services.clone())
     }
+
+    /// Spawns a background task.
+    ///
+    /// The task will run asynchronously in the background. All spawned tasks
+    /// are tracked and will be aborted when the API instance is dropped.
+    ///
+    /// # Arguments
+    /// * `task` - The future to execute in the background
+    ///
+    /// # Returns
+    /// A handle that can be used to abort the background task
+    pub fn spawn_bg<Fut>(&self, task: Fut) -> F::Handle
+    where
+        F: BackgroundTaskInfra,
+        Fut: std::future::Future<Output = ()> + Send + 'static,
+    {
+        self.infra.spawn_bg(task)
+    }
 }
 
 impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
@@ -57,7 +75,12 @@ impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
 #[async_trait::async_trait]
 impl<
     A: Services,
-    F: CommandInfra + EnvironmentInfra + SkillRepository + AppConfigRepository + GrpcInfra,
+    F: CommandInfra
+        + EnvironmentInfra
+        + SkillRepository
+        + AppConfigRepository
+        + GrpcInfra
+        + BackgroundTaskInfra,
 > API for ForgeAPI<A, F>
 {
     async fn discover(&self) -> Result<Vec<File>> {
@@ -385,5 +408,13 @@ impl<
     fn hydrate_channel(&self) -> Result<()> {
         self.infra.hydrate();
         Ok(())
+    }
+
+    fn spawn_bg(
+        &self,
+        task: std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'static>>,
+    ) -> Box<dyn forge_app::TaskHandle> {
+        let handle = self.infra.spawn_bg(task);
+        Box::new(handle)
     }
 }

@@ -4,9 +4,10 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use forge_app::{
-    AgentRepository, CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra,
-    FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra, GrpcInfra, HttpInfra,
-    KVStore, McpServerInfra, StrategyFactory, UserInfra, WalkedFile, Walker, WalkerInfra,
+    AgentRepository, BackgroundTaskInfra, CommandInfra, DirectoryReaderInfra, EnvironmentInfra,
+    FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra,
+    GrpcInfra, HttpInfra, KVStore, McpServerInfra, StrategyFactory, UserInfra, WalkedFile, Walker,
+    WalkerInfra,
 };
 use forge_domain::{
     AnyProvider, AppConfig, AppConfigRepository, AuthCredential, CommandOutput, Conversation,
@@ -585,5 +586,16 @@ impl<F: GrpcInfra> GrpcInfra for ForgeRepo<F> {
 
     fn hydrate(&self) {
         self.infra.hydrate();
+    }
+}
+
+impl<F: BackgroundTaskInfra> BackgroundTaskInfra for ForgeRepo<F> {
+    type Handle = F::Handle;
+
+    fn spawn_bg<Fut>(&self, task: Fut) -> Self::Handle
+    where
+        Fut: std::future::Future<Output = ()> + Send + 'static,
+    {
+        self.infra.spawn_bg(task)
     }
 }
