@@ -44,7 +44,7 @@ pub struct ForgeRepo<F> {
     codebase_repo: Arc<crate::ForgeContextEngineRepository<F>>,
     agent_repository: Arc<ForgeAgentRepository<F>>,
     skill_repository: Arc<ForgeSkillRepository<F>>,
-    validation_repository: Arc<crate::ForgeValidationRepository<F>>,
+    validation_repository: crate::validation::ValidationRepositoryWrapper<F>,
 }
 
 impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra> ForgeRepo<F> {
@@ -72,7 +72,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra> ForgeR
         let codebase_repo = Arc::new(crate::ForgeContextEngineRepository::new(infra.clone()));
         let agent_repository = Arc::new(ForgeAgentRepository::new(infra.clone()));
         let skill_repository = Arc::new(ForgeSkillRepository::new(infra.clone()));
-        let validation_repository = Arc::new(crate::ForgeValidationRepository::new(infra.clone()));
+        let validation_repository = crate::validation::ValidationRepositoryFactory::create(infra.clone());
         Self {
             infra,
             file_snapshot_service,
