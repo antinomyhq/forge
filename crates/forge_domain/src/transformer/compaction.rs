@@ -1,16 +1,6 @@
-use crate::{Agent, Context, Transformer};
+use crate::{Agent, Context, ContextMessage, Transformer};
 
 /// Transformer that compacts context when necessary before sending to LLM
-///
-/// This transformer checks if compaction is needed based on the agent's
-/// configuration and applies compaction if required. Unlike other transformers,
-/// this one modifies the context by replacing messages with a summary.
-///
-/// The compaction process:
-/// 1. Checks if token count exceeds configured thresholds
-/// 2. Identifies sequences of messages that can be compacted
-/// 3. Generates a summary of those messages
-/// 4. Replaces the sequence with the summary message
 pub struct CompactionTransformer<C> {
     agent: Agent,
     compactor: Option<C>,
@@ -26,6 +16,27 @@ impl<C> CompactionTransformer<C> {
     pub fn new(agent: Agent, compactor: Option<C>) -> Self {
         Self { agent, compactor }
     }
+
+    fn find_last_breakpoint(&self, ctx: &Context) -> Option<usize> {
+        if ctx.messages.is_empty() {
+            return None;
+        }
+
+        let mut last_bp: Option<usize> = None;
+        let mut acc_ctx = Context::default();
+
+        for (i, msg) in ctx.messages.iter().enumerate() {
+            acc_ctx = acc_ctx.add_message(msg.message.clone());
+
+            let token_count = *acc_ctx.token_count();
+            if self.agent.should_compact(&acc_ctx, token_count) {
+                last_bp = Some(i);
+                acc_ctx = Context::default();
+            }
+        }
+
+        last_bp
+    }
 }
 
 /// Trait for context compaction functionality
@@ -35,42 +46,48 @@ pub trait ContextCompactor {
     /// # Errors
     ///
     /// Returns an error if compaction fails
-    fn compact(&self, context: Context, max: bool) -> anyhow::Result<Context>;
+    fn compact_range(&self, context: &Context, end_index: usize) -> anyhow::Result<ContextMessage>;
 }
 
 impl<C: ContextCompactor> Transformer for CompactionTransformer<C> {
     type Value = Context;
 
     fn transform(&mut self, context: Self::Value) -> Self::Value {
-        // Check if compaction is needed
-        let token_count = context.token_count();
-        if self.agent.should_compact(&context, *token_count)
-            && let Some(compactor) = self.compactor.as_ref()
-        {
-            tracing::info!(agent_id = %self.agent.id, "Compaction triggered by transformer");
+        let Some(compactor) = self.compactor.as_ref() else {
+            return context;
+        };
 
-            match compactor.compact(context.clone(), false) {
-                Ok(compacted) => {
-                    tracing::info!(
-                        agent_id = %self.agent.id,
-                        original_messages = context.messages.len(),
-                        compacted_messages = compacted.messages.len(),
-                        "Context compacted successfully"
-                    );
-                    compacted
+        let Some(breakpoint) = self.find_last_breakpoint(&context) else {
+            tracing::debug!(agent_id = %self.agent.id, "No compaction needed");
+            return context;
+        };
+
+        match compactor.compact_range(&context, breakpoint) {
+            Ok(msg) => {
+                let mut compacted_context = Context::default().add_message(msg);
+
+                // Add the remaining messages after breakpoint
+                for entry in context.messages.iter().skip(breakpoint + 1) {
+                    compacted_context = compacted_context.add_message(entry.message.clone());
                 }
-                Err(e) => {
-                    tracing::error!(
-                        agent_id = %self.agent.id,
-                        error = ?e,
-                        "Compaction failed, using original context"
-                    );
-                    context
-                }
+
+                tracing::info!(
+                    agent_id = %self.agent.id,
+                    original_messages = context.messages.len(),
+                    compacted_messages = compacted_context.messages.len(),
+                    "Context compacted"
+                );
+
+                compacted_context
             }
-        } else {
-            tracing::debug!(agent_id = %self.agent.id, "Compaction not needed");
-            context
+            Err(e) => {
+                tracing::error!(
+                    agent_id = %self.agent.id,
+                    error = ?e,
+                    "Compaction failed, using original context"
+                );
+                context
+            }
         }
     }
 }
@@ -80,14 +97,14 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::{Compact, ContextMessage, ModelId, ProviderId};
+    use crate::{Compact, ModelId, ProviderId};
 
     struct MockCompactor;
 
     impl ContextCompactor for MockCompactor {
-        fn compact(&self, _context: Context, _max: bool) -> anyhow::Result<Context> {
+        fn compact_range(&self, _context: &Context, _max: usize) -> anyhow::Result<ContextMessage> {
             // Simple mock: just return a context with fewer messages
-            Ok(Context::default().add_message(ContextMessage::user("Compacted summary", None)))
+            Ok(ContextMessage::user("Compacted summary", None))
         }
     }
 
@@ -99,17 +116,17 @@ mod tests {
         )
         .compact(
             Compact::new()
-                .eviction_window(5.0)
-                .retention_window(10usize),
+                .token_threshold(1000usize) // Very low threshold to trigger easily
+                .eviction_window(0.5)
+                .retention_window(2usize),
         )
     }
 
     #[test]
-    fn test_compaction_not_triggered_for_small_context() {
+    fn test_no_compaction_for_small_context() {
         let agent = test_agent();
         let compactor = MockCompactor;
 
-        // Create a small context that shouldn't trigger compaction
         let fixture = Context::default()
             .add_message(ContextMessage::user("Message 1", None))
             .add_message(ContextMessage::assistant("Response 1", None, None));
@@ -117,7 +134,35 @@ mod tests {
         let mut transformer = CompactionTransformer::new(agent, Some(compactor));
         let actual = transformer.transform(fixture.clone());
 
-        // Context should remain unchanged because compaction threshold not reached
         assert_eq!(actual.messages.len(), fixture.messages.len());
+    }
+
+    #[test]
+    fn test_compaction_with_single_breakpoint() {
+        let agent = test_agent();
+        let compactor = MockCompactor;
+
+        // Create context with enough messages to trigger compaction
+        // The agent is configured with eviction_window=0.5 and retention_window=2
+        // This means compaction triggers very easily
+        let mut fixture = Context::default();
+        for i in 0..50 {
+            // Add substantial content to increase token count
+            fixture = fixture
+                .add_message(ContextMessage::user(
+                    format!("User message {} with substantial content to increase token count. This message contains enough text to make sure we hit the compaction threshold quickly. The threshold is set to very low values in the test agent configuration.", i),
+                    None,
+                ))
+                .add_message(ContextMessage::assistant(
+                    format!("Assistant response {} with substantial content to increase token count. This response also contains enough text to ensure we accumulate sufficient tokens to trigger the compaction logic.", i),
+                    None,
+                    None,
+                ));
+        }
+
+        let mut transformer = CompactionTransformer::new(agent, Some(compactor));
+        let actual = transformer.transform(fixture);
+
+        assert_eq!(actual.messages.len(), 1);
     }
 }

@@ -37,12 +37,48 @@ impl Compactor {
 }
 
 impl ContextCompactor for Compactor {
-    fn compact(&self, context: Context, max: bool) -> anyhow::Result<Context> {
-        self.compact(context, max)
+    fn compact_range(&self, context: &Context, end_index: usize) -> anyhow::Result<ContextMessage> {
+        if end_index >= context.messages.len() {
+            return Err(anyhow::anyhow!("BUG(compaction): end index out of bounds"));
+        }
+
+        let summary = self.render_summary_frame(&context.messages[0..=end_index])?;
+
+        info!(
+            end_index = end_index,
+            "Created context compaction summary"
+        );
+
+        Ok(ContextMessage::user(summary, None))
     }
 }
 
 impl Compactor {
+    fn render_summary_frame(
+        &self,
+        messages: &[forge_domain::MessageEntry],
+    ) -> anyhow::Result<String> {
+        // Filter out droppable messages from compaction
+        let compaction_sequence: Vec<_> = messages
+            .iter()
+            .filter(|msg| !msg.is_droppable())
+            .cloned()
+            .collect();
+
+        // Create a temporary context for the sequence to generate summary
+        let sequence_context = Context::default().messages(compaction_sequence);
+
+        // Generate context summary with tool call information
+        let context_summary = ContextSummary::from(&sequence_context);
+
+        // Apply transformers to reduce redundant operations and clean up
+        let context_summary = self.transform(context_summary);
+
+        TemplateEngine::default().render(
+            "forge-partial-summary-frame.md",
+            &serde_json::json!({"messages": context_summary.messages}),
+        )
+    }
     /// Apply compaction to the context if requested.
     pub fn compact(&self, context: Context, max: bool) -> anyhow::Result<Context> {
         let eviction = CompactionStrategy::evict(self.compact.eviction_window);
@@ -69,6 +105,15 @@ impl Compactor {
     ) -> anyhow::Result<Context> {
         let (start, end) = sequence;
 
+        // Generate summary for the sequence
+        let summary = self.render_summary_frame(&context.messages[start..=end])?;
+
+        info!(
+            sequence_start = start,
+            sequence_end = end,
+            "Created context compaction summary"
+        );
+
         // The sequence from the original message that needs to be compacted
         // Filter out droppable messages (e.g., attachments) from compaction
         let compaction_sequence = context.messages[start..=end]
@@ -76,27 +121,6 @@ impl Compactor {
             .filter(|msg| !msg.is_droppable())
             .cloned()
             .collect::<Vec<_>>();
-
-        // Create a temporary context for the sequence to generate summary
-        let sequence_context = Context::default().messages(compaction_sequence.clone());
-
-        // Generate context summary with tool call information
-        let context_summary = ContextSummary::from(&sequence_context);
-
-        // Apply transformers to reduce redundant operations and clean up
-        let context_summary = self.transform(context_summary);
-
-        info!(
-            sequence_start = sequence.0,
-            sequence_end = sequence.1,
-            sequence_length = compaction_sequence.len(),
-            "Created context compaction summary"
-        );
-
-        let summary = TemplateEngine::default().render(
-            "forge-partial-summary-frame.md",
-            &serde_json::json!({"messages": context_summary.messages}),
-        )?;
 
         // Extended thinking reasoning chain preservation
         //
