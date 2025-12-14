@@ -63,29 +63,45 @@ function _forge_git() {
 }
 
 # Model and agent info with token count
-# Single forge call to get both model and conversation stats
-# Output format: model|total_tokens
-# Color: dim (242) when no conversation, cyan/white when conversation active
+# Parallel execution of forge commands for better performance
+# Uses porcelain format for reliable parsing
 function _forge_prompt_info() {
     local forge_bin="${_FORGE_BIN:-${FORGE_BIN:-forge}}"
     local agent="${_FORGE_ACTIVE_AGENT}"
     local cid="${_FORGE_CONVERSATION_ID}"
     
-    # Get prompt info (model and tokens) in one call
-    local info=""
+    local model=""
+    local tokens=""
+    
     if [[ -n "$cid" ]]; then
-        info=$($forge_bin zsh prompt-info --cid "$cid" 2>/dev/null)
+        # Both commands needed - run in parallel
+        # Use command substitution in background jobs
+        local model_result
+        local tokens_result
+        
+        # Start model fetch in background
+        {
+            model_result=$($forge_bin config get model 2>/dev/null)
+            print -r -- "$model_result"
+        } > >(read -r model) &
+        local model_pid=$!
+        
+        # Start stats fetch in background
+        {
+            local stats=$($forge_bin conversation stats "$cid" --porcelain 2>/dev/null)
+            if [[ -n "$stats" ]]; then
+                tokens_result=$(echo "$stats" | awk '/^token[[:space:]]+total_tokens/ {print $3}')
+            fi
+            print -r -- "$tokens_result"
+        } > >(read -r tokens) &
+        local stats_pid=$!
+        
+        # Wait for both to complete
+        wait $model_pid $stats_pid 2>/dev/null
     else
-        info=$($forge_bin zsh prompt-info 2>/dev/null)
+        # Only model needed - single call
+        model=$($forge_bin config get model 2>/dev/null)
     fi
-    
-    if [[ -z "$info" ]]; then
-        return
-    fi
-    
-    # Parse the pipe-delimited output: model|tokens
-    local model="${info%%|*}"
-    local tokens="${info##*|}"
     
     # Build model display
     local model_display=""
@@ -105,7 +121,7 @@ function _forge_prompt_info() {
         local agent_color="242"  # Dim by default
         
         # Format token count if available and non-zero
-        if [[ -n "$tokens" ]] && [[ "$tokens" != "0" ]] && [[ "$tokens" != "" ]]; then
+        if [[ -n "$tokens" ]] && [[ "$tokens" != "0" ]]; then
             # Format tokens in human-readable format
             if (( tokens >= 1000000 )); then
                 count=$(printf " %.1fM" $(( tokens / 100000.0 / 10.0 )))
