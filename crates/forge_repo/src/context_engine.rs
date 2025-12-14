@@ -232,41 +232,47 @@ impl<I: GrpcInfra> ContextEngineRepository for ForgeContextEngineRepository<I> {
                 let node_data = node.data?;
                 let node_id = node.node_id.map(|n| n.id).unwrap_or_default();
 
-                // Extract relevance, distance, and similarity from proto (all optional)
+                // Extract relevance and distance from proto (all optional)
                 let relevance = query_item.relevance;
                 let distance = query_item.distance;
-                let similarity = query_item.similarity;
 
                 // Convert proto node to domain CodeNode based on type
                 let code_node = match node_data.kind? {
-                    node_data::Kind::FileChunk(chunk) => forge_domain::NodeData::FileChunk {
-                        file_path: chunk.path,
-                        content: chunk.content,
-                        start_line: chunk.start_line,
-                        end_line: chunk.end_line,
-                    },
-                    node_data::Kind::File(file) => forge_domain::NodeData::File {
-                        file_path: file.path,
-                        content: file.content,
-                        hash: node.hash,
-                    },
-                    node_data::Kind::FileRef(file_ref) => forge_domain::NodeData::FileRef {
-                        file_path: file_ref.path,
-                        file_hash: file_ref.file_hash,
-                    },
-                    node_data::Kind::Note(note) => {
-                        forge_domain::NodeData::Note { content: note.content }
+                    node_data::Kind::FileChunk(chunk) => {
+                        forge_domain::NodeData::FileChunk(forge_domain::FileChunk {
+                            file_path: chunk.path,
+                            content: chunk.content,
+                            start_line: chunk.start_line,
+                            end_line: chunk.end_line,
+                        })
                     }
-                    node_data::Kind::Task(task) => forge_domain::NodeData::Task { task: task.task },
+                    node_data::Kind::File(file) => {
+                        forge_domain::NodeData::File(forge_domain::FileNode {
+                            file_path: file.path,
+                            content: file.content,
+                            hash: node.hash,
+                        })
+                    }
+                    node_data::Kind::FileRef(file_ref) => {
+                        forge_domain::NodeData::FileRef(forge_domain::FileRef {
+                            file_path: file_ref.path,
+                            file_hash: file_ref.file_hash,
+                        })
+                    }
+                    node_data::Kind::Note(note) => {
+                        forge_domain::NodeData::Note(forge_domain::Note { content: note.content })
+                    }
+                    node_data::Kind::Task(task) => {
+                        forge_domain::NodeData::Task(forge_domain::Task { task: task.task })
+                    }
                 };
 
-                // Wrap the node with its relevance, distance, and similarity scores
+                // Wrap the node with its relevance and distance scores
                 Some(Node {
                     node_id: node_id.into(),
                     node: code_node,
                     relevance,
                     distance,
-                    similarity,
                 })
             })
             .collect();

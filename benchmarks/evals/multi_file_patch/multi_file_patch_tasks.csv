@@ -1,0 +1,5 @@
+task
+"Add a comment // TODO: Refactor this module at the top of these three files: crates/forge_domain/src/lib.rs, crates/forge_app/src/lib.rs, and crates/forge_infra/src/lib.rs"
+"Add the line edition = ""2021"" to the [package] section in these three Cargo.toml files: crates/forge_domain/Cargo.toml, crates/forge_app/Cargo.toml, and crates/forge_infra/Cargo.toml"
+"Add ## License as a new section at the end of these markdown files: README.md, AGENTS.md, and docs/tool-guidelines.md"
+"Add the import use anyhow::Result; at the top of these files (after existing imports): crates/forge_domain/src/lib.rs, crates/forge_app/src/lib.rs, and crates/forge_repo/src/lib.rs"

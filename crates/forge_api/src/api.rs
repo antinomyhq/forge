@@ -70,6 +70,15 @@ pub trait API: Sync + Send {
     /// Finds the last active conversation for the current workspace
     async fn last_conversation(&self) -> Result<Option<Conversation>>;
 
+    /// Permanently deletes a conversation
+    ///
+    /// # Arguments
+    /// * `conversation_id` - The ID of the conversation to delete
+    ///
+    /// # Errors
+    /// Returns an error if the operation fails
+    async fn delete_conversation(&self, conversation_id: &ConversationId) -> Result<()>;
+
     /// Compacts the context of the main agent for the given conversation and
     /// persists it. Returns metrics about the compaction (original vs.
     /// compacted tokens and messages).

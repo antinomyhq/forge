@@ -809,15 +809,14 @@ mod tests {
     fn search_result() -> Node {
         Node {
             node_id: "n1".into(),
-            node: forge_domain::NodeData::FileChunk {
+            node: forge_domain::NodeData::FileChunk(forge_domain::FileChunk {
                 file_path: "main.rs".into(),
                 content: "fn main() {}".into(),
                 start_line: 1,
                 end_line: 1,
-            },
+            }),
             relevance: Some(0.95),
             distance: Some(0.05),
-            similarity: Some(0.95),
         }
     }
 

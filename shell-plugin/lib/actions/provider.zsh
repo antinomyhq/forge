@@ -3,13 +3,21 @@
 # Provider selection helper
 
 # Helper function to select a provider from the list
-# Usage: _forge_select_provider [filter_status] [current_provider]
+# Usage: _forge_select_provider [filter_status] [current_provider] [filter_type]
 # Returns: selected provider line (via stdout)
 function _forge_select_provider() {
     local filter_status="${1:-}"
     local current_provider="${2:-}"
+    local filter_type="${3:-}"
     local output
-    output=$($_FORGE_BIN list provider --porcelain 2>/dev/null)
+    
+    # Build the command with type filter if specified
+    local cmd="$_FORGE_BIN list provider --porcelain"
+    if [[ -n "$filter_type" ]]; then
+        cmd="$cmd --type=$filter_type"
+    fi
+    
+    output=$(eval "$cmd" 2>/dev/null)
     
     if [[ -z "$output" ]]; then
         _forge_log error "No providers available"

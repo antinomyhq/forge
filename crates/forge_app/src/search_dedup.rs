@@ -20,7 +20,6 @@ struct Score {
     query_idx: usize,
     relevance: Option<f32>,
     distance: Option<f32>,
-    similarity: Option<f32>,
 }
 
 impl Score {
@@ -30,7 +29,6 @@ impl Score {
             query_idx,
             relevance: result.relevance,
             distance: result.distance,
-            similarity: result.similarity,
         }
     }
 }
@@ -65,7 +63,6 @@ impl Ord for Score {
         // Compare in priority order: relevance → distance → similarity → query index
         compare(self.relevance, other.relevance) // Higher relevance is better
             .or_else(|| compare(other.distance, self.distance)) // Lower distance is better (flipped)
-            .or_else(|| compare(self.similarity, other.similarity)) // Higher similarity is better
             .unwrap_or_else(|| self.query_idx.cmp(&other.query_idx).reverse()) // Lower query index wins (first query wins)
     }
 }
@@ -122,15 +119,14 @@ mod tests {
     fn result(node_id: &str) -> Node {
         Node {
             node_id: node_id.into(),
-            node: NodeData::FileChunk {
+            node: NodeData::FileChunk(forge_domain::FileChunk {
                 file_path: "test.rs".into(),
                 content: "test".into(),
                 start_line: 1,
                 end_line: 1,
-            },
+            }),
             relevance: None,
             distance: None,
-            similarity: None,
         }
     }
 
@@ -144,60 +140,24 @@ mod tests {
 
     #[test]
     fn test_best_score_ordering_by_distance_when_relevance_equal() {
-        let score1 = Score::new(
-            0,
-            &result("node_a")
-                .relevance(0.9)
-                .distance(0.1)
-                .similarity(0.9),
-        );
-        let score2 = Score::new(
-            1,
-            &result("node_a")
-                .relevance(0.9)
-                .distance(0.2)
-                .similarity(0.9),
-        );
+        let score1 = Score::new(0, &result("node_a").relevance(0.9).distance(0.1));
+        let score2 = Score::new(1, &result("node_a").relevance(0.9).distance(0.2));
 
         assert!(score1 > score2);
     }
 
     #[test]
     fn test_best_score_ordering_by_similarity_when_relevance_distance_equal() {
-        let score1 = Score::new(
-            0,
-            &result("node_a")
-                .relevance(0.9)
-                .distance(0.1)
-                .similarity(0.95),
-        );
-        let score2 = Score::new(
-            1,
-            &result("node_a")
-                .relevance(0.9)
-                .distance(0.1)
-                .similarity(0.9),
-        );
+        let score1 = Score::new(0, &result("node_a").relevance(0.9).distance(0.1));
+        let score2 = Score::new(1, &result("node_a").relevance(0.9).distance(0.1));
 
         assert!(score1 > score2);
     }
 
     #[test]
     fn test_best_score_ordering_by_query_idx_when_all_equal() {
-        let score1 = Score::new(
-            0,
-            &result("node_a")
-                .relevance(0.9)
-                .distance(0.1)
-                .similarity(0.9),
-        );
-        let score2 = Score::new(
-            1,
-            &result("node_a")
-                .relevance(0.9)
-                .distance(0.1)
-                .similarity(0.9),
-        );
+        let score1 = Score::new(0, &result("node_a").relevance(0.9).distance(0.1));
+        let score2 = Score::new(1, &result("node_a").relevance(0.9).distance(0.1));
 
         assert!(score1 > score2); // Lower query index wins
     }
@@ -214,45 +174,22 @@ mod tests {
     fn test_deduplicate_results_keeps_highest_relevance() {
         let mut actual = vec![
             vec![
-                result("node_a")
-                    .relevance(0.8)
-                    .distance(0.2)
-                    .similarity(0.8),
-                result("node_b")
-                    .relevance(0.7)
-                    .distance(0.3)
-                    .similarity(0.7),
+                result("node_a").relevance(0.8).distance(0.2),
+                result("node_b").relevance(0.7).distance(0.3),
             ],
             vec![
-                result("node_a")
-                    .relevance(0.9)
-                    .distance(0.1)
-                    .similarity(0.9),
-                result("node_c")
-                    .relevance(0.6)
-                    .distance(0.4)
-                    .similarity(0.6),
+                result("node_a").relevance(0.9).distance(0.1),
+                result("node_c").relevance(0.6).distance(0.4),
             ],
         ];
 
         deduplicate_results(&mut actual);
 
         let expected = vec![
+            vec![result("node_b").relevance(0.7).distance(0.3)],
             vec![
-                result("node_b")
-                    .relevance(0.7)
-                    .distance(0.3)
-                    .similarity(0.7),
-            ],
-            vec![
-                result("node_a")
-                    .relevance(0.9)
-                    .distance(0.1)
-                    .similarity(0.9),
-                result("node_c")
-                    .relevance(0.6)
-                    .distance(0.4)
-                    .similarity(0.6),
+                result("node_a").relevance(0.9).distance(0.1),
+                result("node_c").relevance(0.6).distance(0.4),
             ],
         ];
 
@@ -263,32 +200,14 @@ mod tests {
     fn test_deduplicate_multiple_duplicates() {
         let mut actual = vec![
             vec![
-                result("node_a")
-                    .relevance(0.8)
-                    .distance(0.2)
-                    .similarity(0.8),
-                result("node_b")
-                    .relevance(0.7)
-                    .distance(0.3)
-                    .similarity(0.7),
-                result("node_c")
-                    .relevance(0.6)
-                    .distance(0.4)
-                    .similarity(0.6),
+                result("node_a").relevance(0.8).distance(0.2),
+                result("node_b").relevance(0.7).distance(0.3),
+                result("node_c").relevance(0.6).distance(0.4),
             ],
             vec![
-                result("node_a")
-                    .relevance(0.9)
-                    .distance(0.1)
-                    .similarity(0.9),
-                result("node_b")
-                    .relevance(0.5)
-                    .distance(0.5)
-                    .similarity(0.5),
-                result("node_d")
-                    .relevance(0.95)
-                    .distance(0.05)
-                    .similarity(0.95),
+                result("node_a").relevance(0.9).distance(0.1),
+                result("node_b").relevance(0.5).distance(0.5),
+                result("node_d").relevance(0.95).distance(0.05),
             ],
         ];
 
@@ -296,24 +215,12 @@ mod tests {
 
         let expected = vec![
             vec![
-                result("node_b")
-                    .relevance(0.7)
-                    .distance(0.3)
-                    .similarity(0.7),
-                result("node_c")
-                    .relevance(0.6)
-                    .distance(0.4)
-                    .similarity(0.6),
+                result("node_b").relevance(0.7).distance(0.3),
+                result("node_c").relevance(0.6).distance(0.4),
             ],
             vec![
-                result("node_a")
-                    .relevance(0.9)
-                    .distance(0.1)
-                    .similarity(0.9),
-                result("node_d")
-                    .relevance(0.95)
-                    .distance(0.05)
-                    .similarity(0.95),
+                result("node_a").relevance(0.9).distance(0.1),
+                result("node_d").relevance(0.95).distance(0.05),
             ],
         ];
 
@@ -324,45 +231,22 @@ mod tests {
     fn test_deduplicate_equal_relevance_uses_distance_tiebreaker() {
         let mut actual = vec![
             vec![
-                result("node_a")
-                    .relevance(0.9)
-                    .distance(0.2)
-                    .similarity(0.9),
-                result("node_b")
-                    .relevance(0.8)
-                    .distance(0.2)
-                    .similarity(0.8),
+                result("node_a").relevance(0.9).distance(0.2),
+                result("node_b").relevance(0.8).distance(0.2),
             ],
             vec![
-                result("node_a")
-                    .relevance(0.9)
-                    .distance(0.1)
-                    .similarity(0.9),
-                result("node_c")
-                    .relevance(0.7)
-                    .distance(0.3)
-                    .similarity(0.7),
+                result("node_a").relevance(0.9).distance(0.1),
+                result("node_c").relevance(0.7).distance(0.3),
             ],
         ];
 
         deduplicate_results(&mut actual);
 
         let expected = vec![
+            vec![result("node_b").relevance(0.8).distance(0.2)],
             vec![
-                result("node_b")
-                    .relevance(0.8)
-                    .distance(0.2)
-                    .similarity(0.8),
-            ],
-            vec![
-                result("node_a")
-                    .relevance(0.9)
-                    .distance(0.1)
-                    .similarity(0.9),
-                result("node_c")
-                    .relevance(0.7)
-                    .distance(0.3)
-                    .similarity(0.7),
+                result("node_a").relevance(0.9).distance(0.1),
+                result("node_c").relevance(0.7).distance(0.3),
             ],
         ];
 
@@ -373,77 +257,33 @@ mod tests {
     fn test_deduplicate_across_three_queries() {
         let mut actual = vec![
             vec![
-                result("node_a")
-                    .relevance(0.85)
-                    .distance(0.15)
-                    .similarity(0.85),
-                result("node_b")
-                    .relevance(0.75)
-                    .distance(0.25)
-                    .similarity(0.75),
-                result("node_e")
-                    .relevance(0.65)
-                    .distance(0.35)
-                    .similarity(0.65),
+                result("node_a").relevance(0.85).distance(0.15),
+                result("node_b").relevance(0.75).distance(0.25),
+                result("node_e").relevance(0.65).distance(0.35),
             ],
             vec![
-                result("node_a")
-                    .relevance(0.90)
-                    .distance(0.10)
-                    .similarity(0.90),
-                result("node_c")
-                    .relevance(0.80)
-                    .distance(0.20)
-                    .similarity(0.80),
-                result("node_d")
-                    .relevance(0.70)
-                    .distance(0.30)
-                    .similarity(0.70),
+                result("node_a").relevance(0.90).distance(0.10),
+                result("node_c").relevance(0.80).distance(0.20),
+                result("node_d").relevance(0.70).distance(0.30),
             ],
             vec![
-                result("node_a")
-                    .relevance(0.88)
-                    .distance(0.12)
-                    .similarity(0.88),
-                result("node_b")
-                    .relevance(0.78)
-                    .distance(0.22)
-                    .similarity(0.78),
-                result("node_d")
-                    .relevance(0.72)
-                    .distance(0.28)
-                    .similarity(0.72),
+                result("node_a").relevance(0.88).distance(0.12),
+                result("node_b").relevance(0.78).distance(0.22),
+                result("node_d").relevance(0.72).distance(0.28),
             ],
         ];
 
         deduplicate_results(&mut actual);
 
         let expected = vec![
+            vec![result("node_e").relevance(0.65).distance(0.35)],
             vec![
-                result("node_e")
-                    .relevance(0.65)
-                    .distance(0.35)
-                    .similarity(0.65),
+                result("node_a").relevance(0.90).distance(0.10),
+                result("node_c").relevance(0.80).distance(0.20),
             ],
             vec![
-                result("node_a")
-                    .relevance(0.90)
-                    .distance(0.10)
-                    .similarity(0.90),
-                result("node_c")
-                    .relevance(0.80)
-                    .distance(0.20)
-                    .similarity(0.80),
-            ],
-            vec![
-                result("node_b")
-                    .relevance(0.78)
-                    .distance(0.22)
-                    .similarity(0.78),
-                result("node_d")
-                    .relevance(0.72)
-                    .distance(0.28)
-                    .similarity(0.72),
+                result("node_b").relevance(0.78).distance(0.22),
+                result("node_d").relevance(0.72).distance(0.28),
             ],
         ];
 
@@ -453,31 +293,13 @@ mod tests {
     #[test]
     fn test_deduplicate_all_scores_equal_first_query_wins() {
         let mut actual = vec![
-            vec![
-                result("node_a")
-                    .relevance(0.8)
-                    .distance(0.2)
-                    .similarity(0.8),
-            ],
-            vec![
-                result("node_a")
-                    .relevance(0.8)
-                    .distance(0.2)
-                    .similarity(0.8),
-            ],
+            vec![result("node_a").relevance(0.8).distance(0.2)],
+            vec![result("node_a").relevance(0.8).distance(0.2)],
         ];
 
         deduplicate_results(&mut actual);
 
-        let expected = vec![
-            vec![
-                result("node_a")
-                    .relevance(0.8)
-                    .distance(0.2)
-                    .similarity(0.8),
-            ],
-            vec![],
-        ];
+        let expected = vec![vec![result("node_a").relevance(0.8).distance(0.2)], vec![]];
 
         assert_eq!(actual, expected);
     }

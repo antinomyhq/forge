@@ -59,11 +59,6 @@ pub enum SyncProgress {
 }
 
 impl SyncProgress {
-    /// Returns "file" or "files" based on count
-    fn pluralize(count: usize) -> &'static str {
-        if count == 1 { "file" } else { "files" }
-    }
-
     /// Returns the progress weight (0-100) for this event.
     pub fn weight(&self) -> Option<u64> {
         match self {
@@ -76,65 +71,6 @@ impl SyncProgress {
                 Some(sync_progress)
             }
             _ => None,
-        }
-    }
-
-    /// Returns a human-readable status message for this event
-    pub fn message(&self) -> Option<String> {
-        match self {
-            Self::Starting => {
-                Some("Initializing sync".to_string())
-                // None
-            }
-            Self::WorkspaceCreated { workspace_id } => {
-                Some(format!("Created Workspace: {}", workspace_id))
-            }
-            Self::DiscoveringFiles { path: _ } => None,
-            Self::FilesDiscovered { count: _ } => None,
-            Self::ComparingFiles { .. } => None,
-            Self::DiffComputed { to_delete, to_upload, modified } => {
-                let total = to_delete + to_upload - modified;
-                if total == 0 {
-                    Some("Index is up to date".to_string())
-                } else {
-                    let deleted = to_delete - modified;
-                    let new = to_upload - modified;
-                    let mut parts = Vec::new();
-                    if new > 0 {
-                        parts.push(format!("{} new", new));
-                    }
-                    if *modified > 0 {
-                        parts.push(format!("{} modified", modified));
-                    }
-                    if deleted > 0 {
-                        parts.push(format!("{} removed", deleted));
-                    }
-                    Some(format!("Change scan completed [{}]", parts.join(", ")))
-                }
-            }
-            Self::Syncing { current, total } => {
-                let width = total.to_string().len();
-                Some(format!(
-                    "Syncing {:>width$}/{} {}",
-                    current.round() as usize,
-                    total,
-                    Self::pluralize(*total)
-                ))
-            }
-            Self::Completed { uploaded_files, total_files } => {
-                if *uploaded_files == 0 {
-                    Some(format!(
-                        "Index up to date [{} {}]",
-                        total_files,
-                        Self::pluralize(*total_files)
-                    ))
-                } else {
-                    Some(format!(
-                        "Sync completed successfully [{uploaded_files}/{total_files} {} updated]",
-                        Self::pluralize(*uploaded_files),
-                    ))
-                }
-            }
         }
     }
 }
@@ -394,28 +330,6 @@ pub struct CodebaseQueryResult {
     pub results: Vec<Node>,
 }
 
-impl CodebaseQueryResult {
-    /// Convert to XML element for tool output
-    pub fn to_element(&self) -> forge_template::Element {
-        use forge_template::Element;
-
-        let mut elem = Element::new("query_result")
-            .attr("query", &self.query)
-            .attr("use_case", &self.use_case)
-            .attr("results", self.results.len());
-
-        if self.results.is_empty() {
-            elem = elem.text("No results found. Try using multiple queries with different phrasings, synonyms, or more specific use_case descriptions to improve search coverage.");
-        } else {
-            for result in &self.results {
-                elem = elem.append(result.node.to_element());
-            }
-        }
-
-        elem
-    }
-}
-
 /// Results for multiple codebase search queries
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct CodebaseSearchResults {
@@ -441,77 +355,77 @@ pub struct Node {
     pub relevance: Option<f32>,
     /// Distance score (second ranking metric, lower is better)
     pub distance: Option<f32>,
-    /// Similarity score (third ranking metric, higher is better)
-    pub similarity: Option<f32>,
+}
+
+/// File chunk with precise line numbers
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct FileChunk {
+    /// File path
+    pub file_path: String,
+    /// Code content
+    pub content: String,
+    /// Start line in the file
+    pub start_line: u32,
+    /// End line in the file
+    pub end_line: u32,
+}
+
+/// Full file content
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct FileNode {
+    /// File path
+    pub file_path: String,
+    /// File content
+    pub content: String,
+    /// SHA-256 hash of the file content
+    pub hash: String,
+}
+
+/// File reference (path only, no content)
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct FileRef {
+    /// File path
+    pub file_path: String,
+    /// SHA-256 hash of the file content
+    pub file_hash: String,
+}
+
+/// Note content
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct Note {
+    /// Note content
+    pub content: String,
+}
+
+/// Task description
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct Task {
+    /// Task description
+    pub task: String,
 }
 
 /// Result of a semantic search query
 ///
 /// Represents different types of nodes returned from the codebase service.
 /// Each variant contains only the fields relevant to that node type.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize, derive_more::From)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum NodeData {
     /// File chunk with precise line numbers
-    FileChunk {
-        /// File path
-        file_path: String,
-        /// Code content
-        content: String,
-        /// Start line in the file
-        start_line: u32,
-        /// End line in the file
-        end_line: u32,
-    },
+    #[from]
+    FileChunk(FileChunk),
     /// Full file content
-    File {
-        /// File path
-        file_path: String,
-        /// File content
-        content: String,
-        /// SHA-256 hash of the file content
-        hash: String,
-    },
+    #[from]
+    File(FileNode),
     /// File reference (path only, no content)
-    FileRef {
-        /// File path
-        file_path: String,
-        /// SHA-256 hash of the file content
-        file_hash: String,
-    },
+    #[from]
+    FileRef(FileRef),
     /// Note content
-    Note {
-        /// Note content
-        content: String,
-    },
+    #[from]
+    Note(Note),
     /// Task description
-    Task {
-        /// Task description
-        task: String,
-    },
-}
-
-impl NodeData {
-    pub fn to_element(&self) -> forge_template::Element {
-        use forge_template::Element;
-
-        match self {
-            Self::FileChunk { file_path, content, start_line, end_line } => {
-                Element::new("file_chunk")
-                    .attr("file_path", file_path)
-                    .attr("lines", format!("{}-{}", start_line, end_line))
-                    .cdata(content)
-            }
-            Self::File { file_path, content, .. } => Element::new("file")
-                .attr("file_path", file_path)
-                .cdata(content),
-            Self::FileRef { file_path, .. } => {
-                Element::new("file_ref").attr("file_path", file_path)
-            }
-            Self::Note { content } => Element::new("note").cdata(content),
-            Self::Task { task } => Element::new("task").text(task),
-        }
-    }
+    #[from]
+    Task(Task),
 }
 
 #[cfg(test)]
@@ -569,40 +483,5 @@ mod tests {
         };
 
         assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_codebase_query_result_empty_results() {
-        let fixture = CodebaseQueryResult {
-            query: "retry mechanism".to_string(),
-            use_case: "find retry logic".to_string(),
-            results: vec![],
-        };
-
-        let actual = fixture.to_element().render();
-        insta::assert_snapshot!(actual);
-    }
-
-    #[test]
-    fn test_codebase_query_result_with_results() {
-        let fixture = CodebaseQueryResult {
-            query: "auth logic".to_string(),
-            use_case: "authentication".to_string(),
-            results: vec![Node {
-                node_id: "node-1".into(),
-                node: NodeData::FileChunk {
-                    file_path: "src/auth.rs".to_string(),
-                    content: "fn authenticate() {}".to_string(),
-                    start_line: 10,
-                    end_line: 15,
-                },
-                relevance: Some(0.95),
-                distance: Some(0.05),
-                similarity: Some(0.95),
-            }],
-        };
-
-        let actual = fixture.to_element().render();
-        insta::assert_snapshot!(actual);
     }
 }

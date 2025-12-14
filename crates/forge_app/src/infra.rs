@@ -190,12 +190,12 @@ pub trait WalkerInfra: Send + Sync {
 /// HTTP service trait for making HTTP requests
 #[async_trait::async_trait]
 pub trait HttpInfra: Send + Sync + 'static {
-    async fn get(&self, url: &Url, headers: Option<HeaderMap>) -> anyhow::Result<Response>;
-    async fn post(&self, url: &Url, body: bytes::Bytes) -> anyhow::Result<Response>;
-    async fn delete(&self, url: &Url) -> anyhow::Result<Response>;
+    async fn http_get(&self, url: &Url, headers: Option<HeaderMap>) -> anyhow::Result<Response>;
+    async fn http_post(&self, url: &Url, body: bytes::Bytes) -> anyhow::Result<Response>;
+    async fn http_delete(&self, url: &Url) -> anyhow::Result<Response>;
 
     /// Posts JSON data and returns a server-sent events stream
-    async fn eventsource(
+    async fn http_eventsource(
         &self,
         url: &Url,
         headers: Option<HeaderMap>,
