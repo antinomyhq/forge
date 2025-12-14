@@ -1,7 +1,7 @@
 use std::future::Future;
 use std::sync::{Arc, Mutex};
 
-use forge_app::{BackgroundTaskInfra, TaskHandle};
+use forge_app::{BackgroundTaskExecutor, TaskHandle};
 
 /// Tokio-based background task spawner.
 ///
@@ -9,23 +9,23 @@ use forge_app::{BackgroundTaskInfra, TaskHandle};
 /// thread pool. All spawned tasks are tracked internally and will be aborted
 /// when the service is dropped.
 #[derive(Clone)]
-pub struct TokioBackgroundTaskService {
+pub struct TokioBackgroundTaskExecutor {
     handles: Arc<Mutex<Vec<tokio::task::JoinHandle<()>>>>,
 }
 
-impl TokioBackgroundTaskService {
+impl TokioBackgroundTaskExecutor {
     pub fn new() -> Self {
         Self { handles: Arc::new(Mutex::new(Vec::new())) }
     }
 }
 
-impl Default for TokioBackgroundTaskService {
+impl Default for TokioBackgroundTaskExecutor {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Drop for TokioBackgroundTaskService {
+impl Drop for TokioBackgroundTaskExecutor {
     fn drop(&mut self) {
         // Only abort if this is the last reference
         if Arc::strong_count(&self.handles) == 1
@@ -37,7 +37,7 @@ impl Drop for TokioBackgroundTaskService {
     }
 }
 
-impl BackgroundTaskInfra for TokioBackgroundTaskService {
+impl BackgroundTaskExecutor for TokioBackgroundTaskExecutor {
     type Handle = TokioTaskHandle;
 
     fn spawn_bg<F>(&self, task: F) -> Self::Handle
@@ -84,7 +84,7 @@ mod tests {
         let executed = Arc::new(AtomicBool::new(false));
         let executed_clone = executed.clone();
 
-        let service = TokioBackgroundTaskService::new();
+        let service = TokioBackgroundTaskExecutor::new();
         let _handle = service.spawn_bg(async move {
             executed_clone.store(true, Ordering::SeqCst);
         });
@@ -100,7 +100,7 @@ mod tests {
         let executed = Arc::new(AtomicBool::new(false));
         let executed_clone = executed.clone();
 
-        let service = TokioBackgroundTaskService::new();
+        let service = TokioBackgroundTaskExecutor::new();
         let mut handle = service.spawn_bg(async move {
             tokio::time::sleep(Duration::from_millis(100)).await;
             executed_clone.store(true, Ordering::SeqCst);
@@ -120,7 +120,7 @@ mod tests {
         let counter = Arc::new(AtomicBool::new(false));
         let counter_clone = counter.clone();
 
-        let service = TokioBackgroundTaskService::new();
+        let service = TokioBackgroundTaskExecutor::new();
 
         let _handle1 = service.spawn_bg(async move {
             tokio::time::sleep(Duration::from_millis(10)).await;
@@ -148,7 +148,7 @@ mod tests {
         let executed_clone = executed.clone();
 
         {
-            let service = TokioBackgroundTaskService::new();
+            let service = TokioBackgroundTaskExecutor::new();
             let _handle = service.spawn_bg(async move {
                 tokio::time::sleep(Duration::from_millis(100)).await;
                 executed_clone.store(true, Ordering::SeqCst);
@@ -174,7 +174,7 @@ mod tests {
         let c3 = counter3.clone();
 
         {
-            let service = TokioBackgroundTaskService::new();
+            let service = TokioBackgroundTaskExecutor::new();
 
             let _h1 = service.spawn_bg(async move {
                 tokio::time::sleep(Duration::from_millis(100)).await;
@@ -207,7 +207,7 @@ mod tests {
         let executed = Arc::new(AtomicBool::new(false));
         let executed_clone = executed.clone();
 
-        let service = TokioBackgroundTaskService::new();
+        let service = TokioBackgroundTaskExecutor::new();
 
         {
             let cloned_service = service.clone();
@@ -226,7 +226,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_finished_tasks_are_cleaned_up() {
-        let service = TokioBackgroundTaskService::new();
+        let service = TokioBackgroundTaskExecutor::new();
 
         // Spawn tasks that complete quickly
         for _ in 0..10 {

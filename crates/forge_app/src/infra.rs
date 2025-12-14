@@ -367,7 +367,7 @@ pub trait GrpcInfra: Send + Sync {
 ///
 /// Provides an abstraction for spawning asynchronous tasks that run in the
 /// background. Tasks can be aborted using the returned handle.
-pub trait BackgroundTaskInfra: Send + Sync {
+pub trait BackgroundTaskExecutor: Send + Sync {
     // FIXME: Need a better name
     /// The handle type returned by spawn_bg
     type Handle: TaskHandle;

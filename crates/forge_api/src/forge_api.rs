@@ -5,7 +5,7 @@ use std::time::Duration;
 use anyhow::Result;
 use forge_app::dto::ToolsOverview;
 use forge_app::{
-    AgentProviderResolver, AgentRegistry, AppConfigService, AuthService, BackgroundTaskInfra,
+    AgentProviderResolver, AgentRegistry, AppConfigService, AuthService, BackgroundTaskExecutor,
     CommandInfra, CommandLoaderService, ContextEngineService, ConversationService,
     DataGenerationApp, EnvironmentInfra, EnvironmentService, FileDiscoveryService, ForgeApp,
     GitApp, GrpcInfra, McpConfigManager, McpService, ProviderAuthService, ProviderService,
@@ -51,7 +51,7 @@ impl<A, F> ForgeAPI<A, F> {
     /// A handle that can be used to abort the background task
     pub fn spawn_bg<Fut>(&self, task: Fut) -> F::Handle
     where
-        F: BackgroundTaskInfra,
+        F: BackgroundTaskExecutor,
         Fut: std::future::Future<Output = ()> + Send + 'static,
     {
         self.infra.spawn_bg(task)
@@ -80,7 +80,7 @@ impl<
         + SkillRepository
         + AppConfigRepository
         + GrpcInfra
-        + BackgroundTaskInfra,
+        + BackgroundTaskExecutor,
 > API for ForgeAPI<A, F>
 {
     async fn discover(&self) -> Result<Vec<File>> {

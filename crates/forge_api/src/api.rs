@@ -240,6 +240,5 @@ pub trait API: Sync + Send {
     fn spawn_bg(
         &self,
         task: std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'static>>,
-        // FIXME: The boxing here is unnecessary, we can return the TaskHandle type as it is
     ) -> Box<dyn forge_app::TaskHandle>;
 }

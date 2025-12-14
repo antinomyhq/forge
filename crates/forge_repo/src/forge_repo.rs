@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use forge_app::{
-    AgentRepository, BackgroundTaskInfra, CommandInfra, DirectoryReaderInfra, EnvironmentInfra,
+    AgentRepository, BackgroundTaskExecutor, CommandInfra, DirectoryReaderInfra, EnvironmentInfra,
     FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra,
     GrpcInfra, HttpInfra, KVStore, McpServerInfra, StrategyFactory, UserInfra, WalkedFile, Walker,
     WalkerInfra,
@@ -589,7 +589,7 @@ impl<F: GrpcInfra> GrpcInfra for ForgeRepo<F> {
     }
 }
 
-impl<F: BackgroundTaskInfra> BackgroundTaskInfra for ForgeRepo<F> {
+impl<F: BackgroundTaskExecutor> BackgroundTaskExecutor for ForgeRepo<F> {
     type Handle = F::Handle;
 
     fn spawn_bg<Fut>(&self, task: Fut) -> Self::Handle
