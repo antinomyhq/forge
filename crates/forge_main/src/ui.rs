@@ -1431,8 +1431,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     }
 
     /// Run ZSH environment diagnostics
-    async fn on_zsh_doctor(&self) -> anyhow::Result<()> {
+    async fn on_zsh_doctor(&mut self) -> anyhow::Result<()> {
+        self.spinner.start(Some("Running diagnostics"))?;
         let report = crate::zsh_plugin::run_zsh_doctor()?;
+        self.spinner.stop(None)?;
         println!("{report}");
         Ok(())
     }
