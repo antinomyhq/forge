@@ -144,11 +144,7 @@ function _forge_git() {
 # Color: dim (242) when no conversation, cyan when conversation active
 function _forge_model() {
     local forge_bin="${_FORGE_BIN:-${FORGE_BIN:-forge}}"
-    local model="${_FORGE_ACTIVE_MODEL}"
-    
-    if [[ -z "$model" ]]; then
-        model=$($forge_bin config get model 2>/dev/null)
-    fi
+    local model=$($forge_bin config get model 2>/dev/null)
     
     if [[ -n "$model" ]]; then
         local color="242"  # Dim by default
@@ -163,48 +159,33 @@ function _forge_model() {
 # Color: dim (242) when no count, white when count > 0
 function _forge_agent() {
     if [[ -n "$_FORGE_ACTIVE_AGENT" ]]; then
+        local forge_bin="${_FORGE_BIN:-${FORGE_BIN:-forge}}"
         local agent="${(U)_FORGE_ACTIVE_AGENT}"  # Convert to uppercase
         local count=""
         local color="242"  # Dim by default
         
-        if [[ -n "$_FORGE_CONVERSATION_MESSAGE_COUNT" ]] && [[ "$_FORGE_CONVERSATION_MESSAGE_COUNT" != "0" ]]; then
-            count=" ${_FORGE_CONVERSATION_MESSAGE_COUNT}"
-            color="white"  # White when count exists
+        # Get token count from forge command if in a conversation
+        if [[ -n "$_FORGE_CONVERSATION_ID" ]]; then
+            local stats=$($forge_bin conversation stats "$_FORGE_CONVERSATION_ID" --porcelain 2>/dev/null)
+            if [[ -n "$stats" ]]; then
+                local tokens=$(echo "$stats" | awk '/^token[[:space:]]+total_tokens/ {print $3}')
+                if [[ -n "$tokens" ]] && [[ "$tokens" != "0" ]]; then
+                    # Format tokens in human-readable format
+                    if (( tokens >= 1000000 )); then
+                        count=$(printf " %.1fM" $(( tokens / 100000.0 / 10.0 )))
+                    elif (( tokens >= 1000 )); then
+                        count=$(printf " %dk" $(( tokens / 1000 )))
+                    else
+                        count=" $tokens"
+                    fi
+                    color="white"  # White when count exists
+                fi
+            fi
         fi
         
         echo "%B%F{${color}}${FORGE_AGENT_ICON} ${agent}${count}%f%b"
     fi
 }
-
-# Update forge variables on each prompt
-function _update_forge_vars() {
-    local forge_bin="${_FORGE_BIN:-${FORGE_BIN:-forge}}"
-    
-    # Update model if not set
-    if [[ -z "$_FORGE_ACTIVE_MODEL" ]]; then
-        _FORGE_ACTIVE_MODEL=$($forge_bin config get model 2>/dev/null)
-    fi
-    
-    # Update token count if in a conversation
-    if [[ -n "$_FORGE_CONVERSATION_ID" ]]; then
-        local stats=$($forge_bin conversation stats "$_FORGE_CONVERSATION_ID" --porcelain 2>/dev/null)
-        if [[ -n "$stats" ]]; then
-            local tokens=$(echo "$stats" | awk '/^token[[:space:]]+total_tokens/ {print $3}')
-            if [[ -n "$tokens" ]]; then
-                if (( tokens >= 1000000 )); then
-                    _FORGE_CONVERSATION_MESSAGE_COUNT=$(printf "%.1fM" $(( tokens / 100000.0 / 10.0 )))
-                elif (( tokens >= 1000 )); then
-                    _FORGE_CONVERSATION_MESSAGE_COUNT=$(printf "%dk" $(( tokens / 1000 )))
-                else
-                    _FORGE_CONVERSATION_MESSAGE_COUNT="$tokens"
-                fi
-            fi
-        fi
-    else
-        _FORGE_CONVERSATION_MESSAGE_COUNT=""
-    fi
-}
-precmd_functions+=(_update_forge_vars)
 
 # Main prompt: directory + git + chevron
 PROMPT='$(_forge_directory)$(_forge_git) %F{green}${FORGE_PROMPT_SYMBOL}%f '
