@@ -62,58 +62,73 @@ function _forge_git() {
     fi
 }
 
-# Model info with icon
-# Color: dim (242) when no conversation, cyan when conversation active
-function _forge_model() {
+# Model and agent info with token count
+# Single forge call to get both model and conversation stats
+# Output format: model|total_tokens
+# Color: dim (242) when no conversation, cyan/white when conversation active
+function _forge_prompt_info() {
     local forge_bin="${_FORGE_BIN:-${FORGE_BIN:-forge}}"
-    local model=$($forge_bin config get model 2>/dev/null)
+    local agent="${_FORGE_ACTIVE_AGENT}"
+    local cid="${_FORGE_CONVERSATION_ID}"
     
+    # Get prompt info (model and tokens) in one call
+    local info=""
+    if [[ -n "$cid" ]]; then
+        info=$($forge_bin zsh prompt-info --cid "$cid" 2>/dev/null)
+    else
+        info=$($forge_bin zsh prompt-info 2>/dev/null)
+    fi
+    
+    if [[ -z "$info" ]]; then
+        return
+    fi
+    
+    # Parse the pipe-delimited output: model|tokens
+    local model="${info%%|*}"
+    local tokens="${info##*|}"
+    
+    # Build model display
+    local model_display=""
     if [[ -n "$model" ]]; then
-        local color="242"  # Dim by default
-        if [[ -n "$_FORGE_CONVERSATION_ID" ]]; then
-            color="cyan"  # Cyan when conversation active
+        local model_color="242"  # Dim by default
+        if [[ -n "$cid" ]]; then
+            model_color="cyan"  # Cyan when conversation active
         fi
-        echo "%F{${color}}${FORGE_MODEL_ICON} ${model}%f"
+        model_display="%F{${model_color}}${FORGE_MODEL_ICON} ${model}%f"
     fi
-}
-
-# Agent with token count
-# Color: dim (242) when no count, white when count > 0
-function _forge_agent() {
-    if [[ -n "$_FORGE_ACTIVE_AGENT" ]]; then
-        local forge_bin="${_FORGE_BIN:-${FORGE_BIN:-forge}}"
-        local agent="${(U)_FORGE_ACTIVE_AGENT}"  # Convert to uppercase
+    
+    # Build agent display with token count
+    local agent_display=""
+    if [[ -n "$agent" ]]; then
+        local agent_upper="${(U)agent}"  # Convert to uppercase
         local count=""
-        local color="242"  # Dim by default
+        local agent_color="242"  # Dim by default
         
-        # Get token count from forge command if in a conversation
-        if [[ -n "$_FORGE_CONVERSATION_ID" ]]; then
-            local stats=$($forge_bin conversation stats "$_FORGE_CONVERSATION_ID" --porcelain 2>/dev/null)
-            if [[ -n "$stats" ]]; then
-                local tokens=$(echo "$stats" | awk '/^token[[:space:]]+total_tokens/ {print $3}')
-                if [[ -n "$tokens" ]] && [[ "$tokens" != "0" ]]; then
-                    # Format tokens in human-readable format
-                    if (( tokens >= 1000000 )); then
-                        count=$(printf " %.1fM" $(( tokens / 100000.0 / 10.0 )))
-                    elif (( tokens >= 1000 )); then
-                        count=$(printf " %dk" $(( tokens / 1000 )))
-                    else
-                        count=" $tokens"
-                    fi
-                    color="white"  # White when count exists
-                fi
+        # Format token count if available and non-zero
+        if [[ -n "$tokens" ]] && [[ "$tokens" != "0" ]] && [[ "$tokens" != "" ]]; then
+            # Format tokens in human-readable format
+            if (( tokens >= 1000000 )); then
+                count=$(printf " %.1fM" $(( tokens / 100000.0 / 10.0 )))
+            elif (( tokens >= 1000 )); then
+                count=$(printf " %dk" $(( tokens / 1000 )))
+            else
+                count=" $tokens"
             fi
+            agent_color="white"  # White when count exists
         fi
         
-        echo "%B%F{${color}}${FORGE_AGENT_ICON} ${agent}${count}%f%b"
+        agent_display="%B%F{${agent_color}}${FORGE_AGENT_ICON} ${agent_upper}${count}%f%b"
     fi
+    
+    # Return both displays
+    echo "${agent_display} ${model_display}"
 }
 
 # Main prompt: directory + git + chevron
 PROMPT='$(_forge_directory)$(_forge_git) %F{green}${FORGE_PROMPT_SYMBOL}%f '
 
-# Right prompt: model + agent with token count
-RPROMPT='$(_forge_agent) $(_forge_model)'
+# Right prompt: agent and model with token count (single forge call)
+RPROMPT='$(_forge_prompt_info)'
 
 # Continuation prompt
 PROMPT2='%F{242}...%f '
