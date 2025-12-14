@@ -190,7 +190,7 @@ if command -v fzf &> /dev/null; then
         print_result pass "fzf installed"
     fi
 else
-    print_result fail "fzf not found" "Required for interactive features: brew install fzf"
+    print_result fail "fzf not found" "Required for interactive features. See installation: https://github.com/junegunn/fzf#installation"
 fi
 
 # Check for fd/fdfind - used for file discovery
@@ -209,7 +209,7 @@ elif command -v fdfind &> /dev/null; then
         print_result pass "fdfind installed"
     fi
 else
-    print_result warn "fd/fdfind not found" "Enhanced file discovery: brew install fd"
+    print_result warn "fd/fdfind not found" "Enhanced file discovery. See installation: https://github.com/sharkdp/fd#installation"
 fi
 
 # Check for bat - used for syntax highlighting
@@ -221,7 +221,7 @@ if command -v bat &> /dev/null; then
         print_result pass "bat installed"
     fi
 else
-    print_result warn "bat not found" "Enhanced preview: brew install bat"
+    print_result warn "bat not found" "Enhanced preview. See installation: https://github.com/sharkdp/bat#installation"
 fi
 
 # 6. Check required ZSH plugins
@@ -266,10 +266,10 @@ else
 fi
 
 # Check PATH for common issues
-if [[ "$PATH" == *"/usr/local/bin"* ]]; then
+if [[ "$PATH" == *"/usr/local/bin"* ]] || [[ "$PATH" == *"/usr/bin"* ]]; then
     print_result pass "PATH configured"
 else
-    print_result warn "PATH missing /usr/local/bin"
+    print_result warn "PATH may need common directories" "Ensure /usr/local/bin or /usr/bin is in PATH"
 fi
 
 # Check font and Nerd Font support
