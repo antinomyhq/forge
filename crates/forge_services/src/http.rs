@@ -18,13 +18,13 @@ impl<I: HttpInfra> HttpClient<I> {
 #[async_trait::async_trait]
 impl<T: HttpInfra> HttpClientService for HttpClient<T> {
     async fn get(&self, url: &Url, headers: Option<HeaderMap>) -> anyhow::Result<Response> {
-        self.0.get(url, headers).await
+        self.0.http_get(url, headers).await
     }
     async fn post(&self, url: &Url, body: bytes::Bytes) -> anyhow::Result<Response> {
-        self.0.post(url, body).await
+        self.0.http_post(url, body).await
     }
     async fn delete(&self, url: &Url) -> anyhow::Result<Response> {
-        self.0.delete(url).await
+        self.0.http_delete(url).await
     }
 
     /// Posts JSON data and returns a server-sent events stream
@@ -34,6 +34,6 @@ impl<T: HttpInfra> HttpClientService for HttpClient<T> {
         headers: Option<HeaderMap>,
         body: Bytes,
     ) -> anyhow::Result<reqwest_eventsource::EventSource> {
-        self.0.eventsource(url, headers, body).await
+        self.0.http_eventsource(url, headers, body).await
     }
 }
