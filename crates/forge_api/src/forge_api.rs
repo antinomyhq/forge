@@ -21,6 +21,7 @@ use url::Url;
 
 use crate::API;
 
+#[derive(Clone)]
 pub struct ForgeAPI<S, F> {
     services: Arc<S>,
     infra: Arc<F>,

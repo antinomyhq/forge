@@ -101,7 +101,13 @@ Always verify changes by running tests and linting the codebase
    cargo insta test --accept
    ```
 
-2. **Build Guidelines**:
+2. **Format and lint code** (required - project uses unstable rustfmt features):
+
+   ```
+   cargo +nightly fmt --all && cargo +nightly clippy --fix --allow-dirty --all-features --workspace --all-targets -- -D warnings
+   ```
+
+3. **Build Guidelines**:
    - **NEVER** run `cargo build --release` unless absolutely necessary (e.g., performance testing, creating binaries for distribution)
    - For verification, use `cargo check` (fastest), `cargo insta test`, or `cargo build` (debug mode)
    - Release builds take significantly longer and are rarely needed for development verification

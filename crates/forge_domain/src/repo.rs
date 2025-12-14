@@ -5,7 +5,8 @@ use url::Url;
 
 use crate::{
     AnyProvider, AppConfig, AuthCredential, Conversation, ConversationId, MigrationResult,
-    Provider, ProviderId, Skill, Snapshot, UserId, Workspace, WorkspaceAuth, WorkspaceId,
+    Provider, ProviderId, Skill, Snapshot, SyncStatus, UserId, Workspace, WorkspaceAuth,
+    WorkspaceId, WorkspaceSyncStatus,
 };
 
 /// Repository for managing file snapshots
@@ -123,6 +124,40 @@ pub trait WorkspaceRepository: Send + Sync {
 
     /// Delete workspace from local database
     async fn delete(&self, workspace_id: &WorkspaceId) -> anyhow::Result<()>;
+
+    /// Updates the sync status for a workspace
+    ///
+    /// When status is `InProgress`, clears any stale locks and attempts to
+    /// acquire the lock atomically. Lock acquisition is performed as a
+    /// single database operation to ensure consistency.
+    ///
+    /// # Arguments
+    /// * `status` - New sync status
+    /// * `error_message` - Optional error message if status is Failed
+    ///
+    /// # Returns
+    /// * `Ok(true)` - Status updated successfully (for InProgress: lock
+    ///   acquired)
+    /// * `Ok(false)` - Status is InProgress but lock already held by another
+    ///   process
+    ///
+    /// # Errors
+    /// Returns an error if the database update fails
+    async fn update_status(
+        &self,
+        path: &std::path::Path,
+        status: SyncStatus,
+        error_message: Option<String>,
+    ) -> anyhow::Result<bool>;
+
+    /// Retrieves the current sync status for a workspace
+    ///
+    /// # Errors
+    /// Returns an error if the database query fails
+    async fn get_status(
+        &self,
+        path: &std::path::Path,
+    ) -> anyhow::Result<Option<WorkspaceSyncStatus>>;
 }
 
 /// Repository for managing codebase indexing and search operations

@@ -40,7 +40,7 @@ pub struct ForgeRepo<F> {
     app_config_repository: Arc<AppConfigRepositoryImpl<F>>,
     mcp_cache_repository: Arc<CacacheStorage>,
     provider_repository: Arc<ForgeProviderRepository<F>>,
-    indexing_repository: Arc<crate::ForgeWorkspaceRepository>,
+    indexing_repository: Arc<crate::ForgeWorkspaceRepository<F>>,
     codebase_repo: Arc<crate::ForgeContextEngineRepository<F>>,
     agent_repository: Arc<ForgeAgentRepository<F>>,
     skill_repository: Arc<ForgeSkillRepository<F>>,
@@ -67,7 +67,10 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra> ForgeR
 
         let provider_repository = Arc::new(ForgeProviderRepository::new(infra.clone()));
 
-        let indexing_repository = Arc::new(crate::ForgeWorkspaceRepository::new(db_pool.clone()));
+        let indexing_repository = Arc::new(crate::ForgeWorkspaceRepository::new(
+            db_pool.clone(),
+            infra.clone(),
+        ));
 
         let codebase_repo = Arc::new(crate::ForgeContextEngineRepository::new(infra.clone()));
         let agent_repository = Arc::new(ForgeAgentRepository::new(infra.clone()));
@@ -459,7 +462,7 @@ impl<F: StrategyFactory> StrategyFactory for ForgeRepo<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: Send + Sync> forge_domain::WorkspaceRepository for ForgeRepo<F> {
+impl<F: EnvironmentInfra + Send + Sync> forge_domain::WorkspaceRepository for ForgeRepo<F> {
     async fn upsert(
         &self,
         workspace_id: &forge_domain::WorkspaceId,
@@ -484,6 +487,24 @@ impl<F: Send + Sync> forge_domain::WorkspaceRepository for ForgeRepo<F> {
 
     async fn delete(&self, workspace_id: &forge_domain::WorkspaceId) -> anyhow::Result<()> {
         self.indexing_repository.delete(workspace_id).await
+    }
+
+    async fn update_status(
+        &self,
+        path: &std::path::Path,
+        status: forge_domain::SyncStatus,
+        error_message: Option<String>,
+    ) -> anyhow::Result<bool> {
+        self.indexing_repository
+            .update_status(path, status, error_message)
+            .await
+    }
+
+    async fn get_status(
+        &self,
+        path: &std::path::Path,
+    ) -> anyhow::Result<Option<forge_domain::WorkspaceSyncStatus>> {
+        self.indexing_repository.get_status(path).await
     }
 }
 

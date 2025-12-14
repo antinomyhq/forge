@@ -74,6 +74,7 @@ impl TryFrom<Workspace> for WorkspaceInfo {
             relation_count: workspace.relation_count,
             last_updated,
             created_at,
+            sync_status: None,
         })
     }
 }

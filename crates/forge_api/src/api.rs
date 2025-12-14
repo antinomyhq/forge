@@ -183,6 +183,20 @@ pub trait API: Sync + Send {
     async fn remove_provider(&self, provider_id: &ProviderId) -> Result<()>;
 
     /// Sync a codebase directory for semantic search
+    ///
+    /// Returns a stream of progress events. The caller decides how to use it:
+    /// - Consume the stream to show progress (manual sync)
+    /// - Spawn it in the background for fire-and-forget (automatic sync)
+    ///
+    /// # Arguments
+    /// * `path` - Path to the codebase directory
+    /// * `batch_size` - Number of files to process in each batch
+    ///
+    /// Automatically handles:
+    /// - Clearing stale locks before attempting sync
+    /// - Acquiring sync lock (skips if already in progress)
+    /// - Creating auth credentials if needed
+    /// - Updating sync status in database
     async fn sync_codebase(
         &self,
         path: PathBuf,

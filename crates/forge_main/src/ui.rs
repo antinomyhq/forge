@@ -2290,6 +2290,11 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Run the independent initialization tasks in parallel for better performance
         let workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
 
+        // Start background workspace sync on first initialization
+        if first {
+            self.start_background_sync();
+        }
+
         let _ = self.handle_migrate_credentials().await;
         self.install_vscode_extension();
 
@@ -3103,6 +3108,35 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             self.writeln_title(TitleFormat::info(message))?;
         }
         Ok(())
+    }
+
+    /// Start background workspace sync task
+    fn start_background_sync(&self) {
+        let api_clone = self.api.clone();
+        tokio::spawn(async move {
+            let env = api_clone.environment();
+
+            if !env.sync_enabled {
+                return;
+            }
+
+            let interval = std::time::Duration::from_secs(env.sync_interval_seconds);
+
+            tracing::info!(
+                interval_secs = env.sync_interval_seconds,
+                "Starting periodic workspace sync"
+            );
+
+            // Periodic sync loop (syncs immediately on startup, then after each interval)
+            loop {
+                // Fire and forget - sync_codebase handles locking, auth, and status updates
+                if let Ok(stream) = api_clone.sync_codebase(env.cwd.clone(), 100).await {
+                    let _ = stream.collect::<Vec<_>>().await;
+                }
+
+                tokio::time::sleep(interval).await;
+            }
+        });
     }
 
     /// Silently install VS Code extension if in VS Code and extension not

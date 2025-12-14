@@ -73,6 +73,8 @@ impl Default for TestContext {
                 max_search_lines: 1000,
                 fetch_truncation_limit: 1024,
                 stdout_max_prefix_length: 256,
+                sync_enabled: true,
+                sync_interval_seconds: 300,
                 stdout_max_suffix_length: 256,
                 max_read_size: 4096,
                 http: HttpConfig::default(),

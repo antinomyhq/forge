@@ -3,7 +3,7 @@ use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::WorkspaceId;
+use crate::{WorkspaceId, WorkspaceSyncStatus};
 
 /// Progress events emitted during codebase indexing
 #[derive(Debug, Clone, PartialEq)]
@@ -249,6 +249,8 @@ pub struct WorkspaceInfo {
     pub last_updated: Option<chrono::DateTime<chrono::Utc>>,
     /// Workspace created time.
     pub created_at: chrono::DateTime<chrono::Utc>,
+    /// Workspace sync status information
+    pub sync_status: Option<WorkspaceSyncStatus>,
 }
 
 /// File hash information from the server

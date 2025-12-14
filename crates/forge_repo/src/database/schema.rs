@@ -19,6 +19,9 @@ diesel::table! {
         path -> Text,
         created_at -> Timestamp,
         updated_at -> Nullable<Timestamp>,
+        sync_status -> Nullable<Text>,
+        last_synced_at -> Nullable<Timestamp>,
+        sync_error -> Nullable<Text>,
     }
 }
 

@@ -470,9 +470,52 @@ impl<
         path: PathBuf,
         batch_size: usize,
     ) -> Result<MpscStream<Result<SyncProgress>>> {
+        let canonical_path = path
+            .canonicalize()
+            .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
+
+        // Try to start sync by setting status to InProgress (clears stale locks and
+        // acquires lock internally)
+        let acquired = self
+            .infra
+            .update_status(&canonical_path, forge_domain::SyncStatus::InProgress, None)
+            .await?;
+
+        if !acquired {
+            // Lock already held - return empty stream
+            tracing::debug!(
+                "Sync skipped - lock already held for path: {}",
+                canonical_path.display()
+            );
+            return Ok(MpscStream::empty());
+        }
+
+        // Check auth and create if needed
+        let auth_check_result = async {
+            if !self.is_authenticated().await? {
+                self.create_auth_credentials().await?;
+            }
+            Ok::<_, anyhow::Error>(())
+        }
+        .await;
+
+        if let Err(e) = auth_check_result {
+            // Failed to authenticate - update status and release lock
+            let _ = self
+                .infra
+                .update_status(
+                    &canonical_path,
+                    forge_domain::SyncStatus::Failed,
+                    Some(format!("{:#}", e)),
+                )
+                .await;
+            return Err(e);
+        }
+
+        // Return progress stream
         let service = Clone::clone(self);
 
-        let stream = MpscStream::spawn(move |tx| async move {
+        let stream = MpscStream::spawn_with_capacity(8, move |tx| async move {
             // Create emit closure that captures the sender
             let emit = |progress: SyncProgress| {
                 let tx = tx.clone();
@@ -482,11 +525,29 @@ impl<
             };
 
             // Run the sync and emit progress events
-            let result = service.sync_codebase_internal(path, batch_size, emit).await;
+            let result = service
+                .sync_codebase_internal(canonical_path.clone(), batch_size, emit)
+                .await;
 
-            // If there was an error, send it through the channel
-            if let Err(e) = result {
-                let _ = tx.send(Err(e)).await;
+            // Update status based on result
+            match result {
+                Ok(_) => {
+                    let _ = service
+                        .infra
+                        .update_status(&canonical_path, forge_domain::SyncStatus::Success, None)
+                        .await;
+                }
+                Err(e) => {
+                    let _ = service
+                        .infra
+                        .update_status(
+                            &canonical_path,
+                            forge_domain::SyncStatus::Failed,
+                            Some(format!("{:#}", e)),
+                        )
+                        .await;
+                    let _ = tx.send(Err(e)).await;
+                }
             }
         });
 
@@ -549,18 +610,31 @@ impl<
         let (token, _) = Self::extract_workspace_auth(&credential)?;
 
         // List all workspaces for this user
-        self.infra
+        let mut workspaces = self
+            .infra
             .as_ref()
             .list_workspaces(&token)
             .await
-            .context("Failed to list workspaces")
+            .context("Failed to list workspaces")?;
+
+        // Enrich each workspace with sync status from local database
+        for workspace in &mut workspaces {
+            if let Ok(path) = std::path::PathBuf::from(&workspace.working_dir).canonicalize() {
+                // Try to get sync status - ignore errors since it's optional enrichment
+                if let Ok(Some(sync_status)) = self.infra.as_ref().get_status(&path).await {
+                    workspace.sync_status = Some(sync_status);
+                }
+            }
+        }
+
+        Ok(workspaces)
     }
 
     /// Retrieves workspace information for a specific path.
-    async fn get_workspace_info(&self, path: PathBuf) -> Result<Option<forge_domain::WorkspaceInfo>>
-    where
-        F: WorkspaceRepository + ContextEngineRepository + ProviderRepository,
-    {
+    async fn get_workspace_info(
+        &self,
+        path: PathBuf,
+    ) -> Result<Option<forge_domain::WorkspaceInfo>> {
         let path = path
             .canonicalize()
             .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
@@ -579,11 +653,22 @@ impl<
 
         if let Some(workspace) = workspace {
             // Get detailed workspace info from server
-            self.infra
+            if let Some(mut info) = self
+                .infra
                 .as_ref()
                 .get_workspace(&workspace.workspace_id, &token)
                 .await
-                .context("Failed to get workspace info")
+                .context("Failed to get workspace info")?
+            {
+                // Enrich with sync status from local database - optional, ignore errors
+                if let Ok(Some(sync_status)) = self.infra.as_ref().get_status(&path).await {
+                    info.sync_status = Some(sync_status);
+                }
+
+                Ok(Some(info))
+            } else {
+                Ok(None)
+            }
         } else {
             Ok(None)
         }
@@ -881,6 +966,22 @@ mod tests {
         async fn delete(&self, _: &WorkspaceId) -> Result<()> {
             Ok(())
         }
+
+        async fn update_status(
+            &self,
+            _path: &std::path::Path,
+            _status: forge_domain::SyncStatus,
+            _error_message: Option<String>,
+        ) -> anyhow::Result<bool> {
+            Ok(true) // Always succeed in tests
+        }
+
+        async fn get_status(
+            &self,
+            _path: &std::path::Path,
+        ) -> anyhow::Result<Option<forge_domain::WorkspaceSyncStatus>> {
+            Ok(None)
+        }
     }
 
     #[async_trait]
@@ -1012,6 +1113,7 @@ mod tests {
             relation_count: 0,
             last_updated: None,
             created_at: chrono::Utc::now(),
+            sync_status: None,
         });
         let service = ForgeContextEngineService::new(Arc::new(mock));
 
@@ -1112,6 +1214,7 @@ mod tests {
             relation_count: 0,
             last_updated: None,
             created_at: chrono::Utc::now(),
+            sync_status: None,
         });
         let service = ForgeContextEngineService::new(Arc::new(mock));
 
@@ -1132,6 +1235,7 @@ mod tests {
             relation_count: 10,
             last_updated: Some(chrono::Utc::now()),
             created_at: chrono::Utc::now(),
+            sync_status: None,
         });
         let service = ForgeContextEngineService::new(Arc::new(mock));
 

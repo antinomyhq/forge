@@ -29,6 +29,7 @@ Cargo.lock
 *.db-wal
 *.sqlite
 *.sqlite3
+.diesel_lock
 
 # Backup files
 *.bak
