@@ -224,8 +224,8 @@ else
     print_result warn "bat not found" "Enhanced preview: brew install bat"
 fi
 
-# 6. Check recommended ZSH plugins
-print_section "Recommended Plugins"
+# 6. Check required ZSH plugins
+print_section "Required Plugins"
 
 # Check for zsh-autosuggestions
 if [[ " ${plugins[*]} " =~ " zsh-autosuggestions " ]] || \
