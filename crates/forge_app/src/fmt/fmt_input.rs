@@ -17,13 +17,13 @@ impl FormatContent for ToolCatalog {
                 if is_explicit_range {
                     match (&input.start_line, &input.end_line) {
                         (Some(start), Some(end)) => {
-                            subtitle.push_str(&format!(" [Range {start}-{end}]"));
+                            subtitle.push_str(&format!(":{start}-{end}"));
                         }
                         (Some(start), None) => {
-                            subtitle.push_str(&format!(" [Range {start}-]"));
+                            subtitle.push_str(&format!(":{start}"));
                         }
                         (None, Some(end)) => {
-                            subtitle.push_str(&format!(" [Range -{end}]"));
+                            subtitle.push_str(&format!(":1-{end}"));
                         }
                         (None, None) => {}
                     }
