@@ -270,8 +270,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     }
 
     async fn run_inner(&mut self) -> Result<()> {
-        if let Some(mcp) = self.cli.subcommands.clone() {
-            return self.handle_subcommands(mcp).await;
+        if let Some(cmd) = self.cli.subcommands.clone() {
+            return self.handle_subcommands(cmd).await;
         }
 
         // Display the banner in dimmed colors since we're in interactive mode
@@ -2291,7 +2291,6 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
 
         let _ = self.handle_migrate_credentials().await;
-        self.install_vscode_extension();
 
         // Ensure we have a model selected before proceeding with initialization
         let active_agent = self.api.get_active_agent().await;
@@ -2360,6 +2359,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     async fn on_message(&mut self, content: Option<String>) -> Result<()> {
         let conversation_id = self.init_conversation().await?;
+
+        self.install_vscode_extension();
 
         // Track if content was provided to decide whether to use piped input as
         // additional context
@@ -3107,6 +3108,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Silently install VS Code extension if in VS Code and extension not
     /// installed.
+    /// NOTE: This is a non-cancellable and a slow task. We should only run this
+    /// if the user has provided a prompt because that is guaranteed to run for
+    /// at least a few seconds.
     fn install_vscode_extension(&self) {
         tokio::task::spawn_blocking(|| {
             if crate::vscode::should_install_extension() {
