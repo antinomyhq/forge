@@ -21,23 +21,18 @@ FORGE_MODEL_ICON="${FORGE_MODEL_ICON:-}"
 FORGE_AGENT_ICON="${FORGE_AGENT_ICON:-󱙺}"
 FORGE_PROMPT_SYMBOL="${FORGE_PROMPT_SYMBOL:-}"
 
-# Async git stats with caching for maximum performance
-# Cache variables
-typeset -g _FORGE_GIT_STATS_CACHE=""
-typeset -g _FORGE_GIT_STATS_PWD=""
-typeset -g _FORGE_GIT_STATS_PID=0
-
-# Async worker function (runs in background)
-function _git_stats_async_worker() {
+# Get git stats (synchronous)
+function _git_stats() {
+    # Only run if we're in a git repo (vcs_info already checked this)
+    [[ -z "$vcs_info_msg_0_" ]] && return
+    
     local status_output=$(git status --porcelain 2>/dev/null)
     
     # Early exit if no changes
     [[ -z "$status_output" ]] && return
     
-    local modified=0 staged=0 untracked=0
-    
     # Parse status in a single pass (optimized with awk)
-    echo "$status_output" | awk '
+    local result=$(echo "$status_output" | awk '
     BEGIN { m=0; s=0; u=0 }
     /^\?\?/ { u++ }
     /^ [MD]/ { m++ }
@@ -49,83 +44,10 @@ function _git_stats_async_worker() {
             if (m > 0 || s > 0) printf " "
             printf "%d?", u
         }
-    }'
+    }')
+    
+    [[ -n "$result" ]] && echo " %F{yellow}${result}%f"
 }
-
-# Get git stats (cached and async)
-function _git_stats() {
-    # Only run if we're in a git repo (vcs_info already checked this)
-    [[ -z "$vcs_info_msg_0_" ]] && return
-    
-    local current_pwd="$PWD"
-    
-    # Return cached result if in same directory and worker is not running
-    if [[ "$_FORGE_GIT_STATS_PWD" == "$current_pwd" ]] && [[ $_FORGE_GIT_STATS_PID -eq 0 ]]; then
-        [[ -n "$_FORGE_GIT_STATS_CACHE" ]] && echo " %F{yellow}${_FORGE_GIT_STATS_CACHE}%f"
-        return
-    fi
-    
-    # If directory changed or no cache, start async worker
-    if [[ "$_FORGE_GIT_STATS_PWD" != "$current_pwd" ]] || [[ -z "$_FORGE_GIT_STATS_CACHE" ]]; then
-        # Kill previous worker if still running
-        if [[ $_FORGE_GIT_STATS_PID -gt 0 ]]; then
-            kill -0 $_FORGE_GIT_STATS_PID 2>/dev/null && kill $_FORGE_GIT_STATS_PID 2>/dev/null
-        fi
-        
-        # Start new async worker
-        {
-            local result=$(_git_stats_async_worker)
-            # Update cache atomically using a temp file
-            local tmpfile="${TMPDIR:-/tmp}/forge_git_stats_$$"
-            echo "$result" > "$tmpfile"
-            echo "$current_pwd" >> "$tmpfile"
-            # Signal completion by writing PID 0
-            echo "0" >> "$tmpfile"
-        } &!
-        
-        # Store worker PID
-        _FORGE_GIT_STATS_PID=$!
-        
-        # Update directory tracker
-        _FORGE_GIT_STATS_PWD="$current_pwd"
-        
-        # Show cached result from previous directory (better than nothing)
-        [[ -n "$_FORGE_GIT_STATS_CACHE" ]] && echo " %F{yellow}${_FORGE_GIT_STATS_CACHE}%f"
-        return
-    fi
-    
-    # Show current cache
-    [[ -n "$_FORGE_GIT_STATS_CACHE" ]] && echo " %F{yellow}${_FORGE_GIT_STATS_CACHE}%f"
-}
-
-# Update git stats cache from async worker
-function _update_git_stats_cache() {
-    local tmpfile="${TMPDIR:-/tmp}/forge_git_stats_$$"
-    
-    # Check if async worker completed
-    if [[ -f "$tmpfile" ]]; then
-        # Read results
-        local result=$(sed -n '1p' "$tmpfile" 2>/dev/null)
-        local pwd=$(sed -n '2p' "$tmpfile" 2>/dev/null)
-        
-        # Update cache if pwd matches
-        if [[ "$pwd" == "$PWD" ]]; then
-            _FORGE_GIT_STATS_CACHE="$result"
-        fi
-        
-        # Clear worker PID
-        _FORGE_GIT_STATS_PID=0
-        
-        # Clean up temp file
-        rm -f "$tmpfile"
-        
-        # Trigger prompt refresh to show new results
-        zle && zle reset-prompt
-    fi
-}
-
-# Check for async results before each prompt
-precmd_functions+=(_update_git_stats_cache)
 
 # Directory name with icon
 function _forge_directory() {
