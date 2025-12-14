@@ -1,6 +1,7 @@
 pub mod executor;
 
 mod auth;
+mod background_task;
 mod env;
 mod error;
 mod forge_infra;
@@ -18,6 +19,7 @@ mod mcp_client;
 mod mcp_server;
 mod walker;
 
+pub use background_task::TokioBackgroundTaskService;
 pub use executor::ForgeCommandExecutorService;
 pub use forge_infra::*;
 pub use kv_storage::CacacheStorage;

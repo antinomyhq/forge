@@ -5,9 +5,9 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use forge_app::{
-    CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra,
-    FileReaderInfra, FileRemoverInfra, FileWriterInfra, GrpcInfra, HttpInfra, McpServerInfra,
-    StrategyFactory, UserInfra, WalkerInfra,
+    BackgroundTaskInfra, CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra,
+    FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra, GrpcInfra, HttpInfra,
+    McpServerInfra, StrategyFactory, UserInfra, WalkerInfra,
 };
 use forge_domain::{
     AuthMethod, CommandOutput, Environment, FileInfo as FileInfoData, McpServerConfig, ProviderId,
@@ -18,6 +18,7 @@ use reqwest::{Response, Url};
 use reqwest_eventsource::EventSource;
 
 use crate::auth::{AnyAuthStrategy, ForgeAuthStrategyFactory};
+use crate::background_task::TokioBackgroundTaskService;
 use crate::env::ForgeEnvironmentInfra;
 use crate::executor::ForgeCommandExecutorService;
 use crate::fs_create_dirs::ForgeCreateDirsService;
@@ -51,6 +52,7 @@ pub struct ForgeInfra {
     http_service: Arc<ForgeHttpInfra<ForgeFileWriteService>>,
     strategy_factory: Arc<ForgeAuthStrategyFactory>,
     grpc_client: Arc<ForgeGrpcClient>,
+    background_task_service: Arc<TokioBackgroundTaskService>,
 }
 
 impl ForgeInfra {
@@ -83,6 +85,7 @@ impl ForgeInfra {
             strategy_factory: Arc::new(ForgeAuthStrategyFactory::new()),
             http_service,
             grpc_client,
+            background_task_service: Arc::new(TokioBackgroundTaskService::new()),
         }
     }
 }
@@ -301,5 +304,16 @@ impl GrpcInfra for ForgeInfra {
 
     fn hydrate(&self) {
         self.grpc_client.hydrate();
+    }
+}
+
+impl BackgroundTaskInfra for ForgeInfra {
+    type Handle = <TokioBackgroundTaskService as BackgroundTaskInfra>::Handle;
+
+    fn spawn_bg<F>(&self, task: F) -> Self::Handle
+    where
+        F: std::future::Future<Output = ()> + Send + 'static,
+    {
+        self.background_task_service.spawn_bg(task)
     }
 }
