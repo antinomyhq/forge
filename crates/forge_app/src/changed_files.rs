@@ -81,7 +81,7 @@ mod tests {
     use std::path::PathBuf;
 
     use forge_domain::{
-        Agent, AgentId, Context, Conversation, ConversationId, Config, FileOperation, Metrics,
+        Agent, AgentId, Context, Conversation, ConversationId, Environment, FileOperation, Metrics,
         ModelId, ProviderId, ToolKind,
     };
     use pretty_assertions::assert_eq;
@@ -121,9 +121,9 @@ mod tests {
     }
 
     impl EnvironmentService for TestServices {
-        fn get_environment(&self) -> Config {
+        fn get_environment(&self) -> Environment {
             use fake::{Fake, Faker};
-            let mut env: Config = Faker.fake();
+            let mut env: Environment = Faker.fake();
             if let Some(cwd) = &self.cwd {
                 env.cwd = cwd.clone();
             } else {

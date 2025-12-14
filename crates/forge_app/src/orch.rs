@@ -21,7 +21,7 @@ pub struct Orchestrator<S> {
     services: Arc<S>,
     sender: Option<ArcSender>,
     conversation: Conversation,
-    environment: Config,
+    environment: Environment,
     tool_definitions: Vec<ToolDefinition>,
     models: Vec<Model>,
     agent: Agent,
@@ -32,7 +32,7 @@ pub struct Orchestrator<S> {
 impl<S: AgentService> Orchestrator<S> {
     pub fn new(
         services: Arc<S>,
-        environment: Config,
+        environment: Environment,
         conversation: Conversation,
         agent: Agent,
         event: Event,

@@ -127,7 +127,7 @@ pub mod tests {
     use base64::Engine;
     use bytes::Bytes;
     use forge_app::domain::{
-        AttachmentContent, CommandOutput, Config, ToolDefinition, ToolName, ToolOutput,
+        AttachmentContent, CommandOutput, Environment, ToolDefinition, ToolName, ToolOutput,
     };
     use forge_app::{
         AttachmentService, CommandInfra, DirectoryReaderInfra, EnvironmentInfra,
@@ -144,10 +144,10 @@ pub mod tests {
 
     #[async_trait::async_trait]
     impl EnvironmentInfra for MockEnvironmentInfra {
-        fn get_environment(&self) -> Config {
+        fn get_environment(&self) -> Environment {
             use fake::{Fake, Faker};
             let max_bytes: f64 = 250.0 * 1024.0; // 250 KB
-            let fixture: Config = Faker.fake();
+            let fixture: Environment = Faker.fake();
             fixture
                 .max_search_lines(25)
                 .max_search_result_bytes(max_bytes.ceil() as usize)
@@ -644,7 +644,7 @@ pub mod tests {
 
     #[async_trait::async_trait]
     impl EnvironmentInfra for MockCompositeService {
-        fn get_environment(&self) -> Config {
+        fn get_environment(&self) -> Environment {
             self.env_service.get_environment()
         }
 

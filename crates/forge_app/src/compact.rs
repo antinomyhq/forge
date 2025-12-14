@@ -1,5 +1,5 @@
 use forge_domain::{
-    Compact, CompactionStrategy, Context, ContextMessage, ContextSummary, Config, Transformer,
+    Compact, CompactionStrategy, Context, ContextMessage, ContextSummary, Environment, Transformer,
 };
 use tracing::info;
 
@@ -9,11 +9,11 @@ use crate::transformers::SummaryTransformer;
 /// A service dedicated to handling context compaction.
 pub struct Compactor {
     compact: Compact,
-    environment: Config,
+    environment: Environment,
 }
 
 impl Compactor {
-    pub fn new(compact: Compact, environment: Config) -> Self {
+    pub fn new(compact: Compact, environment: Environment) -> Self {
         Self { compact, environment }
     }
 
@@ -155,9 +155,9 @@ mod tests {
 
     use super::*;
 
-    fn test_environment() -> Config {
+    fn test_environment() -> Environment {
         use fake::{Fake, Faker};
-        let env: Config = Faker.fake();
+        let env: Environment = Faker.fake();
         env.cwd(std::path::PathBuf::from("/test/working/dir"))
     }
 

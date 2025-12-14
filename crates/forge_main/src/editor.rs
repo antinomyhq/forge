@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use forge_api::Config;
+use forge_api::Environment;
 use nu_ansi_term::{Color, Style};
 use reedline::{
     ColumnarMenu, DefaultHinter, EditCommand, Emacs, FileBackedHistory, KeyCode, KeyModifiers,
@@ -63,7 +63,7 @@ impl ForgeEditor {
         keybindings
     }
 
-    pub fn new(env: Config, manager: Arc<ForgeCommandManager>) -> Self {
+    pub fn new(env: Environment, manager: Arc<ForgeCommandManager>) -> Self {
         // Store file history in system config directory
         let history_file = env.history_path();
 

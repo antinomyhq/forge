@@ -64,7 +64,7 @@ mod tests {
     use std::path::PathBuf;
 
     use forge_app::WalkedFile;
-    use forge_app::domain::Config;
+    use forge_app::domain::Environment;
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -88,9 +88,9 @@ mod tests {
     }
 
     impl EnvironmentInfra for MockInfra {
-        fn get_environment(&self) -> Config {
+        fn get_environment(&self) -> Environment {
             use fake::{Fake, Faker};
-            let mut env: Config = Faker.fake();
+            let mut env: Environment = Faker.fake();
             env.cwd = self.cwd.clone();
             env
         }

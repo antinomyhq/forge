@@ -87,13 +87,13 @@ mod tests {
         files: Vec<(String, bool)>,
         response: Arc<Mutex<Option<String>>>,
         captured_context: Arc<Mutex<Option<Context>>>,
-        environment: Config,
+        environment: Environment,
     }
 
     impl MockServices {
         fn new(response: &str, files: Vec<(&str, bool)>) -> Arc<Self> {
             use fake::{Fake, Faker};
-            let mut env: Config = Faker.fake();
+            let mut env: Environment = Faker.fake();
             // Override only the fields that appear in templates
             env.os = "macos".to_string();
             env.cwd = "/test/dir".into();
@@ -110,7 +110,7 @@ mod tests {
     }
 
     impl EnvironmentService for MockServices {
-        fn get_environment(&self) -> Config {
+        fn get_environment(&self) -> Environment {
             self.environment.clone()
         }
     }

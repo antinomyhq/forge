@@ -1,12 +1,12 @@
 use forge_display::DiffFormat;
-use forge_domain::{ChatResponseContent, Config, TitleFormat};
+use forge_domain::{ChatResponseContent, Environment, TitleFormat};
 
 use crate::fmt::content::FormatContent;
 use crate::operation::ToolOperation;
 use crate::utils::format_display_path;
 
 impl FormatContent for ToolOperation {
-    fn to_content(&self, env: &Config) -> Option<ChatResponseContent> {
+    fn to_content(&self, env: &Environment) -> Option<ChatResponseContent> {
         match self {
             ToolOperation::FsRead { input: _, output: _ } => None,
             ToolOperation::ImageRead { output: _ } => None,
@@ -50,7 +50,7 @@ mod tests {
 
     use console::strip_ansi_codes;
     use forge_display::DiffFormat;
-    use forge_domain::{ChatResponseContent, Config, PatchOperation};
+    use forge_domain::{ChatResponseContent, Environment, PatchOperation};
     use insta::assert_snapshot;
     use pretty_assertions::assert_eq;
 
@@ -64,10 +64,10 @@ mod tests {
 
     // ContentFormat methods are now implemented in ChatResponseContent
 
-    fn fixture_environment() -> Config {
+    fn fixture_environment() -> Environment {
         use fake::{Fake, Faker};
         let max_bytes: f64 = 250.0 * 1024.0; // 250 KB
-        let fixture: Config = Faker.fake();
+        let fixture: Environment = Faker.fake();
         fixture
             .max_search_lines(25)
             .max_search_result_bytes(max_bytes.ceil() as usize)

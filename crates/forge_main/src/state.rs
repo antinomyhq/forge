@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use derive_setters::Setters;
-use forge_api::{ConversationId, Config};
+use forge_api::{ConversationId, Environment};
 
 //TODO: UIState and ForgePrompt seem like the same thing and can be merged
 /// State information for the UI
@@ -13,7 +13,7 @@ pub struct UIState {
 }
 
 impl UIState {
-    pub fn new(env: Config) -> Self {
+    pub fn new(env: Environment) -> Self {
         Self { cwd: env.cwd, conversation_id: Default::default() }
     }
 }

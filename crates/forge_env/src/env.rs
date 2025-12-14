@@ -17,7 +17,7 @@ const VERSION: &str = match option_env!("APP_VERSION") {
 #[serde(rename_all = "camelCase")]
 #[setters(strip_option)]
 /// Represents the environment in which the application is running.
-pub struct Config {
+pub struct Environment {
     /// The operating system of the environment.
     pub os: String,
     /// The process ID of the current process.
@@ -92,7 +92,7 @@ pub struct Config {
     pub override_provider: Option<String>,
 }
 
-impl Config {
+impl Environment {
     pub fn log_path(&self) -> PathBuf {
         self.base_path.join("logs")
     }
@@ -190,7 +190,7 @@ mod tests {
 
     #[test]
     fn test_agent_cwd_path() {
-        let fixture: Config = Faker.fake();
+        let fixture: Environment = Faker.fake();
         let fixture = fixture.cwd(PathBuf::from("/current/working/dir"));
 
         let actual = fixture.agent_cwd_path();
@@ -201,7 +201,7 @@ mod tests {
 
     #[test]
     fn test_agent_cwd_path_independent_from_agent_path() {
-        let fixture: Config = Faker.fake();
+        let fixture: Environment = Faker.fake();
         let fixture = fixture
             .cwd(PathBuf::from("/different/current/dir"))
             .base_path(PathBuf::from("/completely/different/base"));
@@ -223,7 +223,7 @@ mod tests {
 
     #[test]
     fn test_global_skills_path() {
-        let fixture: Config = Faker.fake();
+        let fixture: Environment = Faker.fake();
         let fixture = fixture.base_path(PathBuf::from("/home/user/.forge"));
 
         let actual = fixture.global_skills_path();
@@ -234,7 +234,7 @@ mod tests {
 
     #[test]
     fn test_local_skills_path() {
-        let fixture: Config = Faker.fake();
+        let fixture: Environment = Faker.fake();
         let fixture = fixture.cwd(PathBuf::from("/projects/my-app"));
 
         let actual = fixture.local_skills_path();
@@ -245,7 +245,7 @@ mod tests {
 
     #[test]
     fn test_skills_paths_independent() {
-        let fixture: Config = Faker.fake();
+        let fixture: Environment = Faker.fake();
         let fixture = fixture
             .cwd(PathBuf::from("/projects/my-app"))
             .base_path(PathBuf::from("/home/user/.forge"));
@@ -269,7 +269,7 @@ mod tests {
 
 #[test]
 fn test_command_path() {
-    let fixture = Config {
+    let fixture = Environment {
         os: "linux".to_string(),
         pid: 1234,
         cwd: PathBuf::from("/current/working/dir"),
@@ -308,7 +308,7 @@ fn test_command_path() {
 
 #[test]
 fn test_command_cwd_path() {
-    let fixture = Config {
+    let fixture = Environment {
         os: "linux".to_string(),
         pid: 1234,
         cwd: PathBuf::from("/current/working/dir"),
@@ -347,7 +347,7 @@ fn test_command_cwd_path() {
 
 #[test]
 fn test_command_cwd_path_independent_from_command_path() {
-    let fixture = Config {
+    let fixture = Environment {
         os: "linux".to_string(),
         pid: 1234,
         cwd: PathBuf::from("/different/current/dir"),

@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use forge_api::Config;
+use forge_api::Environment;
 
 use crate::editor::{ForgeEditor, ReadResult};
 use crate::model::{ForgeCommandManager, SlashCommand};
@@ -15,7 +15,7 @@ pub struct Console {
 
 impl Console {
     /// Creates a new instance of `Console`.
-    pub fn new(env: Config, command: Arc<ForgeCommandManager>) -> Self {
+    pub fn new(env: Environment, command: Arc<ForgeCommandManager>) -> Self {
         let editor = Mutex::new(ForgeEditor::new(env, command.clone()));
         Self { command, editor }
     }

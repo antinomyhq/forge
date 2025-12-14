@@ -135,7 +135,7 @@ mod tests {
 
     use bytes::Bytes;
     use forge_app::{EnvironmentInfra, FileReaderInfra, FileWriterInfra};
-    use forge_domain::{AppConfig, Config, ProviderId};
+    use forge_domain::{AppConfig, Environment, ProviderId};
     use pretty_assertions::assert_eq;
     use tempfile::TempDir;
 
@@ -164,9 +164,9 @@ mod tests {
     }
 
     impl EnvironmentInfra for MockInfra {
-        fn get_environment(&self) -> Config {
+        fn get_environment(&self) -> Environment {
             use fake::{Fake, Faker};
-            let mut env: Config = Faker.fake();
+            let mut env: Environment = Faker.fake();
             env = env.base_path(self.config_path.parent().unwrap().to_path_buf());
 
             if let Some(ref provider) = self.override_provider {

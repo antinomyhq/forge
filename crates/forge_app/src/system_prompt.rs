@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use derive_setters::Setters;
 use forge_domain::{
-    Agent, Conversation, Config, File, Model, SystemContext, Template, ToolDefinition,
+    Agent, Conversation, Environment, File, Model, SystemContext, Template, ToolDefinition,
     ToolUsagePrompt,
 };
 use tracing::debug;
@@ -12,7 +12,7 @@ use crate::{SkillFetchService, TemplateEngine};
 #[derive(Setters)]
 pub struct SystemPrompt<S> {
     services: Arc<S>,
-    environment: Config,
+    environment: Environment,
     agent: Agent,
     tool_definitions: Vec<ToolDefinition>,
     files: Vec<File>,
@@ -21,7 +21,7 @@ pub struct SystemPrompt<S> {
 }
 
 impl<S: SkillFetchService> SystemPrompt<S> {
-    pub fn new(services: Arc<S>, environment: Config, agent: Agent) -> Self {
+    pub fn new(services: Arc<S>, environment: Environment, agent: Agent) -> Self {
         Self {
             services,
             environment,
@@ -128,7 +128,7 @@ mod tests {
     use std::sync::Arc;
 
     use fake::Fake;
-    use forge_domain::{Agent, Config};
+    use forge_domain::{Agent, Environment};
 
     use super::*;
 
@@ -148,7 +148,7 @@ mod tests {
         }
     }
 
-    fn create_test_environment() -> Config {
+    fn create_test_environment() -> Environment {
         use fake::Faker;
         Faker.fake()
     }

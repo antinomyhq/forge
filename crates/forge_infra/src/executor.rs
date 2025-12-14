@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use forge_app::CommandInfra;
-use forge_domain::{CommandOutput, Config};
+use forge_domain::{CommandOutput, Environment};
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tokio::sync::Mutex;
@@ -12,14 +12,14 @@ use tokio::sync::Mutex;
 #[derive(Clone, Debug)]
 pub struct ForgeCommandExecutorService {
     restricted: bool,
-    env: Config,
+    env: Environment,
 
     // Mutex to ensure that only one command is executed at a time
     ready: Arc<Mutex<()>>,
 }
 
 impl ForgeCommandExecutorService {
-    pub fn new(restricted: bool, env: Config) -> Self {
+    pub fn new(restricted: bool, env: Environment) -> Self {
         Self { restricted, env, ready: Arc::new(Mutex::new(())) }
     }
 
@@ -199,10 +199,10 @@ mod tests {
 
     use super::*;
 
-    fn test_env() -> Config {
+    fn test_env() -> Environment {
         use fake::{Fake, Faker};
         let max_bytes: f64 = 250.0 * 1024.0; // 250 KB
-        let fixture: Config = Faker.fake();
+        let fixture: Environment = Faker.fake();
         fixture
             .max_search_result_bytes(max_bytes.ceil() as usize)
             .shell(

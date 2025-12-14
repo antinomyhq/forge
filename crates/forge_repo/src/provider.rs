@@ -585,7 +585,7 @@ mod env_tests {
     use std::path::PathBuf;
     use std::sync::Arc;
 
-    use forge_app::domain::Config;
+    use forge_app::domain::Environment;
     use forge_domain::AnyProvider;
     use pretty_assertions::assert_eq;
 
@@ -610,9 +610,9 @@ mod env_tests {
     }
 
     impl EnvironmentInfra for MockInfra {
-        fn get_environment(&self) -> Config {
+        fn get_environment(&self) -> Environment {
             use fake::{Fake, Faker};
-            let mut env: Config = Faker.fake();
+            let mut env: Environment = Faker.fake();
             env.base_path = self.base_path.clone();
             env
         }
@@ -1036,9 +1036,9 @@ mod env_tests {
         }
 
         impl EnvironmentInfra for CustomMockInfra {
-            fn get_environment(&self) -> Config {
+            fn get_environment(&self) -> Environment {
                 use fake::{Fake, Faker};
-                let mut env: Config = Faker.fake();
+                let mut env: Environment = Faker.fake();
                 env.base_path = self.base_path.clone();
                 env
             }

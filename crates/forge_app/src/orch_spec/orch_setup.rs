@@ -4,7 +4,7 @@ use std::path::PathBuf;
 use chrono::{DateTime, Local};
 use derive_setters::Setters;
 use forge_domain::{
-    Agent, AgentId, Attachment, ChatCompletionMessage, ChatResponse, Conversation, Config,
+    Agent, AgentId, Attachment, ChatCompletionMessage, ChatResponse, Conversation, Environment,
     Event, File, HttpConfig, MessageEntry, ModelId, ProviderId, RetryConfig, Role, Template,
     ToolCallFull, ToolDefinition, ToolResult, Workflow,
 };
@@ -26,7 +26,7 @@ pub struct TestContext {
     pub workflow: Workflow,
     pub templates: HashMap<String, String>,
     pub files: Vec<File>,
-    pub env: Config,
+    pub env: Environment,
     pub current_time: DateTime<Local>,
     pub title: Option<String>,
     pub model: ModelId,
@@ -50,7 +50,7 @@ impl Default for TestContext {
             templates: Default::default(),
             files: Default::default(),
             attachments: Default::default(),
-            env: Config {
+            env: Environment {
                 os: "MacOS".to_string(),
                 pid: 1234,
                 cwd: PathBuf::from("/Users/tushar"),

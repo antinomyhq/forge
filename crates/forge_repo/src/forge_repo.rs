@@ -10,7 +10,7 @@ use forge_app::{
 };
 use forge_domain::{
     AnyProvider, AppConfig, AppConfigRepository, AuthCredential, CommandOutput, Conversation,
-    ConversationId, ConversationRepository, Config, FileInfo, McpServerConfig,
+    ConversationId, ConversationRepository, Environment, FileInfo, McpServerConfig,
     MigrationResult, Provider, ProviderId, ProviderRepository, Skill, SkillRepository, Snapshot,
     SnapshotRepository,
 };
@@ -230,7 +230,7 @@ impl<F: HttpInfra> HttpInfra for ForgeRepo<F> {
 
 #[async_trait::async_trait]
 impl<F: EnvironmentInfra> EnvironmentInfra for ForgeRepo<F> {
-    fn get_environment(&self) -> Config {
+    fn get_environment(&self) -> Environment {
         self.infra.get_environment()
     }
     fn get_env_var(&self, key: &str) -> Option<String> {
