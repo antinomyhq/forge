@@ -5,9 +5,9 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use forge_app::{
-    BackgroundTaskExecutor, CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra,
-    FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra, GrpcInfra, HttpInfra,
-    McpServerInfra, StrategyFactory, UserInfra, WalkerInfra,
+    BackgroundTaskExecutor, CommandInfra, DirectoryReaderInfra, EnvironmentInfra,
+    FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra,
+    GrpcInfra, HttpInfra, McpServerInfra, StrategyFactory, UserInfra, WalkerInfra,
 };
 use forge_domain::{
     AuthMethod, CommandOutput, Environment, FileInfo as FileInfoData, McpServerConfig, ProviderId,
@@ -312,7 +312,7 @@ impl BackgroundTaskExecutor for ForgeInfra {
 
     fn spawn_bg<F>(&self, task: F) -> Self::Handle
     where
-        F: std::future::Future<Output = ()> + Send + 'static,
+        F: std::future::Future + Send + 'static,
     {
         self.background_task_service.spawn_bg(task)
     }

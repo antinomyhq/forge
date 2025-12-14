@@ -349,13 +349,13 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     // Improve startup time by hydrating caches
     fn hydrate_caches(&self) {
         let api = self.api.clone();
-        tokio::spawn(async move { api.get_models().await });
+        self.api.spawn_bg(async move { api.get_models().await });
         let api = self.api.clone();
-        tokio::spawn(async move { api.get_tools().await });
+        self.api.spawn_bg(async move { api.get_tools().await });
         let api = self.api.clone();
-        tokio::spawn(async move { api.get_agents().await });
+        self.api.spawn_bg(async move { api.get_agents().await });
         let api = self.api.clone();
-        tokio::spawn(async move {
+        self.api.spawn_bg(async move {
             let _ = api.hydrate_channel();
         });
     }

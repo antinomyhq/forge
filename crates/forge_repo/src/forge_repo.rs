@@ -594,7 +594,7 @@ impl<F: BackgroundTaskExecutor> BackgroundTaskExecutor for ForgeRepo<F> {
 
     fn spawn_bg<Fut>(&self, task: Fut) -> Self::Handle
     where
-        Fut: std::future::Future<Output = ()> + Send + 'static,
+        Fut: std::future::Future + Send + 'static,
     {
         self.infra.spawn_bg(task)
     }

@@ -1,5 +1,5 @@
 use std::future::Future;
-use std::sync::{Arc, Mutex};
+use std::sync::Mutex;
 
 use forge_app::{BackgroundTaskExecutor, TaskHandle};
 
@@ -8,14 +8,13 @@ use forge_app::{BackgroundTaskExecutor, TaskHandle};
 /// Spawns tasks using `tokio::spawn` which runs them on the tokio runtime's
 /// thread pool. All spawned tasks are tracked internally and will be aborted
 /// when the service is dropped.
-#[derive(Clone)]
 pub struct TokioBackgroundTaskExecutor {
-    handles: Arc<Mutex<Vec<tokio::task::JoinHandle<()>>>>,
+    handles: Mutex<Vec<tokio::task::JoinHandle<()>>>,
 }
 
 impl TokioBackgroundTaskExecutor {
     pub fn new() -> Self {
-        Self { handles: Arc::new(Mutex::new(Vec::new())) }
+        Self { handles: Mutex::new(Vec::new()) }
     }
 }
 
@@ -27,13 +26,11 @@ impl Default for TokioBackgroundTaskExecutor {
 
 impl Drop for TokioBackgroundTaskExecutor {
     fn drop(&mut self) {
-        // Only abort if this is the last reference
-        if Arc::strong_count(&self.handles) == 1
-            && let Ok(mut handles) = self.handles.lock() {
-                for handle in handles.drain(..) {
-                    handle.abort();
-                }
+        if let Ok(mut handles) = self.handles.lock() {
+            for handle in handles.drain(..) {
+                handle.abort();
             }
+        }
     }
 }
 
@@ -42,9 +39,11 @@ impl BackgroundTaskExecutor for TokioBackgroundTaskExecutor {
 
     fn spawn_bg<F>(&self, task: F) -> Self::Handle
     where
-        F: Future<Output = ()> + Send + 'static,
+        F: Future + Send + 'static,
     {
-        let handle = tokio::spawn(task);
+        let handle = tokio::spawn(async move {
+            task.await;
+        });
         let abort_handle = handle.abort_handle();
 
         // Store the handle for cleanup on drop
@@ -207,7 +206,7 @@ mod tests {
         let executed = Arc::new(AtomicBool::new(false));
         let executed_clone = executed.clone();
 
-        let service = TokioBackgroundTaskExecutor::new();
+        let service = Arc::new(TokioBackgroundTaskExecutor::new());
 
         {
             let cloned_service = service.clone();

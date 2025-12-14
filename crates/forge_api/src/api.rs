@@ -237,8 +237,5 @@ pub trait API: Sync + Send {
     ///
     /// # Returns
     /// A boxed handle that can be used to abort the background task
-    fn spawn_bg(
-        &self,
-        task: std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'static>>,
-    ) -> Box<dyn forge_app::TaskHandle>;
+    fn spawn_bg<T: Future + Send + 'static>(&self, task: T) -> Box<dyn forge_app::TaskHandle>;
 }

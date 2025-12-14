@@ -410,10 +410,7 @@ impl<
         Ok(())
     }
 
-    fn spawn_bg(
-        &self,
-        task: std::pin::Pin<Box<dyn std::future::Future<Output = ()> + Send + 'static>>,
-    ) -> Box<dyn forge_app::TaskHandle> {
+    fn spawn_bg<T: Future + Send + 'static>(&self, task: T) -> Box<dyn forge_app::TaskHandle> {
         let handle = self.infra.spawn_bg(task);
         Box::new(handle)
     }

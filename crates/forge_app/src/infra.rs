@@ -384,7 +384,7 @@ pub trait BackgroundTaskExecutor: Send + Sync {
     /// A handle that can be used to abort the background task
     fn spawn_bg<F>(&self, task: F) -> Self::Handle
     where
-        F: std::future::Future<Output = ()> + Send + 'static;
+        F: std::future::Future + Send + 'static;
 }
 
 /// Handle to a background task that allows manual abortion.
