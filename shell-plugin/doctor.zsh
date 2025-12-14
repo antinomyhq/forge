@@ -65,6 +65,12 @@ function print_result() {
         info)
             echo "       $(dim "${message}")"
             ;;
+        code)
+            echo "       $(dim "${message}")"
+            ;;
+        instruction)
+            echo "       $(dim "${message}")"
+            ;;
     esac
 }
 
@@ -149,13 +155,9 @@ fi
 if (( $+functions[_forge] )); then
     print_result pass "Forge completions available"
 else
-    if [[ -n "$_FORGE_PLUGIN_LOADED" ]]; then
-        print_result warn "Completions may not be properly initialized"
-        print_result info "Ensure 'compinit' is called after loading the plugin"
-    else
-        print_result fail "Forge completions not loaded"
-        print_result info "Load the plugin first (see above)"
-    fi
+    print_result fail "Forge completions not loaded"
+    print_result instruction "Add to your ~/.zshrc (after compinit):"
+    print_result code "eval \"\$(forge completion zsh)\""
 fi
 
 # 4. Check ZSH theme
