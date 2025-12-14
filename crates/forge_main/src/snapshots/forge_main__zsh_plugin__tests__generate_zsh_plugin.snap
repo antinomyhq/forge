@@ -282,6 +282,11 @@ function _forge_handle_conversation_command() {
     _forge_reset
     return 0
 }
+function _forge_action_doctor() {
+    echo
+    $_FORGE_BIN zsh doctor
+    _forge_reset
+}
 function _forge_action_editor() {
     local initial_text="$1"
     echo
@@ -416,6 +421,7 @@ zle -N forge-accept-line
 zle -N forge-completion
 function forge-bracketed-paste() {
     zle .$WIDGET "$@"
+    zle redisplay
     zle reset-prompt
 }
 zle -N bracketed-paste forge-bracketed-paste
@@ -615,6 +621,9 @@ function forge-accept-line() {
         ;;
         logout)
             _forge_action_logout
+        ;;
+        doctor)
+            _forge_action_doctor
         ;;
         *)
             _forge_action_default "$user_action" "$input_text"
@@ -1632,6 +1641,13 @@ _arguments "${_arguments_options[@]}" : \
 '--help[Print help]' \
 && ret=0
 ;;
+(prompt)
+_arguments "${_arguments_options[@]}" : \
+'--conversation-id=[Conversation ID for session-specific information]:CONVERSATION_ID:_default' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
 (help)
 _arguments "${_arguments_options[@]}" : \
 ":: :_forge__help_commands" \
@@ -1980,6 +1996,10 @@ esac
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
+(prompt)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
 (help)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
@@ -2011,6 +2031,7 @@ _forge_commands() {
 'cmd:Run or list custom commands' \
 'workspace:Manage workspaces for semantic search' \
 'data:Process JSONL data through LLM with schema-constrained tools' \
+'prompt:Get prompt information (model and conversation stats) for shell integration' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'forge commands' commands "$@"
@@ -2321,6 +2342,7 @@ _forge__help_commands() {
 'cmd:Run or list custom commands' \
 'workspace:Manage workspaces for semantic search' \
 'data:Process JSONL data through LLM with schema-constrained tools' \
+'prompt:Get prompt information (model and conversation stats) for shell integration' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'forge help commands' commands "$@"
@@ -2576,6 +2598,11 @@ _forge__help__mcp__remove_commands() {
 _forge__help__mcp__show_commands() {
     local commands; commands=()
     _describe -t commands 'forge help mcp show commands' commands "$@"
+}
+(( $+functions[_forge__help__prompt_commands] )) ||
+_forge__help__prompt_commands() {
+    local commands; commands=()
+    _describe -t commands 'forge help prompt commands' commands "$@"
 }
 (( $+functions[_forge__help__provider_commands] )) ||
 _forge__help__provider_commands() {
@@ -2888,6 +2915,11 @@ _forge__mcp__remove_commands() {
 _forge__mcp__show_commands() {
     local commands; commands=()
     _describe -t commands 'forge mcp show commands' commands "$@"
+}
+(( $+functions[_forge__prompt_commands] )) ||
+_forge__prompt_commands() {
+    local commands; commands=()
+    _describe -t commands 'forge prompt commands' commands "$@"
 }
 (( $+functions[_forge__provider_commands] )) ||
 _forge__provider_commands() {
