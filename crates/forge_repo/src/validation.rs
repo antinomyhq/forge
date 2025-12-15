@@ -7,6 +7,7 @@ use forge_app::GrpcInfra;
 use forge_domain::ValidationRepository;
 use forge_template::Element;
 use tracing::{debug, warn};
+
 #[cfg(feature = "tree_sitter_validation")]
 use crate::tree_sitter_impl;
 
@@ -34,8 +35,9 @@ impl<I> ForgeValidationRepository<I> {
         Self { infra }
     }
 }
-/// Factory for creating validation repositories based on environment configuration
-/// Enum wrapper for different validation repository implementations
+/// Factory for creating validation repositories based on environment
+/// configuration Enum wrapper for different validation repository
+/// implementations
 #[derive(Clone)]
 pub enum ValidationRepositoryWrapper<F> {
     #[cfg(feature = "tree_sitter_validation")]
@@ -55,9 +57,7 @@ impl<F: GrpcInfra> ValidationRepository for ValidationRepositoryWrapper<F> {
             ValidationRepositoryWrapper::TreeSitter(repo) => {
                 repo.validate_file(path, content).await
             }
-            ValidationRepositoryWrapper::Remote(repo) => {
-                repo.validate_file(path, content).await
-            }
+            ValidationRepositoryWrapper::Remote(repo) => repo.validate_file(path, content).await,
         }
     }
 }
@@ -212,7 +212,7 @@ impl ValidationRepository for TreeSitterValidationRepository {
     ) -> Result<Option<String>> {
         let path = path.as_ref();
         let path_str = path.to_string_lossy().to_string();
-        
+
         debug!(path = %path_str, "Starting tree-sitter syntax validation");
 
         // Determine language from file extension
@@ -275,19 +275,13 @@ impl ValidationRepository for TreeSitterValidationRepository {
                         "The file was written successfully but contains {} syntax error(s)",
                         errors.len()
                     )))
-                    .append(
-                        errors
-                            .iter()
-                            .map(|error| {
-                                Element::new("error")
-                                    .attr("line", error.line.to_string())
-                                    .attr("column", error.column.to_string())
-                                    .cdata(&error.message)
-                            })
-                    )
-                    .append(
-                        Element::new("suggestion").text("Review and fix syntax issues"),
-                    );
+                    .append(errors.iter().map(|error| {
+                        Element::new("error")
+                            .attr("line", error.line.to_string())
+                            .attr("column", error.column.to_string())
+                            .cdata(&error.message)
+                    }))
+                    .append(Element::new("suggestion").text("Review and fix syntax issues"));
 
                 Ok(Some(error_element.render()))
             }
@@ -304,4 +298,3 @@ impl ValidationRepository for TreeSitterValidationRepository {
         }
     }
 }
-

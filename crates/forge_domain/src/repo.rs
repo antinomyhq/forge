@@ -223,5 +223,3 @@ pub trait ValidationRepository: Send + Sync {
         content: &str,
     ) -> Result<Option<String>>;
 }
-
-

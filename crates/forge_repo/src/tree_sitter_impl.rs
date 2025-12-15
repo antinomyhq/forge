@@ -1,5 +1,5 @@
 //! Tree-sitter validation implementation
-//! 
+//!
 //! This module provides syntax validation using tree-sitter parsers
 //! for various programming languages.
 
