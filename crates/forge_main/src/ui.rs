@@ -11,8 +11,7 @@ use convert_case::{Case, Casing};
 use forge_api::{
     API, AgentId, AnyProvider, ApiKeyRequest, AuthContextRequest, AuthContextResponse, ChatRequest,
     ChatResponse, CodeRequest, Conversation, ConversationId, DeviceCodeRequest, Event,
-    InterruptionReason, Model, ModelId, Provider, ProviderId, TextMessage, UserPrompt,
-    Workflow,
+    InterruptionReason, Model, ModelId, Provider, ProviderId, TextMessage, UserPrompt, Workflow,
 };
 use forge_app::utils::{format_display_path, truncate_key};
 use forge_app::{CommitResult, ToolResolver};
@@ -425,10 +424,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         self.on_zsh_doctor().await?;
                     }
                     crate::cli::ZshCommandGroup::Rprompt => {
-                        match self.handle_zsh_rprompt_command().await {
-                            Some(text) => print!("{}", text),
-                            None => {}
-                        }
+                        if let Some(text) = self.handle_zsh_rprompt_command().await { print!("{}", text) }
                         return Ok(());
                     }
                 }
@@ -2857,7 +2853,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .agent(
                 std::env::var("_FORGE_ACTIVE_AGENT")
                     .ok()
-                    .map(|a| AgentId::new(a)),
+                    .map(AgentId::new),
             )
             .model(model_id)
             .token_count(conversation.and_then(|c| c.usage()).map(|u| u.total_tokens));

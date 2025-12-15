@@ -22,7 +22,6 @@ mod vscode;
 mod zsh_plugin;
 mod zsh_style;
 
-
 mod update;
 
 pub use cli::{Cli, TopLevelCommand};

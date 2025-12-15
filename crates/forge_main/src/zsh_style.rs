@@ -1,8 +1,9 @@
 //! ZSH prompt styling utilities.
 //!
-//! This module provides helpers for generating ZSH-native prompt escape sequences.
-//! Unlike ANSI escape codes, ZSH prompt escapes are interpreted by ZSH's prompt
-//! renderer, making them work correctly in PROMPT and RPROMPT contexts.
+//! This module provides helpers for generating ZSH-native prompt escape
+//! sequences. Unlike ANSI escape codes, ZSH prompt escapes are interpreted by
+//! ZSH's prompt renderer, making them work correctly in PROMPT and RPROMPT
+//! contexts.
 
 use std::fmt::{self, Display};
 
@@ -151,7 +152,7 @@ impl Display for ZshRPrompt {
 
         // Add model
         if let Some(ref model_id) = self.model {
-            let model_id = format!(" {}", model_id.to_string());
+            let model_id = format!(" {}", model_id);
             let styled = if active {
                 model_id.zsh().fg(ZshColor::CYAN)
             } else {
