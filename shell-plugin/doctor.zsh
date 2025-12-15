@@ -156,8 +156,8 @@ if (( $+functions[_forge] )); then
     print_result pass "Forge completions loaded"
 else
     print_result fail "Forge completions not loaded"
-    print_result instruction "Add to your ~/.zshrc (after compinit):"
-    print_result code "eval \"\$(forge completion zsh)\""
+    print_result instruction "Completions are included in the plugin. Ensure plugin is loaded:"
+    print_result code "eval \"\$(\$FORGE_BIN zsh plugin)\""
 fi
 
 # 4. Check ZSH theme
@@ -171,11 +171,11 @@ elif (( $+functions[p10k] )); then
 elif [[ -n "$ZSH_THEME" ]]; then
     print_result info "Using theme: ${ZSH_THEME}"
     print_result instruction "To use Forge theme, add to ~/.zshrc:"
-    print_result code "eval \"\$(forge theme zsh)\""
+    print_result code "eval \"\$(\$FORGE_BIN zsh theme)\""
 else
     print_result warn "No theme loaded"
     print_result instruction "To use Forge theme, add to ~/.zshrc:"
-    print_result code "eval \"\$(forge theme zsh)\""
+    print_result code "eval \"\$(\$FORGE_BIN zsh theme)\""
 fi
 
 # 5. Check dependencies
