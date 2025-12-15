@@ -14,4 +14,5 @@ function _forge_prompt_info() {
 }
 
 # Right prompt: agent and model with token count (uses single forge prompt command)
-RPROMPT='$(_forge_prompt_info)'
+# Prepend to existing RPROMPT if present
+RPROMPT='$(_forge_prompt_info)'"${RPROMPT}"
