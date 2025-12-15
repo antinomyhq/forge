@@ -52,7 +52,7 @@ pub fn generate_zsh_plugin() -> Result<String> {
 
 /// Generates the ZSH theme for Forge
 pub fn generate_zsh_theme() -> Result<String> {
-    let mut content = include_str!("../../../shell-plugin/forge.theme.zsh").to_string();
+    let mut content = include_str!("../../../../shell-plugin/forge.theme.zsh").to_string();
 
     // Set environment variable to indicate theme is loaded (with timestamp)
     content.push_str("\nexport _FORGE_THEME_LOADED=$(date +%s)\n");
@@ -67,7 +67,7 @@ pub fn generate_zsh_theme() -> Result<String> {
 /// Returns error if the doctor script cannot be executed
 pub fn run_zsh_doctor() -> Result<String> {
     // Get the embedded doctor script
-    let script_content = include_str!("../../../shell-plugin/doctor.zsh");
+    let script_content = include_str!("../../../../shell-plugin/doctor.zsh");
 
     // Execute the script in a zsh subprocess
     let output = std::process::Command::new("zsh")

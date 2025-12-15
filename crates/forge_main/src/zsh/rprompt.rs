@@ -9,7 +9,7 @@ use convert_case::{Case, Casing};
 use derive_setters::Setters;
 use forge_domain::{AgentId, ModelId, TokenCount};
 
-use crate::zsh_style::{ZshColor, ZshStyle};
+use super::style::{ZshColor, ZshStyle};
 
 /// ZSH right prompt displaying agent, model, and token count.
 ///

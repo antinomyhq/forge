@@ -1,5 +1,5 @@
 ---
-source: crates/forge_main/src/zsh_plugin.rs
+source: crates/forge_main/src/zsh/plugin.rs
 expression: output
 ---
 function _forge_action_login() {

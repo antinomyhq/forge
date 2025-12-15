@@ -19,10 +19,7 @@ pub mod tracker;
 mod ui;
 mod utils;
 mod vscode;
-mod zsh_plugin;
-mod zsh_style;
-
-mod rprompt;
+mod zsh;
 
 mod update;
 

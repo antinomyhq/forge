@@ -45,7 +45,7 @@ use crate::title_display::TitleDisplayExt;
 use crate::tools_display::format_tools;
 use crate::update::on_update;
 use crate::utils::humanize_time;
-use crate::rprompt::ZshRPrompt;
+use crate::zsh::ZshRPrompt;
 use crate::{TRACKER, banner, tracker};
 
 // File-specific constants
@@ -1425,14 +1425,14 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Generate ZSH plugin script
     async fn on_zsh_plugin(&self) -> anyhow::Result<()> {
-        let plugin = crate::zsh_plugin::generate_zsh_plugin()?;
+        let plugin = crate::zsh::generate_zsh_plugin()?;
         println!("{plugin}");
         Ok(())
     }
 
     /// Generate ZSH theme
     async fn on_zsh_theme(&self) -> anyhow::Result<()> {
-        let theme = crate::zsh_plugin::generate_zsh_theme()?;
+        let theme = crate::zsh::generate_zsh_theme()?;
         println!("{theme}");
         Ok(())
     }
@@ -1440,7 +1440,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     /// Run ZSH environment diagnostics
     async fn on_zsh_doctor(&mut self) -> anyhow::Result<()> {
         self.spinner.start(Some("Running diagnostics"))?;
-        let report = crate::zsh_plugin::run_zsh_doctor()?;
+        let report = crate::zsh::run_zsh_doctor()?;
         self.spinner.stop(None)?;
         println!("{report}");
         Ok(())
