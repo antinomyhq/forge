@@ -1179,7 +1179,7 @@ mod tests {
 
     #[test]
     fn test_prompt_command() {
-        let fixture = Cli::parse_from(["forge", "zsh", "prompt"]);
+        let fixture = Cli::parse_from(["forge", "zsh", "rprompt"]);
         let r_prompt = matches!(
             fixture.subcommands,
             Some(TopLevelCommand::Zsh(ZshCommandGroup::Rprompt))

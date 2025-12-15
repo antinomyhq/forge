@@ -1,7 +1,6 @@
 ---
 source: crates/forge_main/src/zsh_plugin.rs
 expression: output
-snapshot_kind: text
 ---
 function _forge_action_login() {
     echo
@@ -833,9 +832,8 @@ _arguments "${_arguments_options[@]}" : \
 '--help[Print help]' \
 && ret=0
 ;;
-(prompt)
+(rprompt)
 _arguments "${_arguments_options[@]}" : \
-'--conversation-id=[Conversation ID for session-specific information]:CONVERSATION_ID:_default' \
 '-h[Print help]' \
 '--help[Print help]' \
 && ret=0
@@ -864,7 +862,7 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
-(prompt)
+(rprompt)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -1709,7 +1707,7 @@ _arguments "${_arguments_options[@]}" : \
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
-(prompt)
+(rprompt)
 _arguments "${_arguments_options[@]}" : \
 && ret=0
 ;;
@@ -2673,7 +2671,7 @@ _forge__help__zsh_commands() {
 'plugin:Generate shell plugin script' \
 'theme:Generate shell theme' \
 'doctor:Run diagnostics on shell environment' \
-'prompt:Get prompt information (model and conversation stats) for shell integration' \
+'rprompt:Get rprompt information (model and conversation stats) for shell integration' \
     )
     _describe -t commands 'forge help zsh commands' commands "$@"
 }
@@ -2687,10 +2685,10 @@ _forge__help__zsh__plugin_commands() {
     local commands; commands=()
     _describe -t commands 'forge help zsh plugin commands' commands "$@"
 }
-(( $+functions[_forge__help__zsh__prompt_commands] )) ||
-_forge__help__zsh__prompt_commands() {
+(( $+functions[_forge__help__zsh__rprompt_commands] )) ||
+_forge__help__zsh__rprompt_commands() {
     local commands; commands=()
-    _describe -t commands 'forge help zsh prompt commands' commands "$@"
+    _describe -t commands 'forge help zsh rprompt commands' commands "$@"
 }
 (( $+functions[_forge__help__zsh__theme_commands] )) ||
 _forge__help__zsh__theme_commands() {
@@ -3065,7 +3063,7 @@ _forge__zsh_commands() {
 'plugin:Generate shell plugin script' \
 'theme:Generate shell theme' \
 'doctor:Run diagnostics on shell environment' \
-'prompt:Get prompt information (model and conversation stats) for shell integration' \
+'rprompt:Get rprompt information (model and conversation stats) for shell integration' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'forge zsh commands' commands "$@"
@@ -3081,7 +3079,7 @@ _forge__zsh__help_commands() {
 'plugin:Generate shell plugin script' \
 'theme:Generate shell theme' \
 'doctor:Run diagnostics on shell environment' \
-'prompt:Get prompt information (model and conversation stats) for shell integration' \
+'rprompt:Get rprompt information (model and conversation stats) for shell integration' \
 'help:Print this message or the help of the given subcommand(s)' \
     )
     _describe -t commands 'forge zsh help commands' commands "$@"
@@ -3101,10 +3099,10 @@ _forge__zsh__help__plugin_commands() {
     local commands; commands=()
     _describe -t commands 'forge zsh help plugin commands' commands "$@"
 }
-(( $+functions[_forge__zsh__help__prompt_commands] )) ||
-_forge__zsh__help__prompt_commands() {
+(( $+functions[_forge__zsh__help__rprompt_commands] )) ||
+_forge__zsh__help__rprompt_commands() {
     local commands; commands=()
-    _describe -t commands 'forge zsh help prompt commands' commands "$@"
+    _describe -t commands 'forge zsh help rprompt commands' commands "$@"
 }
 (( $+functions[_forge__zsh__help__theme_commands] )) ||
 _forge__zsh__help__theme_commands() {
@@ -3116,10 +3114,10 @@ _forge__zsh__plugin_commands() {
     local commands; commands=()
     _describe -t commands 'forge zsh plugin commands' commands "$@"
 }
-(( $+functions[_forge__zsh__prompt_commands] )) ||
-_forge__zsh__prompt_commands() {
+(( $+functions[_forge__zsh__rprompt_commands] )) ||
+_forge__zsh__rprompt_commands() {
     local commands; commands=()
-    _describe -t commands 'forge zsh prompt commands' commands "$@"
+    _describe -t commands 'forge zsh rprompt commands' commands "$@"
 }
 (( $+functions[_forge__zsh__theme_commands] )) ||
 _forge__zsh__theme_commands() {

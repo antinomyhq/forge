@@ -203,7 +203,7 @@ mod tests {
             .agent(Some(AgentId::new("forge")))
             .model(Some(ModelId::new("gpt-4")))
             .to_string();
-        let expected = " %B%F{240}󱙺 FORGE%f%b %F{240} gpt-4%f";
+        let expected = " %B%F{240}󱙺 FORGE%f%b %F{240} gpt-4%f";
         assert_eq!(actual, expected);
     }
 
@@ -215,7 +215,7 @@ mod tests {
             .model(Some(ModelId::new("gpt-4")))
             .token_count(Some(TokenCount::Actual(1500)))
             .to_string();
-        let expected = " %B%F{15}󱙺 FORGE%f%b %B%F{15}1.5k%f%b %F{14} gpt-4%f";
+        let expected = " %B%F{15}󱙺 FORGE%f%b %B%F{15}1.5k%f%b %F{134} gpt-4%f";
         assert_eq!(actual, expected);
     }
 }
