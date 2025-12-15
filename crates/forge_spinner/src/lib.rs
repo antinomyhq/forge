@@ -1,4 +1,4 @@
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use anyhow::Result;
 use colored::Colorize;
@@ -16,6 +16,8 @@ pub struct SpinnerManager {
     start_time: Option<Instant>,
     message: Option<String>,
     tracker: Option<JoinHandle<()>>,
+    /// Accumulated elapsed duration from all previous spinner sessions
+    accumulated: Duration,
     #[cfg(test)]
     tick_counter: Option<std::sync::Arc<std::sync::atomic::AtomicU64>>,
 }
@@ -30,6 +32,12 @@ impl SpinnerManager {
         tick_counter: std::sync::Arc<std::sync::atomic::AtomicU64>,
     ) -> Self {
         Self { tick_counter: Some(tick_counter), ..Self::default() }
+    }
+
+    /// Returns the total elapsed time (accumulated + current session)
+    fn total_elapsed(&self) -> Duration {
+        let current = self.start_time.map(|t| t.elapsed()).unwrap_or_default();
+        self.accumulated + current
     }
 
     /// Start the spinner with a message
@@ -75,10 +83,11 @@ impl SpinnerManager {
         // Setting to 60ms for a smooth yet fast animation
         pb.enable_steady_tick(std::time::Duration::from_millis(60));
 
-        // Set the initial message
+        // Set the initial message with accumulated time
         let message = format!(
-            "{} 0s · {}",
+            "{} {}s · {}",
             word.green().bold(),
+            self.total_elapsed().as_secs(),
             "Ctrl+C to interrupt".white().dimmed()
         );
         pb.set_message(message);
@@ -89,10 +98,11 @@ impl SpinnerManager {
         let spinner_clone = self.spinner.clone();
         let start_time_clone = self.start_time;
         let message_clone = self.message.clone();
+        let accumulated = self.accumulated;
         #[cfg(test)]
         let tick_counter_clone = self.tick_counter.clone();
 
-        // Spwan tracker to keep the track of time in sec.
+        // Spawn tracker to keep track of time in seconds
         self.tracker = Some(tokio::spawn(async move {
             let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(500));
             loop {
@@ -101,18 +111,17 @@ impl SpinnerManager {
                 if let Some(counter) = &tick_counter_clone {
                     counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 }
-                // Update the spinner with the current elapsed time
+                // Update the spinner with accumulated + current elapsed time
                 if let (Some(spinner), Some(start_time), Some(message)) =
                     (&spinner_clone, start_time_clone, &message_clone)
                 {
-                    let elapsed = start_time.elapsed();
-                    let seconds = elapsed.as_secs();
+                    let total = accumulated + start_time.elapsed();
 
-                    // Create a new message with the elapsed time
+                    // Create a new message with the total elapsed time
                     let updated_message = format!(
                         "{} {}s · {}",
                         message.green().bold(),
-                        seconds,
+                        total.as_secs(),
                         "Ctrl+C to interrupt".white().dimmed()
                     );
 
@@ -130,11 +139,22 @@ impl SpinnerManager {
         self.stop_inner(message, |s| println!("{s}"))
     }
 
+    /// Resets the accumulated elapsed time to zero.
+    /// Call this when starting a completely new task/conversation.
+    pub fn reset(&mut self) {
+        self.accumulated = Duration::ZERO;
+    }
+
     /// Stop the active spinner if any
     fn stop_inner<F>(&mut self, message: Option<String>, writer: F) -> Result<()>
     where
         F: FnOnce(&str),
     {
+        // Accumulate elapsed time from this session before stopping
+        if let Some(start_time) = self.start_time.take() {
+            self.accumulated += start_time.elapsed();
+        }
+
         if let Some(spinner) = self.spinner.take() {
             // Always finish the spinner first
             spinner.finish_and_clear();
@@ -148,13 +168,12 @@ impl SpinnerManager {
             writer(&message);
         }
 
-        // Tracker task will be dropped here.
+        // Abort the tracker task
         if let Some(a) = self.tracker.take() {
             a.abort();
             drop(a)
         }
         self.tracker = None;
-        self.start_time = None;
         self.message = None;
         Ok(())
     }

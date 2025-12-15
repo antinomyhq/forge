@@ -176,6 +176,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Reset previously set CLI parameters by the user
         self.cli.conversation = None;
         self.cli.conversation_id = None;
+        // Reset the spinner timer.
+        self.spinner.reset();
 
         self.display_banner()?;
         self.trace_user();
