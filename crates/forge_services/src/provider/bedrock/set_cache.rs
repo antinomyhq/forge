@@ -1,9 +1,8 @@
+use aws_sdk_bedrockruntime::operation::converse_stream::ConverseStreamInput;
 use aws_sdk_bedrockruntime::types::{
     CachePointBlock, CachePointType, ContentBlock, SystemContentBlock,
 };
 use forge_domain::Transformer;
-
-use super::BedrockConvert;
 
 /// Transformer that implements a simple two-breakpoint cache strategy for
 /// Bedrock:
@@ -15,7 +14,7 @@ use super::BedrockConvert;
 pub struct SetCache;
 
 impl Transformer for SetCache {
-    type Value = BedrockConvert;
+    type Value = ConverseStreamInput;
 
     /// Implements a simple two-breakpoint cache strategy:
     /// 1. Cache after the first system message (if exists)
@@ -65,8 +64,9 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
+    use crate::FromDomain;
 
-    fn has_cache_point_after_first_system(request: &BedrockConvert) -> bool {
+    fn has_cache_point_after_first_system(request: &ConverseStreamInput) -> bool {
         request
             .system
             .as_ref()
@@ -75,7 +75,7 @@ mod tests {
             .unwrap_or(false)
     }
 
-    fn has_cache_point_in_last_message(request: &BedrockConvert) -> bool {
+    fn has_cache_point_in_last_message(request: &ConverseStreamInput) -> bool {
         request
             .messages
             .as_ref()
@@ -103,7 +103,7 @@ mod tests {
             stream: None,
         };
 
-        let request = BedrockConvert::try_from(context).expect("Failed to convert context");
+        let request = ConverseStreamInput::from_domain(context).expect("Failed to convert context");
         let mut transformer = SetCache;
         let actual = transformer.transform(request);
 
@@ -129,7 +129,7 @@ mod tests {
             stream: None,
         };
 
-        let request = BedrockConvert::try_from(context).expect("Failed to convert context");
+        let request = ConverseStreamInput::from_domain(context).expect("Failed to convert context");
         let mut transformer = SetCache;
         let actual = transformer.transform(request);
 
@@ -157,7 +157,7 @@ mod tests {
             stream: None,
         };
 
-        let request = BedrockConvert::try_from(context).expect("Failed to convert context");
+        let request = ConverseStreamInput::from_domain(context).expect("Failed to convert context");
         let mut transformer = SetCache;
         let actual = transformer.transform(request);
 

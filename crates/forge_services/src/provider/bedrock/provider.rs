@@ -1,14 +1,14 @@
 use anyhow::{Context as _, Result};
 use aws_sdk_bedrockruntime::Client;
 use forge_app::HttpClientService;
-use forge_app::dto::bedrock::{BedrockConvert, SetCache};
 use forge_domain::{
     ChatCompletionMessage, Context, Model, ModelId, Provider, ResultStream, Transformer,
 };
 use reqwest::Url;
 use tokio::sync::OnceCell;
 
-use crate::IntoDomain;
+use super::SetCache;
+use crate::{FromDomain, IntoDomain};
 
 /// Provider implementation for Amazon Bedrock using AWS SDK
 pub struct BedrockProvider<T> {
@@ -115,8 +115,11 @@ impl<H: HttpClientService> BedrockProvider<H> {
             Err(e) => return Err(e),
         };
 
-        // Convert context to AWS SDK types
-        let bedrock_input = BedrockConvert::try_from(context)
+        // Convert context to AWS SDK types using FromDomain trait
+        let bedrock_input =
+            aws_sdk_bedrockruntime::operation::converse_stream::ConverseStreamInput::from_domain(
+                context,
+            )
             .context("Failed to convert context to Bedrock ConverseStreamInput")?;
 
         // Apply transformers pipeline
@@ -303,6 +306,313 @@ impl IntoDomain for aws_sdk_bedrockruntime::types::ConverseStreamOutput {
             // Ignore other events
             _ => ChatCompletionMessage::assistant(Content::part("")),
         }
+    }
+}
+
+/// Converts domain Context to Bedrock ConverseStreamInput
+impl FromDomain<forge_domain::Context>
+    for aws_sdk_bedrockruntime::operation::converse_stream::ConverseStreamInput
+{
+    fn from_domain(context: forge_domain::Context) -> anyhow::Result<Self> {
+        use aws_sdk_bedrockruntime::operation::converse_stream::ConverseStreamInput;
+        use aws_sdk_bedrockruntime::types::{InferenceConfiguration, Message, SystemContentBlock};
+
+        // Convert system messages
+        let system: Vec<SystemContentBlock> = context
+            .messages
+            .iter()
+            .filter_map(|msg| match &msg.message {
+                forge_domain::ContextMessage::Text(text_msg)
+                    if text_msg.has_role(forge_domain::Role::System) =>
+                {
+                    Some(SystemContentBlock::Text(text_msg.content.clone()))
+                }
+                _ => None,
+            })
+            .collect();
+
+        // Convert user and assistant messages
+        let messages: Vec<Message> = context
+            .messages
+            .into_iter()
+            .filter(|message| !message.has_role(forge_domain::Role::System))
+            .map(|msg| {
+                Message::from_domain(msg.message)
+                    .with_context(|| "Failed to convert message to Bedrock format")
+            })
+            .collect::<anyhow::Result<Vec<_>>>()?;
+
+        // Convert tool configuration
+        let tool_config = if !context.tools.is_empty() {
+            use aws_sdk_bedrockruntime::types::{Tool, ToolChoice, ToolConfiguration};
+
+            let tool_specs: Vec<Tool> = context
+                .tools
+                .into_iter()
+                .map(Tool::from_domain)
+                .collect::<anyhow::Result<Vec<_>>>()?;
+
+            let choice = context
+                .tool_choice
+                .filter(|c| !matches!(c, forge_domain::ToolChoice::None))
+                .map(ToolChoice::from_domain)
+                .transpose()?;
+
+            Some(
+                ToolConfiguration::builder()
+                    .set_tools(Some(tool_specs))
+                    .set_tool_choice(choice)
+                    .build()
+                    .map_err(|e| anyhow::anyhow!("Failed to build tool configuration: {}", e))?,
+            )
+        } else {
+            None
+        };
+
+        // Convert inference configuration
+        let inference_config = if context.temperature.is_some()
+            || context.top_p.is_some()
+            || context.top_k.is_some()
+            || context.max_tokens.is_some()
+        {
+            Some(
+                InferenceConfiguration::builder()
+                    .set_temperature(context.temperature.map(|t| t.value()))
+                    .set_top_p(context.top_p.map(|t| t.value()))
+                    .set_max_tokens(context.max_tokens.map(|t| t as i32))
+                    .build(),
+            )
+        } else {
+            None
+        };
+
+        let builder = ConverseStreamInput::builder()
+            .set_system(if system.is_empty() {
+                None
+            } else {
+                Some(system)
+            })
+            .set_messages(Some(messages))
+            .set_tool_config(tool_config)
+            .set_inference_config(inference_config);
+
+        builder
+            .build()
+            .map_err(|e| anyhow::anyhow!("Failed to build Bedrock ConverseStreamInput: {}", e))
+    }
+}
+
+/// Converts a domain ContextMessage to a Bedrock Message
+impl FromDomain<forge_domain::ContextMessage> for aws_sdk_bedrockruntime::types::Message {
+    fn from_domain(msg: forge_domain::ContextMessage) -> anyhow::Result<Self> {
+        use anyhow::Context as _;
+        use aws_sdk_bedrockruntime::primitives::Blob;
+        use aws_sdk_bedrockruntime::types::{
+            ContentBlock, ConversationRole, ImageBlock, ImageSource, Message, ToolResultBlock,
+            ToolResultContentBlock, ToolResultStatus, ToolUseBlock,
+        };
+
+        match msg {
+            forge_domain::ContextMessage::Text(text_msg) => {
+                let mut content_blocks = Vec::new();
+
+                // Add text content if not empty
+                if !text_msg.content.is_empty() {
+                    content_blocks.push(ContentBlock::Text(text_msg.content.clone()));
+                }
+
+                // Add tool calls if present
+                if let Some(tool_calls) = text_msg.tool_calls {
+                    for tool_call in tool_calls {
+                        let tool_use = ToolUseBlock::builder()
+                            .tool_use_id(
+                                tool_call
+                                    .call_id
+                                    .ok_or_else(|| anyhow::anyhow!("Tool call missing ID"))?
+                                    .as_str(),
+                            )
+                            .name(tool_call.name.to_string())
+                            .input(aws_smithy_types::Document::from_domain(
+                                tool_call.arguments,
+                            )?)
+                            .build()
+                            .map_err(|e| {
+                                anyhow::anyhow!("Failed to build tool use block: {}", e)
+                            })?;
+
+                        content_blocks.push(ContentBlock::ToolUse(tool_use));
+                    }
+                }
+
+                // Map role
+                let role = match text_msg.role {
+                    forge_domain::Role::User => ConversationRole::User,
+                    forge_domain::Role::Assistant => ConversationRole::Assistant,
+                    forge_domain::Role::System => {
+                        anyhow::bail!("System messages should be filtered out before conversion")
+                    }
+                };
+
+                Message::builder()
+                    .role(role)
+                    .set_content(Some(content_blocks))
+                    .build()
+                    .map_err(|e| anyhow::anyhow!("Failed to build message: {}", e))
+            }
+            forge_domain::ContextMessage::Tool(tool_result) => {
+                let is_error = tool_result.is_error();
+                let tool_result_block = ToolResultBlock::builder()
+                    .tool_use_id(
+                        tool_result
+                            .call_id
+                            .ok_or_else(|| anyhow::anyhow!("Tool result missing call ID"))?
+                            .as_str(),
+                    )
+                    .set_content(Some(vec![ToolResultContentBlock::Text(
+                        tool_result
+                            .output
+                            .as_str()
+                            .ok_or_else(|| anyhow::anyhow!("Tool result has no text output"))?
+                            .to_string(),
+                    )]))
+                    .status(if is_error {
+                        ToolResultStatus::Error
+                    } else {
+                        ToolResultStatus::Success
+                    })
+                    .build()
+                    .map_err(|e| anyhow::anyhow!("Failed to build tool result block: {}", e))?;
+
+                Message::builder()
+                    .role(ConversationRole::User)
+                    .content(ContentBlock::ToolResult(tool_result_block))
+                    .build()
+                    .map_err(|e| anyhow::anyhow!("Failed to build tool result message: {}", e))
+            }
+            forge_domain::ContextMessage::Image(img) => {
+                let image_block = ImageBlock::builder()
+                    .source(ImageSource::Bytes(Blob::new(
+                        base64::Engine::decode(
+                            &base64::engine::general_purpose::STANDARD,
+                            img.data(),
+                        )
+                        .with_context(|| "Failed to decode base64 image data")?,
+                    )))
+                    .build()
+                    .map_err(|e| anyhow::anyhow!("Failed to build image block: {}", e))?;
+
+                Message::builder()
+                    .role(ConversationRole::User)
+                    .content(ContentBlock::Image(image_block))
+                    .build()
+                    .map_err(|e| anyhow::anyhow!("Failed to build image message: {}", e))
+            }
+        }
+    }
+}
+
+/// Converts schemars RootSchema to AWS Bedrock ToolInputSchema
+impl FromDomain<schemars::schema::RootSchema> for aws_sdk_bedrockruntime::types::ToolInputSchema {
+    fn from_domain(schema: schemars::schema::RootSchema) -> anyhow::Result<Self> {
+        use anyhow::Context as _;
+        use aws_sdk_bedrockruntime::types::ToolInputSchema;
+
+        // Serialize RootSchema to JSON value first
+        let json_value =
+            serde_json::to_value(&schema).with_context(|| "Failed to serialize RootSchema")?;
+
+        // Convert JSON value to Document and wrap in ToolInputSchema
+        Ok(ToolInputSchema::Json(json_value_to_document(json_value)))
+    }
+}
+
+/// Converts ToolCallArguments to AWS Smithy Document
+impl FromDomain<forge_domain::ToolCallArguments> for aws_smithy_types::Document {
+    fn from_domain(args: forge_domain::ToolCallArguments) -> anyhow::Result<Self> {
+        use anyhow::Context as _;
+
+        // Parse the arguments to get a serde_json::Value
+        let json_value = args
+            .parse()
+            .with_context(|| "Failed to parse tool call arguments")?;
+
+        // Convert JSON value to Document
+        Ok(json_value_to_document(json_value))
+    }
+}
+
+/// Helper function to convert serde_json::Value to aws_smithy_types::Document
+fn json_value_to_document(value: serde_json::Value) -> aws_smithy_types::Document {
+    use std::collections::HashMap;
+
+    use aws_smithy_types::{Document, Number};
+
+    match value {
+        serde_json::Value::Null => Document::Null,
+        serde_json::Value::Bool(b) => Document::Bool(b),
+        serde_json::Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                Document::Number(Number::PosInt(i as u64))
+            } else if let Some(f) = n.as_f64() {
+                Document::Number(Number::Float(f))
+            } else {
+                Document::Null
+            }
+        }
+        serde_json::Value::String(s) => Document::String(s),
+        serde_json::Value::Array(arr) => {
+            Document::Array(arr.into_iter().map(json_value_to_document).collect())
+        }
+        serde_json::Value::Object(obj) => {
+            let map: HashMap<String, Document> = obj
+                .into_iter()
+                .map(|(k, v)| (k, json_value_to_document(v)))
+                .collect();
+            Document::Object(map)
+        }
+    }
+}
+
+/// Converts domain ToolDefinition to Bedrock Tool
+impl FromDomain<forge_domain::ToolDefinition> for aws_sdk_bedrockruntime::types::Tool {
+    fn from_domain(tool: forge_domain::ToolDefinition) -> anyhow::Result<Self> {
+        use aws_sdk_bedrockruntime::types::{Tool, ToolInputSchema, ToolSpecification};
+
+        let spec = ToolSpecification::builder()
+            .name(tool.name.to_string())
+            .description(tool.description.clone())
+            .input_schema(ToolInputSchema::from_domain(tool.input_schema)?)
+            .build()
+            .map_err(|e| anyhow::anyhow!("Failed to build tool specification: {}", e))?;
+
+        Ok(Tool::ToolSpec(spec))
+    }
+}
+
+/// Converts domain ToolChoice to Bedrock ToolChoice
+impl FromDomain<forge_domain::ToolChoice> for aws_sdk_bedrockruntime::types::ToolChoice {
+    fn from_domain(choice: forge_domain::ToolChoice) -> anyhow::Result<Self> {
+        use aws_sdk_bedrockruntime::types::{
+            AnyToolChoice, AutoToolChoice, SpecificToolChoice, ToolChoice,
+        };
+
+        let bedrock_choice = match choice {
+            forge_domain::ToolChoice::Auto => ToolChoice::Auto(AutoToolChoice::builder().build()),
+            forge_domain::ToolChoice::Required => ToolChoice::Any(AnyToolChoice::builder().build()),
+            forge_domain::ToolChoice::Call(tool_name) => ToolChoice::Tool(
+                SpecificToolChoice::builder()
+                    .name(tool_name.to_string())
+                    .build()
+                    .map_err(|e| anyhow::anyhow!("Failed to build tool choice: {}", e))?,
+            ),
+            forge_domain::ToolChoice::None => {
+                // For None, we'll return a default Auto choice, but the caller should handle
+                // this by not setting tool_choice at all
+                ToolChoice::Auto(AutoToolChoice::builder().build())
+            }
+        };
+
+        Ok(bedrock_choice)
     }
 }
 

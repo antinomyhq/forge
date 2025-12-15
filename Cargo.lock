@@ -1991,6 +1991,7 @@ dependencies = [
  "reqwest 0.12.24",
  "reqwest-eventsource",
  "rust-embed",
+ "schemars 0.8.22",
  "serde",
  "serde_json",
  "serde_urlencoded",
