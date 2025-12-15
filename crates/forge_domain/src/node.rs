@@ -355,8 +355,6 @@ pub struct Node {
     pub relevance: Option<f32>,
     /// Distance score (second ranking metric, lower is better)
     pub distance: Option<f32>,
-    /// Similarity score (third ranking metric, higher is better)
-    pub similarity: Option<f32>,
 }
 
 /// File chunk with precise line numbers

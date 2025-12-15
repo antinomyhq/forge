@@ -237,19 +237,19 @@ fn format_http_context<U: AsRef<str>>(status: Option<StatusCode>, method: &str, 
 
 #[async_trait::async_trait]
 impl<F: forge_app::FileWriterInfra + 'static> HttpInfra for ForgeHttpInfra<F> {
-    async fn get(&self, url: &Url, headers: Option<HeaderMap>) -> anyhow::Result<Response> {
+    async fn http_get(&self, url: &Url, headers: Option<HeaderMap>) -> anyhow::Result<Response> {
         self.get(url, headers).await
     }
 
-    async fn post(&self, url: &Url, body: Bytes) -> anyhow::Result<Response> {
+    async fn http_post(&self, url: &Url, body: Bytes) -> anyhow::Result<Response> {
         self.post(url, body).await
     }
 
-    async fn delete(&self, url: &Url) -> anyhow::Result<Response> {
+    async fn http_delete(&self, url: &Url) -> anyhow::Result<Response> {
         self.delete(url).await
     }
 
-    async fn eventsource(
+    async fn http_eventsource(
         &self,
         url: &Url,
         headers: Option<HeaderMap>,
