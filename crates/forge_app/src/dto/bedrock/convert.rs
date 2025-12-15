@@ -56,7 +56,7 @@ impl TryFrom<Context> for BedrockConvert {
         let system: Vec<SystemContentBlock> = context
             .messages
             .iter()
-            .filter_map(|msg| match msg {
+            .filter_map(|msg| match &msg.message {
                 forge_domain::ContextMessage::Text(text_msg)
                     if text_msg.has_role(forge_domain::Role::System) =>
                 {
@@ -72,7 +72,8 @@ impl TryFrom<Context> for BedrockConvert {
             .into_iter()
             .filter(|message| !message.has_role(forge_domain::Role::System))
             .map(|msg| {
-                convert_message(msg).with_context(|| "Failed to convert message to Bedrock format")
+                convert_message(msg.message)
+                    .with_context(|| "Failed to convert message to Bedrock format")
             })
             .collect::<Result<Vec<_>>>()?;
 

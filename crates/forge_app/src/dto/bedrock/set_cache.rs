@@ -92,7 +92,7 @@ mod tests {
     fn test_single_user_message() {
         let context = Context {
             conversation_id: None,
-            messages: vec![ContextMessage::Text(TextMessage::new(Role::User, "Hello"))],
+            messages: vec![ContextMessage::Text(TextMessage::new(Role::User, "Hello")).into()],
             tools: vec![],
             tool_choice: None,
             max_tokens: None,
@@ -100,7 +100,6 @@ mod tests {
             top_p: None,
             top_k: None,
             reasoning: None,
-            usage: None,
             stream: None,
         };
 
@@ -117,8 +116,8 @@ mod tests {
         let context = Context {
             conversation_id: None,
             messages: vec![
-                ContextMessage::Text(TextMessage::new(Role::System, "System prompt")),
-                ContextMessage::Text(TextMessage::new(Role::User, "Hello")),
+                ContextMessage::Text(TextMessage::new(Role::System, "System prompt")).into(),
+                ContextMessage::Text(TextMessage::new(Role::User, "Hello")).into(),
             ],
             tools: vec![],
             tool_choice: None,
@@ -127,7 +126,6 @@ mod tests {
             top_p: None,
             top_k: None,
             reasoning: None,
-            usage: None,
             stream: None,
         };
 
@@ -144,10 +142,10 @@ mod tests {
         let context = Context {
             conversation_id: None,
             messages: vec![
-                ContextMessage::Text(TextMessage::new(Role::System, "System prompt")),
-                ContextMessage::Text(TextMessage::new(Role::User, "Hello")),
-                ContextMessage::Text(TextMessage::new(Role::Assistant, "Hi there")),
-                ContextMessage::Text(TextMessage::new(Role::User, "How are you?")),
+                ContextMessage::Text(TextMessage::new(Role::System, "System prompt")).into(),
+                ContextMessage::Text(TextMessage::new(Role::User, "Hello")).into(),
+                ContextMessage::Text(TextMessage::new(Role::Assistant, "Hi there")).into(),
+                ContextMessage::Text(TextMessage::new(Role::User, "How are you?")).into(),
             ],
             tools: vec![],
             tool_choice: None,
@@ -156,7 +154,6 @@ mod tests {
             top_p: None,
             top_k: None,
             reasoning: None,
-            usage: None,
             stream: None,
         };
 
