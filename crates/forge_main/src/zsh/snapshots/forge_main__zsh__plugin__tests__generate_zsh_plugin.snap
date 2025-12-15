@@ -485,8 +485,6 @@ else
     typeset -h _FORGE_CAT_CMD="cat"
 fi
 typeset -h _FORGE_COMMANDS=""
-export _FORGE_ACTIVE_AGENT=forge
-export _FORGE_CONVERSATION_ID=""
 function _forge_action_default() {
     local user_action="$1"
     local input_text="$2"
