@@ -9,24 +9,19 @@ use crate::{AuthService, Error};
 
 pub struct Authenticator<S> {
     service: Arc<S>,
+    config: RetryConfig,
 }
 
 impl<S: AuthService> Authenticator<S> {
-    pub fn new(service: Arc<S>) -> Self {
-        Self { service }
+    pub fn new(service: Arc<S>, config: RetryConfig) -> Self {
+        Self { service, config }
     }
     pub async fn init(&self) -> anyhow::Result<InitAuth> {
         self.service.init_auth().await
     }
     pub async fn login(&self, init_auth: &InitAuth) -> anyhow::Result<()> {
-        self.poll(
-            RetryConfig::default()
-                .max_retry_attempts(300usize)
-                .max_delay(2)
-                .backoff_factor(1u64),
-            || self.login_inner(init_auth),
-        )
-        .await
+        self.poll(self.config.clone(), || self.login_inner(init_auth))
+            .await
     }
     pub async fn logout(&self) -> anyhow::Result<()> {
         self.service.set_auth_token(None).await?;

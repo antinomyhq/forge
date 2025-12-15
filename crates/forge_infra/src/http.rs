@@ -307,7 +307,7 @@ mod tests {
     }
 
     fn create_test_env(debug_requests: Option<PathBuf>) -> Environment {
-        Environment { debug_requests, http: HttpConfig::default(), ..Faker.fake() }
+        Environment { debug_requests, http: HttpConfig::test_default(), ..Faker.fake() }
     }
 
     #[tokio::test]

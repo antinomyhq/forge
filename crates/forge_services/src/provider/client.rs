@@ -7,7 +7,7 @@ use anyhow::{Context as _, Result};
 use derive_setters::Setters;
 use forge_app::HttpClientService;
 use forge_app::domain::{
-    ChatCompletionMessage, Context, HttpConfig, Model, ModelId, ProviderResponse, ResultStream,
+    ChatCompletionMessage, Context, Environment, Model, ModelId, ProviderResponse, ResultStream,
     RetryConfig,
 };
 use forge_domain::Provider;
@@ -23,8 +23,7 @@ use crate::provider::retry::into_retry;
 #[derive(Setters)]
 #[setters(strip_option, into)]
 pub struct ClientBuilder {
-    pub retry_config: Arc<RetryConfig>,
-    pub timeout_config: HttpConfig,
+    pub retry_config: RetryConfig,
     pub use_hickory: bool,
     pub provider: Provider<Url>,
     #[allow(dead_code)]
@@ -32,13 +31,12 @@ pub struct ClientBuilder {
 }
 
 impl ClientBuilder {
-    /// Create a new ClientBuilder with required provider and version
-    /// parameters.
-    pub fn new(provider: Provider<Url>, version: impl Into<String>) -> Self {
+    /// Create a new ClientBuilder with required provider, version, and
+    /// environment configuration.
+    pub fn new(provider: Provider<Url>, version: impl Into<String>, env: &Environment) -> Self {
         Self {
-            retry_config: Arc::new(RetryConfig::default()),
-            timeout_config: HttpConfig::default(),
-            use_hickory: false,
+            retry_config: env.retry_config.clone(),
+            use_hickory: env.http.hickory,
             provider,
             version: version.into(),
         }
@@ -99,7 +97,7 @@ impl ClientBuilder {
 
         Ok(Client {
             inner: Arc::new(inner),
-            retry_config,
+            retry_config: Arc::new(retry_config),
             models_cache: Arc::new(RwLock::new(HashMap::new())),
         })
     }
@@ -270,6 +268,11 @@ mod tests {
         })
     }
 
+    fn make_test_env() -> Environment {
+        use fake::{Fake, Faker};
+        Faker.fake()
+    }
+
     #[tokio::test]
     async fn test_cache_initialization() {
         let provider = forge_domain::Provider {
@@ -284,7 +287,7 @@ mod tests {
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             )),
         };
-        let client = ClientBuilder::new(provider, "dev")
+        let client = ClientBuilder::new(provider, "dev", &make_test_env())
             .build(Arc::new(MockHttpClient))
             .unwrap();
 
@@ -307,7 +310,7 @@ mod tests {
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             )),
         };
-        let client = ClientBuilder::new(provider, "dev")
+        let client = ClientBuilder::new(provider, "dev", &make_test_env())
             .build(Arc::new(MockHttpClient))
             .unwrap();
 
@@ -334,9 +337,8 @@ mod tests {
         };
 
         // Test the builder pattern API
-        let client = ClientBuilder::new(provider, "dev")
-            .retry_config(Arc::new(RetryConfig::default()))
-            .timeout_config(HttpConfig::default())
+        let client = ClientBuilder::new(provider, "dev", &make_test_env())
+            .retry_config(RetryConfig::test_default())
             .use_hickory(true)
             .build(Arc::new(MockHttpClient))
             .unwrap();
@@ -362,7 +364,7 @@ mod tests {
         };
 
         // Test that ClientBuilder::new works with minimal parameters
-        let client = ClientBuilder::new(provider, "dev")
+        let client = ClientBuilder::new(provider, "dev", &make_test_env())
             .build(Arc::new(MockHttpClient))
             .unwrap();
 

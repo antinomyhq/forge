@@ -14,7 +14,7 @@ use strum_macros::EnumString;
 ///     min_tls_version: Some(TlsVersion::V1_2),
 ///     max_tls_version: Some(TlsVersion::V1_3),
 ///     tls_backend: TlsBackend::Rustls,
-///     ..HttpConfig::default()
+///     ..HttpConfig::test_default()
 /// };
 /// ```
 ///
@@ -130,7 +130,7 @@ impl std::fmt::Display for TlsBackend {
 ///     tls_backend: TlsBackend::Rustls,
 ///     adaptive_window: true,
 ///     keep_alive_interval: Some(60),
-///     ..HttpConfig::default()
+///     ..HttpConfig::test_default()
 /// };
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, fake::Dummy)]
@@ -165,27 +165,17 @@ pub struct HttpConfig {
     pub root_cert_paths: Option<Vec<String>>,
 }
 
-impl Default for HttpConfig {
-    fn default() -> Self {
-        Self {
-            connect_timeout: 30, // 30 seconds
-            read_timeout: 900,   /* 15 minutes; this should be in sync with the server function
-                                  * execution timeout */
-            pool_idle_timeout: 90,
-            pool_max_idle_per_host: 5,
-            max_redirects: 10,
-            hickory: false,
-            tls_backend: TlsBackend::default(),
-            min_tls_version: None, // Use TLS library default
-            max_tls_version: None, // Use TLS library default
-            // HTTP/2 defaults - enable HTTP/2 with sensible keep-alive settings
-            adaptive_window: true,
-            keep_alive_interval: Some(60), // 60 seconds
-            keep_alive_timeout: 10,        // 10 seconds
-            keep_alive_while_idle: true,
-            accept_invalid_certs: false, // Default to false for security
-            root_cert_paths: None,
-        }
+impl HttpConfig {
+    /// Creates an HttpConfig with default values from env.json.
+    /// 
+    /// This is primarily intended for testing but can be used anywhere defaults
+    /// from the JSON configuration are needed.
+    pub fn test_default() -> Self {
+        const DEFAULT_CONFIG: &str = include_str!("../env.json");
+        let env: serde_json::Value = serde_json::from_str(DEFAULT_CONFIG)
+            .expect("Failed to parse env.json");
+        serde_json::from_value(env["http"].clone())
+            .expect("Failed to deserialize http from env.json")
     }
 }
 
@@ -194,6 +184,44 @@ mod tests {
     use std::str::FromStr;
 
     use super::*;
+
+    #[test]
+    fn test_http_config_deserialization() {
+        // Test that HTTP config can be deserialized from JSON with expected values
+        let json = r#"{
+            "connectTimeout": 30,
+            "readTimeout": 900,
+            "poolIdleTimeout": 90,
+            "poolMaxIdlePerHost": 5,
+            "maxRedirects": 10,
+            "hickory": false,
+            "tlsBackend": "default",
+            "minTlsVersion": null,
+            "maxTlsVersion": null,
+            "adaptiveWindow": true,
+            "keepAliveInterval": 60,
+            "keepAliveTimeout": 10,
+            "keepAliveWhileIdle": true,
+            "acceptInvalidCerts": false,
+            "rootCertPaths": null
+        }"#;
+
+        let config: HttpConfig = serde_json::from_str(json).unwrap();
+
+        // Verify values match expectations
+        assert_eq!(config.connect_timeout, 30);
+        assert_eq!(config.read_timeout, 900);
+        assert_eq!(config.pool_idle_timeout, 90);
+        assert_eq!(config.pool_max_idle_per_host, 5);
+        assert_eq!(config.max_redirects, 10);
+        assert!(!config.hickory);
+        assert_eq!(config.tls_backend, TlsBackend::Default);
+        assert!(config.adaptive_window);
+        assert_eq!(config.keep_alive_interval, Some(60));
+        assert_eq!(config.keep_alive_timeout, 10);
+        assert!(config.keep_alive_while_idle);
+        assert!(!config.accept_invalid_certs);
+    }
 
     #[test]
     fn test_tls_version_from_str() {
@@ -224,7 +252,7 @@ mod tests {
         let config = HttpConfig {
             min_tls_version: Some(TlsVersion::V1_2),
             max_tls_version: Some(TlsVersion::V1_3),
-            ..HttpConfig::default()
+            ..HttpConfig::test_default()
         };
 
         assert_eq!(config.min_tls_version, Some(TlsVersion::V1_2));
@@ -233,7 +261,7 @@ mod tests {
 
     #[test]
     fn test_http_config_http2_defaults() {
-        let config = HttpConfig::default();
+        let config = HttpConfig::test_default();
 
         assert!(config.adaptive_window);
         assert_eq!(config.keep_alive_interval, Some(60));
@@ -248,7 +276,7 @@ mod tests {
             keep_alive_interval: None,
             keep_alive_timeout: 30,
             keep_alive_while_idle: false,
-            ..HttpConfig::default()
+            ..HttpConfig::test_default()
         };
 
         assert!(!config.adaptive_window);
@@ -259,13 +287,13 @@ mod tests {
 
     #[test]
     fn test_http_config_accept_invalid_certs_defaults() {
-        let config = HttpConfig::default();
+        let config = HttpConfig::test_default();
         assert!(!config.accept_invalid_certs);
     }
 
     #[test]
     fn test_http_config_accept_invalid_certs_custom() {
-        let config = HttpConfig { accept_invalid_certs: true, ..HttpConfig::default() };
+        let config = HttpConfig { accept_invalid_certs: true, ..HttpConfig::test_default() };
         assert!(config.accept_invalid_certs);
     }
 
@@ -277,7 +305,7 @@ mod tests {
         ];
         let config = HttpConfig {
             root_cert_paths: Some(cert_paths.clone()),
-            ..HttpConfig::default()
+            ..HttpConfig::test_default()
         };
         assert_eq!(config.root_cert_paths, Some(cert_paths));
     }

@@ -123,7 +123,7 @@ mod tests {
     #[test]
     fn test_into_retry_with_matching_api_status_code() {
         // Setup
-        let retry_config = RetryConfig::default().retry_status_codes(vec![429, 500, 503]);
+        let retry_config = RetryConfig::test_default().retry_status_codes(vec![429, 500, 503]);
         let inner_error = ErrorResponse::default().code(ErrorCode::Number(500));
         let error = anyhow::Error::from(Error::Response(inner_error));
 
@@ -137,7 +137,7 @@ mod tests {
     #[test]
     fn test_into_retry_with_non_matching_api_status_code() {
         // Setup
-        let retry_config = RetryConfig::default().retry_status_codes(vec![429, 500, 503]);
+        let retry_config = RetryConfig::test_default().retry_status_codes(vec![429, 500, 503]);
         let inner_error = ErrorResponse::default().code(ErrorCode::Number(400));
         let error = anyhow::Error::from(Error::Response(inner_error));
 
@@ -162,7 +162,7 @@ mod tests {
 
         // Verify our function can handle generic errors safely
         let generic_error = anyhow!("A generic error that doesn't have status code");
-        let retry_config = RetryConfig::default().retry_status_codes(vec![]);
+        let retry_config = RetryConfig::test_default().retry_status_codes(vec![]);
         let actual = into_retry(generic_error, &retry_config);
         assert!(!is_retryable(actual));
     }
@@ -170,7 +170,7 @@ mod tests {
     #[test]
     fn test_into_retry_with_api_transport_error() {
         // Setup
-        let retry_config = RetryConfig::default().retry_status_codes(vec![]);
+        let retry_config = RetryConfig::test_default().retry_status_codes(vec![]);
         let inner_error = ErrorResponse::default()
             .code(ErrorCode::String("ERR_STREAM_PREMATURE_CLOSE".to_string()));
         let error = anyhow::Error::from(Error::Response(inner_error));
@@ -197,7 +197,7 @@ mod tests {
     #[test]
     fn test_into_retry_with_deep_nested_api_status_code() {
         // Setup
-        let retry_config = RetryConfig::default().retry_status_codes(vec![429, 500, 503]);
+        let retry_config = RetryConfig::test_default().retry_status_codes(vec![429, 500, 503]);
 
         // Create deeply nested error with a retryable status code
         let deepest_error = ErrorResponse::default().code(ErrorCode::Number(503));
@@ -218,7 +218,7 @@ mod tests {
     #[test]
     fn test_into_retry_with_string_error_code_as_number() {
         // Setup
-        let retry_config = RetryConfig::default().retry_status_codes(vec![429, 500, 503]);
+        let retry_config = RetryConfig::test_default().retry_status_codes(vec![429, 500, 503]);
         let inner_error = ErrorResponse::default().code(ErrorCode::String("429".to_string()));
         let error = anyhow::Error::from(Error::Response(inner_error));
 
@@ -233,7 +233,7 @@ mod tests {
     #[test]
     fn test_into_retry_with_non_retryable_error() {
         // Setup
-        let retry_config = RetryConfig::default().retry_status_codes(vec![]);
+        let retry_config = RetryConfig::test_default().retry_status_codes(vec![]);
         let generic_error = anyhow!("A generic error that doesn't match any retryable pattern");
 
         // Execute
@@ -246,7 +246,7 @@ mod tests {
     #[test]
     fn test_into_retry_with_invalid_status_code_error() {
         // Setup
-        let retry_config = RetryConfig::default().retry_status_codes(vec![429, 500, 503]);
+        let retry_config = RetryConfig::test_default().retry_status_codes(vec![429, 500, 503]);
         let error = anyhow::Error::from(Error::InvalidStatusCode(503));
 
         // Execute
@@ -259,7 +259,7 @@ mod tests {
     #[test]
     fn test_into_retry_with_invalid_status_code_error_non_matching() {
         // Setup
-        let retry_config = RetryConfig::default().retry_status_codes(vec![429, 500, 503]);
+        let retry_config = RetryConfig::test_default().retry_status_codes(vec![429, 500, 503]);
         let error = anyhow::Error::from(Error::InvalidStatusCode(400));
 
         // Execute
@@ -272,7 +272,7 @@ mod tests {
     #[test]
     fn test_into_retry_with_nested_api_transport_error() {
         // Setup
-        let retry_config = RetryConfig::default().retry_status_codes(vec![]);
+        let retry_config = RetryConfig::test_default().retry_status_codes(vec![]);
         // Create nested error with transport error code in error.error.code
         let nested_error =
             ErrorResponse::default().code(ErrorCode::String("ECONNRESET".to_string()));
@@ -291,7 +291,7 @@ mod tests {
     #[test]
     fn test_into_retry_with_deeply_nested_api_transport_error() {
         // Setup
-        let retry_config = RetryConfig::default().retry_status_codes(vec![]);
+        let retry_config = RetryConfig::test_default().retry_status_codes(vec![]);
         // Create deeply nested error with transport error code at level 4
         let deepest_error =
             ErrorResponse::default().code(ErrorCode::String("ETIMEDOUT".to_string()));
