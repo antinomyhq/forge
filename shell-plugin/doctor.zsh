@@ -153,7 +153,7 @@ fi
 
 # Check if completions are available
 if (( $+functions[_forge] )); then
-    print_result pass "Forge completions available"
+    print_result pass "Forge completions loaded"
 else
     print_result fail "Forge completions not loaded"
     print_result instruction "Add to your ~/.zshrc (after compinit):"
@@ -231,7 +231,7 @@ print_section "Required Plugins"
 if [[ " ${plugins[*]} " =~ " zsh-autosuggestions " ]] || \
    [[ -n "$fpath[(r)*zsh-autosuggestions*]" ]] || \
    (( $+functions[_zsh_autosuggest_accept] )); then
-    print_result pass "zsh-autosuggestions installed"
+    print_result pass "zsh-autosuggestions loaded"
 else
     print_result warn "zsh-autosuggestions not found"
     print_result info "Install plugin and add to plugins=() in .zshrc"
@@ -242,7 +242,7 @@ fi
 if [[ " ${plugins[*]} " =~ " zsh-syntax-highlighting " ]] || \
    [[ -n "$fpath[(r)*zsh-syntax-highlighting*]" ]] || \
    (( $+functions[_zsh_highlight] )); then
-    print_result pass "zsh-syntax-highlighting installed"
+    print_result pass "zsh-syntax-highlighting loaded"
 else
     print_result warn "zsh-syntax-highlighting not found"
     print_result info "Install plugin and add to plugins=() in .zshrc"
