@@ -20,6 +20,7 @@ base64 = "0.22.1"
 bytes = "1.10.0"
 chrono = { version = "0.4.39", features = ["serde"] }
 clap = { version = "4.5.45", features = ["derive"] }
+clap_complete = "4.5.45"
 colored = "3.0.0"
 console = "0.16.0"
 dialoguer = { version = "0.12.0", features = ["fuzzy-select"] }
