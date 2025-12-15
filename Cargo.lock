@@ -1501,6 +1501,7 @@ dependencies = [
  "merge",
  "pretty_assertions",
  "serde",
+ "serde_json",
  "strum 0.27.2",
  "strum_macros 0.27.2",
  "url",

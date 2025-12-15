@@ -33,12 +33,12 @@ pub struct ClientBuilder {
 impl ClientBuilder {
     /// Create a new ClientBuilder with required provider, version, and
     /// environment configuration.
-    pub fn new(provider: Provider<Url>, version: impl Into<String>, env: &Environment) -> Self {
+    pub fn new(provider: Provider<Url>, env: &Environment) -> Self {
         Self {
             retry_config: env.retry_config.clone(),
             use_hickory: env.http.hickory,
             provider,
-            version: version.into(),
+            version: env.version(),
         }
     }
 
@@ -287,7 +287,7 @@ mod tests {
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             )),
         };
-        let client = ClientBuilder::new(provider, "dev", &make_test_env())
+        let client = ClientBuilder::new(provider, &make_test_env())
             .build(Arc::new(MockHttpClient))
             .unwrap();
 
@@ -310,7 +310,7 @@ mod tests {
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             )),
         };
-        let client = ClientBuilder::new(provider, "dev", &make_test_env())
+        let client = ClientBuilder::new(provider, &make_test_env())
             .build(Arc::new(MockHttpClient))
             .unwrap();
 
@@ -337,7 +337,7 @@ mod tests {
         };
 
         // Test the builder pattern API
-        let client = ClientBuilder::new(provider, "dev", &make_test_env())
+        let client = ClientBuilder::new(provider, &make_test_env())
             .retry_config(RetryConfig::test_default())
             .use_hickory(true)
             .build(Arc::new(MockHttpClient))
@@ -364,7 +364,7 @@ mod tests {
         };
 
         // Test that ClientBuilder::new works with minimal parameters
-        let client = ClientBuilder::new(provider, "dev", &make_test_env())
+        let client = ClientBuilder::new(provider, &make_test_env())
             .build(Arc::new(MockHttpClient))
             .unwrap();
 

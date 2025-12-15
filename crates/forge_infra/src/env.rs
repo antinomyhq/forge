@@ -38,11 +38,11 @@ impl ForgeEnvironmentInfra {
     fn get(&self) -> Environment {
         // Load environment configuration using the config crate
         let mut env = Environment::from_env().expect("Failed to load environment configuration");
-        
+
         // Override fields specific to this infrastructure instance
         env.cwd = self.cwd.clone();
         env.shell = self.get_shell_path();
-        
+
         env
     }
 
@@ -83,8 +83,6 @@ impl EnvironmentInfra for ForgeEnvironmentInfra {
         std::env::vars().collect()
     }
 }
-
-
 
 #[cfg(test)]
 mod tests {
@@ -141,8 +139,6 @@ mod tests {
         ForgeEnvironmentInfra::dot_env(&cwd);
         assert_eq!(env::var("TEST_KEY4").unwrap(), "STD_ENV_VAL");
     }
-
-
 
     #[test]
     #[serial]

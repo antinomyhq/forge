@@ -167,13 +167,13 @@ pub struct HttpConfig {
 
 impl HttpConfig {
     /// Creates an HttpConfig with default values from env.json.
-    /// 
+    ///
     /// This is primarily intended for testing but can be used anywhere defaults
     /// from the JSON configuration are needed.
     pub fn test_default() -> Self {
         const DEFAULT_CONFIG: &str = include_str!("../env.json");
-        let env: serde_json::Value = serde_json::from_str(DEFAULT_CONFIG)
-            .expect("Failed to parse env.json");
+        let env: serde_json::Value =
+            serde_json::from_str(DEFAULT_CONFIG).expect("Failed to parse env.json");
         serde_json::from_value(env["http"].clone())
             .expect("Failed to deserialize http from env.json")
     }

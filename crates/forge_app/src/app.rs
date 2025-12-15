@@ -37,9 +37,11 @@ pub struct ForgeApp<S> {
 impl<S: Services> ForgeApp<S> {
     /// Creates a new ForgeApp instance with the provided services.
     pub fn new(services: Arc<S>) -> Self {
+        let config = services.environment_service().get_environment();
+
         Self {
             tool_registry: ToolRegistry::new(services.clone()),
-            authenticator: Authenticator::new(services.clone()),
+            authenticator: Authenticator::new(services.clone(), config.retry_config),
             services,
         }
     }
