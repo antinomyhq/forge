@@ -63,8 +63,7 @@ function _forge_git() {
 }
 
 # Model and agent info with token count
-# Parallel execution of forge commands for better performance
-# Uses porcelain format for reliable parsing
+# Uses single forge command for better performance
 function _forge_prompt_info() {
     local forge_bin="${_FORGE_BIN:-${FORGE_BIN:-forge}}"
     local agent="${_FORGE_ACTIVE_AGENT}"
@@ -73,34 +72,21 @@ function _forge_prompt_info() {
     local model=""
     local tokens=""
     
+    # Get model and tokens in a single command
     if [[ -n "$cid" ]]; then
-        # Both commands needed - run in parallel
-        # Use command substitution in background jobs
-        local model_result
-        local tokens_result
-        
-        # Start model fetch in background
-        {
-            model_result=$($forge_bin config get model 2>/dev/null)
-            print -r -- "$model_result"
-        } > >(read -r model) &
-        local model_pid=$!
-        
-        # Start stats fetch in background
-        {
-            local stats=$($forge_bin conversation stats "$cid" --porcelain 2>/dev/null)
-            if [[ -n "$stats" ]]; then
-                tokens_result=$(echo "$stats" | awk '/^token[[:space:]]+total_tokens/ {print $3}')
-            fi
-            print -r -- "$tokens_result"
-        } > >(read -r tokens) &
-        local stats_pid=$!
-        
-        # Wait for both to complete
-        wait $model_pid $stats_pid 2>/dev/null
+        # Use new prompt command to get both model and tokens
+        local result=$($forge_bin zsh prompt --cid "$cid" 2>/dev/null)
+        if [[ -n "$result" ]]; then
+            # Parse result: model|tokens
+            model="${result%%|*}"
+            tokens="${result##*|}"
+        fi
     else
-        # Only model needed - single call
-        model=$($forge_bin config get model 2>/dev/null)
+        # No conversation - just get model
+        local result=$($forge_bin prompt 2>/dev/null)
+        if [[ -n "$result" ]]; then
+            model="${result%%|*}"
+        fi
     fi
     
     # Build model display
@@ -143,7 +129,7 @@ function _forge_prompt_info() {
 # Main prompt: directory + git + chevron
 PROMPT='$(_forge_directory)$(_forge_git) %F{green}${FORGE_PROMPT_SYMBOL}%f '
 
-# Right prompt: agent and model with token count (single forge call)
+# Right prompt: agent and model with token count (uses single forge prompt command)
 RPROMPT='$(_forge_prompt_info)'
 
 # Continuation prompt

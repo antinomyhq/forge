@@ -422,6 +422,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     crate::cli::ZshCommandGroup::Doctor => {
                         self.on_zsh_doctor().await?;
                     }
+                    crate::cli::ZshCommandGroup::Prompt { conversation_id } => {
+                        self.handle_prompt_command(conversation_id).await?;
+                        return Ok(());
+                    }
                 }
                 return Ok(());
             }
@@ -2825,6 +2829,48 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
         }
 
+        Ok(())
+    }
+
+    /// Handle prompt command - returns model and conversation stats for shell
+    /// integration
+    async fn handle_prompt_command(
+        &mut self,
+        conversation_id: Option<ConversationId>,
+    ) -> Result<()> {
+
+        // FIXME: Make requests in parallel
+        // Get model
+        let model = self
+            .api
+            .get_default_model()
+            .await
+            .map(|m| m.as_str().to_string())
+            .unwrap_or_default();
+
+        // Get conversation stats if conversation_id is provided
+        let tokens = if let Some(cid) = conversation_id {
+            if let Ok(Some(conversation)) = self.api.conversation(&cid).await {
+                conversation
+                    .usage()
+                    .as_ref()
+                    .map(|u| *u.total_tokens)
+                    .unwrap_or(0)
+            } else {
+                0
+            }
+        } else {
+            0
+        };
+
+        // Use porcelain format for structured output
+        let info = Info::new()
+            .add_title("prompt")
+            .add_key_value("model", model)
+            .add_key_value("tokens", tokens.to_string());
+
+        // Skip header row and drop the ID column for clean output: model|tokens
+        self.writeln(Porcelain::from(info).skip(1).drop_col(0))?;
         Ok(())
     }
 

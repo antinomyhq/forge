@@ -333,6 +333,14 @@ pub enum ZshCommandGroup {
     Theme,
     /// Run diagnostics on shell environment
     Doctor,
+
+    /// Get prompt information (model and conversation stats) for shell
+    /// integration.
+    Prompt {
+        /// Conversation ID for session-specific information.
+        #[arg(long, alias = "cid")]
+        conversation_id: Option<ConversationId>,
+    },
 }
 
 /// Command group for MCP server management.
@@ -1171,6 +1179,39 @@ mod tests {
             ConversationId::parse("550e8400-e29b-41d4-a716-446655440010").unwrap()
         );
         assert_eq!(porcelain, true);
+    }
+
+    #[test]
+    fn test_prompt_command() {
+        let fixture = Cli::parse_from(["forge", "zsh", "prompt"]);
+        let conversation_id = match fixture.subcommands {
+            Some(TopLevelCommand::Zsh(ZshCommandGroup::Prompt { conversation_id })) => {
+                conversation_id
+            }
+            _ => None,
+        };
+        assert_eq!(conversation_id, None);
+    }
+
+    #[test]
+    fn test_prompt_command_with_cid() {
+        let fixture = Cli::parse_from([
+            "forge",
+            "zsh",
+            "prompt",
+            "--cid",
+            "550e8400-e29b-41d4-a716-446655440010",
+        ]);
+        let conversation_id = match fixture.subcommands {
+            Some(TopLevelCommand::Zsh(ZshCommandGroup::Prompt { conversation_id })) => {
+                conversation_id
+            }
+            _ => None,
+        };
+        assert_eq!(
+            conversation_id,
+            Some(ConversationId::parse("550e8400-e29b-41d4-a716-446655440010").unwrap())
+        );
     }
 
     #[test]
