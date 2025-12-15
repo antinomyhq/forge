@@ -41,6 +41,9 @@ service ForgeService {
   
   // Validates syntax for a batch of files
   rpc ValidateFiles(ValidateFilesRequest) returns (ValidateFilesResponse);
+  
+  // Selects relevant skills based on user prompt
+  rpc SelectSkill(SelectSkillRequest) returns (SelectSkillResponse);
 }
 
 // Node types
@@ -153,7 +156,6 @@ message Node {
 message QueryItem {
   Node node = 1;
   optional float distance = 2;
-  optional float similarity = 3;
   optional uint64 rank = 4;
   optional float relevance = 5;
 }
@@ -297,10 +299,13 @@ message SyntaxError {
   string message = 3;
 }
 
+message UnsupportedLanguage {}
+
 message ValidationStatus {
   oneof status {
     bool valid = 1;
     SyntaxErrorList errors = 2;
+    UnsupportedLanguage unsupported_language = 3;
   }
 }
 
@@ -315,4 +320,24 @@ message FileValidationResult {
 
 message ValidateFilesResponse {
   repeated FileValidationResult results = 1;
+}
+
+message Skill {
+  string name = 1;
+  string description = 2;
+}
+
+message SelectedSkill {
+  string name = 1;
+  float relevance = 2;
+  uint64 rank = 3;
+}
+
+message SelectSkillRequest {
+  repeated Skill skills = 1;
+  string user_prompt = 2;
+}
+
+message SelectSkillResponse {
+  repeated SelectedSkill skills = 1;
 }

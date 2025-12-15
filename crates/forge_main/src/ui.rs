@@ -29,8 +29,7 @@ use tracing::debug;
 use url::Url;
 
 use crate::cli::{
-    Cli, CommitCommandGroup, ConversationCommand, ExtensionCommand, ListCommand, McpCommand,
-    TopLevelCommand,
+    Cli, CommitCommandGroup, ConversationCommand, ListCommand, McpCommand, TopLevelCommand,
 };
 use crate::conversation_selector::ConversationSelector;
 use crate::display_constants::{CommandType, headers, markers, status};
@@ -46,6 +45,7 @@ use crate::title_display::TitleDisplayExt;
 use crate::tools_display::format_tools;
 use crate::update::on_update;
 use crate::utils::humanize_time;
+use crate::zsh::ZshRPrompt;
 use crate::{TRACKER, banner, tracker};
 
 // File-specific constants
@@ -235,8 +235,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .await
                 .ok()
                 .flatten()
-                .and_then(|conv| conv.context)
-                .and_then(|ctx| ctx.usage)
+                .and_then(|conv| conv.accumulated_usage())
         } else {
             None
         };
@@ -271,8 +270,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     }
 
     async fn run_inner(&mut self) -> Result<()> {
-        if let Some(mcp) = self.cli.subcommands.clone() {
-            return self.handle_subcommands(mcp).await;
+        if let Some(cmd) = self.cli.subcommands.clone() {
+            return self.handle_subcommands(cmd).await;
         }
 
         // Display the banner in dimmed colors since we're in interactive mode
@@ -413,10 +412,22 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
                 return Ok(());
             }
-            TopLevelCommand::Extension(extension_group) => {
-                match extension_group.command {
-                    ExtensionCommand::Zsh => {
-                        self.on_zsh_prompt().await?;
+            TopLevelCommand::Zsh(terminal_group) => {
+                match terminal_group {
+                    crate::cli::ZshCommandGroup::Plugin => {
+                        self.on_zsh_plugin().await?;
+                    }
+                    crate::cli::ZshCommandGroup::Theme => {
+                        self.on_zsh_theme().await?;
+                    }
+                    crate::cli::ZshCommandGroup::Doctor => {
+                        self.on_zsh_doctor().await?;
+                    }
+                    crate::cli::ZshCommandGroup::Rprompt => {
+                        if let Some(text) = self.handle_zsh_rprompt_command().await {
+                            print!("{}", text)
+                        }
+                        return Ok(());
                     }
                 }
                 return Ok(());
@@ -501,11 +512,6 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 // Make sure to init model
                 self.on_new().await?;
 
-                let conversation_id = conversation_id
-                    .as_deref()
-                    .map(ConversationId::parse)
-                    .transpose()?;
-
                 self.on_info(porcelain, conversation_id).await?;
                 return Ok(());
             }
@@ -547,7 +553,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
                         // If conversation_id is provided, set it in CLI before initializing
                         if let Some(ref cid) = run_group.conversation_id {
-                            self.cli.conversation_id = Some(cid.clone());
+                            self.cli.conversation_id = Some(*cid);
                         }
 
                         self.init_conversation().await?;
@@ -630,8 +636,6 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         &mut self,
         conversation_group: crate::cli::ConversationCommandGroup,
     ) -> anyhow::Result<()> {
-        use forge_domain::ConversationId;
-
         match conversation_group.command {
             ConversationCommand::List { porcelain } => {
                 self.on_show_conversations(porcelain).await?;
@@ -640,13 +644,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.handle_generate_conversation_id().await?;
             }
             ConversationCommand::Dump { id, html } => {
-                let conversation_id =
-                    ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
-
-                self.validate_conversation_exists(&conversation_id).await?;
+                self.validate_conversation_exists(&id).await?;
 
                 let original_id = self.state.conversation_id;
-                self.state.conversation_id = Some(conversation_id);
+                self.state.conversation_id = Some(id);
 
                 self.spinner.start(Some("Dumping"))?;
                 self.on_dump(html).await?;
@@ -654,27 +655,29 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.state.conversation_id = original_id;
             }
             ConversationCommand::Compact { id } => {
-                let conversation_id =
-                    ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
-
-                self.validate_conversation_exists(&conversation_id).await?;
+                self.validate_conversation_exists(&id).await?;
 
                 let original_id = self.state.conversation_id;
-                self.state.conversation_id = Some(conversation_id);
+                self.state.conversation_id = Some(id);
 
                 self.spinner.start(Some("Compacting"))?;
                 self.on_compaction().await?;
 
                 self.state.conversation_id = original_id;
             }
-            ConversationCommand::Retry { id } => {
+            ConversationCommand::Delete { id } => {
                 let conversation_id =
                     ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
 
                 self.validate_conversation_exists(&conversation_id).await?;
 
+                self.on_conversation_delete(conversation_id).await?;
+            }
+            ConversationCommand::Retry { id } => {
+                self.validate_conversation_exists(&id).await?;
+
                 let original_id = self.state.conversation_id;
-                self.state.conversation_id = Some(conversation_id);
+                self.state.conversation_id = Some(id);
 
                 self.spinner.start(None)?;
                 self.on_message(None).await?;
@@ -682,44 +685,29 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.state.conversation_id = original_id;
             }
             ConversationCommand::Resume { id } => {
-                let conversation_id =
-                    ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
+                self.validate_conversation_exists(&id).await?;
 
-                self.validate_conversation_exists(&conversation_id).await?;
-
-                self.state.conversation_id = Some(conversation_id);
+                self.state.conversation_id = Some(id);
                 self.writeln_title(TitleFormat::info(format!("Resumed conversation: {id}")))?;
                 // Interactive mode will be handled by the main loop
             }
             ConversationCommand::Show { id } => {
-                let conversation_id =
-                    ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
-
-                let conversation = self.validate_conversation_exists(&conversation_id).await?;
+                let conversation = self.validate_conversation_exists(&id).await?;
 
                 self.on_show_last_message(conversation).await?;
             }
             ConversationCommand::Info { id } => {
-                let conversation_id =
-                    ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
-
-                let conversation = self.validate_conversation_exists(&conversation_id).await?;
+                let conversation = self.validate_conversation_exists(&id).await?;
 
                 self.on_show_conv_info(conversation).await?;
             }
             ConversationCommand::Stats { id, porcelain } => {
-                let conversation_id =
-                    ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
-
-                let conversation = self.validate_conversation_exists(&conversation_id).await?;
+                let conversation = self.validate_conversation_exists(&id).await?;
 
                 self.on_show_conv_stats(conversation, porcelain).await?;
             }
             ConversationCommand::Clone { id, porcelain } => {
-                let conversation_id =
-                    ConversationId::parse(&id).context(format!("Invalid conversation ID: {id}"))?;
-
-                let conversation = self.validate_conversation_exists(&conversation_id).await?;
+                let conversation = self.validate_conversation_exists(&id).await?;
 
                 self.spinner.start(Some("Cloning"))?;
                 self.on_clone_conversation(conversation, porcelain).await?;
@@ -736,11 +724,21 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     ) -> anyhow::Result<Conversation> {
         let conversation = self.api.conversation(conversation_id).await?;
 
-        conversation.ok_or_else(|| {
-            anyhow::anyhow!(
-                "Conversation '{conversation_id}' not found. Use 'forge conversation list' to see available conversations."
-            )
-        })
+        conversation.ok_or_else(|| anyhow::anyhow!("Conversation '{conversation_id}' not found"))
+    }
+
+    async fn on_conversation_delete(
+        &mut self,
+        conversation_id: ConversationId,
+    ) -> anyhow::Result<()> {
+        self.spinner.start(Some("Deleting conversation"))?;
+        self.api.delete_conversation(&conversation_id).await?;
+        self.spinner.stop(None)?;
+        self.writeln_title(TitleFormat::debug(format!(
+            "Successfully deleted conversation '{}'",
+            conversation_id
+        )))?;
+        Ok(())
     }
 
     async fn handle_provider_command(
@@ -1442,9 +1440,26 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(())
     }
 
-    async fn on_zsh_prompt(&self) -> anyhow::Result<()> {
-        let plugin = crate::zsh_plugin::generate_zsh_plugin()?;
+    /// Generate ZSH plugin script
+    async fn on_zsh_plugin(&self) -> anyhow::Result<()> {
+        let plugin = crate::zsh::generate_zsh_plugin()?;
         println!("{plugin}");
+        Ok(())
+    }
+
+    /// Generate ZSH theme
+    async fn on_zsh_theme(&self) -> anyhow::Result<()> {
+        let theme = crate::zsh::generate_zsh_theme()?;
+        println!("{theme}");
+        Ok(())
+    }
+
+    /// Run ZSH environment diagnostics
+    async fn on_zsh_doctor(&mut self) -> anyhow::Result<()> {
+        self.spinner.start(Some("Running diagnostics"))?;
+        let report = crate::zsh::run_zsh_doctor()?;
+        self.spinner.stop(None)?;
+        println!("{report}");
         Ok(())
     }
 
@@ -1561,6 +1576,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             SlashCommand::Compact => {
                 self.spinner.start(Some("Compacting"))?;
                 self.on_compaction().await?;
+            }
+            SlashCommand::Delete => {
+                self.handle_delete_conversation().await?;
             }
             SlashCommand::Dump { html } => {
                 self.spinner.start(Some("Dumping"))?;
@@ -1723,6 +1741,12 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             "Context size reduced by {token_reduction:.1}% (tokens), {message_reduction:.1}% (messages)"
         ));
         self.writeln_title(content)?;
+        Ok(())
+    }
+
+    async fn handle_delete_conversation(&mut self) -> anyhow::Result<()> {
+        let conversation_id = self.init_conversation().await?;
+        self.on_conversation_delete(conversation_id).await?;
         Ok(())
     }
 
@@ -2252,9 +2276,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let mut is_new = false;
         let id = if let Some(id) = self.state.conversation_id {
             id
-        } else if let Some(ref id_str) = self.cli.conversation_id {
-            // Parse and use the provided conversation ID
-            let id = ConversationId::parse(id_str).context("Failed to parse conversation ID")?;
+        } else if let Some(id) = self.cli.conversation_id {
+            // Use the provided conversation ID
 
             // Check if conversation exists, if not create it
             if self.api.conversation(&id).await?.is_none() {
@@ -2312,7 +2335,6 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let workflow = self.api.read_workflow(self.cli.workflow.as_deref()).await?;
 
         let _ = self.handle_migrate_credentials().await;
-        self.install_vscode_extension();
 
         // Ensure we have a model selected before proceeding with initialization
         let active_agent = self.api.get_active_agent().await;
@@ -2381,6 +2403,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     async fn on_message(&mut self, content: Option<String>) -> Result<()> {
         let conversation_id = self.init_conversation().await?;
+
+        self.install_vscode_extension();
 
         // Track if content was provided to decide whether to use piped input as
         // additional context
@@ -2510,7 +2534,6 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     return Ok(());
                 }
             }
-            ChatResponse::Usage(_) => {}
             ChatResponse::RetryAttempt { cause, duration: _ } => {
                 if !self.api.environment().retry_config.suppress_retry_errors {
                     self.spinner.start(Some("Retrying"))?;
@@ -2638,16 +2661,16 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         // Add token usage if available
-        if let Some(usage) = conversation.context.as_ref().and_then(|c| c.usage.as_ref()) {
+        if let Some(usage) = conversation.usage().as_ref() {
             info = info
                 .add_title("TOKEN")
                 .add_key_value("Prompt Tokens", usage.prompt_tokens.to_string())
                 .add_key_value("Completion Tokens", usage.completion_tokens.to_string())
                 .add_key_value("Total Tokens", usage.total_tokens.to_string());
+        }
 
-            if let Some(cost) = usage.cost {
-                info = info.add_key_value("Cost", format!("${cost:.4}"));
-            }
+        if let Some(cost) = conversation.accumulated_cost() {
+            info = info.add_key_value("Cost", format!("${cost:.4}"));
         }
 
         if porcelain {
@@ -2718,8 +2741,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .await
                 .ok()
                 .flatten()
-                .and_then(|conv| conv.context)
-                .and_then(|ctx| ctx.usage)
+                .and_then(|conv| conv.accumulated_usage())
         } else {
             None
         };
@@ -2828,6 +2850,30 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(())
     }
 
+    /// Handle prompt command - returns model and conversation stats for shell
+    /// integration
+    async fn handle_zsh_rprompt_command(&mut self) -> Option<String> {
+        let cid = std::env::var("_FORGE_CONVERSATION_ID")
+            .ok()
+            .and_then(|str| ConversationId::from_str(str.as_str()).ok());
+
+        // Make IO calls in parallel
+        let (model_id, conversation) = tokio::join!(self.api.get_default_model(), async {
+            if let Some(cid) = cid {
+                self.api.conversation(&cid).await.ok().flatten()
+            } else {
+                None
+            }
+        });
+
+        let rprompt = ZshRPrompt::default()
+            .agent(std::env::var("_FORGE_ACTIVE_AGENT").ok().map(AgentId::new))
+            .model(model_id)
+            .token_count(conversation.and_then(|c| c.usage()).map(|u| u.total_tokens));
+
+        Some(rprompt.to_string())
+    }
+
     /// Validate model exists
     async fn validate_model(&self, model_str: &str) -> Result<ModelId> {
         let models = self.api.get_models().await?;
@@ -2862,7 +2908,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .ok_or_else(|| anyhow::anyhow!("Conversation has no context"))?;
 
         // Find the last assistant message
-        let message = context.messages.iter().rev().find_map(|msg| match msg {
+        let message = context.messages.iter().rev().find_map(|msg| match &**msg {
             ContextMessage::Text(TextMessage { content, role: Role::Assistant, .. }) => {
                 Some(content)
             }
@@ -3130,6 +3176,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Silently install VS Code extension if in VS Code and extension not
     /// installed.
+    /// NOTE: This is a non-cancellable and a slow task. We should only run this
+    /// if the user has provided a prompt because that is guaranteed to run for
+    /// at least a few seconds.
     fn install_vscode_extension(&self) {
         tokio::task::spawn_blocking(|| {
             if crate::vscode::should_install_extension() {
@@ -3137,4 +3186,12 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
         });
     }
+}
+
+#[cfg(test)]
+mod tests {
+    // Note: Tests for confirm_delete_conversation are disabled because
+    // ForgeSelect::confirm is not easily mockable in the current
+    // architecture. The functionality is tested through integration tests
+    // instead.
 }

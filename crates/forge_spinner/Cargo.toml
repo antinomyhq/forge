@@ -9,3 +9,6 @@ colored.workspace = true
 tokio.workspace = true
 indicatif = "0.18.0"
 rand = "0.9.2"
+
+[dev-dependencies]
+pretty_assertions.workspace = true

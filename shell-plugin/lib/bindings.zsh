@@ -7,8 +7,17 @@ zle -N forge-accept-line
 zle -N forge-completion
 
 # Custom bracketed-paste handler to fix syntax highlighting after paste
+# Addresses timing issues by ensuring buffer state stabilizes before prompt reset
 function forge-bracketed-paste() {
+    # Call the built-in bracketed-paste widget first
     zle .$WIDGET "$@"
+    
+    # Explicitly redisplay the buffer to ensure paste content is visible
+    # This is critical for large or multiline pastes
+    zle redisplay
+    
+    # Reset the prompt to trigger syntax highlighting refresh
+    # The redisplay before reset-prompt ensures the buffer is fully rendered
     zle reset-prompt
 }
 

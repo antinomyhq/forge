@@ -327,7 +327,7 @@ impl From<Context> for Request {
                 let messages = context
                     .messages
                     .into_iter()
-                    .map(Message::from)
+                    .map(|msg| Message::from(msg.message))
                     .collect::<Vec<_>>();
 
                 Some(messages)
@@ -365,7 +365,8 @@ impl From<Context> for Request {
             models: Default::default(),
             route: Default::default(),
             provider: Default::default(),
-            parallel_tool_calls: Some(false),
+            parallel_tool_calls: Some(true), /* Default to true, transformers will adjust based
+                                              * on model capabilities */
             stream_options: Some(StreamOptions { include_usage: Some(true) }),
             session_id: context.conversation_id.map(|id| id.to_string()),
             reasoning: context.reasoning,
