@@ -1,4 +1,3 @@
-use crate::IntoDomain;
 use anyhow::{Context as _, Result};
 use aws_sdk_bedrockruntime::Client;
 use forge_app::HttpClientService;
@@ -8,6 +7,8 @@ use forge_domain::{
 };
 use reqwest::Url;
 use tokio::sync::OnceCell;
+
+use crate::IntoDomain;
 
 /// Provider implementation for Amazon Bedrock using AWS SDK
 pub struct BedrockProvider<T> {
@@ -165,7 +166,6 @@ impl<H: HttpClientService> BedrockProvider<H> {
     }
 }
 
-
 /// Converts Bedrock stream events to ChatCompletionMessage
 impl IntoDomain for aws_sdk_bedrockruntime::types::ConverseStreamOutput {
     type Domain = forge_domain::ChatCompletionMessage;
@@ -305,7 +305,6 @@ impl IntoDomain for aws_sdk_bedrockruntime::types::ConverseStreamOutput {
         }
     }
 }
-
 
 #[cfg(test)]
 mod tests {
