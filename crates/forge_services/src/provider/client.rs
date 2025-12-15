@@ -97,7 +97,7 @@ impl ClientBuilder {
             }
 
             ProviderResponse::Bedrock => InnerClient::Bedrock(Box::new(
-                crate::provider::bedrock::BedrockProvider::new(provider.clone(), http.clone())?,
+                crate::provider::bedrock::BedrockProvider::new(provider.clone())?,
             )),
         };
 

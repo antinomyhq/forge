@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use anyhow::{Context as _, Result};
 use aws_sdk_bedrockruntime::Client;
 use forge_app::HttpClientService;
@@ -16,6 +14,7 @@ pub struct BedrockProvider<T> {
     region: String,
     client: OnceCell<Client>,
     _phantom: std::marker::PhantomData<T>,
+
 }
 
 impl<H: HttpClientService> BedrockProvider<H> {
@@ -26,7 +25,7 @@ impl<H: HttpClientService> BedrockProvider<H> {
     ///   AWS_SESSION_TOKEN)
     /// - AWS credentials file (~/.aws/credentials)
     /// - IAM role (for EC2/ECS/Lambda)
-    pub fn new(provider: Provider<Url>, _http: Arc<H>) -> Result<Self> {
+    pub fn new(provider: Provider<Url>) -> Result<Self> {
         // Extract region from URL params
         let region_param: forge_domain::URLParam = "AWS_REGION".to_string().into();
         let region = provider
