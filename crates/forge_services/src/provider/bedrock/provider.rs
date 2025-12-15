@@ -1,7 +1,8 @@
+use crate::IntoDomain;
 use anyhow::{Context as _, Result};
 use aws_sdk_bedrockruntime::Client;
 use forge_app::HttpClientService;
-use forge_app::dto::bedrock::{BedrockConvert, BedrockStreamEvent, SetCache};
+use forge_app::dto::bedrock::{BedrockConvert, SetCache};
 use forge_domain::{
     ChatCompletionMessage, Context, Model, ModelId, Provider, ResultStream, Transformer,
 };
@@ -139,12 +140,7 @@ impl<H: HttpClientService> BedrockProvider<H> {
         let stream = futures::stream::unfold(output.stream, |mut event_stream| async move {
             match event_stream.recv().await {
                 Ok(Some(event)) => {
-                    let wrapped_event = BedrockStreamEvent::from(event);
-                    let message =
-                        ChatCompletionMessage::try_from(wrapped_event).unwrap_or_else(|e| {
-                            tracing::warn!("Failed to convert Bedrock event: {}", e);
-                            ChatCompletionMessage::assistant(forge_domain::Content::part(""))
-                        });
+                    let message = event.into_domain();
                     Some((Ok(message), event_stream))
                 }
                 Ok(None) => None, // End of stream
@@ -168,6 +164,148 @@ impl<H: HttpClientService> BedrockProvider<H> {
         }
     }
 }
+
+
+/// Converts Bedrock stream events to ChatCompletionMessage
+impl IntoDomain for aws_sdk_bedrockruntime::types::ConverseStreamOutput {
+    type Domain = forge_domain::ChatCompletionMessage;
+
+    fn into_domain(self) -> Self::Domain {
+        use aws_sdk_bedrockruntime::types::ConverseStreamOutput;
+        use forge_domain::{
+            ChatCompletionMessage, Content, FinishReason, ToolCallId, ToolCallPart, ToolName,
+        };
+
+        match self {
+            ConverseStreamOutput::ContentBlockDelta(delta) => {
+                if let Some(delta_content) = delta.delta {
+                    match delta_content {
+                        aws_sdk_bedrockruntime::types::ContentBlockDelta::Text(text) => {
+                            ChatCompletionMessage::assistant(Content::part(text))
+                        }
+                        aws_sdk_bedrockruntime::types::ContentBlockDelta::ToolUse(tool_use) => {
+                            // Tool use delta - partial JSON for tool arguments
+                            ChatCompletionMessage::assistant(Content::part("")).add_tool_call(
+                                ToolCallPart {
+                                    call_id: None,
+                                    name: None,
+                                    arguments_part: tool_use.input,
+                                },
+                            )
+                        }
+                        aws_sdk_bedrockruntime::types::ContentBlockDelta::ReasoningContent(
+                            reasoning,
+                        ) => {
+                            // Handle reasoning content delta
+                            match reasoning {
+                                aws_sdk_bedrockruntime::types::ReasoningContentBlockDelta::Text(
+                                    text,
+                                ) => {
+                                    // Reasoning text - add to both reasoning field and as detail part
+                                    ChatCompletionMessage::default()
+                                        .reasoning(Content::part(text.clone()))
+                                        .add_reasoning_detail(forge_domain::Reasoning::Part(vec![
+                                            forge_domain::ReasoningPart {
+                                                text: Some(text),
+                                                signature: None,
+                                                ..Default::default()
+                                            },
+                                        ]))
+                                }
+                                aws_sdk_bedrockruntime::types::ReasoningContentBlockDelta::Signature(
+                                    sig,
+                                ) => {
+                                    // Signature for reasoning - add as reasoning detail part
+                                    ChatCompletionMessage::default().add_reasoning_detail(
+                                        forge_domain::Reasoning::Part(vec![
+                                            forge_domain::ReasoningPart {
+                                                text: None,
+                                                signature: Some(sig),
+                                                ..Default::default()
+                                            },
+                                        ]),
+                                    )
+                                }
+                                aws_sdk_bedrockruntime::types::ReasoningContentBlockDelta::RedactedContent(_) => {
+                                    // Redacted content - skip it
+                                    ChatCompletionMessage::default()
+                                }
+                                _ => ChatCompletionMessage::default(),
+                            }
+                        }
+                        _ => ChatCompletionMessage::assistant(Content::part("")),
+                    }
+                } else {
+                    ChatCompletionMessage::assistant(Content::part(""))
+                }
+            }
+            ConverseStreamOutput::ContentBlockStart(start) => {
+                if let Some(start_content) = start.start {
+                    match start_content {
+                        aws_sdk_bedrockruntime::types::ContentBlockStart::ToolUse(tool_use) => {
+                            // Tool use start - contains tool name and ID
+                            ChatCompletionMessage::assistant(Content::part("")).add_tool_call(
+                                ToolCallPart {
+                                    call_id: Some(ToolCallId::new(tool_use.tool_use_id)),
+                                    name: Some(ToolName::new(tool_use.name)),
+                                    arguments_part: String::new(),
+                                },
+                            )
+                        }
+                        _ => ChatCompletionMessage::assistant(Content::part("")),
+                    }
+                } else {
+                    ChatCompletionMessage::assistant(Content::part(""))
+                }
+            }
+            ConverseStreamOutput::MessageStop(stop) => {
+                // Message stop contains finish reason
+                let finish_reason = match &stop.stop_reason {
+                    aws_sdk_bedrockruntime::types::StopReason::EndTurn => FinishReason::Stop,
+                    aws_sdk_bedrockruntime::types::StopReason::MaxTokens => FinishReason::Length,
+                    aws_sdk_bedrockruntime::types::StopReason::ToolUse => FinishReason::ToolCalls,
+                    aws_sdk_bedrockruntime::types::StopReason::ContentFiltered => {
+                        FinishReason::ContentFilter
+                    }
+                    _ => FinishReason::Stop,
+                };
+
+                ChatCompletionMessage::assistant(Content::part(""))
+                    .finish_reason_opt(Some(finish_reason))
+            }
+            ConverseStreamOutput::Metadata(metadata) => {
+                // Metadata contains usage information
+                let usage = metadata.usage.map(|u| {
+                    // AWS Bedrock supports cache tokens but not reasoning tokens
+                    // Sum both cache read and cache write tokens into cached_tokens field
+                    let cached_tokens = u
+                        .cache_read_input_tokens
+                        .unwrap_or(0)
+                        .saturating_add(u.cache_write_input_tokens.unwrap_or(0));
+
+                    forge_domain::Usage {
+                        prompt_tokens: forge_domain::TokenCount::Actual(u.total_tokens as usize),
+                        completion_tokens: forge_domain::TokenCount::Actual(
+                            u.output_tokens as usize,
+                        ),
+                        total_tokens: forge_domain::TokenCount::Actual(u.total_tokens as usize),
+                        cached_tokens: forge_domain::TokenCount::Actual(cached_tokens as usize),
+                        ..Default::default()
+                    }
+                });
+
+                let mut msg = ChatCompletionMessage::assistant(Content::part(""));
+                if let Some(u) = usage {
+                    msg = msg.usage(u);
+                }
+                msg
+            }
+            // Ignore other events
+            _ => ChatCompletionMessage::assistant(Content::part("")),
+        }
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
