@@ -298,7 +298,7 @@ fi
 # Show actual icons used in Forge theme
 echo ""
 echo "$(bold "Font Check [Manual Verification Required]")"
-echo "   $(bold "󱙺 FORGE 33.0k") $(cyan " claude-opus-4-5-20251101")"
+echo "   $(bold "󱙺 FORGE 33.0k") $(cyan " tonic-1.0")"
 echo ""
 echo "   Forge uses Nerd Fonts to enrich cli experience, can you see all the icons clearly without any overlap?"
 echo "   If you see boxes (□) or question marks (?), install a Nerd Font from:"
