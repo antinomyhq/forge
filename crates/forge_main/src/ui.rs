@@ -29,8 +29,7 @@ use tracing::debug;
 use url::Url;
 
 use crate::cli::{
-    Cli, CommitCommandGroup, ConversationCommand, ExtensionCommand, ListCommand, McpCommand,
-    TopLevelCommand,
+    Cli, CommitCommandGroup, ConversationCommand, ListCommand, McpCommand, TopLevelCommand,
 };
 use crate::conversation_selector::ConversationSelector;
 use crate::display_constants::{CommandType, headers, markers, status};
@@ -46,6 +45,7 @@ use crate::title_display::TitleDisplayExt;
 use crate::tools_display::format_tools;
 use crate::update::on_update;
 use crate::utils::humanize_time;
+use crate::zsh::ZshRPrompt;
 use crate::{TRACKER, banner, tracker};
 
 // File-specific constants
@@ -412,10 +412,22 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
                 return Ok(());
             }
-            TopLevelCommand::Extension(extension_group) => {
-                match extension_group.command {
-                    ExtensionCommand::Zsh => {
-                        self.on_zsh_prompt().await?;
+            TopLevelCommand::Zsh(terminal_group) => {
+                match terminal_group {
+                    crate::cli::ZshCommandGroup::Plugin => {
+                        self.on_zsh_plugin().await?;
+                    }
+                    crate::cli::ZshCommandGroup::Theme => {
+                        self.on_zsh_theme().await?;
+                    }
+                    crate::cli::ZshCommandGroup::Doctor => {
+                        self.on_zsh_doctor().await?;
+                    }
+                    crate::cli::ZshCommandGroup::Rprompt => {
+                        if let Some(text) = self.handle_zsh_rprompt_command().await {
+                            print!("{}", text)
+                        }
+                        return Ok(());
                     }
                 }
                 return Ok(());
@@ -1411,9 +1423,26 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(())
     }
 
-    async fn on_zsh_prompt(&self) -> anyhow::Result<()> {
-        let plugin = crate::zsh_plugin::generate_zsh_plugin()?;
+    /// Generate ZSH plugin script
+    async fn on_zsh_plugin(&self) -> anyhow::Result<()> {
+        let plugin = crate::zsh::generate_zsh_plugin()?;
         println!("{plugin}");
+        Ok(())
+    }
+
+    /// Generate ZSH theme
+    async fn on_zsh_theme(&self) -> anyhow::Result<()> {
+        let theme = crate::zsh::generate_zsh_theme()?;
+        println!("{theme}");
+        Ok(())
+    }
+
+    /// Run ZSH environment diagnostics
+    async fn on_zsh_doctor(&mut self) -> anyhow::Result<()> {
+        self.spinner.start(Some("Running diagnostics"))?;
+        let report = crate::zsh::run_zsh_doctor()?;
+        self.spinner.stop(None)?;
+        println!("{report}");
         Ok(())
     }
 
@@ -2806,6 +2835,30 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         Ok(())
+    }
+
+    /// Handle prompt command - returns model and conversation stats for shell
+    /// integration
+    async fn handle_zsh_rprompt_command(&mut self) -> Option<String> {
+        let cid = std::env::var("_FORGE_CONVERSATION_ID")
+            .ok()
+            .and_then(|str| ConversationId::from_str(str.as_str()).ok());
+
+        // Make IO calls in parallel
+        let (model_id, conversation) = tokio::join!(self.api.get_default_model(), async {
+            if let Some(cid) = cid {
+                self.api.conversation(&cid).await.ok().flatten()
+            } else {
+                None
+            }
+        });
+
+        let rprompt = ZshRPrompt::default()
+            .agent(std::env::var("_FORGE_ACTIVE_AGENT").ok().map(AgentId::new))
+            .model(model_id)
+            .token_count(conversation.and_then(|c| c.usage()).map(|u| u.total_tokens));
+
+        Some(rprompt.to_string())
     }
 
     /// Validate model exists
