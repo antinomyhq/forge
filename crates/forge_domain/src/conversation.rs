@@ -115,9 +115,10 @@ impl Conversation {
 
     pub fn usage(&self) -> Option<crate::Usage> {
         self.context
-            .as_ref()
-            .and_then(|ctx| ctx.messages.last())
-            .and_then(|msg| msg.usage)
+            .iter()
+            .flat_map(|ctx| ctx.messages.iter())
+            .flat_map(|msg| msg.usage.into_iter())
+            .last()
     }
 
     pub fn accumulated_cost(&self) -> Option<f64> {
