@@ -170,7 +170,7 @@ mod tests {
             env = env.base_path(self.config_path.parent().unwrap().to_path_buf());
 
             if let Some(ref provider) = self.override_provider {
-                env = env.override_provider(provider.to_string());
+                env = env.override_provider(provider.as_ref().to_string());
             }
             if let Some(ref model) = self.override_model {
                 env = env.override_model(model.clone().as_str().to_string());
