@@ -19,8 +19,8 @@ pub struct ZshColor(u8);
 impl ZshColor {
     /// White (color 15)
     pub const WHITE: Self = Self(15);
-    /// Cyan (color 14)
-    pub const CYAN: Self = Self(14);
+    /// Purple (color 135)
+    pub const PURPLE: Self = Self(195);
     /// Dimmed gray (color 240)
     pub const DIMMED: Self = Self(240);
 
@@ -133,7 +133,7 @@ impl Display for ZshRPrompt {
             } else {
                 agent_id.zsh().bold().fg(ZshColor::DIMMED)
             };
-            write!(f, "{} ", styled)?;
+            write!(f, " {}", styled)?;
         }
 
         // Add token count
@@ -141,23 +141,23 @@ impl Display for ZshRPrompt {
             let count = match *count {
                 n if n >= 1_000_000_000 => format!("{:.1}B", n as f64 / 1_000_000_000.0),
                 n if n >= 1_000_000 => format!("{:.1}M", n as f64 / 1_000_000.0),
-                n if n >= 1_000 => format!("{:.1}K", n as f64 / 1_000.0),
+                n if n >= 1_000 => format!("{:.1}k", n as f64 / 1_000.0),
                 _ => count.to_string(),
             };
             if active {
-                write!(f, "{}", count.zsh().bold().fg(ZshColor::WHITE))?;
+                write!(f, " {}", count.zsh().fg(ZshColor::WHITE))?;
             }
         }
 
         // Add model
         if let Some(ref model_id) = self.model {
-            let model_id = format!(" {}", model_id.to_string());
+            let model_id = format!(" {}", model_id.to_string());
             let styled = if active {
-                model_id.zsh().fg(ZshColor::CYAN)
+                model_id.zsh().fg(ZshColor::PURPLE)
             } else {
                 model_id.zsh().fg(ZshColor::DIMMED)
             };
-            write!(f, "{}", styled)?;
+            write!(f, " {}", styled)?;
         }
         Ok(())
     }
