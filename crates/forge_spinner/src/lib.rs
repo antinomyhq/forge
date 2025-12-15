@@ -13,6 +13,7 @@ pub use progress_bar::*;
 use stopwatch::Stopwatch;
 
 /// Manages spinner functionality for the UI
+#[derive(Default)]
 pub struct SpinnerManager {
     spinner: Option<ProgressBar>,
     stopwatch: Stopwatch,
@@ -22,18 +23,6 @@ pub struct SpinnerManager {
     tick_counter: Option<std::sync::Arc<std::sync::atomic::AtomicU64>>,
 }
 
-impl Default for SpinnerManager {
-    fn default() -> Self {
-        Self {
-            spinner: None,
-            stopwatch: Stopwatch::default(),
-            message: None,
-            tracker: None,
-            #[cfg(test)]
-            tick_counter: None,
-        }
-    }
-}
 
 impl SpinnerManager {
     pub fn new() -> Self {
