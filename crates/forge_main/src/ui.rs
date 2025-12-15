@@ -45,7 +45,7 @@ use crate::title_display::TitleDisplayExt;
 use crate::tools_display::format_tools;
 use crate::update::on_update;
 use crate::utils::humanize_time;
-use crate::zsh_style::ZshRPrompt;
+use crate::rprompt::ZshRPrompt;
 use crate::{TRACKER, banner, tracker};
 
 // File-specific constants

@@ -7,10 +7,6 @@
 
 use std::fmt::{self, Display};
 
-use convert_case::{Case, Casing};
-use derive_setters::Setters;
-use forge_domain::{AgentId, ModelId, TokenCount};
-
 /// ZSH prompt color using 256-color palette.
 ///
 /// Maps to ZSH's `%F{N}` prompt escape sequence where N is a color code.
@@ -110,60 +106,6 @@ impl ZshStyle for String {
     }
 }
 
-/// ZSH right prompt displaying agent, model, and token count.
-///
-/// Formats shell prompt information with appropriate colors:
-/// - Inactive state (no tokens): dimmed colors
-/// - Active state (has tokens): bright white/cyan colors
-#[derive(Default, Setters)]
-pub struct ZshRPrompt {
-    agent: Option<AgentId>,
-    model: Option<ModelId>,
-    token_count: Option<TokenCount>,
-}
-
-impl Display for ZshRPrompt {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let active = *self.token_count.unwrap_or_default() > 0usize;
-
-        // Add agent
-        if let Some(ref agent_id) = self.agent {
-            let agent_id = format!("󱙺 {}", agent_id.to_string().to_case(Case::UpperSnake));
-            let styled = if active {
-                agent_id.zsh().bold().fg(ZshColor::WHITE)
-            } else {
-                agent_id.zsh().bold().fg(ZshColor::DIMMED)
-            };
-            write!(f, " {}", styled)?;
-        }
-
-        // Add token count
-        if let Some(count) = self.token_count {
-            let count = match *count {
-                n if n >= 1_000_000_000 => format!("{:.1}B", n as f64 / 1_000_000_000.0),
-                n if n >= 1_000_000 => format!("{:.1}M", n as f64 / 1_000_000.0),
-                n if n >= 1_000 => format!("{:.1}k", n as f64 / 1_000.0),
-                _ => count.to_string(),
-            };
-            if active {
-                write!(f, " {}", count.zsh().fg(ZshColor::WHITE).bold())?;
-            }
-        }
-
-        // Add model
-        if let Some(ref model_id) = self.model {
-            let model_id = format!(" {}", model_id);
-            let styled = if active {
-                model_id.zsh().fg(ZshColor::CYAN)
-            } else {
-                model_id.zsh().fg(ZshColor::DIMMED)
-            };
-            write!(f, " {}", styled)?;
-        }
-        Ok(())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -193,29 +135,6 @@ mod tests {
     fn test_fixed_color() {
         let actual = "hello".zsh().fg(ZshColor::new(240)).to_string();
         let expected = "%F{240}hello%f";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_rprompt_init_state() {
-        // No tokens = init/dimmed state
-        let actual = ZshRPrompt::default()
-            .agent(Some(AgentId::new("forge")))
-            .model(Some(ModelId::new("gpt-4")))
-            .to_string();
-        let expected = " %B%F{240}󱙺 FORGE%f%b %F{240} gpt-4%f";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_rprompt_with_tokens() {
-        // Tokens > 0 = active/bright state
-        let actual = ZshRPrompt::default()
-            .agent(Some(AgentId::new("forge")))
-            .model(Some(ModelId::new("gpt-4")))
-            .token_count(Some(TokenCount::Actual(1500)))
-            .to_string();
-        let expected = " %B%F{15}󱙺 FORGE%f%b %B%F{15}1.5k%f%b %F{134} gpt-4%f";
         assert_eq!(actual, expected);
     }
 }
