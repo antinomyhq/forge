@@ -14,7 +14,6 @@ pub struct BedrockProvider<T> {
     region: String,
     client: OnceCell<Client>,
     _phantom: std::marker::PhantomData<T>,
-
 }
 
 impl<H: HttpClientService> BedrockProvider<H> {
