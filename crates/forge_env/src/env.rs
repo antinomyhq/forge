@@ -311,132 +311,50 @@ mod tests {
         // Verify they are different paths
         assert_ne!(global_path, local_path);
     }
-}
 
-#[test]
-fn test_command_path() {
-    let fixture = Environment {
-        os: "linux".to_string(),
-        pid: 1234,
-        cwd: PathBuf::from("/current/working/dir"),
-        home: Some(PathBuf::from("/home/user")),
-        shell: "zsh".to_string(),
-        base_path: PathBuf::from("/home/user/.forge"),
-        forge_api_url: "https://api.example.com".parse().unwrap(),
-        retry_config: RetryConfig::test_default(),
-        max_search_lines: 1000,
-        max_search_result_bytes: 10240,
-        fetch_truncation_limit: 50000,
-        stdout_max_prefix_length: 100,
-        stdout_max_suffix_length: 100,
-        stdout_max_line_length: 500,
-        max_read_size: 2000,
-        http: HttpConfig::test_default(),
-        max_file_size: 104857600,
-        tool_timeout: 300,
-        auto_open_dump: false,
-        debug_requests: None,
-        custom_history_path: None,
-        max_conversations: 100,
-        sem_search_limit: 100,
-        sem_search_top_k: 10,
-        max_image_size: 262144,
-        workspace_server_url: "http://localhost:8080".parse().unwrap(),
-        override_model: None,
-        override_provider: None,
-    };
+    #[test]
+    fn test_command_path() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture.base_path(PathBuf::from("/home/user/.forge"));
 
-    let actual = fixture.command_path();
-    let expected = PathBuf::from("/home/user/.forge/commands");
+        let actual = fixture.command_path();
+        let expected = PathBuf::from("/home/user/.forge/commands");
 
-    assert_eq!(actual, expected);
-}
+        assert_eq!(actual, expected);
+    }
 
-#[test]
-fn test_command_cwd_path() {
-    let fixture = Environment {
-        os: "linux".to_string(),
-        pid: 1234,
-        cwd: PathBuf::from("/current/working/dir"),
-        home: Some(PathBuf::from("/home/user")),
-        shell: "zsh".to_string(),
-        base_path: PathBuf::from("/home/user/.forge"),
-        forge_api_url: "https://api.example.com".parse().unwrap(),
-        retry_config: RetryConfig::test_default(),
-        max_search_lines: 1000,
-        max_search_result_bytes: 10240,
-        fetch_truncation_limit: 50000,
-        stdout_max_prefix_length: 100,
-        stdout_max_suffix_length: 100,
-        stdout_max_line_length: 500,
-        max_read_size: 2000,
-        http: HttpConfig::test_default(),
-        max_file_size: 104857600,
-        tool_timeout: 300,
-        auto_open_dump: false,
-        debug_requests: None,
-        custom_history_path: None,
-        max_conversations: 100,
-        sem_search_limit: 100,
-        sem_search_top_k: 10,
-        max_image_size: 262144,
-        workspace_server_url: "http://localhost:8080".parse().unwrap(),
-        override_model: None,
-        override_provider: None,
-    };
+    #[test]
+    fn test_command_cwd_path() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture.cwd(PathBuf::from("/current/working/dir"));
 
-    let actual = fixture.command_cwd_path();
-    let expected = PathBuf::from("/current/working/dir/.forge/commands");
+        let actual = fixture.command_cwd_path();
+        let expected = PathBuf::from("/current/working/dir/.forge/commands");
 
-    assert_eq!(actual, expected);
-}
+        assert_eq!(actual, expected);
+    }
 
-#[test]
-fn test_command_cwd_path_independent_from_command_path() {
-    let fixture = Environment {
-        os: "linux".to_string(),
-        pid: 1234,
-        cwd: PathBuf::from("/different/current/dir"),
-        home: Some(PathBuf::from("/different/home")),
-        shell: "bash".to_string(),
-        base_path: PathBuf::from("/completely/different/base"),
-        forge_api_url: "https://api.example.com".parse().unwrap(),
-        retry_config: RetryConfig::test_default(),
-        max_search_lines: 1000,
-        max_search_result_bytes: 10240,
-        fetch_truncation_limit: 50000,
-        stdout_max_prefix_length: 100,
-        stdout_max_suffix_length: 100,
-        stdout_max_line_length: 500,
-        max_read_size: 2000,
-        http: HttpConfig::test_default(),
-        max_file_size: 104857600,
-        tool_timeout: 300,
-        auto_open_dump: false,
-        debug_requests: None,
-        custom_history_path: None,
-        max_conversations: 100,
-        sem_search_limit: 100,
-        sem_search_top_k: 10,
-        max_image_size: 262144,
-        workspace_server_url: "http://localhost:8080".parse().unwrap(),
-        override_model: None,
-        override_provider: None,
-    };
+    #[test]
+    fn test_command_cwd_path_independent_from_command_path() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture
+            .cwd(PathBuf::from("/different/current/dir"))
+            .base_path(PathBuf::from("/completely/different/base"));
 
-    let command_path = fixture.command_path();
-    let command_cwd_path = fixture.command_cwd_path();
-    let expected_command_path = PathBuf::from("/completely/different/base/commands");
-    let expected_command_cwd_path = PathBuf::from("/different/current/dir/.forge/commands");
+        let command_path = fixture.command_path();
+        let command_cwd_path = fixture.command_cwd_path();
+        let expected_command_path = PathBuf::from("/completely/different/base/commands");
+        let expected_command_cwd_path = PathBuf::from("/different/current/dir/.forge/commands");
 
-    // Verify that command_path uses base_path
-    assert_eq!(command_path, expected_command_path);
+        // Verify that command_path uses base_path
+        assert_eq!(command_path, expected_command_path);
 
-    // Verify that command_cwd_path is independent and always relative to CWD
-    assert_eq!(command_cwd_path, expected_command_cwd_path);
+        // Verify that command_cwd_path is independent and always relative to CWD
+        assert_eq!(command_cwd_path, expected_command_cwd_path);
 
-    // Verify they are different paths
-    assert_ne!(command_path, command_cwd_path);
+        // Verify they are different paths
+        assert_ne!(command_path, command_cwd_path);
+    }
 }
 
 #[test]
