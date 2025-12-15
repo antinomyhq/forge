@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 
-# Performance test script for forge info command
+# Performance test script for forge commands
 # Runs the command 10 times and collects timing statistics
+# Usage: ./test_forge_info_performance.sh [command args...]
+# Example: ./test_forge_info_performance.sh info
+# Example: ./test_forge_info_performance.sh --version
 
 set -euo pipefail
 
@@ -15,13 +18,21 @@ CYAN='\033[36m'
 GRAY='\033[90m'
 
 # Configuration
-COMMAND="target/debug/forge info"
+BASE_COMMAND="target/debug/forge"
+if [ $# -gt 0 ]; then
+    COMMAND="$BASE_COMMAND $@"
+else
+    COMMAND="$BASE_COMMAND"
+fi
 ITERATIONS=10
 TIMES=()
 
+# Extract command name for display
+DISPLAY_CMD=$(echo "$COMMAND" | sed "s|target/debug/||")
+
 # Header
 echo ""
-echo -e "🚀 ${BOLD}Performance Test${RESET} ${DIM}—${RESET} ${CYAN}forge info${RESET}"
+echo -e "🚀 ${BOLD}Performance Test${RESET} ${DIM}—${RESET} ${CYAN}${DISPLAY_CMD}${RESET}"
 echo ""
 
 # Build step

@@ -23,13 +23,19 @@ pub struct ZshRPrompt {
     token_count: Option<TokenCount>,
 }
 
+const AGENT_SYMBOL: &str = "󱙺";
+const MODEL_SYMBOL: &str = "";
+
 impl Display for ZshRPrompt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let active = *self.token_count.unwrap_or_default() > 0usize;
 
         // Add agent
         if let Some(ref agent_id) = self.agent {
-            let agent_id = format!("󱙺 {}", agent_id.to_string().to_case(Case::UpperSnake));
+            let agent_id = format!(
+                "{AGENT_SYMBOL} {}",
+                agent_id.to_string().to_case(Case::UpperSnake)
+            );
             let styled = if active {
                 agent_id.zsh().bold().fg(ZshColor::WHITE)
             } else {
@@ -53,7 +59,7 @@ impl Display for ZshRPrompt {
 
         // Add model
         if let Some(ref model_id) = self.model {
-            let model_id = format!(" {}", model_id);
+            let model_id = format!("{MODEL_SYMBOL} {}", model_id);
             let styled = if active {
                 model_id.zsh().fg(ZshColor::CYAN)
             } else {
@@ -67,6 +73,8 @@ impl Display for ZshRPrompt {
 
 #[cfg(test)]
 mod tests {
+    use insta::assert_snapshot;
+
     use super::*;
 
     #[test]
@@ -76,8 +84,7 @@ mod tests {
             .agent(Some(AgentId::new("forge")))
             .model(Some(ModelId::new("gpt-4")))
             .to_string();
-        let expected = " %B%F{240}󱙺 FORGE%f%b %F{240} gpt-4%f";
-        assert_eq!(actual, expected);
+        assert_snapshot!(actual);
     }
 
     #[test]
@@ -88,7 +95,6 @@ mod tests {
             .model(Some(ModelId::new("gpt-4")))
             .token_count(Some(TokenCount::Actual(1500)))
             .to_string();
-        let expected = " %B%F{15}󱙺 FORGE%f%b %B%F{15}1.5k%f%b %F{134} gpt-4%f";
-        assert_eq!(actual, expected);
+        assert_snapshot!(actual);
     }
 }
