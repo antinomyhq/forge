@@ -2400,12 +2400,14 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 Ok(message) => self.handle_chat_response(message).await?,
                 Err(err) => {
                     self.spinner.stop(None)?;
+                    self.spinner.reset();
                     return Err(err);
                 }
             }
         }
 
         self.spinner.stop(None)?;
+        self.spinner.reset();
 
         Ok(())
     }
