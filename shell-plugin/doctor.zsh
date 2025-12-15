@@ -160,7 +160,7 @@ if [[ -n "$_FORGE_THEME_LOADED" ]]; then
 elif (( $+functions[p10k] )); then
     print_result info "Powerlevel10k detected (not using Forge theme)"
 elif [[ -n "$ZSH_THEME" ]]; then
-    print_result info "Using theme: ${ZSH_THEME}"
+    print_result warn "Using theme: ${ZSH_THEME}"
     print_result instruction "To use Forge theme, add to ~/.zshrc:"
     print_result code "eval \"\$(\$FORGE_BIN zsh theme)\""
 else
@@ -251,7 +251,7 @@ if [[ -n "$FORGE_EDITOR" ]]; then
     fi
 elif [[ -n "$EDITOR" ]]; then
     print_result pass "EDITOR: ${EDITOR}"
-    print_result info "Tip: Set FORGE_EDITOR for forge-specific editor"
+    print_result info "TIP: Set FORGE_EDITOR for forge-specific editor"
 else
     print_result warn "No editor configured" "export EDITOR=vim or export FORGE_EDITOR=vim"
 fi
