@@ -332,7 +332,7 @@ mod tests {
     fn test_config_crate_loads_from_json() {
         // This test verifies that the config crate properly loads from embedded JSON
         let env = Environment::from_env().unwrap();
-        
+
         // Verify values come from JSON
         assert_eq!(env.max_search_lines, 200);
         assert_eq!(env.http.connect_timeout, 30);
