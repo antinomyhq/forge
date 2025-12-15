@@ -14,7 +14,7 @@ const VERSION: &str = match option_env!("APP_VERSION") {
 };
 
 #[derive(Debug, Setters, Clone, Serialize, Deserialize, fake::Dummy)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 #[setters(strip_option)]
 /// Represents the environment in which the application is running.
 pub struct Environment {
@@ -326,6 +326,18 @@ mod tests {
         let env = result.unwrap();
         assert_eq!(env.http.connect_timeout, 30);
         assert_eq!(env.http.read_timeout, 900);
+    }
+
+    #[test]
+    fn test_config_crate_loads_from_json() {
+        // This test verifies that the config crate properly loads from embedded JSON
+        let env = Environment::from_env().unwrap();
+        
+        // Verify values come from JSON
+        assert_eq!(env.max_search_lines, 200);
+        assert_eq!(env.http.connect_timeout, 30);
+        assert_eq!(env.http.read_timeout, 900);
+        assert_eq!(env.os, "macos");
     }
 
     #[test]

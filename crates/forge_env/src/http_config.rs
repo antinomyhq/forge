@@ -22,7 +22,7 @@ use strum_macros::EnumString;
 /// - `FORGE_HTTP_MIN_TLS_VERSION`: Set minimum TLS version (e.g., "1.2")
 /// - `FORGE_HTTP_MAX_TLS_VERSION`: Set maximum TLS version (e.g., "1.3")
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize, fake::Dummy)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub enum TlsVersion {
     #[serde(rename = "1.0")]
     V1_0,
@@ -63,7 +63,7 @@ impl std::str::FromStr for TlsVersion {
 }
 
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize, EnumString, fake::Dummy)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "lowercase")]
 pub enum TlsBackend {
     #[default]
@@ -134,7 +134,7 @@ impl std::fmt::Display for TlsBackend {
 /// };
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, fake::Dummy)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 pub struct HttpConfig {
     pub connect_timeout: u64,
     pub read_timeout: u64,

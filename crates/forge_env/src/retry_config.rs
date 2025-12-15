@@ -2,7 +2,7 @@ use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, Setters, PartialEq, fake::Dummy)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "snake_case")]
 #[setters(into)]
 pub struct RetryConfig {
     /// Initial backoff delay in milliseconds for retry operations
