@@ -139,8 +139,8 @@ else
     print_result fail "Forge binary not found in PATH" "Install from: https://github.com/your-org/forge"
 fi
 
-# 3. Check shell plugin and completions
-print_section "Plugin & Completions"
+# 3. Check shell plugin
+print_section "Plugin"
 
 # Check if forge plugin is loaded by checking environment variable
 if [[ -n "$_FORGE_PLUGIN_LOADED" ]]; then
@@ -148,15 +148,6 @@ if [[ -n "$_FORGE_PLUGIN_LOADED" ]]; then
 else
     print_result fail "Forge plugin not loaded"
     print_result instruction "Add to your ~/.zshrc:"
-    print_result code "eval \"\$(\$FORGE_BIN zsh plugin)\""
-fi
-
-# Check if completions are available
-if (( $+functions[_forge] )); then
-    print_result pass "Forge completions loaded"
-else
-    print_result fail "Forge completions not loaded"
-    print_result instruction "Completions are included in the plugin. Ensure plugin is loaded:"
     print_result code "eval \"\$(\$FORGE_BIN zsh plugin)\""
 fi
 
