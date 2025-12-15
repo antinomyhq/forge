@@ -23,8 +23,8 @@ pub struct ZshRPrompt {
     token_count: Option<TokenCount>,
 }
 
-const AGENT_SYMBOL: &str = "󱙺";
-const MODEL_SYMBOL: &str = "";
+const AGENT_SYMBOL: &str = "\u{f167a}";
+const MODEL_SYMBOL: &str = "\u{ec19}";
 
 impl Display for ZshRPrompt {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
