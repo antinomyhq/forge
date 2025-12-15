@@ -85,10 +85,11 @@ impl SpinnerManager {
         pb.enable_steady_tick(std::time::Duration::from_millis(60));
 
         // Set the initial message with accumulated time
+        let elapsed = Duration::from_secs(self.total_elapsed().as_secs());
         let message = format!(
-            "{} {}s · {}",
+            "{} {} · {}",
             word.green().bold(),
-            self.total_elapsed().as_secs(),
+            humantime::format_duration(elapsed),
             "Ctrl+C to interrupt".white().dimmed()
         );
         pb.set_message(message);
@@ -116,17 +117,13 @@ impl SpinnerManager {
                 if let (Some(spinner), Some(start_time), Some(message)) =
                     (&spinner_clone, start_time_clone, &message_clone)
                 {
-                    let total = accumulated + start_time.elapsed();
-
-                    // Create a new message with the total elapsed time
+                    let elapsed = Duration::from_secs((accumulated + start_time.elapsed()).as_secs());
                     let updated_message = format!(
-                        "{} {}s · {}",
+                        "{} {} · {}",
                         message.green().bold(),
-                        total.as_secs(),
+                        humantime::format_duration(elapsed),
                         "Ctrl+C to interrupt".white().dimmed()
                     );
-
-                    // Update the spinner's message
                     spinner.set_message(updated_message);
                 }
             }
