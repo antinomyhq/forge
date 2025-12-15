@@ -72,18 +72,18 @@ function _forge_prompt_info() {
     local model=""
     local tokens=""
     
-    # Get model and tokens in a single command (porcelain format: "model  tokens")
+    # Get model and tokens in a single command (porcelain format)
     local result=""
     if [[ -n "$cid" ]]; then
         result=$($forge_bin zsh prompt --cid "$cid" 2>/dev/null)
     else
-        result=$($forge_bin prompt 2>/dev/null)
+        result=$($forge_bin zsh prompt 2>/dev/null)
     fi
     
     if [[ -n "$result" ]]; then
-        # Parse porcelain format: columns separated by 2+ spaces
-        model="${result%%  *}"
-        tokens="${result##*  }"
+        # Parse porcelain format with grep and cut
+        model=$(echo "$result" | grep "^MODEL" | tr -s ' ' | cut -d' ' -f2)
+        tokens=$(echo "$result" | grep "^TOKENS" | tr -s ' ' | cut -d' ' -f2)
     fi
     
     # Build model display

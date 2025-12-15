@@ -423,7 +423,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         self.on_zsh_doctor().await?;
                     }
                     crate::cli::ZshCommandGroup::Prompt { conversation_id } => {
-                        self.handle_prompt_command(conversation_id).await?;
+                        self.handle_zsh_prompt_command(conversation_id).await?;
                         return Ok(());
                     }
                 }
@@ -2834,7 +2834,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Handle prompt command - returns model and conversation stats for shell
     /// integration
-    async fn handle_prompt_command(
+    async fn handle_zsh_prompt_command(
         &mut self,
         conversation_id: Option<ConversationId>,
     ) -> Result<()> {
@@ -2869,7 +2869,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .add_key_value("tokens", tokens.to_string());
 
         // Skip header row and drop the ID column for clean output: model|tokens
-        self.writeln(Porcelain::from(info).skip(1).drop_col(0))?;
+        self.writeln(Porcelain::from(info).uppercase_headers().into_long().drop_col(0).skip(1))?;
         Ok(())
     }
 
