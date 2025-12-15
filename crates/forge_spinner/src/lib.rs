@@ -5,22 +5,34 @@ use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
 use rand::seq::IndexedRandom;
 use tokio::task::JoinHandle;
-use tokio::time::Instant;
 
 mod progress_bar;
+mod stopwatch;
+
 pub use progress_bar::*;
+use stopwatch::Stopwatch;
 
 /// Manages spinner functionality for the UI
-#[derive(Default)]
 pub struct SpinnerManager {
     spinner: Option<ProgressBar>,
-    start_time: Option<Instant>,
+    stopwatch: Stopwatch,
     message: Option<String>,
     tracker: Option<JoinHandle<()>>,
-    /// Accumulated elapsed duration from all previous spinner sessions
-    accumulated: Duration,
     #[cfg(test)]
     tick_counter: Option<std::sync::Arc<std::sync::atomic::AtomicU64>>,
+}
+
+impl Default for SpinnerManager {
+    fn default() -> Self {
+        Self {
+            spinner: None,
+            stopwatch: Stopwatch::default(),
+            message: None,
+            tracker: None,
+            #[cfg(test)]
+            tick_counter: None,
+        }
+    }
 }
 
 impl SpinnerManager {
@@ -33,12 +45,6 @@ impl SpinnerManager {
         tick_counter: std::sync::Arc<std::sync::atomic::AtomicU64>,
     ) -> Self {
         Self { tick_counter: Some(tick_counter), ..Self::default() }
-    }
-
-    /// Returns the total elapsed time (accumulated + current session)
-    fn total_elapsed(&self) -> Duration {
-        let current = self.start_time.map(|t| t.elapsed()).unwrap_or_default();
-        self.accumulated + current
     }
 
     /// Start the spinner with a message
@@ -65,14 +71,12 @@ impl SpinnerManager {
         // Store the base message without styling for later use with the timer
         self.message = Some(word.to_string());
 
-        // Initialize the start time for the timer
-        self.start_time = Some(Instant::now());
+        // Start the stopwatch
+        self.stopwatch.start();
 
         // Create the spinner with a better style that respects terminal width
         let pb = ProgressBar::new_spinner();
 
-        // This style includes {msg} which will be replaced with our formatted message
-        // The {spinner} will show a visual spinner animation
         pb.set_style(
             ProgressStyle::default_spinner()
                 .tick_strings(&["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"])
@@ -80,12 +84,11 @@ impl SpinnerManager {
                 .unwrap(),
         );
 
-        // Increase the tick rate to make the spinner move faster
         // Setting to 60ms for a smooth yet fast animation
         pb.enable_steady_tick(std::time::Duration::from_millis(60));
 
-        // Set the initial message with accumulated time
-        let elapsed = Duration::from_secs(self.total_elapsed().as_secs());
+        // Set the initial message
+        let elapsed = Duration::from_secs(self.stopwatch.elapsed().as_secs());
         let message = format!(
             "{} {} · {}",
             word.green().bold(),
@@ -98,9 +101,8 @@ impl SpinnerManager {
 
         // Clone the necessary components for the tracker task
         let spinner_clone = self.spinner.clone();
-        let start_time_clone = self.start_time;
         let message_clone = self.message.clone();
-        let accumulated = self.accumulated;
+        let stopwatch = self.stopwatch;
         #[cfg(test)]
         let tick_counter_clone = self.tick_counter.clone();
 
@@ -113,12 +115,8 @@ impl SpinnerManager {
                 if let Some(counter) = &tick_counter_clone {
                     counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 }
-                // Update the spinner with accumulated + current elapsed time
-                if let (Some(spinner), Some(start_time), Some(message)) =
-                    (&spinner_clone, start_time_clone, &message_clone)
-                {
-                    let elapsed =
-                        Duration::from_secs((accumulated + start_time.elapsed()).as_secs());
+                if let (Some(spinner), Some(message)) = (&spinner_clone, &message_clone) {
+                    let elapsed = Duration::from_secs(stopwatch.elapsed().as_secs());
                     let updated_message = format!(
                         "{} {} · {}",
                         message.green().bold(),
@@ -138,41 +136,30 @@ impl SpinnerManager {
         self.stop_inner(message, |s| println!("{s}"))
     }
 
-    /// Resets the accumulated elapsed time to zero.
+    /// Resets the stopwatch to zero.
     /// Call this when starting a completely new task/conversation.
     pub fn reset(&mut self) {
-        self.accumulated = Duration::ZERO;
+        self.stopwatch.reset();
     }
 
-    /// Stop the active spinner if any
     fn stop_inner<F>(&mut self, message: Option<String>, writer: F) -> Result<()>
     where
         F: FnOnce(&str),
     {
-        // Accumulate elapsed time from this session before stopping
-        if let Some(start_time) = self.start_time.take() {
-            self.accumulated += start_time.elapsed();
-        }
+        self.stopwatch.stop();
 
         if let Some(spinner) = self.spinner.take() {
-            // Always finish the spinner first
             spinner.finish_and_clear();
-
-            // Then print the message if provided
             if let Some(msg) = message {
                 writer(&msg);
             }
         } else if let Some(message) = message {
-            // If there's no spinner but we have a message, just print it
             writer(&message);
         }
 
-        // Abort the tracker task
-        if let Some(a) = self.tracker.take() {
-            a.abort();
-            drop(a)
+        if let Some(handle) = self.tracker.take() {
+            handle.abort();
         }
-        self.tracker = None;
         self.message = None;
         Ok(())
     }
@@ -198,6 +185,7 @@ impl SpinnerManager {
         self.write_with_restart(message, |msg| eprintln!("{msg}"))
     }
 }
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -242,13 +230,13 @@ mod tests {
         tokio::time::advance(std::time::Duration::from_millis(100)).await;
         fixture_spinner.stop(None).unwrap();
 
-        let actual_accumulated = fixture_spinner.total_elapsed();
+        let actual_accumulated = fixture_spinner.stopwatch.elapsed();
         assert!(actual_accumulated.as_millis() >= 200);
 
         // Reset should clear accumulated time
         fixture_spinner.reset();
 
-        let actual_after_reset = fixture_spinner.total_elapsed();
+        let actual_after_reset = fixture_spinner.stopwatch.elapsed();
         let expected = std::time::Duration::ZERO;
         assert_eq!(actual_after_reset, expected);
     }
