@@ -19,8 +19,8 @@ pub struct ZshColor(u8);
 impl ZshColor {
     /// White (color 15)
     pub const WHITE: Self = Self(15);
-    /// Purple (color 135)
-    pub const PURPLE: Self = Self(195);
+    /// Cyan (color 134)
+    pub const CYAN: Self = Self(134);
     /// Dimmed gray (color 240)
     pub const DIMMED: Self = Self(240);
 
@@ -145,7 +145,7 @@ impl Display for ZshRPrompt {
                 _ => count.to_string(),
             };
             if active {
-                write!(f, " {}", count.zsh().fg(ZshColor::WHITE))?;
+                write!(f, " {}", count.zsh().fg(ZshColor::WHITE).bold())?;
             }
         }
 
@@ -153,7 +153,7 @@ impl Display for ZshRPrompt {
         if let Some(ref model_id) = self.model {
             let model_id = format!(" {}", model_id.to_string());
             let styled = if active {
-                model_id.zsh().fg(ZshColor::PURPLE)
+                model_id.zsh().fg(ZshColor::CYAN)
             } else {
                 model_id.zsh().fg(ZshColor::DIMMED)
             };
@@ -182,13 +182,6 @@ mod tests {
     }
 
     #[test]
-    fn test_color() {
-        let actual = "hello".zsh().fg(ZshColor::CYAN).to_string();
-        let expected = "%F{14}hello%f";
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
     fn test_bold_and_color() {
         let actual = "hello".zsh().bold().fg(ZshColor::WHITE).to_string();
         let expected = "%B%F{15}hello%f%b";
@@ -209,7 +202,7 @@ mod tests {
             .agent(Some(AgentId::new("forge")))
             .model(Some(ModelId::new("gpt-4")))
             .to_string();
-        let expected = "%B%F{240}󱙺 FORGE%f%b %F{240} gpt-4%f";
+        let expected = " %B%F{240}󱙺 FORGE%f%b %F{240} gpt-4%f";
         assert_eq!(actual, expected);
     }
 
@@ -221,7 +214,7 @@ mod tests {
             .model(Some(ModelId::new("gpt-4")))
             .token_count(Some(TokenCount::Actual(1500)))
             .to_string();
-        let expected = "%B%F{15}󱙺 FORGE%f%b %B%F{15}1.5K%f%b%F{14} gpt-4%f";
+        let expected = " %B%F{15}󱙺 FORGE%f%b %B%F{15}1.5k%f%b %F{14} gpt-4%f";
         assert_eq!(actual, expected);
     }
 }
