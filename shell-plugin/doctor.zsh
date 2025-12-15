@@ -151,6 +151,37 @@ else
     print_result code "eval \"\$(\$FORGE_BIN zsh plugin)\""
 fi
 
+
+# Check plugin loading order in .zshrc
+local zshrc_file="${ZDOTDIR:-$HOME}/.zshrc"
+if [[ -f "$zshrc_file" ]] && [[ -n "$_FORGE_PLUGIN_LOADED" ]]; then
+    # Extract line numbers for plugin declarations and forge plugin eval
+    local plugins_line=$(grep -n "^[[:space:]]*plugins=(" "$zshrc_file" 2>/dev/null | head -n1 | cut -d: -f1)
+    local forge_plugin_line=$(grep -n "eval.*forge.*zsh plugin" "$zshrc_file" 2>/dev/null | head -n1 | cut -d: -f1)
+
+    if [[ -n "$plugins_line" ]] && [[ -n "$forge_plugin_line" ]]; then
+        if [[ $forge_plugin_line -lt $plugins_line ]]; then
+            print_result fail "Plugin loading order incorrect"
+            print_result instruction "Forge plugin (line ${forge_plugin_line}) should be loaded AFTER plugins=() (line ${plugins_line})"
+            print_result instruction "Move the forge plugin eval statement after the plugins=() array in ~/.zshrc"
+        else
+            print_result pass "Plugin loading order correct"
+        fi
+    elif [[ -n "$forge_plugin_line" ]] && [[ -z "$plugins_line" ]]; then
+        # Forge plugin found but no plugins=() array - check for individual plugin sources
+        local has_other_plugins=false
+        if grep -q "source.*zsh-autosuggestions" "$zshrc_file" 2>/dev/null || \
+           grep -q "source.*zsh-syntax-highlighting" "$zshrc_file" 2>/dev/null; then
+            has_other_plugins=true
+        fi
+        
+        if [[ "$has_other_plugins" == "true" ]]; then
+            print_result warn "Manual plugin loading detected"
+            print_result info "Ensure forge plugin is sourced AFTER zsh-autosuggestions and zsh-syntax-highlighting"
+        fi
+    fi
+fi
+
 # 4. Check ZSH theme
 print_section "ZSH Theme"
 
