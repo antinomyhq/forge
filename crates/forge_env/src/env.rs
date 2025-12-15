@@ -96,8 +96,12 @@ impl Environment {
     /// Creates an Environment instance from environment variables using the
     /// config crate.
     ///
-    /// Loads all configuration from environment variables prefixed with
-    /// `FORGE_`. Uses double underscore (`__`) as a separator for nested
+    /// Loads configuration from two sources in order of precedence:
+    /// 1. Embedded JSON config (`env.json` in the crate root, compiled into binary)
+    /// 2. Environment variables prefixed with `FORGE_` (highest priority)
+    ///
+    /// Environment variables will override values from the embedded JSON config.
+    /// Uses double underscore (`__`) as a separator for nested
     /// configurations.
     ///
     /// # Examples of environment variables:
@@ -113,7 +117,13 @@ impl Environment {
     /// - Environment variable values cannot be parsed into the expected types
     /// - The configuration is invalid or incomplete
     pub fn from_env() -> Result<Self, config::ConfigError> {
+        // Embed default configuration at compile time
+        const DEFAULT_CONFIG: &str = include_str!("../env.json");
+        
         let config = config::Config::builder()
+            // Add embedded JSON config as base configuration
+            .add_source(config::File::from_str(DEFAULT_CONFIG, config::FileFormat::Json))
+            // Environment variables override default configuration
             .add_source(
                 config::Environment::with_prefix("FORGE")
                     .separator("__")
