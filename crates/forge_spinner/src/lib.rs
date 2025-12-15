@@ -1,10 +1,11 @@
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use anyhow::Result;
 use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
 use rand::seq::IndexedRandom;
 use tokio::task::JoinHandle;
+use tokio::time::Instant;
 
 mod progress_bar;
 pub use progress_bar::*;
@@ -208,22 +209,49 @@ mod tests {
 
     use super::SpinnerManager;
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_spinner_tracker_task_is_stopped_on_stop() {
         let fixture_counter = Arc::new(AtomicU64::new(0));
         let mut fixture_spinner = SpinnerManager::test_with_tick_counter(fixture_counter.clone());
 
         fixture_spinner.start(Some("Test")).unwrap();
-        tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+        tokio::time::advance(std::time::Duration::from_millis(100)).await;
+        tokio::task::yield_now().await;
 
         let actual_before_stop = fixture_counter.load(Ordering::SeqCst);
         assert!(actual_before_stop > 0);
 
         fixture_spinner.stop(None).unwrap();
-        tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+        tokio::time::advance(std::time::Duration::from_millis(100)).await;
+        tokio::task::yield_now().await;
 
         let actual_after_stop = fixture_counter.load(Ordering::SeqCst);
         let expected = actual_before_stop;
         assert_eq!(actual_after_stop, expected);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_spinner_time_accumulates_and_resets() {
+        let mut fixture_spinner = SpinnerManager::new();
+
+        // First session
+        fixture_spinner.start(Some("Test")).unwrap();
+        tokio::time::advance(std::time::Duration::from_millis(100)).await;
+        fixture_spinner.stop(None).unwrap();
+
+        // Second session - time should accumulate
+        fixture_spinner.start(Some("Test")).unwrap();
+        tokio::time::advance(std::time::Duration::from_millis(100)).await;
+        fixture_spinner.stop(None).unwrap();
+
+        let actual_accumulated = fixture_spinner.total_elapsed();
+        assert!(actual_accumulated.as_millis() >= 200);
+
+        // Reset should clear accumulated time
+        fixture_spinner.reset();
+
+        let actual_after_reset = fixture_spinner.total_elapsed();
+        let expected = std::time::Duration::ZERO;
+        assert_eq!(actual_after_reset, expected);
     }
 }
