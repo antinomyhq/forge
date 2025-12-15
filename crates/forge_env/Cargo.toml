@@ -12,6 +12,7 @@ merge.workspace = true
 strum.workspace = true
 strum_macros.workspace = true
 fake = { version = "4.4.0", features = ["derive"] }
+config.workspace = true
 
 [dev-dependencies]
 pretty_assertions.workspace = true
