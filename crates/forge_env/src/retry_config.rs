@@ -27,3 +27,11 @@ pub struct RetryConfig {
     /// Whether to suppress retry error logging and events
     pub suppress_retry_errors: bool,
 }
+
+impl RetryConfig {
+    /// Creates a test default instance using faker. Only use in tests.
+    pub fn test_default() -> Self {
+        use fake::{Fake, Faker};
+        Faker.fake()
+    }
+}

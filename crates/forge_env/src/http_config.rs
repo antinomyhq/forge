@@ -164,3 +164,16 @@ pub struct HttpConfig {
     /// can be separated by commas.
     pub root_cert_paths: Option<Vec<String>>,
 }
+
+impl HttpConfig {
+    /// Creates a test default instance using faker with sensible defaults. Only use in tests.
+    pub fn test_default() -> Self {
+        use fake::{Fake, Faker};
+        let mut config: Self = Faker.fake();
+        // Override TLS settings to ensure valid configuration
+        config.min_tls_version = Some(TlsVersion::V1_2);
+        config.max_tls_version = Some(TlsVersion::V1_3);
+        config.accept_invalid_certs = false;
+        config
+    }
+}
