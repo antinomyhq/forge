@@ -23,7 +23,6 @@ pub struct SpinnerManager {
     tick_counter: Option<std::sync::Arc<std::sync::atomic::AtomicU64>>,
 }
 
-
 impl SpinnerManager {
     pub fn new() -> Self {
         Self::default()
