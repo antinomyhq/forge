@@ -2838,7 +2838,6 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         &mut self,
         conversation_id: Option<ConversationId>,
     ) -> Result<()> {
-
         // FIXME: Make requests in parallel
         // Get model
         let model = self
