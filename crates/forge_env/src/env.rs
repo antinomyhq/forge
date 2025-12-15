@@ -316,9 +316,13 @@ mod tests {
     fn test_direct_json_deserialization() {
         const DEFAULT_CONFIG: &str = include_str!("../env.json");
         let result: Result<Environment, _> = serde_json::from_str(DEFAULT_CONFIG);
-        
-        assert!(result.is_ok(), "Failed to deserialize JSON: {:?}", result.err());
-        
+
+        assert!(
+            result.is_ok(),
+            "Failed to deserialize JSON: {:?}",
+            result.err()
+        );
+
         let env = result.unwrap();
         assert_eq!(env.http.connect_timeout, 30);
         assert_eq!(env.http.read_timeout, 900);

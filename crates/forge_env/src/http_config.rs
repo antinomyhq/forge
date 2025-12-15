@@ -166,7 +166,8 @@ pub struct HttpConfig {
 }
 
 impl HttpConfig {
-    /// Creates a test default instance using faker with sensible defaults. Only use in tests.
+    /// Creates a test default instance using faker with sensible defaults. Only
+    /// use in tests.
     pub fn test_default() -> Self {
         use fake::{Fake, Faker};
         let mut config: Self = Faker.fake();
