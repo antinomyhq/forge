@@ -83,9 +83,9 @@ if [[ -n "$zsh_version" ]]; then
     local major=$(echo $zsh_version | cut -d. -f1)
     local minor=$(echo $zsh_version | cut -d. -f2)
     if [[ $major -ge 5 ]] && [[ $minor -ge 0 ]]; then
-        print_result pass "ZSH ${zsh_version}"
+        print_result pass "zsh: ${zsh_version}"
     else
-        print_result warn "ZSH ${zsh_version}" "Recommended: 5.0+"
+        print_result warn "zsh: ${zsh_version}" "Recommended: 5.0+"
     fi
 else
     print_result fail "Unable to detect ZSH version"
@@ -129,10 +129,10 @@ if command -v forge &> /dev/null; then
     # Get forge version and extract just the version number
     local forge_version=$(forge --version 2>&1 | head -n1 | awk '{print $2}')
     if [[ -n "$forge_version" ]]; then
-        print_result pass "Forge: ${forge_version}"
+        print_result pass "forge: ${forge_version}"
         print_result info "${forge_path}"
     else
-        print_result pass "Forge installed"
+        print_result pass "forge: installed"
         print_result info "${forge_path}"
     fi
 else
@@ -187,7 +187,7 @@ if command -v fzf &> /dev/null; then
     if [[ -n "$fzf_version" ]]; then
         print_result pass "fzf: ${fzf_version}"
     else
-        print_result pass "fzf installed"
+        print_result pass "fzf: installed"
     fi
 else
     print_result fail "fzf not found" "Required for interactive features. See installation: https://github.com/junegunn/fzf#installation"
@@ -199,14 +199,14 @@ if command -v fd &> /dev/null; then
     if [[ -n "$fd_version" ]]; then
         print_result pass "fd: ${fd_version}"
     else
-        print_result pass "fd installed"
+        print_result pass "fd: installed"
     fi
 elif command -v fdfind &> /dev/null; then
     local fd_version=$(fdfind --version 2>&1 | awk '{print $2}')
     if [[ -n "$fd_version" ]]; then
         print_result pass "fdfind: ${fd_version}"
     else
-        print_result pass "fdfind installed"
+        print_result pass "fdfind: installed"
     fi
 else
     print_result warn "fd/fdfind not found" "Enhanced file discovery. See installation: https://github.com/sharkdp/fd#installation"
@@ -218,7 +218,7 @@ if command -v bat &> /dev/null; then
     if [[ -n "$bat_version" ]]; then
         print_result pass "bat: ${bat_version}"
     else
-        print_result pass "bat installed"
+        print_result pass "bat: installed"
     fi
 else
     print_result warn "bat not found" "Enhanced preview. See installation: https://github.com/sharkdp/bat#installation"
@@ -267,7 +267,7 @@ fi
 
 # Check PATH for common issues
 if [[ "$PATH" == *"/usr/local/bin"* ]] || [[ "$PATH" == *"/usr/bin"* ]]; then
-    print_result pass "PATH configured"
+    print_result pass "PATH: configured"
 else
     print_result warn "PATH may need common directories" "Ensure /usr/local/bin or /usr/bin is in PATH"
 fi
@@ -276,15 +276,15 @@ fi
 # Show actual icons used in Forge theme
 echo ""
 echo "$(bold "Font Check [Manual Verification Required]")"
-echo "  $(cyan "")  ${_DIM} configured via \$FORGE_FOLDER_ICON${RESET}"
-echo "  $(cyan "")  ${_DIM} configured via \$FORGE_GIT_ICON${RESET}"
-echo "  $(cyan "")  ${_DIM} configured via \$FORGE_MODEL_ICON${RESET}"
-echo "  $(cyan "󱙺")  ${_DIM} configured via \$FORGE_AGENT_ICON${RESET}"
-echo "  $(cyan "")  ${_DIM} configured via \$FORGE_PROMPT_SYMBOL${RESET}"
+echo "   $(cyan "")  ${_DIM} configured via \$FORGE_FOLDER_ICON${RESET}"
+echo "   $(cyan "")  ${_DIM} configured via \$FORGE_GIT_ICON${RESET}"
+echo "   $(cyan "")  ${_DIM} configured via \$FORGE_MODEL_ICON${RESET}"
+echo "   $(cyan "󱙺")  ${_DIM} configured via \$FORGE_AGENT_ICON${RESET}"
+echo "   $(cyan "")  ${_DIM} configured via \$FORGE_PROMPT_SYMBOL${RESET}"
 echo ""
-echo "  Forge uses Nerd Fonts to enrich cli experience, can you see all 5 icons clearly?"
-echo "  If you see boxes (□) or question marks (?), install a Nerd Font from:"
-echo "  $(dim "https://www.nerdfonts.com/")"
+echo "   Forge uses Nerd Fonts to enrich cli experience, can you see all 5 icons clearly?"
+echo "   If you see boxes (□) or question marks (?), install a Nerd Font from:"
+echo "   $(dim "https://www.nerdfonts.com/")"
 echo ""
 
 # Summary
