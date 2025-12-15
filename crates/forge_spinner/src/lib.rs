@@ -117,7 +117,8 @@ impl SpinnerManager {
                 if let (Some(spinner), Some(start_time), Some(message)) =
                     (&spinner_clone, start_time_clone, &message_clone)
                 {
-                    let elapsed = Duration::from_secs((accumulated + start_time.elapsed()).as_secs());
+                    let elapsed =
+                        Duration::from_secs((accumulated + start_time.elapsed()).as_secs());
                     let updated_message = format!(
                         "{} {} · {}",
                         message.green().bold(),
