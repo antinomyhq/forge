@@ -424,7 +424,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         self.on_zsh_doctor().await?;
                     }
                     crate::cli::ZshCommandGroup::Rprompt => {
-                        if let Some(text) = self.handle_zsh_rprompt_command().await { print!("{}", text) }
+                        if let Some(text) = self.handle_zsh_rprompt_command().await {
+                            print!("{}", text)
+                        }
                         return Ok(());
                     }
                 }
@@ -2850,11 +2852,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         });
 
         let rprompt = ZshRPrompt::default()
-            .agent(
-                std::env::var("_FORGE_ACTIVE_AGENT")
-                    .ok()
-                    .map(AgentId::new),
-            )
+            .agent(std::env::var("_FORGE_ACTIVE_AGENT").ok().map(AgentId::new))
             .model(model_id)
             .token_count(conversation.and_then(|c| c.usage()).map(|u| u.total_tokens));
 
