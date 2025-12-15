@@ -20,6 +20,8 @@ mod ui;
 mod utils;
 mod vscode;
 mod zsh_plugin;
+mod zsh_style;
+
 
 mod update;
 

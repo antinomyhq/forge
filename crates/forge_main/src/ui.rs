@@ -11,7 +11,8 @@ use convert_case::{Case, Casing};
 use forge_api::{
     API, AgentId, AnyProvider, ApiKeyRequest, AuthContextRequest, AuthContextResponse, ChatRequest,
     ChatResponse, CodeRequest, Conversation, ConversationId, DeviceCodeRequest, Event,
-    InterruptionReason, Model, ModelId, Provider, ProviderId, TextMessage, UserPrompt, Workflow,
+    InterruptionReason, Model, ModelId, Provider, ProviderId, TextMessage, UserPrompt,
+    Workflow,
 };
 use forge_app::utils::{format_display_path, truncate_key};
 use forge_app::{CommitResult, ToolResolver};
@@ -45,6 +46,7 @@ use crate::title_display::TitleDisplayExt;
 use crate::tools_display::format_tools;
 use crate::update::on_update;
 use crate::utils::humanize_time;
+use crate::zsh_style::ZshRPrompt;
 use crate::{TRACKER, banner, tracker};
 
 // File-specific constants
@@ -422,8 +424,11 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     crate::cli::ZshCommandGroup::Doctor => {
                         self.on_zsh_doctor().await?;
                     }
-                    crate::cli::ZshCommandGroup::Prompt { conversation_id } => {
-                        self.handle_zsh_prompt_command(conversation_id).await?;
+                    crate::cli::ZshCommandGroup::Rprompt => {
+                        match self.handle_zsh_rprompt_command().await {
+                            Some(text) => print!("{}", text),
+                            None => {}
+                        }
                         return Ok(());
                     }
                 }
@@ -2834,43 +2839,30 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Handle prompt command - returns model and conversation stats for shell
     /// integration
-    async fn handle_zsh_prompt_command(
-        &mut self,
-        conversation_id: Option<ConversationId>,
-    ) -> Result<()> {
-        // FIXME: Make requests in parallel
-        // Get model
-        let model = self
-            .api
-            .get_default_model()
-            .await
-            .map(|m| m.as_str().to_string())
-            .unwrap_or_default();
+    async fn handle_zsh_rprompt_command(&mut self) -> Option<String> {
+        let cid = std::env::var("_FORGE_CONVERSATION_ID")
+            .ok()
+            .and_then(|str| ConversationId::from_str(str.as_str()).ok());
 
-        // Get conversation stats if conversation_id is provided
-        let tokens = if let Some(cid) = conversation_id {
-            if let Ok(Some(conversation)) = self.api.conversation(&cid).await {
-                conversation
-                    .usage()
-                    .as_ref()
-                    .map(|u| *u.total_tokens)
-                    .unwrap_or(0)
+        // Make IO calls in parallel
+        let (model_id, conversation) = tokio::join!(self.api.get_default_model(), async {
+            if let Some(cid) = cid {
+                self.api.conversation(&cid).await.ok().flatten()
             } else {
-                0
+                None
             }
-        } else {
-            0
-        };
+        });
 
-        // Use porcelain format for structured output
-        let info = Info::new()
-            .add_title("prompt")
-            .add_key_value("model", model)
-            .add_key_value("tokens", tokens.to_string());
+        let rprompt = ZshRPrompt::default()
+            .agent(
+                std::env::var("_FORGE_ACTIVE_AGENT")
+                    .ok()
+                    .map(|a| AgentId::new(a)),
+            )
+            .model(model_id)
+            .token_count(conversation.and_then(|c| c.usage()).map(|u| u.total_tokens));
 
-        // Skip header row and drop the ID column for clean output: model|tokens
-        self.writeln(Porcelain::from(info).uppercase_headers().into_long().drop_col(0).skip(1))?;
-        Ok(())
+        Some(rprompt.to_string())
     }
 
     /// Validate model exists
