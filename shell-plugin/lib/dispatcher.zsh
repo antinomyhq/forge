@@ -188,6 +188,9 @@ function forge-accept-line() {
         logout)
             _forge_action_logout
         ;;
+        doctor)
+            _forge_action_doctor
+        ;;
         *)
             _forge_action_default "$user_action" "$input_text"
         ;;

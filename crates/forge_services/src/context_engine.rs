@@ -817,7 +817,6 @@ mod tests {
             }),
             relevance: Some(0.95),
             distance: Some(0.05),
-            similarity: Some(0.95),
         }
     }
 
