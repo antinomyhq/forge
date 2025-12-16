@@ -23,8 +23,32 @@ impl Default for SyntaxHighlighter {
 }
 
 impl SyntaxHighlighter {
-    /// Process markdown content and extract code blocks.
-    pub fn process(&self, content: &str) -> ProcessedMarkdown {
+    fn highlight(&self, code: &str, lang: &str) -> String {
+        let syntax = self
+            .syntax_set
+            .find_syntax_by_token(lang)
+            .unwrap_or_else(|| self.syntax_set.find_syntax_plain_text());
+        let theme = &self.theme_set.themes["base16-ocean.dark"];
+        let mut hl = HighlightLines::new(syntax, theme);
+
+        code.lines()
+            .filter_map(|line| hl.highlight_line(line, &self.syntax_set).ok())
+            .map(|ranges| format!("{}\x1b[0m", as_24_bit_terminal_escaped(&ranges, false)))
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+}
+
+/// Holds extracted code blocks and processed markdown with placeholders.
+#[derive(Clone)]
+pub struct CodeBlockParser {
+    markdown: String,
+    blocks: Vec<(String, String)>, // (code, language)
+}
+
+impl CodeBlockParser {
+    /// Extract code blocks from markdown content.
+    pub fn parse(content: &str) -> Self {
         let text = parse_text(content, minimad::Options::default().keep_code_fences(true));
         let original_lines: Vec<&str> = content.lines().collect();
         let mut blocks = Vec::new();
@@ -65,33 +89,12 @@ impl SyntaxHighlighter {
             }
         }
 
-        ProcessedMarkdown { markdown: result, blocks }
+        Self {
+            markdown: result,
+            blocks,
+        }
     }
 
-    fn highlight(&self, code: &str, lang: &str) -> String {
-        let syntax = self
-            .syntax_set
-            .find_syntax_by_token(lang)
-            .unwrap_or_else(|| self.syntax_set.find_syntax_plain_text());
-        let theme = &self.theme_set.themes["base16-ocean.dark"];
-        let mut hl = HighlightLines::new(syntax, theme);
-
-        code.lines()
-            .filter_map(|line| hl.highlight_line(line, &self.syntax_set).ok())
-            .map(|ranges| format!("{}\x1b[0m", as_24_bit_terminal_escaped(&ranges, false)))
-            .collect::<Vec<_>>()
-            .join("\n")
-    }
-}
-
-/// Holds extracted code blocks and processed markdown with placeholders.
-#[derive(Clone)]
-pub struct ProcessedMarkdown {
-    markdown: String,
-    blocks: Vec<(String, String)>, // (code, language)
-}
-
-impl ProcessedMarkdown {
     /// Get the processed markdown with placeholders.
     pub fn markdown(&self) -> &str {
         &self.markdown
@@ -123,16 +126,14 @@ mod tests {
 
     #[test]
     fn test_no_code_blocks() {
-        let highlighter = SyntaxHighlighter::default();
-        let r = highlighter.process("Hello world");
+        let r = CodeBlockParser::parse("Hello world");
         assert!(r.markdown().contains("Hello world"));
         assert!(r.blocks().is_empty());
     }
 
     #[test]
     fn test_single_code_block() {
-        let highlighter = SyntaxHighlighter::default();
-        let r = highlighter.process("```rust\nfn main() {}\n```");
+        let r = CodeBlockParser::parse("```rust\nfn main() {}\n```");
         assert!(r.markdown().contains("\x000\x00"));
         assert_eq!(r.blocks().len(), 1);
         assert_eq!(r.blocks()[0].0, "fn main() {}");
@@ -141,15 +142,14 @@ mod tests {
 
     #[test]
     fn test_preserves_indentation() {
-        let highlighter = SyntaxHighlighter::default();
-        let r = highlighter.process("```rust\n    let x = 1;\n```");
+        let r = CodeBlockParser::parse("```rust\n    let x = 1;\n```");
         assert_eq!(r.blocks()[0].0, "    let x = 1;");
     }
 
     #[test]
     fn test_restore() {
         let highlighter = SyntaxHighlighter::default();
-        let r = highlighter.process("```rust\ncode\n```");
+        let r = CodeBlockParser::parse("```rust\ncode\n```");
         let result = r.restore(&highlighter, "X\n\x000\x00\nY".into());
         assert!(strip_ansi(&result).contains("code"));
     }
@@ -157,7 +157,7 @@ mod tests {
     #[test]
     fn test_full_flow() {
         let highlighter = SyntaxHighlighter::default();
-        let r = highlighter.process("Hi\n```rust\nlet x = 1;\n```\nBye");
+        let r = CodeBlockParser::parse("Hi\n```rust\nlet x = 1;\n```\nBye");
         let result = strip_ansi(&r.restore(&highlighter, r.markdown().to_string()));
         assert!(result.contains("Hi") && result.contains("let x = 1") && result.contains("Bye"));
     }
@@ -165,15 +165,16 @@ mod tests {
     #[test]
     fn test_shared_highlighter() {
         let highlighter = SyntaxHighlighter::default();
-
-        // Process multiple markdown strings with the same highlighter
-        let r1 = highlighter.process("```rust\nlet x = 1;\n```");
-        let r2 = highlighter.process("```python\nprint('hello')\n```");
-
+        
+        // Process multiple markdown strings - no highlighter needed!
+        let r1 = CodeBlockParser::parse("```rust\nlet x = 1;\n```");
+        let r2 = CodeBlockParser::parse("```python\nprint('hello')\n```");
+        
         // Both should work correctly
         assert_eq!(r1.blocks()[0].1, "rust");
         assert_eq!(r2.blocks()[0].1, "python");
-
+        
+        // Use shared highlighter for restoration
         let result1 = r1.restore(&highlighter, r1.markdown().to_string());
         let result2 = r2.restore(&highlighter, r2.markdown().to_string());
 

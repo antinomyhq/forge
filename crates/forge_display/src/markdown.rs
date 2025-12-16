@@ -3,7 +3,7 @@ use regex::Regex;
 use termimad::crossterm::style::{Attribute, Color};
 use termimad::{CompoundStyle, LineStyle, MadSkin};
 
-use crate::code::SyntaxHighlighter;
+use crate::code::{CodeBlockParser, SyntaxHighlighter};
 
 /// MarkdownFormat provides functionality for formatting markdown text for
 /// terminal display.
@@ -51,7 +51,7 @@ impl MarkdownFormat {
         }
 
         // Extract code blocks
-        let processed = self.highlighter.process(&content);
+        let processed = CodeBlockParser::parse(&content);
 
         // Render with termimad, then restore highlighted code
         let rendered = self.skin.term_text(processed.markdown()).to_string();
