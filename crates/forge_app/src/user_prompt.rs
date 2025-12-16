@@ -36,8 +36,16 @@ impl<S: AttachmentService + SkillFetchService> UserPromptGenerator<S> {
     ) -> anyhow::Result<Conversation> {
         let (conversation, content) = self.add_rendered_message(conversation).await?;
         let conversation = self.add_additional_context(conversation).await?;
+        
+        // Extract original user input for skill recommendation
+        let user_input = self
+            .event
+            .value
+            .as_ref()
+            .and_then(|v| v.as_user_prompt().map(|u| u.as_str()));
+        
         let conversation = self
-            .add_recommended_skills(conversation, content.as_deref())
+            .add_recommended_skills(conversation, user_input)
             .await?;
         let conversation = if let Some(content) = content {
             self.add_attachments(conversation, &content).await?
