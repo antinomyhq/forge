@@ -3030,7 +3030,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         info.add_key_value("ID", workspace.workspace_id.to_string())
             .add_key_value("Path", workspace.working_dir.to_string())
-            .add_key_value("File", workspace.node_count.to_string())
+            .add_key_value("Files", workspace.node_count.to_string())
             .add_key_value("Relations", workspace.relation_count.to_string())
             .add_key_value("Created At", humanize_time(workspace.created_at))
             .add_key_value("Updated At", updated_time)
