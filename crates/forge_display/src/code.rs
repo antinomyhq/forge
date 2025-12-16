@@ -28,10 +28,12 @@ impl MarkdownCodeRenderer {
     /// Extract code blocks, highlight them, return markdown with placeholders.
     pub fn process(&self, content: &str) -> String {
         let text = parse_text(content, minimad::Options::default().keep_code_fences(true));
+        let original_lines: Vec<&str> = content.lines().collect();
         let mut blocks = self.blocks.lock().unwrap();
         blocks.clear();
 
         let mut result = String::new();
+        let mut orig_idx = 0;
         let mut code_lines: Vec<&str> = Vec::new();
         let mut lang = "";
         let mut in_code = false;
@@ -41,21 +43,28 @@ impl MarkdownCodeRenderer {
                 Line::CodeFence(c) if !in_code => {
                     lang = c.compounds.first().map(|c| c.src).unwrap_or("");
                     in_code = true;
+                    orig_idx += 1;
                 }
                 Line::CodeFence(_) => {
                     result.push_str(&format!("\x00{}\x00\n", blocks.len()));
                     blocks.push(self.highlight(&code_lines.join("\n"), lang));
                     code_lines.clear();
                     in_code = false;
+                    orig_idx += 1;
                 }
-                Line::Normal(c) if in_code => {
-                    code_lines.push(c.compounds.first().map(|c| c.src).unwrap_or(""));
+                _ if in_code => {
+                    if orig_idx < original_lines.len() {
+                        code_lines.push(original_lines[orig_idx]);
+                    }
+                    orig_idx += 1;
                 }
-                Line::Normal(c) => {
-                    result.extend(c.compounds.iter().map(|c| c.src));
-                    result.push('\n');
+                _ => {
+                    if orig_idx < original_lines.len() {
+                        result.push_str(original_lines[orig_idx]);
+                        result.push('\n');
+                    }
+                    orig_idx += 1;
                 }
-                _ => result.push('\n'),
             }
         }
         result
