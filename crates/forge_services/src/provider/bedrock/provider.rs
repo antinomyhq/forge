@@ -371,7 +371,8 @@ impl FromDomain<forge_domain::Context>
                     _ => {
                         // Flush pending tool results before processing non-tool message
                         if !pending_tool_results.is_empty() {
-                            result.push(Message::from_tool_results(pending_tool_results.drain(..).collect())?);
+                            let tool_results: Vec<_> = pending_tool_results.drain(..).collect();
+                            result.push(Message::from_domain(tool_results)?);
                         }
                         
                         // Convert and add the non-tool message
@@ -385,7 +386,7 @@ impl FromDomain<forge_domain::Context>
             
             // Flush any remaining tool results
             if !pending_tool_results.is_empty() {
-                result.push(Message::from_tool_results(pending_tool_results)?);
+                result.push(Message::from_domain(pending_tool_results)?);
             }
             
             Ok::<Vec<Message>, anyhow::Error>(result)
@@ -451,19 +452,12 @@ impl FromDomain<forge_domain::Context>
     }
 }
 
-/// Helper extension trait for Message to support creating messages from multiple tool results
-trait MessageExt {
-    /// Creates a User message containing multiple tool results
-    ///
-    /// Bedrock requires all tool results for a given assistant message's tool calls
-    /// to be in a single User message with multiple ToolResult content blocks.
-    fn from_tool_results(tool_results: Vec<forge_domain::ContextMessage>) -> anyhow::Result<Self>
-    where
-        Self: Sized;
-}
-
-impl MessageExt for aws_sdk_bedrockruntime::types::Message {
-    fn from_tool_results(tool_results: Vec<forge_domain::ContextMessage>) -> anyhow::Result<Self> {
+/// Converts multiple tool results into a single Bedrock User message
+///
+/// Bedrock requires all tool results for a given assistant message's tool calls
+/// to be in a single User message with multiple ToolResult content blocks.
+impl FromDomain<Vec<forge_domain::ContextMessage>> for aws_sdk_bedrockruntime::types::Message {
+    fn from_domain(tool_results: Vec<forge_domain::ContextMessage>) -> anyhow::Result<Self> {
         use aws_sdk_bedrockruntime::types::{
             ContentBlock, ConversationRole, Message, ToolResultBlock, ToolResultContentBlock,
             ToolResultStatus,
