@@ -150,7 +150,14 @@ impl<H: HttpClientService> BedrockProvider<H> {
             .set_inference_config(bedrock_input.inference_config.clone())
             .send()
             .await
-            .context("Failed to call Bedrock converse_stream API")?;
+            .map_err(|e| {
+                // AWS SDK ServiceError contains the error in both Display and source(),
+                // causing duplication. We extract the source to show it only once.
+                // SAFETY: into_source() always returns Ok for all SdkError variants
+                // (see aws-smithy-runtime-api/src/client/result.rs:448-459)
+                let source = e.into_source().unwrap();
+                anyhow::anyhow!("{}", source)
+            })?;
 
         // Convert the Bedrock event stream to ChatCompletionMessage stream
         let stream = futures::stream::unfold(output.stream, |mut event_stream| async move {
