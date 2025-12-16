@@ -82,9 +82,9 @@ impl CompactRange for Compactor {
 impl Compactor {
     /// Finds the last breakpoint in the context where compaction should occur.
     ///
-    /// Iterates through messages, accumulating them into temporary contexts and
-    /// checking if compaction thresholds are met. Returns the index of the last
-    /// message before the most recent compaction threshold breach.
+    /// Iterates through messages tracking token counts, turn counts, and message counts
+    /// without cloning. Returns the index of the last message before the most recent
+    /// compaction threshold breach.
     ///
     /// # Arguments
     ///
@@ -100,15 +100,49 @@ impl Compactor {
         }
 
         let mut last_bp: Option<usize> = None;
-        let mut acc_ctx = Context::default();
 
-        for (i, msg) in context.messages.iter().enumerate() {
-            acc_ctx = acc_ctx.add_message(msg.message.clone());
+        // Track counts without cloning
+        let mut token_count = 0;
+        let mut turn_count = 0;
+        let mut message_count = 0;
 
-            let token_count = *acc_ctx.token_count();
-            if compact_config.should_compact(&acc_ctx, token_count) {
+        for (i, entry) in context.messages.iter().enumerate() {
+            // Update counts
+            token_count += entry.token_count_approx();
+            message_count += 1;
+
+            let is_user = entry.has_role(forge_domain::Role::User);
+            if is_user {
+                turn_count += 1;
+            }
+
+            // Check if we should compact based on current accumulated state
+            let should_compact = {
+                let token_check = compact_config.token_threshold
+                    .map(|threshold| token_count >= threshold)
+                    .unwrap_or(false);
+
+                let turn_check = compact_config.turn_threshold
+                    .map(|threshold| turn_count >= threshold)
+                    .unwrap_or(false);
+
+                let message_check = compact_config.message_threshold
+                    .map(|threshold| message_count >= threshold)
+                    .unwrap_or(false);
+
+                let turn_end_check = compact_config.on_turn_end
+                    .map(|enabled| enabled && is_user)
+                    .unwrap_or(false);
+
+                token_check || turn_check || message_check || turn_end_check
+            };
+
+            if should_compact {
                 last_bp = Some(i);
-                acc_ctx = Context::default();
+                // Reset counts for next accumulation window
+                token_count = 0;
+                turn_count = 0;
+                message_count = 0;
             }
         }
 
@@ -251,6 +285,122 @@ mod tests {
         use fake::{Fake, Faker};
         let env: Environment = Faker.fake();
         env.cwd(std::path::PathBuf::from("/test/working/dir"))
+    }
+
+    #[test]
+    fn test_find_last_breakpoint_no_messages() {
+        let environment = test_environment();
+        let compactor = Compactor::new(Compact::new(), environment);
+        let compact_config = Compact::new().token_threshold(1000usize);
+
+        let context = Context::default();
+
+        let actual = compactor.find_last_breakpoint(&context, &compact_config);
+        let expected = None;
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_find_last_breakpoint_no_threshold_exceeded() {
+        let environment = test_environment();
+        let compactor = Compactor::new(Compact::new(), environment);
+        let compact_config = Compact::new().token_threshold(100000usize); // Very high threshold
+
+        let context = Context::default()
+            .add_message(ContextMessage::user("Message 1", None))
+            .add_message(ContextMessage::assistant("Response 1", None, None))
+            .add_message(ContextMessage::user("Message 2", None))
+            .add_message(ContextMessage::assistant("Response 2", None, None));
+
+        let actual = compactor.find_last_breakpoint(&context, &compact_config);
+        let expected = None;
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_find_last_breakpoint_single_breakpoint() {
+        let environment = test_environment();
+        let compactor = Compactor::new(Compact::new(), environment);
+        let compact_config = Compact::new().message_threshold(2usize);
+
+        let context = Context::default()
+            .add_message(ContextMessage::user("Message 1", None))
+            .add_message(ContextMessage::assistant("Response 1", None, None))
+            .add_message(ContextMessage::user("Message 2", None))
+            .add_message(ContextMessage::assistant("Response 2", None, None));
+
+        let actual = compactor.find_last_breakpoint(&context, &compact_config);
+        let expected = Some(3); // Threshold of 2 reached at index 1, continues to add until hitting again at index 3
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_find_last_breakpoint_multiple_breakpoints() {
+        let environment = test_environment();
+        let compactor = Compactor::new(Compact::new(), environment);
+        let compact_config = Compact::new().message_threshold(2usize);
+
+        let context = Context::default()
+            .add_message(ContextMessage::user("Message 1", None))
+            .add_message(ContextMessage::assistant("Response 1", None, None))
+            .add_message(ContextMessage::user("Message 2", None))
+            .add_message(ContextMessage::assistant("Response 2", None, None))
+            .add_message(ContextMessage::user("Message 3", None))
+            .add_message(ContextMessage::assistant("Response 3", None, None));
+
+        let actual = compactor.find_last_breakpoint(&context, &compact_config);
+        let expected = Some(5); // Last breakpoint at index 5
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_find_last_breakpoint_with_token_threshold() {
+        let environment = test_environment();
+        let compactor = Compactor::new(Compact::new(), environment);
+        let compact_config = Compact::new().token_threshold(50usize); // Lower threshold to ensure trigger
+
+        let mut context = Context::default();
+        for i in 0..10 {
+            context = context
+                .add_message(ContextMessage::user(
+                    format!("Message {} with substantial content to increase token count. This message contains enough text to make sure we hit the compaction threshold quickly.", i),
+                    None,
+                ))
+                .add_message(ContextMessage::assistant(
+                    format!("Response {} with substantial content to increase token count. This response also contains enough text to ensure we accumulate sufficient tokens.", i),
+                    None,
+                    None,
+                ));
+        }
+
+        let actual = compactor.find_last_breakpoint(&context, &compact_config);
+
+        // Should find at least one breakpoint
+        assert!(actual.is_some(), "Expected to find a breakpoint with token threshold");
+    }
+
+    #[test]
+    fn test_find_last_breakpoint_with_turn_threshold() {
+        let environment = test_environment();
+        let compactor = Compactor::new(Compact::new(), environment);
+        let compact_config = Compact::new().turn_threshold(1usize); // Trigger after 1 user message
+
+        let context = Context::default()
+            .add_message(ContextMessage::user("User 1", None))
+            .add_message(ContextMessage::assistant("Assistant 1", None, None))
+            .add_message(ContextMessage::user("User 2", None))
+            .add_message(ContextMessage::assistant("Assistant 2", None, None))
+            .add_message(ContextMessage::user("User 3", None))
+            .add_message(ContextMessage::assistant("Assistant 3", None, None));
+
+        let actual = compactor.find_last_breakpoint(&context, &compact_config);
+        let expected = Some(4); // With 1 turn threshold, breaks after each user message (indices 0, 2, 4)
+
+        assert_eq!(actual, expected);
     }
 
     #[test]
