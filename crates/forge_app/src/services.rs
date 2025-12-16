@@ -284,6 +284,12 @@ pub trait ContextEngineService: Send + Sync {
 
     /// Create new authentication credentials
     async fn create_auth_credentials(&self) -> anyhow::Result<WorkspaceAuth>;
+
+    /// Recommend skills based on use case.
+    async fn recommend_skills(
+        &self,
+        use_case: String,
+    ) -> anyhow::Result<Vec<forge_domain::SelectedSkill>>;
 }
 
 #[async_trait::async_trait]
@@ -485,12 +491,6 @@ pub trait SkillFetchService: Send + Sync {
     ///
     /// Returns an error if skills cannot be loaded
     async fn list_skills(&self) -> anyhow::Result<Vec<forge_domain::Skill>>;
-
-    /// Recommend skills based on use case.
-    async fn recommend_skills(
-        &self,
-        use_case: String,
-    ) -> anyhow::Result<Vec<forge_domain::SelectedSkill>>;
 }
 
 /// Provider authentication service
@@ -1002,13 +1002,6 @@ impl<I: Services> SkillFetchService for I {
     async fn list_skills(&self) -> anyhow::Result<Vec<forge_domain::Skill>> {
         self.skill_fetch_service().list_skills().await
     }
-
-    async fn recommend_skills(
-        &self,
-        use_case: String,
-    ) -> anyhow::Result<Vec<forge_domain::SelectedSkill>> {
-        self.skill_fetch_service().recommend_skills(use_case).await
-    }
 }
 
 #[async_trait::async_trait]
@@ -1089,6 +1082,15 @@ impl<I: Services> ContextEngineService for I {
     async fn create_auth_credentials(&self) -> anyhow::Result<WorkspaceAuth> {
         self.context_engine_service()
             .create_auth_credentials()
+            .await
+    }
+
+    async fn recommend_skills(
+        &self,
+        use_case: String,
+    ) -> anyhow::Result<Vec<forge_domain::SelectedSkill>> {
+        self.context_engine_service()
+            .recommend_skills(use_case)
             .await
     }
 }

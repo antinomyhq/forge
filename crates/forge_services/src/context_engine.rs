@@ -462,6 +462,7 @@ impl<
         + ContextEngineRepository
         + WalkerInfra
         + FileReaderInfra
+        + forge_domain::SkillRepository
         + 'static,
 > ContextEngineService for ForgeContextEngineService<F>
 {
@@ -657,6 +658,37 @@ impl<
             .context("Failed to store authentication credentials")?;
 
         Ok(auth)
+    }
+
+    async fn recommend_skills(
+        &self,
+        use_case: String,
+    ) -> Result<Vec<forge_domain::SelectedSkill>> {
+        // Get auth token and skills in parallel
+        let (credential, skills) = tokio::join!(
+            self.infra.get_credential(&ProviderId::FORGE_SERVICES),
+            self.infra.load_skills()
+        );
+
+        let token = match credential?
+            .ok_or(forge_domain::Error::AuthTokenNotFound)?
+            .auth_details
+        {
+            forge_domain::AuthDetails::ApiKey(token) => token,
+            _ => anyhow::bail!("ForgeServices credential must be an API key"),
+        };
+
+        let skill_infos: Vec<_> = skills?
+            .iter()
+            .map(|s| forge_domain::SkillInfo::new(&s.name, &s.description))
+            .collect();
+
+        // Build params and call the repository
+        let params = forge_domain::SkillSelectionParams::new(skill_infos, use_case);
+        self.infra
+            .select_skill(params, &token)
+            .await
+            .context("Failed to select skills")
     }
 }
 
@@ -948,6 +980,13 @@ mod tests {
             _params: forge_domain::SkillSelectionParams,
             _token: &ApiKey,
         ) -> Result<Vec<forge_domain::SelectedSkill>> {
+            Ok(vec![])
+        }
+    }
+
+    #[async_trait]
+    impl forge_domain::SkillRepository for MockInfra {
+        async fn load_skills(&self) -> Result<Vec<forge_domain::Skill>> {
             Ok(vec![])
         }
     }

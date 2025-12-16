@@ -34,7 +34,7 @@ pub struct Runner {
     test_completions: Mutex<VecDeque<ChatCompletionMessage>>,
 
     attachments: Vec<Attachment>,
-    skills: Vec<forge_domain::Skill>,
+    recommended_skills: Vec<forge_domain::Skill>,
 }
 
 impl Runner {
@@ -52,7 +52,7 @@ impl Runner {
         Self {
             hb,
             attachments: setup.attachments.clone(),
-            skills: setup.skills.clone(),
+            recommended_skills: setup.skills.clone(),
             conversation_history: Mutex::new(Vec::new()),
             test_tool_calls: Mutex::new(VecDeque::from(setup.mock_tool_call_responses.clone())),
             test_completions: Mutex::new(VecDeque::from(setup.mock_assistant_responses.clone())),
@@ -208,7 +208,7 @@ impl AttachmentService for Runner {
 #[async_trait::async_trait]
 impl SkillFetchService for Runner {
     async fn fetch_skill(&self, skill_name: String) -> anyhow::Result<forge_domain::Skill> {
-        self.skills
+        self.recommended_skills
             .iter()
             .find(|s| s.name == skill_name)
             .cloned()
@@ -216,7 +216,53 @@ impl SkillFetchService for Runner {
     }
 
     async fn list_skills(&self) -> anyhow::Result<Vec<forge_domain::Skill>> {
-        Ok(self.skills.clone())
+        Ok(self.recommended_skills.clone())
+    }
+}
+
+#[async_trait::async_trait]
+impl crate::ContextEngineService for Runner {
+    async fn sync_codebase(
+        &self,
+        _path: std::path::PathBuf,
+        _batch_size: usize,
+    ) -> anyhow::Result<forge_stream::MpscStream<anyhow::Result<forge_domain::SyncProgress>>> {
+        unimplemented!()
+    }
+
+    async fn query_codebase(
+        &self,
+        _path: std::path::PathBuf,
+        _params: forge_domain::SearchParams<'_>,
+    ) -> anyhow::Result<Vec<forge_domain::Node>> {
+        unimplemented!()
+    }
+
+    async fn list_codebase(&self) -> anyhow::Result<Vec<forge_domain::WorkspaceInfo>> {
+        unimplemented!()
+    }
+
+    async fn get_workspace_info(
+        &self,
+        _path: std::path::PathBuf,
+    ) -> anyhow::Result<Option<forge_domain::WorkspaceInfo>> {
+        unimplemented!()
+    }
+
+    async fn delete_codebase(&self, _workspace_id: &forge_domain::WorkspaceId) -> anyhow::Result<()> {
+        unimplemented!()
+    }
+
+    async fn is_indexed(&self, _path: &std::path::Path) -> anyhow::Result<bool> {
+        unimplemented!()
+    }
+
+    async fn is_authenticated(&self) -> anyhow::Result<bool> {
+        unimplemented!()
+    }
+
+    async fn create_auth_credentials(&self) -> anyhow::Result<forge_domain::WorkspaceAuth> {
+        unimplemented!()
     }
 
     async fn recommend_skills(
@@ -225,7 +271,7 @@ impl SkillFetchService for Runner {
     ) -> anyhow::Result<Vec<forge_domain::SelectedSkill>> {
         // Convert all available skills to selected skills with default relevance
         Ok(self
-            .skills
+            .recommended_skills
             .iter()
             .enumerate()
             .map(|(idx, skill)| {

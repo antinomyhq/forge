@@ -6,7 +6,7 @@ use forge_template::Element;
 use serde_json::json;
 use tracing::{debug, warn};
 
-use crate::{AttachmentService, SkillFetchService, TemplateEngine};
+use crate::{AttachmentService, ContextEngineService, TemplateEngine};
 
 /// Service responsible for setting user prompts in the conversation context
 #[derive(Clone)]
@@ -17,7 +17,7 @@ pub struct UserPromptGenerator<S> {
     current_time: chrono::DateTime<chrono::Local>,
 }
 
-impl<S: AttachmentService + SkillFetchService> UserPromptGenerator<S> {
+impl<S: AttachmentService + ContextEngineService> UserPromptGenerator<S> {
     /// Creates a new UserPromptService
     pub fn new(
         service: Arc<S>,
@@ -237,13 +237,48 @@ mod tests {
     }
 
     #[async_trait::async_trait]
-    impl SkillFetchService for MockService {
-        async fn fetch_skill(&self, _skill_name: String) -> anyhow::Result<forge_domain::Skill> {
+    impl ContextEngineService for MockService {
+        async fn sync_codebase(
+            &self,
+            _path: std::path::PathBuf,
+            _batch_size: usize,
+        ) -> anyhow::Result<forge_stream::MpscStream<anyhow::Result<SyncProgress>>> {
             unimplemented!()
         }
 
-        async fn list_skills(&self) -> anyhow::Result<Vec<forge_domain::Skill>> {
-            Ok(vec![])
+        async fn query_codebase(
+            &self,
+            _path: std::path::PathBuf,
+            _params: SearchParams<'_>,
+        ) -> anyhow::Result<Vec<Node>> {
+            unimplemented!()
+        }
+
+        async fn list_codebase(&self) -> anyhow::Result<Vec<WorkspaceInfo>> {
+            unimplemented!()
+        }
+
+        async fn get_workspace_info(
+            &self,
+            _path: std::path::PathBuf,
+        ) -> anyhow::Result<Option<WorkspaceInfo>> {
+            unimplemented!()
+        }
+
+        async fn delete_codebase(&self, _workspace_id: &WorkspaceId) -> anyhow::Result<()> {
+            unimplemented!()
+        }
+
+        async fn is_indexed(&self, _path: &std::path::Path) -> anyhow::Result<bool> {
+            unimplemented!()
+        }
+
+        async fn is_authenticated(&self) -> anyhow::Result<bool> {
+            unimplemented!()
+        }
+
+        async fn create_auth_credentials(&self) -> anyhow::Result<WorkspaceAuth> {
+            unimplemented!()
         }
 
         async fn recommend_skills(
