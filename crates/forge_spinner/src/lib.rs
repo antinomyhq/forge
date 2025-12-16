@@ -1,7 +1,7 @@
 use anyhow::Result;
 use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
-use rand::seq::IndexedRandom;
+use rand::Rng;
 use tokio::task::JoinHandle;
 
 mod progress_bar;
@@ -17,6 +17,7 @@ pub struct SpinnerManager {
     stopwatch: Stopwatch,
     message: Option<String>,
     tracker: Option<JoinHandle<()>>,
+    word_index: Option<usize>,
     #[cfg(test)]
     tick_counter: Option<std::sync::Arc<std::sync::atomic::AtomicU64>>,
 }
@@ -48,10 +49,15 @@ impl SpinnerManager {
             "Contemplating",
         ];
 
-        // Use a random word from the list
+        // Use a random word from the list, caching the index for consistency
         let word = match message {
-            None => words.choose(&mut rand::rng()).unwrap_or(&words[0]),
             Some(msg) => msg,
+            None => {
+                let idx = *self
+                    .word_index
+                    .get_or_insert_with(|| rand::rng().random_range(0..words.len()));
+                words[idx]
+            }
         };
 
         // Store the base message without styling for later use with the timer
@@ -124,6 +130,7 @@ impl SpinnerManager {
     /// Call this when starting a completely new task/conversation.
     pub fn reset(&mut self) {
         self.stopwatch.reset();
+        self.word_index = None;
     }
 
     fn stop_inner<F>(&mut self, message: Option<String>, writer: F) -> Result<()>
