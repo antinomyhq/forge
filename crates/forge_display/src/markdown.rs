@@ -3,13 +3,23 @@ use regex::Regex;
 use termimad::crossterm::style::{Attribute, Color};
 use termimad::{CompoundStyle, LineStyle, MadSkin};
 
+use crate::code::MarkdownCodeRenderer;
+
 /// MarkdownFormat provides functionality for formatting markdown text for
 /// terminal display.
-#[derive(Clone, Setters, Default)]
+#[derive(Clone, Setters)]
 #[setters(into, strip_option)]
 pub struct MarkdownFormat {
     skin: MadSkin,
     max_consecutive_newlines: usize,
+    #[setters(skip)]
+    code_renderer: MarkdownCodeRenderer,
+}
+
+impl Default for MarkdownFormat {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl MarkdownFormat {
@@ -26,41 +36,36 @@ impl MarkdownFormat {
         strikethrough_style.add_attr(Attribute::Dim);
         skin.strikeout = strikethrough_style;
 
-        Self { skin, max_consecutive_newlines: 2 }
+        Self {
+            skin,
+            max_consecutive_newlines: 2,
+            code_renderer: MarkdownCodeRenderer::default(),
+        }
     }
 
     /// Render the markdown content to a string formatted for terminal display.
-    ///
-    /// # Arguments
-    ///
-    /// * `content` - The markdown content to be rendered
     pub fn render(&self, content: impl Into<String>) -> String {
-        let content_string = content.into();
-
-        // Strip excessive newlines before rendering
-        let processed_content = self.strip_excessive_newlines(content_string.trim());
-
-        self.skin
-            .term_text(&processed_content)
-            .to_string()
-            .trim()
-            .to_string()
-    }
-
-    /// Strip excessive consecutive newlines from content
-    ///
-    /// Reduces any sequence of more than max_consecutive_newlines to exactly
-    /// max_consecutive_newlines
-    fn strip_excessive_newlines(&self, content: &str) -> String {
+        let content = self.strip_excessive_newlines(content.into().trim());
         if content.is_empty() {
-            return content.to_string();
+            return String::new();
         }
 
-        let pattern = format!(r"\n{{{},}}", self.max_consecutive_newlines + 1);
-        let re = Regex::new(&pattern).unwrap();
-        let replacement = "\n".repeat(self.max_consecutive_newlines);
+        // Extract and highlight code blocks
+        let md = self.code_renderer.process(&content);
 
-        re.replace_all(content, replacement.as_str()).to_string()
+        // Render with termimad, then restore highlighted code
+        let rendered = self.skin.term_text(&md).to_string();
+        self.code_renderer.restore(rendered).trim().to_string()
+    }
+
+    fn strip_excessive_newlines(&self, content: &str) -> String {
+        if content.is_empty() {
+            return String::new();
+        }
+        Regex::new(&format!(r"\n{{{},}}", self.max_consecutive_newlines + 1))
+            .unwrap()
+            .replace_all(content, "\n".repeat(self.max_consecutive_newlines))
+            .into()
     }
 }
 
@@ -144,5 +149,13 @@ mod tests {
         let expected_clean = strip_ansi_escapes::strip_str(&expected).trim().to_string();
 
         assert_eq!(actual_clean, expected_clean);
+    }
+
+    #[test]
+    fn test_highlight_code_block() {
+        let md = MarkdownFormat::new();
+        let actual = md.render("```rust\nfn main() {}\n```");
+        assert!(actual.contains("\x1b[")); // Contains ANSI escape codes
+        assert!(strip_ansi_escapes::strip_str(&actual).contains("fn main()"));
     }
 }
