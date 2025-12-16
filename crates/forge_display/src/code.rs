@@ -65,10 +65,7 @@ impl SyntaxHighlighter {
             }
         }
 
-        ProcessedMarkdown {
-            markdown: result,
-            blocks,
-        }
+        ProcessedMarkdown { markdown: result, blocks }
     }
 
     fn highlight(&self, code: &str, lang: &str) -> String {
@@ -168,18 +165,18 @@ mod tests {
     #[test]
     fn test_shared_highlighter() {
         let highlighter = SyntaxHighlighter::default();
-        
+
         // Process multiple markdown strings with the same highlighter
         let r1 = highlighter.process("```rust\nlet x = 1;\n```");
         let r2 = highlighter.process("```python\nprint('hello')\n```");
-        
+
         // Both should work correctly
         assert_eq!(r1.blocks()[0].1, "rust");
         assert_eq!(r2.blocks()[0].1, "python");
-        
+
         let result1 = r1.restore(&highlighter, r1.markdown().to_string());
         let result2 = r2.restore(&highlighter, r2.markdown().to_string());
-        
+
         assert!(strip_ansi(&result1).contains("let x = 1"));
         assert!(strip_ansi(&result2).contains("print('hello')"));
     }
