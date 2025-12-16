@@ -117,13 +117,14 @@ impl Compactor {
                 ContextMessage::Tool(result) => {
                     // Check if this tool result has a corresponding tool call
                     if let Some(call_id) = &result.call_id
-                        && !tool_call_ids.contains(call_id) {
-                            return Err(anyhow::anyhow!(
-                                "Orphaned tool result: tool_result references call_id {:?} \
+                        && !tool_call_ids.contains(call_id)
+                    {
+                        return Err(anyhow::anyhow!(
+                            "Orphaned tool result: tool_result references call_id {:?} \
                                  but no corresponding tool call found in compacted context",
-                                call_id
-                            ));
-                        }
+                            call_id
+                        ));
+                    }
                 }
                 _ => {}
             }
