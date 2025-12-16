@@ -246,25 +246,14 @@ mod tests {
     }
 
     #[test]
-    fn test_agent_cwd_path_independent_from_agent_path() {
+    fn test_agent_path() {
         let fixture: Environment = Faker.fake();
-        let fixture = fixture
-            .cwd(PathBuf::from("/different/current/dir"))
-            .base_path(PathBuf::from("/completely/different/base"));
+        let fixture = fixture.base_path(PathBuf::from("/home/user/.forge"));
 
-        let agent_path = fixture.agent_path();
-        let agent_cwd_path = fixture.agent_cwd_path();
-        let expected_agent_path = PathBuf::from("/completely/different/base/agents");
-        let expected_agent_cwd_path = PathBuf::from("/different/current/dir/.forge/agents");
+        let actual = fixture.agent_path();
+        let expected = PathBuf::from("/home/user/.forge/agents");
 
-        // Verify that agent_path uses base_path
-        assert_eq!(agent_path, expected_agent_path);
-
-        // Verify that agent_cwd_path is independent and always relative to CWD
-        assert_eq!(agent_cwd_path, expected_agent_cwd_path);
-
-        // Verify they are different paths
-        assert_ne!(agent_path, agent_cwd_path);
+        assert_eq!(actual, expected);
     }
 
     #[test]
@@ -290,57 +279,6 @@ mod tests {
     }
 
     #[test]
-    fn test_skills_paths_independent() {
-        let fixture: Environment = Faker.fake();
-        let fixture = fixture
-            .cwd(PathBuf::from("/projects/my-app"))
-            .base_path(PathBuf::from("/home/user/.forge"));
-
-        let global_path = fixture.global_skills_path();
-        let local_path = fixture.local_skills_path();
-
-        let expected_global = PathBuf::from("/home/user/.forge/skills");
-        let expected_local = PathBuf::from("/projects/my-app/.forge/skills");
-
-        // Verify global path uses base_path
-        assert_eq!(global_path, expected_global);
-
-        // Verify local path uses cwd
-        assert_eq!(local_path, expected_local);
-
-        // Verify they are different paths
-        assert_ne!(global_path, local_path);
-    }
-
-    #[test]
-    fn test_direct_json_deserialization() {
-        const DEFAULT_CONFIG: &str = include_str!("../env.json");
-        let result: Result<Environment, _> = serde_json::from_str(DEFAULT_CONFIG);
-
-        assert!(
-            result.is_ok(),
-            "Failed to deserialize JSON: {:?}",
-            result.err()
-        );
-
-        let env = result.unwrap();
-        assert_eq!(env.http.connect_timeout, 30);
-        assert_eq!(env.http.read_timeout, 900);
-    }
-
-    #[test]
-    fn test_config_crate_loads_from_json() {
-        // This test verifies that the config crate properly loads from embedded JSON
-        let env = Environment::from_env().unwrap();
-
-        // Verify values come from JSON
-        assert_eq!(env.max_search_lines, 200);
-        assert_eq!(env.http.connect_timeout, 30);
-        assert_eq!(env.http.read_timeout, 900);
-        assert_eq!(env.os, "macos");
-    }
-
-    #[test]
     fn test_command_path() {
         let fixture: Environment = Faker.fake();
         let fixture = fixture.base_path(PathBuf::from("/home/user/.forge"));
@@ -363,185 +301,167 @@ mod tests {
     }
 
     #[test]
-    fn test_command_cwd_path_independent_from_command_path() {
+    fn test_log_path() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture.base_path(PathBuf::from("/home/user/.forge"));
+
+        let actual = fixture.log_path();
+        let expected = PathBuf::from("/home/user/.forge/logs");
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_history_path() {
+        let mut fixture: Environment = Faker.fake();
+        fixture.base_path = PathBuf::from("/home/user/.forge");
+        fixture.custom_history_path = None;
+
+        let actual = fixture.history_path();
+        let expected = PathBuf::from("/home/user/.forge/.forge_history");
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_history_path_with_custom_path() {
         let fixture: Environment = Faker.fake();
         let fixture = fixture
-            .cwd(PathBuf::from("/different/current/dir"))
-            .base_path(PathBuf::from("/completely/different/base"));
+            .base_path(PathBuf::from("/home/user/.forge"))
+            .custom_history_path(PathBuf::from("/custom/history"));
 
-        let command_path = fixture.command_path();
-        let command_cwd_path = fixture.command_cwd_path();
-        let expected_command_path = PathBuf::from("/completely/different/base/commands");
-        let expected_command_cwd_path = PathBuf::from("/different/current/dir/.forge/commands");
+        let actual = fixture.history_path();
+        let expected = PathBuf::from("/custom/history");
 
-        // Verify that command_path uses base_path
-        assert_eq!(command_path, expected_command_path);
-
-        // Verify that command_cwd_path is independent and always relative to CWD
-        assert_eq!(command_cwd_path, expected_command_cwd_path);
-
-        // Verify they are different paths
-        assert_ne!(command_path, command_cwd_path);
-    }
-}
-
-#[test]
-fn test_from_env_snake_to_camel_conversion() {
-    // Test the snake_case to camelCase conversion function indirectly
-    unsafe {
-        std::env::set_var("FORGE_MAX_SEARCH_LINES", "999");
+        assert_eq!(actual, expected);
     }
 
-    let result = Environment::from_env();
-    // Even if it fails due to missing required fields, the conversion should work
-    // We can verify this by checking that maxSearchLines was parsed
+    #[test]
+    fn test_snapshot_path() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture.base_path(PathBuf::from("/home/user/.forge"));
 
-    unsafe {
-        std::env::remove_var("FORGE_MAX_SEARCH_LINES");
+        let actual = fixture.snapshot_path();
+        let expected = PathBuf::from("/home/user/.forge/snapshots");
+
+        assert_eq!(actual, expected);
     }
 
-    // This test verifies the method exists and compiles correctly
-    assert!(result.is_err() || result.is_ok());
-}
+    #[test]
+    fn test_mcp_user_config() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture.base_path(PathBuf::from("/home/user/.forge"));
 
-#[test]
-#[ignore = "Test requires all Environment fields to be set"]
-fn test_from_env_nested_config() {
-    // Set up environment variables for nested RetryConfig
-    unsafe {
-        std::env::set_var("FORGE_OS", "macos");
-        std::env::set_var("FORGE_PID", "5678");
-        std::env::set_var("FORGE_CWD", "/test/nested");
-        std::env::set_var("FORGE_SHELL", "zsh");
-        std::env::set_var("FORGE_BASE_PATH", "/Users/test/.forge");
-        std::env::set_var("FORGE_FORGE_API_URL", "https://nested.test.com");
-        std::env::set_var("FORGE_RETRY_CONFIG__INITIAL_BACKOFF_MS", "500");
-        std::env::set_var("FORGE_RETRY_CONFIG__BACKOFF_FACTOR", "3");
-        std::env::set_var("FORGE_RETRY_CONFIG__MAX_RETRY_ATTEMPTS", "5");
-        std::env::set_var("FORGE_MAX_SEARCH_LINES", "100");
-        std::env::set_var("FORGE_MAX_SEARCH_RESULT_BYTES", "10240");
-        std::env::set_var("FORGE_FETCH_TRUNCATION_LIMIT", "40000");
-        std::env::set_var("FORGE_STDOUT_MAX_PREFIX_LENGTH", "200");
-        std::env::set_var("FORGE_STDOUT_MAX_SUFFIX_LENGTH", "200");
-        std::env::set_var("FORGE_STDOUT_MAX_LINE_LENGTH", "2000");
-        std::env::set_var("FORGE_MAX_READ_SIZE", "2000");
-        std::env::set_var("FORGE_MAX_FILE_SIZE", "262144");
-        std::env::set_var("FORGE_TOOL_TIMEOUT", "300");
-        std::env::set_var("FORGE_AUTO_OPEN_DUMP", "false");
-        std::env::set_var("FORGE_MAX_CONVERSATIONS", "100");
-        std::env::set_var("FORGE_SEM_SEARCH_LIMIT", "100");
-        std::env::set_var("FORGE_SEM_SEARCH_TOP_K", "10");
-        std::env::set_var("FORGE_MAX_IMAGE_SIZE", "262144");
-        std::env::set_var("FORGE_WORKSPACE_SERVER_URL", "http://localhost:8080");
+        let actual = fixture.mcp_user_config();
+        let expected = PathBuf::from("/home/user/.forge/.mcp.json");
+
+        assert_eq!(actual, expected);
     }
 
-    let result = Environment::from_env();
-    assert!(result.is_ok());
+    #[test]
+    fn test_templates() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture.base_path(PathBuf::from("/home/user/.forge"));
 
-    let env = result.unwrap();
-    assert_eq!(env.retry_config.initial_backoff_ms, 500);
-    assert_eq!(env.retry_config.backoff_factor, 3);
-    assert_eq!(env.retry_config.max_retry_attempts, 5);
+        let actual = fixture.templates();
+        let expected = PathBuf::from("/home/user/.forge/templates");
 
-    // Clean up
-    unsafe {
-        std::env::remove_var("FORGE_OS");
-        std::env::remove_var("FORGE_PID");
-        std::env::remove_var("FORGE_CWD");
-        std::env::remove_var("FORGE_SHELL");
-        std::env::remove_var("FORGE_BASE_PATH");
-        std::env::remove_var("FORGE_FORGE_API_URL");
-        std::env::remove_var("FORGE_RETRY_CONFIG__INITIAL_BACKOFF_MS");
-        std::env::remove_var("FORGE_RETRY_CONFIG__BACKOFF_FACTOR");
-        std::env::remove_var("FORGE_RETRY_CONFIG__MAX_RETRY_ATTEMPTS");
-        std::env::remove_var("FORGE_MAX_SEARCH_LINES");
-        std::env::remove_var("FORGE_MAX_SEARCH_RESULT_BYTES");
-        std::env::remove_var("FORGE_FETCH_TRUNCATION_LIMIT");
-        std::env::remove_var("FORGE_STDOUT_MAX_PREFIX_LENGTH");
-        std::env::remove_var("FORGE_STDOUT_MAX_SUFFIX_LENGTH");
-        std::env::remove_var("FORGE_STDOUT_MAX_LINE_LENGTH");
-        std::env::remove_var("FORGE_MAX_READ_SIZE");
-        std::env::remove_var("FORGE_MAX_FILE_SIZE");
-        std::env::remove_var("FORGE_TOOL_TIMEOUT");
-        std::env::remove_var("FORGE_AUTO_OPEN_DUMP");
-        std::env::remove_var("FORGE_MAX_CONVERSATIONS");
-        std::env::remove_var("FORGE_SEM_SEARCH_LIMIT");
-        std::env::remove_var("FORGE_SEM_SEARCH_TOP_K");
-        std::env::remove_var("FORGE_MAX_IMAGE_SIZE");
-        std::env::remove_var("FORGE_WORKSPACE_SERVER_URL");
-    }
-}
-
-#[test]
-#[ignore = "Test requires all Environment fields to be set"]
-fn test_from_env_optional_fields() {
-    // Set up minimal environment variables and test optional fields
-    unsafe {
-        std::env::set_var("FORGE_OS", "linux");
-        std::env::set_var("FORGE_PID", "9999");
-        std::env::set_var("FORGE_CWD", "/test/optional");
-        std::env::set_var("FORGE_SHELL", "fish");
-        std::env::set_var("FORGE_BASE_PATH", "/opt/.forge");
-        std::env::set_var("FORGE_FORGE_API_URL", "https://optional.test.com");
-        std::env::set_var("FORGE_HOME", "/home/testuser");
-        std::env::set_var("FORGE_DEBUG_REQUESTS", "/tmp/debug");
-        std::env::set_var("FORGE_CUSTOM_HISTORY_PATH", "/tmp/history");
-        std::env::set_var("FORGE_OVERRIDE_MODEL", "gpt-4");
-        std::env::set_var("FORGE_OVERRIDE_PROVIDER", "openai");
-        std::env::set_var("FORGE_MAX_SEARCH_LINES", "100");
-        std::env::set_var("FORGE_MAX_SEARCH_RESULT_BYTES", "10240");
-        std::env::set_var("FORGE_FETCH_TRUNCATION_LIMIT", "40000");
-        std::env::set_var("FORGE_STDOUT_MAX_PREFIX_LENGTH", "200");
-        std::env::set_var("FORGE_STDOUT_MAX_SUFFIX_LENGTH", "200");
-        std::env::set_var("FORGE_STDOUT_MAX_LINE_LENGTH", "2000");
-        std::env::set_var("FORGE_MAX_READ_SIZE", "2000");
-        std::env::set_var("FORGE_MAX_FILE_SIZE", "262144");
-        std::env::set_var("FORGE_TOOL_TIMEOUT", "300");
-        std::env::set_var("FORGE_AUTO_OPEN_DUMP", "false");
-        std::env::set_var("FORGE_MAX_CONVERSATIONS", "100");
-        std::env::set_var("FORGE_SEM_SEARCH_LIMIT", "100");
-        std::env::set_var("FORGE_SEM_SEARCH_TOP_K", "10");
-        std::env::set_var("FORGE_MAX_IMAGE_SIZE", "262144");
-        std::env::set_var("FORGE_WORKSPACE_SERVER_URL", "http://localhost:8080");
+        assert_eq!(actual, expected);
     }
 
-    let result = Environment::from_env();
-    assert!(result.is_ok());
+    #[test]
+    fn test_permissions_path() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture.base_path(PathBuf::from("/home/user/.forge"));
 
-    let env = result.unwrap();
-    assert_eq!(env.home, Some(PathBuf::from("/home/testuser")));
-    assert_eq!(env.debug_requests, Some(PathBuf::from("/tmp/debug")));
-    assert_eq!(env.custom_history_path, Some(PathBuf::from("/tmp/history")));
-    assert_eq!(env.override_model, Some("gpt-4".to_string()));
-    assert_eq!(env.override_provider, Some("openai".to_string()));
+        let actual = fixture.permissions_path();
+        let expected = PathBuf::from("/home/user/.forge/permissions.yaml");
 
-    // Clean up
-    unsafe {
-        std::env::remove_var("FORGE_OS");
-        std::env::remove_var("FORGE_PID");
-        std::env::remove_var("FORGE_CWD");
-        std::env::remove_var("FORGE_SHELL");
-        std::env::remove_var("FORGE_BASE_PATH");
-        std::env::remove_var("FORGE_FORGE_API_URL");
-        std::env::remove_var("FORGE_HOME");
-        std::env::remove_var("FORGE_DEBUG_REQUESTS");
-        std::env::remove_var("FORGE_CUSTOM_HISTORY_PATH");
-        std::env::remove_var("FORGE_OVERRIDE_MODEL");
-        std::env::remove_var("FORGE_OVERRIDE_PROVIDER");
-        std::env::remove_var("FORGE_MAX_SEARCH_LINES");
-        std::env::remove_var("FORGE_MAX_SEARCH_RESULT_BYTES");
-        std::env::remove_var("FORGE_FETCH_TRUNCATION_LIMIT");
-        std::env::remove_var("FORGE_STDOUT_MAX_PREFIX_LENGTH");
-        std::env::remove_var("FORGE_STDOUT_MAX_SUFFIX_LENGTH");
-        std::env::remove_var("FORGE_STDOUT_MAX_LINE_LENGTH");
-        std::env::remove_var("FORGE_MAX_READ_SIZE");
-        std::env::remove_var("FORGE_MAX_FILE_SIZE");
-        std::env::remove_var("FORGE_TOOL_TIMEOUT");
-        std::env::remove_var("FORGE_AUTO_OPEN_DUMP");
-        std::env::remove_var("FORGE_MAX_CONVERSATIONS");
-        std::env::remove_var("FORGE_SEM_SEARCH_LIMIT");
-        std::env::remove_var("FORGE_SEM_SEARCH_TOP_K");
-        std::env::remove_var("FORGE_MAX_IMAGE_SIZE");
-        std::env::remove_var("FORGE_WORKSPACE_SERVER_URL");
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_mcp_local_config() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture.cwd(PathBuf::from("/projects/my-app"));
+
+        let actual = fixture.mcp_local_config();
+        let expected = PathBuf::from("/projects/my-app/.mcp.json");
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_version() {
+        let fixture: Environment = Faker.fake();
+
+        let actual = fixture.version();
+
+        assert!(!actual.is_empty());
+    }
+
+    #[test]
+    fn test_app_config() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture.base_path(PathBuf::from("/home/user/.forge"));
+
+        let actual = fixture.app_config();
+        let expected = PathBuf::from("/home/user/.forge/.config.json");
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_database_path() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture.base_path(PathBuf::from("/home/user/.forge"));
+
+        let actual = fixture.database_path();
+        let expected = PathBuf::from("/home/user/.forge/.forge.db");
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cache_dir() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture.base_path(PathBuf::from("/home/user/.forge"));
+
+        let actual = fixture.cache_dir();
+        let expected = PathBuf::from("/home/user/.forge/cache");
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_workspace_hash() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture.cwd(PathBuf::from("/projects/my-app"));
+
+        let actual = fixture.workspace_hash();
+
+        assert!(actual.id() > 0);
+    }
+
+    #[test]
+    fn test_workspace_hash_consistency() {
+        let fixture: Environment = Faker.fake();
+        let fixture = fixture.cwd(PathBuf::from("/projects/my-app"));
+
+        let hash1 = fixture.workspace_hash();
+        let hash2 = fixture.workspace_hash();
+
+        assert_eq!(hash1.id(), hash2.id());
+    }
+
+    #[test]
+    fn test_from_env_loads_default_config() {
+        let env = Environment::from_env().unwrap();
+
+        // Verify default values come from embedded JSON config
+        assert_eq!(env.max_search_lines, 200);
+        assert_eq!(env.http.connect_timeout, 30);
+        assert_eq!(env.http.read_timeout, 900);
+        assert_eq!(env.os, "macos");
     }
 }
