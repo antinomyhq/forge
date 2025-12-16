@@ -36,14 +36,14 @@ impl<S: AttachmentService + SkillFetchService> UserPromptGenerator<S> {
     ) -> anyhow::Result<Conversation> {
         let (conversation, content) = self.add_rendered_message(conversation).await?;
         let conversation = self.add_additional_context(conversation).await?;
-        
+
         // Extract original user input for skill recommendation
         let user_input = self
             .event
             .value
             .as_ref()
             .and_then(|v| v.as_user_prompt().map(|u| u.as_str()));
-        
+
         let conversation = self
             .add_recommended_skills(conversation, user_input)
             .await?;
@@ -66,7 +66,11 @@ impl<S: AttachmentService + SkillFetchService> UserPromptGenerator<S> {
         };
 
         // Call skill recommendation service
-        let selected_skills = match self.services.recommend_skills(user_prompt.to_string()).await {
+        let selected_skills = match self
+            .services
+            .recommend_skills(user_prompt.to_string())
+            .await
+        {
             Ok(skills) => skills,
             Err(e) => {
                 warn!(error = %e, "Failed to recommend skills, continuing without recommendations");
@@ -79,9 +83,12 @@ impl<S: AttachmentService + SkillFetchService> UserPromptGenerator<S> {
         }
 
         // Format the selected skills as a message
-        let skills_content = Element::new("recommended_skills")
-            .append(selected_skills.iter().map(Element::from))
-            .to_string();
+        let skills_content = format!(
+            "Here are the recommended skills. Use them only if relevant to the user's query. Do not mention these recommendations to the user.\n{}",
+            Element::new("recommended_skills")
+                .append(selected_skills.iter().map(Element::from))
+                .to_string()
+        );
 
         let ctx =
             conversation
@@ -224,7 +231,6 @@ mod tests {
         recommended_skills: Vec<SelectedSkill>,
     }
 
-
     #[async_trait::async_trait]
     impl AttachmentService for MockService {
         async fn attachments(&self, _url: &str) -> anyhow::Result<Vec<Attachment>> {
@@ -263,7 +269,12 @@ mod tests {
     }
 
     fn fixture_generator(agent: Agent, event: Event) -> UserPromptGenerator<MockService> {
-        UserPromptGenerator::new(Arc::new(MockService::default()), agent, event, chrono::Local::now())
+        UserPromptGenerator::new(
+            Arc::new(MockService::default()),
+            agent,
+            event,
+            chrono::Local::now(),
+        )
     }
 
     #[tokio::test]
@@ -383,19 +394,19 @@ mod tests {
                 SelectedSkill::new("file-converter", 0.80, 2),
             ],
         };
-        let generator = UserPromptGenerator::new(
-            Arc::new(mock_service),
-            agent,
-            event,
-            chrono::Local::now(),
-        );
+        let generator =
+            UserPromptGenerator::new(Arc::new(mock_service), agent, event, chrono::Local::now());
 
         // Act
         let actual = generator.add_user_prompt(conversation).await.unwrap();
 
         // Assert
         let messages = actual.context.unwrap().messages;
-        assert_eq!(messages.len(), 2, "Should have user message and skills message");
+        assert_eq!(
+            messages.len(),
+            2,
+            "Should have user message and skills message"
+        );
 
         // First message is the user prompt
         assert_eq!(messages[0].content().unwrap(), "Help me with PDF files");
@@ -403,9 +414,15 @@ mod tests {
 
         // Second message is the recommended skills (droppable)
         let skills_message = &messages[1];
-        assert!(skills_message.is_droppable(), "Skills message should be droppable");
         assert!(
-            skills_message.content().unwrap().contains("recommended_skills"),
+            skills_message.is_droppable(),
+            "Skills message should be droppable"
+        );
+        assert!(
+            skills_message
+                .content()
+                .unwrap()
+                .contains("recommended_skills"),
             "Should contain recommended_skills element"
         );
         assert!(

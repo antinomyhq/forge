@@ -93,10 +93,7 @@ impl SelectedSkill {
 
 impl From<&SelectedSkill> for forge_template::Element {
     fn from(skill: &SelectedSkill) -> Self {
-        forge_template::Element::new("skill")
-            .attr("name", &skill.name)
-            .attr("relevance", format!("{:.0}%", skill.relevance * 100.0))
-            .attr("rank", skill.rank.to_string())
+        forge_template::Element::new("skill").attr("name", &skill.name)
     }
 }
 
