@@ -18,27 +18,6 @@ impl<C: CompactRange> CompactionTransformer<C> {
     pub fn new(agent: Agent, compactor: Option<C>) -> Self {
         Self { agent, compactor }
     }
-
-    fn find_last_breakpoint(&self, ctx: &Context) -> Option<usize> {
-        if ctx.messages.is_empty() {
-            return None;
-        }
-
-        let mut last_bp: Option<usize> = None;
-        let mut acc_ctx = Context::default();
-
-        for (i, msg) in ctx.messages.iter().enumerate() {
-            acc_ctx = acc_ctx.add_message(msg.message.clone());
-
-            let token_count = *acc_ctx.token_count();
-            if self.agent.should_compact(&acc_ctx, token_count) {
-                last_bp = Some(i);
-                acc_ctx = Context::default();
-            }
-        }
-
-        last_bp
-    }
 }
 
 impl<C: CompactRange> Transformer for CompactionTransformer<C> {
@@ -49,28 +28,15 @@ impl<C: CompactRange> Transformer for CompactionTransformer<C> {
             return context;
         };
 
-        let Some(breakpoint) = self.find_last_breakpoint(&context) else {
-            tracing::debug!(agent_id = %self.agent.id, "No compaction needed");
+        let Some(compact_config) = &self.agent.compact else {
             return context;
         };
 
-        match compactor.compact_range(&context, breakpoint) {
-            Ok(msg) => {
-                let mut compacted_context = Context::default().add_message(msg);
-
-                // Add the remaining messages after breakpoint
-                for entry in context.messages.iter().skip(breakpoint + 1) {
-                    compacted_context = compacted_context.add_message(entry.message.clone());
-                }
-
-                tracing::info!(
-                    agent_id = %self.agent.id,
-                    original_messages = context.messages.len(),
-                    compacted_messages = compacted_context.messages.len(),
-                    "Context compacted"
-                );
-
-                compacted_context
+        match compactor.compact_range(&context, compact_config) {
+            Ok(Some(compacted_context)) => compacted_context,
+            Ok(None) => {
+                tracing::debug!(agent_id = %self.agent.id, "No compaction needed");
+                context
             }
             Err(e) => {
                 tracing::error!(
@@ -94,9 +60,42 @@ mod tests {
     struct MockCompactor;
 
     impl CompactRange for MockCompactor {
-        fn compact_range(&self, _context: &Context, _max: usize) -> anyhow::Result<ContextMessage> {
-            // Simple mock: just return a context with fewer messages
-            Ok(ContextMessage::user("Compacted summary", None))
+        fn compact_range(
+            &self,
+            context: &Context,
+            compact_config: &Compact,
+        ) -> anyhow::Result<Option<Context>> {
+            // Mock implementation that mimics the real behavior
+            if context.messages.is_empty() {
+                return Ok(None);
+            }
+
+            let mut last_bp: Option<usize> = None;
+            let mut acc_ctx = Context::default();
+
+            for (i, msg) in context.messages.iter().enumerate() {
+                acc_ctx = acc_ctx.add_message(msg.message.clone());
+
+                let token_count = *acc_ctx.token_count();
+                if compact_config.should_compact(&acc_ctx, token_count) {
+                    last_bp = Some(i);
+                    acc_ctx = Context::default();
+                }
+            }
+
+            let Some(breakpoint) = last_bp else {
+                return Ok(None);
+            };
+
+            let mut compacted_context =
+                Context::default().add_message(ContextMessage::user("Compacted summary", None));
+
+            // Add the remaining messages after breakpoint
+            for entry in context.messages.iter().skip(breakpoint + 1) {
+                compacted_context = compacted_context.add_message(entry.message.clone());
+            }
+
+            Ok(Some(compacted_context))
         }
     }
 

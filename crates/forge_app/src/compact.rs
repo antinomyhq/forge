@@ -13,7 +13,11 @@ pub struct Compactor {
 }
 
 pub trait CompactRange {
-    fn compact_range(&self, _context: &Context, _max: usize) -> anyhow::Result<ContextMessage>;
+    fn compact_range(
+        &self,
+        context: &Context,
+        compact_config: &Compact,
+    ) -> anyhow::Result<Option<Context>>;
 }
 
 impl Compactor {
@@ -40,20 +44,77 @@ impl Compactor {
 }
 
 impl CompactRange for Compactor {
-    fn compact_range(&self, context: &Context, end_index: usize) -> anyhow::Result<ContextMessage> {
-        if end_index >= context.messages.len() {
-            return Err(anyhow::anyhow!("BUG(compaction): end index out of bounds"));
+    fn compact_range(
+        &self,
+        context: &Context,
+        compact_config: &Compact,
+    ) -> anyhow::Result<Option<Context>> {
+        let Some(breakpoint) = self.find_last_breakpoint(context, compact_config) else {
+            tracing::debug!("No compaction needed");
+            return Ok(None);
+        };
+
+        if breakpoint >= context.messages.len() {
+            return Err(anyhow::anyhow!("BUG(compaction): breakpoint out of bounds"));
         }
 
-        let summary = self.render_summary_frame(&context.messages[0..=end_index])?;
+        let summary = self.render_summary_frame(&context.messages[0..=breakpoint])?;
 
-        info!(end_index = end_index, "Created context compaction summary");
+        info!(breakpoint = breakpoint, "Created context compaction summary");
 
-        Ok(ContextMessage::user(summary, None))
+        let mut compacted_context = Context::default().add_message(ContextMessage::user(summary, None));
+
+        // Add the remaining messages after breakpoint
+        for entry in context.messages.iter().skip(breakpoint + 1) {
+            compacted_context = compacted_context.add_message(entry.message.clone());
+        }
+
+        tracing::info!(
+            original_messages = context.messages.len(),
+            compacted_messages = compacted_context.messages.len(),
+            "Context compacted"
+        );
+
+        Ok(Some(compacted_context))
     }
 }
 
 impl Compactor {
+    /// Finds the last breakpoint in the context where compaction should occur.
+    ///
+    /// Iterates through messages, accumulating them into temporary contexts and
+    /// checking if compaction thresholds are met. Returns the index of the last
+    /// message before the most recent compaction threshold breach.
+    ///
+    /// # Arguments
+    ///
+    /// * `context` - The context to analyze for breakpoints
+    /// * `compact_config` - The compaction configuration containing thresholds
+    ///
+    /// # Returns
+    ///
+    /// The index of the last breakpoint, or None if no compaction is needed
+    fn find_last_breakpoint(&self, context: &Context, compact_config: &Compact) -> Option<usize> {
+        if context.messages.is_empty() {
+            return None;
+        }
+
+        let mut last_bp: Option<usize> = None;
+        let mut acc_ctx = Context::default();
+
+        for (i, msg) in context.messages.iter().enumerate() {
+            acc_ctx = acc_ctx.add_message(msg.message.clone());
+
+            let token_count = *acc_ctx.token_count();
+            if compact_config.should_compact(&acc_ctx, token_count) {
+                last_bp = Some(i);
+                acc_ctx = Context::default();
+            }
+        }
+
+        last_bp
+    }
+
     fn render_summary_frame(
         &self,
         messages: &[forge_domain::MessageEntry],
