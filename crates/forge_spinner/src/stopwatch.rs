@@ -57,12 +57,12 @@ impl fmt::Display for Stopwatch {
             // Less than 1 hour: "1:01m", "1:59m", etc.
             let minutes = total_seconds / 60;
             let seconds = total_seconds % 60;
-            write!(f, "{}:{:02}s", minutes, seconds)
+            write!(f, "{}:{:02}m", minutes, seconds)
         } else {
             // 1 hour or more: "1:01h", "2:30h", etc.
             let hours = total_seconds / 3600;
             let minutes = (total_seconds % 3600) / 60;
-            write!(f, "{}:{:02}m", hours, minutes)
+            write!(f, "{}:{:02}h", hours, minutes)
         }
     }
 }
