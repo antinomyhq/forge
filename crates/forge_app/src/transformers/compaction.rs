@@ -1,4 +1,5 @@
 use forge_domain::{Agent, Context, Transformer};
+
 use crate::compact::Compactor;
 
 /// Transformer that compacts context when necessary before sending to LLM
