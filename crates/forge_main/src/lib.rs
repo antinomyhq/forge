@@ -5,6 +5,7 @@ mod conversation_selector;
 mod display_constants;
 mod editor;
 mod env;
+mod format_utils;
 mod info;
 mod input;
 mod model;
