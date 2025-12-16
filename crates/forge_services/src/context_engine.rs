@@ -667,12 +667,17 @@ impl<
             self.infra.load_skills()
         );
 
-        let token = match credential?
-            .ok_or(forge_domain::Error::AuthTokenNotFound)?
-            .auth_details
-        {
-            forge_domain::AuthDetails::ApiKey(token) => token,
-            _ => anyhow::bail!("ForgeServices credential must be an API key"),
+        // Get token from existing credential or create new credentials if none exists
+        let token = match credential? {
+            Some(cred) => match cred.auth_details {
+                forge_domain::AuthDetails::ApiKey(token) => token,
+                _ => anyhow::bail!("ForgeServices credential must be an API key"),
+            },
+            None => {
+                // Create new credentials if none exist
+                let auth = self.create_auth_credentials().await?;
+                auth.token
+            }
         };
 
         let skill_infos: Vec<_> = skills?
@@ -1362,22 +1367,21 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_recommend_skills_error_when_not_authenticated() {
+    async fn test_recommend_skills_creates_credentials_when_not_authenticated() {
         // Fixture
         let mut mock = MockInfra::synced(&["main.rs"]);
         mock.authenticated = false;
+        mock.skills = vec![forge_domain::Skill::new("test_skill", "prompt", "Test skill description")];
+        mock.selected_skills = vec![forge_domain::SelectedSkill::new("test_skill", 0.9, 1)];
         let service = ForgeContextEngineService::new(Arc::new(mock));
 
-        // Act
+        // Act - should create credentials and succeed
         let actual = service.recommend_skills("test".to_string()).await;
 
-        // Assert
-        assert!(actual.is_err());
-        assert!(
-            actual
-                .unwrap_err()
-                .to_string()
-                .contains("No indexing authentication found")
-        );
+        // Assert - should succeed after creating credentials
+        assert!(actual.is_ok());
+        let skills = actual.unwrap();
+        assert_eq!(skills.len(), 1);
+        assert_eq!(skills[0].name, "test_skill");
     }
 }
