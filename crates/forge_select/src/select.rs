@@ -80,7 +80,13 @@ impl ForgeSelect {
 
     /// Prompt a question and get text input
     pub fn input(message: impl Into<String>) -> InputBuilder {
-        InputBuilder { message: message.into(), allow_empty: false, default: None }
+        InputBuilder {
+            message: message.into(),
+            allow_empty: false,
+            default_value: None,
+            default_display: None,
+            show_default: true,
+        }
     }
 
     /// Multi-select prompt
@@ -264,7 +270,41 @@ impl<T> SelectBuilderOwned<T> {
 pub struct InputBuilder {
     message: String,
     allow_empty: bool,
-    default: Option<String>,
+    default_value: Option<String>,
+    default_display: Option<String>,
+    show_default: bool,
+}
+
+// Internal type for dialoguer interaction
+struct DialoguerMaskedDefault {
+    value: String,
+    display: String,
+}
+
+impl std::fmt::Display for DialoguerMaskedDefault {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.display)
+    }
+}
+
+impl std::str::FromStr for DialoguerMaskedDefault {
+    type Err = std::convert::Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(DialoguerMaskedDefault {
+            value: s.to_string(),
+            display: s.to_string(),
+        })
+    }
+}
+
+impl Clone for DialoguerMaskedDefault {
+    fn clone(&self) -> Self {
+        DialoguerMaskedDefault {
+            value: self.value.clone(),
+            display: self.display.clone(),
+        }
+    }
 }
 
 impl InputBuilder {
@@ -275,8 +315,54 @@ impl InputBuilder {
     }
 
     /// Set default value
-    pub fn with_default(mut self, default: impl Into<String>) -> Self {
-        self.default = Some(default.into());
+    ///
+    /// Accepts any type that implements `Display + AsRef<str>`:
+    /// - `Display` is used for showing in the prompt
+    /// - `AsRef<str>` is used for the actual value
+    ///
+    /// For regular strings, both are the same.
+    /// For types like `ApiKey`, Display can show a masked version while AsRef<str> returns the actual value.
+    ///
+    /// # Examples
+    ///
+    /// ```rust,ignore
+    /// // Regular default (Display and AsRef<str> are the same)
+    /// ForgeSelect::input("Enter name:")
+    ///     .with_default("John")
+    ///     .prompt()?;
+    ///
+    /// // Masked default (e.g., ApiKey with Display showing masked version)
+    /// ForgeSelect::input("Enter API key:")
+    ///     .with_default(&api_key)  // ApiKey implements Display (masked) and AsRef<str> (actual)
+    ///     .prompt()?;
+    /// ```
+    pub fn with_default<T>(mut self, default: T) -> Self
+    where
+        T: std::fmt::Display + AsRef<str>,
+    {
+        self.default_value = Some(default.as_ref().to_string());
+        self.default_display = Some(default.to_string());
+        self.show_default = true;
+        self
+    }
+
+    /// Control whether the default value is displayed in the prompt
+    ///
+    /// When set to `false`, the default value will still be used when the user
+    /// presses Enter without typing anything, but it won't be shown in the prompt.
+    /// This is useful for sensitive data like API keys where you want to use a
+    /// default but not display it.
+    ///
+    /// # Example
+    ///
+    /// ```rust,ignore
+    /// let input = ForgeSelect::input("Enter API key (current: sk-...abc)")
+    ///     .with_default("sk-1234567890abcdef")  // Full key used as default
+    ///     .show_default(false)                   // But not displayed
+    ///     .prompt()?;
+    /// ```
+    pub fn show_default(mut self, show: bool) -> Self {
+        self.show_default = show;
         self
     }
 
@@ -298,13 +384,42 @@ impl InputBuilder {
         let _cursor_guard = ApplicationCursorKeysGuard::new()?;
 
         let theme = ForgeSelect::default_theme();
-        let mut input = Input::with_theme(&theme)
+
+        // Check if we have both value and display (masked default scenario)
+        if let (Some(value), Some(display)) = (self.default_value, self.default_display) {
+            // If value and display are different, use DialoguerMaskedDefault
+            if value != display {
+                let masked = DialoguerMaskedDefault { value, display };
+                let input = Input::with_theme(&theme)
+                    .with_prompt(&self.message)
+                    .allow_empty(self.allow_empty)
+                    .default(masked);
+
+                return match input.interact_text() {
+                    Ok(masked_result) => Ok(Some(masked_result.value)),
+                    Err(e) if is_interrupted_error(&e) => Ok(None),
+                    Err(e) => Err(e.into()),
+                };
+            }
+            
+            // If they're the same, treat as normal string
+            let input = Input::with_theme(&theme)
+                .with_prompt(&self.message)
+                .allow_empty(self.allow_empty)
+                .show_default(self.show_default)
+                .default(value);
+
+            return match input.interact_text() {
+                Ok(value) => Ok(Some(value)),
+                Err(e) if is_interrupted_error(&e) => Ok(None),
+                Err(e) => Err(e.into()),
+            };
+        }
+
+        // No default provided
+        let input = Input::with_theme(&theme)
             .with_prompt(&self.message)
             .allow_empty(self.allow_empty);
-
-        if let Some(default) = self.default {
-            input = input.default(default);
-        }
 
         match input.interact_text() {
             Ok(value) => Ok(Some(value)),

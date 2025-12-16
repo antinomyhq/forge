@@ -1814,12 +1814,19 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 Ok((param.to_string(), param_value))
             })
             .collect::<anyhow::Result<HashMap<_, _>>>()?;
+        
+        let input = if let Some(default_key) = &request.api_key {
+            // ApiKey's Display shows masked version, AsRef<str> gives actual value
+            ForgeSelect::input(format!("Enter your {provider_id} API key:"))
+                .with_default(default_key)
+        } else {
+            ForgeSelect::input(format!("Enter your {provider_id} API key:"))
+        };
 
-        let api_key = ForgeSelect::input(format!("Enter your {provider_id} API key:"))
-            .prompt()?
+        let api_key_str = input.prompt()?
             .context("API key input cancelled")?;
 
-        let api_key_str = api_key.trim();
+        let api_key_str = api_key_str.trim();
         anyhow::ensure!(!api_key_str.is_empty(), "API key cannot be empty");
 
         // Update the context with collected data

@@ -80,6 +80,16 @@ pub enum AuthDetails {
     },
 }
 
+impl AuthDetails {
+    pub fn api_key(&self) -> Option<&ApiKey> {
+        match self {
+            AuthDetails::ApiKey(api_key) => Some(api_key),
+            AuthDetails::OAuth{..} => None,
+            AuthDetails::OAuthWithApiKey {..} => None,
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct OAuthTokens {
     pub access_token: AccessToken,
