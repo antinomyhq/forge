@@ -10,6 +10,7 @@ use derive_setters::Setters;
 use forge_domain::{AgentId, ModelId, TokenCount};
 
 use super::style::{ZshColor, ZshStyle};
+use crate::utils::humanize_number;
 
 /// ZSH right prompt displaying agent, model, and token count.
 ///
@@ -46,14 +47,15 @@ impl Display for ZshRPrompt {
 
         // Add token count
         if let Some(count) = self.token_count {
-            let count = match *count {
-                n if n >= 1_000_000_000 => format!("{:.1}B", n as f64 / 1_000_000_000.0),
-                n if n >= 1_000_000 => format!("{:.1}M", n as f64 / 1_000_000.0),
-                n if n >= 1_000 => format!("{:.1}k", n as f64 / 1_000.0),
-                _ => count.to_string(),
+            let num = humanize_number(*count);
+
+            let prefix = match count {
+                TokenCount::Actual(_) => "",
+                TokenCount::Approx(_) => "~",
             };
+
             if active {
-                write!(f, " {}", count.zsh().fg(ZshColor::WHITE).bold())?;
+                write!(f, " {}{}", prefix, num.zsh().fg(ZshColor::WHITE).bold())?;
             }
         }
 
