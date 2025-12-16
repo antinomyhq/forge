@@ -249,7 +249,10 @@ impl crate::ContextEngineService for Runner {
         unimplemented!()
     }
 
-    async fn delete_codebase(&self, _workspace_id: &forge_domain::WorkspaceId) -> anyhow::Result<()> {
+    async fn delete_codebase(
+        &self,
+        _workspace_id: &forge_domain::WorkspaceId,
+    ) -> anyhow::Result<()> {
         unimplemented!()
     }
 

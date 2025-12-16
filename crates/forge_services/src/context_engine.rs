@@ -660,10 +660,7 @@ impl<
         Ok(auth)
     }
 
-    async fn recommend_skills(
-        &self,
-        use_case: String,
-    ) -> Result<Vec<forge_domain::SelectedSkill>> {
+    async fn recommend_skills(&self, use_case: String) -> Result<Vec<forge_domain::SelectedSkill>> {
         // Get auth token and skills in parallel
         let (credential, skills) = tokio::join!(
             self.infra.get_credential(&ProviderId::FORGE_SERVICES),
