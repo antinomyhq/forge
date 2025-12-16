@@ -45,25 +45,26 @@ impl TitleDisplay {
 
         // Add usage information if available (only for debug messages)
         if self.title.category == Category::Debug
-            && let Some(usage) = &self.usage {
-                let total_tokens = *usage.total_tokens;
-                if total_tokens > 0 {
-                    let humanized_tokens = humanize_number(total_tokens);
-                    timestamp_str.push_str(&format!(" {}", humanized_tokens));
+            && let Some(usage) = &self.usage
+        {
+            let total_tokens = *usage.total_tokens;
+            if total_tokens > 0 {
+                let humanized_tokens = humanize_number(total_tokens);
+                timestamp_str.push_str(&format!(" {}", humanized_tokens));
 
-                    // Add cost if available
-                    if let Some(cost) = usage.cost {
-                        timestamp_str.push_str(&format!(" ${:.4}", cost));
-                    }
+                // Add cost if available
+                if let Some(cost) = usage.cost {
+                    timestamp_str.push_str(&format!(" ${:.4}", cost));
+                }
 
-                    // Add cache percentage if there are cached tokens
-                    let cached = *usage.cached_tokens;
-                    if cached > 0 {
-                        let cache_pct = (cached as f64 / total_tokens as f64) * 100.0;
-                        timestamp_str.push_str(&format!(" {}%", cache_pct.round() as u32));
-                    }
+                // Add cache percentage if there are cached tokens
+                let cached = *usage.cached_tokens;
+                if cached > 0 {
+                    let cache_pct = (cached as f64 / total_tokens as f64) * 100.0;
+                    timestamp_str.push_str(&format!(" {}%", cache_pct.round() as u32));
                 }
             }
+        }
 
         let timestamp_str = format!("[{}] ", timestamp_str);
         buf.push_str(timestamp_str.dimmed().to_string().as_str());
