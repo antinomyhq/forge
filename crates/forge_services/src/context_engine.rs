@@ -1371,7 +1371,11 @@ mod tests {
         // Fixture
         let mut mock = MockInfra::synced(&["main.rs"]);
         mock.authenticated = false;
-        mock.skills = vec![forge_domain::Skill::new("test_skill", "prompt", "Test skill description")];
+        mock.skills = vec![forge_domain::Skill::new(
+            "test_skill",
+            "prompt",
+            "Test skill description",
+        )];
         mock.selected_skills = vec![forge_domain::SelectedSkill::new("test_skill", 0.9, 1)];
         let service = ForgeContextEngineService::new(Arc::new(mock));
 
