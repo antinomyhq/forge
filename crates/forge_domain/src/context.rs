@@ -79,9 +79,7 @@ impl ContextMessage {
     /// ref: https://github.com/openai/codex/blob/main/codex-cli/src/utils/approximate-tokens-used.ts
     pub fn token_count_approx(&self) -> usize {
         let char_count = match self {
-            ContextMessage::Text(text_message)
-                if matches!(text_message.role, Role::User | Role::Assistant) =>
-            {
+            ContextMessage::Text(text_message) => {
                 text_message.content.chars().count()
                     + tool_call_content_char_count(text_message)
                     + reasoning_content_char_count(text_message)
@@ -1304,10 +1302,10 @@ mod tests {
 
     #[test]
     fn test_context_message_token_count_approx_system() {
-        // Fixture: System message should return 0 tokens (not counted in approximation)
+        // Fixture: System message should now be counted in token approximation
         let fixture = ContextMessage::system("System instructions here");
         let actual = fixture.token_count_approx();
-        let expected = 0; // System messages are not counted in the approximation
+        let expected = 6; // System messages are now counted in the approximation
         assert_eq!(actual, expected);
     }
 

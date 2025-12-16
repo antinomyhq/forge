@@ -1,5 +1,6 @@
 use anyhow::Result;
 use console::{strip_ansi_codes, style};
+use crossterm::cursor;
 use dialoguer::theme::ColorfulTheme;
 use dialoguer::{Confirm, FuzzySelect, Input, MultiSelect};
 
@@ -38,7 +39,7 @@ impl ForgeSelect {
     /// suffix arrow
     fn default_theme() -> ColorfulTheme {
         ColorfulTheme {
-            prompt_suffix: style("".to_string()),
+            prompt_suffix: style(format!("{}", cursor::MoveLeft(1))),
             ..ColorfulTheme::default()
         }
     }
