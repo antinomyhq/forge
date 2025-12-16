@@ -1,8 +1,10 @@
 use anyhow::{Context as _, Result};
+use aws_sdk_bedrockruntime::config::Token;
 use aws_sdk_bedrockruntime::Client;
 use forge_app::HttpClientService;
 use forge_domain::{
-    ChatCompletionMessage, Context, Model, ModelId, Provider, ResultStream, Transformer,
+    AuthDetails, ChatCompletionMessage, Context, Model, ModelId, Provider, ResultStream,
+    Transformer,
 };
 use reqwest::Url;
 use tokio::sync::OnceCell;
@@ -10,7 +12,10 @@ use tokio::sync::OnceCell;
 use super::SetCache;
 use crate::{FromDomain, IntoDomain};
 
-/// Provider implementation for Amazon Bedrock using AWS SDK
+/// Provider implementation for Amazon Bedrock using Bearer token authentication
+///
+/// This provider uses the AWS SDK with Bearer token authentication instead of
+/// AWS SigV4 signing, allowing it to work with Bedrock Access Gateway.
 pub struct BedrockProvider<T> {
     provider: Provider<Url>,
     region: String,
@@ -21,39 +26,47 @@ pub struct BedrockProvider<T> {
 impl<H: HttpClientService> BedrockProvider<H> {
     /// Creates a new BedrockProvider instance
     ///
-    /// Credentials are automatically loaded from:
-    /// - Environment variables (AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY,
-    ///   AWS_SESSION_TOKEN)
-    /// - AWS credentials file (~/.aws/credentials)
-    /// - IAM role (for EC2/ECS/Lambda)
+    /// Credentials are loaded from the provider's credential:
+    /// - API key field: Bearer token for Bedrock Access Gateway
+    /// - URL params: AWS_REGION (defaults to us-east-1)
     pub fn new(provider: Provider<Url>) -> Result<Self> {
-        // Extract region from URL params
-        let region_param: forge_domain::URLParam = "AWS_REGION".to_string().into();
-        let region = provider
+        // Validate credentials are present
+        let credential = provider
             .credential
             .as_ref()
-            .and_then(|c| c.url_params.get(&region_param).map(|v| v.to_string()))
+            .context("Bedrock requires credentials")?;
+
+        // Validate API key (bearer token)
+        let bearer_token = match &credential.auth_details {
+            AuthDetails::ApiKey(key) if !key.is_empty() => key.to_string(),
+            _ => anyhow::bail!("Bearer token is required in API key field"),
+        };
+
+        // Extract region from URL params
+        let region_param: forge_domain::URLParam = "AWS_REGION".to_string().into();
+        let region = credential
+            .url_params
+            .get(&region_param)
+            .map(|v| v.to_string())
             .unwrap_or_else(|| "us-east-1".to_string());
+
+        // Configure AWS SDK client with Bearer token authentication
+        let config = aws_sdk_bedrockruntime::Config::builder()
+            .region(aws_sdk_bedrockruntime::config::Region::new(region.clone()))
+            .bearer_token(Token::new(bearer_token, None))
+            .build();
+
+        let client = aws_sdk_bedrockruntime::Client::from_conf(config);
+
+        let client_cell = OnceCell::new();
+        client_cell.set(client).ok();
 
         Ok(Self {
             provider,
             region,
-            client: OnceCell::new(),
+            client: client_cell,
             _phantom: std::marker::PhantomData,
         })
-    }
-
-    /// Get or create the AWS SDK client
-    async fn get_client(&self) -> Result<&Client> {
-        self.client
-            .get_or_try_init(|| async {
-                let config = aws_config::defaults(aws_config::BehaviorVersion::latest())
-                    .region(aws_config::Region::new(self.region.clone()))
-                    .load()
-                    .await;
-                Ok(Client::new(&config))
-            })
-            .await
     }
 
     /// Check if the model supports prompt caching
@@ -110,10 +123,6 @@ impl<H: HttpClientService> BedrockProvider<H> {
         context: Context,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
         let model_id = self.transform_model_id(model.as_str());
-        let client = match self.get_client().await {
-            Ok(c) => c,
-            Err(e) => return Err(e),
-        };
 
         // Convert context to AWS SDK types using FromDomain trait
         let bedrock_input =
@@ -129,7 +138,10 @@ impl<H: HttpClientService> BedrockProvider<H> {
             .transform(bedrock_input);
 
         // Build and send the converse_stream request
-        let output = client
+        let output = self
+            .client
+            .get()
+            .expect("Client should be initialized in constructor")
             .converse_stream()
             .model_id(model_id)
             .set_system(bedrock_input.system.clone())
