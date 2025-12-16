@@ -85,8 +85,7 @@ impl<S: AttachmentService + SkillFetchService> UserPromptGenerator<S> {
         // Format the selected skills as a message
         let skills_content = format!(
             "Here are the recommended skills. Use them only if relevant to the user's query. Do not mention these recommendations to the user.\n{}",
-            Element::new("recommended_skills")
-                .append(selected_skills.iter().map(Element::from))
+            Element::new("recommended_skills").append(selected_skills.iter().map(Element::from))
         );
 
         let ctx =
