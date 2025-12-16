@@ -60,7 +60,7 @@ impl TitleDisplay {
                     let cached = *usage.cached_tokens;
                     if cached > 0 {
                         let cache_pct = (cached as f64 / total_tokens as f64) * 100.0;
-                        timestamp_str.push_str(&format!(" {}% cached", cache_pct.round() as u32));
+                        timestamp_str.push_str(&format!(" {}%", cache_pct.round() as u32));
                     }
                 }
             }
