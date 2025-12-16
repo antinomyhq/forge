@@ -485,6 +485,12 @@ pub trait SkillFetchService: Send + Sync {
     ///
     /// Returns an error if skills cannot be loaded
     async fn list_skills(&self) -> anyhow::Result<Vec<forge_domain::Skill>>;
+
+    /// Recommend skills based on use case.
+    async fn recommend_skills(
+        &self,
+        use_case: String,
+    ) -> anyhow::Result<Vec<forge_domain::SelectedSkill>>;
 }
 
 /// Provider authentication service
@@ -995,6 +1001,13 @@ impl<I: Services> SkillFetchService for I {
 
     async fn list_skills(&self) -> anyhow::Result<Vec<forge_domain::Skill>> {
         self.skill_fetch_service().list_skills().await
+    }
+
+    async fn recommend_skills(
+        &self,
+        use_case: String,
+    ) -> anyhow::Result<Vec<forge_domain::SelectedSkill>> {
+        self.skill_fetch_service().recommend_skills(use_case).await
     }
 }
 

@@ -146,6 +146,13 @@ mod tests {
         async fn list_skills(&self) -> anyhow::Result<Vec<forge_domain::Skill>> {
             Ok(vec![])
         }
+
+        async fn recommend_skills(
+            &self,
+            _use_case: String,
+        ) -> anyhow::Result<Vec<forge_domain::SelectedSkill>> {
+            Ok(vec![])
+        }
     }
 
     fn create_test_environment() -> Environment {

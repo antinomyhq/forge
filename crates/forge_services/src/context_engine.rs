@@ -942,6 +942,14 @@ mod tests {
                 .retain(|w| w.workspace_id != *workspace_id);
             Ok(())
         }
+
+        async fn select_skill(
+            &self,
+            _params: forge_domain::SkillSelectionParams,
+            _token: &ApiKey,
+        ) -> Result<Vec<forge_domain::SelectedSkill>> {
+            Ok(vec![])
+        }
     }
 
     #[async_trait]
