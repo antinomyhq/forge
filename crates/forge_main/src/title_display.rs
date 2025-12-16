@@ -43,23 +43,25 @@ impl TitleDisplay {
 
         let mut timestamp_str = format!("{}", self.title.timestamp.format("%H:%M:%S"));
 
-        // Add usage information if available
-        if let Some(usage) = &self.usage {
-            let total_tokens = *usage.total_tokens;
-            if total_tokens > 0 {
-                let humanized_tokens = humanize_number(total_tokens);
-                timestamp_str.push_str(&format!(" {}", humanized_tokens));
+        // Add usage information if available (only for debug messages)
+        if self.title.category == Category::Debug {
+            if let Some(usage) = &self.usage {
+                let total_tokens = *usage.total_tokens;
+                if total_tokens > 0 {
+                    let humanized_tokens = humanize_number(total_tokens);
+                    timestamp_str.push_str(&format!(" {}", humanized_tokens));
 
-                // Add cost if available
-                if let Some(cost) = usage.cost {
-                    timestamp_str.push_str(&format!(" ${:.4}", cost));
-                }
+                    // Add cost if available
+                    if let Some(cost) = usage.cost {
+                        timestamp_str.push_str(&format!(" ${:.4}", cost));
+                    }
 
-                // Add cache percentage if there are cached tokens
-                let cached = *usage.cached_tokens;
-                if cached > 0 {
-                    let cache_pct = (cached as f64 / total_tokens as f64) * 100.0;
-                    timestamp_str.push_str(&format!(" {}% cached", cache_pct.round() as u32));
+                    // Add cache percentage if there are cached tokens
+                    let cached = *usage.cached_tokens;
+                    if cached > 0 {
+                        let cache_pct = (cached as f64 / total_tokens as f64) * 100.0;
+                        timestamp_str.push_str(&format!(" {}% cached", cache_pct.round() as u32));
+                    }
                 }
             }
         }
@@ -117,14 +119,14 @@ mod tests {
 
     use super::*;
 
-    fn create_test_title() -> TitleFormat {
+    fn create_test_title(category: Category) -> TitleFormat {
         let timestamp = chrono::DateTime::parse_from_rfc3339("2024-01-01T14:23:45Z")
             .unwrap()
             .with_timezone(&Utc);
         TitleFormat {
             title: "Test Title".to_string(),
             sub_title: None,
-            category: Category::Action,
+            category,
             timestamp,
         }
     }
@@ -141,7 +143,7 @@ mod tests {
 
     #[test]
     fn test_title_display_without_usage() {
-        let title = create_test_title();
+        let title = create_test_title(Category::Action);
         let actual = TitleDisplay::new(title).colors(false).to_string();
         let expected = "⏺ [14:23:45] Test Title";
 
@@ -149,8 +151,21 @@ mod tests {
     }
 
     #[test]
+    fn test_title_display_non_debug_ignores_usage() {
+        let title = create_test_title(Category::Action);
+        let usage = create_test_usage(1500, 0, None);
+        let actual = TitleDisplay::new(title)
+            .colors(false)
+            .usage(Some(usage))
+            .to_string();
+        let expected = "⏺ [14:23:45] Test Title";
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
     fn test_title_display_with_tokens_only() {
-        let title = create_test_title();
+        let title = create_test_title(Category::Debug);
         let usage = create_test_usage(1500, 0, None);
         let actual = TitleDisplay::new(title)
             .colors(false)
@@ -163,7 +178,7 @@ mod tests {
 
     #[test]
     fn test_title_display_with_tokens_and_cost() {
-        let title = create_test_title();
+        let title = create_test_title(Category::Debug);
         let usage = create_test_usage(2_300_000, 0, Some(0.0123));
         let actual = TitleDisplay::new(title)
             .colors(false)
@@ -176,7 +191,7 @@ mod tests {
 
     #[test]
     fn test_title_display_with_all_metrics() {
-        let title = create_test_title();
+        let title = create_test_title(Category::Debug);
         let usage = create_test_usage(1000, 250, Some(0.0456));
         let actual = TitleDisplay::new(title)
             .colors(false)
@@ -189,7 +204,7 @@ mod tests {
 
     #[test]
     fn test_title_display_with_subtitle() {
-        let mut title = create_test_title();
+        let mut title = create_test_title(Category::Debug);
         title.sub_title = Some("Subtitle text".to_string());
         let usage = create_test_usage(2000, 100, Some(0.005));
         let actual = TitleDisplay::new(title)
