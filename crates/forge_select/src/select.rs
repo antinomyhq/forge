@@ -290,10 +290,7 @@ impl std::str::FromStr for MaskedDefault {
     type Err = std::convert::Infallible;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(MaskedDefault {
-            value: s.to_string(),
-            display: s.to_string(),
-        })
+        Ok(MaskedDefault { value: s.to_string(), display: s.to_string() })
     }
 }
 
