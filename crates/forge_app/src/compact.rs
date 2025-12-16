@@ -1,6 +1,5 @@
 use forge_domain::{
-    Compact, CompactionStrategy, Context, ContextCompactor, ContextMessage, ContextSummary,
-    Environment, Transformer,
+    Compact, CompactionStrategy, Context, ContextMessage, ContextSummary, Environment, Transformer,
 };
 use tracing::info;
 
@@ -11,6 +10,10 @@ use crate::transformers::SummaryTransformer;
 pub struct Compactor {
     compact: Compact,
     environment: Environment,
+}
+
+pub trait CompactRange {
+    fn compact_range(&self, _context: &Context, _max: usize) -> anyhow::Result<ContextMessage>;
 }
 
 impl Compactor {
@@ -36,7 +39,7 @@ impl Compactor {
     }
 }
 
-impl ContextCompactor for Compactor {
+impl CompactRange for Compactor {
     fn compact_range(&self, context: &Context, end_index: usize) -> anyhow::Result<ContextMessage> {
         if end_index >= context.messages.len() {
             return Err(anyhow::anyhow!("BUG(compaction): end index out of bounds"));

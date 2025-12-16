@@ -14,6 +14,7 @@ use crate::TemplateEngine;
 use crate::agent::AgentService;
 use crate::compact::Compactor;
 use crate::title_generator::TitleGenerator;
+use crate::transformers::CompactionTransformer;
 
 #[derive(Clone, Setters)]
 #[setters(into)]
