@@ -107,6 +107,7 @@ fn is_event_transport_error(error: &anyhow::Error) -> bool {
 #[cfg(test)]
 mod tests {
     use anyhow::anyhow;
+    use fake::{Fake, Faker};
     use forge_app::dto::openai::{Error, ErrorCode, ErrorResponse};
 
     use super::*;
@@ -140,8 +141,6 @@ mod tests {
     #[test]
     fn test_into_retry_with_non_matching_api_status_code() {
         // Setup
-        use fake::{Fake, Faker};
-        
         let retry_config: RetryConfig = Faker.fake();
         let retry_config = retry_config.retry_status_codes(vec![429, 500, 503]);
         let inner_error = ErrorResponse::default().code(ErrorCode::Number(400));
@@ -168,8 +167,6 @@ mod tests {
 
         // Verify our function can handle generic errors safely
         let generic_error = anyhow!("A generic error that doesn't have status code");
-        use fake::{Fake, Faker};
-        
         let retry_config: RetryConfig = Faker.fake();
         let retry_config = retry_config.retry_status_codes(vec![]);
         let actual = into_retry(generic_error, &retry_config);
@@ -179,8 +176,6 @@ mod tests {
     #[test]
     fn test_into_retry_with_api_transport_error() {
         // Setup
-        use fake::{Fake, Faker};
-        
         let retry_config: RetryConfig = Faker.fake();
         let retry_config = retry_config.retry_status_codes(vec![]);
         let inner_error = ErrorResponse::default()
@@ -209,8 +204,6 @@ mod tests {
     #[test]
     fn test_into_retry_with_deep_nested_api_status_code() {
         // Setup
-        use fake::{Fake, Faker};
-        
         let retry_config: RetryConfig = Faker.fake();
         let retry_config = retry_config.retry_status_codes(vec![429, 500, 503]);
 
@@ -233,8 +226,6 @@ mod tests {
     #[test]
     fn test_into_retry_with_string_error_code_as_number() {
         // Setup
-        use fake::{Fake, Faker};
-        
         let retry_config: RetryConfig = Faker.fake();
         let retry_config = retry_config.retry_status_codes(vec![429, 500, 503]);
         let inner_error = ErrorResponse::default().code(ErrorCode::String("429".to_string()));
@@ -251,8 +242,6 @@ mod tests {
     #[test]
     fn test_into_retry_with_non_retryable_error() {
         // Setup
-        use fake::{Fake, Faker};
-        
         let retry_config: RetryConfig = Faker.fake();
         let retry_config = retry_config.retry_status_codes(vec![]);
         let generic_error = anyhow!("A generic error that doesn't match any retryable pattern");
@@ -267,8 +256,6 @@ mod tests {
     #[test]
     fn test_into_retry_with_invalid_status_code_error() {
         // Setup
-        use fake::{Fake, Faker};
-        
         let retry_config: RetryConfig = Faker.fake();
         let retry_config = retry_config.retry_status_codes(vec![429, 500, 503]);
         let error = anyhow::Error::from(Error::InvalidStatusCode(503));
@@ -283,8 +270,6 @@ mod tests {
     #[test]
     fn test_into_retry_with_invalid_status_code_error_non_matching() {
         // Setup
-        use fake::{Fake, Faker};
-        
         let retry_config: RetryConfig = Faker.fake();
         let retry_config = retry_config.retry_status_codes(vec![429, 500, 503]);
         let error = anyhow::Error::from(Error::InvalidStatusCode(400));
@@ -299,8 +284,6 @@ mod tests {
     #[test]
     fn test_into_retry_with_nested_api_transport_error() {
         // Setup
-        use fake::{Fake, Faker};
-        
         let retry_config: RetryConfig = Faker.fake();
         let retry_config = retry_config.retry_status_codes(vec![]);
         // Create nested error with transport error code in error.error.code
@@ -321,8 +304,6 @@ mod tests {
     #[test]
     fn test_into_retry_with_deeply_nested_api_transport_error() {
         // Setup
-        use fake::{Fake, Faker};
-        
         let retry_config: RetryConfig = Faker.fake();
         let retry_config = retry_config.retry_status_codes(vec![]);
         // Create deeply nested error with transport error code at level 4

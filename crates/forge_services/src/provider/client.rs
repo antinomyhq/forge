@@ -219,6 +219,7 @@ mod tests {
     use std::sync::Arc;
 
     use bytes::Bytes;
+    use fake::{Fake, Faker};
     use forge_app::HttpClientService;
     use forge_app::domain::ProviderId;
     use reqwest::Url;
@@ -323,8 +324,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_builder_pattern_api() {
-        use fake::{Fake, Faker};
-        
         let provider = forge_domain::Provider {
             id: ProviderId::OPENAI,
             provider_type: Default::default(),
