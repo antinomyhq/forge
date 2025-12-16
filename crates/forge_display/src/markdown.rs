@@ -34,10 +34,7 @@ impl MarkdownFormat {
         strikethrough_style.add_attr(Attribute::Dim);
         skin.strikeout = strikethrough_style;
 
-        Self {
-            skin,
-            max_consecutive_newlines: 2,
-        }
+        Self { skin, max_consecutive_newlines: 2 }
     }
 
     /// Render the markdown content to a string formatted for terminal display.
@@ -51,7 +48,10 @@ impl MarkdownFormat {
         let code_renderer = MarkdownCodeRenderer::process(&content);
 
         // Render with termimad, then restore highlighted code
-        let rendered = self.skin.term_text(code_renderer.get_processed_markdown()).to_string();
+        let rendered = self
+            .skin
+            .term_text(code_renderer.get_processed_markdown())
+            .to_string();
         code_renderer.restore(rendered).trim().to_string()
     }
 
