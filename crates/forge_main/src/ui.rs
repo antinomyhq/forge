@@ -2523,7 +2523,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         match message {
             ChatResponse::TaskMessage { content } => match content {
-                ChatResponseContent::Title(title) => self.writeln(title.display())?,
+                ChatResponseContent::Title(title) => self.writeln_title(title).await?,
                 ChatResponseContent::PlainText(text) => self.writeln(text)?,
                 ChatResponseContent::Markdown(text) => {
                     tracing::info!(message = %text, "Agent Response");
