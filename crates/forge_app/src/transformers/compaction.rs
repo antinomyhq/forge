@@ -1,5 +1,6 @@
-use crate::compact::CompactRange;
 use forge_domain::{Agent, Context, Transformer};
+
+use crate::compact::CompactRange;
 
 /// Transformer that compacts context when necessary before sending to LLM
 pub struct CompactionTransformer<C> {
@@ -85,9 +86,10 @@ impl<C: CompactRange> Transformer for CompactionTransformer<C> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use forge_domain::{Compact, ContextMessage, ModelId, ProviderId};
     use pretty_assertions::assert_eq;
+
+    use super::*;
 
     struct MockCompactor;
 
