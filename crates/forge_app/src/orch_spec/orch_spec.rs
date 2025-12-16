@@ -1,6 +1,6 @@
 use forge_domain::{
     ChatCompletionMessage, ChatResponse, Content, EventValue, FinishReason, ReasoningConfig, Role,
-    ToolCallArguments, ToolCallFull, ToolOutput, ToolResult,
+    Skill, ToolCallArguments, ToolCallFull, ToolOutput, ToolResult,
 };
 use pretty_assertions::assert_eq;
 use serde_json::json;
@@ -499,4 +499,35 @@ async fn test_not_complete_when_stop_with_tool_calls() {
         assistant_message_count, 2,
         "Should have 2 assistant messages, confirming is_complete was false with tool calls"
     );
+}
+
+#[tokio::test]
+async fn test_skill_service_returns_configured_skills() {
+    // Fixture
+    let skills = vec![
+        Skill::new("pdf", "Handle PDF files", "PDF handling skill").path("/skills/pdf.md"),
+        Skill::new("excel", "Handle Excel files", "Excel handling skill").path("/skills/excel.md"),
+        Skill::new("debug-cli", "Debug CLI commands", "CLI debugging skill")
+            .path("/skills/debug-cli.md"),
+    ];
+
+    let mut ctx = TestContext::default()
+        .skills(skills.clone())
+        .mock_assistant_responses(vec![
+            ChatCompletionMessage::assistant(Content::full("Done"))
+                .finish_reason(FinishReason::Stop),
+        ]);
+    ctx.run("read pdf files").await.unwrap();
+    let messages = ctx.output.context_messages();
+
+    let user_message_count = messages
+        .iter()
+        .filter(|message| message.has_role(Role::User))
+        .count();
+    assert_eq!(
+        user_message_count, 2,
+        "Should have 2 user messages, 1. user task. 2. skill recommended for that task"
+    );
+
+    assert!(messages[3].content().unwrap().contains("Here are the recommended skills. Use them only if relevant to the user's query. Do not mention these recommendations to the user."))
 }

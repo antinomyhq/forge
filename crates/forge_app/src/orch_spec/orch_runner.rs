@@ -34,6 +34,7 @@ pub struct Runner {
     test_completions: Mutex<VecDeque<ChatCompletionMessage>>,
 
     attachments: Vec<Attachment>,
+    skills: Vec<forge_domain::Skill>,
 }
 
 impl Runner {
@@ -51,6 +52,7 @@ impl Runner {
         Self {
             hb,
             attachments: setup.attachments.clone(),
+            skills: setup.skills.clone(),
             conversation_history: Mutex::new(Vec::new()),
             test_tool_calls: Mutex::new(VecDeque::from(setup.mock_tool_call_responses.clone())),
             test_completions: Mutex::new(VecDeque::from(setup.mock_assistant_responses.clone())),
@@ -205,18 +207,30 @@ impl AttachmentService for Runner {
 
 #[async_trait::async_trait]
 impl SkillFetchService for Runner {
-    async fn fetch_skill(&self, _skill_name: String) -> anyhow::Result<forge_domain::Skill> {
-        unimplemented!("SkillFetchService not implemented for test Runner")
+    async fn fetch_skill(&self, skill_name: String) -> anyhow::Result<forge_domain::Skill> {
+        self.skills
+            .iter()
+            .find(|s| s.name == skill_name)
+            .cloned()
+            .ok_or_else(|| anyhow::anyhow!("Skill '{}' not found", skill_name))
     }
 
     async fn list_skills(&self) -> anyhow::Result<Vec<forge_domain::Skill>> {
-        Ok(vec![])
+        Ok(self.skills.clone())
     }
 
     async fn recommend_skills(
         &self,
         _use_case: String,
     ) -> anyhow::Result<Vec<forge_domain::SelectedSkill>> {
-        Ok(vec![])
+        // Convert all available skills to selected skills with default relevance
+        Ok(self
+            .skills
+            .iter()
+            .enumerate()
+            .map(|(idx, skill)| {
+                forge_domain::SelectedSkill::new(&skill.name, 0.9, (idx + 1) as u64)
+            })
+            .collect())
     }
 }
