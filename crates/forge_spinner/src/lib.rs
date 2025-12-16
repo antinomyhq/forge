@@ -231,4 +231,21 @@ mod tests {
         let expected = std::time::Duration::ZERO;
         assert_eq!(actual_after_reset, expected);
     }
+
+    #[tokio::test]
+    async fn test_word_index_caching_behavior() {
+        let mut fixture_spinner = SpinnerManager::new();
+
+        // Start spinner without message multiple times
+        fixture_spinner.start(None).unwrap();
+        let first_message = fixture_spinner.message.clone();
+        fixture_spinner.stop(None).unwrap();
+
+        fixture_spinner.start(None).unwrap();
+        let second_message = fixture_spinner.message.clone();
+        fixture_spinner.stop(None).unwrap();
+
+        // Messages should be identical because word_index is cached
+        assert_eq!(first_message, second_message);
+    }
 }
