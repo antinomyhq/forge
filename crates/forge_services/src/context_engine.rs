@@ -763,6 +763,8 @@ mod tests {
         deleted_files: Arc<tokio::sync::Mutex<Vec<String>>>,
         uploaded_files: Arc<tokio::sync::Mutex<Vec<String>>>,
         authenticated: bool, // Track whether user is authenticated
+        skills: Vec<forge_domain::Skill>,
+        selected_skills: Vec<forge_domain::SelectedSkill>,
     }
 
     impl MockInfra {
@@ -977,14 +979,14 @@ mod tests {
             _params: forge_domain::SkillSelectionParams,
             _token: &ApiKey,
         ) -> Result<Vec<forge_domain::SelectedSkill>> {
-            Ok(vec![])
+            Ok(self.selected_skills.clone())
         }
     }
 
     #[async_trait]
     impl forge_domain::SkillRepository for MockInfra {
         async fn load_skills(&self) -> Result<Vec<forge_domain::Skill>> {
-            Ok(vec![])
+            Ok(self.skills.clone())
         }
     }
 
@@ -1335,5 +1337,44 @@ mod tests {
         ];
 
         assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_recommend_skills_returns_selected_skills() {
+        // Fixture
+        let mut mock = MockInfra::synced(&["main.rs"]);
+        mock.skills = vec![
+            forge_domain::Skill::new("pdf", "PDF handling", "Handle PDF files"),
+            forge_domain::Skill::new("excel", "Excel handling", "Handle Excel files"),
+        ];
+        mock.selected_skills = vec![forge_domain::SelectedSkill::new("pdf", 0.95, 1)];
+        let service = ForgeContextEngineService::new(Arc::new(mock));
+
+        // Act
+        let actual = service
+            .recommend_skills("I need to handle PDF files".to_string())
+            .await
+            .unwrap();
+
+        // Assert
+        let expected = vec![forge_domain::SelectedSkill::new("pdf", 0.95, 1)];
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_recommend_skills_error_when_not_authenticated() {
+        // Fixture
+        let mut mock = MockInfra::synced(&["main.rs"]);
+        mock.authenticated = false;
+        let service = ForgeContextEngineService::new(Arc::new(mock));
+
+        // Act
+        let actual = service
+            .recommend_skills("test".to_string())
+            .await;
+
+        // Assert
+        assert!(actual.is_err());
+        assert!(actual.unwrap_err().to_string().contains("No indexing authentication found"));
     }
 }
