@@ -32,7 +32,7 @@ impl AuthStrategy for ApiKeyStrategy {
         Ok(AuthContextRequest::ApiKey(ApiKeyRequest {
             required_params: self.required_params.clone(),
             existing_params: None,
-            api_key: None
+            api_key: None,
         }))
     }
 

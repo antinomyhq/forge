@@ -84,8 +84,8 @@ impl AuthDetails {
     pub fn api_key(&self) -> Option<&ApiKey> {
         match self {
             AuthDetails::ApiKey(api_key) => Some(api_key),
-            AuthDetails::OAuth{..} => None,
-            AuthDetails::OAuthWithApiKey {..} => None,
+            AuthDetails::OAuth { .. } => None,
+            AuthDetails::OAuthWithApiKey { .. } => None,
         }
     }
 }

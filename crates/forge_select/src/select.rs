@@ -289,19 +289,13 @@ impl std::str::FromStr for DialoguerMaskedDefault {
     type Err = std::convert::Infallible;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(DialoguerMaskedDefault {
-            value: s.to_string(),
-            display: s.to_string(),
-        })
+        Ok(DialoguerMaskedDefault { value: s.to_string(), display: s.to_string() })
     }
 }
 
 impl Clone for DialoguerMaskedDefault {
     fn clone(&self) -> Self {
-        DialoguerMaskedDefault {
-            value: self.value.clone(),
-            display: self.display.clone(),
-        }
+        DialoguerMaskedDefault { value: self.value.clone(), display: self.display.clone() }
     }
 }
 
@@ -357,7 +351,7 @@ impl InputBuilder {
                     Err(e) => Err(e.into()),
                 };
             }
-            
+
             // If they're the same, treat as normal string
             let input = Input::with_theme(&theme)
                 .with_prompt(&self.message)
