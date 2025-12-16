@@ -47,9 +47,15 @@ impl Display for ZshRPrompt {
 
         // Add token count
         if let Some(count) = self.token_count {
-            let count = humanize_number(*count);
+            let num = humanize_number(*count);
+
+            let prefix = match count {
+                TokenCount::Actual(_) => "",
+                TokenCount::Approx(_) => "~",
+            };
+
             if active {
-                write!(f, " {}", count.zsh().fg(ZshColor::WHITE).bold())?;
+                write!(f, " {}{}", prefix, num.zsh().fg(ZshColor::WHITE).bold())?;
             }
         }
 

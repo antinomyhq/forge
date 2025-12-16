@@ -2889,7 +2889,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let rprompt = ZshRPrompt::default()
             .agent(std::env::var("_FORGE_ACTIVE_AGENT").ok().map(AgentId::new))
             .model(model_id)
-            .token_count(conversation.and_then(|c| c.usage()).map(|u| u.total_tokens));
+            .token_count(conversation.and_then(|c| c.token_count()));
 
         Some(rprompt.to_string())
     }
