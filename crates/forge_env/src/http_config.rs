@@ -166,7 +166,3 @@ pub struct HttpConfig {
     /// can be separated by commas.
     pub root_cert_paths: Option<Vec<String>>,
 }
-
-impl HttpConfig {
-
-}

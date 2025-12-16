@@ -124,7 +124,7 @@ mod tests {
     #[test]
     fn test_into_retry_with_matching_api_status_code() {
         use fake::{Fake, Faker};
-        
+
         // Setup
         let retry_config: RetryConfig = Faker.fake();
         let retry_config = retry_config.retry_status_codes(vec![429, 500, 503]);

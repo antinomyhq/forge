@@ -338,7 +338,7 @@ mod tests {
         };
 
         let retry_config: RetryConfig = Faker.fake();
-        
+
         // Test the builder pattern API
         let client = ClientBuilder::new(provider, &make_test_env())
             .retry_config(retry_config)

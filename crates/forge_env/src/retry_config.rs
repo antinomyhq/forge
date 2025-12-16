@@ -27,5 +27,3 @@ pub struct RetryConfig {
     /// Whether to suppress retry error logging and events
     pub suppress_retry_errors: bool,
 }
-
-
