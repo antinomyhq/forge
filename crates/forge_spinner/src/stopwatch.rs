@@ -1,3 +1,4 @@
+use std::fmt;
 use std::time::Duration;
 
 use tokio::time::Instant;
@@ -41,6 +42,27 @@ impl Stopwatch {
     pub fn elapsed(&self) -> Duration {
         let current = self.started_at.map(|s| s.elapsed()).unwrap_or_default();
         self.elapsed + current
+    }
+}
+
+impl fmt::Display for Stopwatch {
+    /// Format elapsed time as "01s", "02s", ... "59s", "1:01m", "1:59m", "1:01h", "2:30h"
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let total_seconds = self.elapsed().as_secs();
+        if total_seconds < 60 {
+            // Less than 1 minute: "01s", "02s", etc.
+            write!(f, "{:02}s", total_seconds)
+        } else if total_seconds < 3600 {
+            // Less than 1 hour: "1:01m", "1:59m", etc.
+            let minutes = total_seconds / 60;
+            let seconds = total_seconds % 60;
+            write!(f, "{}:{:02}m", minutes, seconds)
+        } else {
+            // 1 hour or more: "1:01h", "2:30h", etc.
+            let hours = total_seconds / 3600;
+            let minutes = (total_seconds % 3600) / 60;
+            write!(f, "{}:{:02}h", hours, minutes)
+        }
     }
 }
 

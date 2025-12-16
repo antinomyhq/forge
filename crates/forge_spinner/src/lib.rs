@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use anyhow::Result;
 use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -76,11 +74,10 @@ impl SpinnerManager {
         pb.enable_steady_tick(std::time::Duration::from_millis(60));
 
         // Set the initial message
-        let elapsed = Duration::from_secs(self.stopwatch.elapsed().as_secs());
         let message = format!(
             "{} {} · {}",
             word.green().bold(),
-            humantime::format_duration(elapsed),
+            self.stopwatch,
             "Ctrl+C to interrupt".white().dimmed()
         );
         pb.set_message(message);
@@ -104,11 +101,10 @@ impl SpinnerManager {
                     counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 }
                 if let (Some(spinner), Some(message)) = (&spinner_clone, &message_clone) {
-                    let elapsed = Duration::from_secs(stopwatch.elapsed().as_secs());
                     let updated_message = format!(
                         "{} {} · {}",
                         message.green().bold(),
-                        humantime::format_duration(elapsed),
+                        stopwatch,
                         "Ctrl+C to interrupt".white().dimmed()
                     );
                     spinner.set_message(updated_message);
