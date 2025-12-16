@@ -58,7 +58,8 @@ impl ForgeEnvironmentInfra {
         let override_model = parse_env::<String>("FORGE_OVERRIDE_MODEL").map(ModelId::new);
         let override_provider = parse_env::<String>("FORGE_OVERRIDE_PROVIDER")
             .and_then(|s| ProviderId::from_str(&s).ok());
-        let enable_permissions = parse_env::<bool>("FORGE_ENABLE_PERMISSIONS").unwrap_or(cfg!(debug_assertions));
+        let enable_permissions =
+            parse_env::<bool>("FORGE_ENABLE_PERMISSIONS").unwrap_or(cfg!(debug_assertions));
 
         Environment {
             os: std::env::consts::OS.to_string(),
