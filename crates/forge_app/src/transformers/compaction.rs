@@ -52,30 +52,16 @@ impl<C: CompactRange> Transformer for CompactionTransformer<C> {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{Compact, MessagePattern, ModelId, ProviderId};
+    use forge_domain::{Compact, Environment, MessagePattern, ModelId, ProviderId};
     use pretty_assertions::assert_eq;
 
     use super::*;
+    use crate::compact::Compactor;
+    use fake::{Fake, Faker};
 
-    struct MockCompactor;
-
-    impl CompactRange for MockCompactor {
-        fn compact_range(
-            &self,
-            context: &Context,
-            _compact_config: &Compact,
-        ) -> anyhow::Result<Option<Context>> {
-            // Simple mock: compact if there are more than 10 messages
-            if context.messages.len() <= 10 {
-                return Ok(None);
-            }
-
-            // Return a simple compacted context with 1 summary message
-            Ok(Some(
-                Context::default()
-                    .add_message(forge_domain::ContextMessage::user("Compacted summary", None)),
-            ))
-        }
+    fn test_environment() -> Environment {
+        let env: Environment = Faker.fake();
+        env.cwd(std::path::PathBuf::from("/test/working/dir"))
     }
 
     fn test_agent() -> Agent {
@@ -86,7 +72,7 @@ mod tests {
         )
         .compact(
             Compact::new()
-                .token_threshold(1000usize) // Very low threshold to trigger easily
+                .message_threshold(10usize) // Trigger compaction after 10 messages
                 .eviction_window(0.5)
                 .retention_window(2usize),
         )
@@ -101,7 +87,8 @@ mod tests {
     #[test]
     fn test_no_compaction_for_small_context() {
         let agent = test_agent();
-        let compactor = MockCompactor;
+        let environment = test_environment();
+        let compactor = Compactor::new(agent.compact.clone().unwrap(), environment);
 
         let fixture = ctx("ua"); // user, assistant
 
@@ -114,7 +101,8 @@ mod tests {
     #[test]
     fn test_compaction_with_threshold_exceeded() {
         let agent = test_agent();
-        let compactor = MockCompactor;
+        let environment = test_environment();
+        let compactor = Compactor::new(agent.compact.clone().unwrap(), environment);
 
         // Create a pattern with many messages to exceed threshold
         // Using the SAURT notation: 50 user-assistant pairs
@@ -122,10 +110,17 @@ mod tests {
         let fixture = ctx(&pattern);
 
         let mut transformer = CompactionTransformer::new(agent, Some(compactor));
-        let actual = transformer.transform(fixture);
+        let actual = transformer.transform(fixture.clone());
 
-        // MockCompactor returns a single summary message when compaction occurs
-        assert_eq!(actual.messages.len(), 1);
+        // Real compactor should reduce the message count when compaction occurs
+        // The exact count depends on the compaction logic, but it should be less
+        assert!(
+            actual.messages.len() < fixture.messages.len(),
+            "Expected compaction to reduce message count from {} to less, but got {}",
+            fixture.messages.len(),
+            actual.messages.len()
+        );
     }
 }
+
 
