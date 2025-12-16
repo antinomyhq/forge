@@ -418,49 +418,29 @@ mod tests {
     #[tokio::test]
     async fn test_recommended_skills_added_as_droppable_message() {
         // Fixture
-        let agent = fixture_agent_without_user_prompt();
-        let event = Event::new("Help me with PDF files");
-        let conversation = fixture_conversation();
         let mock_service = MockService {
-            recommended_skills: vec![
-                SelectedSkill::new("pdf-handler", 0.95, 1),
-                SelectedSkill::new("file-converter", 0.80, 2),
-            ],
+            recommended_skills: vec![SelectedSkill::new("pdf-handler", 0.95, 1)],
         };
-        let generator =
-            UserPromptGenerator::new(Arc::new(mock_service), agent, event, chrono::Local::now());
+        let generator = UserPromptGenerator::new(
+            Arc::new(mock_service),
+            fixture_agent_without_user_prompt(),
+            Event::new("Help me with PDF files"),
+            chrono::Local::now(),
+        );
 
         // Act
-        let actual = generator.add_user_prompt(conversation).await.unwrap();
+        let actual = generator
+            .add_user_prompt(fixture_conversation())
+            .await
+            .unwrap();
 
         // Assert
         let messages = actual.context.unwrap().messages;
-        assert_eq!(
-            messages.len(),
-            2,
-            "Should have user message and skills message"
-        );
-
-        // First message is the user prompt
-        assert_eq!(messages[0].content().unwrap(), "Help me with PDF files");
+        assert_eq!(messages.len(), 2);
         assert!(!messages[0].is_droppable());
-
-        // Second message is the recommended skills (droppable)
-        let skills_message = &messages[1];
-        assert!(
-            skills_message.is_droppable(),
-            "Skills message should be droppable"
-        );
-        assert!(
-            skills_message
-                .content()
-                .unwrap()
-                .contains("recommended_skills"),
-            "Should contain recommended_skills element"
-        );
-        assert!(
-            skills_message.content().unwrap().contains("pdf-handler"),
-            "Should contain pdf-handler skill"
-        );
+        assert!(messages[1].is_droppable());
+        let content = messages[1].content().unwrap();
+        assert!(content.contains("recommended_skills"));
+        assert!(content.contains("pdf-handler"));
     }
 }

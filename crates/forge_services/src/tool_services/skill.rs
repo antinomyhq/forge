@@ -59,16 +59,17 @@ impl<R: forge_domain::SkillRepository> ForgeSkillFetch<R> {
 
 #[cfg(test)]
 mod tests {
+    use forge_domain::Skill;
     use pretty_assertions::assert_eq;
 
     use super::*;
 
-    struct MockInfra {
+    struct MockSkillRepository {
         skills: Vec<Skill>,
     }
 
     #[async_trait::async_trait]
-    impl forge_domain::SkillRepository for MockInfra {
+    impl forge_domain::SkillRepository for MockSkillRepository {
         async fn load_skills(&self) -> anyhow::Result<Vec<Skill>> {
             Ok(self.skills.clone())
         }
@@ -82,8 +83,8 @@ mod tests {
             Skill::new("xlsx", "Handle Excel files", "Excel handling skill")
                 .path("/skills/xlsx.md"),
         ];
-        let infra = MockInfra { skills: skills.clone() };
-        let fetch_service = ForgeSkillFetch::new(Arc::new(infra));
+        let repo = MockSkillRepository { skills: skills.clone() };
+        let fetch_service = ForgeSkillFetch::new(Arc::new(repo));
 
         // Act
         let actual = fetch_service.fetch_skill("pdf".to_string()).await;
@@ -101,8 +102,8 @@ mod tests {
         let skills = vec![
             Skill::new("pdf", "Handle PDF files", "PDF handling skill").path("/skills/pdf.md"),
         ];
-        let infra = MockInfra { skills };
-        let fetch_service = ForgeSkillFetch::new(Arc::new(infra));
+        let repo = MockSkillRepository { skills };
+        let fetch_service = ForgeSkillFetch::new(Arc::new(repo));
 
         // Act
         let actual = fetch_service.fetch_skill("unknown".to_string()).await;
@@ -121,8 +122,8 @@ mod tests {
             Skill::new("xlsx", "Handle Excel files", "Excel handling skill")
                 .path("/skills/xlsx.md"),
         ];
-        let infra = MockInfra { skills: expected.clone() };
-        let fetch_service = ForgeSkillFetch::new(Arc::new(infra));
+        let repo = MockSkillRepository { skills: expected.clone() };
+        let fetch_service = ForgeSkillFetch::new(Arc::new(repo));
 
         // Act
         let actual = fetch_service.list_skills().await.unwrap();
