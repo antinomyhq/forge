@@ -353,15 +353,43 @@ impl FromDomain<forge_domain::Context>
             .collect();
 
         // Convert user and assistant messages
-        let messages: Vec<Message> = context
-            .messages
-            .into_iter()
-            .filter(|message| !message.has_role(forge_domain::Role::System))
-            .map(|msg| {
-                Message::from_domain(msg.message)
-                    .with_context(|| "Failed to convert message to Bedrock format")
-            })
-            .collect::<anyhow::Result<Vec<_>>>()?;
+        // Group consecutive tool results into single User messages as required by Bedrock API
+        let messages: Vec<Message> = {
+            let mut result = Vec::new();
+            let mut pending_tool_results: Vec<forge_domain::ContextMessage> = Vec::new();
+            
+            for message in context.messages.into_iter() {
+                if message.has_role(forge_domain::Role::System) {
+                    continue;
+                }
+                
+                match &message.message {
+                    forge_domain::ContextMessage::Tool(_) => {
+                        // Accumulate tool results
+                        pending_tool_results.push(message.message);
+                    }
+                    _ => {
+                        // Flush pending tool results before processing non-tool message
+                        if !pending_tool_results.is_empty() {
+                            result.push(Message::from_tool_results(pending_tool_results.drain(..).collect())?);
+                        }
+                        
+                        // Convert and add the non-tool message
+                        result.push(
+                            Message::from_domain(message.message)
+                                .with_context(|| "Failed to convert message to Bedrock format")?
+                        );
+                    }
+                }
+            }
+            
+            // Flush any remaining tool results
+            if !pending_tool_results.is_empty() {
+                result.push(Message::from_tool_results(pending_tool_results)?);
+            }
+            
+            Ok::<Vec<Message>, anyhow::Error>(result)
+        }?;
 
         // Convert tool configuration
         let tool_config = if !context.tools.is_empty() {
@@ -420,6 +448,70 @@ impl FromDomain<forge_domain::Context>
         builder
             .build()
             .map_err(|e| anyhow::anyhow!("Failed to build Bedrock ConverseStreamInput: {}", e))
+    }
+}
+
+/// Helper extension trait for Message to support creating messages from multiple tool results
+trait MessageExt {
+    /// Creates a User message containing multiple tool results
+    ///
+    /// Bedrock requires all tool results for a given assistant message's tool calls
+    /// to be in a single User message with multiple ToolResult content blocks.
+    fn from_tool_results(tool_results: Vec<forge_domain::ContextMessage>) -> anyhow::Result<Self>
+    where
+        Self: Sized;
+}
+
+impl MessageExt for aws_sdk_bedrockruntime::types::Message {
+    fn from_tool_results(tool_results: Vec<forge_domain::ContextMessage>) -> anyhow::Result<Self> {
+        use aws_sdk_bedrockruntime::types::{
+            ContentBlock, ConversationRole, Message, ToolResultBlock, ToolResultContentBlock,
+            ToolResultStatus,
+        };
+
+        if tool_results.is_empty() {
+            anyhow::bail!("Cannot create message from empty tool results");
+        }
+
+        let mut content_blocks = Vec::new();
+
+        for msg in tool_results {
+            match msg {
+                forge_domain::ContextMessage::Tool(tool_result) => {
+                    let is_error = tool_result.is_error();
+                    let tool_result_block = ToolResultBlock::builder()
+                        .tool_use_id(
+                            tool_result
+                                .call_id
+                                .ok_or_else(|| anyhow::anyhow!("Tool result missing call ID"))?
+                                .as_str(),
+                        )
+                        .set_content(Some(vec![ToolResultContentBlock::Text(
+                            tool_result
+                                .output
+                                .as_str()
+                                .ok_or_else(|| anyhow::anyhow!("Tool result has no text output"))?
+                                .to_string(),
+                        )]))
+                        .status(if is_error {
+                            ToolResultStatus::Error
+                        } else {
+                            ToolResultStatus::Success
+                        })
+                        .build()
+                        .map_err(|e| anyhow::anyhow!("Failed to build tool result block: {}", e))?;
+
+                    content_blocks.push(ContentBlock::ToolResult(tool_result_block));
+                }
+                _ => anyhow::bail!("Expected Tool message, got different message type"),
+            }
+        }
+
+        Message::builder()
+            .role(ConversationRole::User)
+            .set_content(Some(content_blocks))
+            .build()
+            .map_err(|e| anyhow::anyhow!("Failed to build tool results message: {}", e))
     }
 }
 
