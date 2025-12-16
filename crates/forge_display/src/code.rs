@@ -89,10 +89,7 @@ impl CodeBlockParser {
             }
         }
 
-        Self {
-            markdown: result,
-            blocks,
-        }
+        Self { markdown: result, blocks }
     }
 
     /// Get the processed markdown with placeholders.
@@ -165,15 +162,15 @@ mod tests {
     #[test]
     fn test_shared_highlighter() {
         let highlighter = SyntaxHighlighter::default();
-        
+
         // Process multiple markdown strings - no highlighter needed!
         let r1 = CodeBlockParser::parse("```rust\nlet x = 1;\n```");
         let r2 = CodeBlockParser::parse("```python\nprint('hello')\n```");
-        
+
         // Both should work correctly
         assert_eq!(r1.blocks()[0].1, "rust");
         assert_eq!(r2.blocks()[0].1, "python");
-        
+
         // Use shared highlighter for restoration
         let result1 = r1.restore(&highlighter, r1.markdown().to_string());
         let result2 = r2.restore(&highlighter, r2.markdown().to_string());
