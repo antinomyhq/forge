@@ -52,12 +52,12 @@ impl<C: CompactRange> Transformer for CompactionTransformer<C> {
 
 #[cfg(test)]
 mod tests {
+    use fake::{Fake, Faker};
     use forge_domain::{Compact, Environment, MessagePattern, ModelId, ProviderId};
     use pretty_assertions::assert_eq;
 
     use super::*;
     use crate::compact::Compactor;
-    use fake::{Fake, Faker};
 
     fn test_environment() -> Environment {
         let env: Environment = Faker.fake();
@@ -122,5 +122,3 @@ mod tests {
         );
     }
 }
-
-
