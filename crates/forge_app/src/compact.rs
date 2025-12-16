@@ -60,9 +60,13 @@ impl CompactRange for Compactor {
 
         let summary = self.render_summary_frame(&context.messages[0..=breakpoint])?;
 
-        info!(breakpoint = breakpoint, "Created context compaction summary");
+        info!(
+            breakpoint = breakpoint,
+            "Created context compaction summary"
+        );
 
-        let mut compacted_context = Context::default().add_message(ContextMessage::user(summary, None));
+        let mut compacted_context =
+            Context::default().add_message(ContextMessage::user(summary, None));
 
         // Add the remaining messages after breakpoint
         for entry in context.messages.iter().skip(breakpoint + 1) {
@@ -82,9 +86,9 @@ impl CompactRange for Compactor {
 impl Compactor {
     /// Finds the last breakpoint in the context where compaction should occur.
     ///
-    /// Iterates through messages tracking token counts, turn counts, and message counts
-    /// without cloning. Returns the index of the last message before the most recent
-    /// compaction threshold breach.
+    /// Iterates through messages tracking token counts, turn counts, and
+    /// message counts without cloning. Returns the index of the last
+    /// message before the most recent compaction threshold breach.
     ///
     /// # Arguments
     ///
@@ -118,19 +122,23 @@ impl Compactor {
 
             // Check if we should compact based on current accumulated state
             let should_compact = {
-                let token_check = compact_config.token_threshold
+                let token_check = compact_config
+                    .token_threshold
                     .map(|threshold| token_count >= threshold)
                     .unwrap_or(false);
 
-                let turn_check = compact_config.turn_threshold
+                let turn_check = compact_config
+                    .turn_threshold
                     .map(|threshold| turn_count >= threshold)
                     .unwrap_or(false);
 
-                let message_check = compact_config.message_threshold
+                let message_check = compact_config
+                    .message_threshold
                     .map(|threshold| message_count >= threshold)
                     .unwrap_or(false);
 
-                let turn_end_check = compact_config.on_turn_end
+                let turn_end_check = compact_config
+                    .on_turn_end
                     .map(|enabled| enabled && is_user)
                     .unwrap_or(false);
 
@@ -380,7 +388,10 @@ mod tests {
         let actual = compactor.find_last_breakpoint(&context, &compact_config);
 
         // Should find at least one breakpoint
-        assert!(actual.is_some(), "Expected to find a breakpoint with token threshold");
+        assert!(
+            actual.is_some(),
+            "Expected to find a breakpoint with token threshold"
+        );
     }
 
     #[test]
