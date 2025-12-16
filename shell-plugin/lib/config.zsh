@@ -21,10 +21,3 @@ fi
 
 # Commands cache - loaded lazily on first use
 typeset -h _FORGE_COMMANDS=""
-
-# Store active agent ID in a local variable (session-scoped)
-# Default to "forge" agent
-export _FORGE_ACTIVE_AGENT=forge
-
-# Store conversation ID in a temporary variable (local to plugin)
-export _FORGE_CONVERSATION_ID=""

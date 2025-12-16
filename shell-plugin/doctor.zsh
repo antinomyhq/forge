@@ -139,8 +139,8 @@ else
     print_result fail "Forge binary not found in PATH" "Install from: https://github.com/your-org/forge"
 fi
 
-# 3. Check shell plugin and completions
-print_section "Plugin & Completions"
+# 3. Check shell plugin
+print_section "Plugin"
 
 # Check if forge plugin is loaded by checking environment variable
 if [[ -n "$_FORGE_PLUGIN_LOADED" ]]; then
@@ -151,13 +151,35 @@ else
     print_result code "eval \"\$(\$FORGE_BIN zsh plugin)\""
 fi
 
-# Check if completions are available
-if (( $+functions[_forge] )); then
-    print_result pass "Forge completions loaded"
-else
-    print_result fail "Forge completions not loaded"
-    print_result instruction "Add to your ~/.zshrc (after compinit):"
-    print_result code "eval \"\$(forge completion zsh)\""
+
+# Check plugin loading order in .zshrc
+local zshrc_file="${ZDOTDIR:-$HOME}/.zshrc"
+if [[ -f "$zshrc_file" ]] && [[ -n "$_FORGE_PLUGIN_LOADED" ]]; then
+    # Extract line numbers for plugin declarations and forge plugin eval
+    local plugins_line=$(grep -n "^[[:space:]]*plugins=(" "$zshrc_file" 2>/dev/null | head -n1 | cut -d: -f1)
+    local forge_plugin_line=$(grep -n "eval.*forge.*zsh plugin" "$zshrc_file" 2>/dev/null | head -n1 | cut -d: -f1)
+
+    if [[ -n "$plugins_line" ]] && [[ -n "$forge_plugin_line" ]]; then
+        if [[ $forge_plugin_line -lt $plugins_line ]]; then
+            print_result fail "Plugin loading order incorrect"
+            print_result instruction "Forge plugin (line ${forge_plugin_line}) should be loaded AFTER plugins=() (line ${plugins_line})"
+            print_result instruction "Move the forge plugin eval statement after the plugins=() array in ~/.zshrc"
+        else
+            print_result pass "Plugin loading order correct"
+        fi
+    elif [[ -n "$forge_plugin_line" ]] && [[ -z "$plugins_line" ]]; then
+        # Forge plugin found but no plugins=() array - check for individual plugin sources
+        local has_other_plugins=false
+        if grep -q "source.*zsh-autosuggestions" "$zshrc_file" 2>/dev/null || \
+           grep -q "source.*zsh-syntax-highlighting" "$zshrc_file" 2>/dev/null; then
+            has_other_plugins=true
+        fi
+        
+        if [[ "$has_other_plugins" == "true" ]]; then
+            print_result warn "Manual plugin loading detected"
+            print_result info "Ensure forge plugin is sourced AFTER zsh-autosuggestions and zsh-syntax-highlighting"
+        fi
+    fi
 fi
 
 # 4. Check ZSH theme
@@ -169,13 +191,13 @@ if [[ -n "$_FORGE_THEME_LOADED" ]]; then
 elif (( $+functions[p10k] )); then
     print_result info "Powerlevel10k detected (not using Forge theme)"
 elif [[ -n "$ZSH_THEME" ]]; then
-    print_result info "Using theme: ${ZSH_THEME}"
+    print_result warn "Using theme: ${ZSH_THEME}"
     print_result instruction "To use Forge theme, add to ~/.zshrc:"
-    print_result code "eval \"\$(forge theme zsh)\""
+    print_result code "eval \"\$(\$FORGE_BIN zsh theme)\""
 else
     print_result warn "No theme loaded"
     print_result instruction "To use Forge theme, add to ~/.zshrc:"
-    print_result code "eval \"\$(forge theme zsh)\""
+    print_result code "eval \"\$(\$FORGE_BIN zsh theme)\""
 fi
 
 # 5. Check dependencies
@@ -260,7 +282,7 @@ if [[ -n "$FORGE_EDITOR" ]]; then
     fi
 elif [[ -n "$EDITOR" ]]; then
     print_result pass "EDITOR: ${EDITOR}"
-    print_result info "Tip: Set FORGE_EDITOR for forge-specific editor"
+    print_result info "TIP: Set FORGE_EDITOR for forge-specific editor"
 else
     print_result warn "No editor configured" "export EDITOR=vim or export FORGE_EDITOR=vim"
 fi
@@ -276,9 +298,9 @@ fi
 # Show actual icons used in Forge theme
 echo ""
 echo "$(bold "Font Check [Manual Verification Required]")"
-echo "   $(bold "󱙺 FORGE 33.0k") $(cyan " claude-opus-4-5-20251101")"
+echo "   $(bold "󱙺 FORGE 33.0k") $(cyan " tonic-1.0")"
 echo ""
-echo "   Forge uses Nerd Fonts to enrich cli experience, can you see all 5 icons clearly without any overlap?"
+echo "   Forge uses Nerd Fonts to enrich cli experience, can you see all the icons clearly without any overlap?"
 echo "   If you see boxes (□) or question marks (?), install a Nerd Font from:"
 echo "   $(dim "https://www.nerdfonts.com/")"
 echo ""
