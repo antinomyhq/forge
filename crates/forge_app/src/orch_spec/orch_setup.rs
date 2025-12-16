@@ -6,7 +6,7 @@ use derive_setters::Setters;
 use forge_domain::{
     Agent, AgentId, Attachment, ChatCompletionMessage, ChatResponse, Conversation, Environment,
     Event, File, HttpConfig, MessageEntry, ModelId, ProviderId, RetryConfig, Role, Template,
-    ToolCallFull, ToolDefinition, ToolResult, Workflow,
+    TlsVersion, ToolCallFull, ToolDefinition, ToolResult, Workflow,
 };
 use url::Url;
 
@@ -75,7 +75,15 @@ impl Default for TestContext {
                 stdout_max_prefix_length: 256,
                 stdout_max_suffix_length: 256,
                 max_read_size: 4096,
-                http: HttpConfig::test_default(),
+                http: {
+                    use fake::{Fake, Faker};
+                    let mut http: HttpConfig = Faker.fake();
+                    // Override TLS settings to ensure valid configuration
+                    http.min_tls_version = Some(TlsVersion::V1_2);
+                    http.max_tls_version = Some(TlsVersion::V1_3);
+                    http.accept_invalid_certs = false;
+                    http
+                },
                 max_file_size: 1024 * 1024 * 5,
                 max_search_result_bytes: 200,
                 stdout_max_line_length: 200, // 5 MB

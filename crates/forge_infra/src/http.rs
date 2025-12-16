@@ -307,9 +307,17 @@ mod tests {
     }
 
     fn create_test_env(debug_requests: Option<PathBuf>) -> Environment {
+        use fake::{Fake, Faker};
+        
+        let mut http: HttpConfig = Faker.fake();
+        // Override TLS settings to ensure valid configuration
+        http.min_tls_version = Some(TlsVersion::V1_2);
+        http.max_tls_version = Some(TlsVersion::V1_3);
+        http.accept_invalid_certs = false;
+        
         Environment {
             debug_requests,
-            http: HttpConfig::test_default(),
+            http,
             ..Faker.fake()
         }
     }

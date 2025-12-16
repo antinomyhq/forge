@@ -7,14 +7,15 @@ use strum_macros::EnumString;
 /// connections.
 ///
 /// # Example
-/// ```
+/// ```no_run
 /// use forge_env::{HttpConfig, TlsVersion, TlsBackend};
+/// use fake::{Fake, Faker};
 ///
 /// let config = HttpConfig {
 ///     min_tls_version: Some(TlsVersion::V1_2),
 ///     max_tls_version: Some(TlsVersion::V1_3),
 ///     tls_backend: TlsBackend::Rustls,
-///     ..HttpConfig::test_default()
+///     ..Faker.fake()
 /// };
 /// ```
 ///
@@ -120,8 +121,9 @@ impl std::fmt::Display for TlsBackend {
 ///   CER format), multiple paths separated by commas
 ///
 /// # Example
-/// ```
+/// ```no_run
 /// use forge_env::{HttpConfig, TlsVersion, TlsBackend};
+/// use fake::{Fake, Faker};
 ///
 /// let config = HttpConfig {
 ///     connect_timeout: 30,
@@ -130,7 +132,7 @@ impl std::fmt::Display for TlsBackend {
 ///     tls_backend: TlsBackend::Rustls,
 ///     adaptive_window: true,
 ///     keep_alive_interval: Some(60),
-///     ..HttpConfig::test_default()
+///     ..Faker.fake()
 /// };
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, fake::Dummy)]
@@ -166,15 +168,5 @@ pub struct HttpConfig {
 }
 
 impl HttpConfig {
-    /// Creates a test default instance using faker with sensible defaults. Only
-    /// use in tests.
-    pub fn test_default() -> Self {
-        use fake::{Fake, Faker};
-        let mut config: Self = Faker.fake();
-        // Override TLS settings to ensure valid configuration
-        config.min_tls_version = Some(TlsVersion::V1_2);
-        config.max_tls_version = Some(TlsVersion::V1_3);
-        config.accept_invalid_certs = false;
-        config
-    }
+
 }

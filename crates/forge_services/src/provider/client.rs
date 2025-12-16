@@ -323,6 +323,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_builder_pattern_api() {
+        use fake::{Fake, Faker};
+        
         let provider = forge_domain::Provider {
             id: ProviderId::OPENAI,
             provider_type: Default::default(),
@@ -336,9 +338,11 @@ mod tests {
             )),
         };
 
+        let retry_config: RetryConfig = Faker.fake();
+        
         // Test the builder pattern API
         let client = ClientBuilder::new(provider, &make_test_env())
-            .retry_config(RetryConfig::test_default())
+            .retry_config(retry_config)
             .use_hickory(true)
             .build(Arc::new(MockHttpClient))
             .unwrap();

@@ -112,7 +112,7 @@ gray_matter = "0.3.2"
 num-format = "0.4"
 humantime = "2.1.0"
 dashmap = "7.0.0-rc2"
-config = "0.14.1"
+config = { version = "0.14.1", features = ["convert-case"] }
 
 # Internal crates
 forge_api = { path = "crates/forge_api" }
