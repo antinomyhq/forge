@@ -81,10 +81,10 @@ impl SpinnerManager {
 
         // Set the initial message
         let message = format!(
-            "{} {} · {}",
+            "{} {} {}",
             word.green().bold(),
             self.stopwatch,
-            "Ctrl+C to interrupt".white().dimmed()
+            "· Ctrl+C to interrupt".white().dimmed()
         );
         pb.set_message(message);
 
@@ -108,10 +108,10 @@ impl SpinnerManager {
                 }
                 if let (Some(spinner), Some(message)) = (&spinner_clone, &message_clone) {
                     let updated_message = format!(
-                        "{} {} · {}",
+                        "{} {} {}",
                         message.green().bold(),
                         stopwatch,
-                        "Ctrl+C to interrupt".white().dimmed()
+                        "· Ctrl+C to interrupt".white().dimmed()
                     );
                     spinner.set_message(updated_message);
                 }
