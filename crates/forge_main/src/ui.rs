@@ -2582,24 +2582,6 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         self.writeln(info)?;
         self.spinner.stop(None)?;
 
-        // Only prompt for new conversation if in interactive mode and prompt is enabled
-        if self.cli.is_interactive() {
-            let prompt_text = "Start a new conversation?";
-            let should_start_new_chat = ForgeSelect::confirm(prompt_text)
-                // Pressing ENTER should start new
-                .with_default(true)
-                .with_help_message("ESC = No, continue current conversation")
-                .prompt()
-                // Cancel or failure should continue with the session
-                .unwrap_or(Some(false))
-                .unwrap_or(false);
-
-            // if conversation is over
-            if should_start_new_chat {
-                self.on_new().await?;
-            }
-        }
-
         Ok(())
     }
 
