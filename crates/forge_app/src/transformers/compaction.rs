@@ -1,26 +1,25 @@
 use forge_domain::{Agent, Context, Transformer};
-
-use crate::compact::CompactRange;
+use crate::compact::Compactor;
 
 /// Transformer that compacts context when necessary before sending to LLM
-pub struct CompactionTransformer<C> {
+pub struct CompactionTransformer {
     agent: Agent,
-    compactor: Option<C>,
+    compactor: Option<Compactor>,
 }
 
-impl<C: CompactRange> CompactionTransformer<C> {
+impl CompactionTransformer {
     /// Creates a new CompactionTransformer
     ///
     /// # Arguments
     ///
     /// * `agent` - The agent configuration containing compaction settings
     /// * `compactor` - The compaction service implementation
-    pub fn new(agent: Agent, compactor: Option<C>) -> Self {
+    pub fn new(agent: Agent, compactor: Option<Compactor>) -> Self {
         Self { agent, compactor }
     }
 }
 
-impl<C: CompactRange> Transformer for CompactionTransformer<C> {
+impl Transformer for CompactionTransformer {
     type Value = Context;
 
     fn transform(&mut self, context: Self::Value) -> Self::Value {

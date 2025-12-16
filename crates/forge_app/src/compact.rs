@@ -12,14 +12,6 @@ pub struct Compactor {
     environment: Environment,
 }
 
-pub trait CompactRange {
-    fn compact_range(
-        &self,
-        context: &Context,
-        compact_config: &Compact,
-    ) -> anyhow::Result<Option<Context>>;
-}
-
 impl Compactor {
     pub fn new(compact: Compact, environment: Environment) -> Self {
         Self { compact, environment }
@@ -43,8 +35,8 @@ impl Compactor {
     }
 }
 
-impl CompactRange for Compactor {
-    fn compact_range(
+impl Compactor {
+    pub fn compact_range(
         &self,
         context: &Context,
         compact_config: &Compact,
