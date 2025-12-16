@@ -145,10 +145,14 @@ impl<H: HttpClientService> BedrockProvider<H> {
         )
     }
 
-    /// Checks if an SDK error is retryable based on error type (network/timeout errors)
+    /// Checks if an SDK error is retryable based on error type (network/timeout
+    /// errors)
     fn is_retryable_sdk_error<E, R>(err: &aws_sdk_bedrockruntime::error::SdkError<E, R>) -> bool {
         use aws_sdk_bedrockruntime::error::SdkError;
-        matches!(err, SdkError::TimeoutError(_) | SdkError::DispatchFailure(_))
+        matches!(
+            err,
+            SdkError::TimeoutError(_) | SdkError::DispatchFailure(_)
+        )
     }
 
     /// Perform a streaming chat completion
@@ -888,9 +892,10 @@ mod tests {
     }
 
     // Note: Testing actual SDK error type matching would require constructing
-    // aws_sdk_bedrockruntime error types, which is not straightforward in unit tests.
-    // The error matching logic is tested implicitly through integration tests
-    // where real Bedrock API calls are made and actual errors are returned.
+    // aws_sdk_bedrockruntime error types, which is not straightforward in unit
+    // tests. The error matching logic is tested implicitly through
+    // integration tests where real Bedrock API calls are made and actual
+    // errors are returned.
     //
     // The key improvements over string matching:
     // 1. Type-safe: Compiler ensures we handle all error variants correctly
