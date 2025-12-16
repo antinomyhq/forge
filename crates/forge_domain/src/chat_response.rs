@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use chrono::Local;
 
-use crate::{ToolCallFull, ToolName, ToolResult};
+use crate::{ConversationId, ToolCallFull, ToolName, ToolResult};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ChatResponseContent {
@@ -116,7 +116,6 @@ pub enum Category {
     Info,
     Debug,
     Error,
-    Completion,
     Warning,
 }
 
@@ -127,6 +126,7 @@ pub struct TitleFormat {
     pub sub_title: Option<String>,
     pub category: Category,
     pub timestamp: chrono::DateTime<chrono::Utc>,
+    pub conversation_id: Option<ConversationId>,
 }
 
 pub trait TitleExt {
@@ -150,6 +150,7 @@ impl TitleFormat {
             sub_title: None,
             category: Category::Info,
             timestamp: Local::now().into(),
+            conversation_id: None,
         }
     }
 
@@ -160,6 +161,7 @@ impl TitleFormat {
             sub_title: None,
             category: Category::Action,
             timestamp: Local::now().into(),
+            conversation_id: None,
         }
     }
 
@@ -169,6 +171,7 @@ impl TitleFormat {
             sub_title: None,
             category: Category::Error,
             timestamp: Local::now().into(),
+            conversation_id: None,
         }
     }
 
@@ -178,6 +181,7 @@ impl TitleFormat {
             sub_title: None,
             category: Category::Debug,
             timestamp: Local::now().into(),
+            conversation_id: None,
         }
     }
 
@@ -187,6 +191,7 @@ impl TitleFormat {
             sub_title: None,
             category: Category::Warning,
             timestamp: Local::now().into(),
+            conversation_id: None,
         }
     }
 }
@@ -209,6 +214,7 @@ mod tests {
             sub_title: Some("Subtitle".to_string()),
             category: Category::Action,
             timestamp,
+            conversation_id: None,
         };
 
         assert_eq!(title.title, "Test Action");

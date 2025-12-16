@@ -42,17 +42,19 @@ impl<S: Services> AgentExecutor<S> {
         task: String,
         ctx: &ToolCallContext,
     ) -> anyhow::Result<ToolOutput> {
+        // Create a new conversation for agent execution
+        let conversation = Conversation::generate().title(task.clone());
+
         ctx.send_title(
             TitleFormat::debug(format!(
                 "{} [Agent]",
                 agent_id.as_str().to_case(Case::UpperSnake)
             ))
+            .conversation_id(conversation.id)
             .sub_title(task.as_str()),
         )
         .await?;
 
-        // Create a new conversation for agent execution
-        let conversation = Conversation::generate().title(task.clone());
         self.services
             .conversation_service()
             .upsert_conversation(conversation.clone())
@@ -72,7 +74,14 @@ impl<S: Services> AgentExecutor<S> {
             let message = message?;
             match message {
                 ChatResponse::TaskMessage { ref content } => match content {
-                    ChatResponseContent::Title(_) => ctx.send(message).await?,
+                    ChatResponseContent::Title(title) => {
+                        ctx.send(ChatResponse::TaskMessage {
+                            content: ChatResponseContent::Title(
+                                title.clone().conversation_id(conversation.id),
+                            ),
+                        })
+                        .await?
+                    }
                     ChatResponseContent::PlainText(text) => output = Some(text.to_owned()),
                     ChatResponseContent::Markdown(text) => output = Some(text.to_owned()),
                 },

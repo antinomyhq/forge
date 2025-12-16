@@ -111,8 +111,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Writes a TitleFormat to the console output with proper formatting
     async fn writeln_title(&mut self, title: TitleFormat) -> anyhow::Result<()> {
+        let cid = title.conversation_id.or(self.state.conversation_id);
         let mut td = title.display();
-        if let Some(cid) = self.state.conversation_id {
+        if let Some(cid) = cid {
             let conversation = self.api.conversation(&cid).await?;
 
             td = td

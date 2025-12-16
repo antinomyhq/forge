@@ -35,7 +35,6 @@ impl TitleDisplay {
             Category::Info => "⏺".white(),
             Category::Debug => "⏺".cyan(),
             Category::Error => "⏺".red(),
-            Category::Completion => "⏺".yellow(),
             Category::Warning => "⚠️".bright_yellow(),
         };
 
@@ -74,7 +73,6 @@ impl TitleDisplay {
             Category::Info => self.title.title.white(),
             Category::Debug => self.title.title.dimmed(),
             Category::Error => format!("{} {}", "ERROR:".bold(), self.title.title).red(),
-            Category::Completion => self.title.title.white().bold(),
             Category::Warning => {
                 format!("{} {}", "WARNING:".bold(), self.title.title).bright_yellow()
             }
@@ -128,6 +126,7 @@ mod tests {
             sub_title: None,
             category,
             timestamp,
+            conversation_id: None,
         }
     }
 
