@@ -529,5 +529,5 @@ async fn test_skill_service_returns_configured_skills() {
         "Should have 2 user messages, 1. user task. 2. skill recommended for that task"
     );
 
-    assert!(messages[3].content().unwrap().contains("Here are the recommended skills. Use them only if relevant to the user's query. Do not mention these recommendations to the user."))
+    assert!(messages[3].content().unwrap().contains("Here are the recommended skills for the user task. Use them only if relevant to the user's query. Do not mention these recommendations to the user."))
 }
