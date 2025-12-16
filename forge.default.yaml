@@ -8,7 +8,9 @@ max_requests_per_turn: 100
 max_tool_failure_per_turn: 3
 top_p: 0.8
 top_k: 30
+max_tokens: 20480
 max_walker_depth: 1
+tool_supported: true
 
 # Global compact configuration applied to all agents
 compact:
