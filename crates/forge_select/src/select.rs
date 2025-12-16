@@ -274,28 +274,26 @@ pub struct InputBuilder {
 }
 
 // Internal type for dialoguer interaction
-struct DialoguerMaskedDefault {
+#[derive(Clone)]
+struct MaskedDefault {
     value: String,
     display: String,
 }
 
-impl std::fmt::Display for DialoguerMaskedDefault {
+impl std::fmt::Display for MaskedDefault {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.display)
     }
 }
 
-impl std::str::FromStr for DialoguerMaskedDefault {
+impl std::str::FromStr for MaskedDefault {
     type Err = std::convert::Infallible;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(DialoguerMaskedDefault { value: s.to_string(), display: s.to_string() })
-    }
-}
-
-impl Clone for DialoguerMaskedDefault {
-    fn clone(&self) -> Self {
-        DialoguerMaskedDefault { value: self.value.clone(), display: self.display.clone() }
+        Ok(MaskedDefault {
+            value: s.to_string(),
+            display: s.to_string(),
+        })
     }
 }
 
@@ -339,7 +337,7 @@ impl InputBuilder {
         if let (Some(value), Some(display)) = (self.default, self.default_display) {
             // If value and display are different, use DialoguerMaskedDefault
             if value != display {
-                let masked = DialoguerMaskedDefault { value, display };
+                let masked = MaskedDefault { value, display };
                 let input = Input::with_theme(&theme)
                     .with_prompt(&self.message)
                     .allow_empty(self.allow_empty)
