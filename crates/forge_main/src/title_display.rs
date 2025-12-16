@@ -86,7 +86,6 @@ impl TitleDisplay {
 
         buf
     }
-
 }
 
 impl fmt::Display for TitleDisplay {
