@@ -46,7 +46,8 @@ impl Stopwatch {
 }
 
 impl fmt::Display for Stopwatch {
-    /// Format elapsed time as "01s", "02s", ... "59s", "1:01m", "1:59m", "1:01h", "2:30h"
+    /// Format elapsed time as "01s", "02s", ... "59s", "1:01m", "1:59m",
+    /// "1:01h", "2:30h"
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let total_seconds = self.elapsed().as_secs();
         if total_seconds < 60 {
@@ -108,7 +109,10 @@ mod tests {
 
     #[test]
     fn test_display_formats_seconds_without_leading_zero() {
-        let fixture = Stopwatch { started_at: None, elapsed: std::time::Duration::from_secs(30) };
+        let fixture = Stopwatch {
+            started_at: None,
+            elapsed: std::time::Duration::from_secs(30),
+        };
         let actual = format!("{}", fixture);
         let expected = "30s";
         assert_eq!(actual, expected);
@@ -116,7 +120,10 @@ mod tests {
 
     #[test]
     fn test_display_formats_minutes_with_seconds() {
-        let fixture = Stopwatch { started_at: None, elapsed: std::time::Duration::from_secs(61) };
+        let fixture = Stopwatch {
+            started_at: None,
+            elapsed: std::time::Duration::from_secs(61),
+        };
         let actual = format!("{}", fixture);
         let expected = "1:01m";
         assert_eq!(actual, expected);
@@ -124,7 +131,10 @@ mod tests {
 
     #[test]
     fn test_display_formats_minutes_with_double_digit_seconds() {
-        let fixture = Stopwatch { started_at: None, elapsed: std::time::Duration::from_secs(80) };
+        let fixture = Stopwatch {
+            started_at: None,
+            elapsed: std::time::Duration::from_secs(80),
+        };
         let actual = format!("{}", fixture);
         let expected = "1:20m";
         assert_eq!(actual, expected);
@@ -132,7 +142,10 @@ mod tests {
 
     #[test]
     fn test_display_formats_hours_with_minutes() {
-        let fixture = Stopwatch { started_at: None, elapsed: std::time::Duration::from_secs(3600) };
+        let fixture = Stopwatch {
+            started_at: None,
+            elapsed: std::time::Duration::from_secs(3600),
+        };
         let actual = format!("{}", fixture);
         let expected = "1:00h";
         assert_eq!(actual, expected);
@@ -140,7 +153,10 @@ mod tests {
 
     #[test]
     fn test_display_formats_hours_with_non_zero_minutes() {
-        let fixture = Stopwatch { started_at: None, elapsed: std::time::Duration::from_secs(9000) };
+        let fixture = Stopwatch {
+            started_at: None,
+            elapsed: std::time::Duration::from_secs(9000),
+        };
         let actual = format!("{}", fixture);
         let expected = "2:30h";
         assert_eq!(actual, expected);
