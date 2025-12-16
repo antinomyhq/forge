@@ -2578,14 +2578,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     self.writeln(rendered_content.dimmed())?;
                 }
             }
-            ChatResponse::TaskComplete => {
-                if let Some(conversation_id) = self.state.conversation_id {
-                    self.writeln_title(
-                        TitleFormat::debug("Finished").sub_title(conversation_id.into_string()),
-                    )
-                    .await?;
-                }
-            }
+            ChatResponse::TaskComplete => {}
         }
         Ok(())
     }

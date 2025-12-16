@@ -44,8 +44,8 @@ impl TitleDisplay {
         let mut timestamp_str = format!("{}", self.title.timestamp.format("%H:%M:%S"));
 
         // Add usage information if available (only for debug messages)
-        if self.title.category == Category::Debug {
-            if let Some(usage) = &self.usage {
+        if self.title.category == Category::Debug
+            && let Some(usage) = &self.usage {
                 let total_tokens = *usage.total_tokens;
                 if total_tokens > 0 {
                     let humanized_tokens = humanize_number(total_tokens);
@@ -64,7 +64,6 @@ impl TitleDisplay {
                     }
                 }
             }
-        }
 
         let timestamp_str = format!("[{}] ", timestamp_str);
         buf.push_str(timestamp_str.dimmed().to_string().as_str());
