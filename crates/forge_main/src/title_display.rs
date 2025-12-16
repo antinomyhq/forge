@@ -6,7 +6,7 @@ use derive_setters::Setters;
 use forge_api::Usage;
 use forge_domain::{Category, TitleFormat};
 
-use crate::format_utils::humanize_number;
+use crate::utils::humanize_number;
 
 /// Implementation of Display for TitleFormat in the presentation layer
 #[derive(Setters)]

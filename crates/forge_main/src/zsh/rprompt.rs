@@ -10,7 +10,7 @@ use derive_setters::Setters;
 use forge_domain::{AgentId, ModelId, TokenCount};
 
 use super::style::{ZshColor, ZshStyle};
-use crate::format_utils::humanize_number;
+use crate::utils::humanize_number;
 
 /// ZSH right prompt displaying agent, model, and token count.
 ///
