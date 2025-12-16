@@ -1,50 +1,39 @@
 use std::sync::Arc;
 
-use derive_setters::Setters;
 use minimad::{Line, parse_text};
 use syntect::easy::HighlightLines;
 use syntect::highlighting::ThemeSet;
 use syntect::parsing::SyntaxSet;
 use syntect::util::as_24_bit_terminal_escaped;
 
-/// Extracts code blocks, applies syntax highlighting, uses placeholders.
-#[derive(Clone, Setters)]
-pub struct MarkdownCodeRenderer {
+/// Loads and caches syntax highlighting resources.
+#[derive(Clone)]
+pub struct SyntaxHighlighter {
     syntax_set: Arc<SyntaxSet>,
     theme_set: Arc<ThemeSet>,
-    processed_markdown: String,
-    blocks: Vec<String>,
 }
 
-impl Default for MarkdownCodeRenderer {
+impl Default for SyntaxHighlighter {
     fn default() -> Self {
         Self {
             syntax_set: Arc::new(SyntaxSet::load_defaults_newlines()),
             theme_set: Arc::new(ThemeSet::load_defaults()),
-            processed_markdown: String::new(),
-            blocks: Vec::new(),
         }
     }
 }
 
-impl MarkdownCodeRenderer {
-    pub fn get_processed_markdown(&self) -> &str {
-        self.processed_markdown.as_str()
-    }
-
-    /// Extract code blocks, highlight them, return markdown with placeholders.
-    pub fn process(content: &str) -> Self {
+impl SyntaxHighlighter {
+    /// Process markdown content and extract code blocks.
+    pub fn process(&self, content: &str) -> ProcessedMarkdown {
         let text = parse_text(content, minimad::Options::default().keep_code_fences(true));
         let original_lines: Vec<&str> = content.lines().collect();
-        let mut blocks = Vec::default();
+        let mut blocks = Vec::new();
 
         let mut result = String::new();
         let mut orig_idx = 0;
         let mut code_lines: Vec<&str> = Vec::new();
         let mut lang = "";
         let mut in_code = false;
-
-        let renderer = MarkdownCodeRenderer::default();
 
         for line in &text.lines {
             match line {
@@ -55,7 +44,7 @@ impl MarkdownCodeRenderer {
                 }
                 Line::CodeFence(_) => {
                     result.push_str(&format!("\x00{}\x00\n", blocks.len()));
-                    blocks.push(renderer.highlight(&code_lines.join("\n"), lang));
+                    blocks.push((code_lines.join("\n"), lang.to_string()));
                     code_lines.clear();
                     in_code = false;
                     orig_idx += 1;
@@ -76,15 +65,10 @@ impl MarkdownCodeRenderer {
             }
         }
 
-        renderer.blocks(blocks).processed_markdown(result)
-    }
-
-    /// Replace placeholders with highlighted code.
-    pub fn restore(&self, mut rendered: String) -> String {
-        for (i, block) in self.blocks.iter().enumerate() {
-            rendered = rendered.replace(&format!("\x00{i}\x00"), block);
+        ProcessedMarkdown {
+            markdown: result,
+            blocks,
         }
-        rendered
     }
 
     fn highlight(&self, code: &str, lang: &str) -> String {
@@ -103,6 +87,35 @@ impl MarkdownCodeRenderer {
     }
 }
 
+/// Holds extracted code blocks and processed markdown with placeholders.
+#[derive(Clone)]
+pub struct ProcessedMarkdown {
+    markdown: String,
+    blocks: Vec<(String, String)>, // (code, language)
+}
+
+impl ProcessedMarkdown {
+    /// Get the processed markdown with placeholders.
+    pub fn markdown(&self) -> &str {
+        &self.markdown
+    }
+
+    /// Get the extracted code blocks.
+    #[cfg(test)]
+    pub fn blocks(&self) -> &[(String, String)] {
+        &self.blocks
+    }
+
+    /// Replace placeholders with highlighted code blocks.
+    pub fn restore(&self, highlighter: &SyntaxHighlighter, mut rendered: String) -> String {
+        for (i, (code, lang)) in self.blocks.iter().enumerate() {
+            let highlighted = highlighter.highlight(code, lang);
+            rendered = rendered.replace(&format!("\x00{i}\x00"), &highlighted);
+        }
+        rendered
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -113,35 +126,61 @@ mod tests {
 
     #[test]
     fn test_no_code_blocks() {
-        let r = MarkdownCodeRenderer::process("Hello world");
-        assert!(r.get_processed_markdown().contains("Hello world"));
-        assert!(r.blocks.is_empty());
+        let highlighter = SyntaxHighlighter::default();
+        let r = highlighter.process("Hello world");
+        assert!(r.markdown().contains("Hello world"));
+        assert!(r.blocks().is_empty());
     }
 
     #[test]
     fn test_single_code_block() {
-        let r = MarkdownCodeRenderer::process("```rust\nfn main() {}\n```");
-        assert!(r.get_processed_markdown().contains("\x000\x00"));
-        assert_eq!(r.blocks.len(), 1);
+        let highlighter = SyntaxHighlighter::default();
+        let r = highlighter.process("```rust\nfn main() {}\n```");
+        assert!(r.markdown().contains("\x000\x00"));
+        assert_eq!(r.blocks().len(), 1);
+        assert_eq!(r.blocks()[0].0, "fn main() {}");
+        assert_eq!(r.blocks()[0].1, "rust");
     }
 
     #[test]
     fn test_preserves_indentation() {
-        let r = MarkdownCodeRenderer::process("```rust\n    let x = 1;\n```");
-        assert!(strip_ansi(&r.blocks[0]).contains("    let x = 1;"));
+        let highlighter = SyntaxHighlighter::default();
+        let r = highlighter.process("```rust\n    let x = 1;\n```");
+        assert_eq!(r.blocks()[0].0, "    let x = 1;");
     }
 
     #[test]
     fn test_restore() {
-        let r = MarkdownCodeRenderer::process("```rust\ncode\n```");
-        let result = r.restore("X\n\x000\x00\nY".into());
+        let highlighter = SyntaxHighlighter::default();
+        let r = highlighter.process("```rust\ncode\n```");
+        let result = r.restore(&highlighter, "X\n\x000\x00\nY".into());
         assert!(strip_ansi(&result).contains("code"));
     }
 
     #[test]
     fn test_full_flow() {
-        let r = MarkdownCodeRenderer::process("Hi\n```rust\nlet x = 1;\n```\nBye");
-        let result = strip_ansi(&r.restore(r.get_processed_markdown().to_string()));
+        let highlighter = SyntaxHighlighter::default();
+        let r = highlighter.process("Hi\n```rust\nlet x = 1;\n```\nBye");
+        let result = strip_ansi(&r.restore(&highlighter, r.markdown().to_string()));
         assert!(result.contains("Hi") && result.contains("let x = 1") && result.contains("Bye"));
+    }
+
+    #[test]
+    fn test_shared_highlighter() {
+        let highlighter = SyntaxHighlighter::default();
+        
+        // Process multiple markdown strings with the same highlighter
+        let r1 = highlighter.process("```rust\nlet x = 1;\n```");
+        let r2 = highlighter.process("```python\nprint('hello')\n```");
+        
+        // Both should work correctly
+        assert_eq!(r1.blocks()[0].1, "rust");
+        assert_eq!(r2.blocks()[0].1, "python");
+        
+        let result1 = r1.restore(&highlighter, r1.markdown().to_string());
+        let result2 = r2.restore(&highlighter, r2.markdown().to_string());
+        
+        assert!(strip_ansi(&result1).contains("let x = 1"));
+        assert!(strip_ansi(&result2).contains("print('hello')"));
     }
 }

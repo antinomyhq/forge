@@ -3,7 +3,7 @@ use regex::Regex;
 use termimad::crossterm::style::{Attribute, Color};
 use termimad::{CompoundStyle, LineStyle, MadSkin};
 
-use crate::code::MarkdownCodeRenderer;
+use crate::code::SyntaxHighlighter;
 
 /// MarkdownFormat provides functionality for formatting markdown text for
 /// terminal display.
@@ -12,6 +12,8 @@ use crate::code::MarkdownCodeRenderer;
 pub struct MarkdownFormat {
     skin: MadSkin,
     max_consecutive_newlines: usize,
+    #[setters(skip)]
+    highlighter: SyntaxHighlighter,
 }
 
 impl Default for MarkdownFormat {
@@ -34,7 +36,11 @@ impl MarkdownFormat {
         strikethrough_style.add_attr(Attribute::Dim);
         skin.strikeout = strikethrough_style;
 
-        Self { skin, max_consecutive_newlines: 2 }
+        Self {
+            skin,
+            max_consecutive_newlines: 2,
+            highlighter: SyntaxHighlighter::default(),
+        }
     }
 
     /// Render the markdown content to a string formatted for terminal display.
@@ -44,15 +50,12 @@ impl MarkdownFormat {
             return String::new();
         }
 
-        // Extract and highlight code blocks
-        let code_renderer = MarkdownCodeRenderer::process(&content);
+        // Extract code blocks
+        let processed = self.highlighter.process(&content);
 
         // Render with termimad, then restore highlighted code
-        let rendered = self
-            .skin
-            .term_text(code_renderer.get_processed_markdown())
-            .to_string();
-        code_renderer.restore(rendered).trim().to_string()
+        let rendered = self.skin.term_text(processed.markdown()).to_string();
+        processed.restore(&self.highlighter, rendered).trim().to_string()
     }
 
     fn strip_excessive_newlines(&self, content: &str) -> String {
