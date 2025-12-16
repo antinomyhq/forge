@@ -533,7 +533,11 @@ mod tests {
         let json = r#"{"provider": "openai",}"#;
 
         let infra = Arc::new(MockInfra::new(config_path.clone()));
-        infra.files.lock().unwrap().insert(config_path, json.to_string());
+        infra
+            .files
+            .lock()
+            .unwrap()
+            .insert(config_path, json.to_string());
 
         let repo = AppConfigRepositoryImpl::new(infra);
         let actual = repo.get_app_config().await.unwrap();
@@ -550,7 +554,11 @@ mod tests {
         let json = r#"["this", "is", "an", "array"]"#;
 
         let infra = Arc::new(MockInfra::new(config_path.clone()));
-        infra.files.lock().unwrap().insert(config_path, json.to_string());
+        infra
+            .files
+            .lock()
+            .unwrap()
+            .insert(config_path, json.to_string());
 
         let repo = AppConfigRepositoryImpl::new(infra);
         let actual = repo.get_app_config().await.unwrap();
