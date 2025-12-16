@@ -563,6 +563,14 @@ impl<F: GrpcInfra + Send + Sync> forge_domain::ContextEngineRepository for Forge
             .delete_workspace(workspace_id, auth_token)
             .await
     }
+
+    async fn select_skill(
+        &self,
+        request: forge_domain::SkillSelectionParams,
+        auth_token: &forge_domain::ApiKey,
+    ) -> anyhow::Result<Vec<forge_domain::SelectedSkill>> {
+        self.codebase_repo.select_skill(request, auth_token).await
+    }
 }
 
 #[async_trait::async_trait]

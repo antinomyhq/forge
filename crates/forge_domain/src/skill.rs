@@ -47,6 +47,69 @@ impl Skill {
     }
 }
 
+/// Simplified skill information for selection requests
+///
+/// Contains only name and description fields needed for skill selection
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SkillInfo {
+    /// Name of the skill
+    pub name: String,
+    /// Description of the skill
+    pub description: String,
+}
+
+impl SkillInfo {
+    /// Create a new skill info
+    pub fn new(name: impl Into<String>, description: impl Into<String>) -> Self {
+        Self {
+            name: name.into(),
+            description: description.into(),
+        }
+    }
+}
+
+/// A skill selected based on relevance to a user prompt
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Setters)]
+#[setters(strip_option, into)]
+pub struct SelectedSkill {
+    /// Name of the selected skill
+    pub name: String,
+    /// Relevance score of the skill to the prompt (0.0 to 1.0)
+    pub relevance: f32,
+    /// Rank of the skill in the selection results (1-based)
+    pub rank: u64,
+}
+
+impl SelectedSkill {
+    /// Create a new selected skill
+    pub fn new(name: impl Into<String>, relevance: f32, rank: u64) -> Self {
+        Self {
+            name: name.into(),
+            relevance,
+            rank,
+        }
+    }
+}
+
+/// Request parameters for skill selection
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SkillSelectionParams {
+    /// List of available skills to select from
+    pub skills: Vec<SkillInfo>,
+    /// User's prompt to match skills against
+    pub user_prompt: String,
+}
+
+impl SkillSelectionParams {
+    /// Create new skill selection parameters
+    pub fn new(skills: Vec<SkillInfo>, user_prompt: impl Into<String>) -> Self {
+        Self {
+            skills,
+            user_prompt: user_prompt.into(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
