@@ -132,7 +132,8 @@ impl Environment {
             .add_source(
                 config::Environment::with_prefix("FORGE")
                     .separator("__")
-                    .try_parsing(true),
+                    .try_parsing(true)
+                    .convert_case(config::Case::Snake),
             )
             .build()?;
 
