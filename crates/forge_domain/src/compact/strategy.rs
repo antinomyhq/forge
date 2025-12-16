@@ -342,12 +342,13 @@ mod tests {
         let fixture = context_from_pattern("sua");
 
         // Test Percentage strategy conversion
-        // Context: System (3 tokens), User (3 tokens), Assistant (3 tokens) = 9 total tokens
-        // Eviction budget: 40% of 9 = 3.6 → 4 tokens (rounded up)
+        // Context: System (3 tokens), User (3 tokens), Assistant (3 tokens) = 9 total
+        // tokens Eviction budget: 40% of 9 = 3.6 → 4 tokens (rounded up)
         // Strategy skips system messages, so calculation for non-system messages:
         // - User message (index 1): 3 tokens → budget: 4 - 3 = 1 token remaining
         // - Assistant message (index 2): 3 tokens → budget: 1 - 3 = 0 (saturating_sub)
-        // Result: Eviction budget exhausted at index 2 (Assistant), so to_fixed returns 2
+        // Result: Eviction budget exhausted at index 2 (Assistant), so to_fixed returns
+        // 2
         let percentage_strategy = CompactionStrategy::evict(0.4);
         let actual = percentage_strategy.to_fixed(&fixture);
         let expected = 2;
@@ -361,7 +362,8 @@ mod tests {
 
         // Test invalid percentage (gets clamped to 1.0 = 100%)
         // With 100% eviction budget (9 tokens), we can evict all messages
-        // With 9 tokens budget, all 3 messages (3+3+3) exhaust the budget at message index 2
+        // With 9 tokens budget, all 3 messages (3+3+3) exhaust the budget at message
+        // index 2
         let invalid_strategy = CompactionStrategy::evict(1.5);
         let actual = invalid_strategy.to_fixed(&fixture);
         let expected = 2; // Returns index 2 (last message) when all messages fit in budget
