@@ -32,18 +32,17 @@ impl Display for ZshRPrompt {
         let active = *self.token_count.unwrap_or_default() > 0usize;
 
         // Add agent
-        if let Some(ref agent_id) = self.agent {
-            let agent_id = format!(
-                "{AGENT_SYMBOL} {}",
-                agent_id.to_string().to_case(Case::UpperSnake)
-            );
-            let styled = if active {
-                agent_id.zsh().bold().fg(ZshColor::WHITE)
-            } else {
-                agent_id.zsh().bold().fg(ZshColor::DIMMED)
-            };
-            write!(f, " {}", styled)?;
-        }
+        let agent_id = self.agent.clone().unwrap_or_default();
+        let agent_id = format!(
+            "{AGENT_SYMBOL} {}",
+            agent_id.to_string().to_case(Case::UpperSnake)
+        );
+        let styled = if active {
+            agent_id.zsh().bold().fg(ZshColor::WHITE)
+        } else {
+            agent_id.zsh().bold().fg(ZshColor::DIMMED)
+        };
+        write!(f, " {}", styled)?;
 
         // Add token count
         if let Some(count) = self.token_count {
