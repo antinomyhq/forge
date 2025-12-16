@@ -26,8 +26,16 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> AppConfigRepositor
     /// Reads configuration from the JSON file with fallback strategies:
     async fn read(&self) -> AppConfig {
         let path = self.infra.get_environment().app_config();
-        let Ok(content) = self.infra.read_utf8(&path).await else {
-            return AppConfig::default();
+        let content = match self.infra.read_utf8(&path).await {
+            Ok(content) => content,
+            Err(e) => {
+                tracing::error!(
+                    path = %path.display(),
+                    error = %e,
+                    "Failed to read config file. Using default config."
+                );
+                return AppConfig::default();
+            }
         };
 
         // Strategy 1: Try normal parsing
