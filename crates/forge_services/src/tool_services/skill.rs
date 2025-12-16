@@ -54,7 +54,10 @@ impl<R: forge_domain::SkillRepository + ProviderRepository + ContextEngineReposi
             self.get_or_load_skills()
         );
 
-        let token = match credential?.ok_or(forge_domain::Error::AuthTokenNotFound)?.auth_details {
+        let token = match credential?
+            .ok_or(forge_domain::Error::AuthTokenNotFound)?
+            .auth_details
+        {
             AuthDetails::ApiKey(token) => token,
             _ => anyhow::bail!("ForgeServices credential must be an API key"),
         };
@@ -93,8 +96,8 @@ mod tests {
     use std::path::Path;
 
     use forge_domain::{
-        ApiKey, AuthCredential, CodeSearchQuery, FileDeletion, FileHash, FileUpload, FileUploadInfo,
-        Node, Skill, WorkspaceFiles, WorkspaceId, WorkspaceInfo,
+        ApiKey, AuthCredential, CodeSearchQuery, FileDeletion, FileHash, FileUpload,
+        FileUploadInfo, Node, Skill, WorkspaceFiles, WorkspaceId, WorkspaceInfo,
     };
     use pretty_assertions::assert_eq;
 

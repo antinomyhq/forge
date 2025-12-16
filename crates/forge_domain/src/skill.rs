@@ -61,10 +61,7 @@ pub struct SkillInfo {
 impl SkillInfo {
     /// Create a new skill info
     pub fn new(name: impl Into<String>, description: impl Into<String>) -> Self {
-        Self {
-            name: name.into(),
-            description: description.into(),
-        }
+        Self { name: name.into(), description: description.into() }
     }
 }
 
@@ -83,11 +80,7 @@ pub struct SelectedSkill {
 impl SelectedSkill {
     /// Create a new selected skill
     pub fn new(name: impl Into<String>, relevance: f32, rank: u64) -> Self {
-        Self {
-            name: name.into(),
-            relevance,
-            rank,
-        }
+        Self { name: name.into(), relevance, rank }
     }
 }
 
@@ -109,10 +102,7 @@ pub struct SkillSelectionParams {
 impl SkillSelectionParams {
     /// Create new skill selection parameters
     pub fn new(skills: Vec<SkillInfo>, user_prompt: impl Into<String>) -> Self {
-        Self {
-            skills,
-            user_prompt: user_prompt.into(),
-        }
+        Self { skills, user_prompt: user_prompt.into() }
     }
 }
 
