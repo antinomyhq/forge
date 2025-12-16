@@ -8,12 +8,12 @@ process.stdout.on("error", (error: NodeJS.ErrnoException) => {
   throw error;
 });
 
-import * as fs from "fs";
+import * as fs from "fs/promises";
 import * as path from "path";
 import { fileURLToPath } from "url";
 import { parse as parseYaml } from "yaml";
-import { parse as parseCsv } from "csv-parse/sync";
-import { execSync } from "child_process";
+import { exec } from "child_process";
+import { promisify } from "util";
 import pLimit from "p-limit";
 import pino from "pino";
 import { TaskStatus, type Task } from "./model.js";
@@ -24,6 +24,9 @@ import {
 import { parseCliArgs } from "./parse.js";
 import { executeTask, type TaskExecutionResult } from "./task-executor.js";
 import { processValidations, type ValidationResult } from "./verification.js";
+import { createTempDir, parseCsvAsync } from "./utils.js";
+
+const execAsync = promisify(exec);
 
 export type TaskResult = {
   index: number;
@@ -82,18 +85,22 @@ async function main() {
   const { evalName, evalDir, taskFile } = args;
 
   // Check if eval directory and task file exist
-  if (!fs.existsSync(evalDir)) {
+  try {
+    await fs.access(evalDir);
+  } catch {
     logger.error({ evalDir }, "Eval directory not found");
     process.exit(1);
   }
 
-  if (!fs.existsSync(taskFile)) {
+  try {
+    await fs.access(taskFile);
+  } catch {
     logger.error({ evalDir }, "task.yml not found");
     process.exit(1);
   }
 
   // Read and parse task.yml
-  const taskContent = fs.readFileSync(taskFile, "utf-8");
+  const taskContent = await fs.readFile(taskFile, "utf-8");
   const task: Task = parseYaml(taskContent);
 
   // Display header
@@ -102,16 +109,23 @@ async function main() {
   // Create debug directory with timestamp
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
   const debugDir = path.join(evalDir, "debug", timestamp);
-  fs.mkdirSync(debugDir, { recursive: true });
+  await fs.mkdir(debugDir, { recursive: true });
+
+  // Create a temp directory for setup commands
+  const setupTmpDir = await createTempDir("forge-setup-");
 
   // Execute before_run commands
   if (task.before_run && task.before_run.length > 0) {
     for (const cmd of task.before_run) {
       try {
-        logger.info({ command: cmd }, "Running setup command");
-        execSync(cmd, {
-          stdio: "inherit",
-          cwd: task.cwd ?? path.dirname(evalDir),
+        logger.info(
+          { dir: setupTmpDir.name, command: cmd },
+          "Running setup command",
+        );
+        // Small delay to allow logger to flush before command output
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        await execAsync(cmd, {
+          cwd: setupTmpDir.name,
         });
       } catch (error) {
         logger.error({ command: cmd }, "Setup command failed");
@@ -126,13 +140,15 @@ async function main() {
   for (const source of task.sources) {
     if ("csv" in source) {
       const csvPath = path.join(evalDir, source.csv);
-      if (!fs.existsSync(csvPath)) {
+      try {
+        await fs.access(csvPath);
+      } catch {
         logger.error({ csvPath }, "CSV file not found");
         process.exit(1);
       }
 
-      const csvContent = fs.readFileSync(csvPath, "utf-8");
-      const csvData: Record<string, string>[] = parseCsv(csvContent, {
+      const csvContent = await fs.readFile(csvPath, "utf-8");
+      const csvData = await parseCsvAsync(csvContent, {
         columns: true,
         skip_empty_lines: true,
       });
@@ -164,14 +180,35 @@ async function main() {
   // Create promises for all tasks
   const taskPromises = data.map((row, i) => {
     return limit(async () => {
-      const logFile = path.join(debugDir, `task_run_${i + 1}.log`);
-      const debugRequestFile = path.join(debugDir, `request_${i + 1}.json`);
+      // Create a unique temp directory for this task
+      const taskTmpDir = await createTempDir(`forge-task-${i + 1}-`);
 
-      // Add context_input to context for command interpolation and validations
-      const context = { ...row, context_input: debugRequestFile };
+      // Create a 'task' subdirectory for running commands
+      const taskWorkDir = path.join(taskTmpDir.name, 'task');
+      await fs.mkdir(taskWorkDir, { recursive: true });
+
+      const logFile = path.join(taskTmpDir.name, `task.log`);
+
+      // Context for command interpolation and validations
+      const context = { ...row, dir: taskTmpDir.name };
 
       // Support both single command and multiple commands
       const commands = Array.isArray(task.run) ? task.run : [task.run];
+
+      // Filter out empty or non-string commands
+      const validCommands = commands.filter(cmd => typeof cmd === 'string' && cmd.trim().length > 0);
+
+      // If no valid commands, skip this task
+      if (validCommands.length === 0) {
+        logger.warn({ task_id: i + 1 }, "No valid commands found, skipping task");
+        return {
+          index: i + 1,
+          status: TaskStatus.Failed,
+          command: "No valid commands",
+          duration: 0,
+          validationResults: [],
+        };
+      }
 
       let combinedOutput = "";
       let totalDuration = 0;
@@ -179,10 +216,22 @@ async function main() {
       let hasTimeout = false;
       let hasEarlyExit = false;
 
+      // Log task launch once before executing commands
+      logger.info(
+        {
+          task_id: i + 1,
+          total_commands: validCommands.length,
+          log: logFile,
+          dir: taskTmpDir.name,
+          work_dir: taskWorkDir,
+          parameters: context,
+        },
+        "Launching task",
+      );
+
       // Execute commands sequentially
-      for (let cmdIdx = 0; cmdIdx < commands.length; cmdIdx++) {
-        const commandTemplate = commands[cmdIdx];
-        if (!commandTemplate) continue;
+      for (let cmdIdx = 0; cmdIdx < validCommands.length; cmdIdx++) {
+        const commandTemplate = validCommands[cmdIdx]!; // Non-null assertion safe after filter
 
         const command = generateCommand(commandTemplate, context);
 
@@ -190,18 +239,17 @@ async function main() {
           {
             command,
             task_id: i + 1,
-            command_idx: cmdIdx + 1,
-            total_commands: commands.length,
-            log_file: logFile,
+            command_id: cmdIdx + 1,
+            total_commands: validCommands.length,
           },
-          "Launching task",
+          "Executing command",
         );
 
         const executionResult = await executeTask(
           command,
           i + 1,
           logFile,
-          evalDir,
+          taskWorkDir, // Use taskWorkDir instead of taskTmpDir.name
           task,
           context,
           cmdIdx > 0, // append if this is not the first command
@@ -226,7 +274,7 @@ async function main() {
             {
               task_id: executionResult.index,
               command: executionResult.command,
-              command_idx: cmdIdx + 1,
+              command_id: cmdIdx + 1,
               duration: executionResult.duration,
               error: executionResult.error,
               is_timeout: executionResult.isTimeout,
@@ -239,9 +287,9 @@ async function main() {
 
       // If any command failed, return failure result
       if (lastError) {
-        const { validationResults } = processValidations(
+        const { validationResults } = await processValidations(
           combinedOutput,
-          task.validations,
+          task,
           logger,
           i + 1,
           totalDuration,
@@ -252,7 +300,7 @@ async function main() {
         return {
           index: i + 1,
           status: hasTimeout ? TaskStatus.Timeout : TaskStatus.Failed,
-          command: commands.join(" && "),
+          command: validCommands.length === 1 ? validCommands[0]! : `${validCommands.length} commands`,
           duration: totalDuration,
           validationResults,
         };
@@ -260,9 +308,9 @@ async function main() {
 
       // Run validations on the combined output
       const { validationResults, status: validationStatus } =
-        processValidations(
+        await processValidations(
           combinedOutput,
-          task.validations,
+          task,
           logger,
           i + 1,
           totalDuration,
@@ -276,7 +324,7 @@ async function main() {
           validationStatus === "passed"
             ? TaskStatus.Passed
             : TaskStatus.ValidationFailed,
-        command: commands.join(" && "),
+        command: validCommands.length === 1 ? validCommands[0]! : `${validCommands.length} commands`,
         duration: totalDuration,
         validationResults,
       };
@@ -326,6 +374,7 @@ async function main() {
         passed: passedValidations,
         failed: totalValidations - passedValidations,
       },
+      dir: setupTmpDir.name,
     },
     "Evaluation completed",
   );
@@ -334,6 +383,12 @@ async function main() {
   if (failCount > 0) {
     process.exit(1);
   }
+  
+  // Exit successfully - ensures process terminates even with open handles
+  process.exit(0);
 }
 
-main();
+main().catch((error) => {
+  logger.error({ error: error.message }, "Fatal error");
+  process.exit(1);
+});

@@ -4,6 +4,22 @@ A flexible evaluation framework for running automated tests and benchmarks again
 
 ## Quick Start
 
+### Setup
+
+Before running evaluations, create a `forgee` symlink to the debug binary:
+
+```bash
+# Create symlink in your PATH (e.g., ~/bin or /usr/local/bin)
+ln -sf /path/to/code-forge/target/debug/forge ~/forgee
+
+# Or if ~/bin is in your PATH
+ln -sf $(pwd)/target/debug/forge ~/bin/forgee
+```
+
+**Why is this needed?** Tasks execute in temporary directories, so relative paths like `../../target/debug/forge` won't work. The `forgee` symlink provides a stable absolute path that works from any directory.
+
+### Running Evaluations
+
 ```bash
 # Run an evaluation
 npm run eval ./evals/create_skill/task.yml
@@ -58,21 +74,18 @@ before_run:
 
 # Required: Command(s) to execute for each test case
 # Single command
-run: ../../target/debug/forge -p '{{prompt}}'
+run: forgee -p '{{prompt}}'
 
 # Or multiple commands (executed sequentially)
 run:
   - echo "Step 1: {{task}}"
-  - ../../target/debug/forge -p '{{prompt}}'
+  - forgee -p '{{prompt}}'
   - echo "Step 2: Complete"
 
 # Execution configuration
 parallelism: 10  # Number of tasks to run in parallel (default: 1)
 timeout: 60      # Timeout in seconds (optional)
 early_exit: true # Stop execution when validations pass (optional)
-
-# Optional: Working directory for command execution
-cwd: /path/to/working/dir  # Defaults to parent directory of eval
 
 # Optional: Validations to run on output
 validations:
@@ -89,7 +102,7 @@ sources:
 
 **`before_run`** (optional): Array of shell commands to execute before running tasks
 - Runs sequentially before the main command execution
-- Uses the same working directory as specified in `cwd` (defaults to parent directory of eval)
+- Executes in a temporary directory created for the evaluation run
 - Useful for building binaries or setting up dependencies
 
 **`run`** (required): Command(s) to execute for each test case
@@ -103,11 +116,6 @@ sources:
 **`timeout`** (optional): Maximum execution time in seconds per task
 
 **`early_exit`** (optional): Stop command execution when all validations pass
-
-**`cwd`** (optional): Working directory for command execution
-- Defaults to parent directory of eval
-- Applies to both `before_run` commands and the main `run` command
-- All commands within the task will run in this directory
 
 **`validations`** (optional): Array of validation rules
 - `name`: Human-readable description

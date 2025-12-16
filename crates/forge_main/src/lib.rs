@@ -12,13 +12,14 @@ mod porcelain;
 mod prompt;
 mod sandbox;
 mod state;
+mod sync_display;
 mod title_display;
 mod tools_display;
 pub mod tracker;
 mod ui;
 mod utils;
 mod vscode;
-mod zsh_plugin;
+mod zsh;
 
 mod update;
 

@@ -1,0 +1,155 @@
+use forge_domain::SyncProgress;
+
+/// Extensions for formatting `SyncProgress` events as human-readable strings.
+///
+/// This module contains display logic for sync operation events, converting
+/// them into user-friendly messages for the UI layer.
+pub trait SyncProgressDisplay {
+    /// Returns a human-readable status message for this event.
+    ///
+    /// Returns `None` for internal events that don't need user-facing messages.
+    fn message(&self) -> Option<String>;
+}
+
+impl SyncProgressDisplay for SyncProgress {
+    fn message(&self) -> Option<String> {
+        match self {
+            Self::Starting => Some("Initializing sync".to_string()),
+            Self::WorkspaceCreated { workspace_id } => {
+                Some(format!("Created Workspace: {}", workspace_id))
+            }
+            Self::DiscoveringFiles { path: _ } => None,
+            Self::FilesDiscovered { count: _ } => None,
+            Self::ComparingFiles { .. } => None,
+            Self::DiffComputed { to_delete, to_upload, modified } => {
+                let total = to_delete + to_upload - modified;
+                if total == 0 {
+                    Some("Index is up to date".to_string())
+                } else {
+                    let deleted = to_delete - modified;
+                    let new = to_upload - modified;
+                    let mut parts = Vec::new();
+                    if new > 0 {
+                        parts.push(format!("{} new", new));
+                    }
+                    if *modified > 0 {
+                        parts.push(format!("{} modified", modified));
+                    }
+                    if deleted > 0 {
+                        parts.push(format!("{} removed", deleted));
+                    }
+                    Some(format!("Change scan completed [{}]", parts.join(", ")))
+                }
+            }
+            Self::Syncing { current, total } => {
+                let width = total.to_string().len();
+                let file_word = pluralize(*total);
+                Some(format!(
+                    "Syncing {:>width$}/{} {}",
+                    current.round() as usize,
+                    total,
+                    file_word
+                ))
+            }
+            Self::Completed { uploaded_files, total_files } => {
+                if *uploaded_files == 0 {
+                    Some(format!(
+                        "Index up to date [{} {}]",
+                        total_files,
+                        pluralize(*total_files)
+                    ))
+                } else {
+                    Some(format!(
+                        "Sync completed successfully [{uploaded_files}/{total_files} {} updated]",
+                        pluralize(*uploaded_files),
+                    ))
+                }
+            }
+        }
+    }
+}
+
+/// Returns "file" or "files" based on count.
+fn pluralize(count: usize) -> &'static str {
+    if count == 1 { "file" } else { "files" }
+}
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+
+    use super::*;
+
+    #[test]
+    fn test_starting_message() {
+        let fixture = SyncProgress::Starting;
+        let actual = fixture.message();
+        let expected = Some("Initializing sync".to_string());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_diff_computed_no_changes() {
+        let fixture = SyncProgress::DiffComputed { to_delete: 0, to_upload: 0, modified: 0 };
+        let actual = fixture.message();
+        let expected = Some("Index is up to date".to_string());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_diff_computed_with_changes() {
+        let fixture = SyncProgress::DiffComputed { to_delete: 3, to_upload: 5, modified: 2 };
+        let actual = fixture.message();
+        let expected = Some("Change scan completed [3 new, 2 modified, 1 removed]".to_string());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_syncing_single_file() {
+        let fixture = SyncProgress::Syncing { current: 1.0, total: 1 };
+        let actual = fixture.message();
+        let expected = Some("Syncing 1/1 file".to_string());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_syncing_multiple_files() {
+        let fixture = SyncProgress::Syncing { current: 5.5, total: 10 };
+        let actual = fixture.message();
+        let expected = Some("Syncing  6/10 files".to_string());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_completed_no_uploads() {
+        let fixture = SyncProgress::Completed { uploaded_files: 0, total_files: 100 };
+        let actual = fixture.message();
+        let expected = Some("Index up to date [100 files]".to_string());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_completed_with_uploads() {
+        let fixture = SyncProgress::Completed { uploaded_files: 5, total_files: 100 };
+        let actual = fixture.message();
+        let expected = Some("Sync completed successfully [5/100 files updated]".to_string());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_discovering_files_returns_none() {
+        let fixture =
+            SyncProgress::DiscoveringFiles { path: std::path::PathBuf::from("/some/path") };
+        let actual = fixture.message();
+        let expected = None;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_pluralize() {
+        assert_eq!(pluralize(0), "files");
+        assert_eq!(pluralize(1), "file");
+        assert_eq!(pluralize(2), "files");
+        assert_eq!(pluralize(100), "files");
+    }
+}

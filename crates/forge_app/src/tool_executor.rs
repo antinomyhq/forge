@@ -2,8 +2,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use forge_domain::{
-    CodebaseQueryResult, LineNumbers, TitleFormat, ToolCallContext, ToolCallFull, ToolCatalog,
-    ToolOutput,
+    CodebaseQueryResult, TitleFormat, ToolCallContext, ToolCallFull, ToolCatalog, ToolOutput,
 };
 
 use crate::fmt::content::FormatContent;
@@ -167,13 +166,6 @@ impl<
                         input.end_line.map(|i| i as u64),
                     )
                     .await?;
-                let output = if input.show_line_numbers {
-                    let file_content = output.content.file_content();
-                    let numbered_content = file_content.numbered_from(output.start_line as usize);
-                    output.content(crate::Content::file(numbered_content))
-                } else {
-                    output
-                };
 
                 (input, output).into()
             }

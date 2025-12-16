@@ -129,6 +129,12 @@ impl<F: Send + Sync> ConversationRepository for ForgeRepo<F> {
     async fn get_last_conversation(&self) -> anyhow::Result<Option<Conversation>> {
         self.conversation_repository.get_last_conversation().await
     }
+
+    async fn delete_conversation(&self, conversation_id: &ConversationId) -> anyhow::Result<()> {
+        self.conversation_repository
+            .delete_conversation(conversation_id)
+            .await
+    }
 }
 
 #[async_trait::async_trait]
@@ -200,25 +206,25 @@ impl<F: Send + Sync> KVStore for ForgeRepo<F> {
 
 #[async_trait::async_trait]
 impl<F: HttpInfra> HttpInfra for ForgeRepo<F> {
-    async fn get(&self, url: &Url, headers: Option<HeaderMap>) -> anyhow::Result<Response> {
-        self.infra.get(url, headers).await
+    async fn http_get(&self, url: &Url, headers: Option<HeaderMap>) -> anyhow::Result<Response> {
+        self.infra.http_get(url, headers).await
     }
 
-    async fn post(&self, url: &Url, body: Bytes) -> anyhow::Result<Response> {
-        self.infra.post(url, body).await
+    async fn http_post(&self, url: &Url, body: Bytes) -> anyhow::Result<Response> {
+        self.infra.http_post(url, body).await
     }
 
-    async fn delete(&self, url: &Url) -> anyhow::Result<Response> {
-        self.infra.delete(url).await
+    async fn http_delete(&self, url: &Url) -> anyhow::Result<Response> {
+        self.infra.http_delete(url).await
     }
 
-    async fn eventsource(
+    async fn http_eventsource(
         &self,
         url: &Url,
         headers: Option<HeaderMap>,
         body: Bytes,
     ) -> anyhow::Result<EventSource> {
-        self.infra.eventsource(url, headers, body).await
+        self.infra.http_eventsource(url, headers, body).await
     }
 }
 

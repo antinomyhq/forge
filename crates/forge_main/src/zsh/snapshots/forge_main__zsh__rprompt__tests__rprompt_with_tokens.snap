@@ -1,0 +1,5 @@
+---
+source: crates/forge_main/src/zsh/rprompt.rs
+expression: actual
+---
+ %B%F{15}󱙺 FORGE%f%b %B%F{15}1.5k%f%b %F{134} gpt-4%f

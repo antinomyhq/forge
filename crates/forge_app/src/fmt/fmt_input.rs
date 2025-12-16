@@ -17,13 +17,13 @@ impl FormatContent for ToolCatalog {
                 if is_explicit_range {
                     match (&input.start_line, &input.end_line) {
                         (Some(start), Some(end)) => {
-                            subtitle.push_str(&format!(" [Range {start}-{end}]"));
+                            subtitle.push_str(&format!(":{start}-{end}"));
                         }
                         (Some(start), None) => {
-                            subtitle.push_str(&format!(" [Range {start}-]"));
+                            subtitle.push_str(&format!(":{start}"));
                         }
                         (None, Some(end)) => {
-                            subtitle.push_str(&format!(" [Range -{end}]"));
+                            subtitle.push_str(&format!(":1-{end}"));
                         }
                         (None, None) => {}
                     }
@@ -64,11 +64,11 @@ impl FormatContent for ToolCatalog {
                 let pairs: Vec<_> = input
                     .queries
                     .iter()
-                    .map(|sq| format!("{} [{}]", sq.query, sq.use_case))
+                    .map(|item| item.query.as_str())
                     .collect();
                 Some(
-                    TitleFormat::debug("Codebase Search:")
-                        .sub_title(pairs.join(", "))
+                    TitleFormat::debug("Codebase Search")
+                        .sub_title(format!("[{}]", pairs.join(" · ")))
                         .into(),
                 )
             }

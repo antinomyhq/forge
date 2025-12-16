@@ -23,7 +23,7 @@ impl<I: HttpInfra + EnvironmentInfra + AppConfigRepository> ForgeAuthService<I> 
     async fn init(&self) -> anyhow::Result<InitAuth> {
         let init_url = format!("{}{AUTH_ROUTE}", self.infra.get_environment().forge_api_url);
         let init_url = Url::parse(&init_url)?;
-        let resp = self.infra.post(&init_url, Bytes::new()).await?;
+        let resp = self.infra.http_post(&init_url, Bytes::new()).await?;
         if !resp.status().is_success() {
             bail!("Failed to initialize auth")
         }
@@ -44,7 +44,7 @@ impl<I: HttpInfra + EnvironmentInfra + AppConfigRepository> ForgeAuthService<I> 
             HeaderValue::from_str(&format!("Bearer {}", auth.token))?,
         );
 
-        let response = self.infra.get(&url, Some(headers)).await?;
+        let response = self.infra.http_get(&url, Some(headers)).await?;
         match response.status().as_u16() {
             200 => Ok(serde_json::from_slice::<LoginInfo>(
                 &response.bytes().await?,
@@ -69,7 +69,7 @@ impl<I: HttpInfra + EnvironmentInfra + AppConfigRepository> ForgeAuthService<I> 
 
         let response = self
             .infra
-            .get(&url, Some(headers))
+            .http_get(&url, Some(headers))
             .await?
             .error_for_status()?;
 
@@ -89,7 +89,7 @@ impl<I: HttpInfra + EnvironmentInfra + AppConfigRepository> ForgeAuthService<I> 
 
         let response = self
             .infra
-            .get(&url, Some(headers))
+            .http_get(&url, Some(headers))
             .await?
             .error_for_status()?;
 

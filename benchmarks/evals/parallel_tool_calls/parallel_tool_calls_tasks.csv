@@ -1,0 +1,8 @@
+task
+"Read the contents of AGENTS.md, README.md, and Cargo.toml files"
+"Show me AGENTS.md, forge.schema.json, and rust-toolchain.toml files"
+"I need to see Cargo.toml, LICENSE, and README.md files"
+"Display the contents of forge.schema.json, AGENTS.md, and Cargo.toml simultaneously"
+"Read LICENSE, README.md, and rust-toolchain.toml in parallel"
+"Show me the files: AGENTS.md, Cargo.toml, forge.schema.json, and LICENSE"
+"I want to see README.md, rust-toolchain.toml, and forge.schema.json at once"

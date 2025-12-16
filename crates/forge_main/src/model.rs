@@ -77,11 +77,11 @@ impl Display for CliProvider {
                 if let Some(domain) = provider.url.domain() {
                     write!(f, " [{domain}]")?;
                 } else {
-                    write!(f, " {}", markers::UNAVAILABLE)?;
+                    write!(f, " {}", markers::EMPTY)?;
                 }
             }
             AnyProvider::Template(_) => {
-                write!(f, "  {name:<name_width$} {}", markers::UNAVAILABLE)?;
+                write!(f, "  {name:<name_width$} {}", markers::EMPTY)?;
             }
         }
         Ok(())
@@ -497,6 +497,10 @@ pub enum SlashCommand {
     #[strum(props(usage = "List all conversations for the active workspace"))]
     Conversations,
 
+    /// Delete a conversation permanently
+    #[strum(props(usage = "Delete a conversation permanently"))]
+    Delete,
+
     /// Switch directly to a specific agent by ID
     #[strum(props(usage = "Switch directly to a specific agent"))]
     AgentSwitch(String),
@@ -543,6 +547,7 @@ impl SlashCommand {
             SlashCommand::Logout => "logout",
             SlashCommand::Retry => "retry",
             SlashCommand::Conversations => "conversation",
+            SlashCommand::Delete => "delete",
             SlashCommand::AgentSwitch(agent_id) => agent_id,
             SlashCommand::Index => "index",
         }
@@ -1099,7 +1104,7 @@ mod tests {
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = format!("  Anthropic           {}", markers::UNAVAILABLE);
+        let expected = format!("  Anthropic           {}", markers::EMPTY);
         assert_eq!(actual, expected);
     }
 
@@ -1119,7 +1124,7 @@ mod tests {
         });
         let formatted = format!("{}", CliProvider(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = format!("✓ Forge               {}", markers::UNAVAILABLE);
+        let expected = format!("✓ Forge               {}", markers::EMPTY);
         assert_eq!(actual, expected);
     }
 

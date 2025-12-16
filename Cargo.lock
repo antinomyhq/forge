@@ -401,6 +401,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "clap_complete"
+version = "4.5.61"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "39615915e2ece2550c0149addac32fb5bd312c657f43845bb9088cb9c8a7c992"
+dependencies = [
+ "clap",
+]
+
+[[package]]
 name = "clap_derive"
 version = "4.5.49"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1493,6 +1502,7 @@ dependencies = [
  "atty",
  "chrono",
  "clap",
+ "clap_complete",
  "colored",
  "console 0.16.1",
  "convert_case 0.8.0",
@@ -1666,6 +1676,7 @@ dependencies = [
  "anyhow",
  "colored",
  "indicatif",
+ "pretty_assertions",
  "rand 0.9.2",
  "tokio",
 ]

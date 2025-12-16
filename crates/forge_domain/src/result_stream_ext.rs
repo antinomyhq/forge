@@ -40,7 +40,7 @@ impl ResultStreamExt<anyhow::Error> for crate::BoxStream<ChatCompletionMessage, 
                 anyhow::Ok(message?).with_context(|| "Failed to process message stream")?;
             // Process usage information
             if let Some(current_usage) = message.usage.as_ref() {
-                usage = current_usage.clone();
+                usage = *current_usage;
             }
 
             if !tool_interrupted {
@@ -328,11 +328,13 @@ mod tests {
         let reasoning_full = vec![ReasoningFull {
             text: Some("Deep thought process".to_string()),
             signature: Some("signature1".to_string()),
+            ..Default::default()
         }];
 
         let reasoning_part = crate::reasoning::ReasoningPart {
             text: Some("Partial reasoning".to_string()),
             signature: Some("signature2".to_string()),
+            ..Default::default()
         };
 
         let messages = vec![
@@ -356,6 +358,7 @@ mod tests {
             ReasoningFull {
                 text: Some("Partial reasoning".to_string()),
                 signature: Some("signature2".to_string()),
+                ..Default::default()
             },
         ];
 

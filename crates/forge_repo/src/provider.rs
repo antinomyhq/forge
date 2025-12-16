@@ -604,6 +604,26 @@ mod tests {
         assert_eq!(config.response_type, Some(ProviderResponse::Anthropic));
         assert!(config.url.contains("{{ANTHROPIC_URL}}"));
     }
+
+    #[test]
+    fn test_io_intelligence_config() {
+        let configs = get_provider_configs();
+        let config = configs
+            .iter()
+            .find(|c| c.id == ProviderId::IO_INTELLIGENCE)
+            .unwrap();
+        assert_eq!(config.id, ProviderId::IO_INTELLIGENCE);
+        assert_eq!(
+            config.api_key_vars,
+            Some("IO_INTELLIGENCE_API_KEY".to_string())
+        );
+        assert_eq!(config.url_param_vars, Vec::<String>::new());
+        assert_eq!(config.response_type, Some(ProviderResponse::OpenAI));
+        assert_eq!(
+            config.url.as_str(),
+            "https://api.intelligence.io.solutions/api/v1/chat/completions"
+        );
+    }
 }
 
 #[cfg(test)]

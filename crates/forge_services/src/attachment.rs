@@ -94,7 +94,7 @@ impl<F: FileReaderInfra + EnvironmentInfra + FileInfoInfra + DirectoryReaderInfr
                     .await?;
 
                 AttachmentContent::FileContent {
-                    content: file_content.numbered_from(file_info.start_line as usize),
+                    content: file_content.to_numbered_from(file_info.start_line as usize),
                     start_line: file_info.start_line,
                     end_line: file_info.end_line,
                     total_lines: file_info.total_lines,

@@ -222,6 +222,9 @@ pub trait ConversationService: Send + Sync {
 
     /// Find the last active conversation
     async fn last_conversation(&self) -> anyhow::Result<Option<Conversation>>;
+
+    /// Permanently deletes a conversation
+    async fn delete_conversation(&self, conversation_id: &ConversationId) -> anyhow::Result<()>;
 }
 
 #[async_trait::async_trait]
@@ -308,6 +311,10 @@ pub trait WorkflowService {
 #[async_trait::async_trait]
 pub trait FileDiscoveryService: Send + Sync {
     async fn collect_files(&self, config: Walker) -> anyhow::Result<Vec<File>>;
+
+    /// Lists all entries (files and directories) in the current directory
+    /// Returns a sorted vector of File entries with directories first
+    async fn list_current_directory(&self) -> anyhow::Result<Vec<File>>;
 }
 
 #[async_trait::async_trait]
@@ -601,6 +608,12 @@ impl<I: Services> ConversationService for I {
     async fn last_conversation(&self) -> anyhow::Result<Option<Conversation>> {
         self.conversation_service().last_conversation().await
     }
+
+    async fn delete_conversation(&self, conversation_id: &ConversationId) -> anyhow::Result<()> {
+        self.conversation_service()
+            .delete_conversation(conversation_id)
+            .await
+    }
 }
 #[async_trait::async_trait]
 impl<I: Services> ProviderService for I {
@@ -712,6 +725,10 @@ impl<I: Services> WorkflowService for I {
 impl<I: Services> FileDiscoveryService for I {
     async fn collect_files(&self, config: Walker) -> anyhow::Result<Vec<File>> {
         self.file_discovery_service().collect_files(config).await
+    }
+
+    async fn list_current_directory(&self) -> anyhow::Result<Vec<File>> {
+        self.file_discovery_service().list_current_directory().await
     }
 }
 
