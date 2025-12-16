@@ -111,8 +111,16 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     }
 
     /// Writes a TitleFormat to the console output with proper formatting
-    fn writeln_title(&mut self, title: TitleFormat) -> anyhow::Result<()> {
-        self.spinner.write_ln(title.display())
+    async fn writeln_title(&mut self, title: TitleFormat) -> anyhow::Result<()> {
+        let mut td = title.display();
+        if let Some(cid) = self.state.conversation_id {
+            let conversation = self.api.conversation(&cid).await?;
+
+            td = td
+                .total_cost(conversation.as_ref().and_then(|c| c.accumulated_cost()))
+                .usage(conversation.as_ref().and_then(|c| c.usage()));
+        }
+        self.spinner.write_ln(td)
     }
 
     fn writeln_to_stderr(&mut self, title: String) -> anyhow::Result<()> {
@@ -204,7 +212,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             agent.title.as_deref().unwrap_or(MISSING_AGENT_TITLE)
         )
         .dimmed();
-        self.writeln_title(TitleFormat::action(format!("{name} {title}")))?;
+        self.writeln_title(TitleFormat::action(format!("{name} {title}")))
+            .await?;
 
         Ok(())
     }
@@ -459,7 +468,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     for server_name in added_servers {
                         self.writeln_title(TitleFormat::info(format!(
                             "Added MCP server '{server_name}'"
-                        )))?;
+                        )))
+                        .await?;
                     }
                 }
                 McpCommand::List => {
@@ -478,7 +488,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     // Write back to the specific scope only
                     self.api.write_mcp_config(&scope, &scope_config).await?;
 
-                    self.writeln_title(TitleFormat::info(format!("Removed server: {name}")))?;
+                    self.writeln_title(TitleFormat::info(format!("Removed server: {name}")))
+                        .await?;
                 }
                 McpCommand::Show(val) => {
                     let name = forge_api::ServerName::from(val.name);
@@ -495,17 +506,19 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     self.writeln_title(TitleFormat::info(format!(
                         "{name}: {}",
                         format_mcp_server(server)
-                    )))?;
+                    )))
+                    .await?;
 
                     // Display error if the server failed to initialize
                     if let Some(error) = tools.mcp.get_failures().get(&name) {
-                        self.writeln_title(TitleFormat::error(error))?;
+                        self.writeln_title(TitleFormat::error(error)).await?;
                     }
                 }
                 McpCommand::Reload => {
                     self.spinner.start(Some("Reloading MCPs"))?;
                     self.api.reload_mcp().await?;
-                    self.writeln_title(TitleFormat::info("MCP reloaded"))?;
+                    self.writeln_title(TitleFormat::info("MCP reloaded"))
+                        .await?;
                 }
             },
             TopLevelCommand::Info { porcelain, conversation_id } => {
@@ -688,7 +701,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.validate_conversation_exists(&id).await?;
 
                 self.state.conversation_id = Some(id);
-                self.writeln_title(TitleFormat::info(format!("Resumed conversation: {id}")))?;
+                self.writeln_title(TitleFormat::info(format!("Resumed conversation: {id}")))
+                    .await?;
                 // Interactive mode will be handled by the main loop
             }
             ConversationCommand::Show { id } => {
@@ -737,7 +751,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         self.writeln_title(TitleFormat::debug(format!(
             "Successfully deleted conversation '{}'",
             conversation_id
-        )))?;
+        )))
+        .await?;
         Ok(())
     }
 
@@ -794,7 +809,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             {
                 Some(provider) => provider.0,
                 None => {
-                    self.writeln_title(TitleFormat::info("Cancelled"))?;
+                    self.writeln_title(TitleFormat::info("Cancelled")).await?;
                     return Ok(());
                 }
             }
@@ -828,7 +843,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             self.api.remove_provider(id).await?;
             self.writeln_title(TitleFormat::debug(format!(
                 "Successfully logged out from {id}"
-            )))?;
+            )))
+            .await?;
             return Ok(true);
         }
 
@@ -836,7 +852,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let configured_providers = self.get_configured_providers(self.api.get_providers().await?);
 
         if configured_providers.is_empty() {
-            self.writeln_title(TitleFormat::info("No configured providers found"))?;
+            self.writeln_title(TitleFormat::info("No configured providers found"))
+                .await?;
             return Ok(false);
         }
 
@@ -854,11 +871,12 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.api.remove_provider(&provider_id).await?;
                 self.writeln_title(TitleFormat::debug(format!(
                     "Successfully logged out from {provider_id}"
-                )))?;
+                )))
+                .await?;
                 return Ok(true);
             }
             None => {
-                self.writeln_title(TitleFormat::info("Cancelled"))?;
+                self.writeln_title(TitleFormat::info("Cancelled")).await?;
             }
         }
 
@@ -1472,7 +1490,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         if conversations.is_empty() {
             self.writeln_title(TitleFormat::error(
                 "No conversations found in this workspace.",
-            ))?;
+            ))
+            .await?;
             return Ok(());
         }
 
@@ -1489,7 +1508,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             self.writeln_title(TitleFormat::info(format!(
                 "Switched to conversation {}",
                 conversation_id.into_string().bold()
-            )))?;
+            )))
+            .await?;
 
             // Show conversation info
             self.on_info(false, Some(conversation_id)).await?;
@@ -1725,7 +1745,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let content = TitleFormat::action(format!(
             "Context size reduced by {token_reduction:.1}% (tokens), {message_reduction:.1}% (messages)"
         ));
-        self.writeln_title(content)?;
+        self.writeln_title(content).await?;
         Ok(())
     }
 
@@ -1836,7 +1856,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(())
     }
 
-    fn display_oauth_device_info_new(
+    async fn display_oauth_device_info_new(
         &mut self,
         user_code: &str,
         verification_uri: &str,
@@ -1880,7 +1900,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         if let Err(e) = open::that(display_uri) {
             self.writeln_title(TitleFormat::error(format!(
                 "Failed to open browser automatically: {e}"
-            )))?;
+            )))
+            .await?;
         }
 
         Ok(())
@@ -1903,7 +1924,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             user_code.as_ref(),
             verification_uri.as_ref(),
             verification_uri_complete.as_ref().map(|v| v.as_ref()),
-        )?;
+        )
+        .await?;
 
         // Step 2: Complete authentication (polls if needed for OAuth flows)
         self.spinner.start(Some("Completing authentication..."))?;
@@ -1925,7 +1947,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     ) -> anyhow::Result<bool> {
         self.writeln_title(TitleFormat::info(format!(
             "{provider_id} configured successfully!"
-        )))?;
+        )))
+        .await?;
 
         // Prompt user to set as active provider
         let should_set_active = ForgeSelect::confirm(format!(
@@ -1962,7 +1985,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         if let Err(e) = open::that(request.authorization_url.as_str()) {
             self.writeln_title(TitleFormat::error(format!(
                 "Failed to open browser automatically: {e}"
-            )))?;
+            )))
+            .await?;
         }
 
         // Prompt user to paste authorization code
@@ -2013,7 +2037,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Multiple auth methods - ask user to choose
         self.spinner.stop(None)?;
 
-        self.writeln_title(TitleFormat::action(format!("Configure {provider_id}")))?;
+        self.writeln_title(TitleFormat::action(format!("Configure {provider_id}")))
+            .await?;
         self.writeln("Multiple authentication methods available".dimmed())?;
 
         let method_names: Vec<String> = auth_methods
@@ -2051,7 +2076,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             let auth = self.api.create_auth_credentials().await?;
             self.writeln_title(
                 TitleFormat::info("Forge API key created").sub_title(auth.token.as_str()),
-            )?;
+            )
+            .await?;
             return Ok(None);
         }
         // Select auth method (or use the only one available)
@@ -2159,7 +2185,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Update the UI state with the new model
         self.update_model(Some(model.clone()));
 
-        self.writeln_title(TitleFormat::action(format!("Switched to model: {model}")))?;
+        self.writeln_title(TitleFormat::action(format!("Switched to model: {model}")))
+            .await?;
 
         Ok(Some(model))
     }
@@ -2208,7 +2235,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         self.writeln_title(TitleFormat::action(format!(
             "Switched to provider: {}",
             CliProvider(AnyProvider::Url(provider.clone()))
-        )))?;
+        )))
+        .await?;
 
         // Check if the current model is available for the new provider
         let current_model = self.api.get_default_model().await;
@@ -2218,7 +2246,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
             if !model_available {
                 // Prompt user to select a new model
-                self.writeln_title(TitleFormat::info("Please select a new model"))?;
+                self.writeln_title(TitleFormat::info("Please select a new model"))
+                    .await?;
                 self.on_model_selection().await?;
             }
         } else {
@@ -2288,7 +2317,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Print if the state is being reinitialized
         if self.state.conversation_id.is_none() {
-            self.print_conversation_status(is_new, id)?;
+            self.print_conversation_status(is_new, id).await?;
         }
 
         // Always set the conversation id in state
@@ -2297,7 +2326,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(id)
     }
 
-    fn print_conversation_status(
+    async fn print_conversation_status(
         &mut self,
         new_conversation: bool,
         id: ConversationId,
@@ -2310,7 +2339,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         title.push_str(format!(" {}", id.into_string()).as_str());
 
-        self.writeln_title(TitleFormat::debug(title))?;
+        self.writeln_title(TitleFormat::debug(title)).await?;
         Ok(())
     }
 
@@ -2350,7 +2379,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             // only call on_update if this is the first initialization
             on_update(self.api.clone(), base_workflow.updates.as_ref()).await;
             if !workflow.commands.is_empty() {
-                self.writeln_title(TitleFormat::error("forge.yaml commands are deprecated. Use .md files in forge/ (home) or .forge/ (project) instead"))?;
+                self.writeln_title(TitleFormat::error("forge.yaml commands are deprecated. Use .md files in forge/ (home) or .forge/ (project) instead")).await?;
             }
         }
 
@@ -2367,13 +2396,14 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 for skipped_command in registration_result.skipped_conflicts {
                     self.writeln_title(TitleFormat::error(format!(
                         "Skipped agent command '{skipped_command}' due to name conflict with built-in command"
-                    )))?;
+                    ))).await?;
                 }
             }
             Err(e) => {
                 self.writeln_title(TitleFormat::error(format!(
                     "Failed to load agents for command registration: {e}"
-                )))?;
+                )))
+                .await?;
             }
         }
 
@@ -2452,7 +2482,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     self.writeln_title(
                         TitleFormat::action("Conversation HTML dump created".to_string())
                             .sub_title(path.to_string()),
-                    )?;
+                    )
+                    .await?;
 
                     if self.api.environment().auto_open_dump {
                         open::that(path.as_str()).ok();
@@ -2466,7 +2497,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     self.writeln_title(
                         TitleFormat::action("Conversation JSON dump created".to_string())
                             .sub_title(path.to_string()),
-                    )?;
+                    )
+                    .await?;
 
                     if self.api.environment().auto_open_dump {
                         open::that(path.as_str()).ok();
@@ -2522,7 +2554,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             ChatResponse::RetryAttempt { cause, duration: _ } => {
                 if !self.api.environment().retry_config.suppress_retry_errors {
                     self.spinner.start(Some("Retrying"))?;
-                    self.writeln_title(TitleFormat::error(cause.as_str()))?;
+                    self.writeln_title(TitleFormat::error(cause.as_str()))
+                        .await?;
                 }
             }
             ChatResponse::Interrupt { reason } => {
@@ -2537,7 +2570,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     }
                 };
 
-                self.writeln_title(TitleFormat::action(title))?;
+                self.writeln_title(TitleFormat::action(title)).await?;
                 self.should_continue().await?;
             }
             ChatResponse::TaskReasoning { content } => {
@@ -2698,7 +2731,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         } else {
             self.writeln_title(
                 TitleFormat::info("Cloned").sub_title(format!("[{} → {}]", original.id, cloned.id)),
-            )?;
+            )
+            .await?;
         }
 
         Ok(())
@@ -2794,7 +2828,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.api.set_default_model(model_id.clone()).await?;
                 self.writeln_title(
                     TitleFormat::action(model_id.as_str()).sub_title("is now the default model"),
-                )?;
+                )
+                .await?;
             }
         }
 
@@ -2921,7 +2956,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             let auth = self.api.create_auth_credentials().await?;
             self.writeln_title(
                 TitleFormat::info("Forge API key created").sub_title(auth.token.as_str()),
-            )?;
+            )
+            .await?;
         }
 
         let mut stream = self.api.sync_codebase(path.clone(), batch_size).await?;
@@ -2933,7 +2969,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     progress_bar.set_position(100)?;
                     progress_bar.stop(None).await?;
                     if let Some(msg) = progress.message() {
-                        self.writeln_title(TitleFormat::debug(msg))?;
+                        self.writeln_title(TitleFormat::debug(msg)).await?;
                     }
                 }
                 Ok(ref progress @ SyncProgress::Syncing { .. }) => {
@@ -2949,7 +2985,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
                 Ok(ref progress) => {
                     if let Some(msg) = progress.message() {
-                        self.writeln_title(TitleFormat::debug(msg))?;
+                        self.writeln_title(TitleFormat::debug(msg)).await?;
                     }
                 }
                 Err(e) => {
@@ -3124,7 +3160,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.writeln_title(TitleFormat::debug(format!(
                     "Successfully deleted workspace {}",
                     workspace_id
-                )))?;
+                )))
+                .await?;
                 Ok(())
             }
             Err(e) => {
@@ -3146,7 +3183,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             self.writeln_title(
                 TitleFormat::warning("Forge no longer reads API keys from environment variables.")
                     .sub_title("Learn more: https://forgecode.dev/docs/custom-providers/"),
-            )?;
+            )
+            .await?;
 
             let count = result.migrated_providers.len();
             let message = if count == 1 {
@@ -3154,7 +3192,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             } else {
                 format!("Migrated {count} providers from environment variables")
             };
-            self.writeln_title(TitleFormat::info(message))?;
+            self.writeln_title(TitleFormat::info(message)).await?;
         }
         Ok(())
     }

@@ -2,22 +2,27 @@ use std::fmt;
 
 use chrono::Local;
 use colored::Colorize;
+use derive_setters::Setters;
+use forge_api::Usage;
 use forge_domain::{Category, TitleFormat};
 
 /// Implementation of Display for TitleFormat in the presentation layer
+#[derive(Setters)]
 pub struct TitleDisplay {
     inner: TitleFormat,
-    with_colors: bool,
+    colors: bool,
+    usage: Option<Usage>,
+    total_cost: Option<f64>,
 }
 
 impl TitleDisplay {
     pub fn new(title: TitleFormat) -> Self {
-        Self { inner: title, with_colors: true }
-    }
-
-    pub fn with_colors(mut self, with_colors: bool) -> Self {
-        self.with_colors = with_colors;
-        self
+        Self {
+            inner: title,
+            colors: true,
+            usage: Default::default(),
+            total_cost: Default::default(),
+        }
     }
 
     fn format_with_colors(&self) -> String {
@@ -79,7 +84,7 @@ impl TitleDisplay {
 
 impl fmt::Display for TitleDisplay {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if self.with_colors {
+        if self.colors {
             write!(f, "{}", self.format_with_colors())
         } else {
             write!(f, "{}", self.format_plain())
@@ -99,6 +104,6 @@ impl TitleDisplayExt for TitleFormat {
     }
 
     fn display_with_colors(self, with_colors: bool) -> TitleDisplay {
-        TitleDisplay::new(self).with_colors(with_colors)
+        TitleDisplay::new(self).colors(with_colors)
     }
 }
