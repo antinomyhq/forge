@@ -711,7 +711,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
             ConversationCommand::Info { id } => {
                 let conversation = self.validate_conversation_exists(&id).await?;
-                
+
                 self.on_show_conv_info(conversation).await?;
             }
             ConversationCommand::Stats { id, porcelain } => {

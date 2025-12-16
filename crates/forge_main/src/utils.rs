@@ -12,7 +12,6 @@ pub fn humanize_time(dt: chrono::DateTime<chrono::Utc>) -> String {
     }
 }
 
-
 /// Humanizes a number to a readable format with B/M/k suffixes.
 ///
 /// # Arguments
