@@ -1561,6 +1561,7 @@ dependencies = [
  "forge_domain",
  "forge_fs",
  "forge_infra",
+ "forge_json_repair",
  "forge_snaps",
  "forge_template",
  "forge_test_kit",
