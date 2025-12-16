@@ -276,7 +276,7 @@ impl Compactor {
 mod tests {
     use std::path::PathBuf;
 
-    use forge_domain::MessageEntry;
+    use forge_domain::{MessageEntry, MessagePattern};
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -287,15 +287,21 @@ mod tests {
         env.cwd(std::path::PathBuf::from("/test/working/dir"))
     }
 
+    /// Helper to create context from SAURT pattern
+    /// s = system, a = assistant, u = user, r = tool result, t = tool call
+    fn ctx(pattern: &str) -> Context {
+        MessagePattern::new(pattern).build()
+    }
+
     #[test]
     fn test_find_last_breakpoint_no_messages() {
         let environment = test_environment();
         let compactor = Compactor::new(Compact::new(), environment);
         let compact_config = Compact::new().token_threshold(1000usize);
 
-        let context = Context::default();
+        let fixture = Context::default();
 
-        let actual = compactor.find_last_breakpoint(&context, &compact_config);
+        let actual = compactor.find_last_breakpoint(&fixture, &compact_config);
         let expected = None;
 
         assert_eq!(actual, expected);
@@ -307,13 +313,9 @@ mod tests {
         let compactor = Compactor::new(Compact::new(), environment);
         let compact_config = Compact::new().token_threshold(100000usize); // Very high threshold
 
-        let context = Context::default()
-            .add_message(ContextMessage::user("Message 1", None))
-            .add_message(ContextMessage::assistant("Response 1", None, None))
-            .add_message(ContextMessage::user("Message 2", None))
-            .add_message(ContextMessage::assistant("Response 2", None, None));
+        let fixture = ctx("uaua"); // user, assistant, user, assistant
 
-        let actual = compactor.find_last_breakpoint(&context, &compact_config);
+        let actual = compactor.find_last_breakpoint(&fixture, &compact_config);
         let expected = None;
 
         assert_eq!(actual, expected);
@@ -325,13 +327,9 @@ mod tests {
         let compactor = Compactor::new(Compact::new(), environment);
         let compact_config = Compact::new().message_threshold(2usize);
 
-        let context = Context::default()
-            .add_message(ContextMessage::user("Message 1", None))
-            .add_message(ContextMessage::assistant("Response 1", None, None))
-            .add_message(ContextMessage::user("Message 2", None))
-            .add_message(ContextMessage::assistant("Response 2", None, None));
+        let fixture = ctx("uaua"); // user, assistant, user, assistant
 
-        let actual = compactor.find_last_breakpoint(&context, &compact_config);
+        let actual = compactor.find_last_breakpoint(&fixture, &compact_config);
         let expected = Some(3); // Threshold of 2 reached at index 1, continues to add until hitting again at index 3
 
         assert_eq!(actual, expected);
@@ -343,15 +341,9 @@ mod tests {
         let compactor = Compactor::new(Compact::new(), environment);
         let compact_config = Compact::new().message_threshold(2usize);
 
-        let context = Context::default()
-            .add_message(ContextMessage::user("Message 1", None))
-            .add_message(ContextMessage::assistant("Response 1", None, None))
-            .add_message(ContextMessage::user("Message 2", None))
-            .add_message(ContextMessage::assistant("Response 2", None, None))
-            .add_message(ContextMessage::user("Message 3", None))
-            .add_message(ContextMessage::assistant("Response 3", None, None));
+        let fixture = ctx("uauaua"); // user, assistant, user, assistant, user, assistant
 
-        let actual = compactor.find_last_breakpoint(&context, &compact_config);
+        let actual = compactor.find_last_breakpoint(&fixture, &compact_config);
         let expected = Some(5); // Last breakpoint at index 5
 
         assert_eq!(actual, expected);
@@ -363,9 +355,9 @@ mod tests {
         let compactor = Compactor::new(Compact::new(), environment);
         let compact_config = Compact::new().token_threshold(50usize); // Lower threshold to ensure trigger
 
-        let mut context = Context::default();
+        let mut fixture = Context::default();
         for i in 0..10 {
-            context = context
+            fixture = fixture
                 .add_message(ContextMessage::user(
                     format!("Message {} with substantial content to increase token count. This message contains enough text to make sure we hit the compaction threshold quickly.", i),
                     None,
@@ -377,7 +369,7 @@ mod tests {
                 ));
         }
 
-        let actual = compactor.find_last_breakpoint(&context, &compact_config);
+        let actual = compactor.find_last_breakpoint(&fixture, &compact_config);
 
         // Should find at least one breakpoint
         assert!(
@@ -392,15 +384,9 @@ mod tests {
         let compactor = Compactor::new(Compact::new(), environment);
         let compact_config = Compact::new().turn_threshold(1usize); // Trigger after 1 user message
 
-        let context = Context::default()
-            .add_message(ContextMessage::user("User 1", None))
-            .add_message(ContextMessage::assistant("Assistant 1", None, None))
-            .add_message(ContextMessage::user("User 2", None))
-            .add_message(ContextMessage::assistant("Assistant 2", None, None))
-            .add_message(ContextMessage::user("User 3", None))
-            .add_message(ContextMessage::assistant("Assistant 3", None, None));
+        let fixture = ctx("uauaua"); // user, assistant, user, assistant, user, assistant
 
-        let actual = compactor.find_last_breakpoint(&context, &compact_config);
+        let actual = compactor.find_last_breakpoint(&fixture, &compact_config);
         let expected = Some(4); // With 1 turn threshold, breaks after each user message (indices 0, 2, 4)
 
         assert_eq!(actual, expected);
