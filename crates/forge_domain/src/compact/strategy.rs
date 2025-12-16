@@ -342,15 +342,15 @@ mod tests {
         let fixture = context_from_pattern("sua");
 
         // Test Percentage strategy conversion
-        // Context: System (0 tokens), User (3 tokens), Assistant (3 tokens) = 6 total
-        // tokens Eviction budget: 40% of 6 = 2.4 → 3 tokens (rounded up)
-        // Calculation:
-        // - Skip system message (0 tokens)
-        // - User message: 3 tokens → budget: 3 - 3 = 0 token remaining
-        // Result: Can evict 1 message (User), so preserve last 1 message (Assistant)
+        // Context: System (3 tokens), User (3 tokens), Assistant (3 tokens) = 9 total tokens
+        // Eviction budget: 40% of 9 = 3.6 → 4 tokens (rounded up)
+        // Strategy skips system messages, so calculation for non-system messages:
+        // - User message (index 1): 3 tokens → budget: 4 - 3 = 1 token remaining
+        // - Assistant message (index 2): 3 tokens → budget: 1 - 3 = 0 (saturating_sub)
+        // Result: Eviction budget exhausted at index 2 (Assistant), so to_fixed returns 2
         let percentage_strategy = CompactionStrategy::evict(0.4);
         let actual = percentage_strategy.to_fixed(&fixture);
-        let expected = 1; // Preserve last 1 message
+        let expected = 2;
         assert_eq!(actual, expected);
 
         // Test PreserveLastN strategy
@@ -360,11 +360,11 @@ mod tests {
         assert_eq!(actual, expected);
 
         // Test invalid percentage (gets clamped to 1.0 = 100%)
-        // With 100% eviction budget (6 tokens), we can evict all non-system messages
-        // This leaves us with just the system message, so preserve last 1 message
+        // With 100% eviction budget (9 tokens), we can evict all messages
+        // With 9 tokens budget, all 3 messages (3+3+3) exhaust the budget at message index 2
         let invalid_strategy = CompactionStrategy::evict(1.5);
         let actual = invalid_strategy.to_fixed(&fixture);
-        let expected = 2; // Still preserve 2 messages because fallback logic
+        let expected = 2; // Returns index 2 (last message) when all messages fit in budget
         assert_eq!(actual, expected);
     }
 
