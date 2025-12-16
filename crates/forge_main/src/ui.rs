@@ -2547,11 +2547,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
             }
             ChatResponse::TaskComplete => {
-                if let Some(conversation_id) = self.state.conversation_id
-                    && let Ok(conversation) =
-                        self.validate_conversation_exists(&conversation_id).await
-                {
-                    self.on_show_conv_info(conversation).await?;
+                if let Some(conversation_id) = self.state.conversation_id {
+                    self.writeln_title(
+                        TitleFormat::debug("Finished").sub_title(conversation_id.into_string()),
+                    )?;
                 }
             }
         }
