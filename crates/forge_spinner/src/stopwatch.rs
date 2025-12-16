@@ -97,4 +97,52 @@ mod tests {
         fixture.reset();
         assert_eq!(fixture.elapsed(), std::time::Duration::ZERO);
     }
+
+    #[test]
+    fn test_display_formats_seconds_with_leading_zero() {
+        let fixture = Stopwatch { started_at: None, elapsed: std::time::Duration::from_secs(1) };
+        let actual = format!("{}", fixture);
+        let expected = "01s";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_display_formats_seconds_without_leading_zero() {
+        let fixture = Stopwatch { started_at: None, elapsed: std::time::Duration::from_secs(30) };
+        let actual = format!("{}", fixture);
+        let expected = "30s";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_display_formats_minutes_with_seconds() {
+        let fixture = Stopwatch { started_at: None, elapsed: std::time::Duration::from_secs(61) };
+        let actual = format!("{}", fixture);
+        let expected = "1:01m";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_display_formats_minutes_with_double_digit_seconds() {
+        let fixture = Stopwatch { started_at: None, elapsed: std::time::Duration::from_secs(80) };
+        let actual = format!("{}", fixture);
+        let expected = "1:20m";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_display_formats_hours_with_minutes() {
+        let fixture = Stopwatch { started_at: None, elapsed: std::time::Duration::from_secs(3600) };
+        let actual = format!("{}", fixture);
+        let expected = "1:00h";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_display_formats_hours_with_non_zero_minutes() {
+        let fixture = Stopwatch { started_at: None, elapsed: std::time::Duration::from_secs(9000) };
+        let actual = format!("{}", fixture);
+        let expected = "2:30h";
+        assert_eq!(actual, expected);
+    }
 }
