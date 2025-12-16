@@ -1369,12 +1369,15 @@ mod tests {
         let service = ForgeContextEngineService::new(Arc::new(mock));
 
         // Act
-        let actual = service
-            .recommend_skills("test".to_string())
-            .await;
+        let actual = service.recommend_skills("test".to_string()).await;
 
         // Assert
         assert!(actual.is_err());
-        assert!(actual.unwrap_err().to_string().contains("No indexing authentication found"));
+        assert!(
+            actual
+                .unwrap_err()
+                .to_string()
+                .contains("No indexing authentication found")
+        );
     }
 }
