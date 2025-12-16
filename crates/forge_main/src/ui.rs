@@ -33,7 +33,6 @@ use crate::cli::{
 };
 use crate::conversation_selector::ConversationSelector;
 use crate::display_constants::{CommandType, headers, markers, status};
-use crate::env::should_show_completion_prompt;
 use crate::info::Info;
 use crate::input::Console;
 use crate::model::{CliModel, CliProvider, ForgeCommandManager, SlashCommand};
@@ -2427,12 +2426,14 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 Ok(message) => self.handle_chat_response(message).await?,
                 Err(err) => {
                     self.spinner.stop(None)?;
+                    self.spinner.reset();
                     return Err(err);
                 }
             }
         }
 
         self.spinner.stop(None)?;
+        self.spinner.reset();
 
         Ok(())
     }
@@ -2547,11 +2548,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
             }
             ChatResponse::TaskComplete => {
-                if let Some(conversation_id) = self.state.conversation_id
-                    && let Ok(conversation) =
-                        self.validate_conversation_exists(&conversation_id).await
-                {
-                    self.on_show_conv_info(conversation).await?;
+                if let Some(conversation_id) = self.state.conversation_id {
+                    self.writeln_title(
+                        TitleFormat::debug("Finished").sub_title(conversation_id.into_string()),
+                    )?;
                 }
             }
         }
@@ -2572,33 +2572,11 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     }
 
     async fn on_show_conv_info(&mut self, conversation: Conversation) -> anyhow::Result<()> {
-        if !should_show_completion_prompt() {
-            return Ok(());
-        }
-
         self.spinner.start(Some("Loading Summary"))?;
 
         let info = Info::default().extend(&conversation);
         self.writeln(info)?;
         self.spinner.stop(None)?;
-
-        // Only prompt for new conversation if in interactive mode and prompt is enabled
-        if self.cli.is_interactive() {
-            let prompt_text = "Start a new conversation?";
-            let should_start_new_chat = ForgeSelect::confirm(prompt_text)
-                // Pressing ENTER should start new
-                .with_default(true)
-                .with_help_message("ESC = No, continue current conversation")
-                .prompt()
-                // Cancel or failure should continue with the session
-                .unwrap_or(Some(false))
-                .unwrap_or(false);
-
-            // if conversation is over
-            if should_start_new_chat {
-                self.on_new().await?;
-            }
-        }
 
         Ok(())
     }
@@ -2854,7 +2832,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let rprompt = ZshRPrompt::default()
             .agent(std::env::var("_FORGE_ACTIVE_AGENT").ok().map(AgentId::new))
             .model(model_id)
-            .token_count(conversation.and_then(|c| c.usage()).map(|u| u.total_tokens));
+            .token_count(conversation.and_then(|conversation| conversation.token_count()));
 
         Some(rprompt.to_string())
     }
@@ -3030,7 +3008,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         info.add_key_value("ID", workspace.workspace_id.to_string())
             .add_key_value("Path", workspace.working_dir.to_string())
-            .add_key_value("File", workspace.node_count.to_string())
+            .add_key_value("Files", workspace.node_count.to_string())
             .add_key_value("Relations", workspace.relation_count.to_string())
             .add_key_value("Created At", humanize_time(workspace.created_at))
             .add_key_value("Updated At", updated_time)
