@@ -33,7 +33,10 @@ impl Transformer for CompactionTransformer {
         };
 
         match compactor.compact_range(&context, compact_config) {
-            Ok(Some(compacted_context)) => compacted_context,
+            Ok(Some(compacted_context)) => {
+                tracing::debug!("Compaction completed");
+                compacted_context
+            },
             Ok(None) => {
                 tracing::debug!(agent_id = %self.agent.id, "No compaction needed");
                 context

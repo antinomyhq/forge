@@ -60,10 +60,32 @@ impl Compactor {
         let mut compacted_context =
             Context::default().add_message(ContextMessage::user(summary, None));
 
-        // Add the remaining messages after breakpoint
-        for entry in context.messages.iter().skip(breakpoint + 1) {
+        // Find the first message after breakpoint that isn't an orphaned tool result
+        // Tool results are orphaned if their corresponding tool call is before the breakpoint
+        let mut remaining_start = breakpoint + 1;
+        
+        // Skip any tool results that appear immediately after the breakpoint
+        // These are orphaned because their tool calls were compacted away
+        while remaining_start < context.messages.len() {
+            if context.messages[remaining_start].has_tool_result() {
+                tracing::debug!(
+                    msg_idx = remaining_start,
+                    "Skipping orphaned tool result after compaction breakpoint"
+                );
+                remaining_start += 1;
+            } else {
+                break;
+            }
+        }
+
+        // Add the remaining messages after skipping orphaned tool results
+        for entry in context.messages.iter().skip(remaining_start) {
             compacted_context = compacted_context.add_message(entry.message.clone());
         }
+
+        // Validate no orphaned tool results remain in the compacted context
+        // Tool results without corresponding tool calls should not exist
+        self.validate_tool_pairs(&compacted_context)?;
 
         tracing::info!(
             original_messages = context.messages.len(),
@@ -72,6 +94,41 @@ impl Compactor {
         );
 
         Ok(Some(compacted_context))
+    }
+
+    /// Validates that all tool results have corresponding tool calls in the context.
+    fn validate_tool_pairs(&self, context: &Context) -> anyhow::Result<()> {
+        let mut tool_call_ids = std::collections::HashSet::new();
+
+        for msg in &context.messages {
+            match &**msg {
+                ContextMessage::Text(text) => {
+                    // Collect all tool call IDs from this message
+                    if let Some(tool_calls) = &text.tool_calls {
+                        for tool_call in tool_calls {
+                            if let Some(call_id) = &tool_call.call_id {
+                                tool_call_ids.insert(call_id.clone());
+                            }
+                        }
+                    }
+                }
+                ContextMessage::Tool(result) => {
+                    // Check if this tool result has a corresponding tool call
+                    if let Some(call_id) = &result.call_id {
+                        if !tool_call_ids.contains(call_id) {
+                            return Err(anyhow::anyhow!(
+                                "Orphaned tool result: tool_result references call_id {:?} \
+                                 but no corresponding tool call found in compacted context",
+                                call_id
+                            ));
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -390,6 +447,57 @@ mod tests {
         let expected = Some(4); // With 1 turn threshold, breaks after each user message (indices 0, 2, 4)
 
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_compact_range_skips_orphaned_tool_results() {
+        use forge_domain::{ToolCallFull, ToolCallId, ToolName};
+        use serde_json::json;
+
+        let environment = test_environment();
+        let compactor = Compactor::new(Compact::new().message_threshold(2usize), environment);
+        let compact_config = Compact::new().message_threshold(2usize);
+
+        // Create context: User -> Assistant with tool call -> Tool result -> User -> Assistant
+        // When we compact at message threshold 2, the tool call gets removed but tool result remains
+        let tool_call = ToolCallFull {
+            name: ToolName::new("read"),
+            call_id: Some(ToolCallId::new("call_123")),
+            arguments: json!({"path": "/test/path"}).into(),
+        };
+
+        let tool_result = forge_domain::ToolResult::new(ToolName::new("read"))
+            .call_id(ToolCallId::new("call_123"))
+            .success(json!({"content": "File content"}).to_string());
+
+        let fixture = Context::default()
+            .add_message(ContextMessage::user("User 1", None))
+            .add_message(ContextMessage::assistant("Response 1", None, Some(vec![tool_call])))
+            .add_message(ContextMessage::tool_result(tool_result))
+            .add_message(ContextMessage::user("User 2", None))
+            .add_message(ContextMessage::assistant("Response 2", None, None));
+
+        // Compact should skip the orphaned tool result
+        let result = compactor.compact_range(&fixture, &compact_config);
+
+        assert!(
+            result.is_ok(),
+            "Compaction should succeed and handle orphaned tool results: {:?}",
+            result
+        );
+
+        let compacted = result.unwrap().expect("Compaction should return Some");
+
+        // Verify no tool results exist in the compacted context
+        // They should have been skipped as orphaned
+        for msg in &compacted.messages {
+            match &**msg {
+                ContextMessage::Tool(_) => {
+                    panic!("Compacted context should not contain orphaned tool results");
+                }
+                _ => {}
+            }
+        }
     }
 
     #[test]
