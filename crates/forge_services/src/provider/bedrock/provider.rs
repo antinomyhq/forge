@@ -353,16 +353,17 @@ impl FromDomain<forge_domain::Context>
             .collect();
 
         // Convert user and assistant messages
-        // Group consecutive tool results into single User messages as required by Bedrock API
+        // Group consecutive tool results into single User messages as required by
+        // Bedrock API
         let messages: Vec<Message> = {
             let mut result = Vec::new();
             let mut pending_tool_results: Vec<forge_domain::ContextMessage> = Vec::new();
-            
+
             for message in context.messages.into_iter() {
                 if message.has_role(forge_domain::Role::System) {
                     continue;
                 }
-                
+
                 match &message.message {
                     forge_domain::ContextMessage::Tool(_) => {
                         // Accumulate tool results
@@ -371,24 +372,24 @@ impl FromDomain<forge_domain::Context>
                     _ => {
                         // Flush pending tool results before processing non-tool message
                         if !pending_tool_results.is_empty() {
-                            let tool_results: Vec<_> = pending_tool_results.drain(..).collect();
+                            let tool_results: Vec<_> = std::mem::take(&mut pending_tool_results);
                             result.push(Message::from_domain(tool_results)?);
                         }
-                        
+
                         // Convert and add the non-tool message
                         result.push(
                             Message::from_domain(message.message)
-                                .with_context(|| "Failed to convert message to Bedrock format")?
+                                .with_context(|| "Failed to convert message to Bedrock format")?,
                         );
                     }
                 }
             }
-            
+
             // Flush any remaining tool results
             if !pending_tool_results.is_empty() {
                 result.push(Message::from_domain(pending_tool_results)?);
             }
-            
+
             Ok::<Vec<Message>, anyhow::Error>(result)
         }?;
 
