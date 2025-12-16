@@ -239,24 +239,24 @@ impl WalkerInfra for ForgeInfra {
 
 #[async_trait::async_trait]
 impl HttpInfra for ForgeInfra {
-    async fn get(&self, url: &Url, headers: Option<HeaderMap>) -> anyhow::Result<Response> {
-        self.http_service.get(url, headers).await
+    async fn http_get(&self, url: &Url, headers: Option<HeaderMap>) -> anyhow::Result<Response> {
+        self.http_service.http_get(url, headers).await
     }
 
-    async fn post(&self, url: &Url, body: Bytes) -> anyhow::Result<Response> {
-        self.http_service.post(url, body).await
+    async fn http_post(&self, url: &Url, body: Bytes) -> anyhow::Result<Response> {
+        self.http_service.http_post(url, body).await
     }
 
-    async fn delete(&self, url: &Url) -> anyhow::Result<Response> {
-        self.http_service.delete(url).await
+    async fn http_delete(&self, url: &Url) -> anyhow::Result<Response> {
+        self.http_service.http_delete(url).await
     }
-    async fn eventsource(
+    async fn http_eventsource(
         &self,
         url: &Url,
         headers: Option<HeaderMap>,
         body: Bytes,
     ) -> anyhow::Result<EventSource> {
-        self.http_service.eventsource(url, headers, body).await
+        self.http_service.http_eventsource(url, headers, body).await
     }
 }
 #[async_trait::async_trait]

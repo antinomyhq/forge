@@ -646,7 +646,6 @@ mod tests {
                 }),
                 relevance: Some(relevance),
                 distance: Some(1.0 - relevance),
-                similarity: Some(relevance),
             }
         }
 
