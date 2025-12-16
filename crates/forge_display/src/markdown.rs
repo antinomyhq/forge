@@ -12,8 +12,6 @@ use crate::code::MarkdownCodeRenderer;
 pub struct MarkdownFormat {
     skin: MadSkin,
     max_consecutive_newlines: usize,
-    #[setters(skip)]
-    code_renderer: MarkdownCodeRenderer,
 }
 
 impl Default for MarkdownFormat {
@@ -39,7 +37,6 @@ impl MarkdownFormat {
         Self {
             skin,
             max_consecutive_newlines: 2,
-            code_renderer: MarkdownCodeRenderer::default(),
         }
     }
 
@@ -51,11 +48,11 @@ impl MarkdownFormat {
         }
 
         // Extract and highlight code blocks
-        let md = self.code_renderer.process(&content);
+        let code_renderer = MarkdownCodeRenderer::process(&content);
 
         // Render with termimad, then restore highlighted code
-        let rendered = self.skin.term_text(&md).to_string();
-        self.code_renderer.restore(rendered).trim().to_string()
+        let rendered = self.skin.term_text(code_renderer.get_processed_markdown()).to_string();
+        code_renderer.restore(rendered).trim().to_string()
     }
 
     fn strip_excessive_newlines(&self, content: &str) -> String {
