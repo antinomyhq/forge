@@ -52,7 +52,7 @@ impl<C: CompactRange> Transformer for CompactionTransformer<C> {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{Compact, ContextMessage, ModelId, ProviderId};
+    use forge_domain::{Compact, MessagePattern, ModelId, ProviderId};
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -63,39 +63,18 @@ mod tests {
         fn compact_range(
             &self,
             context: &Context,
-            compact_config: &Compact,
+            _compact_config: &Compact,
         ) -> anyhow::Result<Option<Context>> {
-            // Mock implementation that mimics the real behavior
-            if context.messages.is_empty() {
+            // Simple mock: compact if there are more than 10 messages
+            if context.messages.len() <= 10 {
                 return Ok(None);
             }
 
-            let mut last_bp: Option<usize> = None;
-            let mut acc_ctx = Context::default();
-
-            for (i, msg) in context.messages.iter().enumerate() {
-                acc_ctx = acc_ctx.add_message(msg.message.clone());
-
-                let token_count = *acc_ctx.token_count();
-                if compact_config.should_compact(&acc_ctx, token_count) {
-                    last_bp = Some(i);
-                    acc_ctx = Context::default();
-                }
-            }
-
-            let Some(breakpoint) = last_bp else {
-                return Ok(None);
-            };
-
-            let mut compacted_context =
-                Context::default().add_message(ContextMessage::user("Compacted summary", None));
-
-            // Add the remaining messages after breakpoint
-            for entry in context.messages.iter().skip(breakpoint + 1) {
-                compacted_context = compacted_context.add_message(entry.message.clone());
-            }
-
-            Ok(Some(compacted_context))
+            // Return a simple compacted context with 1 summary message
+            Ok(Some(
+                Context::default()
+                    .add_message(forge_domain::ContextMessage::user("Compacted summary", None)),
+            ))
         }
     }
 
@@ -113,14 +92,18 @@ mod tests {
         )
     }
 
+    /// Helper to create context from SAURT pattern
+    /// s = system, a = assistant, u = user, r = tool result, t = tool call
+    fn ctx(pattern: &str) -> Context {
+        MessagePattern::new(pattern).build()
+    }
+
     #[test]
     fn test_no_compaction_for_small_context() {
         let agent = test_agent();
         let compactor = MockCompactor;
 
-        let fixture = Context::default()
-            .add_message(ContextMessage::user("Message 1", None))
-            .add_message(ContextMessage::assistant("Response 1", None, None));
+        let fixture = ctx("ua"); // user, assistant
 
         let mut transformer = CompactionTransformer::new(agent, Some(compactor));
         let actual = transformer.transform(fixture.clone());
@@ -129,31 +112,20 @@ mod tests {
     }
 
     #[test]
-    fn test_compaction_with_single_breakpoint() {
+    fn test_compaction_with_threshold_exceeded() {
         let agent = test_agent();
         let compactor = MockCompactor;
 
-        // Create context with enough messages to trigger compaction
-        // The agent is configured with eviction_window=0.5 and retention_window=2
-        // This means compaction triggers very easily
-        let mut fixture = Context::default();
-        for i in 0..50 {
-            // Add substantial content to increase token count
-            fixture = fixture
-                .add_message(ContextMessage::user(
-                    format!("User message {} with substantial content to increase token count. This message contains enough text to make sure we hit the compaction threshold quickly. The threshold is set to very low values in the test agent configuration.", i),
-                    None,
-                ))
-                .add_message(ContextMessage::assistant(
-                    format!("Assistant response {} with substantial content to increase token count. This response also contains enough text to ensure we accumulate sufficient tokens to trigger the compaction logic.", i),
-                    None,
-                    None,
-                ));
-        }
+        // Create a pattern with many messages to exceed threshold
+        // Using the SAURT notation: 50 user-assistant pairs
+        let pattern = "ua".repeat(50);
+        let fixture = ctx(&pattern);
 
         let mut transformer = CompactionTransformer::new(agent, Some(compactor));
         let actual = transformer.transform(fixture);
 
+        // MockCompactor returns a single summary message when compaction occurs
         assert_eq!(actual.messages.len(), 1);
     }
 }
+
