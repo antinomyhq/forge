@@ -36,7 +36,7 @@ impl Transformer for CompactionTransformer {
             Ok(Some(compacted_context)) => {
                 tracing::debug!("Compaction completed");
                 compacted_context
-            },
+            }
             Ok(None) => {
                 tracing::debug!(agent_id = %self.agent.id, "No compaction needed");
                 context

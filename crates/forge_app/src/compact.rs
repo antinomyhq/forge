@@ -61,9 +61,10 @@ impl Compactor {
             Context::default().add_message(ContextMessage::user(summary, None));
 
         // Find the first message after breakpoint that isn't an orphaned tool result
-        // Tool results are orphaned if their corresponding tool call is before the breakpoint
+        // Tool results are orphaned if their corresponding tool call is before the
+        // breakpoint
         let mut remaining_start = breakpoint + 1;
-        
+
         // Skip any tool results that appear immediately after the breakpoint
         // These are orphaned because their tool calls were compacted away
         while remaining_start < context.messages.len() {
@@ -96,7 +97,8 @@ impl Compactor {
         Ok(Some(compacted_context))
     }
 
-    /// Validates that all tool results have corresponding tool calls in the context.
+    /// Validates that all tool results have corresponding tool calls in the
+    /// context.
     fn validate_tool_pairs(&self, context: &Context) -> anyhow::Result<()> {
         let mut tool_call_ids = std::collections::HashSet::new();
 
@@ -114,15 +116,14 @@ impl Compactor {
                 }
                 ContextMessage::Tool(result) => {
                     // Check if this tool result has a corresponding tool call
-                    if let Some(call_id) = &result.call_id {
-                        if !tool_call_ids.contains(call_id) {
+                    if let Some(call_id) = &result.call_id
+                        && !tool_call_ids.contains(call_id) {
                             return Err(anyhow::anyhow!(
                                 "Orphaned tool result: tool_result references call_id {:?} \
                                  but no corresponding tool call found in compacted context",
                                 call_id
                             ));
                         }
-                    }
                 }
                 _ => {}
             }
@@ -458,8 +459,9 @@ mod tests {
         let compactor = Compactor::new(Compact::new().message_threshold(2usize), environment);
         let compact_config = Compact::new().message_threshold(2usize);
 
-        // Create context: User -> Assistant with tool call -> Tool result -> User -> Assistant
-        // When we compact at message threshold 2, the tool call gets removed but tool result remains
+        // Create context: User -> Assistant with tool call -> Tool result -> User ->
+        // Assistant When we compact at message threshold 2, the tool call gets
+        // removed but tool result remains
         let tool_call = ToolCallFull {
             name: ToolName::new("read"),
             call_id: Some(ToolCallId::new("call_123")),
@@ -472,7 +474,11 @@ mod tests {
 
         let fixture = Context::default()
             .add_message(ContextMessage::user("User 1", None))
-            .add_message(ContextMessage::assistant("Response 1", None, Some(vec![tool_call])))
+            .add_message(ContextMessage::assistant(
+                "Response 1",
+                None,
+                Some(vec![tool_call]),
+            ))
             .add_message(ContextMessage::tool_result(tool_result))
             .add_message(ContextMessage::user("User 2", None))
             .add_message(ContextMessage::assistant("Response 2", None, None));
@@ -491,11 +497,8 @@ mod tests {
         // Verify no tool results exist in the compacted context
         // They should have been skipped as orphaned
         for msg in &compacted.messages {
-            match &**msg {
-                ContextMessage::Tool(_) => {
-                    panic!("Compacted context should not contain orphaned tool results");
-                }
-                _ => {}
+            if let ContextMessage::Tool(_) = &**msg {
+                panic!("Compacted context should not contain orphaned tool results");
             }
         }
     }
