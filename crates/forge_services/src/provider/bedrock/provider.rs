@@ -303,7 +303,7 @@ impl IntoDomain for aws_sdk_bedrockruntime::types::ConverseStreamOutput {
                 }
                 msg
             }
-            // Ignore other events
+            ConverseStreamOutput::ContentBlockStop(_) => ChatCompletionMessage::assistant("").finish_reason(FinishReason::Stop),
             _ => ChatCompletionMessage::assistant(Content::part("")),
         }
     }
