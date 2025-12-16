@@ -49,7 +49,7 @@ impl TitleDisplay {
             let total_tokens = *usage.total_tokens;
             if total_tokens > 0 {
                 let humanized_tokens = humanize_number(total_tokens);
-                timestamp_str.push_str(&format!(" {}", humanized_tokens));
+                timestamp_str.push_str(&format!(" t{}", humanized_tokens));
 
                 // Add cost if available
                 if let Some(cost) = usage.cost {
@@ -60,7 +60,7 @@ impl TitleDisplay {
                 let cached = *usage.cached_tokens;
                 if cached > 0 {
                     let cache_pct = (cached as f64 / total_tokens as f64) * 100.0;
-                    timestamp_str.push_str(&format!(" {}%", cache_pct.round() as u32));
+                    timestamp_str.push_str(&format!(" c{}%", cache_pct.round() as u32));
                 }
             }
         }
