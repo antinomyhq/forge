@@ -274,16 +274,11 @@ pub struct InputBuilder {
 }
 
 // Internal type for dialoguer interaction
-#[derive(Clone)]
+#[derive(Clone, derive_more::Display)]
+#[display("{display}")]
 struct MaskedDefault {
     value: String,
     display: String,
-}
-
-impl std::fmt::Display for MaskedDefault {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.display)
-    }
 }
 
 impl std::str::FromStr for MaskedDefault {

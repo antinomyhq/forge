@@ -1594,6 +1594,7 @@ dependencies = [
  "anyhow",
  "console 0.16.1",
  "crossterm 0.28.1",
+ "derive_more",
  "dialoguer",
  "pretty_assertions",
 ]
