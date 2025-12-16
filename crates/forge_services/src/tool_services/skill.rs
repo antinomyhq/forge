@@ -212,10 +212,25 @@ mod tests {
 
         async fn select_skill(
             &self,
-            _: SkillSelectionParams,
+            params: SkillSelectionParams,
             _: &ApiKey,
         ) -> anyhow::Result<Vec<SelectedSkill>> {
-            Ok(vec![SelectedSkill::new("test-skill", 0.95, 1)])
+            // Mock realistic behavior: return skills that match the use case
+            let matching_skills: Vec<_> = params.skills
+                .iter()
+                .filter(|skill| {
+                    let user_prompt_lower = params.user_prompt.to_lowercase();
+                    let name_lower = skill.name.to_lowercase();
+                    let description_lower = skill.description.to_lowercase();
+                    
+                    // Check if user prompt contains skill name or description
+                    user_prompt_lower.contains(&name_lower) || 
+                    user_prompt_lower.contains(&description_lower)
+                })
+                .map(|skill| SelectedSkill::new(&skill.name, 0.9, 1))
+                .collect();
+            
+            Ok(matching_skills)
         }
     }
 
@@ -291,8 +306,28 @@ mod tests {
             .await
             .unwrap();
 
-        // Assert
-        let expected = vec![SelectedSkill::new("test-skill", 0.95, 1)];
+        // Assert - should return the PDF skill that matches the use case
+        let expected = vec![SelectedSkill::new("pdf", 0.9, 1)];
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_recommend_skill_no_match() {
+        // Fixture
+        let skills = vec![
+            Skill::new("pdf", "Handle PDF files", "PDF handling skill").path("/skills/pdf.md"),
+        ];
+        let infra = MockInfra { skills };
+        let fetch_service = ForgeSkillFetch::new(Arc::new(infra));
+
+        // Act
+        let actual = fetch_service
+            .recommend_skills("I need to handle Excel spreadsheets".to_string())
+            .await
+            .unwrap();
+
+        // Assert - should return empty list since no skills match
+        let expected: Vec<SelectedSkill> = vec![];
         assert_eq!(actual, expected);
     }
 }
