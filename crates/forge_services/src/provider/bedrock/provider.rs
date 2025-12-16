@@ -1,6 +1,6 @@
 use anyhow::{Context as _, Result};
-use aws_sdk_bedrockruntime::config::Token;
 use aws_sdk_bedrockruntime::Client;
+use aws_sdk_bedrockruntime::config::Token;
 use forge_app::HttpClientService;
 use forge_domain::{
     AuthDetails, ChatCompletionMessage, Context, Model, ModelId, Provider, ResultStream,
