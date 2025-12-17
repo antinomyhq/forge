@@ -187,7 +187,9 @@ impl<H: HttpClientService> BedrockProvider<H> {
             .set_messages(bedrock_input.messages.clone())
             .set_tool_config(bedrock_input.tool_config.clone())
             .set_inference_config(bedrock_input.inference_config.clone())
-            .set_additional_model_request_fields(bedrock_input.additional_model_request_fields.clone())
+            .set_additional_model_request_fields(
+                bedrock_input.additional_model_request_fields.clone(),
+            )
             .send()
             .await
             .map_err(|sdk_error| {
@@ -492,7 +494,11 @@ impl FromDomain<forge_domain::Context>
 
         // Convert inference configuration
         // When extended thinking is enabled, top_p must be >= 0.95 or unset
-        let has_thinking = context.reasoning.as_ref().and_then(|r| r.enabled).unwrap_or(false);
+        let has_thinking = context
+            .reasoning
+            .as_ref()
+            .and_then(|r| r.enabled)
+            .unwrap_or(false);
         let adjusted_top_p = if has_thinking {
             // If thinking is enabled and top_p is set, ensure it's at least 0.95
             context.top_p.map(|p| {
@@ -525,8 +531,8 @@ impl FromDomain<forge_domain::Context>
 
         // Convert reasoning configuration to additional model request fields
         // For Claude models with extended thinking support
-        // Based on AWS Bedrock docs: additionalModelRequestFields for Claude extended thinking
-        // https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-anthropic-claude-messages.html
+        // Based on AWS Bedrock docs: additionalModelRequestFields for Claude extended
+        // thinking https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-anthropic-claude-messages.html
         let additional_model_fields = if let Some(reasoning_config) = &context.reasoning {
             if reasoning_config.enabled.unwrap_or(false) {
                 let mut thinking_config = std::collections::HashMap::new();
@@ -536,15 +542,15 @@ impl FromDomain<forge_domain::Context>
                 );
 
                 // Set budget_tokens (REQUIRED when thinking is enabled)
-                // The budget_tokens parameter determines the maximum number of tokens 
+                // The budget_tokens parameter determines the maximum number of tokens
                 // Claude is allowed to use for its internal reasoning process
                 // Default to 4000 if not specified (AWS recommendation for good quality)
                 let budget_tokens = reasoning_config.max_tokens.unwrap_or(4000);
                 thinking_config.insert(
                     "budget_tokens".to_string(),
-                    aws_smithy_types::Document::Number(
-                        aws_smithy_types::Number::PosInt(budget_tokens as u64),
-                    ),
+                    aws_smithy_types::Document::Number(aws_smithy_types::Number::PosInt(
+                        budget_tokens as u64,
+                    )),
                 );
 
                 let mut fields = std::collections::HashMap::new();
@@ -649,28 +655,35 @@ impl FromDomain<forge_domain::ContextMessage> for aws_sdk_bedrockruntime::types:
             forge_domain::ContextMessage::Text(text_msg) => {
                 let mut content_blocks = Vec::new();
 
-                // Add reasoning blocks FIRST if present (required by AWS when extended thinking is enabled)
-                // AWS requires that when thinking is enabled, assistant messages MUST start with thinking blocks
-                if text_msg.role == forge_domain::Role::Assistant {
-                    if let Some(reasoning_details) = &text_msg.reasoning_details {
+                // Add reasoning blocks FIRST if present (required by AWS when extended thinking
+                // is enabled) AWS requires that when thinking is enabled,
+                // assistant messages MUST start with thinking blocks
+                if text_msg.role == forge_domain::Role::Assistant
+                    && let Some(reasoning_details) = &text_msg.reasoning_details {
                         for reasoning in reasoning_details {
                             // Create a thinking content block
                             if let Some(text) = &reasoning.text {
-                                use aws_sdk_bedrockruntime::types::{ReasoningContentBlock, ReasoningTextBlock};
-                                
+                                use aws_sdk_bedrockruntime::types::{
+                                    ReasoningContentBlock, ReasoningTextBlock,
+                                };
+
                                 let reasoning_text_block = ReasoningTextBlock::builder()
                                     .text(text.clone())
                                     .set_signature(reasoning.signature.clone())
                                     .build()
-                                    .map_err(|e| anyhow::anyhow!("Failed to build reasoning text block: {}", e))?;
-                                
+                                    .map_err(|e| {
+                                        anyhow::anyhow!(
+                                            "Failed to build reasoning text block: {}",
+                                            e
+                                        )
+                                    })?;
+
                                 content_blocks.push(ContentBlock::ReasoningContent(
-                                    ReasoningContentBlock::ReasoningText(reasoning_text_block)
+                                    ReasoningContentBlock::ReasoningText(reasoning_text_block),
                                 ));
                             }
                         }
                     }
-                }
 
                 // Add text content if not empty
                 if !text_msg.content.is_empty() {
