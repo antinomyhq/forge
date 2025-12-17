@@ -15,9 +15,7 @@ impl CompactionTransformer {
     /// * `compact` - The compaction configuration
     /// * `env` - The environment for the compactor
     pub fn new(compact: forge_domain::Compact, env: Environment) -> Self {
-        Self {
-            compactor: Compactor::new(compact, env),
-        }
+        Self { compactor: Compactor::new(compact, env) }
     }
 }
 
