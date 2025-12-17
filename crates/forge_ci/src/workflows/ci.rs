@@ -15,10 +15,7 @@ pub fn generate_ci_workflow() {
                 .with(("repo-token", "${{ secrets.GITHUB_TOKEN }}")),
         )
         .add_step(Step::toolchain().add_stable())
-        .add_step(
-            Step::new("Install cargo-llvm-cov")
-                .run("cargo install cargo-llvm-cov"),
-        )
+        .add_step(Step::new("Install cargo-llvm-cov").run("cargo install cargo-llvm-cov"))
         .add_step(
             Step::new("Generate coverage")
                 .run("cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info"),
