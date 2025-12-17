@@ -2835,10 +2835,17 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
         });
 
+        // Check if nerd fonts should be used (NERD_FONT or USE_NERD_FONT set to "1")
+        let use_nerd_font = std::env::var("NERD_FONT")
+            .or_else(|_| std::env::var("USE_NERD_FONT"))
+            .map(|val| val == "1")
+            .unwrap_or(true); // Default to true
+
         let rprompt = ZshRPrompt::default()
             .agent(std::env::var("_FORGE_ACTIVE_AGENT").ok().map(AgentId::new))
             .model(model_id)
-            .token_count(conversation.and_then(|conversation| conversation.token_count()));
+            .token_count(conversation.and_then(|conversation| conversation.token_count()))
+            .use_nerd_font(use_nerd_font);
 
         Some(rprompt.to_string())
     }
