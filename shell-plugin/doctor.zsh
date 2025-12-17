@@ -121,7 +121,7 @@ if command -v forge &> /dev/null; then
         print_result info "${forge_path}"
     fi
 else
-    print_result fail "Forge binary not found in PATH" "Install from: https://github.com/your-org/forge"
+    print_result fail "Forge binary not found in PATH" "Installation: npm i -g forgecode@latest"
 fi
 
 # 3. Check shell plugin
@@ -300,21 +300,28 @@ elif [[ -n "$USE_NERD_FONT" ]]; then
         print_result code "export NERD_FONT=1"
     fi
 else
-    print_result fail "Nerd Font variables not set"
-    print_result instruction "Enable Nerd Font by adding to ~/.zshrc:"
-    print_result code "export NERD_FONT=1"
+    print_result pass "Nerd Font: enabled (default)"
     print_result info "Forge will auto-detect based on terminal capabilities"
 fi
 
-# Show actual icons used in Forge theme for manual verification
-echo ""
-echo "$(bold "Visual Check [Manual Verification Required]")"
+# Show actual icons used in Forge theme for manual verification (skip if explicitly disabled)
+local nerd_font_disabled=false
+if [[ -n "$NERD_FONT" && "$NERD_FONT" != "1" && "$NERD_FONT" != "true" ]]; then
+    nerd_font_disabled=true
+elif [[ -n "$USE_NERD_FONT" && "$USE_NERD_FONT" != "1" && "$USE_NERD_FONT" != "true" ]]; then
+    nerd_font_disabled=true
+fi
+
+if [[ "$nerd_font_disabled" == "false" ]]; then
+    echo ""
+    echo "$(bold "Visual Check [Manual Verification Required]")"
 echo "   $(bold "󱙺 FORGE 33.0k") $(cyan " tonic-1.0")"
-echo ""
-echo "   Forge uses Nerd Fonts to enrich cli experience, can you see all the icons clearly without any overlap?"
-echo "   If you see boxes (□) or question marks (?), install a Nerd Font from:"
-echo "   $(dim "https://www.nerdfonts.com/")"
-echo ""
+    echo ""
+    echo "   Forge uses Nerd Fonts to enrich cli experience, can you see all the icons clearly without any overlap?"
+    echo "   If you see boxes (□) or question marks (?), install a Nerd Font from:"
+    echo "   $(dim "https://www.nerdfonts.com/")"
+    echo ""
+fi
 
 # Summary
 echo ""
