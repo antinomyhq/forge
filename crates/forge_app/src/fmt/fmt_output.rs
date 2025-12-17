@@ -45,7 +45,6 @@ impl FormatContent for ToolOperation {
 
 #[cfg(test)]
 mod tests {
-    
 
     use console::strip_ansi_codes;
     use forge_display::DiffFormat;
@@ -55,10 +54,7 @@ mod tests {
 
     use super::FormatContent;
     use crate::operation::ToolOperation;
-    use crate::{
-        Content, FsCreateOutput,
-        PatchOutput, ReadOutput,
-    };
+    use crate::{Content, FsCreateOutput, PatchOutput, ReadOutput};
 
     fn fixture_environment() -> Environment {
         use fake::{Fake, Faker};
