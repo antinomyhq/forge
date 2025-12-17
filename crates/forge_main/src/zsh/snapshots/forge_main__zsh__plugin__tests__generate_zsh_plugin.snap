@@ -1,7 +1,6 @@
 ---
 source: crates/forge_main/src/zsh/plugin.rs
 expression: output
-snapshot_kind: text
 ---
 function _forge_action_login() {
     echo
