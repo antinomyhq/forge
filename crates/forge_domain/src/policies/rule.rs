@@ -76,10 +76,7 @@ impl Rule {
                 pattern_matches && dir_matches
             }
 
-            (
-                Rule::Execute(rule),
-                PermissionOperation::Execute { command: cmd, cwd },
-            ) => {
+            (Rule::Execute(rule), PermissionOperation::Execute { command: cmd, cwd }) => {
                 let command_matches = match_pattern(&rule.command, cmd);
                 let dir_matches = match &rule.dir {
                     Some(wd_pattern) => match_pattern(wd_pattern, cwd),

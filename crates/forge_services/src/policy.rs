@@ -181,8 +181,8 @@ where
                     PermissionOperation::Write { message, .. } => {
                         format!("{message}. How would you like to proceed?")
                     }
-                    PermissionOperation::Execute {  .. } => {
-                        format!("How would you like to proceed?")
+                    PermissionOperation::Execute { .. } => {
+                        "How would you like to proceed?".to_string()
                     }
                     PermissionOperation::Fetch { message, .. } => {
                         format!("{message}. How would you like to proceed?")
@@ -352,10 +352,8 @@ mod tests {
     #[test]
     fn test_create_policy_for_execute_operation_with_subcommand() {
         let command = "git push origin main".to_string();
-        let operation = PermissionOperation::Execute {
-            command,
-            cwd: std::path::PathBuf::from("/test/cwd"),
-        };
+        let operation =
+            PermissionOperation::Execute { command, cwd: std::path::PathBuf::from("/test/cwd") };
 
         let actual = create_policy_for_operation(&operation, None);
 
@@ -370,10 +368,8 @@ mod tests {
     #[test]
     fn test_create_policy_for_execute_operation_single_command() {
         let command = "ls".to_string();
-        let operation = PermissionOperation::Execute {
-            command,
-            cwd: std::path::PathBuf::from("/test/cwd"),
-        };
+        let operation =
+            PermissionOperation::Execute { command, cwd: std::path::PathBuf::from("/test/cwd") };
 
         let actual = create_policy_for_operation(&operation, None);
 
@@ -423,10 +419,8 @@ mod tests {
     #[test]
     fn test_create_policy_for_empty_execute_command() {
         let command = "".to_string();
-        let operation = PermissionOperation::Execute {
-            command,
-            cwd: std::path::PathBuf::from("/test/cwd"),
-        };
+        let operation =
+            PermissionOperation::Execute { command, cwd: std::path::PathBuf::from("/test/cwd") };
 
         let actual = create_policy_for_operation(&operation, None);
 
@@ -438,10 +432,8 @@ mod tests {
     #[test]
     fn test_create_policy_for_execute_operation_with_working_directory() {
         let command = "ls".to_string();
-        let operation = PermissionOperation::Execute {
-            command,
-            cwd: std::path::PathBuf::from("/test/cwd"),
-        };
+        let operation =
+            PermissionOperation::Execute { command, cwd: std::path::PathBuf::from("/test/cwd") };
         let working_directory = Some("/home/user/project".to_string());
 
         let actual = create_policy_for_operation(&operation, working_directory.clone());
