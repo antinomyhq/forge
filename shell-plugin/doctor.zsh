@@ -107,21 +107,6 @@ fi
 # 2. Check if forge is installed and in PATH
 print_section "Forge Installation"
 
-# Check FORGE_BIN environment variable
-if [[ -n "$FORGE_BIN" ]]; then
-    if [[ ! -e "$FORGE_BIN" ]]; then
-        print_result fail "FORGE_BIN path does not exist: ${FORGE_BIN}"
-    elif [[ ! -f "$FORGE_BIN" ]]; then
-        print_result fail "FORGE_BIN is not a file: ${FORGE_BIN}"
-    elif [[ ! -x "$FORGE_BIN" ]]; then
-        print_result fail "FORGE_BIN is not executable: ${FORGE_BIN}"
-    else
-        print_result pass "FORGE_BIN: ${FORGE_BIN}"
-    fi
-else
-    print_result warn "FORGE_BIN not set" "export FORGE_BIN=\$(which forge)"
-fi
-
 # Check if forge is in PATH
 if command -v forge &> /dev/null; then
     local forge_path=$(command -v forge)
@@ -148,7 +133,7 @@ if [[ -n "$_FORGE_PLUGIN_LOADED" ]]; then
 else
     print_result fail "Forge plugin not loaded"
     print_result instruction "Add to your ~/.zshrc:"
-    print_result code "eval \"\$(\$FORGE_BIN zsh plugin)\""
+    print_result code "eval \"\$(forge zsh plugin)\""
 fi
 
 
@@ -193,11 +178,11 @@ elif (( $+functions[p10k] )); then
 elif [[ -n "$ZSH_THEME" ]]; then
     print_result warn "Using theme: ${ZSH_THEME}"
     print_result instruction "To use Forge theme, add to ~/.zshrc:"
-    print_result code "eval \"\$(\$FORGE_BIN zsh theme)\""
+    print_result code "eval \"\$(forge zsh theme)\""
 else
     print_result warn "No theme loaded"
     print_result instruction "To use Forge theme, add to ~/.zshrc:"
-    print_result code "eval \"\$(\$FORGE_BIN zsh theme)\""
+    print_result code "eval \"\$(forge zsh theme)\""
 fi
 
 # 5. Check dependencies
