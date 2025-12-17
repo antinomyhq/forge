@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{Context as _, Result};
@@ -9,8 +9,8 @@ use async_openai::types::responses as oai;
 use forge_app::HttpClientService;
 use forge_app::domain::{
     ChatCompletionMessage, Content, Context as ChatContext, ContextMessage, FinishReason, ModelId,
-    ProviderId, ResultStream, Role, TokenCount, ToolCall, ToolCallId, ToolCallPart, ToolChoice,
-    ToolName, Transformer, Usage,
+    ProviderId, ResultStream, Role, TokenCount, ToolCall, ToolCallArguments, ToolCallFull,
+    ToolCallId, ToolCallPart, ToolChoice, ToolName, Transformer, Usage,
 };
 use forge_app::dto::openai::{ListModelResponse, ProviderPipeline, Request, Response};
 use forge_domain::Provider;
@@ -23,6 +23,7 @@ use url::Url;
 use crate::provider::client::{create_headers, join_url};
 use crate::provider::event::into_chat_completion_message;
 use crate::provider::utils::{format_http_context, sanitize_headers};
+use crate::{FromDomain, IntoDomain};
 
 #[derive(Clone)]
 pub struct OpenAIProvider<H> {
@@ -157,7 +158,8 @@ impl<H: HttpClientService> OpenAIProvider<H> {
         let headers = create_headers(self.get_headers());
 
         let stream_requested = context.stream.unwrap_or(true);
-        let request = codex_request_from_context(model, context)?;
+        let mut request = oai::CreateResponse::from_domain(context)?;
+        request.model = Some(model.as_str().to_string());
 
         info!(
             url = %responses_url,
@@ -188,7 +190,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
                 .await
                 .with_context(|| format_http_context(None, "POST", &responses_url))?;
 
-            let message = codex_response_into_full_message(response)?;
+            let message = response.into_domain();
             let stream = tokio_stream::iter([Ok(message)]);
             Ok(Box::pin(stream))
         }
@@ -372,14 +374,16 @@ fn request_message_count(request: &oai::CreateResponse) -> usize {
     }
 }
 
-fn codex_tool_choice(choice: ToolChoice) -> oai::ToolChoiceParam {
-    match choice {
-        ToolChoice::None => oai::ToolChoiceParam::Mode(oai::ToolChoiceOptions::None),
-        ToolChoice::Auto => oai::ToolChoiceParam::Mode(oai::ToolChoiceOptions::Auto),
-        ToolChoice::Required => oai::ToolChoiceParam::Mode(oai::ToolChoiceOptions::Required),
-        ToolChoice::Call(name) => {
-            oai::ToolChoiceParam::Function(oai::ToolChoiceFunction { name: name.to_string() })
-        }
+impl crate::FromDomain<ToolChoice> for oai::ToolChoiceParam {
+    fn from_domain(choice: ToolChoice) -> anyhow::Result<Self> {
+        Ok(match choice {
+            ToolChoice::None => oai::ToolChoiceParam::Mode(oai::ToolChoiceOptions::None),
+            ToolChoice::Auto => oai::ToolChoiceParam::Mode(oai::ToolChoiceOptions::Auto),
+            ToolChoice::Required => oai::ToolChoiceParam::Mode(oai::ToolChoiceOptions::Required),
+            ToolChoice::Call(name) => {
+                oai::ToolChoiceParam::Function(oai::ToolChoiceFunction { name: name.to_string() })
+            }
+        })
     }
 }
 
@@ -463,195 +467,200 @@ fn codex_tool_parameters(
 /// - Tool results
 /// - tools + tool_choice
 /// - max_tokens, temperature, top_p
-fn codex_request_from_context(
-    model: &ModelId,
-    context: ChatContext,
-) -> anyhow::Result<oai::CreateResponse> {
-    let mut instructions: Vec<String> = Vec::new();
-    let mut items: Vec<oai::InputItem> = Vec::new();
+impl crate::FromDomain<ChatContext> for oai::CreateResponse {
+    fn from_domain(context: ChatContext) -> anyhow::Result<Self> {
+        let mut instructions: Vec<String> = Vec::new();
+        let mut items: Vec<oai::InputItem> = Vec::new();
 
-    for entry in context.messages {
-        match entry.message {
-            ContextMessage::Text(message) => match message.role {
-                Role::System => {
-                    instructions.push(message.content);
-                }
-                Role::User => {
-                    items.push(oai::InputItem::EasyMessage(oai::EasyInputMessage {
-                        r#type: oai::MessageType::Message,
-                        role: oai::Role::User,
-                        content: oai::EasyInputContent::Text(message.content),
-                    }));
-                }
-                Role::Assistant => {
-                    if !message.content.trim().is_empty() {
+        for entry in context.messages {
+            match entry.message {
+                ContextMessage::Text(message) => match message.role {
+                    Role::System => {
+                        instructions.push(message.content);
+                    }
+                    Role::User => {
                         items.push(oai::InputItem::EasyMessage(oai::EasyInputMessage {
                             r#type: oai::MessageType::Message,
-                            role: oai::Role::Assistant,
+                            role: oai::Role::User,
                             content: oai::EasyInputContent::Text(message.content),
                         }));
                     }
+                    Role::Assistant => {
+                        if !message.content.trim().is_empty() {
+                            items.push(oai::InputItem::EasyMessage(oai::EasyInputMessage {
+                                r#type: oai::MessageType::Message,
+                                role: oai::Role::Assistant,
+                                content: oai::EasyInputContent::Text(message.content),
+                            }));
+                        }
 
-                    if let Some(tool_calls) = message.tool_calls {
-                        for call in tool_calls {
-                            let call_id = call
-                                .call_id
-                                .as_ref()
-                                .map(|id| id.as_str().to_string())
-                                .ok_or_else(|| {
-                                anyhow::anyhow!(
-                                    "Tool call is missing call_id; cannot be sent to Responses API"
-                                )
-                            })?;
+                        if let Some(tool_calls) = message.tool_calls {
+                            for call in tool_calls {
+                                let call_id = call
+                                    .call_id
+                                    .as_ref()
+                                    .map(|id| id.as_str().to_string())
+                                    .ok_or_else(|| {
+                                    anyhow::anyhow!(
+                                        "Tool call is missing call_id; cannot be sent to Responses API"
+                                    )
+                                })?;
 
-                            items.push(oai::InputItem::Item(oai::Item::FunctionCall(
-                                oai::FunctionToolCall {
-                                    arguments: call.arguments.into_string(),
-                                    call_id,
-                                    name: call.name.to_string(),
-                                    id: None,
-                                    status: None,
-                                },
-                            )));
+                                items.push(oai::InputItem::Item(oai::Item::FunctionCall(
+                                    oai::FunctionToolCall {
+                                        arguments: call.arguments.into_string(),
+                                        call_id,
+                                        name: call.name.to_string(),
+                                        id: None,
+                                        status: None,
+                                    },
+                                )));
+                            }
                         }
                     }
+                },
+                ContextMessage::Tool(result) => {
+                    let call_id = result
+                        .call_id
+                        .as_ref()
+                        .map(|id| id.as_str().to_string())
+                        .ok_or_else(|| {
+                            anyhow::anyhow!(
+                                "Tool result is missing call_id; cannot be sent to Responses API"
+                            )
+                        })?;
+
+                    let output_json = serde_json::to_string(&result.output)
+                        .with_context(|| "Failed to serialize tool output as JSON")?;
+
+                    items.push(oai::InputItem::Item(oai::Item::FunctionCallOutput(
+                        oai::FunctionCallOutputItemParam {
+                            call_id,
+                            output: oai::FunctionCallOutput::Text(output_json),
+                            id: None,
+                            status: None,
+                        },
+                    )));
                 }
-            },
-            ContextMessage::Tool(result) => {
-                let call_id = result
-                    .call_id
-                    .as_ref()
-                    .map(|id| id.as_str().to_string())
-                    .ok_or_else(|| {
-                        anyhow::anyhow!(
-                            "Tool result is missing call_id; cannot be sent to Responses API"
-                        )
-                    })?;
-
-                let output_json = serde_json::to_string(&result.output)
-                    .with_context(|| "Failed to serialize tool output as JSON")?;
-
-                items.push(oai::InputItem::Item(oai::Item::FunctionCallOutput(
-                    oai::FunctionCallOutputItemParam {
-                        call_id,
-                        output: oai::FunctionCallOutput::Text(output_json),
-                        id: None,
-                        status: None,
-                    },
-                )));
-            }
-            ContextMessage::Image(_) => {
-                anyhow::bail!("Codex (Responses API) path does not yet support image inputs");
+                ContextMessage::Image(_) => {
+                    anyhow::bail!("Codex (Responses API) path does not yet support image inputs");
+                }
             }
         }
-    }
 
-    let instructions = (!instructions.is_empty()).then(|| instructions.join("\n\n"));
+        let instructions = (!instructions.is_empty()).then(|| instructions.join("\n\n"));
 
-    let max_output_tokens = context
-        .max_tokens
-        .map(|tokens| u32::try_from(tokens).context("max_tokens must fit into u32"))
-        .transpose()?;
+        let max_output_tokens = context
+            .max_tokens
+            .map(|tokens| u32::try_from(tokens).context("max_tokens must fit into u32"))
+            .transpose()?;
 
-    let tools = (!context.tools.is_empty())
-        .then(|| {
-            context
-                .tools
-                .into_iter()
-                .map(|tool| {
-                    Ok(oai::Tool::Function(oai::FunctionTool {
-                        name: tool.name.to_string(),
-                        parameters: Some(codex_tool_parameters(&tool.input_schema)?),
-                        strict: Some(true),
-                        description: Some(tool.description),
-                    }))
-                })
-                .collect::<anyhow::Result<Vec<oai::Tool>>>()
-        })
-        .transpose()?;
+        let tools = (!context.tools.is_empty())
+            .then(|| {
+                context
+                    .tools
+                    .into_iter()
+                    .map(|tool| {
+                        Ok(oai::Tool::Function(oai::FunctionTool {
+                            name: tool.name.to_string(),
+                            parameters: Some(codex_tool_parameters(&tool.input_schema)?),
+                            strict: Some(true),
+                            description: Some(tool.description),
+                        }))
+                    })
+                    .collect::<anyhow::Result<Vec<oai::Tool>>>()
+            })
+            .transpose()?;
 
-    let tool_choice = context.tool_choice.map(codex_tool_choice);
+        let tool_choice = context
+            .tool_choice
+            .map(oai::ToolChoiceParam::from_domain)
+            .transpose()?;
 
-    let mut builder = oai::CreateResponseArgs::default();
-    builder.model(model.as_str());
-    builder.input(oai::InputParam::Items(items));
+        let mut builder = oai::CreateResponseArgs::default();
+        builder.input(oai::InputParam::Items(items));
 
-    if let Some(instructions) = instructions {
-        builder.instructions(instructions);
-    }
+        if let Some(instructions) = instructions {
+            builder.instructions(instructions);
+        }
 
-    if let Some(max_output_tokens) = max_output_tokens {
-        builder.max_output_tokens(max_output_tokens);
-    }
+        if let Some(max_output_tokens) = max_output_tokens {
+            builder.max_output_tokens(max_output_tokens);
+        }
 
-    if let Some(temperature) = context.temperature.map(|t| t.value()) {
-        builder.temperature(temperature);
-    }
+        if let Some(temperature) = context.temperature.map(|t| t.value()) {
+            builder.temperature(temperature);
+        }
 
-    // Some OpenAI Codex/"reasoning" models reject `top_p` entirely (even when set
-    // to defaults). To avoid hard failures, we currently omit it for the
-    // Responses API path.
+        // Some OpenAI Codex/"reasoning" models reject `top_p` entirely (even when set
+        // to defaults). To avoid hard failures, we currently omit it for the
+        // Responses API path.
 
-    if let Some(tools) = tools {
-        builder.tools(tools);
-    }
+        if let Some(tools) = tools {
+            builder.tools(tools);
+        }
 
-    if let Some(tool_choice) = tool_choice {
-        builder.tool_choice(tool_choice);
-    }
+        if let Some(tool_choice) = tool_choice {
+            builder.tool_choice(tool_choice);
+        }
 
-    builder.build().map_err(anyhow::Error::from)
-}
-
-fn codex_usage_into_domain(usage: oai::ResponseUsage) -> Usage {
-    Usage {
-        prompt_tokens: TokenCount::Actual(usage.input_tokens as usize),
-        completion_tokens: TokenCount::Actual(usage.output_tokens as usize),
-        total_tokens: TokenCount::Actual(usage.total_tokens as usize),
-        cached_tokens: TokenCount::Actual(usage.input_tokens_details.cached_tokens as usize),
-        cost: None,
+        builder.build().map_err(anyhow::Error::from)
     }
 }
 
-fn codex_response_into_full_message(
-    response: oai::Response,
-) -> anyhow::Result<ChatCompletionMessage> {
-    let mut message = ChatCompletionMessage::default();
+impl crate::IntoDomain for oai::ResponseUsage {
+    type Domain = Usage;
 
-    if let Some(text) = response.output_text() {
-        message = message.content_full(text);
-    }
-
-    let mut saw_tool_call = false;
-    for item in &response.output {
-        if let oai::OutputItem::FunctionCall(call) = item {
-            saw_tool_call = true;
-            message = message.add_tool_call(ToolCall::Part(ToolCallPart {
-                call_id: Some(ToolCallId::new(call.call_id.clone())),
-                name: Some(ToolName::new(call.name.clone())),
-                arguments_part: call.arguments.clone(),
-            }));
+    fn into_domain(self) -> Self::Domain {
+        Usage {
+            prompt_tokens: TokenCount::Actual(self.input_tokens as usize),
+            completion_tokens: TokenCount::Actual(self.output_tokens as usize),
+            total_tokens: TokenCount::Actual(self.total_tokens as usize),
+            cached_tokens: TokenCount::Actual(self.input_tokens_details.cached_tokens as usize),
+            cost: None,
         }
     }
+}
 
-    if let Some(usage) = response.usage {
-        message = message.usage(codex_usage_into_domain(usage));
+impl crate::IntoDomain for oai::Response {
+    type Domain = ChatCompletionMessage;
+
+    fn into_domain(self) -> Self::Domain {
+        let mut message = ChatCompletionMessage::default();
+
+        if let Some(text) = self.output_text() {
+            message = message.content_full(text);
+        }
+
+        let mut saw_tool_call = false;
+        for item in &self.output {
+            if let oai::OutputItem::FunctionCall(call) = item {
+                saw_tool_call = true;
+                message = message.add_tool_call(ToolCall::Full(ToolCallFull {
+                    call_id: Some(ToolCallId::new(call.call_id.clone())),
+                    name: ToolName::new(call.name.clone()),
+                    arguments: ToolCallArguments::from_json(&call.arguments),
+                }));
+            }
+        }
+
+        if let Some(usage) = self.usage {
+            message = message.usage(usage.into_domain());
+        }
+
+        message = message.finish_reason_opt(Some(if saw_tool_call {
+            FinishReason::ToolCalls
+        } else {
+            FinishReason::Stop
+        }));
+
+        message
     }
-
-    message = message.finish_reason_opt(Some(if saw_tool_call {
-        FinishReason::ToolCalls
-    } else {
-        FinishReason::Stop
-    }));
-
-    Ok(message)
 }
 
 #[derive(Default)]
 struct CodexStreamState {
-    item_id_to_tool_call: HashMap<String, (ToolCallId, ToolName)>,
-    item_id_has_delta: HashSet<String>,
-    saw_tool_call: bool,
+    output_index_to_tool_call: HashMap<u32, (ToolCallId, ToolName)>,
 }
 
 fn into_chat_completion_message_codex(
@@ -669,39 +678,38 @@ fn into_chat_completion_message_codex(
                         oai::ResponseStreamEvent::ResponseOutputItemAdded(added) => {
                             match added.item {
                                 oai::OutputItem::FunctionCall(call) => {
-                                    state.saw_tool_call = true;
-
-                                    let item_id =
-                                        call.id.clone().unwrap_or_else(|| call.call_id.clone());
                                     let tool_call_id = ToolCallId::new(call.call_id);
                                     let tool_name = ToolName::new(call.name);
 
-                                    state.item_id_to_tool_call.insert(
-                                        item_id.clone(),
+                                    state.output_index_to_tool_call.insert(
+                                        added.output_index,
                                         (tool_call_id.clone(), tool_name.clone()),
                                     );
 
-                                    // Some providers include initial arguments here (possibly
-                                    // empty).
-                                    Some(Ok(ChatCompletionMessage::default().add_tool_call(
-                                        ToolCall::Part(ToolCallPart {
-                                            call_id: Some(tool_call_id),
-                                            name: Some(tool_name),
-                                            arguments_part: call.arguments,
-                                        }),
-                                    )))
+                                    // Only emit if we have non-empty initial arguments.
+                                    // Otherwise, wait for deltas or done event.
+                                    if !call.arguments.is_empty() {
+                                        Some(Ok(ChatCompletionMessage::default().add_tool_call(
+                                            ToolCall::Part(ToolCallPart {
+                                                call_id: Some(tool_call_id),
+                                                name: Some(tool_name),
+                                                arguments_part: call.arguments,
+                                            }),
+                                        )))
+                                    } else {
+                                        None
+                                    }
                                 }
                                 _ => None,
                             }
                         }
                         oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDelta(delta) => {
-                            state.item_id_has_delta.insert(delta.item_id.clone());
                             let (call_id, name) = state
-                                .item_id_to_tool_call
-                                .get(&delta.item_id)
+                                .output_index_to_tool_call
+                                .get(&delta.output_index)
                                 .cloned()
                                 .unwrap_or_else(|| {
-                                    (ToolCallId::new(delta.item_id.clone()), ToolName::new(""))
+                                    (ToolCallId::new(format!("output_{}", delta.output_index)), ToolName::new(""))
                                 });
 
                             let name = (!name.as_str().is_empty()).then_some(name);
@@ -714,54 +722,21 @@ fn into_chat_completion_message_codex(
                                 }),
                             )))
                         }
-                        oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDone(done) => {
-                            // Only emit the final arguments if we didn't receive deltas, to avoid
-                            // duplicating the JSON.
-                            if state.item_id_has_delta.contains(&done.item_id) {
-                                if let Some(name) = done.name
-                                    && let Some((_, tool_name)) =
-                                        state.item_id_to_tool_call.get_mut(&done.item_id)
-                                    && tool_name.as_str().is_empty()
-                                {
-                                    *tool_name = ToolName::new(name);
-                                }
-                                None
-                            } else {
-                                state.saw_tool_call = true;
-
-                                let (call_id, name) = state
-                                    .item_id_to_tool_call
-                                    .get(&done.item_id)
-                                    .cloned()
-                                    .unwrap_or_else(|| {
-                                        (ToolCallId::new(done.item_id.clone()), ToolName::new(""))
-                                    });
-
-                                let name = done
-                                    .name
-                                    .map(ToolName::new)
-                                    .or_else(|| (!name.as_str().is_empty()).then_some(name));
-
-                                Some(Ok(ChatCompletionMessage::default().add_tool_call(
-                                    ToolCall::Part(ToolCallPart {
-                                        call_id: Some(call_id),
-                                        name,
-                                        arguments_part: done.arguments,
-                                    }),
-                                )))
-                            }
+                        oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDone(_done) => {
+                            // Arguments are already sent via deltas, no need to emit here
+                            None
                         }
                         oai::ResponseStreamEvent::ResponseCompleted(done) => {
                             let mut message = ChatCompletionMessage::default().finish_reason_opt(
-                                Some(if state.saw_tool_call {
-                                    FinishReason::ToolCalls
-                                } else {
+                                Some(if state.output_index_to_tool_call.is_empty() {
                                     FinishReason::Stop
+                                } else {
+                                    FinishReason::ToolCalls
                                 }),
                             );
 
                             if let Some(usage) = done.response.usage {
-                                message = message.usage(codex_usage_into_domain(usage));
+                                message = message.usage(usage.into_domain());
                             }
 
                             Some(Ok(message))
@@ -771,7 +746,7 @@ fn into_chat_completion_message_codex(
                                 .finish_reason_opt(Some(FinishReason::Length));
 
                             if let Some(usage) = done.response.usage {
-                                message = message.usage(codex_usage_into_domain(usage));
+                                message = message.usage(usage.into_domain());
                             }
 
                             Some(Ok(message))
@@ -994,7 +969,8 @@ mod tests {
             .tool_choice(ToolChoice::Auto)
             .max_tokens(123usize);
 
-        let actual = codex_request_from_context(&model, context)?;
+        let mut actual = oai::CreateResponse::from_domain(context)?;
+        actual.model = Some(model.as_str().to_string());
 
         assert_eq!(actual.model.as_deref(), Some("codex-mini-latest"));
         assert_eq!(
