@@ -23,14 +23,38 @@ impl<F> AppConfigRepositoryImpl<F> {
 }
 
 impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> AppConfigRepositoryImpl<F> {
-    async fn read_inner(&self) -> anyhow::Result<AppConfig> {
-        let path = self.infra.get_environment().app_config();
-        let content = self.infra.read_utf8(&path).await?;
-        Ok(serde_json::from_str(&content)?)
-    }
-
+    /// Reads configuration from the JSON file with fallback strategies:
     async fn read(&self) -> AppConfig {
-        self.read_inner().await.unwrap_or_default()
+        let path = self.infra.get_environment().app_config();
+        let content = match self.infra.read_utf8(&path).await {
+            Ok(content) => content,
+            Err(e) => {
+                tracing::error!(
+                    path = %path.display(),
+                    error = %e,
+                    "Failed to read config file. Using default config."
+                );
+                return AppConfig::default();
+            }
+        };
+
+        // Strategy 1: Try normal parsing
+        serde_json::from_str::<AppConfig>(&content)
+            .or_else(|_| {
+                // Strategy 2: Try JSON repair for syntactically broken JSON
+                tracing::warn!(path = %path.display(), "Failed to parse config file, attempting repair...");
+                forge_json_repair::json_repair::<AppConfig>(&content).inspect(|_| {
+                    tracing::info!(path = %path.display(), "Successfully repaired config file");
+                })
+            })
+            .inspect_err(|e| {
+                tracing::error!(
+                    path = %path.display(),
+                    error = %e,
+                    "Failed to repair config file. Using default config."
+                );
+            })
+            .unwrap_or_default()
     }
 
     async fn write(&self, config: &AppConfig) -> anyhow::Result<()> {
@@ -506,5 +530,47 @@ mod tests {
         let actual = repo.get_app_config().await.unwrap();
 
         assert_eq!(actual.model.get(&ProviderId::ANTHROPIC), Some(&expected));
+    }
+
+    #[tokio::test]
+    async fn test_read_repairs_invalid_json() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let config_path = temp_dir.path().join(".config.json");
+
+        // Invalid JSON with trailing comma
+        let json = r#"{"provider": "openai",}"#;
+
+        let infra = Arc::new(MockInfra::new(config_path.clone()));
+        infra
+            .files
+            .lock()
+            .unwrap()
+            .insert(config_path, json.to_string());
+
+        let repo = AppConfigRepositoryImpl::new(infra);
+        let actual = repo.get_app_config().await.unwrap();
+
+        assert_eq!(actual.provider, Some(ProviderId::OPENAI));
+    }
+
+    #[tokio::test]
+    async fn test_read_returns_default_on_unrepairable_json() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let config_path = temp_dir.path().join(".config.json");
+
+        // JSON that can't be repaired to AppConfig
+        let json = r#"["this", "is", "an", "array"]"#;
+
+        let infra = Arc::new(MockInfra::new(config_path.clone()));
+        infra
+            .files
+            .lock()
+            .unwrap()
+            .insert(config_path, json.to_string());
+
+        let repo = AppConfigRepositoryImpl::new(infra);
+        let actual = repo.get_app_config().await.unwrap();
+
+        assert_eq!(actual, AppConfig::default());
     }
 }

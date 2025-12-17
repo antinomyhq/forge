@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 anyhow.workspace = true
 console.workspace = true
+derive_more.workspace = true
 dialoguer.workspace = true
 
 crossterm.workspace = true

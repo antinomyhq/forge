@@ -1,21 +1,23 @@
-use std::time::Instant;
-
 use anyhow::Result;
 use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
-use rand::seq::IndexedRandom;
+use rand::Rng;
 use tokio::task::JoinHandle;
 
 mod progress_bar;
+mod stopwatch;
+
 pub use progress_bar::*;
+use stopwatch::Stopwatch;
 
 /// Manages spinner functionality for the UI
 #[derive(Default)]
 pub struct SpinnerManager {
     spinner: Option<ProgressBar>,
-    start_time: Option<Instant>,
+    stopwatch: Stopwatch,
     message: Option<String>,
     tracker: Option<JoinHandle<()>>,
+    word_index: Option<usize>,
     #[cfg(test)]
     tick_counter: Option<std::sync::Arc<std::sync::atomic::AtomicU64>>,
 }
@@ -47,23 +49,26 @@ impl SpinnerManager {
             "Contemplating",
         ];
 
-        // Use a random word from the list
+        // Use a random word from the list, caching the index for consistency
         let word = match message {
-            None => words.choose(&mut rand::rng()).unwrap_or(&words[0]),
             Some(msg) => msg,
+            None => {
+                let idx = *self
+                    .word_index
+                    .get_or_insert_with(|| rand::rng().random_range(0..words.len()));
+                words[idx]
+            }
         };
 
         // Store the base message without styling for later use with the timer
         self.message = Some(word.to_string());
 
-        // Initialize the start time for the timer
-        self.start_time = Some(Instant::now());
+        // Start the stopwatch
+        self.stopwatch.start();
 
         // Create the spinner with a better style that respects terminal width
         let pb = ProgressBar::new_spinner();
 
-        // This style includes {msg} which will be replaced with our formatted message
-        // The {spinner} will show a visual spinner animation
         pb.set_style(
             ProgressStyle::default_spinner()
                 .tick_strings(&["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"])
@@ -71,15 +76,15 @@ impl SpinnerManager {
                 .unwrap(),
         );
 
-        // Increase the tick rate to make the spinner move faster
         // Setting to 60ms for a smooth yet fast animation
         pb.enable_steady_tick(std::time::Duration::from_millis(60));
 
         // Set the initial message
         let message = format!(
-            "{} 0s · {}",
+            "{} {} {}",
             word.green().bold(),
-            "Ctrl+C to interrupt".white().dimmed()
+            self.stopwatch,
+            "· Ctrl+C to interrupt".white().dimmed()
         );
         pb.set_message(message);
 
@@ -87,12 +92,12 @@ impl SpinnerManager {
 
         // Clone the necessary components for the tracker task
         let spinner_clone = self.spinner.clone();
-        let start_time_clone = self.start_time;
         let message_clone = self.message.clone();
+        let stopwatch = self.stopwatch;
         #[cfg(test)]
         let tick_counter_clone = self.tick_counter.clone();
 
-        // Spwan tracker to keep the track of time in sec.
+        // Spawn tracker to keep track of time in seconds
         self.tracker = Some(tokio::spawn(async move {
             let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(500));
             loop {
@@ -101,22 +106,13 @@ impl SpinnerManager {
                 if let Some(counter) = &tick_counter_clone {
                     counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                 }
-                // Update the spinner with the current elapsed time
-                if let (Some(spinner), Some(start_time), Some(message)) =
-                    (&spinner_clone, start_time_clone, &message_clone)
-                {
-                    let elapsed = start_time.elapsed();
-                    let seconds = elapsed.as_secs();
-
-                    // Create a new message with the elapsed time
+                if let (Some(spinner), Some(message)) = (&spinner_clone, &message_clone) {
                     let updated_message = format!(
-                        "{} {}s · {}",
+                        "{} {} {}",
                         message.green().bold(),
-                        seconds,
-                        "Ctrl+C to interrupt".white().dimmed()
+                        stopwatch,
+                        "· Ctrl+C to interrupt".white().dimmed()
                     );
-
-                    // Update the spinner's message
                     spinner.set_message(updated_message);
                 }
             }
@@ -130,31 +126,31 @@ impl SpinnerManager {
         self.stop_inner(message, |s| println!("{s}"))
     }
 
-    /// Stop the active spinner if any
+    /// Resets the stopwatch to zero.
+    /// Call this when starting a completely new task/conversation.
+    pub fn reset(&mut self) {
+        self.stopwatch.reset();
+        self.word_index = None;
+    }
+
     fn stop_inner<F>(&mut self, message: Option<String>, writer: F) -> Result<()>
     where
         F: FnOnce(&str),
     {
-        if let Some(spinner) = self.spinner.take() {
-            // Always finish the spinner first
-            spinner.finish_and_clear();
+        self.stopwatch.stop();
 
-            // Then print the message if provided
+        if let Some(spinner) = self.spinner.take() {
+            spinner.finish_and_clear();
             if let Some(msg) = message {
                 writer(&msg);
             }
         } else if let Some(message) = message {
-            // If there's no spinner but we have a message, just print it
             writer(&message);
         }
 
-        // Tracker task will be dropped here.
-        if let Some(a) = self.tracker.take() {
-            a.abort();
-            drop(a)
+        if let Some(handle) = self.tracker.take() {
+            handle.abort();
         }
-        self.tracker = None;
-        self.start_time = None;
         self.message = None;
         Ok(())
     }
@@ -180,6 +176,7 @@ impl SpinnerManager {
         self.write_with_restart(message, |msg| eprintln!("{msg}"))
     }
 }
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -189,22 +186,66 @@ mod tests {
 
     use super::SpinnerManager;
 
-    #[tokio::test]
+    #[tokio::test(start_paused = true)]
     async fn test_spinner_tracker_task_is_stopped_on_stop() {
         let fixture_counter = Arc::new(AtomicU64::new(0));
         let mut fixture_spinner = SpinnerManager::test_with_tick_counter(fixture_counter.clone());
 
         fixture_spinner.start(Some("Test")).unwrap();
-        tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+        tokio::time::advance(std::time::Duration::from_millis(100)).await;
+        tokio::task::yield_now().await;
 
         let actual_before_stop = fixture_counter.load(Ordering::SeqCst);
         assert!(actual_before_stop > 0);
 
         fixture_spinner.stop(None).unwrap();
-        tokio::time::sleep(std::time::Duration::from_millis(1100)).await;
+        tokio::time::advance(std::time::Duration::from_millis(100)).await;
+        tokio::task::yield_now().await;
 
         let actual_after_stop = fixture_counter.load(Ordering::SeqCst);
         let expected = actual_before_stop;
         assert_eq!(actual_after_stop, expected);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn test_spinner_time_accumulates_and_resets() {
+        let mut fixture_spinner = SpinnerManager::new();
+
+        // First session
+        fixture_spinner.start(Some("Test")).unwrap();
+        tokio::time::advance(std::time::Duration::from_millis(100)).await;
+        fixture_spinner.stop(None).unwrap();
+
+        // Second session - time should accumulate
+        fixture_spinner.start(Some("Test")).unwrap();
+        tokio::time::advance(std::time::Duration::from_millis(100)).await;
+        fixture_spinner.stop(None).unwrap();
+
+        let actual_accumulated = fixture_spinner.stopwatch.elapsed();
+        assert!(actual_accumulated.as_millis() >= 200);
+
+        // Reset should clear accumulated time
+        fixture_spinner.reset();
+
+        let actual_after_reset = fixture_spinner.stopwatch.elapsed();
+        let expected = std::time::Duration::ZERO;
+        assert_eq!(actual_after_reset, expected);
+    }
+
+    #[tokio::test]
+    async fn test_word_index_caching_behavior() {
+        let mut fixture_spinner = SpinnerManager::new();
+
+        // Start spinner without message multiple times
+        fixture_spinner.start(None).unwrap();
+        let first_message = fixture_spinner.message.clone();
+        fixture_spinner.stop(None).unwrap();
+
+        fixture_spinner.start(None).unwrap();
+        let second_message = fixture_spinner.message.clone();
+        fixture_spinner.stop(None).unwrap();
+
+        // Messages should be identical because word_index is cached
+        assert_eq!(first_message, second_message);
     }
 }

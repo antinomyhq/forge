@@ -675,7 +675,6 @@ impl ToolCatalog {
             ToolCatalog::Shell(input) => Some(crate::policies::PermissionOperation::Execute {
                 command: input.command.clone(),
                 cwd,
-                message: format!("Execute shell command: {}", input.command),
             }),
             ToolCatalog::Fetch(input) => Some(crate::policies::PermissionOperation::Fetch {
                 url: input.url.clone(),
