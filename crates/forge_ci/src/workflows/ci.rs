@@ -5,7 +5,7 @@ use crate::jobs::{self, ReleaseBuilderJob};
 
 /// Generate the main CI workflow
 pub fn generate_ci_workflow() {
-    // Create a basic build job for CI
+    // Create a basic build job for CI with coverage
     let build_job = Job::new("Build and Test")
         .permissions(Permissions::default().contents(Level::Read))
         .add_step(Step::checkout())
@@ -15,7 +15,19 @@ pub fn generate_ci_workflow() {
                 .with(("repo-token", "${{ secrets.GITHUB_TOKEN }}")),
         )
         .add_step(Step::toolchain().add_stable())
-        .add_step(Step::new("Cargo Test").run("cargo test --all-features --workspace"));
+        .add_step(
+            Step::new("Install cargo-llvm-cov")
+                .run("cargo install cargo-llvm-cov"),
+        )
+        .add_step(
+            Step::new("Generate coverage")
+                .run("cargo llvm-cov --all-features --workspace --lcov --output-path lcov.info"),
+        )
+        .add_step(
+            Step::new("Upload coverage to Coveralls")
+                .uses("coverallsapp", "github-action", "v2")
+                .with(("path-to-lcov", "lcov.info")),
+        );
 
     let draft_release_job = jobs::create_draft_release_job("build");
     let draft_release_pr_job = jobs::create_draft_release_pr_job();
