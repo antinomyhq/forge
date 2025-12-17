@@ -55,6 +55,7 @@ where
             && let Ok(Some(existing_credential)) = self.infra.get_credential(&provider_id).await
         {
             api_key_request.existing_params = Some(existing_credential.url_params.into());
+            api_key_request.api_key = existing_credential.auth_details.api_key().cloned()
         }
 
         Ok(request)
