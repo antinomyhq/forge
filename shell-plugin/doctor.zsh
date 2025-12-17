@@ -280,9 +280,29 @@ else
 fi
 
 # Check font and Nerd Font support
-# Show actual icons used in Forge theme
+print_section "Nerd Font"
+
+# Check if Nerd Font is enabled via environment variables
+if [[ -n "$NERD_FONT" ]]; then
+    if [[ "$NERD_FONT" == "1" || "$NERD_FONT" == "true" ]]; then
+        print_result pass "NERD_FONT: enabled"
+    else
+        print_result info "NERD_FONT: disabled (${NERD_FONT})"
+    fi
+elif [[ -n "$USE_NERD_FONT" ]]; then
+    if [[ "$USE_NERD_FONT" == "1" || "$USE_NERD_FONT" == "true" ]]; then
+        print_result pass "USE_NERD_FONT: enabled"
+    else
+        print_result info "USE_NERD_FONT: disabled (${USE_NERD_FONT})"
+    fi
+else
+    print_result info "Nerd Font variables not set (NERD_FONT or USE_NERD_FONT)"
+    print_result info "Forge will auto-detect based on terminal capabilities"
+fi
+
+# Show actual icons used in Forge theme for manual verification
 echo ""
-echo "$(bold "Font Check [Manual Verification Required]")"
+echo "$(bold "Visual Check [Manual Verification Required]")"
 echo "   $(bold "󱙺 FORGE 33.0k") $(cyan " tonic-1.0")"
 echo ""
 echo "   Forge uses Nerd Fonts to enrich cli experience, can you see all the icons clearly without any overlap?"
