@@ -11,10 +11,9 @@ use forge_domain::Transformer;
 ///
 /// This follows AWS Bedrock's caching model where CachePoint blocks are
 /// inserted at strategic positions to enable prompt caching.
-
-// TODO: Implement it on Context or Conversation instead of ConverseStreamInput
 pub struct SetCache;
 
+// TODO: Implement it on Context or Conversation instead of ConverseStreamInput
 impl Transformer for SetCache {
     type Value = ConverseStreamInput;
 

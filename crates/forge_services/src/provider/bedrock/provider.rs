@@ -923,13 +923,21 @@ mod tests {
         }
     }
 
-    fn create_test_provider(region: &str) -> BedrockProvider<MockHttpClient> {
+    fn provider_fixture(token: &str, region: Option<&str>) -> Provider<Url> {
         use forge_domain::{
             ApiKey, AuthCredential, AuthDetails, ProviderId, ProviderResponse, ProviderType,
+            URLParam, URLParamValue,
         };
-        use reqwest::Url;
 
-        let provider = Provider {
+        let mut url_params = std::collections::HashMap::new();
+        if let Some(r) = region {
+            url_params.insert(
+                URLParam::from("AWS_REGION".to_string()),
+                URLParamValue::from(r.to_string()),
+            );
+        }
+
+        Provider {
             id: ProviderId::from("bedrock".to_string()),
             provider_type: ProviderType::Llm,
             response: Some(ProviderResponse::Bedrock),
@@ -939,13 +947,15 @@ mod tests {
             url_params: vec![],
             credential: Some(AuthCredential {
                 id: ProviderId::from("bedrock".to_string()),
-                auth_details: AuthDetails::ApiKey(ApiKey::from("test-token".to_string())),
-                url_params: std::collections::HashMap::new(),
+                auth_details: AuthDetails::ApiKey(ApiKey::from(token.to_string())),
+                url_params,
             }),
-        };
+        }
+    }
 
+    fn bedrock_provider_fixture(region: &str) -> BedrockProvider<MockHttpClient> {
         BedrockProvider {
-            provider,
+            provider: provider_fixture("test-token", Some(region)),
             client: OnceCell::new(),
             region: region.to_string(),
             _phantom: std::marker::PhantomData,
@@ -953,42 +963,723 @@ mod tests {
     }
 
     #[test]
-    fn test_transform_model_id_us_region() {
-        let bedrock = create_test_provider("us-east-1");
-        let transformed = bedrock.transform_model_id("anthropic.claude-3-5-sonnet-20241022-v2:0");
-        assert_eq!(transformed, "us.anthropic.claude-3-5-sonnet-20241022-v2:0");
+    fn test_new_with_valid_credentials() {
+        let fixture = provider_fixture("my-bearer-token", Some("eu-central-1"));
+        let actual = BedrockProvider::<MockHttpClient>::new(fixture);
+        assert!(actual.is_ok());
+    }
+
+    #[test]
+    fn test_new_without_credentials() {
+        let mut fixture = provider_fixture("token", None);
+        fixture.credential = None;
+        let actual = BedrockProvider::<MockHttpClient>::new(fixture);
+        assert!(actual.is_err());
+        assert_eq!(
+            actual.err().unwrap().to_string(),
+            "Bedrock requires credentials"
+        );
+    }
+
+    #[test]
+    fn test_new_with_empty_token() {
+        let fixture = provider_fixture("", None);
+        let actual = BedrockProvider::<MockHttpClient>::new(fixture);
+        assert!(actual.is_err());
+        assert_eq!(
+            actual.err().unwrap().to_string(),
+            "Bearer token is required in API key field"
+        );
+    }
+
+    #[test]
+    fn test_new_defaults_to_us_east_1() {
+        let fixture = provider_fixture("token", None);
+        let actual = BedrockProvider::<MockHttpClient>::new(fixture).unwrap();
+        let expected = "us-east-1";
+        assert_eq!(actual.region, expected);
+    }
+
+    #[test]
+    fn test_new_uses_custom_region() {
+        let fixture = provider_fixture("token", Some("ap-southeast-2"));
+        let actual = BedrockProvider::<MockHttpClient>::new(fixture).unwrap();
+        let expected = "ap-southeast-2";
+        assert_eq!(actual.region, expected);
+    }
+
+    #[test]
+    fn test_supports_caching_claude() {
+        let actual =
+            BedrockProvider::<MockHttpClient>::supports_caching("anthropic.claude-3-sonnet");
+        assert!(actual);
+    }
+
+    #[test]
+    fn test_supports_caching_anthropic() {
+        let actual = BedrockProvider::<MockHttpClient>::supports_caching("anthropic.claude-v2");
+        assert!(actual);
+    }
+
+    #[test]
+    fn test_supports_caching_non_claude() {
+        let actual = BedrockProvider::<MockHttpClient>::supports_caching("amazon.nova-pro-v1:0");
+        assert!(!actual);
+    }
+
+    #[test]
+    fn test_transform_model_id_us_east() {
+        let fixture = bedrock_provider_fixture("us-east-1");
+        let actual = fixture.transform_model_id("anthropic.claude-3-5-sonnet-20241022-v2:0");
+        let expected = "us.anthropic.claude-3-5-sonnet-20241022-v2:0";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_transform_model_id_us_west() {
+        let fixture = bedrock_provider_fixture("us-west-2");
+        let actual = fixture.transform_model_id("anthropic.claude-3-opus");
+        let expected = "us.anthropic.claude-3-opus";
+        assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_transform_model_id_eu_region() {
-        let bedrock = create_test_provider("eu-west-1");
-        let transformed = bedrock.transform_model_id("anthropic.claude-3-5-sonnet-20241022-v2:0");
-        assert_eq!(transformed, "eu.anthropic.claude-3-5-sonnet-20241022-v2:0");
+        let fixture = bedrock_provider_fixture("eu-west-1");
+        let actual = fixture.transform_model_id("anthropic.claude-3-5-sonnet-20241022-v2:0");
+        let expected = "eu.anthropic.claude-3-5-sonnet-20241022-v2:0";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_transform_model_id_ap_southeast_2() {
+        let fixture = bedrock_provider_fixture("ap-southeast-2");
+        let actual = fixture.transform_model_id("anthropic.claude-3-haiku");
+        let expected = "au.anthropic.claude-3-haiku";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_transform_model_id_ap_northeast() {
+        let fixture = bedrock_provider_fixture("ap-northeast-1");
+        let actual = fixture.transform_model_id("anthropic.claude-3-sonnet");
+        let expected = "apac.anthropic.claude-3-sonnet";
+        assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_transform_model_id_already_prefixed() {
-        let bedrock = create_test_provider("us-east-1");
-        let transformed =
-            bedrock.transform_model_id("us.anthropic.claude-3-5-sonnet-20241022-v2:0");
-        assert_eq!(transformed, "us.anthropic.claude-3-5-sonnet-20241022-v2:0");
+        let fixture = bedrock_provider_fixture("us-east-1");
+        let actual = fixture.transform_model_id("us.anthropic.claude-3-5-sonnet-20241022-v2:0");
+        let expected = "us.anthropic.claude-3-5-sonnet-20241022-v2:0";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_transform_model_id_global_prefix() {
+        let fixture = bedrock_provider_fixture("us-east-1");
+        let actual = fixture.transform_model_id("global.anthropic.claude-3-opus");
+        let expected = "global.anthropic.claude-3-opus";
+        assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_transform_model_id_non_anthropic() {
-        let bedrock = create_test_provider("us-east-1");
-        let transformed = bedrock.transform_model_id("amazon.nova-pro-v1:0");
-        assert_eq!(transformed, "amazon.nova-pro-v1:0");
+        let fixture = bedrock_provider_fixture("us-east-1");
+        let actual = fixture.transform_model_id("amazon.nova-pro-v1:0");
+        let expected = "amazon.nova-pro-v1:0";
+        assert_eq!(actual, expected);
     }
 
-    // Note: Testing actual SDK error type matching would require constructing
-    // aws_sdk_bedrockruntime error types, which is not straightforward in unit
-    // tests. The error matching logic is tested implicitly through
-    // integration tests where real Bedrock API calls are made and actual
-    // errors are returned.
-    //
-    // The key improvements over string matching:
-    // 1. Type-safe: Compiler ensures we handle all error variants correctly
-    // 2. Maintainable: If AWS adds new error types, we'll get compile errors
-    // 3. Reliable: No risk of string matching false positives/negatives
+    #[test]
+    fn test_transform_model_id_us_gov_region() {
+        let fixture = bedrock_provider_fixture("us-gov-west-1");
+        let actual = fixture.transform_model_id("anthropic.claude-3-sonnet");
+        let expected = "anthropic.claude-3-sonnet";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_json_value_to_document_null() {
+        let fixture = serde_json::Value::Null;
+        let actual = json_value_to_document(fixture);
+        let expected = aws_smithy_types::Document::Null;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_json_value_to_document_bool() {
+        let fixture = serde_json::Value::Bool(true);
+        let actual = json_value_to_document(fixture);
+        let expected = aws_smithy_types::Document::Bool(true);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_json_value_to_document_number_int() {
+        let fixture = serde_json::json!(42);
+        let actual = json_value_to_document(fixture);
+        let expected = aws_smithy_types::Document::Number(aws_smithy_types::Number::PosInt(42));
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_json_value_to_document_number_float() {
+        let value = 2.1;
+        let fixture = serde_json::json!(value);
+        let actual = json_value_to_document(fixture);
+        let expected = aws_smithy_types::Document::Number(aws_smithy_types::Number::Float(value));
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_json_value_to_document_string() {
+        let fixture = serde_json::Value::String("hello".to_string());
+        let actual = json_value_to_document(fixture);
+        let expected = aws_smithy_types::Document::String("hello".to_string());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_json_value_to_document_array() {
+        let fixture = serde_json::json!([1, "two", true]);
+        let actual = json_value_to_document(fixture);
+        let expected = aws_smithy_types::Document::Array(vec![
+            aws_smithy_types::Document::Number(aws_smithy_types::Number::PosInt(1)),
+            aws_smithy_types::Document::String("two".to_string()),
+            aws_smithy_types::Document::Bool(true),
+        ]);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_json_value_to_document_object() {
+        let fixture = serde_json::json!({"key": "value", "count": 10});
+        let actual = json_value_to_document(fixture);
+
+        let mut expected_map = std::collections::HashMap::new();
+        expected_map.insert(
+            "key".to_string(),
+            aws_smithy_types::Document::String("value".to_string()),
+        );
+        expected_map.insert(
+            "count".to_string(),
+            aws_smithy_types::Document::Number(aws_smithy_types::Number::PosInt(10)),
+        );
+        let expected = aws_smithy_types::Document::Object(expected_map);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_json_value_to_document_nested() {
+        let fixture = serde_json::json!({
+            "outer": {
+                "inner": [1, 2, 3],
+                "flag": true
+            }
+        });
+        let actual = json_value_to_document(fixture);
+
+        let mut inner_map = std::collections::HashMap::new();
+        inner_map.insert(
+            "inner".to_string(),
+            aws_smithy_types::Document::Array(vec![
+                aws_smithy_types::Document::Number(aws_smithy_types::Number::PosInt(1)),
+                aws_smithy_types::Document::Number(aws_smithy_types::Number::PosInt(2)),
+                aws_smithy_types::Document::Number(aws_smithy_types::Number::PosInt(3)),
+            ]),
+        );
+        inner_map.insert("flag".to_string(), aws_smithy_types::Document::Bool(true));
+
+        let mut outer_map = std::collections::HashMap::new();
+        outer_map.insert(
+            "outer".to_string(),
+            aws_smithy_types::Document::Object(inner_map),
+        );
+        let expected = aws_smithy_types::Document::Object(outer_map);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_models_returns_hardcoded() {
+        use forge_domain::{Model, ModelId, ModelSource};
+
+        let mut fixture_provider = provider_fixture("token", None);
+        let fixture_models = vec![
+            Model {
+                id: ModelId::from("claude-3-opus".to_string()),
+                name: Some("Claude 3 Opus".to_string()),
+                description: None,
+                context_length: None,
+                tools_supported: None,
+                supports_parallel_tool_calls: None,
+                supports_reasoning: None,
+            },
+            Model {
+                id: ModelId::from("claude-3-sonnet".to_string()),
+                name: Some("Claude 3 Sonnet".to_string()),
+                description: None,
+                context_length: None,
+                tools_supported: None,
+                supports_parallel_tool_calls: None,
+                supports_reasoning: None,
+            },
+        ];
+        fixture_provider.models = Some(ModelSource::Hardcoded(fixture_models.clone()));
+
+        let bedrock = BedrockProvider {
+            provider: fixture_provider,
+            client: OnceCell::new(),
+            region: "us-east-1".to_string(),
+            _phantom: std::marker::PhantomData::<MockHttpClient>,
+        };
+
+        let actual = bedrock.models().await.unwrap();
+        let expected = fixture_models;
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_models_returns_empty_when_no_models() {
+        let fixture = provider_fixture("token", None);
+        let bedrock = BedrockProvider {
+            provider: fixture,
+            client: OnceCell::new(),
+            region: "us-east-1".to_string(),
+            _phantom: std::marker::PhantomData::<MockHttpClient>,
+        };
+
+        let actual = bedrock.models().await.unwrap();
+        let expected: Vec<Model> = vec![];
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_into_domain_content_block_delta_text() {
+        use aws_sdk_bedrockruntime::types::{ContentBlockDelta, ConverseStreamOutput};
+        use forge_domain::{ChatCompletionMessage, Content};
+
+        let fixture = ConverseStreamOutput::ContentBlockDelta(
+            aws_sdk_bedrockruntime::types::ContentBlockDeltaEvent::builder()
+                .content_block_index(0)
+                .delta(ContentBlockDelta::Text("hello".to_string()))
+                .build()
+                .unwrap(),
+        );
+
+        let actual = fixture.into_domain();
+        let expected = ChatCompletionMessage::assistant(Content::part("hello"));
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_into_domain_content_block_start_tool_use() {
+        use aws_sdk_bedrockruntime::types::{
+            ContentBlockStart, ConverseStreamOutput, ToolUseBlockStart,
+        };
+        use forge_domain::{ChatCompletionMessage, Content, ToolCallId, ToolCallPart, ToolName};
+
+        let fixture = ConverseStreamOutput::ContentBlockStart(
+            aws_sdk_bedrockruntime::types::ContentBlockStartEvent::builder()
+                .content_block_index(0)
+                .start(ContentBlockStart::ToolUse(
+                    ToolUseBlockStart::builder()
+                        .tool_use_id("call_123")
+                        .name("get_weather")
+                        .build()
+                        .unwrap(),
+                ))
+                .build()
+                .unwrap(),
+        );
+
+        let actual = fixture.into_domain();
+        let expected =
+            ChatCompletionMessage::assistant(Content::part("")).add_tool_call(ToolCallPart {
+                call_id: Some(ToolCallId::new("call_123")),
+                name: Some(ToolName::new("get_weather")),
+                arguments_part: String::new(),
+            });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_into_domain_message_stop_end_turn() {
+        use aws_sdk_bedrockruntime::types::{ConverseStreamOutput, StopReason};
+        use forge_domain::{ChatCompletionMessage, Content, FinishReason};
+
+        let fixture = ConverseStreamOutput::MessageStop(
+            aws_sdk_bedrockruntime::types::MessageStopEvent::builder()
+                .stop_reason(StopReason::EndTurn)
+                .build()
+                .unwrap(),
+        );
+
+        let actual = fixture.into_domain();
+        let expected = ChatCompletionMessage::assistant(Content::part(""))
+            .finish_reason_opt(Some(FinishReason::Stop));
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_into_domain_message_stop_tool_use() {
+        use aws_sdk_bedrockruntime::types::{ConverseStreamOutput, StopReason};
+        use forge_domain::{ChatCompletionMessage, Content, FinishReason};
+
+        let fixture = ConverseStreamOutput::MessageStop(
+            aws_sdk_bedrockruntime::types::MessageStopEvent::builder()
+                .stop_reason(StopReason::ToolUse)
+                .build()
+                .unwrap(),
+        );
+
+        let actual = fixture.into_domain();
+        let expected = ChatCompletionMessage::assistant(Content::part(""))
+            .finish_reason_opt(Some(FinishReason::ToolCalls));
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_into_domain_metadata_with_usage() {
+        use aws_sdk_bedrockruntime::types::ConverseStreamOutput;
+        use forge_domain::{ChatCompletionMessage, Content, TokenCount};
+
+        let fixture = ConverseStreamOutput::Metadata(
+            aws_sdk_bedrockruntime::types::ConverseStreamMetadataEvent::builder()
+                .usage(
+                    aws_sdk_bedrockruntime::types::TokenUsage::builder()
+                        .input_tokens(800)
+                        .output_tokens(200)
+                        .total_tokens(1000)
+                        .cache_read_input_tokens(50)
+                        .cache_write_input_tokens(30)
+                        .build()
+                        .unwrap(),
+                )
+                .build(),
+        );
+
+        let actual = fixture.into_domain();
+        let expected =
+            ChatCompletionMessage::assistant(Content::part("")).usage(forge_domain::Usage {
+                prompt_tokens: TokenCount::Actual(1000),
+                completion_tokens: TokenCount::Actual(200),
+                total_tokens: TokenCount::Actual(1000),
+                cached_tokens: TokenCount::Actual(80), // 50 + 30
+                ..Default::default()
+            });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_from_domain_tool_choice_auto() {
+        use aws_sdk_bedrockruntime::types::{AutoToolChoice, ToolChoice};
+
+        let fixture = forge_domain::ToolChoice::Auto;
+        let actual = ToolChoice::from_domain(fixture).unwrap();
+        let expected = ToolChoice::Auto(AutoToolChoice::builder().build());
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_from_domain_tool_choice_required() {
+        use aws_sdk_bedrockruntime::types::{AnyToolChoice, ToolChoice};
+
+        let fixture = forge_domain::ToolChoice::Required;
+        let actual = ToolChoice::from_domain(fixture).unwrap();
+        let expected = ToolChoice::Any(AnyToolChoice::builder().build());
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_from_domain_tool_choice_call() {
+        use aws_sdk_bedrockruntime::types::{SpecificToolChoice, ToolChoice};
+
+        let fixture = forge_domain::ToolChoice::Call(forge_domain::ToolName::new("my_tool"));
+        let actual = ToolChoice::from_domain(fixture).unwrap();
+        let expected = ToolChoice::Tool(
+            SpecificToolChoice::builder()
+                .name("my_tool")
+                .build()
+                .unwrap(),
+        );
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_from_domain_tool_definition() {
+        use aws_sdk_bedrockruntime::types::Tool;
+        use forge_domain::ToolDefinition;
+        use schemars::schema::{RootSchema, SchemaObject};
+
+        let fixture = ToolDefinition {
+            name: forge_domain::ToolName::new("test_tool"),
+            description: "A test tool".to_string(),
+            input_schema: RootSchema { schema: SchemaObject::default(), ..Default::default() },
+        };
+
+        let actual = Tool::from_domain(fixture).unwrap();
+
+        match actual {
+            Tool::ToolSpec(spec) => {
+                assert_eq!(spec.name(), "test_tool");
+                assert_eq!(spec.description(), Some("A test tool"));
+            }
+            _ => panic!("Expected ToolSpec variant"),
+        }
+    }
+
+    #[test]
+    fn test_from_domain_context_message_text_user() {
+        use aws_sdk_bedrockruntime::types::{ContentBlock, ConversationRole, Message};
+        use forge_domain::{ContextMessage, Role, TextMessage};
+
+        let fixture = ContextMessage::Text(TextMessage::new(Role::User, "Hello!"));
+
+        let actual = Message::from_domain(fixture).unwrap();
+
+        assert_eq!(actual.role(), &ConversationRole::User);
+        let content = actual.content();
+        assert_eq!(content.len(), 1);
+        match &content[0] {
+            ContentBlock::Text(text) => assert_eq!(text, "Hello!"),
+            _ => panic!("Expected text content block"),
+        }
+    }
+
+    #[test]
+    fn test_from_domain_context_message_text_assistant() {
+        use aws_sdk_bedrockruntime::types::{ContentBlock, ConversationRole, Message};
+        use forge_domain::{ContextMessage, TextMessage};
+
+        let fixture = ContextMessage::Text(TextMessage::assistant("Hi there!", None, None));
+
+        let actual = Message::from_domain(fixture).unwrap();
+
+        assert_eq!(actual.role(), &ConversationRole::Assistant);
+        let content = actual.content();
+        assert_eq!(content.len(), 1);
+        match &content[0] {
+            ContentBlock::Text(text) => assert_eq!(text, "Hi there!"),
+            _ => panic!("Expected text content block"),
+        }
+    }
+
+    #[test]
+    fn test_from_domain_context_message_tool_result() {
+        use aws_sdk_bedrockruntime::types::{
+            ContentBlock, ConversationRole, Message, ToolResultStatus,
+        };
+        use forge_domain::{ContextMessage, ToolCallId, ToolResult};
+
+        let fixture = ContextMessage::Tool(
+            ToolResult::new("test_tool")
+                .call_id(ToolCallId::new("call_123"))
+                .success("result data"),
+        );
+
+        let actual = Message::from_domain(fixture).unwrap();
+
+        assert_eq!(actual.role(), &ConversationRole::User);
+        let content = actual.content();
+        assert_eq!(content.len(), 1);
+        match &content[0] {
+            ContentBlock::ToolResult(tool_result) => {
+                assert_eq!(tool_result.tool_use_id(), "call_123");
+                assert_eq!(tool_result.status(), Some(&ToolResultStatus::Success));
+            }
+            _ => panic!("Expected tool result content block"),
+        }
+    }
+
+    #[test]
+    fn test_from_domain_multiple_tool_results() {
+        use aws_sdk_bedrockruntime::types::{ContentBlock, ConversationRole, Message};
+        use forge_domain::{ContextMessage, ToolCallId, ToolResult};
+
+        let fixture = vec![
+            ContextMessage::Tool(
+                ToolResult::new("tool_1")
+                    .call_id(ToolCallId::new("call_1"))
+                    .success("result 1"),
+            ),
+            ContextMessage::Tool(
+                ToolResult::new("tool_2")
+                    .call_id(ToolCallId::new("call_2"))
+                    .success("result 2"),
+            ),
+        ];
+
+        let actual = Message::from_domain(fixture).unwrap();
+
+        assert_eq!(actual.role(), &ConversationRole::User);
+        let content = actual.content();
+        assert_eq!(content.len(), 2);
+
+        match &content[0] {
+            ContentBlock::ToolResult(tool_result) => {
+                assert_eq!(tool_result.tool_use_id(), "call_1");
+            }
+            _ => panic!("Expected tool result content block"),
+        }
+
+        match &content[1] {
+            ContentBlock::ToolResult(tool_result) => {
+                assert_eq!(tool_result.tool_use_id(), "call_2");
+            }
+            _ => panic!("Expected tool result content block"),
+        }
+    }
+
+    #[test]
+    fn test_from_domain_context_with_system_messages() {
+        use aws_sdk_bedrockruntime::operation::converse_stream::ConverseStreamInput;
+        use forge_domain::{Context, ContextMessage, Role, TextMessage};
+
+        let fixture = Context {
+            conversation_id: None,
+            messages: vec![
+                ContextMessage::system("You are a helpful assistant").into(),
+                ContextMessage::Text(TextMessage::new(Role::User, "Hello!")).into(),
+            ],
+            tools: vec![],
+            tool_choice: None,
+            temperature: None,
+            top_p: None,
+            top_k: None,
+            max_tokens: None,
+            reasoning: None,
+            stream: None,
+        };
+
+        let actual = ConverseStreamInput::from_domain(fixture).unwrap();
+
+        // System messages should be in system field
+        let system = actual.system();
+        assert_eq!(system.len(), 1);
+        // User messages should be in messages field
+        let messages = actual.messages();
+        assert_eq!(messages.len(), 1);
+    }
+
+    #[test]
+    fn test_from_domain_context_with_temperature() {
+        use aws_sdk_bedrockruntime::operation::converse_stream::ConverseStreamInput;
+        use forge_domain::{Context, Temperature};
+
+        let fixture = Context {
+            conversation_id: None,
+            messages: vec![],
+            tools: vec![],
+            tool_choice: None,
+            temperature: Some(Temperature::new(0.7).unwrap()),
+            top_p: None,
+            top_k: None,
+            max_tokens: None,
+            reasoning: None,
+            stream: None,
+        };
+
+        let actual = ConverseStreamInput::from_domain(fixture).unwrap();
+
+        assert!(actual.inference_config().is_some());
+        assert_eq!(actual.inference_config().unwrap().temperature(), Some(0.7));
+    }
+
+    #[test]
+    fn test_from_domain_context_with_reasoning_adjusts_top_p() {
+        use aws_sdk_bedrockruntime::operation::converse_stream::ConverseStreamInput;
+        use forge_domain::{Context, ReasoningConfig, TopP};
+
+        let fixture = Context {
+            conversation_id: None,
+            messages: vec![],
+            tools: vec![],
+            tool_choice: None,
+            temperature: None,
+            top_p: Some(TopP::new(0.5).unwrap()), // Below 0.95
+            top_k: None,
+            max_tokens: None,
+            reasoning: Some(ReasoningConfig {
+                effort: None,
+                max_tokens: Some(2000),
+                exclude: None,
+                enabled: Some(true),
+            }),
+            stream: None,
+        };
+
+        let actual = ConverseStreamInput::from_domain(fixture).unwrap();
+
+        // When reasoning is enabled, top_p should be adjusted to at least 0.95
+        assert!(actual.inference_config().is_some());
+        let top_p = actual.inference_config().unwrap().top_p();
+        assert!(top_p.is_some());
+        assert!(top_p.unwrap() >= 0.95);
+    }
+
+    #[test]
+    fn test_from_domain_context_with_reasoning_enabled() {
+        use aws_sdk_bedrockruntime::operation::converse_stream::ConverseStreamInput;
+        use forge_domain::{Context, ReasoningConfig};
+
+        let fixture = Context {
+            conversation_id: None,
+            messages: vec![],
+            tools: vec![],
+            tool_choice: None,
+            temperature: None,
+            top_p: None,
+            top_k: None,
+            max_tokens: None,
+            reasoning: Some(ReasoningConfig {
+                effort: None,
+                max_tokens: Some(3000),
+                exclude: None,
+                enabled: Some(true),
+            }),
+            stream: None,
+        };
+
+        let actual = ConverseStreamInput::from_domain(fixture).unwrap();
+
+        // Should have additional model request fields for reasoning
+        assert!(actual.additional_model_request_fields().is_some());
+    }
+
+    #[test]
+    fn test_json_value_to_document_empty_object() {
+        let fixture = serde_json::json!({});
+        let actual = json_value_to_document(fixture);
+
+        match actual {
+            aws_smithy_types::Document::Object(map) => {
+                assert!(map.is_empty());
+            }
+            _ => panic!("Expected object document"),
+        }
+    }
+
+    #[test]
+    fn test_json_value_to_document_empty_array() {
+        let fixture = serde_json::json!([]);
+        let actual = json_value_to_document(fixture);
+
+        match actual {
+            aws_smithy_types::Document::Array(arr) => {
+                assert!(arr.is_empty());
+            }
+            _ => panic!("Expected array document"),
+        }
+    }
 }
