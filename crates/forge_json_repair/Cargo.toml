@@ -8,6 +8,7 @@ serde_json = { workspace = true }
 thiserror = { workspace = true }
 regex = { workspace = true }
 serde.workspace = true
+tracing.workspace = true
 
 [dev-dependencies]
 pretty_assertions = { workspace = true }

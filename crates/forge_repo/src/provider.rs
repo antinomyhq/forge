@@ -411,22 +411,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
             return Vec::new();
         };
 
-        // Strategy 1: Try normal parsing with VecSkipError
-        serde_json::from_str::<ResilientCredentials>(&content)
-            .or_else(|_| {
-                // Strategy 2: Try JSON repair for syntactically broken JSON
-                tracing::warn!(path = %path.display(), "Failed to parse credentials file, attempting repair...");
-                forge_json_repair::json_repair::<ResilientCredentials>(&content).inspect(|_| {
-                    tracing::info!(path = %path.display(), "Successfully repaired credentials file");
-                })
-            })
-            .inspect_err(|e| {
-                tracing::error!(
-                    path = %path.display(),
-                    error = %e,
-                    "Failed to repair credentials file. Using empty credentials."
-                );
-            })
+        forge_json_repair::from_str::<ResilientCredentials>(&content)
             .map(|r| r.0)
             .unwrap_or_default()
     }
