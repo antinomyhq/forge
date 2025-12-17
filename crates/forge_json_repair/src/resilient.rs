@@ -9,16 +9,18 @@ pub fn from_str<T>(s: &str) -> Result<T, JsonRepairError>
 where
     T: for<'de> Deserialize<'de>,
 {
-    serde_json::from_str::<T>(s).map_err(JsonRepairError::from).or_else(|_| {
-        tracing::warn!("JSON parsing failed, attempting repair...");
-        json_repair::<T>(s)
-            .inspect(|_| {
-                tracing::info!("JSON repair successful");
-            })
-            .inspect_err(|e| {
-                tracing::error!(error = %e, "JSON repair failed");
-            })
-    })
+    serde_json::from_str::<T>(s)
+        .map_err(JsonRepairError::from)
+        .or_else(|_| {
+            tracing::warn!("JSON parsing failed, attempting repair...");
+            json_repair::<T>(s)
+                .inspect(|_| {
+                    tracing::info!("JSON repair successful");
+                })
+                .inspect_err(|e| {
+                    tracing::error!(error = %e, "JSON repair failed");
+                })
+        })
 }
 
 #[cfg(test)]
