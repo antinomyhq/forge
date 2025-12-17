@@ -181,8 +181,8 @@ where
                     PermissionOperation::Write { message, .. } => {
                         format!("{message}. How would you like to proceed?")
                     }
-                    PermissionOperation::Execute { message, .. } => {
-                        format!("{message}. How would you like to proceed?")
+                    PermissionOperation::Execute { .. } => {
+                        "How would you like to proceed?".to_string()
                     }
                     PermissionOperation::Fetch { message, .. } => {
                         format!("{message}. How would you like to proceed?")
@@ -250,7 +250,7 @@ fn create_policy_for_operation(
                 })
             }
         }
-        PermissionOperation::Execute { command, cwd: _, message: _ } => {
+        PermissionOperation::Execute { command, cwd: _ } => {
             let parts: Vec<&str> = command.split_whitespace().collect();
             match parts.as_slice() {
                 [] => None,
@@ -352,11 +352,8 @@ mod tests {
     #[test]
     fn test_create_policy_for_execute_operation_with_subcommand() {
         let command = "git push origin main".to_string();
-        let operation = PermissionOperation::Execute {
-            command,
-            cwd: std::path::PathBuf::from("/test/cwd"),
-            message: "Execute shell command: git push origin main".to_string(),
-        };
+        let operation =
+            PermissionOperation::Execute { command, cwd: std::path::PathBuf::from("/test/cwd") };
 
         let actual = create_policy_for_operation(&operation, None);
 
@@ -371,11 +368,8 @@ mod tests {
     #[test]
     fn test_create_policy_for_execute_operation_single_command() {
         let command = "ls".to_string();
-        let operation = PermissionOperation::Execute {
-            command,
-            cwd: std::path::PathBuf::from("/test/cwd"),
-            message: "Execute shell command: ls".to_string(),
-        };
+        let operation =
+            PermissionOperation::Execute { command, cwd: std::path::PathBuf::from("/test/cwd") };
 
         let actual = create_policy_for_operation(&operation, None);
 
@@ -425,11 +419,8 @@ mod tests {
     #[test]
     fn test_create_policy_for_empty_execute_command() {
         let command = "".to_string();
-        let operation = PermissionOperation::Execute {
-            command,
-            cwd: std::path::PathBuf::from("/test/cwd"),
-            message: "Execute shell command: ".to_string(),
-        };
+        let operation =
+            PermissionOperation::Execute { command, cwd: std::path::PathBuf::from("/test/cwd") };
 
         let actual = create_policy_for_operation(&operation, None);
 
@@ -441,11 +432,8 @@ mod tests {
     #[test]
     fn test_create_policy_for_execute_operation_with_working_directory() {
         let command = "ls".to_string();
-        let operation = PermissionOperation::Execute {
-            command,
-            cwd: std::path::PathBuf::from("/test/cwd"),
-            message: "Execute shell command: ls".to_string(),
-        };
+        let operation =
+            PermissionOperation::Execute { command, cwd: std::path::PathBuf::from("/test/cwd") };
         let working_directory = Some("/home/user/project".to_string());
 
         let actual = create_policy_for_operation(&operation, working_directory.clone());
