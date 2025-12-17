@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use convert_case::{Case, Casing};
 use forge_domain::{
-    AgentId, ChatRequest, ChatResponse, ChatResponseContent, Conversation, Event,
-    ToolCallContext, ToolDefinition, ToolName, ToolOutput,
+    AgentId, ChatRequest, ChatResponse, ChatResponseContent, Conversation, Event, ToolCallContext,
+    ToolDefinition, ToolName, ToolOutput,
 };
 use forge_template::Element;
 use futures::StreamExt;

@@ -23,13 +23,11 @@ impl FormatContent for ToolOperation {
             ToolOperation::FsRemove { .. } => None,
             ToolOperation::FsSearch { .. } => None,
             ToolOperation::CodebaseSearch { .. } => None,
-            ToolOperation::FsPatch { output, .. } => {
-                Some(ChatResponseContent::ToolOutput(
-                    DiffFormat::format(&output.before, &output.after)
-                        .diff()
-                        .to_string(),
-                ))
-            }
+            ToolOperation::FsPatch { output, .. } => Some(ChatResponseContent::ToolOutput(
+                DiffFormat::format(&output.before, &output.after)
+                    .diff()
+                    .to_string(),
+            )),
             ToolOperation::FsUndo { .. } => None,
             ToolOperation::NetFetch { .. } => None,
             ToolOperation::Shell { .. } => None,
@@ -47,7 +45,7 @@ impl FormatContent for ToolOperation {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
+    
 
     use console::strip_ansi_codes;
     use forge_display::DiffFormat;
@@ -58,8 +56,8 @@ mod tests {
     use super::FormatContent;
     use crate::operation::ToolOperation;
     use crate::{
-        Content, FsCreateOutput, FsRemoveOutput, FsUndoOutput, HttpResponse, Match, MatchResult,
-        PatchOutput, ReadOutput, ResponseContext, SearchResult, ShellOutput,
+        Content, FsCreateOutput,
+        PatchOutput, ReadOutput,
     };
 
     fn fixture_environment() -> Environment {
