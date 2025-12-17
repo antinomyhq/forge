@@ -1,6 +1,7 @@
 ---
 source: crates/forge_main/src/zsh/plugin.rs
 expression: output
+snapshot_kind: text
 ---
 function _forge_action_login() {
     echo
@@ -485,6 +486,8 @@ else
     typeset -h _FORGE_CAT_CMD="cat"
 fi
 typeset -h _FORGE_COMMANDS=""
+export _FORGE_CONVERSATION_ID
+export _FORGE_ACTIVE_AGENT
 function _forge_action_default() {
     local user_action="$1"
     local input_text="$2"
