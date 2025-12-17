@@ -709,7 +709,10 @@ fn into_chat_completion_message_codex(
                                 .get(&delta.output_index)
                                 .cloned()
                                 .unwrap_or_else(|| {
-                                    (ToolCallId::new(format!("output_{}", delta.output_index)), ToolName::new(""))
+                                    (
+                                        ToolCallId::new(format!("output_{}", delta.output_index)),
+                                        ToolName::new(""),
+                                    )
                                 });
 
                             let name = (!name.as_str().is_empty()).then_some(name);
