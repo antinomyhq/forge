@@ -75,10 +75,7 @@ impl CodeBlockParser {
                 }
                 Line::CodeFence(_) => {
                     result.push_str(&format!("\x00{}\x00\n", blocks.len()));
-                    blocks.push(CodeBlock {
-                        code: code_lines.join("\n"),
-                        lang: lang.to_string(),
-                    });
+                    blocks.push(CodeBlock { code: code_lines.join("\n"), lang: lang.to_string() });
                     code_lines.clear();
                     in_code = false;
                     orig_idx += 1;
