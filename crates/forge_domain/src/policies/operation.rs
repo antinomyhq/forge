@@ -16,11 +16,7 @@ pub enum PermissionOperation {
         message: String,
     },
     /// Execute operation with a command string
-    Execute {
-        command: String,
-        cwd: PathBuf,
-        message: String,
-    },
+    Execute { command: String, cwd: PathBuf },
     /// Network fetch operation with a URL
     Fetch {
         url: String,
