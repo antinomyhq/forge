@@ -12,7 +12,6 @@ use tracing::{debug, info, warn};
 
 use crate::TemplateEngine;
 use crate::agent::AgentService;
-use crate::compact::Compactor;
 use crate::title_generator::TitleGenerator;
 use crate::transformers::CompactionTransformer;
 
@@ -151,13 +150,6 @@ impl<S: AgentService> Orchestrator<S> {
         reasoning_supported: bool,
     ) -> anyhow::Result<ChatCompletionMessageFull> {
         let tool_supported = self.is_tool_supported()?;
-        let compaction_transformer = CompactionTransformer::new(
-            self.agent.clone(),
-            self.agent
-                .compact
-                .as_ref()
-                .map(|compact| Compactor::new(compact.clone(), self.environment.clone())),
-        );
 
         let mut transformers = DefaultTransformation::default()
             .pipe(SortTools::new())
@@ -165,7 +157,9 @@ impl<S: AgentService> Orchestrator<S> {
             .pipe(ImageHandling::new())
             .pipe(DropReasoningDetails.when(|_| !reasoning_supported))
             .pipe(ReasoningNormalizer.when(|_| reasoning_supported))
-            .pipe(compaction_transformer.when(|_| self.agent.compact.is_some()));
+            .pipe_some(self.agent.compact.clone().map(|compact| {
+                CompactionTransformer::new(compact.clone(), self.environment.clone())
+            }));
 
         let response = self
             .services

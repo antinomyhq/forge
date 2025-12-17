@@ -36,12 +36,8 @@ impl Compactor {
 }
 
 impl Compactor {
-    pub fn compact_range(
-        &self,
-        context: &Context,
-        compact_config: &Compact,
-    ) -> anyhow::Result<Option<Context>> {
-        let Some(breakpoint) = self.find_last_breakpoint(context, compact_config) else {
+    pub fn compact_range(&self, context: &Context) -> anyhow::Result<Option<Context>> {
+        let Some(breakpoint) = self.find_last_breakpoint(context, &self.compact) else {
             tracing::debug!("No compaction needed");
             return Ok(None);
         };
@@ -458,7 +454,6 @@ mod tests {
 
         let environment = test_environment();
         let compactor = Compactor::new(Compact::new().message_threshold(2usize), environment);
-        let compact_config = Compact::new().message_threshold(2usize);
 
         // Create context: User -> Assistant with tool call -> Tool result -> User ->
         // Assistant When we compact at message threshold 2, the tool call gets
@@ -485,7 +480,7 @@ mod tests {
             .add_message(ContextMessage::assistant("Response 2", None, None));
 
         // Compact should skip the orphaned tool result
-        let result = compactor.compact_range(&fixture, &compact_config);
+        let result = compactor.compact_range(&fixture);
 
         assert!(
             result.is_ok(),
