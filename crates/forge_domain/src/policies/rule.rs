@@ -78,7 +78,7 @@ impl Rule {
 
             (
                 Rule::Execute(rule),
-                PermissionOperation::Execute { command: cmd, cwd, message: _ },
+                PermissionOperation::Execute { command: cmd, cwd },
             ) => {
                 let command_matches = match_pattern(&rule.command, cmd);
                 let dir_matches = match &rule.dir {
@@ -200,7 +200,6 @@ mod tests {
         PermissionOperation::Execute {
             command: "cargo build".to_string(),
             cwd: PathBuf::from("/home/user/project"),
-            message: "Execute shell command: cargo build".to_string(),
         }
     }
 

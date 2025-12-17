@@ -181,8 +181,8 @@ where
                     PermissionOperation::Write { message, .. } => {
                         format!("{message}. How would you like to proceed?")
                     }
-                    PermissionOperation::Execute { message, .. } => {
-                        format!("{message}. How would you like to proceed?")
+                    PermissionOperation::Execute {  .. } => {
+                        format!("How would you like to proceed?")
                     }
                     PermissionOperation::Fetch { message, .. } => {
                         format!("{message}. How would you like to proceed?")
@@ -250,7 +250,7 @@ fn create_policy_for_operation(
                 })
             }
         }
-        PermissionOperation::Execute { command, cwd: _, message: _ } => {
+        PermissionOperation::Execute { command, cwd: _ } => {
             let parts: Vec<&str> = command.split_whitespace().collect();
             match parts.as_slice() {
                 [] => None,
@@ -355,7 +355,6 @@ mod tests {
         let operation = PermissionOperation::Execute {
             command,
             cwd: std::path::PathBuf::from("/test/cwd"),
-            message: "Execute shell command: git push origin main".to_string(),
         };
 
         let actual = create_policy_for_operation(&operation, None);
@@ -374,7 +373,6 @@ mod tests {
         let operation = PermissionOperation::Execute {
             command,
             cwd: std::path::PathBuf::from("/test/cwd"),
-            message: "Execute shell command: ls".to_string(),
         };
 
         let actual = create_policy_for_operation(&operation, None);
@@ -428,7 +426,6 @@ mod tests {
         let operation = PermissionOperation::Execute {
             command,
             cwd: std::path::PathBuf::from("/test/cwd"),
-            message: "Execute shell command: ".to_string(),
         };
 
         let actual = create_policy_for_operation(&operation, None);
@@ -444,7 +441,6 @@ mod tests {
         let operation = PermissionOperation::Execute {
             command,
             cwd: std::path::PathBuf::from("/test/cwd"),
-            message: "Execute shell command: ls".to_string(),
         };
         let working_directory = Some("/home/user/project".to_string());
 
