@@ -1,3 +1,4 @@
+mod code;
 pub mod diff;
 pub mod grep;
 pub mod markdown;

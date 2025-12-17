@@ -43,13 +43,7 @@ pub fn format_display_path(path: &Path, cwd: &Path) -> String {
 ///
 /// # Returns
 /// * A truncated version of the key for safe display
-pub fn truncate_key(key: &str) -> String {
-    if key.len() <= 20 {
-        key.to_string()
-    } else {
-        format!("{}...{}", &key[..=12], &key[key.len() - 4..])
-    }
-}
+pub use forge_domain::truncate_key;
 
 pub fn format_match(matched: &Match, base_dir: &Path) -> String {
     match &matched.result {
