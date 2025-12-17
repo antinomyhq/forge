@@ -10,6 +10,8 @@ pub enum ChatResponseContent {
     Title(TitleFormat),
     PlainText(String),
     Markdown(String),
+    ToolInput(String),
+    ToolOutput(String),
 }
 
 impl From<ChatResponseContent> for ChatResponse {
@@ -37,7 +39,9 @@ impl ChatResponseContent {
     pub fn as_str(&self) -> &str {
         match self {
             ChatResponseContent::PlainText(text) | ChatResponseContent::Markdown(text) => text,
-            ChatResponseContent::Title(_) => "",
+            ChatResponseContent::Title(_)
+            | ChatResponseContent::ToolInput(_)
+            | ChatResponseContent::ToolOutput(_) => "",
         }
     }
 }
@@ -64,7 +68,9 @@ impl ChatResponse {
     pub fn is_empty(&self) -> bool {
         match self {
             ChatResponse::TaskMessage { content } => match content {
-                ChatResponseContent::Title(_) => false,
+                ChatResponseContent::Title(_)
+                | ChatResponseContent::ToolInput(_)
+                | ChatResponseContent::ToolOutput(_) => false,
                 ChatResponseContent::PlainText(content) => content.trim().is_empty(),
                 ChatResponseContent::Markdown(content) => content.trim().is_empty(),
             },

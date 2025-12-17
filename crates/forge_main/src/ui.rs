@@ -2499,6 +2499,13 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         match message {
             ChatResponse::TaskMessage { content } => match content {
                 ChatResponseContent::Title(title) => self.writeln(title.display())?,
+                ChatResponseContent::ToolInput(input) => {
+                    self.spinner.start(Some(&input))?;
+                }
+                ChatResponseContent::ToolOutput(output) => {
+                    self.spinner.stop(None)?;
+                    self.writeln(output)?;
+                }
                 ChatResponseContent::PlainText(text) => self.writeln(text)?,
                 ChatResponseContent::Markdown(text) => {
                     tracing::info!(message = %text, "Agent Response");
@@ -2506,7 +2513,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
             },
             ChatResponse::ToolCallStart(_) => {
-                self.spinner.stop(None)?;
+                // self.spinner.stop(None)?;
             }
             ChatResponse::ToolCallEnd(toolcall_result) => {
                 // Only track toolcall name in case of success else track the error.
@@ -2521,7 +2528,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 };
                 tracker::tool_call(payload);
 
-                self.spinner.start(None)?;
+                // self.spinner.start(None)?;
                 if !self.cli.verbose {
                     return Ok(());
                 }

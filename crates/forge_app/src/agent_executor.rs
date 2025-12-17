@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use convert_case::{Case, Casing};
 use forge_domain::{
-    AgentId, ChatRequest, ChatResponse, ChatResponseContent, Conversation, Event, TitleFormat,
+    AgentId, ChatRequest, ChatResponse, ChatResponseContent, Conversation, Event,
     ToolCallContext, ToolDefinition, ToolName, ToolOutput,
 };
 use forge_template::Element;
@@ -42,14 +42,12 @@ impl<S: Services> AgentExecutor<S> {
         task: String,
         ctx: &ToolCallContext,
     ) -> anyhow::Result<ToolOutput> {
-        ctx.send_title(
-            TitleFormat::debug(format!(
-                "{} [Agent]",
-                agent_id.as_str().to_case(Case::UpperSnake)
-            ))
-            .sub_title(task.as_str()),
-        )
-        .await?;
+        let title = format!(
+            "{} [Agent] {}",
+            agent_id.as_str().to_case(Case::UpperSnake),
+            task.as_str()
+        );
+        ctx.send(ChatResponseContent::ToolInput(title)).await?;
 
         // Create a new conversation for agent execution
         let conversation = Conversation::generate().title(task.clone());
@@ -73,6 +71,8 @@ impl<S: Services> AgentExecutor<S> {
             match message {
                 ChatResponse::TaskMessage { ref content } => match content {
                     ChatResponseContent::Title(_) => ctx.send(message).await?,
+                    ChatResponseContent::ToolInput(_) => ctx.send(message).await?,
+                    ChatResponseContent::ToolOutput(_) => ctx.send(message).await?,
                     ChatResponseContent::PlainText(text) => output = Some(text.to_owned()),
                     ChatResponseContent::Markdown(text) => output = Some(text.to_owned()),
                 },

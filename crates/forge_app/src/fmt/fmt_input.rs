@@ -1,6 +1,6 @@
 use std::path::{Path, PathBuf};
 
-use forge_domain::{ChatResponseContent, Environment, TitleFormat, ToolCatalog};
+use forge_domain::{ChatResponseContent, Environment, ToolCatalog};
 
 use crate::fmt::content::FormatContent;
 use crate::utils::format_display_path;
@@ -9,30 +9,30 @@ impl FormatContent for ToolCatalog {
     fn to_content(&self, env: &Environment) -> Option<ChatResponseContent> {
         let display_path_for = |path: &str| format_display_path(Path::new(path), env.cwd.as_path());
 
-        match self {
+        let formatted = match self {
             ToolCatalog::Read(input) => {
                 let display_path = display_path_for(&input.path);
                 let is_explicit_range = input.start_line.is_some() || input.end_line.is_some();
-                let mut subtitle = display_path;
+                let mut result = format!("Read {}", display_path);
                 if is_explicit_range {
                     match (&input.start_line, &input.end_line) {
                         (Some(start), Some(end)) => {
-                            subtitle.push_str(&format!(":{start}-{end}"));
+                            result.push_str(&format!(":{start}-{end}"));
                         }
                         (Some(start), None) => {
-                            subtitle.push_str(&format!(":{start}"));
+                            result.push_str(&format!(":{start}"));
                         }
                         (None, Some(end)) => {
-                            subtitle.push_str(&format!(":1-{end}"));
+                            result.push_str(&format!(":1-{end}"));
                         }
                         (None, None) => {}
                     }
                 };
-                Some(TitleFormat::debug("Read").sub_title(subtitle).into())
+                result
             }
             ToolCatalog::ReadImage(input) => {
                 let display_path = display_path_for(&input.path);
-                Some(TitleFormat::debug("Image").sub_title(display_path).into())
+                format!("Image {}", display_path)
             }
             ToolCatalog::Write(input) => {
                 let path = PathBuf::from(&input.path);
@@ -46,19 +46,18 @@ impl FormatContent for ToolCatalog {
                     }
                     (false, _) => "Create",
                 };
-                Some(TitleFormat::debug(title).sub_title(display_path).into())
+                format!("{} {}", title, display_path)
             }
             ToolCatalog::Search(input) => {
                 let formatted_dir = display_path_for(&input.path);
-                let title = match (&input.regex, &input.file_pattern) {
+                match (&input.regex, &input.file_pattern) {
                     (Some(regex), Some(pattern)) => {
                         format!("Search for '{regex}' in '{pattern}' files at {formatted_dir}")
                     }
                     (Some(regex), None) => format!("Search for '{regex}' at {formatted_dir}"),
                     (None, Some(pattern)) => format!("Search for '{pattern}' at {formatted_dir}"),
                     (None, None) => format!("Search at {formatted_dir}"),
-                };
-                Some(TitleFormat::debug(title).into())
+                }
             }
             ToolCatalog::SemSearch(input) => {
                 let pairs: Vec<_> = input
@@ -66,47 +65,35 @@ impl FormatContent for ToolCatalog {
                     .iter()
                     .map(|item| item.query.as_str())
                     .collect();
-                Some(
-                    TitleFormat::debug("Codebase Search")
-                        .sub_title(format!("[{}]", pairs.join(" · ")))
-                        .into(),
-                )
+                format!("Codebase Search [{}]", pairs.join(" · "))
             }
             ToolCatalog::Remove(input) => {
                 let display_path = display_path_for(&input.path);
-                Some(TitleFormat::debug("Remove").sub_title(display_path).into())
+                format!("Remove {}", display_path)
             }
             ToolCatalog::Patch(input) => {
                 let display_path = display_path_for(&input.path);
-                Some(
-                    TitleFormat::debug(input.operation.as_ref())
-                        .sub_title(display_path)
-                        .into(),
-                )
+                format!("{} {}", input.operation.as_ref(), display_path)
             }
             ToolCatalog::Undo(input) => {
                 let display_path = display_path_for(&input.path);
-                Some(TitleFormat::debug("Undo").sub_title(display_path).into())
+                format!("Undo {}", display_path)
             }
-            ToolCatalog::Shell(input) => Some(
-                TitleFormat::debug(format!("Execute [{}]", env.shell))
-                    .sub_title(&input.command)
-                    .into(),
-            ),
+            ToolCatalog::Shell(input) => {
+                format!("Execute [{}] {}", env.shell, input.command)
+            }
             ToolCatalog::Fetch(input) => {
-                Some(TitleFormat::debug("GET").sub_title(&input.url).into())
+                format!("GET {}", input.url)
             }
-            ToolCatalog::Followup(input) => Some(
-                TitleFormat::debug("Follow-up")
-                    .sub_title(&input.question)
-                    .into(),
-            ),
-            ToolCatalog::Plan(_) => None,
-            ToolCatalog::Skill(input) => Some(
-                TitleFormat::debug("Skill")
-                    .sub_title(input.name.to_lowercase())
-                    .into(),
-            ),
-        }
+            ToolCatalog::Followup(input) => {
+                format!("Follow-up: {}", input.question)
+            }
+            ToolCatalog::Plan(_) => return None,
+            ToolCatalog::Skill(input) => {
+                format!("Skill: {}", input.name.to_lowercase())
+            }
+        };
+
+        Some(ChatResponseContent::ToolInput(formatted))
     }
 }
