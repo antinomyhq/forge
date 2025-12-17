@@ -2513,7 +2513,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
             },
             ChatResponse::ToolCallStart(_) => {
-                // self.spinner.stop(None)?;
+                self.spinner.stop(None)?;
             }
             ChatResponse::ToolCallEnd(toolcall_result) => {
                 // Only track toolcall name in case of success else track the error.
@@ -2528,7 +2528,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 };
                 tracker::tool_call(payload);
 
-                // self.spinner.start(None)?;
+                self.spinner.start(None)?;
                 if !self.cli.verbose {
                     return Ok(());
                 }

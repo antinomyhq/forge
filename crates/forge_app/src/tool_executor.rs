@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use forge_domain::{
-    CodebaseQueryResult, TitleFormat, ToolCallContext, ToolCallFull, ToolCatalog, ToolOutput,
+    ChatResponse, CodebaseQueryResult, TitleFormat, ToolCallContext, ToolCallFull, ToolCatalog, ToolOutput
 };
 use forge_template::Element;
 
@@ -325,7 +325,7 @@ impl<
         input: ToolCallFull,
         context: &ToolCallContext,
     ) -> anyhow::Result<ToolOutput> {
-        let tool_input: ToolCatalog = ToolCatalog::try_from(input)?;
+        let tool_input: ToolCatalog = ToolCatalog::try_from(input.clone())?;
         let tool_kind = tool_input.kind();
         let env = self.services.get_environment();
         if let Some(content) = tool_input.to_content(&env) {
@@ -345,6 +345,7 @@ impl<
             ));
         }
 
+        context.send(ChatResponse::ToolCallStart(input)).await?;
         let execution_result = self.call_internal(tool_input.clone()).await;
 
         if let Err(ref error) = execution_result {

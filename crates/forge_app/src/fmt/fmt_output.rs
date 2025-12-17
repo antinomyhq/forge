@@ -45,7 +45,6 @@ impl FormatContent for ToolOperation {
 
 #[cfg(test)]
 mod tests {
-
     use console::strip_ansi_codes;
     use forge_display::DiffFormat;
     use forge_domain::{ChatResponseContent, Environment, PatchOperation};
@@ -113,7 +112,7 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.to_content(&env);
-        let expected = Some(ChatResponseContent::PlainText(
+        let expected = Some(ChatResponseContent::ToolOutput(
             DiffFormat::format("old content", "new content")
                 .diff()
                 .to_string(),
