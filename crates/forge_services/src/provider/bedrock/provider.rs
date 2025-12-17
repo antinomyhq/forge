@@ -38,7 +38,7 @@ impl<H: HttpClientService> BedrockProvider<H> {
 
         // Validate API key (bearer token)
         let bearer_token = match &credential.auth_details {
-            AuthDetails::ApiKey(key) if !key.is_empty() => key.to_string(),
+            AuthDetails::ApiKey(key) if !key.is_empty() => key.as_ref().to_string(),
             _ => anyhow::bail!("Bearer token is required in API key field"),
         };
 
