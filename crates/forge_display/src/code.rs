@@ -39,11 +39,18 @@ impl SyntaxHighlighter {
     }
 }
 
+/// A code block extracted from markdown.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct CodeBlock {
+    code: String,
+    lang: String,
+}
+
 /// Holds extracted code blocks and processed markdown with placeholders.
 #[derive(Clone)]
 pub struct CodeBlockParser {
     markdown: String,
-    blocks: Vec<(String, String)>, // (code, language)
+    blocks: Vec<CodeBlock>,
 }
 
 impl CodeBlockParser {
@@ -68,7 +75,10 @@ impl CodeBlockParser {
                 }
                 Line::CodeFence(_) => {
                     result.push_str(&format!("\x00{}\x00\n", blocks.len()));
-                    blocks.push((code_lines.join("\n"), lang.to_string()));
+                    blocks.push(CodeBlock {
+                        code: code_lines.join("\n"),
+                        lang: lang.to_string(),
+                    });
                     code_lines.clear();
                     in_code = false;
                     orig_idx += 1;
@@ -99,14 +109,14 @@ impl CodeBlockParser {
 
     /// Get the extracted code blocks.
     #[cfg(test)]
-    pub fn blocks(&self) -> &[(String, String)] {
+    pub fn blocks(&self) -> &[CodeBlock] {
         &self.blocks
     }
 
     /// Replace placeholders with highlighted code blocks.
     pub fn restore(&self, highlighter: &SyntaxHighlighter, mut rendered: String) -> String {
-        for (i, (code, lang)) in self.blocks.iter().enumerate() {
-            let highlighted = highlighter.highlight(code, lang);
+        for (i, block) in self.blocks.iter().enumerate() {
+            let highlighted = highlighter.highlight(&block.code, &block.lang);
             rendered = rendered.replace(&format!("\x00{i}\x00"), &highlighted);
         }
         rendered
@@ -133,14 +143,14 @@ mod tests {
         let r = CodeBlockParser::parse("```rust\nfn main() {}\n```");
         assert!(r.markdown().contains("\x000\x00"));
         assert_eq!(r.blocks().len(), 1);
-        assert_eq!(r.blocks()[0].0, "fn main() {}");
-        assert_eq!(r.blocks()[0].1, "rust");
+        assert_eq!(r.blocks()[0].code, "fn main() {}");
+        assert_eq!(r.blocks()[0].lang, "rust");
     }
 
     #[test]
     fn test_preserves_indentation() {
         let r = CodeBlockParser::parse("```rust\n    let x = 1;\n```");
-        assert_eq!(r.blocks()[0].0, "    let x = 1;");
+        assert_eq!(r.blocks()[0].code, "    let x = 1;");
     }
 
     #[test]
@@ -163,15 +173,12 @@ mod tests {
     fn test_shared_highlighter() {
         let highlighter = SyntaxHighlighter::default();
 
-        // Process multiple markdown strings - no highlighter needed!
         let r1 = CodeBlockParser::parse("```rust\nlet x = 1;\n```");
         let r2 = CodeBlockParser::parse("```python\nprint('hello')\n```");
 
-        // Both should work correctly
-        assert_eq!(r1.blocks()[0].1, "rust");
-        assert_eq!(r2.blocks()[0].1, "python");
+        assert_eq!(r1.blocks()[0].lang, "rust");
+        assert_eq!(r2.blocks()[0].lang, "python");
 
-        // Use shared highlighter for restoration
         let result1 = r1.restore(&highlighter, r1.markdown().to_string());
         let result2 = r2.restore(&highlighter, r2.markdown().to_string());
 
