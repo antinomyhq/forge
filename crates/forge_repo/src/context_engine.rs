@@ -70,8 +70,8 @@ impl TryFrom<Workspace> for WorkspaceInfo {
         Ok(WorkspaceInfo {
             workspace_id,
             working_dir: workspace.working_dir,
-            node_count: workspace.node_count,
-            relation_count: workspace.relation_count,
+            node_count: workspace.node_count.unwrap_or(0),
+            relation_count: workspace.relation_count.unwrap_or(0),
             last_updated,
             created_at,
         })
