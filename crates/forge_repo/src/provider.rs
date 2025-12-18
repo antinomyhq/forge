@@ -396,10 +396,6 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
     }
 
     /// Reads credentials from the JSON file with multiple fallback strategies:
-    /// 1. Try normal JSON parsing with `VecSkipError` to skip corrupt entries
-    /// 2. If JSON is syntactically broken, try to repair it with
-    ///    `forge_json_repair`
-    /// 3. If all else fails, return an empty Vec
     async fn read_credentials(&self) -> Vec<AuthCredential> {
         let path = self
             .infra
