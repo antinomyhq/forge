@@ -1329,6 +1329,37 @@ mod tests {
     }
 
     #[test]
+    fn test_fs_create_with_warning_xml_tags() {
+        let content = "Content with warning";
+        let fixture = ToolOperation::FsCreate {
+            input: forge_domain::FSWrite {
+                path: "/home/user/file_with_warning.txt".to_string(),
+                content: content.to_string(),
+                overwrite: false,
+            },
+            output: FsCreateOutput {
+                path: "/home/user/file_with_warning.txt".to_string(),
+                before: None,
+                warning: Some(
+                    "<warning>\n<message>File size exceeds recommended limit</message>\n<size>1048576</size>\n<limit>524288</limit>\n<note>Consider using <command>split</command> to divide the file</note>\n</warning>".to_string(),
+                ),
+                content_hash: compute_hash(content),
+            },
+        };
+
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(
+            ToolKind::Write,
+            TempContentFiles::default(),
+            &env,
+            &mut Metrics::default(),
+        );
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
     fn test_fs_remove_success() {
         let fixture = ToolOperation::FsRemove {
             input: forge_domain::FSRemove { path: "/home/user/file_to_delete.txt".to_string() },
@@ -1473,6 +1504,39 @@ mod tests {
 
         insta::assert_snapshot!(to_value(actual));
     }
+
+    #[test]
+    fn test_fs_patch_with_warning_special_chars() {
+        let after_content = "line1\nnew line\nline2";
+        let fixture = ToolOperation::FsPatch {
+            input: forge_domain::FSPatch {
+                path: "/home/user/test.txt".to_string(),
+                search: Some("line1".to_string()),
+                operation: forge_domain::PatchOperation::Append,
+                content: "\nnew line".to_string(),
+            },
+            output: PatchOutput {
+                warning: Some(
+                    "<warning>\n<message>Syntax validation failed</message>\n<file path=\"/home/user/test.txt\" extension=\"zsh\"></file>\n<details>The file was written successfully but contains 3 syntax error(s)</details>\n<error line=\"22\" column=\"1\"><![CDATA[Syntax error at 'function dim() { echo \"${_DIM}${1}${RESET}\"']]></error>\n<suggestion>Review and fix the syntax issues</suggestion>\n</warning>".to_string(),
+                ),
+                before: "line1\nline2".to_string(),
+                after: after_content.to_string(),
+                content_hash: compute_hash(after_content),
+            },
+        };
+
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(
+            ToolKind::Patch,
+            TempContentFiles::default(),
+            &env,
+            &mut Metrics::default(),
+        );
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
 
     #[test]
     fn test_fs_undo_no_changes() {

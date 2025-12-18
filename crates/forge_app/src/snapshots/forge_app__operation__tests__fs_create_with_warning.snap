@@ -6,5 +6,5 @@ expression: to_value(actual)
   path="/home/user/file_with_warning.txt"
   total_lines="1"
 >
-<warning>File created in non-standard location</warning>
+<warning><![CDATA[File created in non-standard location]]></warning>
 </file_created>

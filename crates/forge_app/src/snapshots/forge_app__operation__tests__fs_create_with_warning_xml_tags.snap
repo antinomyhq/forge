@@ -1,0 +1,15 @@
+---
+source: crates/forge_app/src/operation.rs
+expression: to_value(actual)
+---
+<file_created
+  path="/home/user/file_with_warning.txt"
+  total_lines="1"
+>
+<warning><![CDATA[<warning>
+<message>File size exceeds recommended limit</message>
+<size>1048576</size>
+<limit>524288</limit>
+<note>Consider using <command>split</command> to divide the file</note>
+</warning>]]></warning>
+</file_created>

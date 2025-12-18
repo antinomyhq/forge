@@ -9,5 +9,5 @@ expression: to_value(actual)
   2 |+new line
 2 3 | line2
 ]]>
-<warning>Large file modification</warning>
+<warning><![CDATA[Large file modification]]></warning>
 </file_diff>
