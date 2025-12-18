@@ -1007,8 +1007,8 @@ mod tests {
         mock.workspaces.lock().await.push(WorkspaceInfo {
             workspace_id: ws.workspace_id,
             working_dir: "/project".into(),
-            node_count: 0,
-            relation_count: 0,
+            node_count: Some(0),
+            relation_count: Some(0),
             last_updated: None,
             created_at: chrono::Utc::now(),
         });
@@ -1107,8 +1107,8 @@ mod tests {
         mock.workspaces.lock().await.push(WorkspaceInfo {
             workspace_id: ws.workspace_id.clone(),
             working_dir: "/project".into(),
-            node_count: 0,
-            relation_count: 0,
+            node_count: Some(0),
+            relation_count: Some(0),
             last_updated: None,
             created_at: chrono::Utc::now(),
         });
@@ -1127,8 +1127,8 @@ mod tests {
         mock.workspaces.lock().await.push(WorkspaceInfo {
             workspace_id: ws.workspace_id.clone(),
             working_dir: ws.path.to_str().unwrap().into(),
-            node_count: 5,
-            relation_count: 10,
+            node_count: Some(5),
+            relation_count: Some(10),
             last_updated: Some(chrono::Utc::now()),
             created_at: chrono::Utc::now(),
         });
@@ -1139,8 +1139,8 @@ mod tests {
         assert!(actual.is_some());
         let expected = actual.unwrap();
         assert_eq!(expected.workspace_id, ws.workspace_id);
-        assert_eq!(expected.node_count, 5);
-        assert_eq!(expected.relation_count, 10);
+        assert_eq!(expected.node_count, Some(5));
+        assert_eq!(expected.relation_count, Some(10));
     }
 
     #[tokio::test]
