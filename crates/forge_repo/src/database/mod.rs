@@ -4,4 +4,3 @@ mod preflight;
 pub mod schema;
 
 pub use pool::*;
-

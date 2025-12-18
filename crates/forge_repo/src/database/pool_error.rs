@@ -17,10 +17,7 @@ pub enum DatabasePoolError {
 
     /// Permission denied for database operation
     #[error("Permission denied: cannot {operation} for '{path}'")]
-    PermissionDenied {
-        path: PathBuf,
-        operation: String,
-    },
+    PermissionDenied { path: PathBuf, operation: String },
 
     /// Database file appears to be locked
     #[error("Database file '{path}' appears to be locked or in use")]
@@ -42,19 +39,12 @@ impl DatabasePoolError {
         available_bytes: u64,
         required_bytes: u64,
     ) -> Self {
-        Self::InsufficientDiskSpace {
-            path: path.into(),
-            available_bytes,
-            required_bytes,
-        }
+        Self::InsufficientDiskSpace { path: path.into(), available_bytes, required_bytes }
     }
 
     /// Creates a PermissionDenied error
     pub fn permission_denied(path: impl Into<PathBuf>, operation: impl Into<String>) -> Self {
-        Self::PermissionDenied {
-            path: path.into(),
-            operation: operation.into(),
-        }
+        Self::PermissionDenied { path: path.into(), operation: operation.into() }
     }
 
     /// Creates a FileLocked error
@@ -67,20 +57,13 @@ impl DatabasePoolError {
         database_path: impl Into<PathBuf>,
         source: impl Into<anyhow::Error>,
     ) -> Self {
-        Self::PoolCreationFailed {
-            database_path: database_path.into(),
-            source: source.into(),
-        }
+        Self::PoolCreationFailed { database_path: database_path.into(), source: source.into() }
     }
 
     /// Returns an actionable resolution hint for the error
     pub fn resolution_hint(&self) -> String {
         match self {
-            Self::InsufficientDiskSpace {
-                path,
-                available_bytes,
-                required_bytes,
-            } => format!(
+            Self::InsufficientDiskSpace { path, available_bytes, required_bytes } => format!(
                 "→ Action: Free up disk space or move the database to a different location.\n\
                  → Current: {} MB available\n\
                  → Required: {} MB minimum\n\
