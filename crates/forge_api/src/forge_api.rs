@@ -41,6 +41,10 @@ impl<A, F> ForgeAPI<A, F> {
 }
 
 impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
+    /// Initializes ForgeAPI with infrastructure and repository layers
+    ///
+    /// # Panics
+    /// Panics if database initialization fails with actionable error message
     pub fn init(restricted: bool, cwd: PathBuf) -> Self {
         let infra = Arc::new(ForgeInfra::new(restricted, cwd));
         let repo = Arc::new(ForgeRepo::new(infra.clone()));

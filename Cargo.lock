@@ -1905,6 +1905,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "backon",
  "bytes",
  "chrono",
  "derive_more",
@@ -1934,6 +1935,7 @@ dependencies = [
  "serde_json",
  "serial_test",
  "strum 0.27.2",
+ "sysinfo 0.36.1",
  "tempfile",
  "thiserror 2.0.17",
  "tokio",

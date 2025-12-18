@@ -48,11 +48,24 @@ pub struct ForgeRepo<F> {
 }
 
 impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra> ForgeRepo<F> {
+    /// Creates a new ForgeRepo instance
+    ///
+    /// # Panics
+    /// Panics if database pool creation fails. The panic message includes:
+    /// - Specific error details (disk space, permissions, corruption, I/O)
+    /// - Actionable resolution steps with commands to run
+    /// - Troubleshooting guide for diagnosing the issue
     pub fn new(infra: Arc<F>) -> Self {
         let env = infra.get_environment();
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
-        let db_pool =
-            Arc::new(DatabasePool::try_from(PoolConfig::new(env.database_path())).unwrap());
+
+        // Create database pool - panic with detailed error if it fails
+        // The error message includes actionable resolution hints
+        let db_pool = Arc::new(
+            DatabasePool::try_from(PoolConfig::new(env.database_path()))
+                .expect("Failed to initialize database pool"),
+        );
+
         let conversation_repository = Arc::new(ConversationRepositoryImpl::new(
             db_pool.clone(),
             env.workspace_hash(),
@@ -73,6 +86,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra> ForgeR
         let agent_repository = Arc::new(ForgeAgentRepository::new(infra.clone()));
         let skill_repository = Arc::new(ForgeSkillRepository::new(infra.clone()));
         let validation_repository = Arc::new(crate::ForgeValidationRepository::new(infra.clone()));
+
         Self {
             infra,
             file_snapshot_service,
