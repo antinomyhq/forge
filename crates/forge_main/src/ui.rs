@@ -436,7 +436,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     let scope: forge_domain::Scope = import_args.scope.into();
 
                     // Parse the incoming MCP configuration
-                    let incoming_config: forge_domain::McpConfig = serde_json::from_str(&import_args.json)
+                    let incoming_config: forge_domain::McpConfig = forge_json_repair::from_str(&import_args.json)
                         .context("Failed to parse MCP configuration JSON. Expected format: {\"mcpServers\": {...}}")?;
 
                     // Read only the scope-specific config (not merged)
@@ -2240,7 +2240,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let conversation_id = self.init_conversation().await?;
 
         // Parse the JSON to determine the event name and value
-        let event: UserCommand = serde_json::from_str(&json)?;
+        let event: UserCommand = forge_json_repair::from_str(&json)?;
 
         // Create the chat request with the event
         let chat = ChatRequest::new(event.into(), conversation_id);
@@ -2278,7 +2278,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             id
         } else if let Some(ref path) = self.cli.conversation {
             let conversation: Conversation =
-                serde_json::from_str(ForgeFS::read_utf8(path.as_os_str()).await?.as_str())
+                forge_json_repair::from_str(ForgeFS::read_utf8(path.as_os_str()).await?.as_str())
                     .context("Failed to parse Conversation")?;
             let id = conversation.id;
             self.api.upsert_conversation(conversation).await?;

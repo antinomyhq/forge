@@ -24,7 +24,7 @@ where
 
     async fn read_config(&self, path: &Path) -> anyhow::Result<McpConfig> {
         let config = self.infra.read_utf8(path).await?;
-        Ok(serde_json::from_str(&config)?)
+        Ok(forge_json_repair::from_str(&config)?)
     }
 
     async fn config_path(&self, scope: &Scope) -> anyhow::Result<PathBuf> {

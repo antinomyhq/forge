@@ -38,23 +38,8 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> AppConfigRepositor
             }
         };
 
-        // Strategy 1: Try normal parsing
-        serde_json::from_str::<AppConfig>(&content)
-            .or_else(|_| {
-                // Strategy 2: Try JSON repair for syntactically broken JSON
-                tracing::warn!(path = %path.display(), "Failed to parse config file, attempting repair...");
-                forge_json_repair::json_repair::<AppConfig>(&content).inspect(|_| {
-                    tracing::info!(path = %path.display(), "Successfully repaired config file");
-                })
-            })
-            .inspect_err(|e| {
-                tracing::error!(
-                    path = %path.display(),
-                    error = %e,
-                    "Failed to repair config file. Using default config."
-                );
-            })
-            .unwrap_or_default()
+        // Use resilient JSON parsing with automatic repair
+        forge_json_repair::from_str::<AppConfig>(&content).unwrap_or_default()
     }
 
     async fn write(&self, config: &AppConfig) -> anyhow::Result<()> {

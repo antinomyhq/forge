@@ -161,7 +161,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
         let provider_json_path = environment.base_path.join("provider.json");
 
         let json_str = self.infra.read_utf8(&provider_json_path).await?;
-        let configs = serde_json::from_str(&json_str)?;
+        let configs = forge_json_repair::from_str(&json_str)?;
         Ok(configs)
     }
 
