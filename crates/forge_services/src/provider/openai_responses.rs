@@ -830,12 +830,6 @@ mod tests {
             client: reqwest::Client,
         }
 
-        impl MockHttpClient {
-            fn new() -> Self {
-                Self { client: reqwest::Client::new() }
-            }
-        }
-
         #[async_trait::async_trait]
         impl forge_app::HttpClientService for MockHttpClient {
             async fn get(

@@ -19,16 +19,6 @@ impl MockServer {
             .await
     }
 
-    pub async fn mock_chat_completions_stream(&mut self, body: String, status: usize) -> Mock {
-        self.server
-            .mock("POST", "/v1/chat/completions")
-            .with_status(status)
-            .with_header("content-type", "text/event-stream")
-            .with_body(body)
-            .create_async()
-            .await
-    }
-
     pub async fn mock_responses(&mut self, body: serde_json::Value, status: usize) -> Mock {
         self.server
             .mock("POST", "/v1/responses")
