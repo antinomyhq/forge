@@ -18,8 +18,35 @@ use tokio_stream::StreamExt;
 
 use crate::provider::anthropic::Anthropic;
 use crate::provider::openai::OpenAIProvider;
+use crate::provider::openai_responses::OpenAIResponsesProvider;
 use crate::provider::retry::into_retry;
 
+
+
+/// Returns `true` when the model ID should be routed through the Codex
+/// (Responses API) path.
+///
+/// Matching rules are intentionally conservative and deterministic: we only
+/// match on the model ID string itself. Today, all Codex models include `codex`
+/// in their ID (e.g. `codex-mini-latest`, `gpt-4.1-codex`).
+fn is_codex_model(model: &ModelId) -> bool {
+    model.as_str().to_ascii_lowercase().contains("codex")
+}
+
+/// Returns `true` if we should use the OpenAI Responses API path for this
+/// provider + model.
+///
+/// Currently supported:
+/// - OpenAI: Codex models (gpt-5.1-codex, codex-mini-latest, etc.)
+/// - GitHub Copilot: Codex models (same pattern - per sst/opencode
+///   implementation)
+///
+/// Other OpenAI-compatible providers may not implement `/responses`.
+fn should_use_responses_api(provider_id: &forge_app::domain::ProviderId, model: &ModelId) -> bool {
+    let is_supported_provider = *provider_id == forge_app::domain::ProviderId::OPENAI
+        || *provider_id == forge_app::domain::ProviderId::GITHUB_COPILOT;
+    is_supported_provider && is_codex_model(model)
+}
 #[derive(Setters)]
 #[setters(strip_option, into)]
 pub struct ClientBuilder {
@@ -54,10 +81,14 @@ impl ClientBuilder {
         })?;
 
         let inner = match response_type {
-            ProviderResponse::OpenAI => InnerClient::OpenAICompat(Box::new(OpenAIProvider::new(
-                provider.clone(),
-                http.clone(),
-            ))),
+            ProviderResponse::OpenAI => {
+                // Store both OpenAI providers for runtime model-based routing
+                InnerClient::OpenAICompat {
+                    standard: Box::new(OpenAIProvider::new(provider.clone(), http.clone())),
+                    responses: Box::new(OpenAIResponsesProvider::new(provider.clone())),
+                    provider_id: provider.id,
+                }
+            }
 
             ProviderResponse::Anthropic => {
                 let url = provider.url.clone();
@@ -126,7 +157,11 @@ impl<T> Clone for Client<T> {
 }
 
 enum InnerClient<T> {
-    OpenAICompat(Box<OpenAIProvider<T>>),
+    OpenAICompat {
+        standard: Box<OpenAIProvider<T>>,
+        responses: Box<OpenAIResponsesProvider<T>>,
+        provider_id: forge_app::domain::ProviderId,
+    },
     Anthropic(Box<Anthropic<T>>),
     Bedrock(Box<crate::provider::bedrock::BedrockProvider<T>>),
 }
@@ -139,7 +174,7 @@ impl<T: HttpClientService> Client<T> {
 
     pub async fn refresh_models(&self) -> anyhow::Result<Vec<Model>> {
         let models = self.clone().retry(match self.inner.as_ref() {
-            InnerClient::OpenAICompat(provider) => provider.models().await,
+            InnerClient::OpenAICompat { standard, .. } => standard.models().await,
             InnerClient::Anthropic(provider) => provider.models().await,
             InnerClient::Bedrock(provider) => provider.models().await,
         })?;
@@ -164,7 +199,18 @@ impl<T: HttpClientService> Client<T> {
         context: Context,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
         let chat_stream = self.clone().retry(match self.inner.as_ref() {
-            InnerClient::OpenAICompat(provider) => provider.chat(model, context).await,
+            InnerClient::OpenAICompat {
+                standard,
+                responses,
+                provider_id,
+            } => {
+                // Route based on model and provider
+                if should_use_responses_api(provider_id, model) {
+                    responses.chat(model, context).await
+                } else {
+                    standard.chat(model, context).await
+                }
+            }
             InnerClient::Anthropic(provider) => provider.chat(model, context).await,
             InnerClient::Bedrock(provider) => provider.chat(model, context).await,
         })?;
@@ -300,6 +346,37 @@ mod tests {
         assert!(cache.is_empty());
     }
 
+
+    #[test]
+    fn test_codex_model_detection() {
+        // Test codex model detection
+        assert!(is_codex_model(&ModelId::from("codex-mini-latest")));
+        assert!(is_codex_model(&ModelId::from("gpt-5.1-codex")));
+        assert!(is_codex_model(&ModelId::from("GPT-4.1-CODEX"))); // case insensitive
+        
+        // Non-codex models
+        assert!(!is_codex_model(&ModelId::from("gpt-4o")));
+        assert!(!is_codex_model(&ModelId::from("gpt-4-turbo")));
+        assert!(!is_codex_model(&ModelId::from("claude-3-opus")));
+    }
+
+    #[test]
+    fn test_responses_api_routing() {
+        let codex_model = ModelId::from("codex-mini-latest");
+        let regular_model = ModelId::from("gpt-4o");
+
+        // OpenAI + codex → responses API
+        assert!(should_use_responses_api(&ProviderId::OPENAI, &codex_model));
+        assert!(!should_use_responses_api(&ProviderId::OPENAI, &regular_model));
+
+        // GitHub Copilot + codex → responses API
+        assert!(should_use_responses_api(&ProviderId::GITHUB_COPILOT, &codex_model));
+        assert!(!should_use_responses_api(&ProviderId::GITHUB_COPILOT, &regular_model));
+
+        // Other providers → never responses API
+        assert!(!should_use_responses_api(&ProviderId::ANTHROPIC, &codex_model));
+        assert!(!should_use_responses_api(&ProviderId::ZAI, &codex_model));
+    }
     #[tokio::test]
     async fn test_refresh_models_method_exists() {
         let provider = forge_domain::Provider {
@@ -377,4 +454,6 @@ mod tests {
         let cache = client.models_cache.read().await;
         assert!(cache.is_empty());
     }
+
+
 }
