@@ -141,7 +141,14 @@ impl Environment {
             )
             .build()?;
 
-        config.try_deserialize()
+        let mut env: Self = config.try_deserialize()?;
+
+        // Apply compile-time default for enable_permissions
+        // In debug builds, enable permissions for easier development
+        // In release builds, disable for security
+        env.enable_permissions = cfg!(debug_assertions);
+
+        Ok(env)
     }
 
     pub fn log_path(&self) -> PathBuf {
