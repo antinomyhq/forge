@@ -1537,7 +1537,6 @@ mod tests {
         insta::assert_snapshot!(to_value(actual));
     }
 
-
     #[test]
     fn test_fs_undo_no_changes() {
         let fixture = ToolOperation::FsUndo {
