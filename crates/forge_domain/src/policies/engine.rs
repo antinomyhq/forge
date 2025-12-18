@@ -180,7 +180,6 @@ mod tests {
         let operation = PermissionOperation::Execute {
             command: "cargo build".to_string(),
             cwd: std::path::PathBuf::from("/test/cwd"),
-            message: "Execute shell command: cargo build".to_string(),
         };
 
         let actual = fixture.can_perform(&operation);

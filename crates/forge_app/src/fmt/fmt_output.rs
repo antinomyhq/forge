@@ -8,8 +8,6 @@ use crate::utils::format_display_path;
 impl FormatContent for ToolOperation {
     fn to_content(&self, env: &Environment) -> Option<ChatResponseContent> {
         match self {
-            ToolOperation::FsRead { input: _, output: _ } => None,
-            ToolOperation::ImageRead { output: _ } => None,
             ToolOperation::FsCreate { input, output } => {
                 if let Some(ref before) = output.before {
                     let after = &input.content;
@@ -20,18 +18,11 @@ impl FormatContent for ToolOperation {
                     None
                 }
             }
-            ToolOperation::FsRemove { input: _, output: _ } => None,
-            ToolOperation::FsSearch { input: _, output: _ } => None,
-            ToolOperation::CodebaseSearch { output: _ } => None,
             ToolOperation::FsPatch { input: _, output } => Some(ChatResponseContent::PlainText(
                 DiffFormat::format(&output.before, &output.after)
                     .diff()
                     .to_string(),
             )),
-            ToolOperation::FsUndo { input: _, output: _ } => None,
-            ToolOperation::NetFetch { input: _, output: _ } => None,
-            ToolOperation::Shell { output: _ } => None,
-            ToolOperation::FollowUp { output: _ } => None,
             ToolOperation::PlanCreate { input: _, output } => Some({
                 let title = TitleFormat::debug(format!(
                     "Create {}",
@@ -39,7 +30,16 @@ impl FormatContent for ToolOperation {
                 ));
                 title.into()
             }),
-            ToolOperation::Skill { input: _, output: _ } => None,
+            ToolOperation::FsRead { input: _, output: _ }
+            | ToolOperation::ImageRead { output: _ }
+            | ToolOperation::FsRemove { input: _, output: _ }
+            | ToolOperation::FsSearch { input: _, output: _ }
+            | ToolOperation::CodebaseSearch { output: _ }
+            | ToolOperation::FsUndo { input: _, output: _ }
+            | ToolOperation::NetFetch { input: _, output: _ }
+            | ToolOperation::Shell { output: _ }
+            | ToolOperation::FollowUp { output: _ }
+            | ToolOperation::Skill { input: _, output: _ } => None,
         }
     }
 }

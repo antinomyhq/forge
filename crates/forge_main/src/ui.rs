@@ -1814,11 +1814,17 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             })
             .collect::<anyhow::Result<HashMap<_, _>>>()?;
 
-        let api_key = ForgeSelect::input(format!("Enter your {provider_id} API key:"))
-            .prompt()?
-            .context("API key input cancelled")?;
+        let input = if let Some(default_key) = &request.api_key {
+            // ApiKey's Display shows masked version, AsRef<str> gives actual value
+            ForgeSelect::input(format!("Enter your {provider_id} API key:"))
+                .with_default(default_key)
+        } else {
+            ForgeSelect::input(format!("Enter your {provider_id} API key:"))
+        };
 
-        let api_key_str = api_key.trim();
+        let api_key_str = input.prompt()?.context("API key input cancelled")?;
+
+        let api_key_str = api_key_str.trim();
         anyhow::ensure!(!api_key_str.is_empty(), "API key cannot be empty");
 
         // Update the context with collected data
@@ -2204,10 +2210,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Set the provider via API
         self.api.set_default_provider(provider.id.clone()).await?;
 
-        self.writeln_title(TitleFormat::action(format!(
-            "Switched to provider: {}",
-            CliProvider(AnyProvider::Url(provider.clone()))
-        )))?;
+        self.writeln_title(
+            TitleFormat::action(format!("{}", provider.id))
+                .sub_title("is now the default provider"),
+        )?;
 
         // Check if the current model is available for the new provider
         let current_model = self.api.get_default_model().await;
@@ -2426,12 +2432,14 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 Ok(message) => self.handle_chat_response(message).await?,
                 Err(err) => {
                     self.spinner.stop(None)?;
+                    self.spinner.reset();
                     return Err(err);
                 }
             }
         }
 
         self.spinner.stop(None)?;
+        self.spinner.reset();
 
         Ok(())
     }
@@ -2827,10 +2835,17 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
         });
 
+        // Check if nerd fonts should be used (NERD_FONT or USE_NERD_FONT set to "1")
+        let use_nerd_font = std::env::var("NERD_FONT")
+            .or_else(|_| std::env::var("USE_NERD_FONT"))
+            .map(|val| val == "1")
+            .unwrap_or(true); // Default to true
+
         let rprompt = ZshRPrompt::default()
             .agent(std::env::var("_FORGE_ACTIVE_AGENT").ok().map(AgentId::new))
             .model(model_id)
-            .token_count(conversation.and_then(|conversation| conversation.token_count()));
+            .token_count(conversation.and_then(|conversation| conversation.token_count()))
+            .use_nerd_font(use_nerd_font);
 
         Some(rprompt.to_string())
     }

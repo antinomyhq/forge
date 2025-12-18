@@ -17,11 +17,25 @@ use crate::utils::humanize_number;
 /// Formats shell prompt information with appropriate colors:
 /// - Inactive state (no tokens): dimmed colors
 /// - Active state (has tokens): bright white/cyan colors
-#[derive(Default, Setters)]
+#[derive(Setters)]
 pub struct ZshRPrompt {
     agent: Option<AgentId>,
     model: Option<ModelId>,
     token_count: Option<TokenCount>,
+    /// Controls whether to render nerd font symbols. Defaults to `true`.
+    #[setters(into)]
+    use_nerd_font: bool,
+}
+
+impl Default for ZshRPrompt {
+    fn default() -> Self {
+        Self {
+            agent: None,
+            model: None,
+            token_count: None,
+            use_nerd_font: true,
+        }
+    }
 }
 
 const AGENT_SYMBOL: &str = "\u{f167a}";
@@ -32,18 +46,21 @@ impl Display for ZshRPrompt {
         let active = *self.token_count.unwrap_or_default() > 0usize;
 
         // Add agent
-        if let Some(ref agent_id) = self.agent {
-            let agent_id = format!(
+        let agent_id = self.agent.clone().unwrap_or_default();
+        let agent_id = if self.use_nerd_font {
+            format!(
                 "{AGENT_SYMBOL} {}",
                 agent_id.to_string().to_case(Case::UpperSnake)
-            );
-            let styled = if active {
-                agent_id.zsh().bold().fg(ZshColor::WHITE)
-            } else {
-                agent_id.zsh().bold().fg(ZshColor::DIMMED)
-            };
-            write!(f, " {}", styled)?;
-        }
+            )
+        } else {
+            agent_id.to_string().to_case(Case::UpperSnake)
+        };
+        let styled = if active {
+            agent_id.zsh().bold().fg(ZshColor::WHITE)
+        } else {
+            agent_id.zsh().bold().fg(ZshColor::DIMMED)
+        };
+        write!(f, " {}", styled)?;
 
         // Add token count
         if let Some(count) = self.token_count {
@@ -61,7 +78,11 @@ impl Display for ZshRPrompt {
 
         // Add model
         if let Some(ref model_id) = self.model {
-            let model_id = format!("{MODEL_SYMBOL} {}", model_id);
+            let model_id = if self.use_nerd_font {
+                format!("{MODEL_SYMBOL} {}", model_id)
+            } else {
+                model_id.to_string()
+            };
             let styled = if active {
                 model_id.zsh().fg(ZshColor::CYAN)
             } else {
@@ -75,8 +96,6 @@ impl Display for ZshRPrompt {
 
 #[cfg(test)]
 mod tests {
-    use insta::assert_snapshot;
-
     use super::*;
 
     #[test]
@@ -86,7 +105,9 @@ mod tests {
             .agent(Some(AgentId::new("forge")))
             .model(Some(ModelId::new("gpt-4")))
             .to_string();
-        assert_snapshot!(actual);
+
+        let expected = " %B%F{240}\u{f167a} FORGE%f%b %F{240}\u{ec19} gpt-4%f";
+        assert_eq!(actual, expected);
     }
 
     #[test]
@@ -97,6 +118,22 @@ mod tests {
             .model(Some(ModelId::new("gpt-4")))
             .token_count(Some(TokenCount::Actual(1500)))
             .to_string();
-        assert_snapshot!(actual);
+
+        let expected = " %B%F{15}\u{f167a} FORGE%f%b %B%F{15}1.5k%f%b %F{134}\u{ec19} gpt-4%f";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_rprompt_without_nerdfonts() {
+        // Test with nerdfonts disabled
+        let actual = ZshRPrompt::default()
+            .agent(Some(AgentId::new("forge")))
+            .model(Some(ModelId::new("gpt-4")))
+            .token_count(Some(TokenCount::Actual(1500)))
+            .use_nerd_font(false)
+            .to_string();
+
+        let expected = " %B%F{15}FORGE%f%b %B%F{15}1.5k%f%b %F{134}gpt-4%f";
+        assert_eq!(actual, expected);
     }
 }
