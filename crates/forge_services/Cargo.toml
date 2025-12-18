@@ -25,6 +25,14 @@ dashmap.workspace = true
 anyhow.workspace = true
 futures.workspace = true
 reqwest.workspace = true
+aws-config.workspace = true
+aws-sdk-bedrockruntime.workspace = true
+aws-credential-types.workspace = true
+aws-smithy-types.workspace = true
+aws-smithy-runtime-api.workspace = true
+aws-smithy-async.workspace = true
+aws-smithy-runtime.workspace = true
+derive_more.workspace = true
 regex.workspace = true
 humantime.workspace = true
 thiserror.workspace = true
@@ -49,6 +57,7 @@ forge_domain.workspace = true
 oauth2 = { version = "5.0", features = ["reqwest"] }
 serde_urlencoded = "0.7.1"
 http.workspace = true
+schemars.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt", "time", "test-util"] }
