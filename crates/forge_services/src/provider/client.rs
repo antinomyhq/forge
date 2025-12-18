@@ -95,6 +95,10 @@ impl ClientBuilder {
                     }
                 }
             }
+
+            ProviderResponse::Bedrock => InnerClient::Bedrock(Box::new(
+                crate::provider::bedrock::BedrockProvider::new(provider.clone())?,
+            )),
         };
 
         Ok(Client {
@@ -124,6 +128,7 @@ impl<T> Clone for Client<T> {
 enum InnerClient<T> {
     OpenAICompat(Box<OpenAIProvider<T>>),
     Anthropic(Box<Anthropic<T>>),
+    Bedrock(Box<crate::provider::bedrock::BedrockProvider<T>>),
 }
 
 impl<T: HttpClientService> Client<T> {
@@ -136,6 +141,7 @@ impl<T: HttpClientService> Client<T> {
         let models = self.clone().retry(match self.inner.as_ref() {
             InnerClient::OpenAICompat(provider) => provider.models().await,
             InnerClient::Anthropic(provider) => provider.models().await,
+            InnerClient::Bedrock(provider) => provider.models().await,
         })?;
 
         // Update the cache with all fetched models
@@ -160,6 +166,7 @@ impl<T: HttpClientService> Client<T> {
         let chat_stream = self.clone().retry(match self.inner.as_ref() {
             InnerClient::OpenAICompat(provider) => provider.chat(model, context).await,
             InnerClient::Anthropic(provider) => provider.chat(model, context).await,
+            InnerClient::Bedrock(provider) => provider.chat(model, context).await,
         })?;
 
         let this: Client<T> = self.clone();

@@ -107,21 +107,6 @@ fi
 # 2. Check if forge is installed and in PATH
 print_section "Forge Installation"
 
-# Check FORGE_BIN environment variable
-if [[ -n "$FORGE_BIN" ]]; then
-    if [[ ! -e "$FORGE_BIN" ]]; then
-        print_result fail "FORGE_BIN path does not exist: ${FORGE_BIN}"
-    elif [[ ! -f "$FORGE_BIN" ]]; then
-        print_result fail "FORGE_BIN is not a file: ${FORGE_BIN}"
-    elif [[ ! -x "$FORGE_BIN" ]]; then
-        print_result fail "FORGE_BIN is not executable: ${FORGE_BIN}"
-    else
-        print_result pass "FORGE_BIN: ${FORGE_BIN}"
-    fi
-else
-    print_result warn "FORGE_BIN not set" "export FORGE_BIN=\$(which forge)"
-fi
-
 # Check if forge is in PATH
 if command -v forge &> /dev/null; then
     local forge_path=$(command -v forge)
@@ -136,7 +121,7 @@ if command -v forge &> /dev/null; then
         print_result info "${forge_path}"
     fi
 else
-    print_result fail "Forge binary not found in PATH" "Install from: https://github.com/your-org/forge"
+    print_result fail "Forge binary not found in PATH" "Installation: npm i -g forgecode@latest"
 fi
 
 # 3. Check shell plugin
@@ -148,7 +133,7 @@ if [[ -n "$_FORGE_PLUGIN_LOADED" ]]; then
 else
     print_result fail "Forge plugin not loaded"
     print_result instruction "Add to your ~/.zshrc:"
-    print_result code "eval \"\$(\$FORGE_BIN zsh plugin)\""
+    print_result code "eval \"\$(forge zsh plugin)\""
 fi
 
 
@@ -191,13 +176,13 @@ if [[ -n "$_FORGE_THEME_LOADED" ]]; then
 elif (( $+functions[p10k] )); then
     print_result info "Powerlevel10k detected (not using Forge theme)"
 elif [[ -n "$ZSH_THEME" ]]; then
-    print_result warn "Using theme: ${ZSH_THEME}"
+    print_result fail "Using theme: ${ZSH_THEME}"
     print_result instruction "To use Forge theme, add to ~/.zshrc:"
-    print_result code "eval \"\$(\$FORGE_BIN zsh theme)\""
+    print_result code "eval \"\$(forge zsh theme)\""
 else
-    print_result warn "No theme loaded"
+    print_result fail "No theme loaded"
     print_result instruction "To use Forge theme, add to ~/.zshrc:"
-    print_result code "eval \"\$(\$FORGE_BIN zsh theme)\""
+    print_result code "eval \"\$(forge zsh theme)\""
 fi
 
 # 5. Check dependencies
@@ -295,15 +280,48 @@ else
 fi
 
 # Check font and Nerd Font support
-# Show actual icons used in Forge theme
-echo ""
-echo "$(bold "Font Check [Manual Verification Required]")"
+print_section "Nerd Font"
+
+# Check if Nerd Font is enabled via environment variables
+if [[ -n "$NERD_FONT" ]]; then
+    if [[ "$NERD_FONT" == "1" || "$NERD_FONT" == "true" ]]; then
+        print_result pass "NERD_FONT: enabled"
+    else
+        print_result fail "NERD_FONT: disabled (${NERD_FONT})"
+        print_result instruction "Enable Nerd Font by setting:"
+        print_result code "export NERD_FONT=1"
+    fi
+elif [[ -n "$USE_NERD_FONT" ]]; then
+    if [[ "$USE_NERD_FONT" == "1" || "$USE_NERD_FONT" == "true" ]]; then
+        print_result pass "USE_NERD_FONT: enabled"
+    else
+        print_result fail "USE_NERD_FONT: disabled (${USE_NERD_FONT})"
+        print_result instruction "Enable Nerd Font by setting:"
+        print_result code "export NERD_FONT=1"
+    fi
+else
+    print_result pass "Nerd Font: enabled (default)"
+    print_result info "Forge will auto-detect based on terminal capabilities"
+fi
+
+# Show actual icons used in Forge theme for manual verification (skip if explicitly disabled)
+local nerd_font_disabled=false
+if [[ -n "$NERD_FONT" && "$NERD_FONT" != "1" && "$NERD_FONT" != "true" ]]; then
+    nerd_font_disabled=true
+elif [[ -n "$USE_NERD_FONT" && "$USE_NERD_FONT" != "1" && "$USE_NERD_FONT" != "true" ]]; then
+    nerd_font_disabled=true
+fi
+
+if [[ "$nerd_font_disabled" == "false" ]]; then
+    echo ""
+    echo "$(bold "Visual Check [Manual Verification Required]")"
 echo "   $(bold "󱙺 FORGE 33.0k") $(cyan " tonic-1.0")"
-echo ""
-echo "   Forge uses Nerd Fonts to enrich cli experience, can you see all the icons clearly without any overlap?"
-echo "   If you see boxes (□) or question marks (?), install a Nerd Font from:"
-echo "   $(dim "https://www.nerdfonts.com/")"
-echo ""
+    echo ""
+    echo "   Forge uses Nerd Fonts to enrich cli experience, can you see all the icons clearly without any overlap?"
+    echo "   If you see boxes (□) or question marks (?), install a Nerd Font from:"
+    echo "   $(dim "https://www.nerdfonts.com/")"
+    echo ""
+fi
 
 # Summary
 echo ""

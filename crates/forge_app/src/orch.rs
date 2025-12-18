@@ -172,11 +172,9 @@ impl<S: AgentService> Orchestrator<S> {
         let agent = &self.agent;
         // Estimate token count for compaction decision
         let token_count = context.token_count();
-        if agent.should_compact(context, *token_count)
-            && let Some(compact) = agent.compact.clone()
-        {
+        if agent.compact.should_compact(context, *token_count) {
             info!(agent_id = %agent.id, "Compaction needed");
-            Compactor::new(compact, self.environment.clone())
+            Compactor::new(agent.compact.clone(), self.environment.clone())
                 .compact(context.clone(), false)
                 .map(Some)
         } else {

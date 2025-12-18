@@ -223,18 +223,10 @@ impl<S: Services> ForgeApp<S> {
         };
 
         // Get compact config from the agent
-        let Some(compact) = agent
+        let compact = agent
             .apply_workflow_config(&workflow)
             .set_compact_model_if_none()
-            .compact
-        else {
-            return Ok(CompactionResult::new(
-                original_token_count,
-                0,
-                original_messages,
-                0,
-            ));
-        };
+            .compact;
 
         // Apply compaction using the Compactor
         let environment = self.services.get_environment();
