@@ -2211,9 +2211,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         self.api.set_default_provider(provider.id.clone()).await?;
 
         self.writeln_title(TitleFormat::action(format!(
-            "Switched to provider: {}",
+            "{}",
             provider.id
-        )))?;
+        )).sub_title("is now the default provider"))?;
 
         // Check if the current model is available for the new provider
         let current_model = self.api.get_default_model().await;
