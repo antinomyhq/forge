@@ -90,6 +90,10 @@ pub struct Environment {
     /// If set, this provider will be used as default.
     #[dummy(default)]
     pub override_provider: Option<String>,
+
+    /// When set forge will interactively ask the user for permissions
+    #[dummy(default)]
+    pub enable_permissions: bool,
 }
 
 impl Environment {
