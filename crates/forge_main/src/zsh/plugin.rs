@@ -88,5 +88,3 @@ pub fn run_zsh_doctor() -> Result<String> {
 
     Ok(result)
 }
-
-
