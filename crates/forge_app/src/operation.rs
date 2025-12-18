@@ -251,7 +251,7 @@ impl ToolOperation {
                     .attr("total_lines", input.content.lines().count());
 
                 if let Some(warning) = output.warning {
-                    elm = elm.append(Element::new("warning").text(warning));
+                    elm = elm.append(Element::new("warning").cdata(warning));
                 }
 
                 forge_domain::ToolOutput::text(elm)
@@ -398,7 +398,7 @@ impl ToolOperation {
                     .cdata(diff);
 
                 if let Some(warning) = &output.warning {
-                    elm = elm.append(Element::new("warning").text(warning));
+                    elm = elm.append(Element::new("warning").cdata(warning));
                 }
 
                 *metrics = metrics.clone().insert(
