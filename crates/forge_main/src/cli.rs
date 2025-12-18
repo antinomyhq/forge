@@ -322,6 +322,10 @@ pub enum ListCommand {
     /// List available skills.
     #[command(alias = "skills")]
     Skill,
+
+    /// List environment variables.
+    #[command(alias = "envs")]
+    Env,
 }
 
 /// Shell extension commands.
@@ -1393,6 +1397,27 @@ mod tests {
             _ => false,
         };
         assert_eq!(is_skill_list, true);
+    }
+
+
+    #[test]
+    fn test_list_env_command() {
+        let fixture = Cli::parse_from(["forge", "list", "env"]);
+        let is_env_list = match fixture.subcommands {
+            Some(TopLevelCommand::List(list)) => matches!(list.command, ListCommand::Env),
+            _ => false,
+        };
+        assert_eq!(is_env_list, true);
+    }
+
+    #[test]
+    fn test_list_envs_alias_command() {
+        let fixture = Cli::parse_from(["forge", "list", "envs"]);
+        let is_env_list = match fixture.subcommands {
+            Some(TopLevelCommand::List(list)) => matches!(list.command, ListCommand::Env),
+            _ => false,
+        };
+        assert_eq!(is_env_list, true);
     }
 
     #[test]

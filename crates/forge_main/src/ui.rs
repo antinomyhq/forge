@@ -408,6 +408,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     ListCommand::Skill => {
                         self.on_show_skills(porcelain).await?;
                     }
+                    ListCommand::Env => {
+                        // Reuse the existing env handler
+                        self.on_env().await?;
+                    }
                 }
                 return Ok(());
             }
