@@ -584,6 +584,7 @@ mod tests {
         let max_bytes: f64 = 250.0 * 1024.0; // 250 KB
         let fixture: Environment = Faker.fake();
         fixture
+            .cwd(PathBuf::from("/projects/test")) // Set deterministic cwd to avoid flaky path formatting
             .max_search_lines(25)
             .max_search_result_bytes(max_bytes.ceil() as usize)
             .fetch_truncation_limit(55)
