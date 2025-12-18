@@ -40,3 +40,15 @@ pub trait IntoDomain {
 
     fn into_domain(self) -> Self::Domain;
 }
+
+/// Converts a domain model type into its external representation.
+pub trait FromDomain<T> {
+    /// Converts from a domain type to the external type
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the conversion fails
+    fn from_domain(value: T) -> anyhow::Result<Self>
+    where
+        Self: Sized;
+}

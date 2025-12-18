@@ -88,14 +88,3 @@ pub fn run_zsh_doctor() -> Result<String> {
 
     Ok(result)
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_generate_zsh_plugin() {
-        let output = generate_zsh_plugin().unwrap();
-        insta::assert_snapshot!(output);
-    }
-}

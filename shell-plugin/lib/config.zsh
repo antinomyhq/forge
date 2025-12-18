@@ -21,3 +21,7 @@ fi
 
 # Commands cache - loaded lazily on first use
 typeset -h _FORGE_COMMANDS=""
+
+# Hidden variables to be used only via the ForgeCLI
+typeset -h _FORGE_CONVERSATION_ID
+typeset -h _FORGE_ACTIVE_AGENT

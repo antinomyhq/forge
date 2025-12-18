@@ -1,5 +1,6 @@
 use anyhow::Result;
 use console::{strip_ansi_codes, style};
+use crossterm::cursor;
 use dialoguer::theme::ColorfulTheme;
 use dialoguer::{Confirm, FuzzySelect, Input, MultiSelect};
 
@@ -38,7 +39,7 @@ impl ForgeSelect {
     /// suffix arrow
     fn default_theme() -> ColorfulTheme {
         ColorfulTheme {
-            prompt_suffix: style("".to_string()),
+            prompt_suffix: style(format!("{}", cursor::MoveLeft(1))),
             ..ColorfulTheme::default()
         }
     }
@@ -80,7 +81,12 @@ impl ForgeSelect {
 
     /// Prompt a question and get text input
     pub fn input(message: impl Into<String>) -> InputBuilder {
-        InputBuilder { message: message.into(), allow_empty: false, default: None }
+        InputBuilder {
+            message: message.into(),
+            allow_empty: false,
+            default: None,
+            default_display: None,
+        }
     }
 
     /// Multi-select prompt
@@ -265,6 +271,23 @@ pub struct InputBuilder {
     message: String,
     allow_empty: bool,
     default: Option<String>,
+    default_display: Option<String>,
+}
+
+// Internal type for dialoguer interaction
+#[derive(Clone, derive_more::Display)]
+#[display("{display}")]
+struct MaskedDefault {
+    value: String,
+    display: String,
+}
+
+impl std::str::FromStr for MaskedDefault {
+    type Err = std::convert::Infallible;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(MaskedDefault { value: s.to_string(), display: s.to_string() })
+    }
 }
 
 impl InputBuilder {
@@ -275,8 +298,12 @@ impl InputBuilder {
     }
 
     /// Set default value
-    pub fn with_default(mut self, default: impl Into<String>) -> Self {
-        self.default = Some(default.into());
+    pub fn with_default<T>(mut self, default: T) -> Self
+    where
+        T: std::fmt::Display + AsRef<str>,
+    {
+        self.default = Some(default.as_ref().to_string());
+        self.default_display = Some(default.to_string());
         self
     }
 
@@ -298,13 +325,41 @@ impl InputBuilder {
         let _cursor_guard = ApplicationCursorKeysGuard::new()?;
 
         let theme = ForgeSelect::default_theme();
-        let mut input = Input::with_theme(&theme)
+
+        // Check if we have both value and display (masked default scenario)
+        if let (Some(value), Some(display)) = (self.default, self.default_display) {
+            // If value and display are different, use DialoguerMaskedDefault
+            if value != display {
+                let masked = MaskedDefault { value, display };
+                let input = Input::with_theme(&theme)
+                    .with_prompt(&self.message)
+                    .allow_empty(self.allow_empty)
+                    .default(masked);
+
+                return match input.interact_text() {
+                    Ok(masked_result) => Ok(Some(masked_result.value)),
+                    Err(e) if is_interrupted_error(&e) => Ok(None),
+                    Err(e) => Err(e.into()),
+                };
+            }
+
+            // If they're the same, treat as normal string
+            let input = Input::with_theme(&theme)
+                .with_prompt(&self.message)
+                .allow_empty(self.allow_empty)
+                .default(value);
+
+            return match input.interact_text() {
+                Ok(value) => Ok(Some(value)),
+                Err(e) if is_interrupted_error(&e) => Ok(None),
+                Err(e) => Err(e.into()),
+            };
+        }
+
+        // No default provided
+        let input = Input::with_theme(&theme)
             .with_prompt(&self.message)
             .allow_empty(self.allow_empty);
-
-        if let Some(default) = self.default {
-            input = input.default(default);
-        }
 
         match input.interact_text() {
             Ok(value) => Ok(Some(value)),

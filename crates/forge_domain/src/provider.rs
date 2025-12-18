@@ -64,6 +64,7 @@ impl ProviderId {
     pub const ANTHROPIC_COMPATIBLE: ProviderId = ProviderId(Cow::Borrowed("anthropic_compatible"));
     pub const FORGE_SERVICES: ProviderId = ProviderId(Cow::Borrowed("forge_services"));
     pub const IO_INTELLIGENCE: ProviderId = ProviderId(Cow::Borrowed("io_intelligence"));
+    pub const BEDROCK: ProviderId = ProviderId(Cow::Borrowed("bedrock"));
 
     /// Returns all built-in provider IDs
     ///
@@ -88,6 +89,7 @@ impl ProviderId {
             ProviderId::ANTHROPIC_COMPATIBLE,
             ProviderId::FORGE_SERVICES,
             ProviderId::IO_INTELLIGENCE,
+            ProviderId::BEDROCK,
         ]
     }
 
@@ -163,6 +165,7 @@ impl From<String> for ProviderId {
 pub enum ProviderResponse {
     OpenAI,
     Anthropic,
+    Bedrock,
 }
 
 /// Represents the source of models for a provider
