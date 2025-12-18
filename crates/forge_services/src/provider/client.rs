@@ -21,8 +21,6 @@ use crate::provider::openai::OpenAIProvider;
 use crate::provider::openai_responses::OpenAIResponsesProvider;
 use crate::provider::retry::into_retry;
 
-
-
 /// Returns `true` when the model ID should be routed through the Codex
 /// (Responses API) path.
 ///
@@ -199,11 +197,7 @@ impl<T: HttpClientService> Client<T> {
         context: Context,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
         let chat_stream = self.clone().retry(match self.inner.as_ref() {
-            InnerClient::OpenAICompat {
-                standard,
-                responses,
-                provider_id,
-            } => {
+            InnerClient::OpenAICompat { standard, responses, provider_id } => {
                 // Route based on model and provider
                 if should_use_responses_api(provider_id, model) {
                     responses.chat(model, context).await
@@ -346,14 +340,13 @@ mod tests {
         assert!(cache.is_empty());
     }
 
-
     #[test]
     fn test_codex_model_detection() {
         // Test codex model detection
         assert!(is_codex_model(&ModelId::from("codex-mini-latest")));
         assert!(is_codex_model(&ModelId::from("gpt-5.1-codex")));
         assert!(is_codex_model(&ModelId::from("GPT-4.1-CODEX"))); // case insensitive
-        
+
         // Non-codex models
         assert!(!is_codex_model(&ModelId::from("gpt-4o")));
         assert!(!is_codex_model(&ModelId::from("gpt-4-turbo")));
@@ -367,14 +360,26 @@ mod tests {
 
         // OpenAI + codex → responses API
         assert!(should_use_responses_api(&ProviderId::OPENAI, &codex_model));
-        assert!(!should_use_responses_api(&ProviderId::OPENAI, &regular_model));
+        assert!(!should_use_responses_api(
+            &ProviderId::OPENAI,
+            &regular_model
+        ));
 
         // GitHub Copilot + codex → responses API
-        assert!(should_use_responses_api(&ProviderId::GITHUB_COPILOT, &codex_model));
-        assert!(!should_use_responses_api(&ProviderId::GITHUB_COPILOT, &regular_model));
+        assert!(should_use_responses_api(
+            &ProviderId::GITHUB_COPILOT,
+            &codex_model
+        ));
+        assert!(!should_use_responses_api(
+            &ProviderId::GITHUB_COPILOT,
+            &regular_model
+        ));
 
         // Other providers → never responses API
-        assert!(!should_use_responses_api(&ProviderId::ANTHROPIC, &codex_model));
+        assert!(!should_use_responses_api(
+            &ProviderId::ANTHROPIC,
+            &codex_model
+        ));
         assert!(!should_use_responses_api(&ProviderId::ZAI, &codex_model));
     }
     #[tokio::test]
@@ -454,6 +459,4 @@ mod tests {
         let cache = client.models_cache.read().await;
         assert!(cache.is_empty());
     }
-
-
 }

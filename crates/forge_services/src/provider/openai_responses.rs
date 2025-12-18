@@ -7,7 +7,6 @@
 /// The Responses API provides a different request/response format optimized for
 /// reasoning and coding tasks, with stricter JSON schema validation for tools.
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use anyhow::Context as _;
 use async_openai::Client as AsyncOpenAIClient;
@@ -16,7 +15,7 @@ use async_openai::traits::RequestOptionsBuilder as _;
 use async_openai::types::responses as oai;
 use forge_app::HttpClientService;
 use forge_app::domain::{
-    ChatCompletionMessage, Context as ChatContext, Content, ContextMessage, FinishReason, ModelId,
+    ChatCompletionMessage, Content, Context as ChatContext, ContextMessage, FinishReason, ModelId,
     ResultStream, Role, TokenCount, ToolCall, ToolCallArguments, ToolCallFull, ToolCallId,
     ToolCallPart, ToolChoice, ToolName, Usage,
 };
@@ -38,10 +37,7 @@ pub struct OpenAIResponsesProvider<H> {
 
 impl<H: HttpClientService> OpenAIResponsesProvider<H> {
     pub fn new(provider: Provider<Url>) -> Self {
-        Self {
-            provider,
-            _phantom: std::marker::PhantomData,
-        }
+        Self { provider, _phantom: std::marker::PhantomData }
     }
 
     fn get_headers(&self) -> Vec<(String, String)> {
@@ -633,7 +629,7 @@ mod tests {
 
     use async_openai::types::responses as oai;
     use forge_app::domain::{
-        Context as ChatContext, Content, ContextMessage, FinishReason, ModelId, Provider,
+        Content, Context as ChatContext, ContextMessage, FinishReason, ModelId, Provider,
         ProviderId, ProviderResponse, ToolCallId, ToolChoice,
     };
     use tokio_stream::StreamExt;
@@ -786,8 +782,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_openai_responses_provider_uses_responses_api_via_async_openai(
-    ) -> anyhow::Result<()> {
+    async fn test_openai_responses_provider_uses_responses_api_via_async_openai()
+    -> anyhow::Result<()> {
         let mut fixture = MockServer::new().await;
 
         let response = serde_json::json!({
@@ -828,7 +824,7 @@ mod tests {
         use bytes::Bytes;
         use reqwest::header::HeaderMap;
         use reqwest_eventsource::EventSource;
-        
+
         #[derive(Clone)]
         struct MockHttpClient {
             client: reqwest::Client,
