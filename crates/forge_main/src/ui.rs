@@ -410,7 +410,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     }
                     ListCommand::Env => {
                         // Reuse the existing env handler
-                        self.on_env().await?;
+                        self.on_env(porcelain).await?;
                     }
                 }
                 return Ok(());
@@ -518,8 +518,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.on_info(porcelain, conversation_id).await?;
                 return Ok(());
             }
-            TopLevelCommand::Env => {
-                self.on_env().await?;
+            TopLevelCommand::Env { porcelain } => {
+                self.on_env(porcelain).await?;
                 return Ok(());
             }
             TopLevelCommand::Banner => {
@@ -1419,10 +1419,20 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(())
     }
 
-    async fn on_env(&mut self) -> anyhow::Result<()> {
+    async fn on_env(&mut self, porcelain: bool) -> anyhow::Result<()> {
         let env = self.api.environment();
         let info = Info::from(&env);
-        self.writeln(info)?;
+
+        if porcelain {
+            self.writeln(
+                Porcelain::from(&info)
+                    .into_long()
+                    .set_headers(&["CATEGORY", "CONFIG", "VALUE"])
+            )?;
+        } else {
+            self.writeln(info)?;
+        }
+
         Ok(())
     }
 
@@ -1577,7 +1587,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.on_info(false, self.state.conversation_id).await?;
             }
             SlashCommand::Env => {
-                self.on_env().await?;
+                self.on_env(false).await?;
             }
             SlashCommand::Usage => {
                 self.on_usage().await?;

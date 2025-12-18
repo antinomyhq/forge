@@ -255,6 +255,32 @@ impl Porcelain {
         Porcelain(rows)
     }
 
+    /// Sets custom headers (first row)
+    ///
+    /// # Arguments
+    /// * `headers` - A slice of header names to set
+    ///
+    /// # Example
+    /// ```rust,ignore
+    /// let porcelain = Porcelain::new();
+    /// let result = porcelain.set_headers(&["CATEGORY", "CONFIG", "VALUE"]);
+    /// ```
+    pub fn set_headers(self, headers: &[&str]) -> Self {
+        if self.0.is_empty() {
+            return self;
+        }
+
+        let mut rows = self.0;
+        if let Some(header_row) = rows.first_mut() {
+            *header_row = headers
+                .iter()
+                .map(|h| Some(h.to_string()))
+                .collect();
+        }
+
+        Porcelain(rows)
+    }
+
     pub fn into_long(self) -> Self {
         if self.0.is_empty() {
             return self;
@@ -1077,6 +1103,25 @@ mod tests {
             vec![Some("HEADER".into()), Some("COL1".into())],
             vec![Some("a".into()), Some("value".into())],
             vec![Some("z".into()), Some("value".into())],
+        ];
+
+        assert_eq!(actual, expected)
+    }
+
+    #[test]
+    fn test_set_headers() {
+        let fixture = Porcelain(vec![
+            vec![Some("ID".into()), Some("FIELD".into()), Some("VALUE".into())],
+            vec![Some("env".into()), Some("version".into()), Some("0.1.0".into())],
+            vec![Some("env".into()), Some("shell".into()), Some("zsh".into())],
+        ]);
+
+        let actual = fixture.set_headers(&["CATEGORY", "CONFIG", "VALUE"]).into_rows();
+
+        let expected = vec![
+            vec![Some("CATEGORY".into()), Some("CONFIG".into()), Some("VALUE".into())],
+            vec![Some("env".into()), Some("version".into()), Some("0.1.0".into())],
+            vec![Some("env".into()), Some("shell".into()), Some("zsh".into())],
         ];
 
         assert_eq!(actual, expected)

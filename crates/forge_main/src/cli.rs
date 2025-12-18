@@ -112,7 +112,11 @@ pub enum TopLevelCommand {
     },
 
     /// Display environment information.
-    Env,
+    Env {
+        /// Output in machine-readable format.
+        #[arg(long)]
+        porcelain: bool,
+    },
 
     /// Get, set, or list configuration values.
     Config(ConfigCommandGroup),
@@ -1418,6 +1422,26 @@ mod tests {
             _ => false,
         };
         assert_eq!(is_env_list, true);
+    }
+
+    #[test]
+    fn test_env_command() {
+        let fixture = Cli::parse_from(["forge", "env"]);
+        let porcelain = match fixture.subcommands {
+            Some(TopLevelCommand::Env { porcelain }) => porcelain,
+            _ => panic!("Expected TopLevelCommand::Env"),
+        };
+        assert_eq!(porcelain, false);
+    }
+
+    #[test]
+    fn test_env_command_with_porcelain() {
+        let fixture = Cli::parse_from(["forge", "env", "--porcelain"]);
+        let porcelain = match fixture.subcommands {
+            Some(TopLevelCommand::Env { porcelain }) => porcelain,
+            _ => panic!("Expected TopLevelCommand::Env"),
+        };
+        assert_eq!(porcelain, true);
     }
 
     #[test]
