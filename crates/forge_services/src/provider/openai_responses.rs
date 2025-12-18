@@ -7,6 +7,7 @@
 /// The Responses API provides a different request/response format optimized for
 /// reasoning and coding tasks, with stricter JSON schema validation for tools.
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use anyhow::Context as _;
 use async_openai::Client as AsyncOpenAIClient;
@@ -32,12 +33,46 @@ use crate::{FromDomain, IntoDomain};
 #[derive(Clone)]
 pub struct OpenAIResponsesProvider<H> {
     provider: Provider<Url>,
+    client: Arc<AsyncOpenAIClient<OpenAIConfig>>,
+    api_base: Url,
+    responses_url: Url,
     _phantom: std::marker::PhantomData<H>,
 }
 
 impl<H: HttpClientService> OpenAIResponsesProvider<H> {
+    /// Creates a new OpenAI Responses provider
+    ///
+    /// # Panics
+    ///
+    /// Panics if the provider URL cannot be converted to an API base URL
     pub fn new(provider: Provider<Url>) -> Self {
-        Self { provider, _phantom: std::marker::PhantomData }
+        let api_base = api_base_from_endpoint_url(&provider.url)
+            .expect("Failed to derive API base URL from provider endpoint");
+        let responses_url = responses_endpoint_from_api_base(&api_base);
+
+        let api_key = provider
+            .credential
+            .as_ref()
+            .map(|c| match &c.auth_details {
+                forge_domain::AuthDetails::ApiKey(key) => key.as_str(),
+                forge_domain::AuthDetails::OAuthWithApiKey { api_key, .. } => api_key.as_str(),
+                forge_domain::AuthDetails::OAuth { tokens, .. } => tokens.access_token.as_str(),
+            })
+            .unwrap_or("");
+
+        let config = OpenAIConfig::new()
+            .with_api_key(api_key)
+            .with_api_base(api_base.as_str());
+
+        let client = Arc::new(AsyncOpenAIClient::with_config(config));
+
+        Self {
+            provider,
+            client,
+            api_base,
+            responses_url,
+            _phantom: std::marker::PhantomData,
+        }
     }
 
     fn get_headers(&self) -> Vec<(String, String)> {
@@ -84,27 +119,6 @@ impl<T: HttpClientService> OpenAIResponsesProvider<T> {
         model: &ModelId,
         context: ChatContext,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
-        let base_url = api_base_from_endpoint_url(&self.provider.url)?;
-        let responses_url = responses_endpoint_from_api_base(&base_url);
-
-        let api_key = self
-            .provider
-            .credential
-            .as_ref()
-            .map(|c| match &c.auth_details {
-                forge_domain::AuthDetails::ApiKey(key) => key.as_str(),
-                forge_domain::AuthDetails::OAuthWithApiKey { api_key, .. } => api_key.as_str(),
-                forge_domain::AuthDetails::OAuth { tokens, .. } => tokens.access_token.as_str(),
-            })
-            .ok_or_else(|| anyhow::anyhow!("Provider credential is required for Codex models"))?;
-
-        // The OpenAIConfig api_base must include the version prefix (e.g. `.../v1`).
-        // We derive it from Forge's endpoint-style provider.url.
-        let config = OpenAIConfig::new()
-            .with_api_key(api_key)
-            .with_api_base(base_url.as_str());
-
-        let client = AsyncOpenAIClient::with_config(config);
         let headers = create_headers(self.get_headers());
 
         let stream_requested = context.stream.unwrap_or(true);
@@ -112,8 +126,8 @@ impl<T: HttpClientService> OpenAIResponsesProvider<T> {
         request.model = Some(model.as_str().to_string());
 
         info!(
-            url = %responses_url,
-            base_url = %base_url,
+            url = %self.responses_url,
+            base_url = %self.api_base,
             model = %model,
             headers = ?sanitize_headers(&headers),
             message_count = %request_message_count(&request),
@@ -122,23 +136,25 @@ impl<T: HttpClientService> OpenAIResponsesProvider<T> {
         );
 
         if stream_requested {
-            let stream = client
+            let stream = self
+                .client
                 .responses()
                 .headers(headers)
                 .create_stream(request)
                 .await
-                .with_context(|| format_http_context(None, "POST", &responses_url))?;
+                .with_context(|| format_http_context(None, "POST", &self.responses_url))?;
 
-            let stream = into_chat_completion_message_codex(responses_url.clone(), stream);
+            let stream = into_chat_completion_message_codex(self.responses_url.clone(), stream);
 
             Ok(Box::pin(stream))
         } else {
-            let response = client
+            let response = self
+                .client
                 .responses()
                 .headers(headers)
                 .create(request)
                 .await
-                .with_context(|| format_http_context(None, "POST", &responses_url))?;
+                .with_context(|| format_http_context(None, "POST", &self.responses_url))?;
 
             let message = response.into_domain();
             let stream = tokio_stream::iter([Ok(message)]);
@@ -150,53 +166,11 @@ impl<T: HttpClientService> OpenAIResponsesProvider<T> {
 /// Derives an API base URL suitable for `async-openai` from a configured
 /// endpoint URL.
 ///
-/// The OpenAI provider config in Forge is typically an endpoint URL (e.g.
-/// `/v1/chat/completions`). `async-openai` expects a base URL (e.g. `/v1`) and
-/// will append the specific endpoint path.
-///
-/// Special handling:
-/// - OpenAI: strips `/chat/completions` to keep `/v1`
-/// - GitHub Copilot: strips `/chat/completions` and adds `/v1` prefix
+/// For Codex/Responses usage we only need the host and the `/v1` prefix.
+/// Any path on the incoming endpoint is ignored in favor of `/v1`.
 fn api_base_from_endpoint_url(endpoint: &Url) -> anyhow::Result<Url> {
-    let segments: Vec<&str> = endpoint
-        .path_segments()
-        .map(|s| s.filter(|seg| !seg.is_empty()).collect())
-        .unwrap_or_default();
-
-    if segments.is_empty() {
-        anyhow::bail!("Provider endpoint URL has no path segments: {endpoint}");
-    }
-
-    // Most OpenAI-compatible providers use the Chat Completions endpoint.
-    // For those, derive the base by trimming `/chat/completions`.
-    let to_trim = if segments.len() >= 2
-        && segments[segments.len() - 2] == "chat"
-        && segments[segments.len() - 1] == "completions"
-    {
-        2
-    } else {
-        1
-    };
-
-    if segments.len() < to_trim {
-        anyhow::bail!("Provider endpoint URL path is too short: {endpoint}");
-    }
-
-    let base_segments = &segments[..segments.len() - to_trim];
-
-    // GitHub Copilot needs /v1 prefix even though their endpoint URL doesn't
-    // include it
-    let base_path =
-        if base_segments.is_empty() && endpoint.host_str() == Some("api.githubcopilot.com") {
-            "/v1".to_string()
-        } else if base_segments.is_empty() {
-            "/".to_string()
-        } else {
-            format!("/{}", base_segments.join("/"))
-        };
-
     let mut base = endpoint.clone();
-    base.set_path(&base_path);
+    base.set_path("/v1");
     base.set_query(None);
     base.set_fragment(None);
     Ok(base)
@@ -667,13 +641,9 @@ mod tests {
         let openai_base = api_base_from_endpoint_url(&openai_endpoint)?;
         assert_eq!(openai_base.as_str(), "https://api.openai.com/v1");
 
-        let zai_endpoint = Url::parse("https://api.z.ai/api/paas/v4/chat/completions")?;
-        let zai_base = api_base_from_endpoint_url(&zai_endpoint)?;
-        assert_eq!(zai_base.as_str(), "https://api.z.ai/api/paas/v4");
-
-        let responses_endpoint = Url::parse("https://example.com/v1/responses")?;
-        let responses_base = api_base_from_endpoint_url(&responses_endpoint)?;
-        assert_eq!(responses_base.as_str(), "https://example.com/v1");
+        let copilot_endpoint = Url::parse("https://api.githubcopilot.com/chat/completions")?;
+        let copilot_base = api_base_from_endpoint_url(&copilot_endpoint)?;
+        assert_eq!(copilot_base.as_str(), "https://api.githubcopilot.com/v1");
 
         Ok(())
     }
