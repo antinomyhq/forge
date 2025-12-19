@@ -1,0 +1,6 @@
+task
+"clean ~/tailcall"
+"format code in ~/task/crates/forge_domain"
+"install dependencies in ~/task/benchmarks"
+"cd to ~/task/crates and run cargo test"
+"go to ~/task/docs and list files"

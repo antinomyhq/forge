@@ -1,0 +1,39 @@
+run:
+  - git clone --depth=1 --branch main https://github.com/antinomyhq/forge .
+  - mkdir ../test-dir && cd ../test-dir
+  - FORGE_OVERRIDE_PROVIDER=open_router FORGE_OVERRIDE_MODEL={{model}} FORGE_DEBUG_REQUESTS='{{dir}}/context.json' forgee -p '{{task}}'
+parallelism: 5
+timeout: 120
+early_exit: false  # We want to see all cases, not just the first success
+
+validations:
+  # Check if any shell tool call contains "cd" command when cwd is also provided
+  - name: "No redundant cd with cwd"
+    type: shell
+    command: |
+      jq -e '
+        [.messages[]?.tool_calls[]? | 
+         select(.function.name == "shell") | 
+         .function.arguments | fromjson | 
+         select((.command | contains("cd "))) |
+         {command: .command, cwd: .cwd}
+        ] | length == 0
+      ' {{dir}}/context.json
+
+  # Detect specific pattern: "cd <path> && <command>" with cwd set
+  - name: "No cd && pattern with cwd"
+    type: shell
+    command: |
+      jq -e '
+        [.messages[]?.tool_calls[]? | 
+         select(.function.name == "shell") | 
+         .function.arguments | fromjson | 
+         select((.command | test("cd\\s+[^;]+\\s*&&"))) |
+         {command: .command, cwd: .cwd, issue: "redundant_cd_with_cwd"}
+        ] | length == 0
+      ' {{dir}}/context.json
+
+sources:
+  - value:
+      - model: "anthropic/claude-sonnet-4.5"
+  - csv: redundant_cd_tasks.csv

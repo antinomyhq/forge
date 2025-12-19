@@ -346,11 +346,12 @@ pub struct FSUndo {
 
 /// Executes shell commands with safety measures using restricted bash (rbash).
 /// Prevents potentially harmful operations like absolute path execution and
-/// directory changes. Use for file system interaction, running utilities,
-/// installing packages, or executing build commands. For operations requiring
-/// unrestricted access, advise users to run forge CLI with '-u' flag. Returns
-/// complete output including stdout, stderr, and exit code for diagnostic
-/// purposes.
+/// directory changes within commands. The `cwd` parameter sets the working
+/// directory - do NOT use `cd` in the command itself. Use for file system
+/// interaction, running utilities, installing packages, or executing build
+/// commands. For operations requiring unrestricted access, advise users to run
+/// forge CLI with '-u' flag. Returns complete output including stdout, stderr,
+/// and exit code for diagnostic purposes.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct Shell {
     /// The shell command to execute.
