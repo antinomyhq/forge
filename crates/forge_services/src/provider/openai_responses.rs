@@ -426,6 +426,15 @@ impl crate::FromDomain<ChatContext> for oai::CreateResponse {
             builder.tool_choice(tool_choice);
         }
 
+        // Enable reasoning for o-series and gpt-5 models
+        // This is required to receive reasoning text in the response
+        let reasoning_config = oai::ReasoningArgs::default()
+            .effort(oai::ReasoningEffort::Medium)
+            .summary(oai::ReasoningSummary::Auto)
+            .build()
+            .map_err(anyhow::Error::from)?;
+        builder.reasoning(reasoning_config);
+
         builder.build().map_err(anyhow::Error::from)
     }
 }
@@ -456,13 +465,65 @@ impl crate::IntoDomain for oai::Response {
 
         let mut saw_tool_call = false;
         for item in &self.output {
-            if let oai::OutputItem::FunctionCall(call) = item {
-                saw_tool_call = true;
-                message = message.add_tool_call(ToolCall::Full(ToolCallFull {
-                    call_id: Some(ToolCallId::new(call.call_id.clone())),
-                    name: ToolName::new(call.name.clone()),
-                    arguments: ToolCallArguments::from_json(&call.arguments),
-                }));
+            match item {
+                oai::OutputItem::FunctionCall(call) => {
+                    saw_tool_call = true;
+                    message = message.add_tool_call(ToolCall::Full(ToolCallFull {
+                        call_id: Some(ToolCallId::new(call.call_id.clone())),
+                        name: ToolName::new(call.name.clone()),
+                        arguments: ToolCallArguments::from_json(&call.arguments),
+                    }));
+                }
+                oai::OutputItem::Reasoning(reasoning) => {
+                    let mut all_reasoning_text = String::new();
+                    
+                    // Process reasoning text content
+                    if let Some(content) = &reasoning.content {
+                        let reasoning_text = content
+                            .iter()
+                            .map(|c| c.text.as_str())
+                            .collect::<String>();
+                        if !reasoning_text.is_empty() {
+                            all_reasoning_text.push_str(&reasoning_text);
+                            message = message.add_reasoning_detail(forge_domain::Reasoning::Full(vec![
+                                forge_domain::ReasoningFull {
+                                    text: Some(reasoning_text),
+                                    type_of: Some("reasoning.text".to_string()),
+                                    ..Default::default()
+                                },
+                            ]));
+                        }
+                    }
+                    
+                    // Process reasoning summary
+                    if !reasoning.summary.is_empty() {
+                        let mut summary_texts = Vec::new();
+                        for summary_part in &reasoning.summary {
+                            match summary_part {
+                                oai::SummaryPart::SummaryText(summary) => {
+                                    summary_texts.push(summary.text.clone());
+                                }
+                            }
+                        }
+                        let summary_text = summary_texts.join("");
+                        if !summary_text.is_empty() {
+                            all_reasoning_text.push_str(&summary_text);
+                            message = message.add_reasoning_detail(forge_domain::Reasoning::Full(vec![
+                                forge_domain::ReasoningFull {
+                                    text: Some(summary_text),
+                                    type_of: Some("reasoning.summary".to_string()),
+                                    ..Default::default()
+                                },
+                            ]));
+                        }
+                    }
+                    
+                    // Set the combined reasoning text in the reasoning field
+                    if !all_reasoning_text.is_empty() {
+                        message = message.reasoning(Content::full(all_reasoning_text));
+                    }
+                }
+                _ => {}
             }
         }
 
@@ -492,16 +553,42 @@ fn into_chat_completion_message_codex(
     stream
         .scan(CodexStreamState::default(), move |state, event| {
             futures::future::ready({
-                let item: Option<anyhow::Result<ChatCompletionMessage>> = match event {
+                let item = match event {
                     Ok(event) => match event {
                         oai::ResponseStreamEvent::ResponseOutputTextDelta(delta) => Some(Ok(
                             ChatCompletionMessage::assistant(Content::part(delta.delta)),
                         )),
+                        oai::ResponseStreamEvent::ResponseReasoningTextDelta(delta) => {
+                            Some(Ok(
+                                ChatCompletionMessage::default()
+                                    .reasoning(Content::part(delta.delta.clone()))
+                                    .add_reasoning_detail(forge_domain::Reasoning::Part(vec![
+                                        forge_domain::ReasoningPart {
+                                            text: Some(delta.delta),
+                                            type_of: Some("reasoning.text".to_string()),
+                                            ..Default::default()
+                                        },
+                                    ]))
+                            ))
+                        }
+                        oai::ResponseStreamEvent::ResponseReasoningSummaryTextDelta(delta) => {
+                            Some(Ok(
+                                ChatCompletionMessage::default()
+                                    .reasoning(Content::part(delta.delta.clone()))
+                                    .add_reasoning_detail(forge_domain::Reasoning::Part(vec![
+                                        forge_domain::ReasoningPart {
+                                            text: Some(delta.delta),
+                                            type_of: Some("reasoning.summary".to_string()),
+                                            ..Default::default()
+                                        },
+                                    ]))
+                            ))
+                        }
                         oai::ResponseStreamEvent::ResponseOutputItemAdded(added) => {
-                            match added.item {
+                            match &added.item {
                                 oai::OutputItem::FunctionCall(call) => {
-                                    let tool_call_id = ToolCallId::new(call.call_id);
-                                    let tool_name = ToolName::new(call.name);
+                                    let tool_call_id = ToolCallId::new(call.call_id.clone());
+                                    let tool_name = ToolName::new(call.name.clone());
 
                                     state.output_index_to_tool_call.insert(
                                         added.output_index,
@@ -515,12 +602,16 @@ fn into_chat_completion_message_codex(
                                             ToolCall::Part(ToolCallPart {
                                                 call_id: Some(tool_call_id),
                                                 name: Some(tool_name),
-                                                arguments_part: call.arguments,
+                                                arguments_part: call.arguments.clone(),
                                             }),
                                         )))
                                     } else {
                                         None
                                     }
+                                }
+                                oai::OutputItem::Reasoning(_reasoning) => {
+                                    // Reasoning items don't emit content in real-time, only at completion
+                                    None
                                 }
                                 _ => None,
                             }
