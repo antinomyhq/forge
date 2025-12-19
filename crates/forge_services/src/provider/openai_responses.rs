@@ -476,25 +476,24 @@ impl crate::IntoDomain for oai::Response {
                 }
                 oai::OutputItem::Reasoning(reasoning) => {
                     let mut all_reasoning_text = String::new();
-                    
+
                     // Process reasoning text content
                     if let Some(content) = &reasoning.content {
-                        let reasoning_text = content
-                            .iter()
-                            .map(|c| c.text.as_str())
-                            .collect::<String>();
+                        let reasoning_text =
+                            content.iter().map(|c| c.text.as_str()).collect::<String>();
                         if !reasoning_text.is_empty() {
                             all_reasoning_text.push_str(&reasoning_text);
-                            message = message.add_reasoning_detail(forge_domain::Reasoning::Full(vec![
-                                forge_domain::ReasoningFull {
-                                    text: Some(reasoning_text),
-                                    type_of: Some("reasoning.text".to_string()),
-                                    ..Default::default()
-                                },
-                            ]));
+                            message =
+                                message.add_reasoning_detail(forge_domain::Reasoning::Full(vec![
+                                    forge_domain::ReasoningFull {
+                                        text: Some(reasoning_text),
+                                        type_of: Some("reasoning.text".to_string()),
+                                        ..Default::default()
+                                    },
+                                ]));
                         }
                     }
-                    
+
                     // Process reasoning summary
                     if !reasoning.summary.is_empty() {
                         let mut summary_texts = Vec::new();
@@ -508,16 +507,17 @@ impl crate::IntoDomain for oai::Response {
                         let summary_text = summary_texts.join("");
                         if !summary_text.is_empty() {
                             all_reasoning_text.push_str(&summary_text);
-                            message = message.add_reasoning_detail(forge_domain::Reasoning::Full(vec![
-                                forge_domain::ReasoningFull {
-                                    text: Some(summary_text),
-                                    type_of: Some("reasoning.summary".to_string()),
-                                    ..Default::default()
-                                },
-                            ]));
+                            message =
+                                message.add_reasoning_detail(forge_domain::Reasoning::Full(vec![
+                                    forge_domain::ReasoningFull {
+                                        text: Some(summary_text),
+                                        type_of: Some("reasoning.summary".to_string()),
+                                        ..Default::default()
+                                    },
+                                ]));
                         }
                     }
-                    
+
                     // Set the combined reasoning text in the reasoning field
                     if !all_reasoning_text.is_empty() {
                         message = message.reasoning(Content::full(all_reasoning_text));
@@ -559,30 +559,26 @@ fn into_chat_completion_message_codex(
                             ChatCompletionMessage::assistant(Content::part(delta.delta)),
                         )),
                         oai::ResponseStreamEvent::ResponseReasoningTextDelta(delta) => {
-                            Some(Ok(
-                                ChatCompletionMessage::default()
-                                    .reasoning(Content::part(delta.delta.clone()))
-                                    .add_reasoning_detail(forge_domain::Reasoning::Part(vec![
-                                        forge_domain::ReasoningPart {
-                                            text: Some(delta.delta),
-                                            type_of: Some("reasoning.text".to_string()),
-                                            ..Default::default()
-                                        },
-                                    ]))
-                            ))
+                            Some(Ok(ChatCompletionMessage::default()
+                                .reasoning(Content::part(delta.delta.clone()))
+                                .add_reasoning_detail(forge_domain::Reasoning::Part(vec![
+                                    forge_domain::ReasoningPart {
+                                        text: Some(delta.delta),
+                                        type_of: Some("reasoning.text".to_string()),
+                                        ..Default::default()
+                                    },
+                                ]))))
                         }
                         oai::ResponseStreamEvent::ResponseReasoningSummaryTextDelta(delta) => {
-                            Some(Ok(
-                                ChatCompletionMessage::default()
-                                    .reasoning(Content::part(delta.delta.clone()))
-                                    .add_reasoning_detail(forge_domain::Reasoning::Part(vec![
-                                        forge_domain::ReasoningPart {
-                                            text: Some(delta.delta),
-                                            type_of: Some("reasoning.summary".to_string()),
-                                            ..Default::default()
-                                        },
-                                    ]))
-                            ))
+                            Some(Ok(ChatCompletionMessage::default()
+                                .reasoning(Content::part(delta.delta.clone()))
+                                .add_reasoning_detail(forge_domain::Reasoning::Part(vec![
+                                    forge_domain::ReasoningPart {
+                                        text: Some(delta.delta),
+                                        type_of: Some("reasoning.summary".to_string()),
+                                        ..Default::default()
+                                    },
+                                ]))))
                         }
                         oai::ResponseStreamEvent::ResponseOutputItemAdded(added) => {
                             match &added.item {
@@ -610,7 +606,8 @@ fn into_chat_completion_message_codex(
                                     }
                                 }
                                 oai::OutputItem::Reasoning(_reasoning) => {
-                                    // Reasoning items don't emit content in real-time, only at completion
+                                    // Reasoning items don't emit content in real-time, only at
+                                    // completion
                                     None
                                 }
                                 _ => None,
