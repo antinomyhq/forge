@@ -36,4 +36,10 @@ validations:
 sources:
   - value:
       - model: "anthropic/claude-sonnet-4.5"
-  - csv: redundant_cd_tasks.csv
+      - model: "z-ai/glm-4.6:exacto"
+  - value:
+      - task: "clean ~/tailcall"
+      - task: "format code in ~/task/crates/forge_domain"
+      - task: "install dependencies in ~/task/benchmarks"
+      - task: "cd to ~/task/crates and run cargo test"
+      - task: "go to ~/task/docs and list files"
