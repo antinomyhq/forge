@@ -344,12 +344,13 @@ pub struct FSUndo {
     pub path: String,
 }
 
-/// Executes shell commands with safety measures using restricted bash (rbash).
-/// Prevents potentially harmful operations like absolute path execution and
-/// directory changes within commands. The `cwd` parameter sets the working
-/// directory - do NOT use `cd` in the command itself. Use for file system
-/// interaction, running utilities, installing packages, or executing build
-/// commands. Returns complete output including stdout, stderr,
+/// Executes shell commands.
+/// The `cwd` parameter sets the working directory for command execution.
+/// CRITICAL: Do NOT use `cd` commands in the command string. This is FORBIDDEN.
+/// Always use the `cwd` parameter to set the working directory instead. Any use
+/// of `cd` in the command is redundant, incorrect, and violates the tool contract.
+/// Use for file system interaction, running utilities, installing packages, or
+/// executing build commands. Returns complete output including stdout, stderr,
 /// and exit code for diagnostic purposes.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct Shell {
