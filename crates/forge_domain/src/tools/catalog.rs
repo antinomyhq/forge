@@ -349,8 +349,7 @@ pub struct FSUndo {
 /// directory changes within commands. The `cwd` parameter sets the working
 /// directory - do NOT use `cd` in the command itself. Use for file system
 /// interaction, running utilities, installing packages, or executing build
-/// commands. For operations requiring unrestricted access, advise users to run
-/// forge CLI with '-u' flag. Returns complete output including stdout, stderr,
+/// commands. Returns complete output including stdout, stderr,
 /// and exit code for diagnostic purposes.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct Shell {
