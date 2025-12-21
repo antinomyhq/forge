@@ -110,7 +110,10 @@ impl<T: HttpClientService> Anthropic<T> {
         Ok(Box::pin(stream))
     }
 
-    pub async fn models(&self) -> anyhow::Result<Vec<Model>> {
+    pub async fn models(
+        &self,
+        provider_id: forge_domain::ProviderId,
+    ) -> anyhow::Result<Vec<Model>> {
         match &self.models {
             forge_domain::ModelSource::Url(url) => {
                 debug!(url = %url, "Fetching models");
@@ -134,7 +137,11 @@ impl<T: HttpClientService> Anthropic<T> {
                     let response: ListModelResponse = serde_json::from_str(&text)
                         .with_context(|| ctx_msg)
                         .with_context(|| "Failed to deserialize models response")?;
-                    Ok(response.data.into_iter().map(Into::into).collect())
+                    Ok(response
+                        .data
+                        .into_iter()
+                        .map(|m| m.into_domain_model(provider_id.clone()))
+                        .collect())
                 } else {
                     // treat non 200 response as error.
                     Err(anyhow::anyhow!(text))
@@ -144,7 +151,12 @@ impl<T: HttpClientService> Anthropic<T> {
             }
             forge_domain::ModelSource::Hardcoded(models) => {
                 debug!("Using hardcoded models");
-                Ok(models.clone())
+                let mut models = models.clone();
+                // Set provider_id on all hardcoded models
+                for model in &mut models {
+                    model.provider_id = Some(provider_id.clone());
+                }
+                Ok(models)
             }
         }
     }
@@ -321,7 +333,9 @@ mod tests {
             .mock_models(create_mock_models_response(), 200)
             .await;
         let anthropic = create_anthropic(&fixture.url())?;
-        let actual = anthropic.models().await?;
+        let actual = anthropic
+            .models(forge_domain::ProviderId::ANTHROPIC)
+            .await?;
 
         mock.assert_async().await;
 
@@ -339,7 +353,7 @@ mod tests {
             .await;
 
         let anthropic = create_anthropic(&fixture.url())?;
-        let actual = anthropic.models().await;
+        let actual = anthropic.models(forge_domain::ProviderId::ANTHROPIC).await;
 
         mock.assert_async().await;
 
@@ -357,7 +371,7 @@ mod tests {
             .await;
 
         let anthropic = create_anthropic(&fixture.url())?;
-        let actual = anthropic.models().await;
+        let actual = anthropic.models(forge_domain::ProviderId::ANTHROPIC).await;
 
         mock.assert_async().await;
 
@@ -374,7 +388,9 @@ mod tests {
         let mock = fixture.mock_models(create_empty_response(), 200).await;
 
         let anthropic = create_anthropic(&fixture.url())?;
-        let actual = anthropic.models().await?;
+        let actual = anthropic
+            .models(forge_domain::ProviderId::ANTHROPIC)
+            .await?;
 
         mock.assert_async().await;
         assert!(actual.is_empty());

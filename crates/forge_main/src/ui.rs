@@ -126,6 +126,15 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(models)
     }
 
+    /// Retrieve available models (with caching and spinner when needed)
+    async fn get_models_with_spinner(&mut self) -> Result<Vec<Model>> {
+        // Show spinner while fetching (caching is handled internally)
+        self.spinner.start(Some("Loading models"))?;
+        let models = self.api.get_models().await?;
+        self.spinner.stop(None)?;
+        Ok(models)
+    }
+
     /// Helper to get provider for an optional agent, defaulting to the current
     /// active agent's provider
     async fn get_provider(&self, agent_id: Option<AgentId>) -> Result<Provider<Url>> {
@@ -347,8 +356,13 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     // Improve startup time by hydrating caches
     fn hydrate_caches(&self) {
+        // Hydrate models from all providers
         let api = self.api.clone();
-        tokio::spawn(async move { api.get_models().await });
+        tokio::spawn(async move {
+            if let Err(e) = api.get_models().await {
+                tracing::warn!("Failed to hydrate multi-provider model cache: {}", e);
+            }
+        });
         let api = self.api.clone();
         tokio::spawn(async move { api.get_tools().await });
         let api = self.api.clone();
@@ -1026,20 +1040,37 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Lists all the models
     async fn on_show_models(&mut self, porcelain: bool) -> anyhow::Result<()> {
-        let models = self.get_models().await?;
+        // Fetch models from all providers
+        let mut models = self.get_models_with_spinner().await?;
 
         if models.is_empty() {
             return Ok(());
         }
 
+        // Sort by provider first, then by model name
+        models.sort_by(|a, b| {
+            let provider_cmp = a.provider_id.cmp(&b.provider_id);
+            if provider_cmp == std::cmp::Ordering::Equal {
+                a.id.to_string().cmp(&b.id.to_string())
+            } else {
+                provider_cmp
+            }
+        });
+
         let mut info = Info::new();
 
         for model in models.iter() {
             let id = model.id.to_string();
+            let provider = model
+                .provider_id
+                .as_ref()
+                .map(|p| p.to_string())
+                .unwrap_or_else(|| "unknown".to_string());
 
             info = info
                 .add_title(model.name.as_ref().unwrap_or(&id))
-                .add_key_value("Id", id);
+                .add_key_value("Id", id)
+                .add_key_value("Provider", provider);
 
             // Add context length if available, otherwise use "unknown"
             if let Some(limit) = model.context_length {
@@ -1735,10 +1766,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     }
 
     /// Select a model from the available models
-    /// Returns Some(ModelId) if a model was selected, or None if selection was
+    /// Returns Some(Model) if a model was selected, or None if selection was
     /// canceled
     #[async_recursion::async_recursion]
-    async fn select_model(&mut self) -> Result<Option<ModelId>> {
+    async fn select_model(&mut self) -> Result<Option<Model>> {
         // Check if provider is set otherwise first ask to select a provider
         if self.api.get_default_provider().await.is_err() {
             self.on_provider_selection().await?;
@@ -1751,7 +1782,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
         }
 
-        // Fetch available models
+        // Fetch available models from all configured providers
         let mut models = self
             .get_models()
             .await?
@@ -1759,8 +1790,23 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .map(CliModel)
             .collect::<Vec<_>>();
 
-        // Sort the models by their names in ascending order
-        models.sort_by(|a, b| a.0.name.cmp(&b.0.name));
+        // Sort by provider first, then by model name
+        models.sort_by(|a, b| {
+            let provider_a =
+                a.0.provider_id
+                    .as_ref()
+                    .map(|p| p.to_string())
+                    .unwrap_or_default();
+            let provider_b =
+                b.0.provider_id
+                    .as_ref()
+                    .map(|p| p.to_string())
+                    .unwrap_or_default();
+            match provider_a.cmp(&provider_b) {
+                std::cmp::Ordering::Equal => a.0.name.cmp(&b.0.name),
+                other => other,
+            }
+        });
 
         // Find the index of the current model
         let current_model = self
@@ -1777,7 +1823,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .with_help_message("Type a name or use arrow keys to navigate and Enter to select")
             .prompt()?
         {
-            Some(model) => Ok(Some(model.0.id)),
+            Some(model) => Ok(Some(model.0)),
             None => Ok(None),
         }
     }
@@ -2158,15 +2204,45 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             None => return Ok(None),
         };
 
+        // Check if we need to switch providers
+        let current_provider = self.api.get_default_provider().await.ok();
+        let needs_provider_switch = model
+            .provider_id
+            .as_ref()
+            .and_then(|model_provider| current_provider.as_ref().map(|p| p.id != *model_provider))
+            .unwrap_or(false);
+
+        // Switch provider if needed
+        if needs_provider_switch
+            && let Some(provider_id) = &model.provider_id {
+                self.api.set_default_provider(provider_id.clone()).await?;
+            }
+
         // Update the operating model via API
-        self.api.set_default_model(model.clone()).await?;
+        self.api.set_default_model(model.id.clone()).await?;
 
         // Update the UI state with the new model
-        self.update_model(Some(model.clone()));
+        self.update_model(Some(model.id.clone()));
 
-        self.writeln_title(TitleFormat::action(format!("Switched to model: {model}")))?;
+        // Show appropriate message
+        if needs_provider_switch {
+            let provider_name = model
+                .provider_id
+                .as_ref()
+                .map(|p| p.to_string())
+                .unwrap_or_else(|| "unknown".to_string());
+            self.writeln_title(TitleFormat::action(format!(
+                "Switched to model: {} on provider: {}",
+                model.id, provider_name
+            )))?;
+        } else {
+            self.writeln_title(TitleFormat::action(format!(
+                "Switched to model: {}",
+                model.id
+            )))?;
+        }
 
-        Ok(Some(model))
+        Ok(Some(model.id))
     }
 
     async fn on_provider_selection(&mut self) -> Result<()> {
@@ -2775,10 +2851,50 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
             ConfigField::Model => {
                 let model_id = self.validate_model(&args.value).await?;
+
+                // Get the full model object to check provider
+                let models = self.api.get_models().await?;
+                let model = models
+                    .iter()
+                    .find(|m| m.id == model_id)
+                    .ok_or_else(|| anyhow::anyhow!("Model not found after validation"))?;
+
+                // Check if we need to switch providers
+                let current_provider = self.api.get_default_provider().await.ok();
+                let needs_provider_switch = model
+                    .provider_id
+                    .as_ref()
+                    .and_then(|model_provider| {
+                        current_provider.as_ref().map(|p| p.id != *model_provider)
+                    })
+                    .unwrap_or(false);
+
+                // Switch provider if needed
+                if needs_provider_switch
+                    && let Some(provider_id) = &model.provider_id {
+                        self.api.set_default_provider(provider_id.clone()).await?;
+                    }
+
+                // Set the model
                 self.api.set_default_model(model_id.clone()).await?;
-                self.writeln_title(
-                    TitleFormat::action(model_id.as_str()).sub_title("is now the default model"),
-                )?;
+
+                // Show appropriate message
+                if needs_provider_switch {
+                    let provider_name = model
+                        .provider_id
+                        .as_ref()
+                        .map(|p| p.to_string())
+                        .unwrap_or_else(|| "unknown".to_string());
+                    self.writeln_title(TitleFormat::action(format!(
+                        "Switched to model: {} on provider: {}",
+                        model_id, provider_name
+                    )))?;
+                } else {
+                    self.writeln_title(
+                        TitleFormat::action(model_id.as_str())
+                            .sub_title("is now the default model"),
+                    )?;
+                }
             }
         }
 
@@ -2856,7 +2972,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Some(rprompt.to_string())
     }
 
-    /// Validate model exists
+    /// Validate model exists across all configured providers
     async fn validate_model(&self, model_str: &str) -> Result<ModelId> {
         let models = self.api.get_models().await?;
         let model_id = ModelId::new(model_str);

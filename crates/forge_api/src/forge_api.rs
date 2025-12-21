@@ -73,6 +73,7 @@ impl<
     async fn get_models(&self) -> Result<Vec<Model>> {
         self.app().get_models().await
     }
+
     async fn get_agents(&self) -> Result<Vec<Agent>> {
         self.services.get_agents().await
     }

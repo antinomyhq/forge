@@ -253,18 +253,82 @@ impl<S: Services> ForgeApp<S> {
         self.tool_registry.tools_overview().await
     }
 
-    /// Gets available models for the default provider with automatic credential
-    /// refresh.
+    /// Gets available models from all configured LLM providers with automatic
+    /// credential refresh and caching. Fetches models in parallel and
+    /// aggregates results. Errors from individual providers are logged but
+    /// don't prevent returning models from other providers.
     pub async fn get_models(&self) -> Result<Vec<Model>> {
-        let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
-        let provider = agent_provider_resolver.get_provider(None).await?;
-        let provider = self
-            .services
-            .provider_auth_service()
-            .refresh_provider_credential(provider)
-            .await?;
+        use forge_domain::ProviderType;
+        use futures::stream::{FuturesUnordered, StreamExt};
 
-        self.services.models(provider).await
+        // Check cache first
+        if let Some(cached_models) = self.services.get_cached_all_models().await {
+            return Ok(cached_models);
+        }
+
+        // Get all providers
+        let all_providers = self.services.get_all_providers().await?;
+
+        // Filter to only LLM providers that are configured
+        let llm_providers: Vec<_> = all_providers
+            .into_iter()
+            .filter(|p| {
+                let is_llm = match p {
+                    forge_domain::AnyProvider::Url(provider) => {
+                        provider.provider_type == ProviderType::Llm
+                    }
+                    forge_domain::AnyProvider::Template(provider) => {
+                        provider.provider_type == ProviderType::Llm
+                    }
+                };
+                is_llm && p.is_configured()
+            })
+            .collect();
+
+        // Fetch models from all providers in parallel
+        let mut fetch_futures = FuturesUnordered::new();
+
+        for any_provider in llm_providers {
+            let provider = match any_provider.into_configured() {
+                Some(p) => p,
+                None => continue,
+            };
+
+            // Refresh credentials for this provider
+            let services = self.services.clone();
+            let fetch_task = async move {
+                let provider = services
+                    .provider_auth_service()
+                    .refresh_provider_credential(provider)
+                    .await?;
+                let provider_id = provider.id.clone();
+
+                services.models(provider).await.map_err(|e| {
+                    tracing::warn!(
+                        provider_id = %provider_id,
+                        error = %e,
+                        "Failed to fetch models from provider"
+                    );
+                    e
+                })
+            };
+
+            fetch_futures.push(fetch_task);
+        }
+
+        // Collect all successful results
+        let mut all_models = Vec::new();
+        while let Some(result) = fetch_futures.next().await {
+            if let Ok(mut models) = result {
+                all_models.append(&mut models);
+            }
+            // Errors are already logged in the task above
+        }
+
+        // Cache the aggregated results
+        self.services.cache_all_models(all_models.clone()).await;
+
+        Ok(all_models)
     }
     pub async fn login(&self, init_auth: &InitAuth) -> Result<()> {
         self.authenticator.login(init_auth).await

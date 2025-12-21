@@ -90,6 +90,7 @@ impl Default for TestContext {
                 override_model: None,
                 override_provider: None,
                 enable_permissions: false,
+                model_cache_ttl_seconds: 3600,
             },
             title: Some("test-conversation".into()),
             agent: Agent::new(

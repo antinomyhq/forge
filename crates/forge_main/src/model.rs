@@ -46,6 +46,11 @@ impl Display for CliModel {
             write!(f, " {}", info.dimmed())?;
         }
 
+        // Add provider information
+        if let Some(provider_id) = &self.0.provider_id {
+            write!(f, " {}", format!("[{}]", provider_id).dimmed())?;
+        }
+
         Ok(())
     }
 }
@@ -920,6 +925,7 @@ mod tests {
     ) -> Model {
         Model {
             id: ModelId::new(id),
+            provider_id: Some(ProviderId::OPENAI),
             name: None,
             description: None,
             context_length,
@@ -934,7 +940,7 @@ mod tests {
         let fixture = create_model_fixture("gpt-4", Some(128000), Some(true));
         let formatted = format!("{}", CliModel(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "gpt-4 [ 128k 🛠️ ]";
+        let expected = "gpt-4 [ 128k 🛠️ ] [OpenAI]";
         assert_eq!(actual, expected);
     }
 
@@ -943,7 +949,7 @@ mod tests {
         let fixture = create_model_fixture("claude-3", Some(2000000), Some(true));
         let formatted = format!("{}", CliModel(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "claude-3 [ 2M 🛠️ ]";
+        let expected = "claude-3 [ 2M 🛠️ ] [OpenAI]";
         assert_eq!(actual, expected);
     }
 
@@ -952,7 +958,7 @@ mod tests {
         let fixture = create_model_fixture("small-model", Some(512), Some(false));
         let formatted = format!("{}", CliModel(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "small-model [ 512 ]";
+        let expected = "small-model [ 512 ] [OpenAI]";
         assert_eq!(actual, expected);
     }
 
@@ -961,7 +967,7 @@ mod tests {
         let fixture = create_model_fixture("text-model", Some(4096), Some(false));
         let formatted = format!("{}", CliModel(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "text-model [ 4k ]";
+        let expected = "text-model [ 4k ] [OpenAI]";
         assert_eq!(actual, expected);
     }
 
@@ -970,7 +976,7 @@ mod tests {
         let fixture = create_model_fixture("tool-model", None, Some(true));
         let formatted = format!("{}", CliModel(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "tool-model [ 🛠️ ]";
+        let expected = "tool-model [ 🛠️ ] [OpenAI]";
         assert_eq!(actual, expected);
     }
 
@@ -979,7 +985,7 @@ mod tests {
         let fixture = create_model_fixture("basic-model", None, Some(false));
         let formatted = format!("{}", CliModel(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "basic-model";
+        let expected = "basic-model [OpenAI]";
         assert_eq!(actual, expected);
     }
 
@@ -988,7 +994,7 @@ mod tests {
         let fixture = create_model_fixture("unknown-model", None, None);
         let formatted = format!("{}", CliModel(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "unknown-model";
+        let expected = "unknown-model [OpenAI]";
         assert_eq!(actual, expected);
     }
 
@@ -997,7 +1003,7 @@ mod tests {
         let fixture = create_model_fixture("exact-k", Some(8000), Some(true));
         let formatted = format!("{}", CliModel(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "exact-k [ 8k 🛠️ ]";
+        let expected = "exact-k [ 8k 🛠️ ] [OpenAI]";
         assert_eq!(actual, expected);
     }
 
@@ -1006,7 +1012,7 @@ mod tests {
         let fixture = create_model_fixture("exact-m", Some(1000000), Some(true));
         let formatted = format!("{}", CliModel(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "exact-m [ 1M 🛠️ ]";
+        let expected = "exact-m [ 1M 🛠️ ] [OpenAI]";
         assert_eq!(actual, expected);
     }
 
@@ -1015,7 +1021,7 @@ mod tests {
         let fixture = create_model_fixture("edge-999", Some(999), None);
         let formatted = format!("{}", CliModel(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "edge-999 [ 999 ]";
+        let expected = "edge-999 [ 999 ] [OpenAI]";
         assert_eq!(actual, expected);
     }
 
@@ -1024,7 +1030,7 @@ mod tests {
         let fixture = create_model_fixture("edge-1001", Some(1001), None);
         let formatted = format!("{}", CliModel(fixture));
         let actual = strip_ansi_codes(&formatted);
-        let expected = "edge-1001 [ 1k ]";
+        let expected = "edge-1001 [ 1k ] [OpenAI]";
         assert_eq!(actual, expected);
     }
 

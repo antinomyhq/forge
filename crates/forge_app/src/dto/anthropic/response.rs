@@ -1,6 +1,6 @@
 use forge_domain::{
-    ChatCompletionMessage, Content, ModelId, Reasoning, ReasoningPart, TokenCount, ToolCallId,
-    ToolCallPart, ToolName,
+    ChatCompletionMessage, Content, ModelId, ProviderId, Reasoning, ReasoningPart, TokenCount,
+    ToolCallId, ToolCallPart, ToolName,
 };
 use serde::Deserialize;
 
@@ -18,12 +18,14 @@ pub struct Model {
     pub display_name: String,
 }
 
-impl From<Model> for forge_domain::Model {
-    fn from(value: Model) -> Self {
-        let context_length = get_context_length(&value.id);
-        Self {
-            id: ModelId::new(value.id),
-            name: Some(value.display_name),
+impl Model {
+    /// Converts this DTO model to a domain model with the specified provider_id
+    pub fn into_domain_model(self, provider_id: ProviderId) -> forge_domain::Model {
+        let context_length = get_context_length(&self.id);
+        forge_domain::Model {
+            id: ModelId::new(self.id),
+            provider_id: Some(provider_id),
+            name: Some(self.display_name),
             description: None,
             context_length,
             tools_supported: Some(true),
@@ -661,7 +663,8 @@ mod tests {
             display_name: "Claude 3.5 Sonnet (New)".to_string(),
         };
 
-        let actual: forge_domain::Model = fixture.into();
+        let actual: forge_domain::Model =
+            fixture.into_domain_model(forge_domain::ProviderId::ANTHROPIC);
 
         assert_eq!(actual.context_length, Some(200_000));
         assert_eq!(actual.id.as_str(), "claude-sonnet-4-5-20250929");
@@ -675,7 +678,8 @@ mod tests {
             display_name: "Unknown Model".to_string(),
         };
 
-        let actual: forge_domain::Model = fixture.into();
+        let actual: forge_domain::Model =
+            fixture.into_domain_model(forge_domain::ProviderId::ANTHROPIC);
 
         assert_eq!(actual.context_length, None);
         assert_eq!(actual.id.as_str(), "unknown-claude-model");

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::sync::Arc;
+use std::time::{Duration, SystemTime};
 
 use anyhow::{Context, Result};
 use forge_app::domain::{
@@ -13,11 +14,60 @@ use url::Url;
 
 use crate::http::HttpClient;
 use crate::provider::client::{Client, ClientBuilder};
+
+/// Flat cache structure for all models
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+struct FlatModelCache {
+    models: Vec<Model>,
+    #[serde(with = "systemtime_serde")]
+    cached_at: SystemTime,
+}
+
+/// Custom serialization for SystemTime
+mod systemtime_serde {
+    use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S>(time: &SystemTime, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let duration = time
+            .duration_since(UNIX_EPOCH)
+            .map_err(serde::ser::Error::custom)?;
+        serializer.serialize_u64(duration.as_secs())
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<SystemTime, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let secs = u64::deserialize(deserializer)?;
+        Ok(UNIX_EPOCH + Duration::from_secs(secs))
+    }
+}
+
+impl FlatModelCache {
+    fn new(models: Vec<Model>) -> Self {
+        Self { models, cached_at: SystemTime::now() }
+    }
+
+    /// Check if cache has expired based on TTL
+    fn is_expired(&self, ttl: Duration) -> bool {
+        SystemTime::now()
+            .duration_since(self.cached_at)
+            .map(|age| age > ttl)
+            .unwrap_or(true)
+    }
+}
+
 #[derive(Clone)]
 pub struct ForgeProviderService<I> {
     retry_config: Arc<RetryConfig>,
     cached_clients: Arc<Mutex<HashMap<ProviderId, Client<HttpClient<I>>>>>,
-    cached_models: Arc<Mutex<HashMap<ProviderId, Vec<Model>>>>,
+    flat_cache: Arc<Mutex<Option<FlatModelCache>>>,
+    cache_ttl: Duration,
     version: String,
     timeout_config: HttpConfig,
     infra: Arc<I>,
@@ -27,14 +77,55 @@ impl<I: EnvironmentInfra + HttpInfra> ForgeProviderService<I> {
     pub fn new(infra: Arc<I>) -> Self {
         let env = infra.get_environment();
         let version = env.version();
+        let cache_ttl = Duration::from_secs(env.model_cache_ttl_seconds);
+
+        // Load flat cache from disk if available
+        let flat_cache = Self::load_cache_from_disk(&env);
+
         let retry_config = Arc::new(env.retry_config);
+        let timeout_config = env.http;
+
         Self {
             retry_config,
             cached_clients: Arc::new(Mutex::new(HashMap::new())),
-            cached_models: Arc::new(Mutex::new(HashMap::new())),
+            flat_cache: Arc::new(Mutex::new(flat_cache)),
+            cache_ttl,
             version,
-            timeout_config: env.http,
+            timeout_config,
             infra,
+        }
+    }
+
+    /// Create a new service with custom cache TTL
+    pub fn with_cache_ttl(infra: Arc<I>, cache_ttl: Duration) -> Self {
+        let mut service = Self::new(infra);
+        service.cache_ttl = cache_ttl;
+        service
+    }
+
+    /// Load flat cache from disk
+    fn load_cache_from_disk(env: &forge_domain::Environment) -> Option<FlatModelCache> {
+        let cache_path = env.model_cache_path();
+        if !cache_path.exists() {
+            return None;
+        }
+
+        let content = std::fs::read_to_string(&cache_path).ok()?;
+        serde_json::from_str(&content).ok()
+    }
+
+    /// Save flat cache to disk
+    fn save_cache_to_disk(env: &forge_domain::Environment, cache: &FlatModelCache) {
+        let cache_path = env.model_cache_path();
+
+        // Ensure cache directory exists
+        if let Some(parent) = cache_path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+
+        // Serialize and write cache
+        if let Ok(content) = serde_json::to_string_pretty(cache) {
+            let _ = std::fs::write(&cache_path, content);
         }
     }
 }
@@ -88,27 +179,9 @@ impl<I: EnvironmentInfra + HttpInfra + ProviderRepository> ProviderService
     }
 
     async fn models(&self, provider: Provider<Url>) -> Result<Vec<Model>> {
-        let provider_id = provider.id.clone();
-
-        // Check cache first
-        {
-            let models_guard = self.cached_models.lock().await;
-            if let Some(cached_models) = models_guard.get(&provider_id) {
-                return Ok(cached_models.clone());
-            }
-        }
-
-        // Models not in cache, fetch from client
+        // Fetch models from client (no per-provider caching)
         let client = self.client(provider).await?;
-        let models = client.models().await?;
-
-        // Cache the models for this provider
-        {
-            let mut models_guard = self.cached_models.lock().await;
-            models_guard.insert(provider_id, models.clone());
-        }
-
-        Ok(models)
+        client.models().await
     }
 
     async fn get_provider(&self, id: ProviderId) -> Result<Provider<Url>> {
@@ -132,6 +205,9 @@ impl<I: EnvironmentInfra + HttpInfra + ProviderRepository> ProviderService
             clients_guard.remove(&provider_id);
         }
 
+        // Invalidate flat cache since credentials changed
+        self.invalidate_caches().await;
+
         Ok(())
     }
 
@@ -144,10 +220,42 @@ impl<I: EnvironmentInfra + HttpInfra + ProviderRepository> ProviderService
             clients_guard.remove(id);
         }
 
+        // Invalidate flat cache since credentials removed
+        self.invalidate_caches().await;
+
         Ok(())
     }
 
     async fn migrate_env_credentials(&self) -> Result<Option<forge_domain::MigrationResult>> {
         self.infra.migrate_env_credentials().await
+    }
+
+    async fn cache_all_models(&self, models: Vec<Model>) {
+        let mut cache_guard = self.flat_cache.lock().await;
+        *cache_guard = Some(FlatModelCache::new(models));
+
+        // Save cache to disk
+        if let Some(cache) = cache_guard.as_ref() {
+            let env = self.infra.get_environment();
+            Self::save_cache_to_disk(&env, cache);
+        }
+    }
+
+    async fn get_cached_all_models(&self) -> Option<Vec<Model>> {
+        let cache_guard = self.flat_cache.lock().await;
+        cache_guard
+            .as_ref()
+            .filter(|cached| !cached.is_expired(self.cache_ttl))
+            .map(|cached| cached.models.clone())
+    }
+
+    async fn invalidate_caches(&self) {
+        let mut cache_guard = self.flat_cache.lock().await;
+        *cache_guard = None;
+
+        // Delete cache file from disk
+        let env = self.infra.get_environment();
+        let cache_path = env.model_cache_path();
+        let _ = std::fs::remove_file(cache_path);
     }
 }

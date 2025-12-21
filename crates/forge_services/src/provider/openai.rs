@@ -120,11 +120,19 @@ impl<H: HttpClientService> OpenAIProvider<H> {
         Ok(Box::pin(stream))
     }
 
-    async fn inner_models(&self) -> Result<Vec<forge_app::domain::Model>> {
+    async fn inner_models(
+        &self,
+        provider_id: forge_domain::ProviderId,
+    ) -> Result<Vec<forge_app::domain::Model>> {
         // For Vertex AI, load models from static JSON file using VertexProvider logic
         if self.provider.id == ProviderId::VERTEX_AI {
             debug!("Loading Vertex AI models from static JSON file");
-            Ok(self.inner_vertex_models())
+            let mut models = self.inner_vertex_models();
+            // Set provider_id on all models
+            for model in &mut models {
+                model.provider_id = Some(provider_id.clone());
+            }
+            Ok(models)
         } else {
             let models = self
                 .provider
@@ -143,13 +151,22 @@ impl<H: HttpClientService> OpenAIProvider<H> {
                             let data: ListModelResponse = serde_json::from_str(&response)
                                 .with_context(|| format_http_context(None, "GET", url))
                                 .with_context(|| "Failed to deserialize models response")?;
-                            Ok(data.data.into_iter().map(Into::into).collect())
+                            Ok(data
+                                .data
+                                .into_iter()
+                                .map(|m| m.into_domain_model(provider_id.clone()))
+                                .collect())
                         }
                     }
                 }
                 forge_domain::ModelSource::Hardcoded(models) => {
                     debug!("Using hardcoded models");
-                    Ok(models.clone())
+                    let mut models = models.clone();
+                    // Set provider_id on all hardcoded models
+                    for model in &mut models {
+                        model.provider_id = Some(provider_id.clone());
+                    }
+                    Ok(models)
                 }
             }
         }
@@ -207,8 +224,11 @@ impl<T: HttpClientService> OpenAIProvider<T> {
         self.inner_chat(model, context).await
     }
 
-    pub async fn models(&self) -> Result<Vec<forge_app::domain::Model>> {
-        self.inner_models().await
+    pub async fn models(
+        &self,
+        provider_id: forge_domain::ProviderId,
+    ) -> Result<Vec<forge_app::domain::Model>> {
+        self.inner_models(provider_id).await
     }
 }
 
@@ -408,7 +428,7 @@ mod tests {
             .mock_models(create_mock_models_response(), 200)
             .await;
         let provider = create_provider(&fixture.url())?;
-        let actual = provider.models().await?;
+        let actual = provider.models(ProviderId::OPENAI).await?;
 
         mock.assert_async().await;
         insta::assert_json_snapshot!(actual);
@@ -423,7 +443,7 @@ mod tests {
             .await;
 
         let provider = create_provider(&fixture.url())?;
-        let actual = provider.models().await;
+        let actual = provider.models(ProviderId::OPENAI).await;
 
         mock.assert_async().await;
 
@@ -441,7 +461,7 @@ mod tests {
             .await;
 
         let provider = create_provider(&fixture.url())?;
-        let actual = provider.models().await;
+        let actual = provider.models(ProviderId::OPENAI).await;
 
         mock.assert_async().await;
 
@@ -457,7 +477,7 @@ mod tests {
         let mock = fixture.mock_models(create_empty_response(), 200).await;
 
         let provider = create_provider(&fixture.url())?;
-        let actual = provider.models().await?;
+        let actual = provider.models(ProviderId::OPENAI).await?;
 
         mock.assert_async().await;
         assert!(actual.is_empty());
@@ -491,7 +511,7 @@ mod tests {
         let mock = fixture.mock_models(detailed_error, 401).await;
 
         let provider = create_provider(&fixture.url())?;
-        let actual = provider.models().await;
+        let actual = provider.models(ProviderId::OPENAI).await;
 
         mock.assert_async().await;
         assert!(actual.is_err());

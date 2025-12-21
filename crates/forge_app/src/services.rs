@@ -147,6 +147,15 @@ pub trait ProviderService: Send + Sync {
     async fn migrate_env_credentials(
         &self,
     ) -> anyhow::Result<Option<forge_domain::MigrationResult>>;
+
+    /// Cache aggregated models from all providers
+    async fn cache_all_models(&self, models: Vec<Model>);
+
+    /// Get cached aggregated models if available and not expired
+    async fn get_cached_all_models(&self) -> Option<Vec<Model>>;
+
+    /// Invalidate all caches (per-provider and aggregated)
+    async fn invalidate_caches(&self);
 }
 
 /// Manages user preferences for default providers and models.
@@ -655,6 +664,18 @@ impl<I: Services> ProviderService for I {
         &self,
     ) -> anyhow::Result<Option<forge_domain::MigrationResult>> {
         self.provider_service().migrate_env_credentials().await
+    }
+
+    async fn cache_all_models(&self, models: Vec<Model>) {
+        self.provider_service().cache_all_models(models).await
+    }
+
+    async fn get_cached_all_models(&self) -> Option<Vec<Model>> {
+        self.provider_service().get_cached_all_models().await
+    }
+
+    async fn invalidate_caches(&self) {
+        self.provider_service().invalidate_caches().await
     }
 }
 

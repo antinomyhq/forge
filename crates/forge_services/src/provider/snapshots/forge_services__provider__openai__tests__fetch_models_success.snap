@@ -5,6 +5,7 @@ expression: actual
 [
   {
     "id": "model-1",
+    "provider_id": "openai",
     "name": "Test Model 1",
     "description": "A test model",
     "context_length": 4096,
@@ -14,6 +15,7 @@ expression: actual
   },
   {
     "id": "model-2",
+    "provider_id": "openai",
     "name": "Test Model 2",
     "description": "Another test model",
     "context_length": 8192,

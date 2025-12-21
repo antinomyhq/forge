@@ -138,6 +138,7 @@ mod tests {
                             tools_supported: Some(true),
                             supports_parallel_tool_calls: Some(true),
                             supports_reasoning: Some(false),
+                            provider_id: Some(ProviderId::OPENAI),
                         }])),
                     },
                     Provider {
@@ -162,6 +163,7 @@ mod tests {
                             tools_supported: Some(true),
                             supports_parallel_tool_calls: Some(true),
                             supports_reasoning: Some(true),
+                            provider_id: Some(ProviderId::ANTHROPIC),
                         }])),
                     },
                 ],

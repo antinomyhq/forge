@@ -3,13 +3,16 @@ use derive_setters::Setters;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
+use crate::ProviderId;
+
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize, Setters)]
 pub struct Model {
     pub id: ModelId,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider_id: Option<ProviderId>,
     pub name: Option<String>,
     pub description: Option<String>,
     pub context_length: Option<u64>,
-    // TODO: add provider information to the model
     pub tools_supported: Option<bool>,
     /// Whether the model supports parallel tool calls
     pub supports_parallel_tool_calls: Option<bool>,

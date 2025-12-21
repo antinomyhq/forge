@@ -1,4 +1,4 @@
-use forge_domain::ModelId;
+use forge_domain::{ModelId, ProviderId};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -88,11 +88,11 @@ pub struct ListModelResponse {
     pub data: Vec<Model>,
 }
 
-impl From<Model> for forge_domain::Model {
-    fn from(value: Model) -> Self {
+impl Model {
+    /// Converts this DTO model to a domain model with the specified provider_id
+    pub fn into_domain_model(self, provider_id: ProviderId) -> forge_domain::Model {
         let has_param = |name: &str| {
-            value
-                .supported_parameters
+            self.supported_parameters
                 .as_ref()
                 .map(|params| params.iter().any(|p| p == name))
         };
@@ -102,10 +102,11 @@ impl From<Model> for forge_domain::Model {
         let supports_reasoning = has_param("reasoning");
 
         forge_domain::Model {
-            id: value.id,
-            name: value.name,
-            description: value.description,
-            context_length: value.context_length,
+            id: self.id,
+            provider_id: Some(provider_id),
+            name: self.name,
+            description: self.description,
+            context_length: self.context_length,
             tools_supported,
             supports_parallel_tool_calls,
             supports_reasoning,
@@ -263,7 +264,7 @@ mod tests {
             supported_parameters: None, // No supported_parameters field
         };
 
-        let domain_model: forge_domain::Model = model.into();
+        let domain_model = model.into_domain_model(forge_domain::ProviderId::OPENAI);
 
         // When supported_parameters is None, capabilities should be None (unknown)
         assert_eq!(domain_model.tools_supported, None);
@@ -290,7 +291,7 @@ mod tests {
             ]),
         };
 
-        let domain_model: forge_domain::Model = model.into();
+        let domain_model = model.into_domain_model(forge_domain::ProviderId::OPENAI);
 
         // Should reflect what's actually in supported_parameters
         assert_eq!(domain_model.tools_supported, Some(true));
