@@ -6,9 +6,9 @@ use derive_setters::Setters;
 use forge_domain::{
     AgentId, AnyProvider, Attachment, AuthContextRequest, AuthContextResponse, AuthMethod,
     ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId, Environment, File,
-    Image, InitAuth, LoginInfo, McpConfig, McpServers, Model, ModelId, Node, PatchOperation,
-    Provider, ProviderId, ResultStream, Scope, SearchParams, SyncProgress, Template, ToolCallFull,
-    ToolOutput, Workflow, WorkspaceAuth, WorkspaceId, WorkspaceInfo,
+    FileStatus, Image, InitAuth, LoginInfo, McpConfig, McpServers, Model, ModelId, Node,
+    PatchOperation, Provider, ProviderId, ResultStream, Scope, SearchParams, SyncProgress, Template,
+    ToolCallFull, ToolOutput, Workflow, WorkspaceAuth, WorkspaceId, WorkspaceInfo,
 };
 use merge::Merge;
 use reqwest::Response;
@@ -278,6 +278,9 @@ pub trait ContextEngineService: Send + Sync {
 
     /// Checks if workspace is indexed.
     async fn is_indexed(&self, path: &Path) -> anyhow::Result<bool>;
+
+    /// Get sync status for all files in workspace
+    async fn get_workspace_status(&self, path: PathBuf) -> anyhow::Result<Vec<FileStatus>>;
 
     /// Check if authentication credentials exist
     async fn is_authenticated(&self) -> anyhow::Result<bool>;
@@ -1067,6 +1070,12 @@ impl<I: Services> ContextEngineService for I {
 
     async fn is_indexed(&self, path: &Path) -> anyhow::Result<bool> {
         self.context_engine_service().is_indexed(path).await
+    }
+
+    async fn get_workspace_status(&self, path: PathBuf) -> anyhow::Result<Vec<FileStatus>> {
+        self.context_engine_service()
+            .get_workspace_status(path)
+            .await
     }
 
     async fn is_authenticated(&self) -> anyhow::Result<bool> {

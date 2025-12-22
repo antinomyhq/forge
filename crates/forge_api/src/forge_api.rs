@@ -358,6 +358,13 @@ impl<
         self.services.delete_codebase(&workspace_id).await
     }
 
+    async fn get_workspace_status(
+        &self,
+        path: PathBuf,
+    ) -> Result<Vec<forge_domain::FileStatus>> {
+        self.services.get_workspace_status(path).await
+    }
+
     async fn is_authenticated(&self) -> Result<bool> {
         self.services.is_authenticated().await
     }

@@ -208,6 +208,12 @@ pub trait API: Sync + Send {
     /// Delete a workspace
     async fn delete_codebase(&self, workspace_id: forge_domain::WorkspaceId) -> Result<()>;
 
+    /// Get sync status for all files in workspace
+    async fn get_workspace_status(
+        &self,
+        path: PathBuf,
+    ) -> Result<Vec<forge_domain::FileStatus>>;
+
     /// Hydrates the gRPC channel
     fn hydrate_channel(&self) -> Result<()>;
 

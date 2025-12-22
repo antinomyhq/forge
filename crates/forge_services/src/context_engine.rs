@@ -633,6 +633,84 @@ impl<
             .is_some())
     }
 
+    async fn get_workspace_status(&self, path: PathBuf) -> Result<Vec<forge_domain::FileStatus>> {
+        use forge_domain::{FileStatus, FileSyncStatus};
+        use std::collections::{HashMap, HashSet};
+
+        // Canonicalize the path
+        let canonical_path = path
+            .canonicalize()
+            .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
+
+        // Check if workspace is indexed
+        let workspace = self
+            .infra
+            .find_by_path(&canonical_path)
+            .await?
+            .context("Workspace not indexed. Please run `workspace sync` first.")?;
+
+        // Get auth token
+        let credential = self
+            .infra
+            .get_credential(&ProviderId::FORGE_SERVICES)
+            .await?
+            .context("No authentication credentials found. Please authenticate first.")?;
+
+        let (token, user_id) = Self::extract_workspace_auth(&credential)?;
+
+        // Ensure workspace belongs to current user
+        if workspace.user_id != user_id {
+            anyhow::bail!("Workspace belongs to a different user");
+        }
+
+        // Read local files and compute hashes
+        let local_files = self.read_files(&canonical_path).await?;
+
+        // Fetch remote file hashes from server
+        let remote_files = self
+            .fetch_remote_hashes(&user_id, &workspace.workspace_id, &token)
+            .await;
+
+        // Build hash maps for efficient lookup
+        let local_hashes: HashMap<&str, &str> = local_files
+            .iter()
+            .map(|f| (f.path.as_str(), f.hash.as_str()))
+            .collect();
+        let remote_hashes: HashMap<&str, &str> = remote_files
+            .iter()
+            .map(|f| (f.path.as_str(), f.hash.as_str()))
+            .collect();
+
+        // Collect all unique file paths
+        let mut all_paths: HashSet<&str> = HashSet::new();
+        all_paths.extend(local_hashes.keys().copied());
+        all_paths.extend(remote_hashes.keys().copied());
+
+        // Compute status for each file
+        let mut statuses: Vec<FileStatus> = all_paths
+            .into_iter()
+            .map(|path| {
+                let local_hash = local_hashes.get(path);
+                let remote_hash = remote_hashes.get(path);
+
+                let status = match (local_hash, remote_hash) {
+                    (Some(l), Some(r)) if l == r => FileSyncStatus::InSync,
+                    (Some(_), Some(_)) => FileSyncStatus::Modified,
+                    (Some(_), None) => FileSyncStatus::New,
+                    (None, Some(_)) => FileSyncStatus::Deleted,
+                    (None, None) => unreachable!("Path must exist in at least one set"),
+                };
+
+                FileStatus::new(path.to_string(), status)
+            })
+            .collect();
+
+        // Sort by path for consistent ordering
+        statuses.sort_by(|a, b| a.path.cmp(&b.path));
+
+        Ok(statuses)
+    }
+
     async fn is_authenticated(&self) -> Result<bool> {
         Ok(self
             .infra
@@ -1291,5 +1369,135 @@ mod tests {
         ];
 
         assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_get_workspace_status_all_in_sync() {
+        let mock = MockInfra::synced(&["file1.rs", "file2.rs"]);
+        let service = ForgeContextEngineService::new(Arc::new(mock));
+
+        let actual = service
+            .get_workspace_status(PathBuf::from("."))
+            .await
+            .unwrap();
+
+        let expected = vec![
+            forge_domain::FileStatus::new(
+                "file1.rs".to_string(),
+                forge_domain::FileSyncStatus::InSync,
+            ),
+            forge_domain::FileStatus::new(
+                "file2.rs".to_string(),
+                forge_domain::FileSyncStatus::InSync,
+            ),
+        ];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_get_workspace_status_with_modifications() {
+        // Setup: local has file1.rs and file2.rs (modified), server has file1.rs and
+        // file3.rs
+        let mut mock = MockInfra::default();
+        mock.files = [
+            ("file1.rs".to_string(), "content of file1.rs".to_string()),
+            ("file2.rs".to_string(), "modified content".to_string()),
+        ]
+        .into_iter()
+        .collect();
+
+        mock.workspace = Some(workspace());
+        mock.authenticated = true;
+        mock.server_files = vec![
+            FileHash {
+                path: "file1.rs".to_string(),
+                hash: compute_hash("content of file1.rs"),
+            },
+            FileHash {
+                path: "file2.rs".to_string(),
+                hash: compute_hash("content of file2.rs"), // Different from local
+            },
+            FileHash {
+                path: "file3.rs".to_string(),
+                hash: compute_hash("content of file3.rs"),
+            },
+        ];
+
+        let service = ForgeContextEngineService::new(Arc::new(mock));
+
+        let actual = service
+            .get_workspace_status(PathBuf::from("."))
+            .await
+            .unwrap();
+
+        let expected = vec![
+            forge_domain::FileStatus::new(
+                "file1.rs".to_string(),
+                forge_domain::FileSyncStatus::InSync,
+            ),
+            forge_domain::FileStatus::new(
+                "file2.rs".to_string(),
+                forge_domain::FileSyncStatus::Modified,
+            ),
+            forge_domain::FileStatus::new(
+                "file3.rs".to_string(),
+                forge_domain::FileSyncStatus::Deleted,
+            ),
+        ];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_get_workspace_status_with_new_files() {
+        let mut mock = MockInfra::default();
+        mock.files = [
+            ("file1.rs".to_string(), "content of file1.rs".to_string()),
+            ("file2.rs".to_string(), "content of file2.rs".to_string()),
+        ]
+        .into_iter()
+        .collect();
+
+        mock.workspace = Some(workspace());
+        mock.authenticated = true;
+        mock.server_files = vec![FileHash {
+            path: "file1.rs".to_string(),
+            hash: compute_hash("content of file1.rs"),
+        }];
+
+        let service = ForgeContextEngineService::new(Arc::new(mock));
+
+        let actual = service
+            .get_workspace_status(PathBuf::from("."))
+            .await
+            .unwrap();
+
+        let expected = vec![
+            forge_domain::FileStatus::new(
+                "file1.rs".to_string(),
+                forge_domain::FileSyncStatus::InSync,
+            ),
+            forge_domain::FileStatus::new(
+                "file2.rs".to_string(),
+                forge_domain::FileSyncStatus::New,
+            ),
+        ];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_get_workspace_status_not_indexed() {
+        let mock = MockInfra::default(); // No workspace
+        let service = ForgeContextEngineService::new(Arc::new(mock));
+
+        let actual = service.get_workspace_status(PathBuf::from(".")).await;
+
+        assert!(actual.is_err());
+        assert!(actual
+            .unwrap_err()
+            .to_string()
+            .contains("Workspace not indexed"));
     }
 }

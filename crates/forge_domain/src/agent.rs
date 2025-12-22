@@ -163,6 +163,7 @@ impl Agent {
             merged_compact.merge(agent.compact.clone());
             agent.compact = merged_compact;
         }
+        
 
         agent
     }

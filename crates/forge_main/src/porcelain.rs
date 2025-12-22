@@ -255,8 +255,43 @@ impl Porcelain {
         Porcelain(rows)
     }
 
+    /// Sets the headers (first row) of the Porcelain structure
+    ///
+    /// Replaces the first row with the provided headers. If the Porcelain is empty,
+    /// creates a new header row. If an empty iterator is provided, returns self unchanged.
+    ///
+    /// # Arguments
+    /// * `headers` - An iterator of header names to set
+    pub fn set_headers<I, S>(self, headers: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
+        let new_headers: Vec<Option<String>> = headers
+            .into_iter()
+            .map(|h| Some(h.into()))
+            .collect();
+
+        if new_headers.is_empty() {
+            return self;
+        }
+
+        let mut rows = self.0;
+
+        if rows.is_empty() {
+            // If Porcelain is empty, just add the headers
+            rows.push(new_headers);
+        } else {
+            // Replace the first row with new headers
+            rows[0] = new_headers;
+        }
+
+        Porcelain(rows)
+    }
+
     pub fn into_long(self) -> Self {
         if self.0.is_empty() {
+
             return self;
         }
 
@@ -1081,4 +1116,85 @@ mod tests {
 
         assert_eq!(actual, expected)
     }
+
+
+    #[test]
+    fn test_set_headers_basic() {
+        let fixture = Porcelain(vec![
+            vec![Some("old1".into()), Some("old2".into())],
+            vec![Some("data1".into()), Some("data2".into())],
+        ]);
+
+        let actual = fixture.set_headers(vec!["new1", "new2"]).into_rows();
+
+        let expected = vec![
+            vec![Some("new1".into()), Some("new2".into())],
+            vec![Some("data1".into()), Some("data2".into())],
+        ];
+
+        assert_eq!(actual, expected)
+    }
+
+    #[test]
+    fn test_set_headers_empty_porcelain() {
+        let fixture = Porcelain::new();
+
+        let actual = fixture.set_headers(vec!["header1", "header2"]).into_rows();
+
+        let expected = vec![vec![Some("header1".into()), Some("header2".into())]];
+
+        assert_eq!(actual, expected)
+    }
+
+    #[test]
+    fn test_set_headers_different_count() {
+        let fixture = Porcelain(vec![
+            vec![Some("old1".into()), Some("old2".into()), Some("old3".into())],
+            vec![Some("data1".into()), Some("data2".into()), Some("data3".into())],
+        ]);
+
+        let actual = fixture.set_headers(vec!["new1", "new2"]).into_rows();
+
+        let expected = vec![
+            vec![Some("new1".into()), Some("new2".into())],
+            vec![Some("data1".into()), Some("data2".into()), Some("data3".into())],
+        ];
+
+        assert_eq!(actual, expected)
+    }
+
+    #[test]
+    fn test_set_headers_empty_headers() {
+        let fixture = Porcelain(vec![
+            vec![Some("old1".into()), Some("old2".into())],
+            vec![Some("data1".into()), Some("data2".into())],
+        ]);
+
+        let actual = fixture.set_headers(Vec::<String>::new()).into_rows();
+
+        let expected = vec![
+            vec![Some("old1".into()), Some("old2".into())],
+            vec![Some("data1".into()), Some("data2".into())],
+        ];
+
+        assert_eq!(actual, expected)
+    }
+
+    #[test]
+    fn test_set_headers_with_string_refs() {
+        let fixture = Porcelain(vec![
+            vec![Some("old".into())],
+            vec![Some("data".into())],
+        ]);
+
+        let actual = fixture.set_headers(["ID", "Name", "Age"]).into_rows();
+
+        let expected = vec![
+            vec![Some("ID".into()), Some("Name".into()), Some("Age".into())],
+            vec![Some("data".into())],
+        ];
+
+        assert_eq!(actual, expected)
+    }
+
 }

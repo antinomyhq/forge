@@ -262,6 +262,36 @@ pub struct FileHash {
     pub hash: String,
 }
 
+/// Status of a file in relation to the server
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FileSyncStatus {
+    /// File is in sync with server (same hash)
+    InSync,
+    /// File has been modified locally
+    Modified,
+    /// File is new (not on server)
+    New,
+    /// File exists on server but not locally (deleted locally)
+    Deleted,
+}
+
+/// Information about a file's sync status
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct FileStatus {
+    /// Relative file path from workspace root
+    pub path: String,
+    /// Sync status of the file
+    pub status: FileSyncStatus,
+}
+
+impl FileStatus {
+    /// Create a new file status entry
+    pub fn new(path: String, status: FileSyncStatus) -> Self {
+        Self { path, status }
+    }
+}
+
+
 /// Result of a codebase sync operation
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Setters)]
 pub struct FileUploadResponse {

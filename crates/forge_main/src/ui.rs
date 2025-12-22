@@ -610,6 +610,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     crate::cli::WorkspaceCommand::Delete { workspace_id } => {
                         self.on_delete_workspace(workspace_id).await?;
                     }
+                    crate::cli::WorkspaceCommand::Status { path, porcelain } => {
+                        self.on_workspace_status(path, porcelain).await?;
+                    }
                 }
                 return Ok(());
             }
@@ -3127,6 +3130,54 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 Err(e)
             }
         }
+    }
+
+    /// Displays sync status for all files in the workspace.
+    async fn on_workspace_status(
+        &mut self,
+        path: std::path::PathBuf,
+        porcelain: bool,
+    ) -> anyhow::Result<()> {
+        use forge_domain::FileSyncStatus;
+
+        if !porcelain {
+            self.spinner.start(Some("Checking file status..."))?;
+        }
+
+        let statuses = self.api.get_workspace_status(path).await?;
+
+        if !porcelain {
+            self.spinner.stop(None)?;
+        }
+
+        // Build file list info
+        let mut info =
+            Info::new().add_title(format!("Workspace Status [{} files]", statuses.len()));
+
+        // Add file list (skip in-sync files)
+        for (status, label) in statuses.iter().filter_map(|status| match status.status {
+            FileSyncStatus::InSync => None,
+            FileSyncStatus::Modified => Some((status, "[modified]")),
+            FileSyncStatus::New => Some((status, "[added]")),
+            FileSyncStatus::Deleted => Some((status, "[deleted]")),
+        }) {
+            info = info.add_key_value(&status.path, label);
+        }
+
+        // Output based on mode
+        if porcelain {
+            self.writeln(
+                Porcelain::from(info)
+                    .into_long()
+                    .drop_col(0)
+                    .set_headers(["FILE", "STATUS"])
+                    .uppercase_headers(),
+            )?;
+        } else {
+            self.writeln(info)?;
+        }
+
+        Ok(())
     }
 
     /// Handle credential migration
