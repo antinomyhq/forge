@@ -109,3 +109,24 @@ function _forge_log() {
     esac
 }
 
+# Start background sync job for current workspace if not already running
+# Uses canonical path hash to identify workspace
+function _forge_start_background_sync() {
+    # Check if sync is enabled (default to true if not set)
+    local sync_enabled="${FORGE_SYNC_ENABLED:-true}"
+    if [[ "$sync_enabled" != "true" ]]; then
+        return 0
+    fi
+    
+    # Get canonical workspace path
+    local workspace_path=$(pwd -P)
+    
+    # Run sync once in background
+    # Close all output streams immediately to prevent any flashing
+    {
+        exec >/dev/null 2>&1
+        setopt NO_NOTIFY NO_MONITOR
+        $_FORGE_BIN workspace sync "$workspace_path"
+    } &!
+}
+
