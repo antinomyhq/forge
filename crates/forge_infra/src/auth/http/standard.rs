@@ -15,10 +15,15 @@ impl OAuthHttpProvider for StandardHttpProvider {
         // Use oauth2 library - standard flow
         use oauth2::{AuthUrl, ClientId, TokenUrl};
 
-        let mut client =
-            oauth2::basic::BasicClient::new(ClientId::new(config.client_id.to_string()))
-                .set_auth_uri(AuthUrl::new(config.auth_url.to_string())?)
-                .set_token_uri(TokenUrl::new(config.token_url.to_string())?);
+        let client_id = config
+            .client_id
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("client_id is required for OAuth code flow"))?
+            .to_string();
+
+        let mut client = oauth2::basic::BasicClient::new(ClientId::new(client_id))
+            .set_auth_uri(AuthUrl::new(config.auth_url.to_string())?)
+            .set_token_uri(TokenUrl::new(config.token_url.to_string())?);
 
         if let Some(redirect_uri) = &config.redirect_uri {
             client = client.set_redirect_uri(oauth2::RedirectUrl::new(redirect_uri.clone())?);
@@ -60,10 +65,15 @@ impl OAuthHttpProvider for StandardHttpProvider {
     ) -> anyhow::Result<OAuthTokenResponse> {
         use oauth2::{AuthUrl, ClientId, TokenUrl};
 
-        let mut client =
-            oauth2::basic::BasicClient::new(ClientId::new(config.client_id.to_string()))
-                .set_auth_uri(AuthUrl::new(config.auth_url.to_string())?)
-                .set_token_uri(TokenUrl::new(config.token_url.to_string())?);
+        let client_id = config
+            .client_id
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("client_id is required for OAuth code flow"))?
+            .to_string();
+
+        let mut client = oauth2::basic::BasicClient::new(ClientId::new(client_id))
+            .set_auth_uri(AuthUrl::new(config.auth_url.to_string())?)
+            .set_token_uri(TokenUrl::new(config.token_url.to_string())?);
 
         if let Some(redirect_uri) = &config.redirect_uri {
             client = client.set_redirect_uri(oauth2::RedirectUrl::new(redirect_uri.clone())?);
@@ -96,7 +106,7 @@ mod tests {
 
     fn test_oauth_config() -> OAuthConfig {
         OAuthConfig {
-            client_id: "test_client".to_string().into(),
+            client_id: Some("test_client".to_string().into()),
             auth_url: Url::parse("https://example.com/auth").unwrap(),
             token_url: Url::parse("https://example.com/token").unwrap(),
             scopes: vec!["read".to_string(), "write".to_string()],

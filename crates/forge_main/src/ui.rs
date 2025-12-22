@@ -1956,28 +1956,77 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             format!("Authenticate using your {provider_id} account").dimmed()
         ))?;
 
-        // Display authorization URL
-        self.writeln(format!(
-            "{} Please visit: {}",
-            "→".blue(),
-            request.authorization_url.as_str().blue().underline()
-        ))?;
+        // Check if we should try to start a local callback server
+        let use_local_server = request
+            .oauth_config
+            .redirect_uri
+            .as_ref()
+            .map(|uri| uri.starts_with("http://localhost") || uri.starts_with("http://127.0.0.1"))
+            .unwrap_or(false);
 
-        // Try to open browser automatically
-        if let Err(e) = open::that(request.authorization_url.as_str()) {
-            self.writeln_title(TitleFormat::error(format!(
-                "Failed to open browser automatically: {e}"
-            )))?;
-        }
+        let code = if use_local_server {
+            // Try to start local server for automatic callback on port 3000
+            match forge_api::start_callback_server(3000) {
+                Ok(rx) => {
+                    self.writeln(format!(
+                        "{} Opening browser for authentication...",
+                        "→".blue()
+                    ))?;
+                    self.writeln(format!(
+                        "{} Callback server started on {}",
+                        "✓".green(),
+                        "http://localhost:3000".blue()
+                    ))?;
 
-        // Prompt user to paste authorization code
-        let code = ForgeSelect::input("Paste the authorization code:")
-            .prompt()?
-            .ok_or_else(|| anyhow::anyhow!("Authorization code input cancelled"))?;
+                    // Open browser with the original URL (already has localhost:3000)
+                    if let Err(e) = open::that(request.authorization_url.as_str()) {
+                        self.writeln_title(TitleFormat::error(format!(
+                            "Failed to open browser: {e}"
+                        )))?;
+                        self.writeln(format!(
+                            "Please visit: {}",
+                            request.authorization_url.as_str().blue().underline()
+                        ))?;
+                    }
 
-        if code.trim().is_empty() {
-            anyhow::bail!("Authorization code cannot be empty");
-        }
+                    self.spinner.start(Some("Waiting for authorization..."))?;
+
+                    // Wait for callback with timeout
+                    let code = tokio::time::timeout(
+                        std::time::Duration::from_secs(300), // 5 minute timeout
+                        rx,
+                    )
+                    .await
+                    .map_err(|_| {
+                        anyhow::anyhow!(
+                            "Authorization timeout - no response received after 5 minutes"
+                        )
+                    })?
+                    .map_err(|_| anyhow::anyhow!("Failed to receive authorization code"))?;
+
+                    self.spinner.stop(None)?;
+                    self.writeln(format!(
+                        "{} Authorization code received!",
+                        "✓".green().bold()
+                    ))?;
+
+                    code
+                }
+                Err(e) => {
+                    // Fallback to manual entry if server fails (e.g., port 3000 in use)
+                    tracing::warn!("Failed to start callback server: {e}");
+                    self.writeln(format!(
+                        "{} Could not start local server (port 3000 may be in use)",
+                        "⚠".yellow()
+                    ))?;
+                    self.writeln(format!("{} Falling back to manual code entry", "→".blue()))?;
+                    self.manual_code_entry(&request.authorization_url)?
+                }
+            }
+        } else {
+            // Manual code entry for non-localhost redirects
+            self.manual_code_entry(&request.authorization_url)?
+        };
 
         self.spinner
             .start(Some("Exchanging authorization code..."))?;
@@ -1995,6 +2044,36 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         self.spinner.stop(None)?;
 
         Ok(())
+    }
+
+    /// Helper method for manual code entry
+    fn manual_code_entry(&mut self, authorization_url: &url::Url) -> anyhow::Result<String> {
+        use colored::Colorize;
+
+        // Display authorization URL
+        self.writeln(format!(
+            "{} Please visit: {}",
+            "→".blue(),
+            authorization_url.as_str().blue().underline()
+        ))?;
+
+        // Try to open browser automatically
+        if let Err(e) = open::that(authorization_url.as_str()) {
+            self.writeln_title(TitleFormat::error(format!(
+                "Failed to open browser automatically: {e}"
+            )))?;
+        }
+
+        // Prompt user to paste authorization code
+        let code = ForgeSelect::input("Paste the authorization code:")
+            .prompt()?
+            .ok_or_else(|| anyhow::anyhow!("Authorization code input cancelled"))?;
+
+        if code.trim().is_empty() {
+            anyhow::bail!("Authorization code cannot be empty");
+        }
+
+        Ok(code)
     }
 
     /// Helper method to select an authentication method when multiple are

@@ -18,6 +18,7 @@ mod mcp_client;
 mod mcp_server;
 mod walker;
 
+pub use auth::start_callback_server;
 pub use executor::ForgeCommandExecutorService;
 pub use forge_infra::*;
 pub use kv_storage::CacacheStorage;

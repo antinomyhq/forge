@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use chrono::Utc;
 use forge_app::{AuthStrategy, OAuthHttpProvider, StrategyFactory};
 use forge_domain::{
     ApiKey, ApiKeyRequest, AuthContextRequest, AuthContextResponse, AuthCredential, CodeRequest,
@@ -11,7 +12,9 @@ use reqwest::header::{HeaderMap, HeaderValue};
 use url::Url;
 
 use crate::auth::error::Error as AuthError;
-use crate::auth::http::{AnthropicHttpProvider, GithubHttpProvider, StandardHttpProvider};
+use crate::auth::http::{
+    AnthropicHttpProvider, GithubHttpProvider, OpenRouterHttpProvider, StandardHttpProvider,
+};
 use crate::auth::util::*;
 
 /// API Key Strategy - Simple static key authentication
@@ -110,7 +113,7 @@ impl<T: OAuthHttpProvider> AuthStrategy for OAuthCodeStrategy<T> {
                     self.provider_id.clone(),
                     token_response,
                     &self.config,
-                    chrono::Duration::hours(1), // Code flow default
+                    None, // No fallback - respect provider response
                 )
             }
             _ => Err(AuthError::InvalidContext("Expected Code context".to_string()).into()),
@@ -121,7 +124,7 @@ impl<T: OAuthHttpProvider> AuthStrategy for OAuthCodeStrategy<T> {
         refresh_oauth_credential(
             credential,
             &self.config,
-            chrono::Duration::hours(1),
+            None,  // No fallback - respect provider response
             false, // No API key exchange
         )
         .await
@@ -144,7 +147,18 @@ impl OAuthDeviceStrategy {
 impl AuthStrategy for OAuthDeviceStrategy {
     async fn init(&self) -> anyhow::Result<AuthContextRequest> {
         // Build oauth2 client
-        let client = BasicClient::new(ClientId::new(self.config.client_id.to_string()))
+        let client_id = self
+            .config
+            .client_id
+            .as_ref()
+            .ok_or_else(|| {
+                AuthError::InitiationFailed(
+                    "client_id is required for device code flow".to_string(),
+                )
+            })?
+            .to_string();
+
+        let client = BasicClient::new(ClientId::new(client_id))
             .set_device_authorization_url(
                 DeviceAuthorizationUrl::new(self.config.auth_url.to_string())
                     .map_err(|e| AuthError::InitiationFailed(format!("Invalid auth_url: {e}")))?,
@@ -208,7 +222,7 @@ impl AuthStrategy for OAuthDeviceStrategy {
                     self.provider_id.clone(),
                     token_response,
                     &self.config,
-                    chrono::Duration::days(365), // Device flow default
+                    None, // No fallback - respect provider response
                 )
             }
             _ => Err(AuthError::InvalidContext("Expected DeviceCode context".to_string()).into()),
@@ -219,7 +233,7 @@ impl AuthStrategy for OAuthDeviceStrategy {
         refresh_oauth_credential(
             credential,
             &self.config,
-            chrono::Duration::days(30),
+            None,  // No fallback - respect provider response
             false, // No API key exchange
         )
         .await
@@ -248,7 +262,18 @@ impl OAuthWithApiKeyStrategy {
 impl AuthStrategy for OAuthWithApiKeyStrategy {
     async fn init(&self) -> anyhow::Result<AuthContextRequest> {
         // Same as OAuth Device init
-        let client = BasicClient::new(ClientId::new(self.oauth_config.client_id.to_string()))
+        let client_id = self
+            .oauth_config
+            .client_id
+            .as_ref()
+            .ok_or_else(|| {
+                AuthError::InitiationFailed(
+                    "client_id is required for OAuth with API key flow".to_string(),
+                )
+            })?
+            .to_string();
+
+        let client = BasicClient::new(ClientId::new(client_id))
             .set_device_authorization_url(
                 DeviceAuthorizationUrl::new(self.oauth_config.auth_url.to_string())
                     .map_err(|e| AuthError::InitiationFailed(format!("Invalid auth_url: {e}")))?,
@@ -336,8 +361,8 @@ impl AuthStrategy for OAuthWithApiKeyStrategy {
         refresh_oauth_credential(
             credential,
             &self.oauth_config,
-            chrono::Duration::hours(1), // Unused for API key flow
-            true,                       // WITH API key exchange
+            None, // No fallback - respect provider response
+            true, // WITH API key exchange
         )
         .await
     }
@@ -347,7 +372,7 @@ impl AuthStrategy for OAuthWithApiKeyStrategy {
 async fn refresh_oauth_credential(
     credential: &AuthCredential,
     config: &OAuthConfig,
-    expiry_duration: chrono::Duration,
+    expiry_duration: Option<chrono::Duration>,
     with_api_key_exchange: bool,
 ) -> anyhow::Result<AuthCredential> {
     // Extract tokens (works for OAuth and OAuthWithApiKey)
@@ -381,7 +406,8 @@ async fn refresh_oauth_credential(
         let (key, expiry) = exchange_oauth_for_api_key(&oauth_access_token, url, config).await?;
         (Some(key), expiry)
     } else {
-        let expiry = calculate_token_expiry(None, expiry_duration);
+        // No API key exchange - use expiry from token response or default
+        let expiry = expiry_duration.map(|duration| Utc::now() + duration);
         (None, expiry)
     };
 
@@ -430,13 +456,21 @@ async fn poll_for_tokens(
         }
 
         // Build token request
+        let client_id = config
+            .client_id
+            .as_ref()
+            .ok_or_else(|| {
+                AuthError::PollFailed("client_id is required for device code flow".to_string())
+            })?
+            .to_string();
+
         let params = vec![
             (
                 "grant_type".to_string(),
                 "urn:ietf:params:oauth:grant-type:device_code".to_string(),
             ),
             ("device_code".to_string(), device_code.to_string()),
-            ("client_id".to_string(), config.client_id.to_string()),
+            ("client_id".to_string(), client_id),
         ];
 
         let body = serde_urlencoded::to_string(&params)
@@ -530,7 +564,7 @@ async fn exchange_oauth_for_api_key(
     oauth_token: &str,
     api_key_exchange_url: &Url,
     config: &OAuthConfig,
-) -> anyhow::Result<(ApiKey, chrono::DateTime<chrono::Utc>)> {
+) -> anyhow::Result<(ApiKey, Option<chrono::DateTime<chrono::Utc>>)> {
     // Build request headers
     let mut headers = reqwest::header::HeaderMap::new();
     headers.insert(
@@ -576,8 +610,8 @@ async fn exchange_oauth_for_api_key(
 
     Ok((
         access_token.into(),
-        chrono::DateTime::from_timestamp(expires_at.unwrap_or(0), 0)
-            .unwrap_or_else(chrono::Utc::now),
+        expires_at
+            .map(|ts| chrono::DateTime::from_timestamp(ts, 0).unwrap_or_else(chrono::Utc::now)),
     ))
 }
 
@@ -588,6 +622,7 @@ pub enum AnyAuthStrategy {
     OAuthCodeStandard(OAuthCodeStrategy<StandardHttpProvider>),
     OAuthCodeAnthropic(OAuthCodeStrategy<AnthropicHttpProvider>),
     OAuthCodeGithub(OAuthCodeStrategy<GithubHttpProvider>),
+    OAuthCodeOpenRouter(OAuthCodeStrategy<OpenRouterHttpProvider>),
     OAuthDevice(OAuthDeviceStrategy),
     OAuthWithApiKey(OAuthWithApiKeyStrategy),
 }
@@ -600,6 +635,7 @@ impl AuthStrategy for AnyAuthStrategy {
             Self::OAuthCodeStandard(s) => s.init().await,
             Self::OAuthCodeAnthropic(s) => s.init().await,
             Self::OAuthCodeGithub(s) => s.init().await,
+            Self::OAuthCodeOpenRouter(s) => s.init().await,
             Self::OAuthDevice(s) => s.init().await,
             Self::OAuthWithApiKey(s) => s.init().await,
         }
@@ -614,6 +650,7 @@ impl AuthStrategy for AnyAuthStrategy {
             Self::OAuthCodeStandard(s) => s.complete(context_response).await,
             Self::OAuthCodeAnthropic(s) => s.complete(context_response).await,
             Self::OAuthCodeGithub(s) => s.complete(context_response).await,
+            Self::OAuthCodeOpenRouter(s) => s.complete(context_response).await,
             Self::OAuthDevice(s) => s.complete(context_response).await,
             Self::OAuthWithApiKey(s) => s.complete(context_response).await,
         }
@@ -625,6 +662,7 @@ impl AuthStrategy for AnyAuthStrategy {
             Self::OAuthCodeStandard(s) => s.refresh(credential).await,
             Self::OAuthCodeAnthropic(s) => s.refresh(credential).await,
             Self::OAuthCodeGithub(s) => s.refresh(credential).await,
+            Self::OAuthCodeOpenRouter(s) => s.refresh(credential).await,
             Self::OAuthDevice(s) => s.refresh(credential).await,
             Self::OAuthWithApiKey(s) => s.refresh(credential).await,
         }
@@ -677,6 +715,12 @@ impl StrategyFactory for ForgeAuthStrategyFactory {
                     )));
                 }
 
+                if provider_id == ProviderId::OPEN_ROUTER {
+                    return Ok(AnyAuthStrategy::OAuthCodeOpenRouter(
+                        OAuthCodeStrategy::new(OpenRouterHttpProvider, provider_id, config),
+                    ));
+                }
+
                 Ok(AnyAuthStrategy::OAuthCodeStandard(OAuthCodeStrategy::new(
                     StandardHttpProvider,
                     provider_id,
@@ -718,7 +762,7 @@ mod tests {
     #[test]
     fn test_create_auth_strategy_oauth_code() {
         let config = OAuthConfig {
-            client_id: "test".to_string().into(),
+            client_id: Some("test".to_string().into()),
             auth_url: Url::parse("https://example.com/auth").unwrap(),
             token_url: Url::parse("https://example.com/token").unwrap(),
             scopes: vec![],
@@ -741,7 +785,7 @@ mod tests {
     #[test]
     fn test_create_auth_strategy_oauth_device() {
         let config = OAuthConfig {
-            client_id: "test".to_string().into(),
+            client_id: Some("test".to_string().into()),
             auth_url: Url::parse("https://example.com/auth").unwrap(),
             token_url: Url::parse("https://example.com/token").unwrap(),
             scopes: vec![],
@@ -764,7 +808,7 @@ mod tests {
     #[test]
     fn test_create_auth_strategy_oauth_with_api_key() {
         let config = OAuthConfig {
-            client_id: "test".to_string().into(),
+            client_id: Some("test".to_string().into()),
             auth_url: Url::parse("https://example.com/auth").unwrap(),
             token_url: Url::parse("https://example.com/token").unwrap(),
             scopes: vec![],

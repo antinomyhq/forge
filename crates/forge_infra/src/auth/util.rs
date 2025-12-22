@@ -9,25 +9,23 @@ use oauth2::{ClientId, RefreshToken, TokenUrl};
 
 use crate::auth::error::Error;
 
-/// Calculate token expiry with fallback duration
-pub(crate) fn calculate_token_expiry(
-    expires_in: Option<u64>,
-    fallback: chrono::Duration,
-) -> chrono::DateTime<chrono::Utc> {
-    if let Some(seconds) = expires_in {
-        Utc::now() + chrono::Duration::seconds(seconds as i64)
-    } else {
-        Utc::now() + fallback
-    }
+/// Calculate expires_at as Unix timestamp from expires_in seconds
+/// Returns None if expires_in is None
+pub(crate) fn calculate_expires_at(expires_in: Option<u64>) -> Option<i64> {
+    expires_in.map(|seconds| {
+        let expires_at = Utc::now() + chrono::Duration::seconds(seconds as i64);
+        expires_at.timestamp()
+    })
 }
 
 /// Convert oauth2 TokenResponse into domain OAuthTokenResponse
 pub(crate) fn into_domain<T: oauth2::TokenResponse>(token: T) -> OAuthTokenResponse {
+    let expires_in = token.expires_in().map(|d| d.as_secs());
     OAuthTokenResponse {
         access_token: token.access_token().secret().to_string(),
         refresh_token: token.refresh_token().map(|t| t.secret().to_string()),
-        expires_in: token.expires_in().map(|d| d.as_secs()),
-        expires_at: None,
+        expires_in,
+        expires_at: calculate_expires_at(expires_in),
         token_type: "Bearer".to_string(),
         scope: token.scopes().map(|scopes| {
             scopes
@@ -65,14 +63,25 @@ pub(crate) fn build_http_client(
     Ok(builder.build()?)
 }
 
-/// Build OAuth credential with consistent expiry handling
+/// Build OAuth credential with expiry from provider response only
+/// Priority: expires_in > expires_at > None (no expiration)
+/// No fallback is applied - we respect what the provider returns
 pub(crate) fn build_oauth_credential(
     provider_id: ProviderId,
     token_response: OAuthTokenResponse,
     config: &OAuthConfig,
-    default_expiry: chrono::Duration,
+    _default_expiry: Option<chrono::Duration>, // Unused, kept for API compatibility
 ) -> anyhow::Result<AuthCredential> {
-    let expires_at = calculate_token_expiry(token_response.expires_in, default_expiry);
+    let expires_at = if let Some(seconds) = token_response.expires_in {
+        // Provider returned expires_in - calculate from now
+        Some(Utc::now() + chrono::Duration::seconds(seconds as i64))
+    } else if let Some(timestamp) = token_response.expires_at {
+        // Provider returned expires_at timestamp - use it directly
+        chrono::DateTime::from_timestamp(timestamp, 0)
+    } else {
+        // Provider didn't return expiration - token doesn't expire
+        None
+    };
     let oauth_tokens = OAuthTokens::new(
         token_response.access_token,
         token_response.refresh_token,
@@ -118,7 +127,13 @@ pub(crate) async fn refresh_access_token(
     refresh_token: &str,
 ) -> anyhow::Result<OAuthTokenResponse> {
     // Build minimal oauth2 client (just need token endpoint)
-    let client = BasicClient::new(ClientId::new(config.client_id.to_string()))
+    let client_id = config
+        .client_id
+        .as_ref()
+        .ok_or_else(|| anyhow::anyhow!("client_id is required for token refresh"))?
+        .to_string();
+
+    let client = BasicClient::new(ClientId::new(client_id))
         .set_token_uri(TokenUrl::new(config.token_url.to_string())?);
 
     // Build HTTP client with custom headers
@@ -238,29 +253,7 @@ pub(crate) fn parse_token_response(
 
 #[cfg(test)]
 mod tests {
-    use chrono::Duration;
-
     use super::*;
-
-    #[test]
-    fn test_calculate_token_expiry_with_expires_in() {
-        let before = Utc::now();
-        let expires_at = calculate_token_expiry(Some(3600), Duration::hours(1));
-        let after = Utc::now() + Duration::hours(1);
-
-        assert!(expires_at >= before);
-        assert!(expires_at <= after);
-    }
-
-    #[test]
-    fn test_calculate_token_expiry_with_fallback() {
-        let before = Utc::now();
-        let expires_at = calculate_token_expiry(None, Duration::days(365));
-        let after = Utc::now() + Duration::days(365);
-
-        assert!(expires_at >= before);
-        assert!(expires_at <= after);
-    }
 
     #[test]
     fn test_build_token_response() {
