@@ -31,7 +31,6 @@ impl FileInfo {
     }
 }
 
-
 /// File hash information from the server
 ///
 /// Contains the relative file path and its SHA-256 hash
@@ -71,4 +70,3 @@ impl FileStatus {
         Self { path, status }
     }
 }
-
