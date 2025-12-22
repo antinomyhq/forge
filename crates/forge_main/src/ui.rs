@@ -3144,15 +3144,44 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             self.spinner.start(Some("Checking file status..."))?;
         }
 
-        let statuses = self.api.get_workspace_status(path).await?;
+        let statuses = self.api.get_workspace_status(path.clone()).await?;
+        let workspace_info = self.api.get_workspace_info(path).await?;
 
         if !porcelain {
             self.spinner.stop(None)?;
         }
 
+        // Get workspace ID if available
+        let workspace_id = workspace_info
+            .as_ref()
+            .map(|info| info.workspace_id.to_string())
+            .unwrap_or_else(|| "Unknown".to_string());
+
+        // Calculate counts
+        let in_sync = statuses
+            .iter()
+            .filter(|s| s.status == FileSyncStatus::InSync)
+            .count();
+        let modified = statuses
+            .iter()
+            .filter(|s| s.status == FileSyncStatus::Modified)
+            .count();
+        let added = statuses
+            .iter()
+            .filter(|s| s.status == FileSyncStatus::New)
+            .count();
+        let deleted = statuses
+            .iter()
+            .filter(|s| s.status == FileSyncStatus::Deleted)
+            .count();
+        
+        let out_of_sync = modified + added + deleted;
+
         // Build file list info
-        let mut info =
-            Info::new().add_title(format!("Workspace Status [{} files]", statuses.len()));
+        let mut info = Info::new().add_title(format!(
+            "File Status [{} out of sync]",
+            out_of_sync
+        ));
 
         // Add file list (skip in-sync files)
         for (status, label) in statuses.iter().filter_map(|status| match status.status {
@@ -3175,6 +3204,24 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             )?;
         } else {
             self.writeln(info)?;
+
+            // Build summary info
+            let mut summary = Info::new().add_title(format!("Summary [{} files]", statuses.len()));
+            summary = summary.add_key_value("Workspace ID", workspace_id);
+            if in_sync > 0 {
+                summary = summary.add_key_value("In Sync", in_sync.to_string());
+            }
+            if modified > 0 {
+                summary = summary.add_key_value("Modified", modified.to_string());
+            }
+            if added > 0 {
+                summary = summary.add_key_value("Added", added.to_string());
+            }
+            if deleted > 0 {
+                summary = summary.add_key_value("Deleted", deleted.to_string());
+            }
+
+            self.writeln(summary)?;
         }
 
         Ok(())
