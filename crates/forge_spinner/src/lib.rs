@@ -164,12 +164,12 @@ impl SpinnerManager {
         let is_running = self.spinner.is_some();
         let prev_message = self.message.clone();
         self.stop_inner(Some(message.to_string()), writer)?;
-        
+
         // Flush both stdout and stderr to ensure all output is visible
         // This prevents race conditions with shell prompt resets
         let _ = io::stdout().flush();
         let _ = io::stderr().flush();
-        
+
         if is_running {
             self.start(prev_message.as_deref())?
         }
