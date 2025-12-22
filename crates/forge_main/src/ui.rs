@@ -3144,7 +3144,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             self.spinner.start(Some("Checking file status..."))?;
         }
 
-        let statuses = self.api.get_workspace_status(path.clone()).await?;
+        let mut statuses = self.api.get_workspace_status(path.clone()).await?;
+        statuses.sort_by(|a, b| a.status.cmp(&b.status));
         let workspace_info = self.api.get_workspace_info(path).await?;
 
         if !porcelain {
@@ -3183,9 +3184,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Add file list (skip in-sync files)
         for (status, label) in statuses.iter().filter_map(|status| match status.status {
             FileSyncStatus::InSync => None,
-            FileSyncStatus::Modified => Some((status, "[modified]")),
-            FileSyncStatus::New => Some((status, "[added]")),
-            FileSyncStatus::Deleted => Some((status, "[deleted]")),
+            FileSyncStatus::Modified => Some((status, "modified")),
+            FileSyncStatus::New => Some((status, "added")),
+            FileSyncStatus::Deleted => Some((status, "deleted")),
         }) {
             info = info.add_key_value(&status.path, label);
         }
@@ -3196,14 +3197,16 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 Porcelain::from(info)
                     .into_long()
                     .drop_col(0)
-                    .set_headers(["FILE", "STATUS"])
+                    .swap_cols(0, 1)
+                    .set_headers(["STATUS", "FILE"])
+                    .sort_by(&[0])
                     .uppercase_headers(),
             )?;
         } else {
             self.writeln(info)?;
 
             // Build summary info
-            let mut summary = Info::new().add_title(format!("Summary [{} files]", statuses.len()));
+            let mut summary = Info::new().add_title(format!("Workspace Status [{} files]", statuses.len()));
             summary = summary.add_key_value("Workspace ID", workspace_id);
             if in_sync > 0 {
                 summary = summary.add_key_value("In Sync", in_sync.to_string());

@@ -263,7 +263,7 @@ pub struct FileHash {
 }
 
 /// Status of a file in relation to the server
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
 pub enum FileSyncStatus {
     /// File is in sync with server (same hash)
     InSync,
