@@ -3174,14 +3174,11 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .iter()
             .filter(|s| s.status == FileSyncStatus::Deleted)
             .count();
-        
+
         let out_of_sync = modified + added + deleted;
 
         // Build file list info
-        let mut info = Info::new().add_title(format!(
-            "File Status [{} out of sync]",
-            out_of_sync
-        ));
+        let mut info = Info::new().add_title(format!("File Status [{} out of sync]", out_of_sync));
 
         // Add file list (skip in-sync files)
         for (status, label) in statuses.iter().filter_map(|status| match status.status {
