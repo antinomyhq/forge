@@ -291,7 +291,6 @@ impl FileStatus {
     }
 }
 
-
 /// Result of a codebase sync operation
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Setters)]
 pub struct FileUploadResponse {

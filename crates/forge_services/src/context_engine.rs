@@ -634,8 +634,9 @@ impl<
     }
 
     async fn get_workspace_status(&self, path: PathBuf) -> Result<Vec<forge_domain::FileStatus>> {
-        use forge_domain::{FileStatus, FileSyncStatus};
         use std::collections::{HashMap, HashSet};
+
+        use forge_domain::{FileStatus, FileSyncStatus};
 
         // Canonicalize the path
         let canonical_path = path
@@ -1495,9 +1496,11 @@ mod tests {
         let actual = service.get_workspace_status(PathBuf::from(".")).await;
 
         assert!(actual.is_err());
-        assert!(actual
-            .unwrap_err()
-            .to_string()
-            .contains("Workspace not indexed"));
+        assert!(
+            actual
+                .unwrap_err()
+                .to_string()
+                .contains("Workspace not indexed")
+        );
     }
 }
