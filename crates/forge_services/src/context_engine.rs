@@ -183,17 +183,17 @@ impl<F> ForgeContextEngineService<F> {
             .count();
 
         // Compute total number of affected files
-        let total_files = added + deleted + modified;
+        let total_file_changes = added + deleted + modified;
 
         // Only emit diff computed event if there are actual changes
-        if total_files > 0 {
+        if total_file_changes > 0 {
             emit(SyncProgress::DiffComputed { added, deleted, modified }).await;
         }
 
         let (files_to_delete, files_to_upload) = plan.get_operations();
 
         let total_operations = files_to_delete.len() + files_to_upload.len();
-        let mut counter = SyncProgressCounter::new(total_files, total_operations);
+        let mut counter = SyncProgressCounter::new(total_file_changes, total_operations);
 
         emit(counter.sync_progress()).await;
 
@@ -227,7 +227,7 @@ impl<F> ForgeContextEngineService<F> {
 
         emit(SyncProgress::Completed {
             total_files: total_file_count,
-            uploaded_files: total_operations,
+            uploaded_files: total_file_changes,
         })
         .await;
 

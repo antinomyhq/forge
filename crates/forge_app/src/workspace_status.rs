@@ -147,7 +147,7 @@ impl SyncProgressCounter {
         } else {
             let current: f64 = (self.completed_operation as f64 / self.total_operations as f64)
                 * self.total_files as f64;
-            SyncProgress::Syncing { current: current.round() as usize, total: self.total_files }
+            SyncProgress::Syncing { current: current.floor() as usize, total: self.total_files }
         }
     }
 }
@@ -209,6 +209,10 @@ mod tests {
         let mut counter = SyncProgressCounter::new(4, 8);
 
         let actual = counter.sync_progress();
+        let expected = SyncProgress::Syncing { current: 0, total: 4 };
+        assert_eq!(actual, expected);
+
+        let actual = counter.next_test();
         let expected = SyncProgress::Syncing { current: 0, total: 4 };
         assert_eq!(actual, expected);
 
