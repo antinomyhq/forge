@@ -26,26 +26,6 @@ impl<F> Clone for ForgeContextEngineService<F> {
     }
 }
 
-// FIXME: move to domain
-struct SyncProgressCounter {
-    total_files: usize,
-    total_operations: usize,
-    completed_operation: usize,
-}
-
-impl SyncProgressCounter {
-    fn new(total_files: usize, total_operations: usize) -> Self {
-        Self { total_files, total_operations, completed_operation: 0 }
-    }
-
-    fn complete(&mut self, count: usize) {
-        self.completed_operation += count;
-    }
-
-    fn sync_progress(&self) -> SyncProgress {
-        SyncProgress::Syncing { current: 0, total: self.total_files }
-    }
-}
 
 impl<F> ForgeContextEngineService<F> {
     /// Creates a new indexing service with the provided infrastructure.

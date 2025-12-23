@@ -1,6 +1,6 @@
 use std::collections::{BTreeSet, HashMap};
 
-use forge_domain::{FileHash, FileNode, FileStatus, SyncStatus};
+use forge_domain::{FileHash, FileNode, FileStatus, SyncProgress, SyncStatus};
 
 /// Result of comparing local and server files
 ///
@@ -117,6 +117,28 @@ impl SyncPlan {
         }
 
         (files_to_delete, files_to_upload)
+    }
+}
+
+
+/// Tracks progress of sync operations
+pub struct SyncProgressCounter {
+    total_files: usize,
+    total_operations: usize,
+    completed_operation: usize,
+}
+
+impl SyncProgressCounter {
+    pub fn new(total_files: usize, total_operations: usize) -> Self {
+        Self { total_files, total_operations, completed_operation: 0 }
+    }
+
+    pub fn complete(&mut self, count: usize) {
+        self.completed_operation += count;
+    }
+
+    pub fn sync_progress(&self) -> SyncProgress {
+        SyncProgress::Syncing { current: 0, total: self.total_files }
     }
 }
 
