@@ -1,0 +1,129 @@
+name: 🔌 Provider Integration Request
+description: Request support for a new AI provider
+title: "[Provider]: "
+labels: ["type: feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a new AI provider! Please provide detailed information about the provider.
+
+  - type: input
+    id: provider-name
+    attributes:
+      label: Provider Name
+      description: What is the name of the AI provider?
+      placeholder: e.g., Cohere, Mistral AI, Together AI
+    validations:
+      required: true
+
+  - type: input
+    id: website
+    attributes:
+      label: Provider Website
+      description: Link to the provider's website
+      placeholder: https://...
+    validations:
+      required: true
+
+  - type: input
+    id: api-docs
+    attributes:
+      label: API Documentation
+      description: Link to the provider's API documentation
+      placeholder: https://docs...
+
+  - type: dropdown
+    id: api-type
+    attributes:
+      label: API Compatibility
+      description: What type of API does this provider offer?
+      options:
+        - OpenAI-compatible
+        - Anthropic-compatible
+        - Custom API
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: models
+    attributes:
+      label: Available Models
+      description: List the models this provider offers that would be useful in Forge
+      placeholder: |
+        - model-1 (description)
+        - model-2 (description)
+    validations:
+      required: true
+
+  - type: textarea
+    id: features
+    attributes:
+      label: Key Features
+      description: What are the key features or advantages of this provider?
+      placeholder: |
+        - Fast inference
+        - Specialized models
+        - Cost-effective
+        - Open source models
+    validations:
+      required: true
+
+  - type: dropdown
+    id: authentication
+    attributes:
+      label: Authentication Method
+      description: How does authentication work for this provider?
+      options:
+        - API Key
+        - OAuth
+        - Bearer Token
+        - Basic Auth
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: pricing
+    attributes:
+      label: Pricing Information
+      description: Link to pricing information or describe the pricing model
+      placeholder: https://provider.com/pricing or "Free tier available, paid plans start at..."
+
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Community Interest
+      description: How much demand do you think there is for this provider?
+      options:
+        - High - Many users would benefit
+        - Medium - Some users would benefit
+        - Low - Niche use case
+    validations:
+      required: true
+
+  - type: textarea
+    id: use-case
+    attributes:
+      label: Your Use Case
+      description: Why do you want to use this provider with Forge?
+      placeholder: I would use this provider because...
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      description: Are you willing to help with this integration?
+      options:
+        - label: I'm willing to submit a PR to implement this integration
+        - label: I can help with testing
+        - label: I have access to this provider's API for testing
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other information about this provider that would be helpful
