@@ -62,8 +62,12 @@ impl SyncProgress {
     pub fn weight(&self) -> Option<u64> {
         match self {
             Self::Syncing { current, total } => {
-                let sync_progress = if *total > 0 { *current as u64 } else { 0 };
-                Some(sync_progress)
+                let sync_progress = if *total > 0 {
+                    (*current as f64) / (*total as f64) * 100.0
+                } else {
+                    0.0
+                };
+                Some(sync_progress as u64)
             }
             _ => None,
         }
