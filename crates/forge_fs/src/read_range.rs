@@ -192,136 +192,67 @@ mod test {
     }
 
     #[tokio::test]
-    async fn test_end_line_capped_at_total_lines() -> Result<()> {
-        let content = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5";
-        let file = create_test_file(content).await?;
-
-        // Request end_line beyond file size
-        let (actual_content, actual_info) =
-            crate::ForgeFS::read_range_utf8(file.path(), 1, 100).await?;
-
-        assert_eq!(actual_content, content);
-        assert_eq!(actual_info, FileInfo::new(1, 5, 5));
-
-        // Test with range starting in the middle
-        let (actual_content, actual_info) =
-            crate::ForgeFS::read_range_utf8(file.path(), 3, 100).await?;
-
-        assert_eq!(actual_content, "Line 3\nLine 4\nLine 5");
-        assert_eq!(actual_info, FileInfo::new(3, 5, 5));
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_end_line_with_large_file_limited_range() -> Result<()> {
-        let lines: Vec<String> = (1..=100).map(|i| format!("Line {}", i)).collect();
-        let content = lines.join("\n");
-        let file = create_test_file(&content).await?;
-
-        // Request lines 1-50 (within file bounds)
-        let (actual_content, actual_info) =
-            crate::ForgeFS::read_range_utf8(file.path(), 1, 50).await?;
-
-        assert_eq!(actual_content.lines().count(), 50);
-        assert_eq!(actual_info, FileInfo::new(1, 50, 100));
-
-        // Request lines 80-120 (end beyond file bounds)
-        let (actual_content, actual_info) =
-            crate::ForgeFS::read_range_utf8(file.path(), 80, 120).await?;
-
-        assert_eq!(actual_content.lines().count(), 21); // Lines 80-100
-        assert_eq!(actual_info, FileInfo::new(80, 100, 100));
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_end_line_exact_file_size() -> Result<()> {
-        let content = "Line 1\nLine 2\nLine 3";
-        let file = create_test_file(content).await?;
-
-        // Request exact number of lines that exist
-        let (actual_content, actual_info) =
-            crate::ForgeFS::read_range_utf8(file.path(), 1, 3).await?;
-
-        assert_eq!(actual_content, content);
-        assert_eq!(actual_info, FileInfo::new(1, 3, 3));
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_end_line_with_simulated_max_read_limit() -> Result<()> {
-        // Simulate the scenario where resolve_range() limits end_line to max_read_size
-        // For example: user requests 1-5000, resolve_range caps it to 1-2000,
-        // but file only has 100 lines
-
-        let lines: Vec<String> = (1..=100).map(|i| format!("Line {}", i)).collect();
-        let content = lines.join("\n");
-        let file = create_test_file(&content).await?;
-
-        // Simulate max_read_size=2000 on a 100-line file
-        let max_read_size = 2000;
-        let requested_end = max_read_size; // resolve_range would give us this
-
-        let (actual_content, actual_info) =
-            crate::ForgeFS::read_range_utf8(file.path(), 1, requested_end).await?;
-
-        assert_eq!(actual_content.lines().count(), 100);
-        assert_eq!(actual_info, FileInfo::new(1, 100, 100));
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_end_line_with_large_file_exceeding_limit() -> Result<()> {
-        // Simulate a large file where we can't read it all at once
-        // File has 5000 lines, we request 1-2000 (after resolve_range limiting)
-
-        let lines: Vec<String> = (1..=5000).map(|i| format!("Line {}", i)).collect();
-        let content = lines.join("\n");
-        let file = create_test_file(&content).await?;
-
-        // Request first 2000 lines (typical max_read_size)
-        let (actual_content, actual_info) =
-            crate::ForgeFS::read_range_utf8(file.path(), 1, 2000).await?;
-
-        assert_eq!(actual_content.lines().count(), 2000);
-        assert_eq!(actual_info, FileInfo::new(1, 2000, 5000));
-
-        // Request a range in the middle
-        let (actual_content, actual_info) =
-            crate::ForgeFS::read_range_utf8(file.path(), 2500, 3500).await?;
-
-        assert_eq!(actual_content.lines().count(), 1001); // Lines 2500-3500 inclusive
-        assert_eq!(actual_info, FileInfo::new(2500, 3500, 5000));
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_end_line_boundary_conditions() -> Result<()> {
+    async fn test_end_line_capping() -> Result<()> {
         let content = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5";
         let file = create_test_file(content).await?;
 
         // Test: end_line = total_lines (exact match)
-        let (_result, actual_info) = crate::ForgeFS::read_range_utf8(file.path(), 1, 5).await?;
+        let (actual_content, actual_info) =
+            crate::ForgeFS::read_range_utf8(file.path(), 1, 5).await?;
+        assert_eq!(actual_content, content);
         assert_eq!(actual_info, FileInfo::new(1, 5, 5));
 
         // Test: end_line = total_lines + 1 (one beyond)
-        let (_result, actual_info) = crate::ForgeFS::read_range_utf8(file.path(), 1, 6).await?;
+        let (actual_content, actual_info) =
+            crate::ForgeFS::read_range_utf8(file.path(), 1, 6).await?;
+        assert_eq!(actual_content, content);
         assert_eq!(actual_info, FileInfo::new(1, 5, 5));
 
         // Test: end_line >> total_lines (far beyond)
-        let (_result, actual_info) = crate::ForgeFS::read_range_utf8(file.path(), 1, 10000).await?;
+        let (actual_content, actual_info) =
+            crate::ForgeFS::read_range_utf8(file.path(), 1, 10000).await?;
+        assert_eq!(actual_content, content);
         assert_eq!(actual_info, FileInfo::new(1, 5, 5));
+
+        // Test: range starting in the middle with excessive end_line
+        let (actual_content, actual_info) =
+            crate::ForgeFS::read_range_utf8(file.path(), 3, 100).await?;
+        assert_eq!(actual_content, "Line 3\nLine 4\nLine 5");
+        assert_eq!(actual_info, FileInfo::new(3, 5, 5));
 
         // Test: reading last line with excessive end_line
         let (actual_content, actual_info) =
             crate::ForgeFS::read_range_utf8(file.path(), 5, 100).await?;
         assert_eq!(actual_content, "Line 5");
         assert_eq!(actual_info, FileInfo::new(5, 5, 5));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_large_file_ranges() -> Result<()> {
+        // Create a 5000-line file to test various range scenarios
+        let lines: Vec<String> = (1..=5000).map(|i| format!("Line {}", i)).collect();
+        let content = lines.join("\n");
+        let file = create_test_file(&content).await?;
+
+        // Test: range within file bounds
+        let (actual_content, actual_info) =
+            crate::ForgeFS::read_range_utf8(file.path(), 1, 50).await?;
+        assert_eq!(actual_content.lines().count(), 50);
+        assert_eq!(actual_info, FileInfo::new(1, 50, 5000));
+
+        // Test: range in the middle
+        let (actual_content, actual_info) =
+            crate::ForgeFS::read_range_utf8(file.path(), 2500, 3500).await?;
+        assert_eq!(actual_content.lines().count(), 1001); // Lines 2500-3500 inclusive
+        assert_eq!(actual_info, FileInfo::new(2500, 3500, 5000));
+
+        // Test: end beyond file bounds (simulates max_read_size limiting)
+        let (actual_content, actual_info) =
+            crate::ForgeFS::read_range_utf8(file.path(), 4990, 6000).await?;
+        assert_eq!(actual_content.lines().count(), 11); // Lines 4990-5000
+        assert_eq!(actual_info, FileInfo::new(4990, 5000, 5000));
 
         Ok(())
     }
