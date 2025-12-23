@@ -6,10 +6,10 @@ use anyhow::Result;
 use forge_app::dto::ToolsOverview;
 use forge_app::{
     AgentProviderResolver, AgentRegistry, AppConfigService, AuthService, CommandInfra,
-    CommandLoaderService, WorkspaceService, ConversationService, DataGenerationApp,
-    EnvironmentInfra, EnvironmentService, FileDiscoveryService, ForgeApp, GitApp, GrpcInfra,
-    McpConfigManager, McpService, ProviderAuthService, ProviderService, Services, User, UserUsage,
-    Walker,
+    CommandLoaderService, ConversationService, DataGenerationApp, EnvironmentInfra,
+    EnvironmentService, FileDiscoveryService, ForgeApp, GitApp, GrpcInfra, McpConfigManager,
+    McpService, ProviderAuthService, ProviderService, Services, User, UserUsage, Walker,
+    WorkspaceService,
 };
 use forge_domain::{Agent, InitAuth, LoginInfo, *};
 use forge_infra::ForgeInfra;

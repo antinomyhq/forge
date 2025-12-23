@@ -1050,9 +1050,7 @@ impl<I: Services> WorkspaceService for I {
         path: PathBuf,
         params: SearchParams<'_>,
     ) -> anyhow::Result<Vec<Node>> {
-        self.workspace_service()
-            .query_workspace(path, params)
-            .await
+        self.workspace_service().query_workspace(path, params).await
     }
 
     async fn list_workspaces(&self) -> anyhow::Result<Vec<WorkspaceInfo>> {
@@ -1074,9 +1072,7 @@ impl<I: Services> WorkspaceService for I {
     }
 
     async fn get_workspace_status(&self, path: PathBuf) -> anyhow::Result<Vec<FileStatus>> {
-        self.workspace_service()
-            .get_workspace_status(path)
-            .await
+        self.workspace_service().get_workspace_status(path).await
     }
 
     async fn is_authenticated(&self) -> anyhow::Result<bool> {

@@ -5,12 +5,12 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use forge_app::{
-    WorkspaceService, FileReaderInfra, SyncProgressCounter, Walker, WalkerInfra,
-    WorkspaceStatus, compute_hash,
+    FileReaderInfra, SyncProgressCounter, Walker, WalkerInfra, WorkspaceService, WorkspaceStatus,
+    compute_hash,
 };
 use forge_domain::{
-    AuthCredential, AuthDetails, WorkspaceIndexRepository, FileHash, FileNode, ProviderId,
-    ProviderRepository, SyncProgress, UserId, WorkspaceId, WorkspaceRepository,
+    AuthCredential, AuthDetails, FileHash, FileNode, ProviderId, ProviderRepository, SyncProgress,
+    UserId, WorkspaceId, WorkspaceIndexRepository, WorkspaceRepository,
 };
 use forge_stream::MpscStream;
 use futures::future::join_all;
@@ -844,7 +844,10 @@ mod tests {
             .push(FileHash { path: "old.rs".into(), hash: "x".into() });
         let service = ForgeWorkspaceService::new(Arc::new(mock.clone()));
 
-        let mut stream = service.sync_workspace(PathBuf::from("."), 20).await.unwrap();
+        let mut stream = service
+            .sync_workspace(PathBuf::from("."), 20)
+            .await
+            .unwrap();
 
         // Consume the stream and collect events
         let mut events = Vec::new();
@@ -872,7 +875,10 @@ mod tests {
         let mock = MockInfra::out_of_sync(&["file1.rs", "file2.rs"], &[]);
         let service = ForgeWorkspaceService::new(Arc::new(mock));
 
-        let mut stream = service.sync_workspace(PathBuf::from("."), 20).await.unwrap();
+        let mut stream = service
+            .sync_workspace(PathBuf::from("."), 20)
+            .await
+            .unwrap();
 
         // Collect all events
         let mut events = Vec::new();
@@ -898,7 +904,10 @@ mod tests {
         let mock = MockInfra::out_of_sync(&["new_file.rs"], &[]);
         let service = ForgeWorkspaceService::new(Arc::new(mock.clone()));
 
-        let mut stream = service.sync_workspace(PathBuf::from("."), 20).await.unwrap();
+        let mut stream = service
+            .sync_workspace(PathBuf::from("."), 20)
+            .await
+            .unwrap();
 
         // Consume all events
         while let Some(_event) = stream.next().await {}

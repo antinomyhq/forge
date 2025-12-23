@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use chrono::Utc;
 use forge_app::GrpcInfra;
 use forge_domain::{
-    ApiKey, WorkspaceIndexRepository, FileUploadInfo, Node, UserId, WorkspaceAuth, WorkspaceId,
+    ApiKey, FileUploadInfo, Node, UserId, WorkspaceAuth, WorkspaceId, WorkspaceIndexRepository,
     WorkspaceInfo,
 };
 

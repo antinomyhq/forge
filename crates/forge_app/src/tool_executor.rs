@@ -11,10 +11,9 @@ use crate::operation::{TempContentFiles, ToolOperation};
 use crate::services::ShellService;
 use crate::utils::format_display_path;
 use crate::{
-    WorkspaceService, ConversationService, EnvironmentService, FollowUpService,
-    FsCreateService, FsPatchService, FsReadService, FsRemoveService, FsSearchService,
-    FsUndoService, ImageReadService, NetFetchService, PlanCreateService, PolicyService,
-    SkillFetchService,
+    ConversationService, EnvironmentService, FollowUpService, FsCreateService, FsPatchService,
+    FsReadService, FsRemoveService, FsSearchService, FsUndoService, ImageReadService,
+    NetFetchService, PlanCreateService, PolicyService, SkillFetchService, WorkspaceService,
 };
 
 pub struct ToolExecutor<S> {
