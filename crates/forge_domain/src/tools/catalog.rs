@@ -41,7 +41,7 @@ pub enum ToolCatalog {
     Read(FSRead),
     ReadImage(ReadImage),
     Write(FSWrite),
-    Search(FSSearch),
+    FsSearch(FSSearch),
     SemSearch(SemanticSearch),
     Remove(FSRemove),
     Patch(FSPatch),
@@ -544,7 +544,7 @@ impl ToolDescription for ToolCatalog {
             ToolCatalog::Shell(v) => v.description(),
             ToolCatalog::Followup(v) => v.description(),
             ToolCatalog::Fetch(v) => v.description(),
-            ToolCatalog::Search(v) => v.description(),
+            ToolCatalog::FsSearch(v) => v.description(),
             ToolCatalog::SemSearch(v) => v.description(),
             ToolCatalog::Read(v) => v.description(),
             ToolCatalog::ReadImage(v) => v.description(),
@@ -581,7 +581,7 @@ impl ToolCatalog {
             ToolCatalog::Shell(_) => r#gen.into_root_schema_for::<Shell>(),
             ToolCatalog::Followup(_) => r#gen.into_root_schema_for::<Followup>(),
             ToolCatalog::Fetch(_) => r#gen.into_root_schema_for::<NetFetch>(),
-            ToolCatalog::Search(_) => r#gen.into_root_schema_for::<FSSearch>(),
+            ToolCatalog::FsSearch(_) => r#gen.into_root_schema_for::<FSSearch>(),
             ToolCatalog::SemSearch(_) => r#gen.into_root_schema_for::<SemanticSearch>(),
             ToolCatalog::Read(_) => r#gen.into_root_schema_for::<FSRead>(),
             ToolCatalog::ReadImage(_) => r#gen.into_root_schema_for::<ReadImage>(),
@@ -640,7 +640,7 @@ impl ToolCatalog {
                 cwd,
                 message: format!("Create/overwrite file: {}", display_path_for(&input.path)),
             }),
-            ToolCatalog::Search(input) => {
+            ToolCatalog::FsSearch(input) => {
                 let base_message = format!(
                     "Search in directory/file: {}",
                     display_path_for(&input.path)
@@ -745,7 +745,7 @@ impl ToolCatalog {
 
     /// Creates a Search tool call with the specified path and regex pattern
     pub fn tool_call_search(path: &str, regex: Option<&str>) -> ToolCallFull {
-        ToolCallFull::from(ToolCatalog::Search(FSSearch {
+        ToolCallFull::from(ToolCatalog::FsSearch(FSSearch {
             path: path.to_string(),
             regex: regex.map(|r| r.to_string()),
             ..Default::default()
@@ -912,7 +912,7 @@ mod tests {
         use crate::FSSearch;
         use crate::policies::PermissionOperation;
 
-        let search_with_regex = ToolCatalog::Search(FSSearch {
+        let search_with_regex = ToolCatalog::FsSearch(FSSearch {
             path: "/home/user/project".to_string(),
             regex: Some("fn main".to_string()),
             start_index: None,
@@ -942,7 +942,7 @@ mod tests {
         use crate::FSSearch;
         use crate::policies::PermissionOperation;
 
-        let search_without_regex = ToolCatalog::Search(FSSearch {
+        let search_without_regex = ToolCatalog::FsSearch(FSSearch {
             path: "/home/user/project".to_string(),
             regex: None,
             start_index: None,
@@ -969,7 +969,7 @@ mod tests {
         use crate::FSSearch;
         use crate::policies::PermissionOperation;
 
-        let search_with_pattern = ToolCatalog::Search(FSSearch {
+        let search_with_pattern = ToolCatalog::FsSearch(FSSearch {
             path: "/home/user/project".to_string(),
             regex: None,
             start_index: None,
@@ -999,7 +999,7 @@ mod tests {
         use crate::FSSearch;
         use crate::policies::PermissionOperation;
 
-        let search_with_both = ToolCatalog::Search(FSSearch {
+        let search_with_both = ToolCatalog::FsSearch(FSSearch {
             path: "/home/user/project".to_string(),
             regex: Some("fn main".to_string()),
             start_index: None,
