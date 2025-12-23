@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Discord Community
+    url: https://discord.gg/kRZBPpkgwq
+    about: Join our Discord server for questions, discussions, and community support
+  - name: 📖 Documentation
+    url: https://github.com/antinomyhq/forge/tree/main/docs
+    about: Check out our comprehensive documentation
+  - name: ❓ Discussions
+    url: https://github.com/antinomyhq/forge/discussions
+    about: Ask questions and discuss ideas with the community
