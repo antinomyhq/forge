@@ -22,6 +22,6 @@ fi
 # Commands cache - loaded lazily on first use
 typeset -h _FORGE_COMMANDS=""
 
-# Export variables for the forge child process
-export _FORGE_CONVERSATION_ID
-export _FORGE_ACTIVE_AGENT
+# Hidden variables to be used only via the ForgeCLI
+typeset -h _FORGE_CONVERSATION_ID
+typeset -h _FORGE_ACTIVE_AGENT

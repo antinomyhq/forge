@@ -2210,10 +2210,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Set the provider via API
         self.api.set_default_provider(provider.id.clone()).await?;
 
-        self.writeln_title(TitleFormat::action(format!(
-            "Switched to provider: {}",
-            CliProvider(AnyProvider::Url(provider.clone()))
-        )))?;
+        self.writeln_title(
+            TitleFormat::action(format!("{}", provider.id))
+                .sub_title("is now the default provider"),
+        )?;
 
         // Check if the current model is available for the new provider
         let current_model = self.api.get_default_model().await;
@@ -2824,6 +2824,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     async fn handle_zsh_rprompt_command(&mut self) -> Option<String> {
         let cid = std::env::var("_FORGE_CONVERSATION_ID")
             .ok()
+            .filter(|text| !text.trim().is_empty())
             .and_then(|str| ConversationId::from_str(str.as_str()).ok());
 
         // Make IO calls in parallel
@@ -2842,7 +2843,12 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .unwrap_or(true); // Default to true
 
         let rprompt = ZshRPrompt::default()
-            .agent(std::env::var("_FORGE_ACTIVE_AGENT").ok().map(AgentId::new))
+            .agent(
+                std::env::var("_FORGE_ACTIVE_AGENT")
+                    .ok()
+                    .filter(|text| !text.trim().is_empty())
+                    .map(AgentId::new),
+            )
             .model(model_id)
             .token_count(conversation.and_then(|conversation| conversation.token_count()))
             .use_nerd_font(use_nerd_font);
@@ -3021,8 +3027,6 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         info.add_key_value("ID", workspace.workspace_id.to_string())
             .add_key_value("Path", workspace.working_dir.to_string())
-            .add_key_value("Files", workspace.node_count.to_string())
-            .add_key_value("Relations", workspace.relation_count.to_string())
             .add_key_value("Created At", humanize_time(workspace.created_at))
             .add_key_value("Updated At", updated_time)
     }
