@@ -263,7 +263,7 @@ impl<F> ForgeContextEngineService<F> {
     async fn find_workspace_by_path(
         &self,
         path: PathBuf,
-    ) -> Result<(PathBuf, Option<forge_domain::Workspace>)>
+    ) -> Result<Option<forge_domain::Workspace>>
     where
         F: WorkspaceRepository,
     {
@@ -271,9 +271,7 @@ impl<F> ForgeContextEngineService<F> {
             .canonicalize()
             .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
 
-        let workspace = self.infra.find_by_path(&canonical_path).await?;
-
-        Ok((canonical_path, workspace))
+        self.infra.find_by_path(&canonical_path).await
     }
 
     /// Walks the directory, reads all files, and computes their hashes.
@@ -379,8 +377,10 @@ impl<
         let (token, _) = self.get_workspace_credentials().await?;
 
         // Step 2: Canonicalize path and find workspace
-        let (_, workspace) = self.find_workspace_by_path(path).await?;
-        let workspace = workspace.ok_or(forge_domain::Error::WorkspaceNotFound)?;
+        let workspace = self
+            .find_workspace_by_path(path)
+            .await?
+            .ok_or(forge_domain::Error::WorkspaceNotFound)?;
 
         // Step 3: Search the codebase
         let search_query = forge_domain::CodeBase::new(
@@ -420,7 +420,7 @@ impl<
         let (token, _) = self.get_workspace_credentials().await?;
 
         // Canonicalize path and find workspace
-        let (_, workspace) = self.find_workspace_by_path(path).await?;
+        let workspace = self.find_workspace_by_path(path).await?;
 
         if let Some(workspace) = workspace {
             // Get detailed workspace info from server
@@ -481,9 +481,10 @@ impl<
         let (token, user_id) = self.get_workspace_credentials().await?;
 
         // Canonicalize path and find workspace
-        let (path, workspace) = self.find_workspace_by_path(path).await?;
-        let workspace =
-            workspace.context("Workspace not indexed. Please run `workspace sync` first.")?;
+        let workspace = self
+            .find_workspace_by_path(path)
+            .await?
+            .context("Workspace not indexed. Please run `workspace sync` first.")?;
 
         // Ensure workspace belongs to current user
         if workspace.user_id != user_id {
@@ -491,7 +492,7 @@ impl<
         }
 
         // Read local files and compute hashes
-        let local_files = self.read_files(&path).await?;
+        let local_files = self.read_files(&workspace.path).await?;
 
         // Fetch remote file hashes from server
         let remote_files = self
