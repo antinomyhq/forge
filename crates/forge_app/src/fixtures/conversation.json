@@ -816,7 +816,7 @@
           "content": "Good! Now let me check the other files that have compilation errors. Let me search for files that use `SummaryMessageBlock`:",
           "tool_calls": [
             {
-              "name": "search",
+              "name": "fs_search",
               "call_id": "toolu_015mSQdr2qS4AR2MGnhpb5Wo",
               "arguments": {
                 "path": "/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/transformers",
@@ -828,7 +828,7 @@
       },
       {
         "tool": {
-          "name": "search",
+          "name": "fs_search",
           "call_id": "toolu_015mSQdr2qS4AR2MGnhpb5Wo",
           "output": {
             "is_error": false,
@@ -909,7 +909,7 @@
           "content": "Now let me check the trim_context_summary.rs file:",
           "tool_calls": [
             {
-              "name": "search",
+              "name": "fs_search",
               "call_id": "toolu_01HKnoBtzs5pq35K3uNnzs3B",
               "arguments": {
                 "max_search_lines": 500,
@@ -922,7 +922,7 @@
       },
       {
         "tool": {
-          "name": "search",
+          "name": "fs_search",
           "call_id": "toolu_01HKnoBtzs5pq35K3uNnzs3B",
           "output": {
             "is_error": false,
@@ -1642,7 +1642,7 @@
           "content": "Now let me search for all other uses of `Block::read`, `Block::update`, and `Block::remove` in that file and fix them:",
           "tool_calls": [
             {
-              "name": "search",
+              "name": "fs_search",
               "call_id": "toolu_016TvoHDn1RJtrKzgGvEBQ7o",
               "arguments": {
                 "path": "/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/transformers/strip_working_dir.rs",
@@ -1654,7 +1654,7 @@
       },
       {
         "tool": {
-          "name": "search",
+          "name": "fs_search",
           "call_id": "toolu_016TvoHDn1RJtrKzgGvEBQ7o",
           "output": {
             "is_error": false,
