@@ -1,6 +1,7 @@
 ---
 source: crates/forge_app/src/operation.rs
 expression: to_value(actual)
+snapshot_kind: text
 ---
 <file_created
   path="/home/user/file_with_warning.txt"

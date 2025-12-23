@@ -47,7 +47,11 @@ impl<
         assert_absolute_path(path)?;
 
         // Validate file syntax using remote validation API (graceful failure)
-        let errors = self.infra.validate_file(path, &content).await.unwrap_or_default();
+        let errors = self
+            .infra
+            .validate_file(path, &content)
+            .await
+            .unwrap_or_default();
 
         if let Some(parent) = Path::new(&path).parent() {
             self.infra

@@ -1,6 +1,7 @@
 ---
 source: crates/forge_app/src/operation.rs
 expression: to_value(actual)
+snapshot_kind: text
 ---
 <file_diff
   path="/home/user/large_file.txt"
@@ -13,7 +14,6 @@ expression: to_value(actual)
 <message>Syntax validation failed</message>
 <file
   path="/home/user/large_file.txt"
-  extension="txt"
 >
 </file>
 <details>The file was written successfully but contains 1 syntax error(s)</details>

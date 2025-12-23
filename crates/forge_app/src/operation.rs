@@ -189,6 +189,31 @@ fn create_stream_element<T: StreamElement>(
 
     Some(elem)
 }
+
+/// Creates a validation warning element for syntax errors
+///
+/// # Arguments
+/// * `path` - The file path
+/// * `errors` - Vector of syntax errors
+///
+/// Returns an Element containing the formatted warning with all error details
+fn create_validation_warning(path: &str, errors: &[forge_domain::SyntaxError]) -> Element {
+    Element::new("warning")
+        .append(Element::new("message").text("Syntax validation failed"))
+        .append(Element::new("file").attr("path", path))
+        .append(Element::new("details").text(format!(
+            "The file was written successfully but contains {} syntax error(s)",
+            errors.len()
+        )))
+        .append(errors.iter().map(|error| {
+            Element::new("error")
+                .attr("line", error.line.to_string())
+                .attr("column", error.column.to_string())
+                .cdata(&error.message)
+        }))
+        .append(Element::new("suggestion").text("Review and fix the syntax issues"))
+}
+
 impl ToolOperation {
     pub fn into_tool_output(
         self,
@@ -250,25 +275,8 @@ impl ToolOperation {
                     .attr("path", &input.path)
                     .attr("total_lines", input.content.lines().count());
 
-                    // FIXME: Duplicated logic with fs-patch
                 if !output.errors.is_empty() {
-                    let warning_elm = Element::new("warning")
-                        .append(Element::new("message").text("Syntax validation failed"))
-                        .append(Element::new("file").attr("path", &input.path))
-                        .append(Element::new("details").text(format!(
-                            "The file was written successfully but contains {} syntax error(s)",
-                            output.errors.len()
-                        )))
-                        .append(output.errors.iter().map(|error| {
-                            Element::new("error")
-                                .attr("line", error.line.to_string())
-                                .attr("column", error.column.to_string())
-                                .cdata(&error.message)
-                        }))
-                        .append(
-                            Element::new("suggestion").text("Review and fix the syntax issues"),
-                        );
-                    elm = elm.append(warning_elm);
+                    elm = elm.append(create_validation_warning(&input.path, &output.errors));
                 }
 
                 forge_domain::ToolOutput::text(elm)
@@ -415,31 +423,7 @@ impl ToolOperation {
                     .cdata(diff);
 
                 if !output.errors.is_empty() {
-                    let ext = Path::new(&input.path)
-                        .extension()
-                        .and_then(|e| e.to_str())
-                        .unwrap_or("unknown");
-                    let warning_elm = Element::new("warning")
-                        .append(Element::new("message").text("Syntax validation failed"))
-                        .append(
-                            Element::new("file")
-                                .attr("path", &input.path)
-                                .attr("extension", ext),
-                        )
-                        .append(Element::new("details").text(format!(
-                            "The file was written successfully but contains {} syntax error(s)",
-                            output.errors.len()
-                        )))
-                        .append(output.errors.iter().map(|error| {
-                            Element::new("error")
-                                .attr("line", error.line.to_string())
-                                .attr("column", error.column.to_string())
-                                .cdata(&error.message)
-                        }))
-                        .append(
-                            Element::new("suggestion").text("Review and fix the syntax issues"),
-                        );
-                    elm = elm.append(warning_elm);
+                    elm = elm.append(create_validation_warning(&input.path, &output.errors));
                 }
 
                 *metrics = metrics.clone().insert(
