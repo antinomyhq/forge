@@ -2213,10 +2213,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .unwrap_or(false);
 
         // Switch provider if needed
-        if needs_provider_switch
-            && let Some(provider_id) = &model.provider_id {
-                self.api.set_default_provider(provider_id.clone()).await?;
-            }
+        if needs_provider_switch && let Some(provider_id) = &model.provider_id {
+            self.api.set_default_provider(provider_id.clone()).await?;
+        }
 
         // Update the operating model via API
         self.api.set_default_model(model.id.clone()).await?;
@@ -2870,10 +2869,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     .unwrap_or(false);
 
                 // Switch provider if needed
-                if needs_provider_switch
-                    && let Some(provider_id) = &model.provider_id {
-                        self.api.set_default_provider(provider_id.clone()).await?;
-                    }
+                if needs_provider_switch && let Some(provider_id) = &model.provider_id {
+                    self.api.set_default_provider(provider_id.clone()).await?;
+                }
 
                 // Set the model
                 self.api.set_default_model(model_id.clone()).await?;
