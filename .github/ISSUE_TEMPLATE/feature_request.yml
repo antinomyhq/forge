@@ -1,7 +1,7 @@
 name: ✨ Feature Request
 description: Suggest a new feature or enhancement for Forge
 title: "[Feature]: "
-labels: ["enhancement", "needs-triage"]
+labels: ["type: feature"]
 body:
   - type: markdown
     attributes:

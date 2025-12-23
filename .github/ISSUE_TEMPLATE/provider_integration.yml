@@ -1,7 +1,7 @@
 name: 🔌 Provider Integration Request
 description: Request support for a new AI provider
 title: "[Provider]: "
-labels: ["enhancement", "provider", "needs-triage"]
+labels: ["type: feature"]
 body:
   - type: markdown
     attributes:

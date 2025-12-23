@@ -1,7 +1,7 @@
 name: 🐛 Bug Report
 description: Report a bug or unexpected behavior in Forge
 title: "[Bug]: "
-labels: ["bug", "needs-triage"]
+labels: ["type: bug"]
 body:
   - type: markdown
     attributes:

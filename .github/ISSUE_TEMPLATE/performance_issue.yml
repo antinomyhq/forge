@@ -1,7 +1,7 @@
 name: ⚡ Performance Issue
 description: Report performance problems, slowness, or resource usage issues
 title: "[Performance]: "
-labels: ["performance", "needs-triage"]
+labels: ["type: performance"]
 body:
   - type: markdown
     attributes:
