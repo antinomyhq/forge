@@ -3,7 +3,9 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use forge_app::{ContextEngineService, FileReaderInfra, SyncPlan, Walker, WalkerInfra, compute_hash};
+use forge_app::{
+    ContextEngineService, FileReaderInfra, SyncPlan, Walker, WalkerInfra, compute_hash,
+};
 use forge_domain::{
     AuthCredential, ContextEngineRepository, FileHash, FileNode, ProviderId, ProviderRepository,
     SyncProgress, UserId, WorkspaceId, WorkspaceRepository,
@@ -11,8 +13,6 @@ use forge_domain::{
 use forge_stream::MpscStream;
 use futures::future::join_all;
 use tracing::{info, warn};
-
-
 
 /// Service for indexing codebases and performing semantic search
 pub struct ForgeContextEngineService<F> {
@@ -248,7 +248,6 @@ impl<F> ForgeContextEngineService<F> {
         }
     }
 
-
     /// Gets the forge services credential and extracts workspace auth components
     ///
     /// # Errors
@@ -265,6 +264,27 @@ impl<F> ForgeContextEngineService<F> {
             .context("No authentication credentials found. Please authenticate first.")?;
 
         Self::extract_workspace_auth(&credential)
+    }
+
+    /// Canonicalizes a path and finds the associated workspace
+    ///
+    /// # Errors
+    /// Returns an error if the path cannot be canonicalized or if there's a database error.
+    /// Returns Ok(None) if the workspace is not found.
+    async fn find_workspace_by_path(
+        &self,
+        path: PathBuf,
+    ) -> Result<(PathBuf, Option<forge_domain::Workspace>)>
+    where
+        F: WorkspaceRepository,
+    {
+        let canonical_path = path
+            .canonicalize()
+            .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
+
+        let workspace = self.infra.find_by_path(&canonical_path).await?;
+
+        Ok((canonical_path, workspace))
     }
 
     /// Convert WorkspaceAuth to AuthCredential for storage
@@ -383,23 +403,14 @@ impl<
         path: PathBuf,
         params: forge_domain::SearchParams<'_>,
     ) -> Result<Vec<forge_domain::Node>> {
-        // Step 1: Canonicalize path
-        let canonical_path = path
-            .canonicalize()
-            .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
-
-        // Step 2: Check if workspace exists
-        let workspace = self
-            .infra
-            .find_by_path(&canonical_path)
-            .await
-            .context("Failed to query database")?
-            .ok_or(forge_domain::Error::WorkspaceNotFound)?;
-
-        // Step 3: Get auth token
+        // Step 1: Get auth token
         let (token, _) = self.get_workspace_credentials().await?;
 
-        // Step 4: Search the codebase
+        // Step 2: Canonicalize path and find workspace
+        let (_, workspace) = self.find_workspace_by_path(path).await?;
+        let workspace = workspace.ok_or(forge_domain::Error::WorkspaceNotFound)?;
+
+        // Step 3: Search the codebase
         let search_query = forge_domain::CodeBase::new(
             workspace.user_id.clone(),
             workspace.workspace_id.clone(),
@@ -433,15 +444,11 @@ impl<
     where
         F: WorkspaceRepository + ContextEngineRepository + ProviderRepository,
     {
-        let path = path
-            .canonicalize()
-            .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
-
         // Get auth token
         let (token, _) = self.get_workspace_credentials().await?;
 
-        // Find workspace by path
-        let workspace = self.infra.find_by_path(&path).await?;
+        // Canonicalize path and find workspace
+        let (_, workspace) = self.find_workspace_by_path(path).await?;
 
         if let Some(workspace) = workspace {
             // Get detailed workspace info from server
@@ -498,20 +505,13 @@ impl<
 
         use forge_domain::{FileStatus, FileSyncStatus};
 
-        // Canonicalize the path
-        let canonical_path = path
-            .canonicalize()
-            .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
-
-        // Check if workspace is indexed
-        let workspace = self
-            .infra
-            .find_by_path(&canonical_path)
-            .await?
-            .context("Workspace not indexed. Please run `workspace sync` first.")?;
-
         // Get auth token
         let (token, user_id) = self.get_workspace_credentials().await?;
+
+        // Canonicalize path and find workspace
+        let (path, workspace) = self.find_workspace_by_path(path).await?;
+        let workspace =
+            workspace.context("Workspace not indexed. Please run `workspace sync` first.")?;
 
         // Ensure workspace belongs to current user
         if workspace.user_id != user_id {
@@ -519,7 +519,7 @@ impl<
         }
 
         // Read local files and compute hashes
-        let local_files = self.read_files(&canonical_path).await?;
+        let local_files = self.read_files(&path).await?;
 
         // Fetch remote file hashes from server
         let remote_files = self
@@ -924,7 +924,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_query_error_when_not_found() {
-        let service = ForgeContextEngineService::new(Arc::new(MockInfra::default()));
+        let mut mock = MockInfra::default();
+        mock.authenticated = true; // Provide authentication
+        let service = ForgeContextEngineService::new(Arc::new(mock));
 
         let params = forge_domain::SearchParams::new("test", "fest").limit(10usize);
         let actual = service.query_codebase(PathBuf::from("."), params).await;
@@ -1224,7 +1226,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_workspace_status_not_indexed() {
-        let mock = MockInfra::default(); // No workspace
+        let mut mock = MockInfra::default(); // No workspace
+        mock.authenticated = true; // Provide authentication
         let service = ForgeContextEngineService::new(Arc::new(mock));
 
         let actual = service.get_workspace_status(PathBuf::from(".")).await;
