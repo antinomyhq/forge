@@ -41,7 +41,7 @@ pub enum ToolCatalog {
     Read(FSRead),
     ReadImage(ReadImage),
     Write(FSWrite),
-    Search(FSSearch),
+    FsSearch(FSSearch),
     SemSearch(SemanticSearch),
     Remove(FSRemove),
     Patch(FSPatch),
@@ -344,13 +344,14 @@ pub struct FSUndo {
     pub path: String,
 }
 
-/// Executes shell commands with safety measures using restricted bash (rbash).
-/// Prevents potentially harmful operations like absolute path execution and
-/// directory changes. Use for file system interaction, running utilities,
-/// installing packages, or executing build commands. For operations requiring
-/// unrestricted access, advise users to run forge CLI with '-u' flag. Returns
-/// complete output including stdout, stderr, and exit code for diagnostic
-/// purposes.
+/// Executes shell commands.
+/// The `cwd` parameter sets the working directory for command execution.
+/// CRITICAL: Do NOT use `cd` commands in the command string. This is FORBIDDEN.
+/// Always use the `cwd` parameter to set the working directory instead. Any use
+/// of `cd` in the command is redundant, incorrect, and violates the tool
+/// contract. Use for file system interaction, running utilities, installing
+/// packages, or executing build commands. Returns complete output including
+/// stdout, stderr, and exit code for diagnostic purposes.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct Shell {
     /// The shell command to execute.
@@ -543,7 +544,7 @@ impl ToolDescription for ToolCatalog {
             ToolCatalog::Shell(v) => v.description(),
             ToolCatalog::Followup(v) => v.description(),
             ToolCatalog::Fetch(v) => v.description(),
-            ToolCatalog::Search(v) => v.description(),
+            ToolCatalog::FsSearch(v) => v.description(),
             ToolCatalog::SemSearch(v) => v.description(),
             ToolCatalog::Read(v) => v.description(),
             ToolCatalog::ReadImage(v) => v.description(),
@@ -580,7 +581,7 @@ impl ToolCatalog {
             ToolCatalog::Shell(_) => r#gen.into_root_schema_for::<Shell>(),
             ToolCatalog::Followup(_) => r#gen.into_root_schema_for::<Followup>(),
             ToolCatalog::Fetch(_) => r#gen.into_root_schema_for::<NetFetch>(),
-            ToolCatalog::Search(_) => r#gen.into_root_schema_for::<FSSearch>(),
+            ToolCatalog::FsSearch(_) => r#gen.into_root_schema_for::<FSSearch>(),
             ToolCatalog::SemSearch(_) => r#gen.into_root_schema_for::<SemanticSearch>(),
             ToolCatalog::Read(_) => r#gen.into_root_schema_for::<FSRead>(),
             ToolCatalog::ReadImage(_) => r#gen.into_root_schema_for::<ReadImage>(),
@@ -639,7 +640,7 @@ impl ToolCatalog {
                 cwd,
                 message: format!("Create/overwrite file: {}", display_path_for(&input.path)),
             }),
-            ToolCatalog::Search(input) => {
+            ToolCatalog::FsSearch(input) => {
                 let base_message = format!(
                     "Search in directory/file: {}",
                     display_path_for(&input.path)
@@ -744,7 +745,7 @@ impl ToolCatalog {
 
     /// Creates a Search tool call with the specified path and regex pattern
     pub fn tool_call_search(path: &str, regex: Option<&str>) -> ToolCallFull {
-        ToolCallFull::from(ToolCatalog::Search(FSSearch {
+        ToolCallFull::from(ToolCatalog::FsSearch(FSSearch {
             path: path.to_string(),
             regex: regex.map(|r| r.to_string()),
             ..Default::default()
@@ -911,7 +912,7 @@ mod tests {
         use crate::FSSearch;
         use crate::policies::PermissionOperation;
 
-        let search_with_regex = ToolCatalog::Search(FSSearch {
+        let search_with_regex = ToolCatalog::FsSearch(FSSearch {
             path: "/home/user/project".to_string(),
             regex: Some("fn main".to_string()),
             start_index: None,
@@ -941,7 +942,7 @@ mod tests {
         use crate::FSSearch;
         use crate::policies::PermissionOperation;
 
-        let search_without_regex = ToolCatalog::Search(FSSearch {
+        let search_without_regex = ToolCatalog::FsSearch(FSSearch {
             path: "/home/user/project".to_string(),
             regex: None,
             start_index: None,
@@ -968,7 +969,7 @@ mod tests {
         use crate::FSSearch;
         use crate::policies::PermissionOperation;
 
-        let search_with_pattern = ToolCatalog::Search(FSSearch {
+        let search_with_pattern = ToolCatalog::FsSearch(FSSearch {
             path: "/home/user/project".to_string(),
             regex: None,
             start_index: None,
@@ -998,7 +999,7 @@ mod tests {
         use crate::FSSearch;
         use crate::policies::PermissionOperation;
 
-        let search_with_both = ToolCatalog::Search(FSSearch {
+        let search_with_both = ToolCatalog::FsSearch(FSSearch {
             path: "/home/user/project".to_string(),
             regex: Some("fn main".to_string()),
             start_index: None,

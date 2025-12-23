@@ -48,7 +48,7 @@ impl FormatContent for ToolCatalog {
                 };
                 Some(TitleFormat::debug(title).sub_title(display_path).into())
             }
-            ToolCatalog::Search(input) => {
+            ToolCatalog::FsSearch(input) => {
                 let formatted_dir = display_path_for(&input.path);
                 let title = match (&input.regex, &input.file_pattern) {
                     (Some(regex), Some(pattern)) => {
