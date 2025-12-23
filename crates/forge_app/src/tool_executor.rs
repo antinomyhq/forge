@@ -182,7 +182,7 @@ impl<
                     .await?;
                 (input, output).into()
             }
-            ToolCatalog::Search(input) => {
+            ToolCatalog::FsSearch(input) => {
                 let normalized_path = self.normalize_path(input.path.clone());
                 let output = self
                     .services

@@ -1,0 +1,100 @@
+name: 📚 Documentation Issue
+description: Report problems with documentation or suggest improvements
+title: "[Docs]: "
+labels: ["type: docs"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve our documentation! Clear docs help everyone.
+
+  - type: dropdown
+    id: issue-type
+    attributes:
+      label: Documentation Issue Type
+      description: What type of documentation issue is this?
+      options:
+        - Missing documentation
+        - Incorrect/outdated information
+        - Unclear explanation
+        - Broken link
+        - Typo/grammar
+        - Code example doesn't work
+        - Need more examples
+        - Need better organization
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: location
+    attributes:
+      label: Documentation Location
+      description: Where is the documentation issue? (URL, file path, or section name)
+      placeholder: https://github.com/antinomyhq/forge/blob/main/docs/...
+    validations:
+      required: true
+
+  - type: textarea
+    id: current-content
+    attributes:
+      label: Current Content
+      description: What does the current documentation say? (Quote or describe)
+      placeholder: Currently, the documentation says...
+
+  - type: textarea
+    id: issue-description
+    attributes:
+      label: Issue Description
+      description: What is wrong or confusing about the current documentation?
+      placeholder: The issue is that...
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggested-improvement
+    attributes:
+      label: Suggested Improvement
+      description: How would you improve this documentation?
+      placeholder: It would be better if...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: audience
+    attributes:
+      label: Target Audience
+      description: Who would benefit from this documentation improvement?
+      options:
+        - New users/beginners
+        - Experienced users
+        - Contributors/developers
+        - All users
+      validations:
+        required: true
+
+  - type: textarea
+    id: examples
+    attributes:
+      label: Example or Reference
+      description: Provide examples or references that could help improve the documentation
+      placeholder: |
+        For example:
+        ```yaml
+        # forge.yaml example
+        model: claude-3.7-sonnet
+        ```
+
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      description: Can you help improve this documentation?
+      options:
+        - label: I'm willing to submit a PR with the documentation improvements
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other information that would help improve the documentation

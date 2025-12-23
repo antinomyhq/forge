@@ -304,7 +304,7 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
         ToolCatalog::Patch(input) => Some(SummaryTool::FileUpdate { path: input.path }),
         ToolCatalog::Remove(input) => Some(SummaryTool::FileRemove { path: input.path }),
         ToolCatalog::Shell(input) => Some(SummaryTool::Shell { command: input.command }),
-        ToolCatalog::Search(input) => input
+        ToolCatalog::FsSearch(input) => input
             .file_pattern
             .or(input.regex)
             .map(|pattern| SummaryTool::Search { pattern }),
@@ -896,7 +896,7 @@ mod tests {
         let fixture = context(vec![assistant_with_tools(
             "Searching",
             vec![ToolCallFull {
-                name: ToolName::new("search"),
+                name: ToolName::new("fs_search"),
                 call_id: Some(ToolCallId::new("call_1")),
                 arguments: ToolCallArguments::from_json(r#"{"path": "/test", "regex": "pattern"}"#),
             }],

@@ -1315,7 +1315,7 @@ mod tests {
         let fixture_tool_calls = vec![
             ToolCallFull {
                 call_id: Some(crate::ToolCallId::new("call1")),
-                name: crate::ToolName::new("search"),
+                name: crate::ToolName::new("fs_search"),
                 arguments: serde_json::json!({"query": "test"}).into(),
             },
             ToolCallFull {
@@ -1327,10 +1327,10 @@ mod tests {
         let fixture = ContextMessage::assistant("Let me help", None, Some(fixture_tool_calls));
         let actual = fixture.token_count_approx();
         // Content: "Let me help" = 11 chars
-        // Tool call 1: "search" (6 chars) + {"query":"test"} (16 chars) = 22 chars
+        // Tool call 1: "fs_search" (9 chars) + {"query":"test"} (16 chars) = 25 chars
         // Tool call 2: "calculate" (9 chars) + {"expression":"2+2"} (20 chars) = 29
-        // chars Total: 11 + 22 + 29 = 62 chars / 4 = 16 tokens
-        let expected = 16;
+        // chars Total: 11 + 25 + 29 = 65 chars / 4 = 17 tokens
+        let expected = 17;
         assert_eq!(actual, expected);
     }
 
@@ -1361,7 +1361,7 @@ mod tests {
     fn test_context_message_token_count_approx_tool_result_text() {
         // Fixture: Tool result with text output
         let fixture = ContextMessage::tool_result(ToolResult {
-            name: crate::ToolName::new("search"),
+            name: crate::ToolName::new("fs_search"),
             call_id: Some(crate::ToolCallId::new("call1")),
             output: crate::ToolOutput::text("Search results: Found 3 items".to_string()),
         });
