@@ -114,7 +114,6 @@ impl<F> ForgeContextEngineService<F> {
 
         info!(canonical_path = %canonical_path.display(), "Resolved canonical path");
 
-        // Get auth token (must already exist - caller should call ensure_auth first)
         let (token, user_id) = self.get_workspace_credentials().await?;
 
         let existing_workspace = self.infra.find_by_path(&canonical_path).await?;
@@ -169,7 +168,6 @@ impl<F> ForgeContextEngineService<F> {
         })
         .await;
 
-        // Fetch remote hashes and create sync plan
         let plan = SyncPlan::new(local_files, remote_files);
         let uploaded_files = plan.total();
 
@@ -277,7 +275,6 @@ impl<F> ForgeContextEngineService<F> {
     where
         F: WalkerInfra + FileReaderInfra,
     {
-        // Walk directory
         info!("Walking directory to discover files");
         let mut walker_config = Walker::conservative()
             .cwd(dir_path.to_path_buf())
@@ -371,16 +368,13 @@ impl<
         path: PathBuf,
         params: forge_domain::SearchParams<'_>,
     ) -> Result<Vec<forge_domain::Node>> {
-        // Step 1: Get auth token
         let (token, _) = self.get_workspace_credentials().await?;
 
-        // Step 2: Canonicalize path and find workspace
         let workspace = self
             .find_workspace_by_path(path)
             .await?
             .ok_or(forge_domain::Error::WorkspaceNotFound)?;
 
-        // Step 3: Search the codebase
         let search_query = forge_domain::CodeBase::new(
             workspace.user_id.clone(),
             workspace.workspace_id.clone(),
@@ -398,10 +392,8 @@ impl<
 
     /// Lists all workspaces.
     async fn list_codebase(&self) -> Result<Vec<forge_domain::WorkspaceInfo>> {
-        // Get auth token
         let (token, _) = self.get_workspace_credentials().await?;
 
-        // List all workspaces for this user
         self.infra
             .as_ref()
             .list_workspaces(&token)
@@ -414,14 +406,10 @@ impl<
     where
         F: WorkspaceRepository + ContextEngineRepository + ProviderRepository,
     {
-        // Get auth token
         let (token, _) = self.get_workspace_credentials().await?;
-
-        // Canonicalize path and find workspace
         let workspace = self.find_workspace_by_path(path).await?;
 
         if let Some(workspace) = workspace {
-            // Get detailed workspace info from server
             self.infra
                 .as_ref()
                 .get_workspace(&workspace.workspace_id, &token)
@@ -434,17 +422,14 @@ impl<
 
     /// Deletes a workspace from both the server and local database.
     async fn delete_codebase(&self, workspace_id: &forge_domain::WorkspaceId) -> Result<()> {
-        // Get auth token
         let (token, _) = self.get_workspace_credentials().await?;
 
-        // Delete from server
         self.infra
             .as_ref()
             .delete_workspace(workspace_id, &token)
             .await
             .context("Failed to delete workspace from server")?;
 
-        // Delete from local database
         self.infra
             .as_ref()
             .delete(workspace_id)
@@ -455,13 +440,11 @@ impl<
     }
 
     async fn is_indexed(&self, path: &std::path::Path) -> Result<bool> {
-        // Canonicalize path first to ensure consistent comparison
         let canonical_path = match path.canonicalize() {
             Ok(p) => p,
             Err(_) => return Ok(false), // Path doesn't exist, so it can't be indexed
         };
 
-        // Check if workspace is indexed
         Ok(self
             .infra
             .as_ref()
@@ -475,24 +458,15 @@ impl<
 
         use forge_domain::{FileStatus, FileSyncStatus};
 
-        // Get auth token
         let (token, user_id) = self.get_workspace_credentials().await?;
 
-        // Canonicalize path and find workspace
         let workspace = self
             .find_workspace_by_path(path)
             .await?
             .context("Workspace not indexed. Please run `workspace sync` first.")?;
 
-        // Ensure workspace belongs to current user
-        if workspace.user_id != user_id {
-            anyhow::bail!("Workspace belongs to a different user");
-        }
-
-        // Read local files and compute hashes
         let local_files = self.read_files(&workspace.path).await?;
 
-        // Fetch remote file hashes from server
         let remote_files = self
             .fetch_remote_hashes(&user_id, &workspace.workspace_id, &token)
             .await;
@@ -524,6 +498,8 @@ impl<
                     (Some(_), Some(_)) => FileSyncStatus::Modified,
                     (Some(_), None) => FileSyncStatus::New,
                     (None, Some(_)) => FileSyncStatus::Deleted,
+
+                    // FIXME: use filter-map
                     (None, None) => unreachable!("Path must exist in at least one set"),
                 };
 
