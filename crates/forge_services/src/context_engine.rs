@@ -489,7 +489,7 @@ impl<
         // Compute status for each file
         let mut statuses: Vec<FileStatus> = all_paths
             .into_iter()
-            .map(|path| {
+            .filter_map(|path| {
                 let local_hash = local_hashes.get(path);
                 let remote_hash = remote_hashes.get(path);
 
@@ -498,12 +498,10 @@ impl<
                     (Some(_), Some(_)) => FileSyncStatus::Modified,
                     (Some(_), None) => FileSyncStatus::New,
                     (None, Some(_)) => FileSyncStatus::Deleted,
-
-                    // FIXME: use filter-map
-                    (None, None) => unreachable!("Path must exist in at least one set"),
+                    (None, None) => return None, // Skip invalid entries
                 };
 
-                FileStatus::new(path.to_string(), status)
+                Some(FileStatus::new(path.to_string(), status))
             })
             .collect();
 
