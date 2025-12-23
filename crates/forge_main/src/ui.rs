@@ -1968,25 +1968,18 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             // Try to start local server for automatic callback on port 3000
             match forge_api::start_callback_server(3000) {
                 Ok(rx) => {
+                    // Display the authorization URL (same format as manual flow)
                     self.writeln(format!(
-                        "{} Opening browser for authentication...",
-                        "→".blue()
-                    ))?;
-                    self.writeln(format!(
-                        "{} Callback server started on {}",
-                        "✓".green(),
-                        "http://localhost:3000".blue()
+                        "{} Please visit: {}",
+                        "→".blue(),
+                        request.authorization_url.as_str().blue().underline()
                     ))?;
 
-                    // Open browser with the original URL (already has localhost:3000)
+                    // Open browser automatically
                     if let Err(e) = open::that(request.authorization_url.as_str()) {
                         self.writeln_title(TitleFormat::error(format!(
                             "Failed to open browser: {e}"
                         )))?;
-                        self.writeln(format!(
-                            "Please visit: {}",
-                            request.authorization_url.as_str().blue().underline()
-                        ))?;
                     }
 
                     self.spinner.start(Some("Waiting for authorization..."))?;

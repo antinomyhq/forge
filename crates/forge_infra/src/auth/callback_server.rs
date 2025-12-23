@@ -2,6 +2,7 @@ use std::net::TcpListener;
 use std::sync::{Arc, Mutex};
 
 use tokio::sync::oneshot;
+use tokio::task::spawn_blocking;
 
 /// Start a temporary local HTTP server to receive OAuth callback
 /// Binds to the specified port (default: 3000 for localhost)
@@ -17,8 +18,8 @@ pub fn start_callback_server(port: u16) -> anyhow::Result<oneshot::Receiver<Stri
     let (tx, rx) = oneshot::channel();
     let tx = Arc::new(Mutex::new(Some(tx)));
 
-    // Spawn server in background
-    std::thread::spawn(move || {
+    // Spawn server in background using tokio
+    spawn_blocking(move || {
         tracing::debug!("OAuth callback server started on port {port}");
         if let Err(e) = run_server(listener, tx) {
             tracing::error!("OAuth callback server error: {e}");
@@ -68,69 +69,336 @@ fn run_server(
 
     // Send success response to browser
     let response = if code.is_some() {
-        "HTTP/1.1 200 OK\r\n\
-         Content-Type: text/html\r\n\
-         Connection: close\r\n\
-         \r\n\
-         <html>\
-         <head>\
-         <style>\
-         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; text-align: center; padding-top: 50px; background: #f5f5f5; }\
-         .container { background: white; max-width: 500px; margin: 0 auto; padding: 40px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }\
-         h1 { color: #4CAF50; margin-bottom: 20px; }\
-         .countdown { font-size: 18px; color: #666; margin: 20px 0; }\
-         .close-btn { display: inline-block; padding: 12px 24px; background: #4CAF50; color: white; text-decoration: none; border-radius: 5px; border: none; font-size: 16px; cursor: pointer; margin-top: 20px; }\
-         .close-btn:hover { background: #45a049; }\
-         </style>\
-         </head>\
-         <body>\
-         <div class='container'>\
-         <h1>✓ Authentication Successful</h1>\
-         <p>You have successfully authenticated with your provider.</p>\
-         <p class='countdown' id='countdown'>This window will close in <span id='timer'>3</span> seconds...</p>\
-         <button class='close-btn' onclick='window.close()'>Close Window Now</button>\
-         <p style='color: #999; font-size: 14px; margin-top: 20px;'>If the window doesn't close automatically, please close it manually and return to the terminal.</p>\
-         </div>\
-         <script>\
-         let seconds = 3;\
-         const timer = document.getElementById('timer');\
-         const countdown = setInterval(() => {\
-             seconds--;\
-             timer.textContent = seconds;\
-             if (seconds <= 0) {\
-                 clearInterval(countdown);\
-                 window.close();\
-                 setTimeout(() => {\
-                     document.getElementById('countdown').textContent = 'Please close this window manually and return to the terminal.';\
-                 }, 500);\
-             }\
-         }, 1000);\
-         </script>\
-         </body>\
-         </html>"
+        r#"HTTP/1.1 200 OK
+Content-Type: text/html
+Connection: close
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authentication Successful</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #e0e7ff 0%, #f0f9ff 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            max-width: 480px;
+            width: 100%;
+            padding: 48px 40px;
+            text-align: center;
+            animation: slideUp 0.5s ease-out;
+        }
+        
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .icon {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 24px;
+            animation: scaleIn 0.5s ease-out 0.2s both;
+        }
+        
+        @keyframes scaleIn {
+            from {
+                transform: scale(0);
+            }
+            to {
+                transform: scale(1);
+            }
+        }
+        
+        .icon svg {
+            width: 40px;
+            height: 40px;
+            fill: white;
+        }
+        
+        h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 12px;
+        }
+        
+        .subtitle {
+            font-size: 16px;
+            color: #6b7280;
+            line-height: 1.6;
+            margin-bottom: 32px;
+        }
+        
+        .info-box {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+        
+        .info-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 8px;
+        }
+        
+        .info-text {
+            font-size: 14px;
+            color: #6b7280;
+            line-height: 1.5;
+        }
+        
+        .steps {
+            text-align: left;
+            margin-top: 16px;
+        }
+        
+        .step {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 8px;
+            font-size: 13px;
+            color: #6b7280;
+        }
+        
+        .step-number {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 20px;
+            height: 20px;
+            background: #10b981;
+            color: white;
+            border-radius: 50%;
+            font-size: 11px;
+            font-weight: 600;
+            margin-right: 8px;
+            flex-shrink: 0;
+        }
+        
+        .divider {
+            height: 1px;
+            background: #e5e7eb;
+            margin: 24px 0;
+        }
+        
+        .footer-text {
+            font-size: 12px;
+            color: #9ca3af;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+            </svg>
+        </div>
+        <h1>Authentication Successful</h1>
+        <p class="subtitle">You have successfully authenticated with your provider.</p>
+        
+        <div class="info-box">
+            <div class="info-title">What's Next?</div>
+            <div class="steps">
+                <div class="step">
+                    <span class="step-number">1</span>
+                    <span>Return to your terminal window</span>
+                </div>
+                <div class="step">
+                    <span class="step-number">2</span>
+                    <span>Your authentication is now complete</span>
+                </div>
+                <div class="step">
+                    <span class="step-number">3</span>
+                    <span>You can close this browser tab</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="divider"></div>
+        <p class="footer-text">You can safely close this tab and return to your terminal.</p>
+    </div>
+</body>
+</html>"#
     } else {
-        "HTTP/1.1 400 Bad Request\r\n\
-         Content-Type: text/html\r\n\
-         Connection: close\r\n\
-         \r\n\
-         <html>\
-         <head>\
-         <style>\
-         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; text-align: center; padding-top: 50px; background: #f5f5f5; }\
-         .container { background: white; max-width: 500px; margin: 0 auto; padding: 40px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }\
-         h1 { color: #f44336; margin-bottom: 20px; }\
-         .close-btn { display: inline-block; padding: 12px 24px; background: #f44336; color: white; text-decoration: none; border-radius: 5px; border: none; font-size: 16px; cursor: pointer; margin-top: 20px; }\
-         .close-btn:hover { background: #da190b; }\
-         </style>\
-         </head>\
-         <body>\
-         <div class='container'>\
-         <h1>✗ Authentication Failed</h1>\
-         <p>No authorization code received. Please try again.</p>\
-         <button class='close-btn' onclick='window.close()'>Close Window</button>\
-         </div>\
-         </body>\
-         </html>"
+        r#"HTTP/1.1 400 Bad Request
+Content-Type: text/html
+Connection: close
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authentication Failed</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #fee2e2 0%, #fef2f2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            max-width: 480px;
+            width: 100%;
+            padding: 48px 40px;
+            text-align: center;
+            animation: slideUp 0.5s ease-out;
+        }
+        
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .icon {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 24px;
+            animation: scaleIn 0.5s ease-out 0.2s both;
+        }
+        
+        @keyframes scaleIn {
+            from {
+                transform: scale(0);
+            }
+            to {
+                transform: scale(1);
+            }
+        }
+        
+        .icon svg {
+            width: 40px;
+            height: 40px;
+            fill: white;
+        }
+        
+        h1 {
+            font-size: 28px;
+            font-weight: 700;
+            color: #1f2937;
+            margin-bottom: 12px;
+        }
+        
+        .subtitle {
+            font-size: 16px;
+            color: #6b7280;
+            line-height: 1.6;
+            margin-bottom: 32px;
+        }
+        
+        .info-box {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+        
+        .info-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: #991b1b;
+            margin-bottom: 8px;
+        }
+        
+        .info-text {
+            font-size: 14px;
+            color: #b91c1c;
+            line-height: 1.5;
+        }
+        
+        .divider {
+            height: 1px;
+            background: #e5e7eb;
+            margin: 24px 0;
+        }
+        
+        .footer-text {
+            font-size: 12px;
+            color: #9ca3af;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+            </svg>
+        </div>
+        <h1>Authentication Failed</h1>
+        <p class="subtitle">No authorization code received. Please try again.</p>
+        
+        <div class="info-box">
+            <div class="info-title">What Happened?</div>
+            <div class="info-text">
+                The authentication process did not complete successfully. This could be due to a timeout or an interrupted connection.
+            </div>
+        </div>
+        
+        <div class="divider"></div>
+        <p class="footer-text">Please close this tab and restart the authentication process from your terminal.</p>
+    </div>
+</body>
+</html>"#
     };
 
     stream.write_all(response.as_bytes())?;
