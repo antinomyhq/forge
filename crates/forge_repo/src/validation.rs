@@ -4,8 +4,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use forge_app::GrpcInfra;
-use forge_domain::ValidationRepository;
-use forge_template::Element;
+use forge_domain::{SyntaxError, ValidationRepository, ValidationWarning};
 use tracing::{debug, warn};
 
 // Include the generated proto code at module level
@@ -38,7 +37,7 @@ impl<I: GrpcInfra> ValidationRepository for ForgeValidationRepository<I> {
         &self,
         path: impl AsRef<Path> + Send,
         content: &str,
-    ) -> Result<Option<String>> {
+    ) -> Result<Option<ValidationWarning>> {
         let path = path.as_ref();
         let path_str = path.to_string_lossy().to_string();
 
@@ -81,38 +80,35 @@ impl<I: GrpcInfra> ValidationRepository for ForgeValidationRepository<I> {
                         .and_then(|e| e.to_str())
                         .unwrap_or("unknown");
 
-                    let error_element = Element::new("warning")
-                        .append(Element::new("message").text("Syntax validation failed"))
-                        .append(
-                            Element::new("file")
-                                .attr("path", path.display().to_string())
-                                .attr("extension", ext),
-                        )
-                        .append(Element::new("details").text(format!(
-                            "The file was written successfully but contains {} syntax error(s)",
-                            error_list.errors.len()
-                        )))
-                        .append(error_list.errors.iter().map(|error| {
-                            warn!(
-                                path = %path_str,
-                                extension = ext,
-                                error_count = error_list.errors.len(),
-                                error_line = error.line,
-                                error_column = error.column,
-                                error_message = %error.message,
-                                "Syntax validation failed"
-                            );
-
-                            Element::new("error")
-                                .attr("line", error.line.to_string())
-                                .attr("column", error.column.to_string())
-                                .cdata(&error.message)
-                        }))
-                        .append(
-                            Element::new("suggestion").text("Review and fix the syntax issues"),
+                    // Log each error
+                    for error in &error_list.errors {
+                        warn!(
+                            path = %path_str,
+                            extension = ext,
+                            error_count = error_list.errors.len(),
+                            error_line = error.line,
+                            error_column = error.column,
+                            error_message = %error.message,
+                            "Syntax validation failed"
                         );
+                    }
 
-                    Ok(Some(error_element.render()))
+                    // Convert proto errors to domain errors
+                    let errors = error_list
+                        .errors
+                        .into_iter()
+                        .map(|error| SyntaxError {
+                            line: error.line,
+                            column: error.column,
+                            message: error.message,
+                        })
+                        .collect();
+
+                    Ok(Some(ValidationWarning::new(
+                        path.display().to_string(),
+                        ext.to_string(),
+                        errors,
+                    )))
                 }
                 proto_generated::validation_status::Status::UnsupportedLanguage(_) => {
                     let ext = path

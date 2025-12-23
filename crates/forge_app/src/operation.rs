@@ -251,7 +251,7 @@ impl ToolOperation {
                     .attr("total_lines", input.content.lines().count());
 
                 if let Some(warning) = output.warning {
-                    elm = elm.append(Element::new("warning").cdata(warning));
+                    elm = elm.append(Element::from(&warning));
                 }
 
                 forge_domain::ToolOutput::text(elm)
@@ -398,7 +398,7 @@ impl ToolOperation {
                     .cdata(diff);
 
                 if let Some(warning) = &output.warning {
-                    elm = elm.append(Element::new("warning").cdata(warning));
+                    elm = elm.append(Element::from(warning));
                 }
 
                 *metrics = metrics.clone().insert(
@@ -613,6 +613,26 @@ mod tests {
         });
 
         result
+    }
+
+    /// Creates a test ValidationWarning for testing purposes
+    fn test_validation_warning(
+        file_path: &str,
+        extension: &str,
+        errors: Vec<(u32, u32, &str)>,
+    ) -> forge_domain::ValidationWarning {
+        use forge_domain::SyntaxError;
+
+        let errors = errors
+            .into_iter()
+            .map(|(line, column, message)| SyntaxError {
+                line,
+                column,
+                message: message.to_string(),
+            })
+            .collect();
+
+        forge_domain::ValidationWarning::new(file_path.to_string(), extension.to_string(), errors)
     }
 
     // Helper functions for semantic search tests
@@ -1311,7 +1331,11 @@ mod tests {
             output: FsCreateOutput {
                 path: "/home/user/file_with_warning.txt".to_string(),
                 before: None,
-                warning: Some("File created in non-standard location".to_string()),
+                warning: Some(test_validation_warning(
+                    "/home/user/file_with_warning.txt",
+                    "txt",
+                    vec![(10, 5, "Syntax error on line 10")],
+                )),
                 content_hash: compute_hash(content),
             },
         };
@@ -1340,9 +1364,14 @@ mod tests {
             output: FsCreateOutput {
                 path: "/home/user/file_with_warning.txt".to_string(),
                 before: None,
-                warning: Some(
-                    "<warning>\n<message>File size exceeds recommended limit</message>\n<size>1048576</size>\n<limit>524288</limit>\n<note>Consider using <command>split</command> to divide the file</note>\n</warning>".to_string(),
-                ),
+                warning: Some(test_validation_warning(
+                    "/home/user/file_with_warning.txt",
+                    "txt",
+                    vec![
+                        (10, 5, "Syntax error on line 10"),
+                        (20, 15, "Missing semicolon"),
+                    ],
+                )),
                 content_hash: compute_hash(content),
             },
         };
@@ -1486,7 +1515,11 @@ mod tests {
                 content: "\nnew line".to_string(),
             },
             output: PatchOutput {
-                warning: Some("Large file modification".to_string()),
+                warning: Some(test_validation_warning(
+                    "/home/user/large_file.txt",
+                    "txt",
+                    vec![(5, 10, "Invalid syntax")],
+                )),
                 before: "line1\nline2".to_string(),
                 after: after_content.to_string(),
                 content_hash: compute_hash(after_content),
@@ -1516,9 +1549,15 @@ mod tests {
                 content: "\nnew line".to_string(),
             },
             output: PatchOutput {
-                warning: Some(
-                    "<warning>\n<message>Syntax validation failed</message>\n<file path=\"/home/user/test.txt\" extension=\"zsh\"></file>\n<details>The file was written successfully but contains 3 syntax error(s)</details>\n<error line=\"22\" column=\"1\"><![CDATA[Syntax error at 'function dim() { echo \"${_DIM}${1}${RESET}\"']]></error>\n<suggestion>Review and fix the syntax issues</suggestion>\n</warning>".to_string(),
-                ),
+                warning: Some(test_validation_warning(
+                    "/home/user/test.txt",
+                    "zsh",
+                    vec![
+                        (22, 1, r#"Syntax error at 'function dim() { echo "${_DIM}${1}${RESET}"'"#),
+                        (25, 5, "Unexpected token"),
+                        (30, 10, "Missing closing brace"),
+                    ],
+                )),
                 before: "line1\nline2".to_string(),
                 after: after_content.to_string(),
                 content_hash: compute_hash(after_content),

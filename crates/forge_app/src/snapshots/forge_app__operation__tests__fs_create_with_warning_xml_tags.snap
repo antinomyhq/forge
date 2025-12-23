@@ -6,10 +6,24 @@ expression: to_value(actual)
   path="/home/user/file_with_warning.txt"
   total_lines="1"
 >
-<warning><![CDATA[<warning>
-<message>File size exceeds recommended limit</message>
-<size>1048576</size>
-<limit>524288</limit>
-<note>Consider using <command>split</command> to divide the file</note>
-</warning>]]></warning>
+<warning>
+<message>Syntax validation failed</message>
+<file
+  path="/home/user/file_with_warning.txt"
+  extension="txt"
+>
+</file>
+<details>The file was written successfully but contains 2 syntax error(s)</details>
+<error
+  line="10"
+  column="5"
+><![CDATA[Syntax error on line 10]]>
+</error>
+<error
+  line="20"
+  column="15"
+><![CDATA[Missing semicolon]]>
+</error>
+<suggestion>Review and fix the syntax issues</suggestion>
+</warning>
 </file_created>

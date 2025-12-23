@@ -9,11 +9,29 @@ expression: to_value(actual)
   2 |+new line
 2 3 | line2
 ]]>
-<warning><![CDATA[<warning>
+<warning>
 <message>Syntax validation failed</message>
-<file path="/home/user/test.txt" extension="zsh"></file>
+<file
+  path="/home/user/test.txt"
+  extension="zsh"
+>
+</file>
 <details>The file was written successfully but contains 3 syntax error(s)</details>
-<error line="22" column="1"><![CDATA[Syntax error at 'function dim() { echo "${_DIM}${1}${RESET}"']]></error>
+<error
+  line="22"
+  column="1"
+><![CDATA[Syntax error at 'function dim() { echo "${_DIM}${1}${RESET}"']]>
+</error>
+<error
+  line="25"
+  column="5"
+><![CDATA[Unexpected token]]>
+</error>
+<error
+  line="30"
+  column="10"
+><![CDATA[Missing closing brace]]>
+</error>
 <suggestion>Review and fix the syntax issues</suggestion>
-</warning>]]></warning>
+</warning>
 </file_diff>
