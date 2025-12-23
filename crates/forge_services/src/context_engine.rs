@@ -7,7 +7,7 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use forge_app::{ContextEngineService, FileReaderInfra, Walker, WalkerInfra, compute_hash};
 use forge_domain::{
-    AuthCredential, ContextEngineRepository, FileHash, ProviderId, ProviderRepository,
+    AuthCredential, ContextEngineRepository, FileHash, FileNode, ProviderId, ProviderRepository,
     SyncProgress, UserId, WorkspaceId, WorkspaceRepository,
 };
 use forge_stream::MpscStream;
@@ -17,22 +17,7 @@ use tracing::{info, warn};
 /// Boxed future type for async closures.
 type BoxFuture<'a, T> = Pin<Box<dyn std::future::Future<Output = T> + Send + 'a>>;
 
-/// Represents a file with its content and computed hash
-#[derive(Debug)]
-struct IndexedFile {
-    /// Relative path from the workspace root
-    path: String,
-    /// File content
-    content: String,
-    /// SHA-256 hash of the content
-    hash: String,
-}
 
-impl IndexedFile {
-    fn new(path: String, content: String, hash: String) -> Self {
-        Self { path, content, hash }
-    }
-}
 
 /// Result of comparing local and server files
 struct SyncPlan {
@@ -46,11 +31,11 @@ struct SyncPlan {
 
 impl SyncPlan {
     /// Creates a sync plan by comparing local files with remote file hashes.
-    fn new(local_files: Vec<IndexedFile>, remote_files: Vec<FileHash>) -> Self {
+    fn new(local_files: Vec<FileNode>, remote_files: Vec<FileHash>) -> Self {
         // Build hash maps for O(1) lookup
         let local_hashes: HashMap<&str, &str> = local_files
             .iter()
-            .map(|f| (f.path.as_str(), f.hash.as_str()))
+            .map(|f| (f.file_path.as_str(), f.hash.as_str()))
             .collect();
         let remote_hashes: HashMap<&str, &str> = remote_files
             .iter()
@@ -67,8 +52,8 @@ impl SyncPlan {
         // Files to upload: local files not on server or hash changed
         let files_to_upload: Vec<_> = local_files
             .into_iter()
-            .filter(|f| remote_hashes.get(f.path.as_str()) != Some(&f.hash.as_str()))
-            .map(|f| forge_domain::FileRead::new(f.path, f.content))
+            .filter(|f| remote_hashes.get(f.file_path.as_str()) != Some(&f.hash.as_str()))
+            .map(|f| forge_domain::FileRead::new(f.file_path, f.content))
             .collect();
 
         // Modified files: paths that appear in both delete and upload lists
@@ -401,7 +386,7 @@ impl<F> ForgeContextEngineService<F> {
     }
 
     /// Walks the directory, reads all files, and computes their hashes.
-    async fn read_files(&self, dir_path: &Path) -> Result<Vec<IndexedFile>>
+    async fn read_files(&self, dir_path: &Path) -> Result<Vec<FileNode>>
     where
         F: WalkerInfra + FileReaderInfra,
     {
@@ -440,7 +425,7 @@ impl<F> ForgeContextEngineService<F> {
                     .await
                     .map(|content| {
                         let hash = compute_hash(&content);
-                        IndexedFile::new(relative_path.clone(), content, hash)
+                        FileNode { file_path: relative_path.clone(), content, hash }
                     })
                     .map_err(|e| {
                         warn!(path = %relative_path, error = %e, "Failed to read file");
@@ -675,7 +660,7 @@ impl<
         // Build hash maps for efficient lookup
         let local_hashes: HashMap<&str, &str> = local_files
             .iter()
-            .map(|f| (f.path.as_str(), f.hash.as_str()))
+            .map(|f| (f.file_path.as_str(), f.hash.as_str()))
             .collect();
         let remote_hashes: HashMap<&str, &str> = remote_files
             .iter()
@@ -1255,9 +1240,9 @@ mod tests {
     #[test]
     fn test_sync_plan_new_computes_correct_diff() {
         let local = vec![
-            IndexedFile::new("a.rs".into(), "content_a".into(), "hash_a".into()),
-            IndexedFile::new("b.rs".into(), "new_content".into(), "new_hash".into()),
-            IndexedFile::new("d.rs".into(), "content_d".into(), "hash_d".into()),
+            FileNode { file_path: "a.rs".into(), content: "content_a".into(), hash: "hash_a".into() },
+            FileNode { file_path: "b.rs".into(), content: "new_content".into(), hash: "new_hash".into() },
+            FileNode { file_path: "d.rs".into(), content: "content_d".into(), hash: "hash_d".into() },
         ];
         let remote = vec![
             FileHash { path: "a.rs".into(), hash: "hash_a".into() },
