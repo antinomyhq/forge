@@ -1,3 +1,4 @@
+use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -7,8 +8,9 @@ use forge_app::{
     ContextEngineService, FileReaderInfra, SyncPlan, Walker, WalkerInfra, compute_hash,
 };
 use forge_domain::{
-    AuthCredential, ContextEngineRepository, FileHash, FileNode, ProviderId, ProviderRepository,
-    SyncProgress, UserId, WorkspaceId, WorkspaceRepository,
+    AuthCredential, AuthDetails, ContextEngineRepository, FileHash, FileNode, FileStatus,
+    ProviderId, ProviderRepository, SyncProgress, SyncStatus, UserId, WorkspaceId,
+    WorkspaceRepository,
 };
 use forge_stream::MpscStream;
 use futures::future::join_all;
@@ -224,8 +226,6 @@ impl<F> ForgeContextEngineService<F> {
     where
         F: ProviderRepository,
     {
-        use forge_domain::AuthDetails;
-
         let credential = self
             .infra
             .get_credential(&ProviderId::FORGE_SERVICES)
@@ -442,10 +442,6 @@ impl<
     }
 
     async fn get_workspace_status(&self, path: PathBuf) -> Result<Vec<forge_domain::FileStatus>> {
-        use std::collections::{BTreeSet, HashMap};
-
-        use forge_domain::{FileStatus, SyncStatus};
-
         let (token, user_id) = self.get_workspace_credentials().await?;
 
         let workspace = self
@@ -505,8 +501,6 @@ impl<
     }
 
     async fn init_auth_credentials(&self) -> Result<forge_domain::WorkspaceAuth> {
-        use std::collections::HashMap;
-
         // Authenticate with the indexing service
         let auth = self
             .infra
