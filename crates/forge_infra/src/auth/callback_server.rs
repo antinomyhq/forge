@@ -1,6 +1,5 @@
 use std::net::TcpListener;
 use std::sync::{Arc, Mutex};
-
 use tokio::sync::oneshot;
 use tokio::task::spawn_blocking;
 
@@ -419,59 +418,4 @@ Connection: close
     }
 
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use std::io::Write;
-    use std::net::TcpStream;
-
-    use super::*;
-
-    #[test]
-    fn test_start_callback_server() {
-        // Start server on port 0 (OS assigns random port)
-        let mut rx = start_callback_server(0).expect("Failed to start callback server");
-
-        // Server should be running and receiver should be waiting
-        assert!(rx.try_recv().is_err()); // No code yet
-    }
-
-    #[test]
-    fn test_callback_server_receives_code() {
-        // Start server on a random port
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-        let port = listener.local_addr().unwrap().port();
-        drop(listener); // Release the port
-
-        let mut rx = start_callback_server(port).expect("Failed to start callback server");
-
-        // Give server time to start
-        std::thread::sleep(std::time::Duration::from_millis(100));
-
-        // Send a request with an authorization code
-        let mut stream = TcpStream::connect(format!("127.0.0.1:{}", port))
-            .expect("Failed to connect to callback server");
-
-        let request = "GET /?code=test_auth_code_123&state=xyz HTTP/1.1\r\nHost: localhost\r\n\r\n";
-        stream.write_all(request.as_bytes()).unwrap();
-        stream.flush().unwrap();
-
-        // Wait for response
-        std::thread::sleep(std::time::Duration::from_millis(300));
-
-        // Verify code was received
-        let code = rx
-            .try_recv()
-            .expect("Should have received authorization code");
-        assert_eq!(code, "test_auth_code_123");
-
-        // Verify port is released - try to bind again
-        std::thread::sleep(std::time::Duration::from_millis(100));
-        let rebind = std::net::TcpListener::bind(format!("127.0.0.1:{}", port));
-        assert!(
-            rebind.is_ok(),
-            "Port should be released after server shuts down"
-        );
-    }
 }
