@@ -105,20 +105,15 @@ impl<F> ForgeContextEngineService<F> {
     {
         info!(path = %path.display(), "Starting codebase sync");
 
-        // Emit starting event
         emit(SyncProgress::Starting).await;
 
-        let canonical_path = path
+        let (token, user_id) = self.get_workspace_credentials().await?;
+        let path = path
             .canonicalize()
             .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
+        let workspace = self.find_workspace_by_path(path.clone()).await?;
 
-        info!(canonical_path = %canonical_path.display(), "Resolved canonical path");
-
-        let (token, user_id) = self.get_workspace_credentials().await?;
-
-        let existing_workspace = self.infra.find_by_path(&canonical_path).await?;
-
-        let (workspace_id, is_new_workspace) = match existing_workspace {
+        let (workspace_id, is_new_workspace) = match workspace {
             Some(workspace) if workspace.user_id == user_id => (workspace.workspace_id, false),
             Some(workspace) => {
                 if let Err(e) = self.infra.delete(&workspace.workspace_id).await {
@@ -133,13 +128,13 @@ impl<F> ForgeContextEngineService<F> {
             // Create an workspace.
             let id = self
                 .infra
-                .create_workspace(&canonical_path, &token)
+                .create_workspace(&path, &token)
                 .await
                 .context("Failed to create workspace on server")?;
 
             // Save workspace in database to avoid creating multiple workspaces
             self.infra
-                .upsert(&id, &user_id, &canonical_path)
+                .upsert(&id, &user_id, &path)
                 .await
                 .context("Failed to save workspace")?;
 
@@ -150,8 +145,8 @@ impl<F> ForgeContextEngineService<F> {
         };
 
         // Read all files and compute hashes
-        emit(SyncProgress::DiscoveringFiles { path: canonical_path.clone() }).await;
-        let local_files = self.read_files(&canonical_path).await?;
+        emit(SyncProgress::DiscoveringFiles { path: path.clone() }).await;
+        let local_files = self.read_files(&path).await?;
         let total_file_count = local_files.len();
         emit(SyncProgress::FilesDiscovered { count: total_file_count }).await;
 
@@ -204,7 +199,7 @@ impl<F> ForgeContextEngineService<F> {
 
         // Save workspace metadata
         self.infra
-            .upsert(&workspace_id, &user_id, &canonical_path)
+            .upsert(&workspace_id, &user_id, &path)
             .await
             .context("Failed to save workspace")?;
 
@@ -440,17 +435,10 @@ impl<
     }
 
     async fn is_indexed(&self, path: &std::path::Path) -> Result<bool> {
-        let canonical_path = match path.canonicalize() {
-            Ok(p) => p,
-            Err(_) => return Ok(false), // Path doesn't exist, so it can't be indexed
-        };
-
-        Ok(self
-            .infra
-            .as_ref()
-            .find_by_path(&canonical_path)
-            .await?
-            .is_some())
+        match self.find_workspace_by_path(path.to_path_buf()).await {
+            Ok(workspace) => Ok(workspace.is_some()),
+            Err(_) => Ok(false), // Path doesn't exist or other error, so it can't be indexed
+        }
     }
 
     async fn get_workspace_status(&self, path: PathBuf) -> Result<Vec<forge_domain::FileStatus>> {
