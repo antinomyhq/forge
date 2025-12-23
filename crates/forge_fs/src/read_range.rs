@@ -71,7 +71,10 @@ impl crate::ForgeFS {
         // Cap end position at last line
         end_pos = cmp::min(end_pos, total_lines - 1);
 
-        let info = FileInfo::new(start_line, end_line, total_lines);
+        // Calculate actual end line (1-based) that was used
+        let actual_end_line = cmp::min(end_line, total_lines);
+
+        let info = FileInfo::new(start_line, actual_end_line, total_lines);
 
         // Extract requested lines
         let result_content = if start_pos == 0 && end_pos == total_lines - 1 {
@@ -184,6 +187,32 @@ mod test {
         // Attempt to read the file shouldn't fail with invalid UTF-8 error
         let result = crate::ForgeFS::read_range_utf8(&file.path(), 1, 4).await;
         assert!(result.is_ok());
+        Ok(())
+    }
+
+
+    #[tokio::test]
+    async fn test_end_line_capped_at_total_lines() -> Result<()> {
+        let content = "Line 1\nLine 2\nLine 3\nLine 4\nLine 5";
+        let file = create_test_file(content).await?;
+
+        // Request end_line beyond file size
+        let (result, info) = crate::ForgeFS::read_range_utf8(file.path(), 1, 100).await?;
+        
+        // Should read all lines
+        assert_eq!(result, content);
+        assert_eq!(info.start_line, 1);
+        // end_line should be capped at total_lines, not the requested 100
+        assert_eq!(info.end_line, 5);
+        assert_eq!(info.total_lines, 5);
+
+        // Test with range starting in the middle
+        let (result, info) = crate::ForgeFS::read_range_utf8(file.path(), 3, 100).await?;
+        assert_eq!(result, "Line 3\nLine 4\nLine 5");
+        assert_eq!(info.start_line, 3);
+        assert_eq!(info.end_line, 5);
+        assert_eq!(info.total_lines, 5);
+
         Ok(())
     }
 }
