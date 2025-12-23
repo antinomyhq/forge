@@ -3208,7 +3208,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             // Build summary info
             let mut summary =
                 Info::new().add_title(format!("Workspace Status [{} files]", statuses.len()));
-            summary = summary.add_key_value("Workspace ID", workspace_id);
+            summary = summary.add_key_value("ID", workspace_id);
             if in_sync > 0 {
                 summary = summary.add_key_value("In Sync", in_sync.to_string());
             }
