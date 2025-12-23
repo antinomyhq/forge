@@ -593,54 +593,6 @@ impl<
     }
 }
 
-// Additional authentication methods for ForgeIndexingService
-impl<F> ForgeContextEngineService<F>
-where
-    F: ProviderRepository + WorkspaceRepository + ContextEngineRepository,
-{
-    /// Login to the indexing service by storing an authentication token
-    ///
-    /// Authenticate with the indexing service and store credentials
-    ///
-    /// This method authenticates with the indexing service backend and stores
-    /// the authentication credentials locally for future use.
-    ///
-    /// # Errors
-    /// Returns an error if authentication or storing credentials fails
-    pub async fn login(&self) -> Result<()> {
-        // Call gRPC API to authenticate
-        let auth = self
-            .infra
-            .authenticate()
-            .await
-            .context("Failed to authenticate with indexing service")?;
-
-        // Convert to AuthCredential and store in credential.json
-        let credential = Self::workspace_auth_to_credential(&auth);
-        self.infra
-            .upsert_credential(credential)
-            .await
-            .context("Failed to store authentication credentials")?;
-
-        info!("Successfully logged in to indexing service");
-        Ok(())
-    }
-
-    /// Logout from the indexing service by removing the authentication token
-    ///
-    /// # Errors
-    /// Returns an error if deletion fails
-    pub async fn logout(&self) -> Result<()> {
-        self.infra
-            .remove_credential(&ProviderId::FORGE_SERVICES)
-            .await
-            .context("Failed to logout from indexing service")?;
-
-        info!("Successfully logged out from indexing service");
-        Ok(())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
