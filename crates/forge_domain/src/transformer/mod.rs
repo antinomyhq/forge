@@ -9,6 +9,10 @@ pub trait Transformer: Sized {
         Pipe(self, other)
     }
 
+    fn pipe_some<B>(self, other: Option<B>) -> PipeSome<Self, B> {
+        PipeSome(self, other)
+    }
+
     fn when<F: Fn(&Self::Value) -> bool>(self, cond: F) -> Cond<Self, F>
     where
         Self: Sized,
@@ -69,6 +73,23 @@ where
 
     fn transform(&mut self, value: Self::Value) -> Self::Value {
         self.1.transform(self.0.transform(value))
+    }
+}
+
+pub struct PipeSome<A, B>(A, Option<B>);
+
+impl<A, B, V> Transformer for PipeSome<A, B>
+where
+    A: Transformer<Value = V>,
+    B: Transformer<Value = V>,
+{
+    type Value = V;
+
+    fn transform(&mut self, value: Self::Value) -> Self::Value {
+        match self.1 {
+            Some(ref mut other) => other.transform(self.0.transform(value)),
+            None => self.0.transform(value),
+        }
     }
 }
 

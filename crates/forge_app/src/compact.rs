@@ -36,6 +36,199 @@ impl Compactor {
 }
 
 impl Compactor {
+    pub fn compact_range(&self, context: &Context) -> anyhow::Result<Option<Context>> {
+        let Some(breakpoint) = self.find_last_breakpoint(context, &self.compact) else {
+            tracing::debug!("No compaction needed");
+            return Ok(None);
+        };
+
+        if breakpoint >= context.messages.len() {
+            return Err(anyhow::anyhow!("BUG(compaction): breakpoint out of bounds"));
+        }
+
+        let summary = self.render_summary_frame(&context.messages[0..=breakpoint])?;
+
+        info!(
+            breakpoint = breakpoint,
+            "Created context compaction summary"
+        );
+
+        let mut compacted_context =
+            Context::default().add_message(ContextMessage::user(summary, None));
+
+        // Find the first message after breakpoint that isn't an orphaned tool result
+        // Tool results are orphaned if their corresponding tool call is before the
+        // breakpoint
+        let mut remaining_start = breakpoint + 1;
+
+        // Skip any tool results that appear immediately after the breakpoint
+        // These are orphaned because their tool calls were compacted away
+        while remaining_start < context.messages.len() {
+            if context.messages[remaining_start].has_tool_result() {
+                tracing::debug!(
+                    msg_idx = remaining_start,
+                    "Skipping orphaned tool result after compaction breakpoint"
+                );
+                remaining_start += 1;
+            } else {
+                break;
+            }
+        }
+
+        // Add the remaining messages after skipping orphaned tool results
+        for entry in context.messages.iter().skip(remaining_start) {
+            compacted_context = compacted_context.add_message(entry.message.clone());
+        }
+
+        // Validate no orphaned tool results remain in the compacted context
+        // Tool results without corresponding tool calls should not exist
+        self.validate_tool_pairs(&compacted_context)?;
+
+        tracing::info!(
+            original_messages = context.messages.len(),
+            compacted_messages = compacted_context.messages.len(),
+            "Context compacted"
+        );
+
+        Ok(Some(compacted_context))
+    }
+
+    /// Validates that all tool results have corresponding tool calls in the
+    /// context.
+    fn validate_tool_pairs(&self, context: &Context) -> anyhow::Result<()> {
+        let mut tool_call_ids = std::collections::HashSet::new();
+
+        for msg in &context.messages {
+            match &**msg {
+                ContextMessage::Text(text) => {
+                    // Collect all tool call IDs from this message
+                    if let Some(tool_calls) = &text.tool_calls {
+                        for tool_call in tool_calls {
+                            if let Some(call_id) = &tool_call.call_id {
+                                tool_call_ids.insert(call_id.clone());
+                            }
+                        }
+                    }
+                }
+                ContextMessage::Tool(result) => {
+                    // Check if this tool result has a corresponding tool call
+                    if let Some(call_id) = &result.call_id
+                        && !tool_call_ids.contains(call_id)
+                    {
+                        return Err(anyhow::anyhow!(
+                            "Orphaned tool result: tool_result references call_id {:?} \
+                                 but no corresponding tool call found in compacted context",
+                            call_id
+                        ));
+                    }
+                }
+                _ => {}
+            }
+        }
+
+        Ok(())
+    }
+}
+
+impl Compactor {
+    /// Finds the last breakpoint in the context where compaction should occur.
+    ///
+    /// Iterates through messages tracking token counts, turn counts, and
+    /// message counts without cloning. Returns the index of the last
+    /// message before the most recent compaction threshold breach.
+    ///
+    /// # Arguments
+    ///
+    /// * `context` - The context to analyze for breakpoints
+    /// * `compact_config` - The compaction configuration containing thresholds
+    ///
+    /// # Returns
+    ///
+    /// The index of the last breakpoint, or None if no compaction is needed
+    fn find_last_breakpoint(&self, context: &Context, compact_config: &Compact) -> Option<usize> {
+        if context.messages.is_empty() {
+            return None;
+        }
+
+        let mut last_bp: Option<usize> = None;
+
+        // Track counts without cloning
+        let mut token_count = 0;
+        let mut turn_count = 0;
+        let mut message_count = 0;
+
+        for (i, entry) in context.messages.iter().enumerate() {
+            // Update counts
+            token_count += entry.token_count_approx();
+            message_count += 1;
+
+            let is_user = entry.has_role(forge_domain::Role::User);
+            if is_user {
+                turn_count += 1;
+            }
+
+            // Check if we should compact based on current accumulated state
+            let should_compact = {
+                let token_check = compact_config
+                    .token_threshold
+                    .map(|threshold| token_count >= threshold)
+                    .unwrap_or(false);
+
+                let turn_check = compact_config
+                    .turn_threshold
+                    .map(|threshold| turn_count >= threshold)
+                    .unwrap_or(false);
+
+                let message_check = compact_config
+                    .message_threshold
+                    .map(|threshold| message_count >= threshold)
+                    .unwrap_or(false);
+
+                let turn_end_check = compact_config
+                    .on_turn_end
+                    .map(|enabled| enabled && is_user)
+                    .unwrap_or(false);
+
+                token_check || turn_check || message_check || turn_end_check
+            };
+
+            if should_compact {
+                last_bp = Some(i);
+                // Reset counts for next accumulation window
+                token_count = 0;
+                turn_count = 0;
+                message_count = 0;
+            }
+        }
+
+        last_bp
+    }
+
+    fn render_summary_frame(
+        &self,
+        messages: &[forge_domain::MessageEntry],
+    ) -> anyhow::Result<String> {
+        // Filter out droppable messages from compaction
+        let compaction_sequence: Vec<_> = messages
+            .iter()
+            .filter(|msg| !msg.is_droppable())
+            .cloned()
+            .collect();
+
+        // Create a temporary context for the sequence to generate summary
+        let sequence_context = Context::default().messages(compaction_sequence);
+
+        // Generate context summary with tool call information
+        let context_summary = ContextSummary::from(&sequence_context);
+
+        // Apply transformers to reduce redundant operations and clean up
+        let context_summary = self.transform(context_summary);
+
+        TemplateEngine::default().render(
+            "forge-partial-summary-frame.md",
+            &serde_json::json!({"messages": context_summary.messages}),
+        )
+    }
     /// Apply compaction to the context if requested.
     pub fn compact(&self, context: Context, max: bool) -> anyhow::Result<Context> {
         let eviction = CompactionStrategy::evict(self.compact.eviction_window);
@@ -62,6 +255,15 @@ impl Compactor {
     ) -> anyhow::Result<Context> {
         let (start, end) = sequence;
 
+        // Generate summary for the sequence
+        let summary = self.render_summary_frame(&context.messages[start..=end])?;
+
+        info!(
+            sequence_start = start,
+            sequence_end = end,
+            "Created context compaction summary"
+        );
+
         // The sequence from the original message that needs to be compacted
         // Filter out droppable messages (e.g., attachments) from compaction
         let compaction_sequence = context.messages[start..=end]
@@ -69,27 +271,6 @@ impl Compactor {
             .filter(|msg| !msg.is_droppable())
             .cloned()
             .collect::<Vec<_>>();
-
-        // Create a temporary context for the sequence to generate summary
-        let sequence_context = Context::default().messages(compaction_sequence.clone());
-
-        // Generate context summary with tool call information
-        let context_summary = ContextSummary::from(&sequence_context);
-
-        // Apply transformers to reduce redundant operations and clean up
-        let context_summary = self.transform(context_summary);
-
-        info!(
-            sequence_start = sequence.0,
-            sequence_end = sequence.1,
-            sequence_length = compaction_sequence.len(),
-            "Created context compaction summary"
-        );
-
-        let summary = TemplateEngine::default().render(
-            "forge-partial-summary-frame.md",
-            &serde_json::json!({"messages": context_summary.messages}),
-        )?;
 
         // Extended thinking reasoning chain preservation
         //
@@ -150,7 +331,7 @@ impl Compactor {
 mod tests {
     use std::path::PathBuf;
 
-    use forge_domain::MessageEntry;
+    use forge_domain::{MessageEntry, MessagePattern};
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -159,6 +340,163 @@ mod tests {
         use fake::{Fake, Faker};
         let env: Environment = Faker.fake();
         env.cwd(std::path::PathBuf::from("/test/working/dir"))
+    }
+
+    /// Helper to create context from SAURT pattern
+    /// s = system, a = assistant, u = user, r = tool result, t = tool call
+    fn ctx(pattern: &str) -> Context {
+        MessagePattern::new(pattern).build()
+    }
+
+    #[test]
+    fn test_find_last_breakpoint_no_messages() {
+        let environment = test_environment();
+        let compactor = Compactor::new(Compact::new(), environment);
+        let compact_config = Compact::new().token_threshold(1000usize);
+
+        let fixture = Context::default();
+
+        let actual = compactor.find_last_breakpoint(&fixture, &compact_config);
+        let expected = None;
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_find_last_breakpoint_no_threshold_exceeded() {
+        let environment = test_environment();
+        let compactor = Compactor::new(Compact::new(), environment);
+        let compact_config = Compact::new().token_threshold(100000usize); // Very high threshold
+
+        let fixture = ctx("uaua"); // user, assistant, user, assistant
+
+        let actual = compactor.find_last_breakpoint(&fixture, &compact_config);
+        let expected = None;
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_find_last_breakpoint_single_breakpoint() {
+        let environment = test_environment();
+        let compactor = Compactor::new(Compact::new(), environment);
+        let compact_config = Compact::new().message_threshold(2usize);
+
+        let fixture = ctx("uaua"); // user, assistant, user, assistant
+
+        let actual = compactor.find_last_breakpoint(&fixture, &compact_config);
+        let expected = Some(3); // Threshold of 2 reached at index 1, continues to add until hitting again at index 3
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_find_last_breakpoint_multiple_breakpoints() {
+        let environment = test_environment();
+        let compactor = Compactor::new(Compact::new(), environment);
+        let compact_config = Compact::new().message_threshold(2usize);
+
+        let fixture = ctx("uauaua"); // user, assistant, user, assistant, user, assistant
+
+        let actual = compactor.find_last_breakpoint(&fixture, &compact_config);
+        let expected = Some(5); // Last breakpoint at index 5
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_find_last_breakpoint_with_token_threshold() {
+        let environment = test_environment();
+        let compactor = Compactor::new(Compact::new(), environment);
+        let compact_config = Compact::new().token_threshold(50usize); // Lower threshold to ensure trigger
+
+        let mut fixture = Context::default();
+        for i in 0..10 {
+            fixture = fixture
+                .add_message(ContextMessage::user(
+                    format!("Message {} with substantial content to increase token count. This message contains enough text to make sure we hit the compaction threshold quickly.", i),
+                    None,
+                ))
+                .add_message(ContextMessage::assistant(
+                    format!("Response {} with substantial content to increase token count. This response also contains enough text to ensure we accumulate sufficient tokens.", i),
+                    None,
+                    None,
+                ));
+        }
+
+        let actual = compactor.find_last_breakpoint(&fixture, &compact_config);
+
+        // Should find at least one breakpoint
+        assert!(
+            actual.is_some(),
+            "Expected to find a breakpoint with token threshold"
+        );
+    }
+
+    #[test]
+    fn test_find_last_breakpoint_with_turn_threshold() {
+        let environment = test_environment();
+        let compactor = Compactor::new(Compact::new(), environment);
+        let compact_config = Compact::new().turn_threshold(1usize); // Trigger after 1 user message
+
+        let fixture = ctx("uauaua"); // user, assistant, user, assistant, user, assistant
+
+        let actual = compactor.find_last_breakpoint(&fixture, &compact_config);
+        let expected = Some(4); // With 1 turn threshold, breaks after each user message (indices 0, 2, 4)
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_compact_range_skips_orphaned_tool_results() {
+        use forge_domain::{ToolCallFull, ToolCallId, ToolName};
+        use serde_json::json;
+
+        let environment = test_environment();
+        let compactor = Compactor::new(Compact::new().message_threshold(2usize), environment);
+
+        // Create context: User -> Assistant with tool call -> Tool result -> User ->
+        // Assistant When we compact at message threshold 2, the tool call gets
+        // removed but tool result remains
+        let tool_call = ToolCallFull {
+            name: ToolName::new("read"),
+            call_id: Some(ToolCallId::new("call_123")),
+            arguments: json!({"path": "/test/path"}).into(),
+        };
+
+        let tool_result = forge_domain::ToolResult::new(ToolName::new("read"))
+            .call_id(ToolCallId::new("call_123"))
+            .success(json!({"content": "File content"}).to_string());
+
+        let fixture = Context::default()
+            .add_message(ContextMessage::user("User 1", None))
+            .add_message(ContextMessage::assistant(
+                "Response 1",
+                None,
+                Some(vec![tool_call]),
+            ))
+            .add_message(ContextMessage::tool_result(tool_result))
+            .add_message(ContextMessage::user("User 2", None))
+            .add_message(ContextMessage::assistant("Response 2", None, None));
+
+        // Compact should skip the orphaned tool result
+        let result = compactor.compact_range(&fixture);
+
+        assert!(
+            result.is_ok(),
+            "Compaction should succeed and handle orphaned tool results: {:?}",
+            result
+        );
+
+        let compacted = result.unwrap().expect("Compaction should return Some");
+
+        // Verify no tool results exist in the compacted context
+        // They should have been skipped as orphaned
+        for msg in &compacted.messages {
+            if let ContextMessage::Tool(_) = &**msg {
+                panic!("Compacted context should not contain orphaned tool results");
+            }
+        }
     }
 
     #[test]
