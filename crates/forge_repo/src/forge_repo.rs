@@ -571,7 +571,7 @@ impl<F: GrpcInfra + Send + Sync> forge_domain::ValidationRepository for ForgeRep
         &self,
         path: impl AsRef<std::path::Path> + Send,
         content: &str,
-    ) -> anyhow::Result<Option<String>> {
+    ) -> anyhow::Result<Vec<forge_domain::SyntaxError>> {
         self.validation_repository
             .validate_file(path, content)
             .await
