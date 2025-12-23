@@ -27,7 +27,6 @@ impl<F> Clone for ForgeContextEngineService<F> {
     }
 }
 
-
 impl<F> ForgeContextEngineService<F> {
     /// Creates a new indexing service with the provided infrastructure.
     pub fn new(infra: Arc<F>) -> Self {
