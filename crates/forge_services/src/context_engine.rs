@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -6,11 +6,11 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use forge_app::{
     ContextEngineService, FileReaderInfra, SyncPlan, Walker, WalkerInfra, compute_hash,
+    derive_sync_statuses,
 };
 use forge_domain::{
-    AuthCredential, AuthDetails, ContextEngineRepository, FileHash, FileNode, FileStatus,
-    ProviderId, ProviderRepository, SyncProgress, SyncStatus, UserId, WorkspaceId,
-    WorkspaceRepository,
+    AuthCredential, AuthDetails, ContextEngineRepository, FileHash, FileNode, ProviderId,
+    ProviderRepository, SyncProgress, UserId, WorkspaceId, WorkspaceRepository,
 };
 use forge_stream::MpscStream;
 use futures::future::join_all;
@@ -455,41 +455,7 @@ impl<
             .fetch_remote_hashes(&user_id, &workspace.workspace_id, &token)
             .await;
 
-        // Build hash maps for efficient lookup
-        let local_hashes: HashMap<&str, &str> = local_files
-            .iter()
-            .map(|f| (f.file_path.as_str(), f.hash.as_str()))
-            .collect();
-        let remote_hashes: HashMap<&str, &str> = remote_files
-            .iter()
-            .map(|f| (f.path.as_str(), f.hash.as_str()))
-            .collect();
-
-        // Collect all unique file paths (BTreeSet keeps them sorted)
-        let mut all_paths: BTreeSet<&str> = BTreeSet::new();
-        all_paths.extend(local_hashes.keys().copied());
-        all_paths.extend(remote_hashes.keys().copied());
-
-        // Compute status for each file (already sorted by BTreeSet)
-        let statuses: Vec<FileStatus> = all_paths
-            .into_iter()
-            .filter_map(|path| {
-                let local_hash = local_hashes.get(path);
-                let remote_hash = remote_hashes.get(path);
-
-                let status = match (local_hash, remote_hash) {
-                    (Some(l), Some(r)) if l == r => SyncStatus::InSync,
-                    (Some(_), Some(_)) => SyncStatus::Modified,
-                    (Some(_), None) => SyncStatus::New,
-                    (None, Some(_)) => SyncStatus::Deleted,
-                    (None, None) => return None, // Skip invalid entries
-                };
-
-                Some(FileStatus::new(path.to_string(), status))
-            })
-            .collect();
-
-        Ok(statuses)
+        Ok(derive_sync_statuses(local_files, remote_files))
     }
 
     async fn is_authenticated(&self) -> Result<bool> {

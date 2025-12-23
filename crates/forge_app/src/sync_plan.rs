@@ -1,8 +1,8 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::pin::Pin;
 
 use anyhow::Result;
-use forge_domain::{FileHash, FileNode, FileRead};
+use forge_domain::{FileHash, FileNode, FileRead, FileStatus, SyncStatus};
 
 /// Boxed future type for async closures.
 type BoxFuture<'a, T> = Pin<Box<dyn std::future::Future<Output = T> + Send + 'a>>;
@@ -154,6 +154,62 @@ impl SyncPlan {
     }
 }
 
+/// Derives sync statuses for all files by comparing local and remote hashes.
+///
+/// This function compares local files with remote file hashes and determines
+/// the sync status for each file. The returned vector is sorted by file path.
+///
+/// # Arguments
+///
+/// * `local_files` - Vector of local files with their content and hashes
+/// * `remote_files` - Vector of remote file hashes from the server
+///
+/// # Returns
+///
+/// A sorted vector of `FileStatus` indicating the sync state of each file:
+/// - `InSync`: File exists in both local and remote with matching hashes
+/// - `Modified`: File exists in both but with different hashes
+/// - `New`: File exists only locally
+/// - `Deleted`: File exists only remotely
+pub fn derive_sync_statuses(
+    local_files: Vec<FileNode>,
+    remote_files: Vec<FileHash>,
+) -> Vec<FileStatus> {
+    // Build hash maps for efficient lookup
+    let local_hashes: HashMap<&str, &str> = local_files
+        .iter()
+        .map(|f| (f.file_path.as_str(), f.hash.as_str()))
+        .collect();
+    let remote_hashes: HashMap<&str, &str> = remote_files
+        .iter()
+        .map(|f| (f.path.as_str(), f.hash.as_str()))
+        .collect();
+
+    // Collect all unique file paths (BTreeSet keeps them sorted)
+    let mut all_paths: BTreeSet<&str> = BTreeSet::new();
+    all_paths.extend(local_hashes.keys().copied());
+    all_paths.extend(remote_hashes.keys().copied());
+
+    // Compute status for each file (already sorted by BTreeSet)
+    all_paths
+        .into_iter()
+        .filter_map(|path| {
+            let local_hash = local_hashes.get(path);
+            let remote_hash = remote_hashes.get(path);
+
+            let status = match (local_hash, remote_hash) {
+                (Some(l), Some(r)) if l == r => SyncStatus::InSync,
+                (Some(_), Some(_)) => SyncStatus::Modified,
+                (Some(_), None) => SyncStatus::New,
+                (None, Some(_)) => SyncStatus::Deleted,
+                (None, None) => return None, // Skip invalid entries
+            };
+
+            Some(FileStatus::new(path.to_string(), status))
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
@@ -202,5 +258,42 @@ mod tests {
 
         // Total should be 3: b.rs (modified = 1), c.rs (deleted = 1), d.rs (new = 1)
         assert_eq!(actual.total(), 3);
+    }
+
+    #[test]
+    fn test_derive_sync_statuses() {
+        let local = vec![
+            FileNode {
+                file_path: "a.rs".into(),
+                content: "content_a".into(),
+                hash: "hash_a".into(),
+            },
+            FileNode {
+                file_path: "b.rs".into(),
+                content: "modified_content".into(),
+                hash: "new_hash".into(),
+            },
+            FileNode {
+                file_path: "d.rs".into(),
+                content: "content_d".into(),
+                hash: "hash_d".into(),
+            },
+        ];
+        let remote = vec![
+            FileHash { path: "a.rs".into(), hash: "hash_a".into() },
+            FileHash { path: "b.rs".into(), hash: "old_hash".into() },
+            FileHash { path: "c.rs".into(), hash: "hash_c".into() },
+        ];
+
+        let actual = super::derive_sync_statuses(local, remote);
+
+        let expected = vec![
+            forge_domain::FileStatus::new("a.rs".to_string(), forge_domain::SyncStatus::InSync),
+            forge_domain::FileStatus::new("b.rs".to_string(), forge_domain::SyncStatus::Modified),
+            forge_domain::FileStatus::new("c.rs".to_string(), forge_domain::SyncStatus::Deleted),
+            forge_domain::FileStatus::new("d.rs".to_string(), forge_domain::SyncStatus::New),
+        ];
+
+        assert_eq!(actual, expected);
     }
 }
