@@ -159,11 +159,11 @@ impl SpinnerManager {
     where
         F: FnOnce(&str),
     {
-        let is_running = self.spinner.is_some();
-        let prev_message = self.message.clone();
-        self.stop_inner(Some(message.to_string()), writer)?;
-        if is_running {
-            self.start(prev_message.as_deref())?
+        let msg = message.to_string();
+        if let Some(spinner) = &self.spinner {
+            spinner.suspend(|| writer(&msg));
+        } else {
+            writer(&msg);
         }
         Ok(())
     }
