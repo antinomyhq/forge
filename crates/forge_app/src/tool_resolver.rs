@@ -1,5 +1,4 @@
-use std::collections::HashMap;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use forge_domain::{Agent, ToolDefinition, ToolName};
 use glob::Pattern;
