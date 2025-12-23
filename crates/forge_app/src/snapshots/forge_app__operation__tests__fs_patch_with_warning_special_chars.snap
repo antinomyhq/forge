@@ -1,7 +1,6 @@
 ---
 source: crates/forge_app/src/operation.rs
 expression: to_value(actual)
-snapshot_kind: text
 ---
 <file_diff
   path="/home/user/test.zsh"
