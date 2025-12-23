@@ -85,8 +85,11 @@ impl SyncPlan {
         let mut files_to_upload = Vec::new();
 
         // Create a map for quick lookup of local files
-        let local_files_map: HashMap<&str, &FileNode> =
-            self.local_files.iter().map(|f| (f.file_path.as_str(), f)).collect();
+        let local_files_map: HashMap<&str, &FileNode> = self
+            .local_files
+            .iter()
+            .map(|f| (f.file_path.as_str(), f))
+            .collect();
 
         for status in statuses {
             match status.status {
@@ -120,7 +123,6 @@ impl SyncPlan {
     }
 }
 
-
 /// Tracks progress of sync operations
 pub struct SyncProgressCounter {
     total_files: usize,
@@ -138,11 +140,17 @@ impl SyncProgressCounter {
     }
 
     pub fn sync_progress(&self) -> SyncProgress {
-        SyncProgress::Syncing { current: 0, total: self.total_files }
+        //  2 * total_files >= total_operations >= total_files
+
+        if self.completed_operation >= self.total_operations {
+            SyncProgress::Syncing { current: self.total_files, total: self.total_files }
+        } else {
+            let current: f64 = (self.completed_operation as f64 / self.total_operations as f64)
+                * self.total_files as f64;
+            SyncProgress::Syncing { current: current.round() as usize, total: self.total_files }
+        }
     }
 }
-
-
 
 #[cfg(test)]
 mod tests {
@@ -185,6 +193,59 @@ mod tests {
             forge_domain::FileStatus::new("d.rs".to_string(), forge_domain::SyncStatus::New),
         ];
 
+        assert_eq!(actual, expected);
+    }
+
+    impl SyncProgressCounter {
+        fn next_test(&mut self) -> SyncProgress {
+            self.complete(1);
+            self.sync_progress()
+        }
+    }
+
+    #[test]
+    fn test_sync_progress_counter() {
+        // Assuming 4 files, all need to be deleted and added
+        let mut counter = SyncProgressCounter::new(4, 8);
+
+        let actual = counter.sync_progress();
+        let expected = SyncProgress::Syncing { current: 0, total: 4 };
+        assert_eq!(actual, expected);
+
+        let actual = counter.next_test();
+        let expected = SyncProgress::Syncing { current: 1, total: 4 };
+        assert_eq!(actual, expected);
+
+        let actual = counter.next_test();
+        let expected = SyncProgress::Syncing { current: 1, total: 4 };
+        assert_eq!(actual, expected);
+
+        let actual = counter.next_test();
+        let expected = SyncProgress::Syncing { current: 2, total: 4 };
+        assert_eq!(actual, expected);
+
+        let actual = counter.next_test();
+        let expected = SyncProgress::Syncing { current: 2, total: 4 };
+        assert_eq!(actual, expected);
+
+        let actual = counter.next_test();
+        let expected = SyncProgress::Syncing { current: 3, total: 4 };
+        assert_eq!(actual, expected);
+
+        let actual = counter.next_test();
+        let expected = SyncProgress::Syncing { current: 3, total: 4 };
+        assert_eq!(actual, expected);
+
+        let actual = counter.next_test();
+        let expected = SyncProgress::Syncing { current: 4, total: 4 };
+        assert_eq!(actual, expected);
+
+        let actual = counter.next_test();
+        let expected = SyncProgress::Syncing { current: 4, total: 4 };
+        assert_eq!(actual, expected);
+
+        let actual = counter.next_test();
+        let expected = SyncProgress::Syncing { current: 4, total: 4 };
         assert_eq!(actual, expected);
     }
 }
