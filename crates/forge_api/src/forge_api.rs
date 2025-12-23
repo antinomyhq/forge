@@ -367,7 +367,7 @@ impl<
     }
 
     async fn create_auth_credentials(&self) -> Result<forge_domain::WorkspaceAuth> {
-        self.services.create_auth_credentials().await
+        self.services.init_auth_credentials().await
     }
 
     async fn migrate_env_credentials(&self) -> Result<Option<forge_domain::MigrationResult>> {

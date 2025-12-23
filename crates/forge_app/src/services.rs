@@ -286,7 +286,7 @@ pub trait ContextEngineService: Send + Sync {
     async fn is_authenticated(&self) -> anyhow::Result<bool>;
 
     /// Create new authentication credentials
-    async fn create_auth_credentials(&self) -> anyhow::Result<WorkspaceAuth>;
+    async fn init_auth_credentials(&self) -> anyhow::Result<WorkspaceAuth>;
 }
 
 #[async_trait::async_trait]
@@ -1082,9 +1082,7 @@ impl<I: Services> ContextEngineService for I {
         self.context_engine_service().is_authenticated().await
     }
 
-    async fn create_auth_credentials(&self) -> anyhow::Result<WorkspaceAuth> {
-        self.context_engine_service()
-            .create_auth_credentials()
-            .await
+    async fn init_auth_credentials(&self) -> anyhow::Result<WorkspaceAuth> {
+        self.context_engine_service().init_auth_credentials().await
     }
 }

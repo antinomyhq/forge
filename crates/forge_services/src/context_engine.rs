@@ -221,11 +221,12 @@ impl<F> ForgeContextEngineService<F> {
         Ok(())
     }
 
-    /// Gets the forge services credential and extracts workspace auth components
+    /// Gets the forge services credential and extracts workspace auth
+    /// components
     ///
     /// # Errors
-    /// Returns an error if the credential is not found, if there's a database error,
-    /// or if the credential format is invalid
+    /// Returns an error if the credential is not found, if there's a database
+    /// error, or if the credential format is invalid
     async fn get_workspace_credentials(&self) -> Result<(forge_domain::ApiKey, UserId)>
     where
         F: ProviderRepository,
@@ -258,12 +259,9 @@ impl<F> ForgeContextEngineService<F> {
     /// Canonicalizes a path and finds the associated workspace
     ///
     /// # Errors
-    /// Returns an error if the path cannot be canonicalized or if there's a database error.
-    /// Returns Ok(None) if the workspace is not found.
-    async fn find_workspace_by_path(
-        &self,
-        path: PathBuf,
-    ) -> Result<Option<forge_domain::Workspace>>
+    /// Returns an error if the path cannot be canonicalized or if there's a
+    /// database error. Returns Ok(None) if the workspace is not found.
+    async fn find_workspace_by_path(&self, path: PathBuf) -> Result<Option<forge_domain::Workspace>>
     where
         F: WorkspaceRepository,
     {
@@ -547,7 +545,7 @@ impl<
             .is_some())
     }
 
-    async fn create_auth_credentials(&self) -> Result<forge_domain::WorkspaceAuth> {
+    async fn init_auth_credentials(&self) -> Result<forge_domain::WorkspaceAuth> {
         use std::collections::HashMap;
 
         // Authenticate with the indexing service

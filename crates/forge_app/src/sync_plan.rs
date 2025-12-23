@@ -9,9 +9,9 @@ type BoxFuture<'a, T> = Pin<Box<dyn std::future::Future<Output = T> + Send + 'a>
 
 /// Result of comparing local and server files
 ///
-/// This struct is used to plan synchronization operations between local files and
-/// remote server state. It identifies which files need to be uploaded, deleted, or
-/// modified to bring the server in sync with local state.
+/// This struct is used to plan synchronization operations between local files
+/// and remote server state. It identifies which files need to be uploaded,
+/// deleted, or modified to bring the server in sync with local state.
 pub struct SyncPlan {
     /// Files to delete from server (outdated or orphaned)
     files_to_delete: Vec<String>,
@@ -156,9 +156,9 @@ impl SyncPlan {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use pretty_assertions::assert_eq;
+
+    use super::*;
 
     #[test]
     fn test_sync_plan_new_computes_correct_diff() {
