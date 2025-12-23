@@ -96,7 +96,7 @@ mod tests {
     fn test_diff_computed_with_changes() {
         let fixture = SyncProgress::DiffComputed { added: 3, deleted: 1, modified: 2 };
         let actual = fixture.message();
-        let expected = Some("Change scan completed [3 new, 2 modified, 1 removed]".to_string());
+        let expected = Some("Change scan completed [3 added, 2 modified, 1 removed]".to_string());
         assert_eq!(actual, expected);
     }
 
