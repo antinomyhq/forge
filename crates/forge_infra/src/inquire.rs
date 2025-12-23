@@ -1,8 +1,15 @@
+use std::sync::Arc;
+
 use anyhow::Result;
 use forge_app::UserInfra;
 use forge_select::ForgeSelect;
+use tokio::sync::Mutex;
 
-pub struct ForgeInquire;
+#[derive(Clone)]
+pub struct ForgeInquire {
+    // Mutex to ensure that only one prompt is active at a time
+    ready: Arc<Mutex<()>>,
+}
 
 impl Default for ForgeInquire {
     fn default() -> Self {
@@ -12,7 +19,7 @@ impl Default for ForgeInquire {
 
 impl ForgeInquire {
     pub fn new() -> Self {
-        Self
+        Self { ready: Arc::new(Mutex::new(())) }
     }
 
     async fn prompt<T, F>(&self, f: F) -> Result<Option<T>>
@@ -20,7 +27,10 @@ impl ForgeInquire {
         F: FnOnce() -> Result<Option<T>> + Send + 'static,
         T: Send + 'static,
     {
-        tokio::task::spawn_blocking(f).await?
+        let ready = self.ready.lock().await;
+        let result = tokio::task::spawn_blocking(f).await?;
+        drop(ready);
+        result
     }
 }
 
