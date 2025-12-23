@@ -1138,7 +1138,7 @@ mod tests {
         let env = fixture_environment(); // max_search_lines is 25
 
         let actual = fixture.into_tool_output(
-            ToolKind::Search,
+            ToolKind::FsSearch,
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
@@ -1178,7 +1178,7 @@ mod tests {
         env.max_search_lines = 10;
 
         let actual = fixture.into_tool_output(
-            ToolKind::Search,
+            ToolKind::FsSearch,
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
@@ -1220,7 +1220,7 @@ mod tests {
         env.max_search_result_bytes = max_bytes.ceil() as usize; // limit to 0.001 MB
 
         let actual = fixture.into_tool_output(
-            ToolKind::Search,
+            ToolKind::FsSearch,
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
@@ -1265,7 +1265,7 @@ mod tests {
         env.max_search_result_bytes = max_bytes.ceil() as usize; // limit to 0.001 MB
 
         let actual = fixture.into_tool_output(
-            ToolKind::Search,
+            ToolKind::FsSearch,
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
@@ -1290,7 +1290,7 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.into_tool_output(
-            ToolKind::Search,
+            ToolKind::FsSearch,
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
@@ -1380,7 +1380,7 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.into_tool_output(
-            ToolKind::Search,
+            ToolKind::FsSearch,
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
@@ -1405,7 +1405,7 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.into_tool_output(
-            ToolKind::Search,
+            ToolKind::FsSearch,
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
