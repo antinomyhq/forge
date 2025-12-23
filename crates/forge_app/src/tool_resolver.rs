@@ -86,7 +86,7 @@ mod tests {
         let all_tool_definitions = vec![
             ToolDefinition::new("read").description("Read Tool"),
             ToolDefinition::new("write").description("Write Tool"),
-            ToolDefinition::new("search").description("Search Tool"),
+            ToolDefinition::new("fs_search").description("Search Tool"),
         ];
 
         let tool_resolver = ToolResolver::new(all_tool_definitions);
@@ -96,12 +96,12 @@ mod tests {
             ProviderId::ANTHROPIC,
             ModelId::new("claude-3-5-sonnet-20241022"),
         )
-        .tools(vec![ToolName::new("read"), ToolName::new("search")]);
+        .tools(vec![ToolName::new("read"), ToolName::new("fs_search")]);
 
         let actual = tool_resolver.resolve(&fixture);
         let expected = vec![
+            &tool_resolver.all_tool_definitions[2], // fs_search (alphabetically first)
             &tool_resolver.all_tool_definitions[0], // read
-            &tool_resolver.all_tool_definitions[2], // search
         ];
 
         assert_eq!(actual, expected);
