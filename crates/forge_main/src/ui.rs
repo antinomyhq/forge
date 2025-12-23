@@ -2924,7 +2924,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             )?;
         }
 
-        let mut stream = self.api.sync_codebase(path.clone(), batch_size).await?;
+        let mut stream = self.api.sync_workspace(path.clone(), batch_size).await?;
         let mut progress_bar = ProgressBarManager::default();
 
         while let Some(event) = stream.next().await {
@@ -2938,7 +2938,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
                 Ok(ref progress @ SyncProgress::Syncing { .. }) => {
                     if !progress_bar.is_active() {
-                        progress_bar.start(100, "Indexing codebase")?;
+                        progress_bar.start(100, "Indexing workspace")?;
                     }
                     if let Some(msg) = progress.message() {
                         progress_bar.set_message(&msg)?;
@@ -2967,9 +2967,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         path: PathBuf,
         params: forge_domain::SearchParams<'_>,
     ) -> anyhow::Result<()> {
-        self.spinner.start(Some("Searching codebase..."))?;
+        self.spinner.start(Some("Searching workspace..."))?;
 
-        let results = match self.api.query_codebase(path.clone(), params).await {
+        let results = match self.api.query_workspace(path.clone(), params).await {
             Ok(results) => results,
             Err(e) => {
                 self.spinner.stop(None)?;
@@ -3042,7 +3042,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Fetch workspaces and current workspace info in parallel
         let env = self.api.environment();
         let (workspaces_result, current_workspace_result) = tokio::join!(
-            self.api.list_codebases(),
+            self.api.list_workspaces(),
             self.api.get_workspace_info(env.cwd)
         );
 
@@ -3116,7 +3116,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         self.spinner.start(Some("Deleting workspace..."))?;
 
-        match self.api.delete_codebase(workspace_id.clone()).await {
+        match self.api.delete_workspace(workspace_id.clone()).await {
             Ok(()) => {
                 self.spinner.stop(None)?;
                 self.writeln_title(TitleFormat::debug(format!(

@@ -251,31 +251,31 @@ pub trait CustomInstructionsService: Send + Sync {
     async fn get_custom_instructions(&self) -> Vec<String>;
 }
 
-/// Service for indexing codebases for semantic search
+/// Service for indexing workspaces for semantic search
 #[async_trait::async_trait]
-pub trait ContextEngineService: Send + Sync {
-    /// Index the codebase at the given path
-    async fn sync_codebase(
+pub trait WorkspaceService: Send + Sync {
+    /// Index the workspace at the given path
+    async fn sync_workspace(
         &self,
         path: PathBuf,
         batch_size: usize,
     ) -> anyhow::Result<forge_stream::MpscStream<anyhow::Result<SyncProgress>>>;
 
-    /// Query the indexed codebase with semantic search
-    async fn query_codebase(
+    /// Query the indexed workspace with semantic search
+    async fn query_workspace(
         &self,
         path: PathBuf,
         params: SearchParams<'_>,
     ) -> anyhow::Result<Vec<Node>>;
 
     /// List all workspaces indexed by the user
-    async fn list_codebase(&self) -> anyhow::Result<Vec<WorkspaceInfo>>;
+    async fn list_workspaces(&self) -> anyhow::Result<Vec<WorkspaceInfo>>;
 
     /// Get workspace information for a specific path
     async fn get_workspace_info(&self, path: PathBuf) -> anyhow::Result<Option<WorkspaceInfo>>;
 
     /// Delete a workspace and all its indexed data
-    async fn delete_codebase(&self, workspace_id: &WorkspaceId) -> anyhow::Result<()>;
+    async fn delete_workspace(&self, workspace_id: &WorkspaceId) -> anyhow::Result<()>;
 
     /// Checks if workspace is indexed.
     async fn is_indexed(&self, path: &Path) -> anyhow::Result<bool>;
@@ -548,7 +548,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type CommandLoaderService: CommandLoaderService;
     type PolicyService: PolicyService;
     type ProviderAuthService: ProviderAuthService;
-    type CodebaseService: ContextEngineService;
+    type WorkspaceService: WorkspaceService;
     type SkillFetchService: SkillFetchService;
 
     fn provider_service(&self) -> &Self::ProviderService;
@@ -578,7 +578,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn command_loader_service(&self) -> &Self::CommandLoaderService;
     fn policy_service(&self) -> &Self::PolicyService;
     fn provider_auth_service(&self) -> &Self::ProviderAuthService;
-    fn context_engine_service(&self) -> &Self::CodebaseService;
+    fn workspace_service(&self) -> &Self::WorkspaceService;
     fn skill_fetch_service(&self) -> &Self::SkillFetchService;
 }
 
@@ -1034,56 +1034,56 @@ impl<I: Services> ProviderAuthService for I {
 }
 
 #[async_trait::async_trait]
-impl<I: Services> ContextEngineService for I {
-    async fn sync_codebase(
+impl<I: Services> WorkspaceService for I {
+    async fn sync_workspace(
         &self,
         path: PathBuf,
         batch_size: usize,
     ) -> anyhow::Result<forge_stream::MpscStream<anyhow::Result<SyncProgress>>> {
-        self.context_engine_service()
-            .sync_codebase(path, batch_size)
+        self.workspace_service()
+            .sync_workspace(path, batch_size)
             .await
     }
 
-    async fn query_codebase(
+    async fn query_workspace(
         &self,
         path: PathBuf,
         params: SearchParams<'_>,
     ) -> anyhow::Result<Vec<Node>> {
-        self.context_engine_service()
-            .query_codebase(path, params)
+        self.workspace_service()
+            .query_workspace(path, params)
             .await
     }
 
-    async fn list_codebase(&self) -> anyhow::Result<Vec<WorkspaceInfo>> {
-        self.context_engine_service().list_codebase().await
+    async fn list_workspaces(&self) -> anyhow::Result<Vec<WorkspaceInfo>> {
+        self.workspace_service().list_workspaces().await
     }
 
     async fn get_workspace_info(&self, path: PathBuf) -> anyhow::Result<Option<WorkspaceInfo>> {
-        self.context_engine_service().get_workspace_info(path).await
+        self.workspace_service().get_workspace_info(path).await
     }
 
-    async fn delete_codebase(&self, workspace_id: &WorkspaceId) -> anyhow::Result<()> {
-        self.context_engine_service()
-            .delete_codebase(workspace_id)
+    async fn delete_workspace(&self, workspace_id: &WorkspaceId) -> anyhow::Result<()> {
+        self.workspace_service()
+            .delete_workspace(workspace_id)
             .await
     }
 
     async fn is_indexed(&self, path: &Path) -> anyhow::Result<bool> {
-        self.context_engine_service().is_indexed(path).await
+        self.workspace_service().is_indexed(path).await
     }
 
     async fn get_workspace_status(&self, path: PathBuf) -> anyhow::Result<Vec<FileStatus>> {
-        self.context_engine_service()
+        self.workspace_service()
             .get_workspace_status(path)
             .await
     }
 
     async fn is_authenticated(&self) -> anyhow::Result<bool> {
-        self.context_engine_service().is_authenticated().await
+        self.workspace_service().is_authenticated().await
     }
 
     async fn init_auth_credentials(&self) -> anyhow::Result<WorkspaceAuth> {
-        self.context_engine_service().init_auth_credentials().await
+        self.workspace_service().init_auth_credentials().await
     }
 }

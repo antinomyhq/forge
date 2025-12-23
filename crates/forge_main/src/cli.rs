@@ -190,7 +190,7 @@ pub enum AgentCommand {
     List,
 }
 
-/// Command group for codebase management.
+/// Command group for workspace management.
 #[derive(Parser, Debug, Clone)]
 pub struct WorkspaceCommandGroup {
     #[command(subcommand)]
@@ -217,7 +217,7 @@ pub enum WorkspaceCommand {
         porcelain: bool,
     },
 
-    /// Query the codebase.
+    /// Query the workspace.
     Query {
         /// Search query.
         query: String,

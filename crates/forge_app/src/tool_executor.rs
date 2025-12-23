@@ -11,7 +11,7 @@ use crate::operation::{TempContentFiles, ToolOperation};
 use crate::services::ShellService;
 use crate::utils::format_display_path;
 use crate::{
-    ContextEngineService, ConversationService, EnvironmentService, FollowUpService,
+    WorkspaceService, ConversationService, EnvironmentService, FollowUpService,
     FsCreateService, FsPatchService, FsReadService, FsRemoveService, FsSearchService,
     FsUndoService, ImageReadService, NetFetchService, PlanCreateService, PolicyService,
     SkillFetchService,
@@ -26,7 +26,7 @@ impl<
         + ImageReadService
         + FsCreateService
         + FsSearchService
-        + ContextEngineService
+        + WorkspaceService
         + NetFetchService
         + FsRemoveService
         + FsPatchService
@@ -220,7 +220,7 @@ impl<
                 // Execute all queries in parallel
                 let futures: Vec<_> = params
                     .into_iter()
-                    .map(|param| services.query_codebase(cwd.clone(), param))
+                    .map(|param| services.query_workspace(cwd.clone(), param))
                     .collect();
 
                 let mut results = futures::future::try_join_all(futures).await?;

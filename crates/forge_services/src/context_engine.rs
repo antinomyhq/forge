@@ -5,29 +5,29 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use forge_app::{
-    ContextEngineService, FileReaderInfra, SyncProgressCounter, Walker, WalkerInfra,
+    WorkspaceService, FileReaderInfra, SyncProgressCounter, Walker, WalkerInfra,
     WorkspaceStatus, compute_hash,
 };
 use forge_domain::{
-    AuthCredential, AuthDetails, ContextEngineRepository, FileHash, FileNode, ProviderId,
+    AuthCredential, AuthDetails, WorkspaceIndexRepository, FileHash, FileNode, ProviderId,
     ProviderRepository, SyncProgress, UserId, WorkspaceId, WorkspaceRepository,
 };
 use forge_stream::MpscStream;
 use futures::future::join_all;
 use tracing::{info, warn};
 
-/// Service for indexing codebases and performing semantic search
-pub struct ForgeContextEngineService<F> {
+/// Service for indexing workspaces and performing semantic search
+pub struct ForgeWorkspaceService<F> {
     infra: Arc<F>,
 }
 
-impl<F> Clone for ForgeContextEngineService<F> {
+impl<F> Clone for ForgeWorkspaceService<F> {
     fn clone(&self) -> Self {
         Self { infra: Arc::clone(&self.infra) }
     }
 }
 
-impl<F> ForgeContextEngineService<F> {
+impl<F> ForgeWorkspaceService<F> {
     /// Creates a new indexing service with the provided infrastructure.
     pub fn new(infra: Arc<F>) -> Self {
         Self { infra }
@@ -41,7 +41,7 @@ impl<F> ForgeContextEngineService<F> {
         auth_token: &forge_domain::ApiKey,
     ) -> Vec<FileHash>
     where
-        F: ContextEngineRepository,
+        F: WorkspaceIndexRepository,
     {
         info!("Fetching existing file hashes from server to detect changes...");
         let workspace_files =
@@ -61,7 +61,7 @@ impl<F> ForgeContextEngineService<F> {
         paths: Vec<String>,
     ) -> Result<()>
     where
-        F: ContextEngineRepository,
+        F: WorkspaceIndexRepository,
     {
         let deletion = forge_domain::CodeBase::new(user_id.clone(), workspace_id.clone(), paths);
         self.infra
@@ -79,7 +79,7 @@ impl<F> ForgeContextEngineService<F> {
         files: Vec<forge_domain::FileRead>,
     ) -> Result<()>
     where
-        F: ContextEngineRepository,
+        F: WorkspaceIndexRepository,
     {
         let upload = forge_domain::CodeBase::new(user_id.clone(), workspace_id.clone(), files);
         self.infra
@@ -99,13 +99,13 @@ impl<F> ForgeContextEngineService<F> {
     where
         F: WorkspaceRepository
             + ProviderRepository
-            + ContextEngineRepository
+            + WorkspaceIndexRepository
             + WalkerInfra
             + FileReaderInfra,
         E: Fn(SyncProgress) -> Fut + Send + Sync,
         Fut: std::future::Future<Output = ()> + Send,
     {
-        info!(path = %path.display(), "Starting codebase sync");
+        info!(path = %path.display(), "Starting workspace sync");
 
         emit(SyncProgress::Starting).await;
 
@@ -341,13 +341,13 @@ impl<F> ForgeContextEngineService<F> {
 impl<
     F: WorkspaceRepository
         + ProviderRepository
-        + ContextEngineRepository
+        + WorkspaceIndexRepository
         + WalkerInfra
         + FileReaderInfra
         + 'static,
-> ContextEngineService for ForgeContextEngineService<F>
+> WorkspaceService for ForgeWorkspaceService<F>
 {
-    async fn sync_codebase(
+    async fn sync_workspace(
         &self,
         path: PathBuf,
         batch_size: usize,
@@ -376,7 +376,7 @@ impl<
     }
 
     /// Performs semantic code search on a workspace.
-    async fn query_codebase(
+    async fn query_workspace(
         &self,
         path: PathBuf,
         params: forge_domain::SearchParams<'_>,
@@ -404,7 +404,7 @@ impl<
     }
 
     /// Lists all workspaces.
-    async fn list_codebase(&self) -> Result<Vec<forge_domain::WorkspaceInfo>> {
+    async fn list_workspaces(&self) -> Result<Vec<forge_domain::WorkspaceInfo>> {
         let (token, _) = self.get_workspace_credentials().await?;
 
         self.infra
@@ -417,7 +417,7 @@ impl<
     /// Retrieves workspace information for a specific path.
     async fn get_workspace_info(&self, path: PathBuf) -> Result<Option<forge_domain::WorkspaceInfo>>
     where
-        F: WorkspaceRepository + ContextEngineRepository + ProviderRepository,
+        F: WorkspaceRepository + WorkspaceIndexRepository + ProviderRepository,
     {
         let (token, _) = self.get_workspace_credentials().await?;
         let workspace = self.find_workspace_by_path(path).await?;
@@ -434,7 +434,7 @@ impl<
     }
 
     /// Deletes a workspace from both the server and local database.
-    async fn delete_codebase(&self, workspace_id: &forge_domain::WorkspaceId) -> Result<()> {
+    async fn delete_workspace(&self, workspace_id: &forge_domain::WorkspaceId) -> Result<()> {
         let (token, _) = self.get_workspace_credentials().await?;
 
         self.infra
@@ -690,7 +690,7 @@ mod tests {
     }
 
     #[async_trait]
-    impl ContextEngineRepository for MockInfra {
+    impl WorkspaceIndexRepository for MockInfra {
         async fn authenticate(&self) -> Result<WorkspaceAuth> {
             // Mock authentication - return fake user_id and token
             Ok(WorkspaceAuth::new(
@@ -785,11 +785,11 @@ mod tests {
     async fn test_query_returns_results() {
         let mut mock = MockInfra::synced(&["test.rs"]);
         mock.search_results = vec![search_result()];
-        let service = ForgeContextEngineService::new(Arc::new(mock));
+        let service = ForgeWorkspaceService::new(Arc::new(mock));
 
         let params = forge_domain::SearchParams::new("test", "fest").limit(10usize);
         let actual = service
-            .query_codebase(PathBuf::from("."), params)
+            .query_workspace(PathBuf::from("."), params)
             .await
             .unwrap();
 
@@ -800,10 +800,10 @@ mod tests {
     async fn test_query_error_when_not_found() {
         let mut mock = MockInfra::default();
         mock.authenticated = true; // Provide authentication
-        let service = ForgeContextEngineService::new(Arc::new(mock));
+        let service = ForgeWorkspaceService::new(Arc::new(mock));
 
         let params = forge_domain::SearchParams::new("test", "fest").limit(10usize);
-        let actual = service.query_codebase(PathBuf::from("."), params).await;
+        let actual = service.query_workspace(PathBuf::from("."), params).await;
 
         assert!(actual.is_err());
         assert!(actual.unwrap_err().to_string().contains("not found"));
@@ -821,18 +821,18 @@ mod tests {
             last_updated: None,
             created_at: chrono::Utc::now(),
         });
-        let service = ForgeContextEngineService::new(Arc::new(mock));
+        let service = ForgeWorkspaceService::new(Arc::new(mock));
 
-        let actual = service.list_codebase().await.unwrap();
+        let actual = service.list_workspaces().await.unwrap();
 
         assert_eq!(actual.len(), 1);
     }
 
     #[tokio::test]
     async fn test_list_codebases_error_when_none() {
-        let service = ForgeContextEngineService::new(Arc::new(MockInfra::default()));
+        let service = ForgeWorkspaceService::new(Arc::new(MockInfra::default()));
 
-        let actual = service.list_codebase().await;
+        let actual = service.list_workspaces().await;
 
         assert!(actual.is_err());
     }
@@ -842,9 +842,9 @@ mod tests {
         let mut mock = MockInfra::out_of_sync(&["main.rs"], &["main.rs"]);
         mock.server_files
             .push(FileHash { path: "old.rs".into(), hash: "x".into() });
-        let service = ForgeContextEngineService::new(Arc::new(mock.clone()));
+        let service = ForgeWorkspaceService::new(Arc::new(mock.clone()));
 
-        let mut stream = service.sync_codebase(PathBuf::from("."), 20).await.unwrap();
+        let mut stream = service.sync_workspace(PathBuf::from("."), 20).await.unwrap();
 
         // Consume the stream and collect events
         let mut events = Vec::new();
@@ -870,9 +870,9 @@ mod tests {
     #[tokio::test]
     async fn test_sync_codebase_emits_progress_events() {
         let mock = MockInfra::out_of_sync(&["file1.rs", "file2.rs"], &[]);
-        let service = ForgeContextEngineService::new(Arc::new(mock));
+        let service = ForgeWorkspaceService::new(Arc::new(mock));
 
-        let mut stream = service.sync_codebase(PathBuf::from("."), 20).await.unwrap();
+        let mut stream = service.sync_workspace(PathBuf::from("."), 20).await.unwrap();
 
         // Collect all events
         let mut events = Vec::new();
@@ -896,9 +896,9 @@ mod tests {
     #[tokio::test]
     async fn test_sync_codebase_uploads_new_files() {
         let mock = MockInfra::out_of_sync(&["new_file.rs"], &[]);
-        let service = ForgeContextEngineService::new(Arc::new(mock.clone()));
+        let service = ForgeWorkspaceService::new(Arc::new(mock.clone()));
 
-        let mut stream = service.sync_codebase(PathBuf::from("."), 20).await.unwrap();
+        let mut stream = service.sync_workspace(PathBuf::from("."), 20).await.unwrap();
 
         // Consume all events
         while let Some(_event) = stream.next().await {}
@@ -921,11 +921,11 @@ mod tests {
             last_updated: None,
             created_at: chrono::Utc::now(),
         });
-        let service = ForgeContextEngineService::new(Arc::new(mock));
+        let service = ForgeWorkspaceService::new(Arc::new(mock));
 
-        service.delete_codebase(&ws.workspace_id).await.unwrap();
+        service.delete_workspace(&ws.workspace_id).await.unwrap();
 
-        let actual = service.list_codebase().await.unwrap();
+        let actual = service.list_workspaces().await.unwrap();
         assert!(!actual.iter().any(|w| w.workspace_id == ws.workspace_id));
     }
 
@@ -941,7 +941,7 @@ mod tests {
             last_updated: Some(chrono::Utc::now()),
             created_at: chrono::Utc::now(),
         });
-        let service = ForgeContextEngineService::new(Arc::new(mock));
+        let service = ForgeWorkspaceService::new(Arc::new(mock));
 
         let actual = service.get_workspace_info(ws.path).await.unwrap();
 
@@ -955,7 +955,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_workspace_info_returns_none_when_not_found() {
         let mock = MockInfra::new(&["main.rs"]);
-        let service = ForgeContextEngineService::new(Arc::new(mock));
+        let service = ForgeWorkspaceService::new(Arc::new(mock));
 
         let actual = service
             .get_workspace_info(PathBuf::from("."))
@@ -970,7 +970,7 @@ mod tests {
         let mut mock = MockInfra::synced(&["main.rs"]);
         mock.authenticated = false;
         let ws = mock.workspace.clone().unwrap();
-        let service = ForgeContextEngineService::new(Arc::new(mock));
+        let service = ForgeWorkspaceService::new(Arc::new(mock));
         let actual = service.get_workspace_info(ws.path).await;
 
         assert!(actual.is_err());
@@ -985,7 +985,7 @@ mod tests {
     #[tokio::test]
     async fn test_get_workspace_status_all_in_sync() {
         let mock = MockInfra::synced(&["file1.rs", "file2.rs"]);
-        let service = ForgeContextEngineService::new(Arc::new(mock));
+        let service = ForgeWorkspaceService::new(Arc::new(mock));
 
         let actual = service
             .get_workspace_status(PathBuf::from("."))
@@ -1029,7 +1029,7 @@ mod tests {
             },
         ];
 
-        let service = ForgeContextEngineService::new(Arc::new(mock));
+        let service = ForgeWorkspaceService::new(Arc::new(mock));
 
         let actual = service
             .get_workspace_status(PathBuf::from("."))
@@ -1068,7 +1068,7 @@ mod tests {
             hash: compute_hash("content of file1.rs"),
         }];
 
-        let service = ForgeContextEngineService::new(Arc::new(mock));
+        let service = ForgeWorkspaceService::new(Arc::new(mock));
 
         let actual = service
             .get_workspace_status(PathBuf::from("."))
@@ -1087,7 +1087,7 @@ mod tests {
     async fn test_get_workspace_status_not_indexed() {
         let mut mock = MockInfra::default(); // No workspace
         mock.authenticated = true; // Provide authentication
-        let service = ForgeContextEngineService::new(Arc::new(mock));
+        let service = ForgeWorkspaceService::new(Arc::new(mock));
 
         let actual = service.get_workspace_status(PathBuf::from(".")).await;
 

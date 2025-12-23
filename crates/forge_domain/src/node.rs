@@ -5,7 +5,7 @@ use uuid::Uuid;
 
 use crate::WorkspaceId;
 
-/// Progress events emitted during codebase indexing
+/// Progress events emitted during workspace indexing
 #[derive(Debug, Clone, PartialEq)]
 pub enum SyncProgress {
     /// Sync operation is starting
@@ -101,7 +101,7 @@ impl WorkspaceAuth {
     }
 }
 
-/// File content for upload to codebase server
+/// File content for upload to workspace server
 ///
 /// Contains the file path (relative to workspace root) and its textual content
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -119,7 +119,7 @@ impl FileRead {
     }
 }
 
-/// Generic wrapper for codebase operations
+/// Generic wrapper for workspace operations
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CodeBase<T> {
     pub user_id: UserId,
