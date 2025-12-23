@@ -115,13 +115,7 @@ impl<F> ForgeContextEngineService<F> {
         info!(canonical_path = %canonical_path.display(), "Resolved canonical path");
 
         // Get auth token (must already exist - caller should call ensure_auth first)
-        let credential = self
-            .infra
-            .get_credential(&ProviderId::FORGE_SERVICES)
-            .await?
-            .context("No authentication credentials found. Please authenticate first.")?;
-
-        let (token, user_id) = Self::extract_workspace_auth(&credential)?;
+        let (token, user_id) = self.get_workspace_credentials().await?;
 
         let existing_workspace = self.infra.find_by_path(&canonical_path).await?;
 
@@ -254,6 +248,25 @@ impl<F> ForgeContextEngineService<F> {
         }
     }
 
+
+    /// Gets the forge services credential and extracts workspace auth components
+    ///
+    /// # Errors
+    /// Returns an error if the credential is not found, if there's a database error,
+    /// or if the credential format is invalid
+    async fn get_workspace_credentials(&self) -> Result<(forge_domain::ApiKey, UserId)>
+    where
+        F: ProviderRepository,
+    {
+        let credential = self
+            .infra
+            .get_credential(&ProviderId::FORGE_SERVICES)
+            .await?
+            .context("No authentication credentials found. Please authenticate first.")?;
+
+        Self::extract_workspace_auth(&credential)
+    }
+
     /// Convert WorkspaceAuth to AuthCredential for storage
     fn workspace_auth_to_credential(auth: &forge_domain::WorkspaceAuth) -> AuthCredential {
         use std::collections::HashMap;
@@ -384,13 +397,7 @@ impl<
             .ok_or(forge_domain::Error::WorkspaceNotFound)?;
 
         // Step 3: Get auth token
-        let credential = self
-            .infra
-            .get_credential(&ProviderId::FORGE_SERVICES)
-            .await?
-            .ok_or(forge_domain::Error::AuthTokenNotFound)?;
-
-        let (token, _) = Self::extract_workspace_auth(&credential)?;
+        let (token, _) = self.get_workspace_credentials().await?;
 
         // Step 4: Search the codebase
         let search_query = forge_domain::CodeBase::new(
@@ -411,13 +418,7 @@ impl<
     /// Lists all workspaces.
     async fn list_codebase(&self) -> Result<Vec<forge_domain::WorkspaceInfo>> {
         // Get auth token
-        let credential = self
-            .infra
-            .get_credential(&ProviderId::FORGE_SERVICES)
-            .await?
-            .ok_or(forge_domain::Error::AuthTokenNotFound)?;
-
-        let (token, _) = Self::extract_workspace_auth(&credential)?;
+        let (token, _) = self.get_workspace_credentials().await?;
 
         // List all workspaces for this user
         self.infra
@@ -437,13 +438,7 @@ impl<
             .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
 
         // Get auth token
-        let credential = self
-            .infra
-            .get_credential(&ProviderId::FORGE_SERVICES)
-            .await?
-            .ok_or(forge_domain::Error::AuthTokenNotFound)?;
-
-        let (token, _) = Self::extract_workspace_auth(&credential)?;
+        let (token, _) = self.get_workspace_credentials().await?;
 
         // Find workspace by path
         let workspace = self.infra.find_by_path(&path).await?;
@@ -463,13 +458,7 @@ impl<
     /// Deletes a workspace from both the server and local database.
     async fn delete_codebase(&self, workspace_id: &forge_domain::WorkspaceId) -> Result<()> {
         // Get auth token
-        let credential = self
-            .infra
-            .get_credential(&ProviderId::FORGE_SERVICES)
-            .await?
-            .ok_or(forge_domain::Error::AuthTokenNotFound)?;
-
-        let (token, _) = Self::extract_workspace_auth(&credential)?;
+        let (token, _) = self.get_workspace_credentials().await?;
 
         // Delete from server
         self.infra
@@ -522,13 +511,7 @@ impl<
             .context("Workspace not indexed. Please run `workspace sync` first.")?;
 
         // Get auth token
-        let credential = self
-            .infra
-            .get_credential(&ProviderId::FORGE_SERVICES)
-            .await?
-            .context("No authentication credentials found. Please authenticate first.")?;
-
-        let (token, user_id) = Self::extract_workspace_auth(&credential)?;
+        let (token, user_id) = self.get_workspace_credentials().await?;
 
         // Ensure workspace belongs to current user
         if workspace.user_id != user_id {
@@ -1119,7 +1102,7 @@ mod tests {
             actual
                 .unwrap_err()
                 .to_string()
-                .contains("No indexing authentication found")
+                .contains("No authentication credentials found")
         );
     }
 
