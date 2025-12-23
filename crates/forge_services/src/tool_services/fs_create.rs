@@ -47,12 +47,7 @@ impl<
         assert_absolute_path(path)?;
 
         // Validate file syntax using remote validation API (graceful failure)
-        let syntax_warning = self
-            .infra
-            .validate_file(path, &content)
-            .await
-            .ok()
-            .flatten();
+        let errors = self.infra.validate_file(path, &content).await.unwrap_or_default();
 
         if let Some(parent) = Path::new(&path).parent() {
             self.infra
@@ -93,7 +88,7 @@ impl<
         Ok(FsCreateOutput {
             path: path.display().to_string(),
             before: old_content,
-            warning: syntax_warning,
+            errors,
             content_hash,
         })
     }

@@ -142,7 +142,7 @@ mod tests {
             output: FsCreateOutput {
                 path: "/home/user/project/new_file.txt".to_string(),
                 before: None,
-                warning: None,
+                errors: vec![],
                 content_hash: crate::compute_hash(content),
             },
         };
@@ -166,7 +166,7 @@ mod tests {
             output: FsCreateOutput {
                 path: "/home/user/project/existing_file.txt".to_string(),
                 before: Some("old content".to_string()),
-                warning: None,
+                errors: vec![],
                 content_hash: crate::compute_hash(content),
             },
         };
@@ -194,15 +194,11 @@ mod tests {
             output: FsCreateOutput {
                 path: "/home/user/project/file.txt".to_string(),
                 before: None,
-                warning: Some(forge_domain::ValidationWarning::new(
-                    "/home/user/project/file.txt".to_string(),
-                    "txt".to_string(),
-                    vec![forge_domain::SyntaxError {
-                        line: 5,
-                        column: 10,
-                        message: "Syntax error".to_string(),
-                    }],
-                )),
+                errors: vec![forge_domain::SyntaxError {
+                    line: 5,
+                    column: 10,
+                    message: "Syntax error".to_string(),
+                }],
                 content_hash: crate::compute_hash(content),
             },
         };
@@ -321,7 +317,7 @@ mod tests {
                 operation: PatchOperation::Replace,
             },
             output: PatchOutput {
-                warning: None,
+                errors: vec![],
                 before: "Hello world\nThis is a test".to_string(),
                 after: after_content.to_string(),
                 content_hash: crate::compute_hash(after_content),
@@ -344,15 +340,11 @@ mod tests {
                 operation: PatchOperation::Replace,
             },
             output: PatchOutput {
-                warning: Some(forge_domain::ValidationWarning::new(
-                    "/home/user/project/large_file.txt".to_string(),
-                    "txt".to_string(),
-                    vec![forge_domain::SyntaxError {
-                        line: 10,
-                        column: 5,
-                        message: "Syntax error".to_string(),
-                    }],
-                )),
+                errors: vec![forge_domain::SyntaxError {
+                    line: 10,
+                    column: 5,
+                    message: "Syntax error".to_string(),
+                }],
                 before: "line1\nline2".to_string(),
                 after: after_content.to_string(),
                 content_hash: crate::compute_hash(after_content),

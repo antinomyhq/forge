@@ -10,7 +10,6 @@ expression: to_value(actual)
 <message>Syntax validation failed</message>
 <file
   path="/home/user/file_with_warning.txt"
-  extension="txt"
 >
 </file>
 <details>The file was written successfully but contains 1 syntax error(s)</details>
