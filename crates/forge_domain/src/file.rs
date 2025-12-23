@@ -44,7 +44,7 @@ pub struct FileHash {
 
 /// Status of a file in relation to the server
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, PartialOrd, Ord)]
-pub enum FileSyncStatus {
+pub enum SyncStatus {
     /// File is in sync with server (same hash)
     InSync,
     /// File has been modified locally
@@ -61,12 +61,12 @@ pub struct FileStatus {
     /// Relative file path from workspace root
     pub path: String,
     /// Sync status of the file
-    pub status: FileSyncStatus,
+    pub status: SyncStatus,
 }
 
 impl FileStatus {
     /// Create a new file status entry
-    pub fn new(path: String, status: FileSyncStatus) -> Self {
+    pub fn new(path: String, status: SyncStatus) -> Self {
         Self { path, status }
     }
 }

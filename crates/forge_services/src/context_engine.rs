@@ -442,9 +442,9 @@ impl<
     }
 
     async fn get_workspace_status(&self, path: PathBuf) -> Result<Vec<forge_domain::FileStatus>> {
-        use std::collections::{HashMap, HashSet};
+        use std::collections::{BTreeSet, HashMap};
 
-        use forge_domain::{FileStatus, FileSyncStatus};
+        use forge_domain::{FileStatus, SyncStatus};
 
         let (token, user_id) = self.get_workspace_credentials().await?;
 
@@ -469,32 +469,29 @@ impl<
             .map(|f| (f.path.as_str(), f.hash.as_str()))
             .collect();
 
-        // Collect all unique file paths
-        let mut all_paths: HashSet<&str> = HashSet::new();
+        // Collect all unique file paths (BTreeSet keeps them sorted)
+        let mut all_paths: BTreeSet<&str> = BTreeSet::new();
         all_paths.extend(local_hashes.keys().copied());
         all_paths.extend(remote_hashes.keys().copied());
 
-        // Compute status for each file
-        let mut statuses: Vec<FileStatus> = all_paths
+        // Compute status for each file (already sorted by BTreeSet)
+        let statuses: Vec<FileStatus> = all_paths
             .into_iter()
             .filter_map(|path| {
                 let local_hash = local_hashes.get(path);
                 let remote_hash = remote_hashes.get(path);
 
                 let status = match (local_hash, remote_hash) {
-                    (Some(l), Some(r)) if l == r => FileSyncStatus::InSync,
-                    (Some(_), Some(_)) => FileSyncStatus::Modified,
-                    (Some(_), None) => FileSyncStatus::New,
-                    (None, Some(_)) => FileSyncStatus::Deleted,
+                    (Some(l), Some(r)) if l == r => SyncStatus::InSync,
+                    (Some(_), Some(_)) => SyncStatus::Modified,
+                    (Some(_), None) => SyncStatus::New,
+                    (None, Some(_)) => SyncStatus::Deleted,
                     (None, None) => return None, // Skip invalid entries
                 };
 
                 Some(FileStatus::new(path.to_string(), status))
             })
             .collect();
-
-        // Sort by path for consistent ordering
-        statuses.sort_by(|a, b| a.path.cmp(&b.path));
 
         Ok(statuses)
     }
@@ -1019,11 +1016,11 @@ mod tests {
         let expected = vec![
             forge_domain::FileStatus::new(
                 "file1.rs".to_string(),
-                forge_domain::FileSyncStatus::InSync,
+                forge_domain::SyncStatus::InSync,
             ),
             forge_domain::FileStatus::new(
                 "file2.rs".to_string(),
-                forge_domain::FileSyncStatus::InSync,
+                forge_domain::SyncStatus::InSync,
             ),
         ];
 
@@ -1069,15 +1066,15 @@ mod tests {
         let expected = vec![
             forge_domain::FileStatus::new(
                 "file1.rs".to_string(),
-                forge_domain::FileSyncStatus::InSync,
+                forge_domain::SyncStatus::InSync,
             ),
             forge_domain::FileStatus::new(
                 "file2.rs".to_string(),
-                forge_domain::FileSyncStatus::Modified,
+                forge_domain::SyncStatus::Modified,
             ),
             forge_domain::FileStatus::new(
                 "file3.rs".to_string(),
-                forge_domain::FileSyncStatus::Deleted,
+                forge_domain::SyncStatus::Deleted,
             ),
         ];
 
@@ -1111,11 +1108,11 @@ mod tests {
         let expected = vec![
             forge_domain::FileStatus::new(
                 "file1.rs".to_string(),
-                forge_domain::FileSyncStatus::InSync,
+                forge_domain::SyncStatus::InSync,
             ),
             forge_domain::FileStatus::new(
                 "file2.rs".to_string(),
-                forge_domain::FileSyncStatus::New,
+                forge_domain::SyncStatus::New,
             ),
         ];
 

@@ -3138,7 +3138,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         path: std::path::PathBuf,
         porcelain: bool,
     ) -> anyhow::Result<()> {
-        use forge_domain::FileSyncStatus;
+        use forge_domain::SyncStatus;
 
         if !porcelain {
             self.spinner.start(Some("Checking file status..."))?;
@@ -3161,19 +3161,19 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Calculate counts
         let in_sync = statuses
             .iter()
-            .filter(|s| s.status == FileSyncStatus::InSync)
+            .filter(|s| s.status == SyncStatus::InSync)
             .count();
         let modified = statuses
             .iter()
-            .filter(|s| s.status == FileSyncStatus::Modified)
+            .filter(|s| s.status == SyncStatus::Modified)
             .count();
         let added = statuses
             .iter()
-            .filter(|s| s.status == FileSyncStatus::New)
+            .filter(|s| s.status == SyncStatus::New)
             .count();
         let deleted = statuses
             .iter()
-            .filter(|s| s.status == FileSyncStatus::Deleted)
+            .filter(|s| s.status == SyncStatus::Deleted)
             .count();
 
         let out_of_sync = modified + added + deleted;
@@ -3183,10 +3183,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Add file list (skip in-sync files)
         for (status, label) in statuses.iter().filter_map(|status| match status.status {
-            FileSyncStatus::InSync => None,
-            FileSyncStatus::Modified => Some((status, "modified")),
-            FileSyncStatus::New => Some((status, "added")),
-            FileSyncStatus::Deleted => Some((status, "deleted")),
+            SyncStatus::InSync => None,
+            SyncStatus::Modified => Some((status, "modified")),
+            SyncStatus::New => Some((status, "added")),
+            SyncStatus::Deleted => Some((status, "deleted")),
         }) {
             info = info.add_key_value(&status.path, label);
         }
