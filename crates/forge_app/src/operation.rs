@@ -1553,7 +1553,11 @@ mod tests {
                     "/home/user/test.txt",
                     "zsh",
                     vec![
-                        (22, 1, r#"Syntax error at 'function dim() { echo "${_DIM}${1}${RESET}"'"#),
+                        (
+                            22,
+                            1,
+                            r#"Syntax error at 'function dim() { echo "${_DIM}${1}${RESET}"'"#,
+                        ),
                         (25, 5, "Unexpected token"),
                         (30, 10, "Missing closing brace"),
                     ],

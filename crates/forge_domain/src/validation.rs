@@ -62,7 +62,6 @@ impl From<&ValidationWarning> for forge_template::Element {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -73,8 +72,16 @@ mod tests {
             "/path/to/file.rs".to_string(),
             "rs".to_string(),
             vec![
-                SyntaxError { line: 10, column: 5, message: "Missing semicolon".to_string() },
-                SyntaxError { line: 15, column: 20, message: "Unexpected token".to_string() },
+                SyntaxError {
+                    line: 10,
+                    column: 5,
+                    message: "Missing semicolon".to_string(),
+                },
+                SyntaxError {
+                    line: 15,
+                    column: 20,
+                    message: "Unexpected token".to_string(),
+                },
             ],
         );
 

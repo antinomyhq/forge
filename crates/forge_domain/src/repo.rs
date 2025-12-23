@@ -216,8 +216,8 @@ pub trait ValidationRepository: Send + Sync {
     ///
     /// # Returns
     /// * `Ok(None)` - File is valid or file type is not supported by backend
-    /// * `Ok(Some(ValidationWarning))` - Validation failed with structured error
-    ///   information
+    /// * `Ok(Some(ValidationWarning))` - Validation failed with structured
+    ///   error information
     /// * `Err(_)` - Communication error with validation service
     async fn validate_file(
         &self,
