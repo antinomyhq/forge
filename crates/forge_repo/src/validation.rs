@@ -4,7 +4,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use forge_app::GrpcInfra;
-use forge_domain::{SyntaxError, ValidationRepository, ValidationWarning};
+use forge_domain::{SyntaxError, ValidationRepository};
 use tracing::{debug, warn};
 
 // Include the generated proto code at module level
@@ -37,7 +37,7 @@ impl<I: GrpcInfra> ValidationRepository for ForgeValidationRepository<I> {
         &self,
         path: impl AsRef<Path> + Send,
         content: &str,
-    ) -> Result<Option<ValidationWarning>> {
+    ) -> Result<Vec<SyntaxError>> {
         let path = path.as_ref();
         let path_str = path.to_string_lossy().to_string();
 
@@ -68,11 +68,11 @@ impl<I: GrpcInfra> ValidationRepository for ForgeValidationRepository<I> {
             Some(proto_generated::ValidationStatus { status: Some(status) }) => match status {
                 proto_generated::validation_status::Status::Valid(_) => {
                     debug!(path = %path_str, "Syntax validation passed");
-                    Ok(None)
+                    Ok(vec![])
                 }
                 proto_generated::validation_status::Status::Errors(error_list) => {
                     if error_list.errors.is_empty() {
-                        return Ok(None);
+                        return Ok(vec![]);
                     }
 
                     let ext = path
@@ -104,11 +104,7 @@ impl<I: GrpcInfra> ValidationRepository for ForgeValidationRepository<I> {
                         })
                         .collect();
 
-                    Ok(Some(ValidationWarning::new(
-                        path.display().to_string(),
-                        ext.to_string(),
-                        errors,
-                    )))
+                    Ok(errors)
                 }
                 proto_generated::validation_status::Status::UnsupportedLanguage(_) => {
                     let ext = path
@@ -120,10 +116,10 @@ impl<I: GrpcInfra> ValidationRepository for ForgeValidationRepository<I> {
                         extension = ext,
                         "Syntax validation skipped: unsupported language"
                     );
-                    Ok(None)
+                    Ok(vec![])
                 }
             },
-            _ => Ok(None),
+            _ => Ok(vec![]),
         }
     }
 }

@@ -5,8 +5,7 @@ use url::Url;
 
 use crate::{
     AnyProvider, AppConfig, AuthCredential, Conversation, ConversationId, MigrationResult,
-    Provider, ProviderId, Skill, Snapshot, UserId, ValidationWarning, Workspace, WorkspaceAuth,
-    WorkspaceId,
+    Provider, ProviderId, Skill, Snapshot, UserId, Workspace, WorkspaceAuth, WorkspaceId,
 };
 
 /// Repository for managing file snapshots
@@ -215,13 +214,12 @@ pub trait ValidationRepository: Send + Sync {
     /// * `content` - Content of the file to validate
     ///
     /// # Returns
-    /// * `Ok(None)` - File is valid or file type is not supported by backend
-    /// * `Ok(Some(ValidationWarning))` - Validation failed with structured
-    ///   error information
+    /// * `Ok(vec![])` - File is valid or file type is not supported by backend
+    /// * `Ok(errors)` - Validation failed with list of syntax errors
     /// * `Err(_)` - Communication error with validation service
     async fn validate_file(
         &self,
         path: impl AsRef<std::path::Path> + Send,
         content: &str,
-    ) -> Result<Option<ValidationWarning>>;
+    ) -> Result<Vec<crate::SyntaxError>>;
 }
