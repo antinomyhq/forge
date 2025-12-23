@@ -6,14 +6,71 @@ body:
   - type: markdown
     attributes:
       value: |
-        Thanks for suggesting a new feature! Please provide detailed information to help us understand your proposal.
+        Thanks for suggesting a new feature! 
+        
+        **Before you continue, please ensure you can clearly answer:**
+        1. **Why do you NEED this feature?** (Not just "nice to have")
+        2. **What is NOT possible right now?** (Current limitations)
+        3. **What WILL be possible with this feature?** (Concrete outcomes)
+        
+        Vague or incomplete requests will be closed. Take your time to write a compelling case.
 
   - type: textarea
-    id: problem
+    id: why-needed
     attributes:
-      label: Problem Statement
-      description: Is your feature request related to a problem? Describe the problem you're trying to solve.
-      placeholder: I'm always frustrated when...
+      label: "1. Why Do You NEED This Feature?"
+      description: |
+        **Be specific.** Explain the real-world problem or blocker you're facing.
+        Not "it would be cool if..." but "I cannot accomplish X because..."
+        Why is this important to your workflow? What is the impact of NOT having this?
+      placeholder: |
+        I NEED this feature because:
+        - Current workflow requires me to...
+        - This costs me X hours per week...
+        - Without this, I cannot accomplish...
+        - The business impact is...
+    validations:
+      required: true
+
+  - type: textarea
+    id: current-limitation
+    attributes:
+      label: "2. What Is NOT Possible Right Now?"
+      description: |
+        **Describe the current limitations in detail.**
+        What have you tried? What doesn't work? Why can't you work around it?
+        Include specific examples, commands, or workflows that fail.
+      placeholder: |
+        Currently, I cannot:
+        - [Specific action/workflow that fails]
+        - [What happens when you try]
+        - [Why existing features don't solve this]
+        
+        I've tried:
+        - [Workaround 1 and why it doesn't work]
+        - [Workaround 2 and why it doesn't work]
+    validations:
+      required: true
+
+  - type: textarea
+    id: future-possibilities
+    attributes:
+      label: "3. What WILL Be Possible With This Feature?"
+      description: |
+        **Describe concrete outcomes and capabilities.**
+        What specific tasks/workflows will this enable?
+        How will your work change? What new things can you build/do?
+      placeholder: |
+        With this feature, I will be able to:
+        - [Specific new capability 1]
+        - [Specific new capability 2]
+        - [Measurable improvement: time saved, errors reduced, etc.]
+        
+        Example workflow:
+        ```
+        # Show the exact commands or steps you'll use
+        forge new-feature --example
+        ```
     validations:
       required: true
 
@@ -21,8 +78,12 @@ body:
     id: solution
     attributes:
       label: Proposed Solution
-      description: Describe the solution you'd like to see implemented.
-      placeholder: I would like Forge to...
+      description: How should this feature work? Describe the user-experience you envision.
+      placeholder: |
+        The feature should work like this:
+        - [Interface/API design]
+        - [User interaction flow]
+        - [Expected behavior]
     validations:
       required: true
 
@@ -108,3 +169,20 @@ body:
     attributes:
       label: Additional Context
       description: Add any other context, screenshots, or examples about the feature request.
+  
+  - type: checkboxes
+    id: requirements-check
+    attributes:
+      label: "✅ Pre-submission Checklist"
+      description: "Before submitting, confirm you've addressed all requirements:"
+      options:
+        - label: "I have clearly explained WHY I need this feature (not just that it would be nice)"
+          required: true
+        - label: "I have described what is NOT currently possible in detail"
+          required: true
+        - label: "I have explained what WILL be possible with concrete examples"
+          required: true
+        - label: "I have provided specific use cases and workflows"
+          required: true
+        - label: "I have searched existing issues to avoid duplicates"
+          required: true
