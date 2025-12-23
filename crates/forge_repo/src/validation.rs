@@ -80,27 +80,27 @@ impl<I: GrpcInfra> ValidationRepository for ForgeValidationRepository<I> {
                         .and_then(|e| e.to_str())
                         .unwrap_or("unknown");
 
-                    // Log each error
-                    for error in &error_list.errors {
-                        warn!(
-                            path = %path_str,
-                            extension = ext,
-                            error_count = error_list.errors.len(),
-                            error_line = error.line,
-                            error_column = error.column,
-                            error_message = %error.message,
-                            "Syntax validation failed"
-                        );
-                    }
+                    let error_count = error_list.errors.len();
 
-                    // Convert proto errors to domain errors
+                    // Log and convert proto errors to domain errors
                     let errors = error_list
                         .errors
                         .into_iter()
-                        .map(|error| SyntaxError {
-                            line: error.line,
-                            column: error.column,
-                            message: error.message,
+                        .map(|error| {
+                            warn!(
+                                path = %path_str,
+                                extension = ext,
+                                error_count,
+                                error_line = error.line,
+                                error_column = error.column,
+                                error_message = %error.message,
+                                "Syntax validation failed"
+                            );
+                            SyntaxError {
+                                line: error.line,
+                                column: error.column,
+                                message: error.message,
+                            }
                         })
                         .collect();
 
