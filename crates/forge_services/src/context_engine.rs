@@ -276,23 +276,6 @@ impl<F> ForgeContextEngineService<F> {
         Ok((canonical_path, workspace))
     }
 
-    /// Convert WorkspaceAuth to AuthCredential for storage
-    fn workspace_auth_to_credential(auth: &forge_domain::WorkspaceAuth) -> AuthCredential {
-        use std::collections::HashMap;
-
-        let mut url_params = HashMap::new();
-        url_params.insert(
-            "user_id".to_string().into(),
-            auth.user_id.to_string().into(),
-        );
-
-        AuthCredential {
-            id: ProviderId::FORGE_SERVICES,
-            auth_details: auth.clone().into(),
-            url_params,
-        }
-    }
-
     /// Walks the directory, reads all files, and computes their hashes.
     async fn read_files(&self, dir_path: &Path) -> Result<Vec<FileNode>>
     where
@@ -564,6 +547,8 @@ impl<
     }
 
     async fn create_auth_credentials(&self) -> Result<forge_domain::WorkspaceAuth> {
+        use std::collections::HashMap;
+
         // Authenticate with the indexing service
         let auth = self
             .infra
@@ -572,7 +557,18 @@ impl<
             .context("Failed to authenticate with indexing service")?;
 
         // Convert to AuthCredential and store
-        let credential = Self::workspace_auth_to_credential(&auth);
+        let mut url_params = HashMap::new();
+        url_params.insert(
+            "user_id".to_string().into(),
+            auth.user_id.to_string().into(),
+        );
+
+        let credential = AuthCredential {
+            id: ProviderId::FORGE_SERVICES,
+            auth_details: auth.clone().into(),
+            url_params,
+        };
+
         self.infra
             .upsert_credential(credential)
             .await
