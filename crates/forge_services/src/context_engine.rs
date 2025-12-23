@@ -5,8 +5,8 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use forge_app::{
-    ContextEngineService, FileReaderInfra, WorkspaceStatus, SyncProgressCounter, Walker, WalkerInfra,
-    compute_hash,
+    ContextEngineService, FileReaderInfra, SyncProgressCounter, Walker, WalkerInfra,
+    WorkspaceStatus, compute_hash,
 };
 use forge_domain::{
     AuthCredential, AuthDetails, ContextEngineRepository, FileHash, FileNode, ProviderId,
