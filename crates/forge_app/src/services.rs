@@ -8,7 +8,8 @@ use forge_domain::{
     ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId, Environment, File,
     FileStatus, Image, InitAuth, LoginInfo, McpConfig, McpServers, Model, ModelId, Node,
     PatchOperation, Provider, ProviderId, ResultStream, Scope, SearchParams, SyncProgress,
-    Template, ToolCallFull, ToolOutput, Workflow, WorkspaceAuth, WorkspaceId, WorkspaceInfo,
+    SyntaxError, Template, ToolCallFull, ToolOutput, Workflow, WorkspaceAuth, WorkspaceId,
+    WorkspaceInfo,
 };
 use merge::Merge;
 use reqwest::Response;
@@ -27,7 +28,7 @@ pub struct ShellOutput {
 
 #[derive(Debug)]
 pub struct PatchOutput {
-    pub warning: Option<String>,
+    pub errors: Vec<SyntaxError>,
     pub before: String,
     pub after: String,
     pub content_hash: String,
@@ -96,7 +97,7 @@ pub struct FsCreateOutput {
     pub path: String,
     // Set when the file already exists
     pub before: Option<String>,
-    pub warning: Option<String>,
+    pub errors: Vec<SyntaxError>,
     pub content_hash: String,
 }
 

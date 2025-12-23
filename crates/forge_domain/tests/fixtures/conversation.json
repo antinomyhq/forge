@@ -217,7 +217,7 @@
         }
       },
       {
-        "name": "search",
+        "name": "fs_search",
         "description": "Recursively searches directories for files by content (regex) and/or name\n (glob pattern). Provides context-rich results with line numbers for content\n matches. Two modes: content search (when regex provided) or file finder\n (when regex omitted). Uses case-insensitive Rust regex syntax. Requires\n absolute paths. Avoids binary files and excluded directories. Best for code\n exploration, API usage discovery, configuration settings, or finding\n patterns across projects. For large pages, returns the first 200\n lines and stores the complete content in a temporary file for\n subsequent access.",
         "input_schema": {
           "title": "FSSearch",

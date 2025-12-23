@@ -237,15 +237,14 @@ impl<F: FileWriterInfra + SnapshotRepository + ValidationRepository> FsPatchServ
         let content_hash = compute_hash(&current_content);
 
         // Validate file syntax using remote validation API (graceful failure)
-        let syntax_warning = self
+        let errors = self
             .infra
             .validate_file(path, &current_content)
             .await
-            .ok()
-            .flatten();
+            .unwrap_or_default();
 
         Ok(PatchOutput {
-            warning: syntax_warning,
+            errors,
             before: old_content,
             after: current_content,
             content_hash,
