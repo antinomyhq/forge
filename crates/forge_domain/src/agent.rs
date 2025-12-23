@@ -2,9 +2,9 @@ use derive_setters::Setters;
 use merge::Merge;
 
 use crate::{
-    AgentDefinition, AgentId, Compact, Context, Error, EventContext, MaxTokens, ModelId,
-    ProviderId, ReasoningConfig, Result, SystemContext, Temperature, Template, ToolDefinition,
-    ToolName, TopK, TopP, Workflow,
+    AgentDefinition, AgentId, Compact, Error, EventContext, MaxTokens, ModelId, ProviderId,
+    ReasoningConfig, Result, SystemContext, Temperature, Template, ToolDefinition, ToolName, TopK,
+    TopP, Workflow,
 };
 
 /// Runtime agent representation with required model and provider
@@ -46,7 +46,7 @@ pub struct Agent {
     pub max_turns: Option<u64>,
 
     /// Configuration for automatic context compaction
-    pub compact: Option<Compact>,
+    pub compact: Compact,
 
     /// A set of custom rules that the agent should follow
     pub custom_rules: Option<String>,
@@ -87,7 +87,7 @@ impl Agent {
             user_prompt: Default::default(),
             tools: Default::default(),
             max_turns: Default::default(),
-            compact: Default::default(),
+            compact: Compact::default(),
             custom_rules: Default::default(),
             temperature: Default::default(),
             top_p: Default::default(),
@@ -111,16 +111,6 @@ impl Agent {
         }
         Ok(ToolDefinition::new(self.id.as_str().to_string())
             .description(self.description.clone().unwrap()))
-    }
-
-    /// Checks if compaction should be applied
-    pub fn should_compact(&self, context: &Context, token_count: usize) -> bool {
-        // Return false if compaction is not configured
-        if let Some(compact) = &self.compact {
-            compact.should_compact(context, token_count)
-        } else {
-            false
-        }
     }
 
     /// Helper to prepare agents with workflow settings
@@ -167,16 +157,11 @@ impl Agent {
 
         // Apply workflow compact configuration to agents
         if let Some(ref workflow_compact) = workflow.compact {
-            if let Some(ref mut agent_compact) = agent.compact {
-                // If agent already has compact config, merge workflow config into agent config
-                // Agent settings take priority over workflow settings
-                let mut merged_compact = workflow_compact.clone();
-                merged_compact.merge(agent_compact.clone());
-                *agent_compact = merged_compact;
-            } else {
-                // If agent doesn't have compact config, use workflow's compact config
-                agent.compact = Some(workflow_compact.clone());
-            }
+            // Merge workflow config into agent config
+            // Agent settings take priority over workflow settings
+            let mut merged_compact = workflow_compact.clone();
+            merged_compact.merge(agent.compact.clone());
+            agent.compact = merged_compact;
         }
 
         agent
@@ -184,10 +169,8 @@ impl Agent {
 
     /// Sets the model in compaction config if not already set
     pub fn set_compact_model_if_none(mut self) -> Self {
-        if let Some(ref mut compact) = self.compact
-            && compact.model.is_none()
-        {
-            compact.model = Some(self.model.clone());
+        if self.compact.model.is_none() {
+            self.compact.model = Some(self.model.clone());
         }
         self
     }
@@ -221,7 +204,7 @@ impl Agent {
             top_k: def.top_k,
             tools: def.tools,
             reasoning: def.reasoning,
-            compact: def.compact,
+            compact: def.compact.unwrap_or_default(),
             max_turns: def.max_turns,
             custom_rules: def.custom_rules,
             max_tool_failure_per_turn: def.max_tool_failure_per_turn,

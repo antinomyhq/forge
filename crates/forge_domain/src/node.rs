@@ -242,9 +242,9 @@ pub struct WorkspaceInfo {
     /// Working directory path
     pub working_dir: String,
     /// Number of nodes created
-    pub node_count: u64,
+    pub node_count: Option<u64>,
     /// Number of relations between nodes
-    pub relation_count: u64,
+    pub relation_count: Option<u64>,
     /// Last updated timestamp
     pub last_updated: Option<chrono::DateTime<chrono::Utc>>,
     /// Workspace created time.
