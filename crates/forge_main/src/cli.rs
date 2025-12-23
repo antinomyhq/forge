@@ -248,7 +248,8 @@ pub enum WorkspaceCommand {
         ends_with: Option<String>,
     },
 
-    /// Show workspace information and file sync status for an indexed directory.
+    /// Show workspace information and file sync status for an indexed
+    /// directory.
     Info {
         /// Path to the directory to get information for
         #[arg(default_value = ".")]
