@@ -6,7 +6,6 @@ use anyhow::{Context, Result};
 use async_trait::async_trait;
 use forge_app::{
     ContextEngineService, FileReaderInfra, SyncPlan, Walker, WalkerInfra, compute_hash,
-    derive_sync_statuses,
 };
 use forge_domain::{
     AuthCredential, AuthDetails, ContextEngineRepository, FileHash, FileNode, ProviderId,
@@ -166,38 +165,50 @@ impl<F> ForgeContextEngineService<F> {
         .await;
 
         let plan = SyncPlan::new(local_files, remote_files);
-        let uploaded_files = plan.total();
+        let (files_to_delete, files_to_upload, modified_count) = plan.get_operations();
+
+        let total_operations = files_to_delete.len() + files_to_upload.len() - modified_count;
 
         // Only emit diff computed event if there are actual changes
-        if !plan.is_empty() {
+        if !files_to_delete.is_empty() || !files_to_upload.is_empty() {
             emit(SyncProgress::DiffComputed {
-                to_delete: plan.files_to_delete_count(),
-                to_upload: plan.files_to_upload_count(),
-                modified: plan.modified_files_count(),
+                to_delete: files_to_delete.len(),
+                to_upload: files_to_upload.len(),
+                modified: modified_count,
             })
             .await;
         }
 
-        plan.execute(
-            batch_size,
-            |paths| {
-                let user_id = user_id.clone();
-                let workspace_id = workspace_id.clone();
-                let token = token.clone();
-                Box::pin(async move { self.delete(&user_id, &workspace_id, &token, paths).await })
-            },
-            |files| {
-                let user_id = user_id.clone();
-                let workspace_id = workspace_id.clone();
-                let token = token.clone();
-                Box::pin(async move { self.upload(&user_id, &workspace_id, &token, files).await })
-            },
-            |current, total| {
-                let emit = &emit;
-                Box::pin(async move { emit(SyncProgress::Syncing { current, total }).await })
-            },
-        )
-        .await?;
+        let mut current = 0;
+        emit(SyncProgress::Syncing {
+            current: current as f64,
+            total: total_operations,
+        })
+        .await;
+
+        // Delete outdated/orphaned files in batches
+        for batch in files_to_delete.chunks(batch_size) {
+            self.delete(&user_id, &workspace_id, &token, batch.to_vec())
+                .await?;
+            current += batch.len();
+            emit(SyncProgress::Syncing {
+                current: current as f64,
+                total: total_operations,
+            })
+            .await;
+        }
+
+        // Upload new/changed files in batches
+        for batch in files_to_upload.chunks(batch_size) {
+            self.upload(&user_id, &workspace_id, &token, batch.to_vec())
+                .await?;
+            current += batch.len();
+            emit(SyncProgress::Syncing {
+                current: current as f64,
+                total: total_operations,
+            })
+            .await;
+        }
 
         // Save workspace metadata
         self.infra
@@ -211,7 +222,11 @@ impl<F> ForgeContextEngineService<F> {
             "Sync completed successfully"
         );
 
-        emit(SyncProgress::Completed { total_files: total_file_count, uploaded_files }).await;
+        emit(SyncProgress::Completed {
+            total_files: total_file_count,
+            uploaded_files: total_operations,
+        })
+        .await;
 
         Ok(())
     }
@@ -455,7 +470,8 @@ impl<
             .fetch_remote_hashes(&user_id, &workspace.workspace_id, &token)
             .await;
 
-        Ok(derive_sync_statuses(local_files, remote_files))
+        let plan = SyncPlan::new(local_files, remote_files);
+        Ok(plan.file_statuses())
     }
 
     async fn is_authenticated(&self) -> Result<bool> {
