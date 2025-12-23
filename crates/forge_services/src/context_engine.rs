@@ -5,7 +5,7 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use async_trait::async_trait;
 use forge_app::{
-    ContextEngineService, FileReaderInfra, SyncPlan, SyncProgressCounter, Walker, WalkerInfra,
+    ContextEngineService, FileReaderInfra, WorkspaceStatus, SyncProgressCounter, Walker, WalkerInfra,
     compute_hash,
 };
 use forge_domain::{
@@ -165,7 +165,7 @@ impl<F> ForgeContextEngineService<F> {
         })
         .await;
 
-        let plan = SyncPlan::new(local_files, remote_files);
+        let plan = WorkspaceStatus::new(local_files, remote_files);
         let statuses = plan.file_statuses();
 
         // Compute counts from statuses
@@ -473,7 +473,7 @@ impl<
             .fetch_remote_hashes(&user_id, &workspace.workspace_id, &token)
             .await;
 
-        let plan = SyncPlan::new(local_files, remote_files);
+        let plan = WorkspaceStatus::new(local_files, remote_files);
         Ok(plan.file_statuses())
     }
 

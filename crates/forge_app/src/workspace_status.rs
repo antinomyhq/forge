@@ -7,14 +7,14 @@ use forge_domain::{FileHash, FileNode, FileStatus, SyncProgress, SyncStatus};
 /// This struct stores local and remote file information and provides methods
 /// to compute synchronization operations on-demand. It can derive file statuses
 /// and identify which files need to be uploaded, deleted, or modified.
-pub struct SyncPlan {
+pub struct WorkspaceStatus {
     /// Local files with their content and hashes
     local_files: Vec<FileNode>,
     /// Remote file hashes from the server
     remote_files: Vec<FileHash>,
 }
 
-impl SyncPlan {
+impl WorkspaceStatus {
     /// Creates a sync plan from local files and remote file hashes.
     ///
     /// # Arguments
@@ -183,7 +183,7 @@ mod tests {
             FileHash { path: "c.rs".into(), hash: "hash_c".into() },
         ];
 
-        let plan = SyncPlan::new(local, remote);
+        let plan = WorkspaceStatus::new(local, remote);
         let actual = plan.file_statuses();
 
         let expected = vec![
