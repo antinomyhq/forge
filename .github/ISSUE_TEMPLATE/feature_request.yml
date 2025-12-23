@@ -77,13 +77,16 @@ body:
   - type: textarea
     id: solution
     attributes:
-      label: Proposed Solution
-      description: How should this feature work? Describe the user-experience you envision.
+      label: Proposed Solution (User Experience)
+      description: |
+        **Focus on the user experience, not implementation details.**
+        How would a user interact with this feature? What would they see/do?
+        Save technical implementation details for "Implementation Ideas" below.
       placeholder: |
-        The feature should work like this:
-        - [Interface/API design]
-        - [User interaction flow]
-        - [Expected behavior]
+        From a user's perspective, the feature should work like this:
+        - When I [action], I would see/get [result]
+        - The interaction would be: [step-by-step user flow]
+        - Example: "When I run `forge search docs`, I'd see matching results from Google Workspace"
     validations:
       required: true
 
