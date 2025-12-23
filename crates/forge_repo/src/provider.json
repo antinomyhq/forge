@@ -160,6 +160,15 @@
     "url": "https://api.z.ai/api/paas/v4/chat/completions",
     "models": [
       {
+        "id": "glm-4.7",
+        "name": "GLM-4.7",
+        "description": "Latest flagship model series, foundational models specifically designed for agent applications with 200K context window and 128K maximum output",
+        "context_length": 200000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true
+      },
+      {
         "id": "glm-4.6",
         "name": "GLM-4.6",
         "description": "Latest flagship model series, foundational models specifically designed for agent applications with 200K context window and 128K maximum output",
@@ -232,6 +241,15 @@
     "response_type": "OpenAI",
     "url": "https://api.z.ai/api/coding/paas/v4/chat/completions",
     "models": [
+      {
+        "id": "glm-4.7",
+        "name": "GLM-4.7",
+        "description": "Latest flagship model series, foundational models specifically designed for agent applications with 200K context window and 128K maximum output",
+        "context_length": 200000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true
+      },
       {
         "id": "glm-4.6",
         "name": "GLM-4.6",

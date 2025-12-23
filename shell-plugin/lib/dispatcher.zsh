@@ -72,6 +72,9 @@ function _forge_action_default() {
     # Execute the forge command directly with proper escaping
     _forge_exec -p "$input_text" --cid "$_FORGE_CONVERSATION_ID"
     
+    # Start background sync job if enabled and not already running
+    _forge_start_background_sync
+    
     # Reset the prompt
     _forge_reset
 }
