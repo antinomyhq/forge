@@ -165,37 +165,39 @@ impl<F> ForgeContextEngineService<F> {
         .await;
 
         let plan = SyncPlan::new(local_files, remote_files);
-        let (files_to_delete, files_to_upload, modified_count) = plan.get_operations();
+        let statuses = plan.file_statuses();
 
-        let total_operations = files_to_delete.len() + files_to_upload.len() - modified_count;
+        // Compute counts from statuses
+        let added = statuses
+            .iter()
+            .filter(|s| s.status == forge_domain::SyncStatus::New)
+            .count();
+        let deleted = statuses
+            .iter()
+            .filter(|s| s.status == forge_domain::SyncStatus::Deleted)
+            .count();
+        let modified = statuses
+            .iter()
+            .filter(|s| s.status == forge_domain::SyncStatus::Modified)
+            .count();
 
         // Only emit diff computed event if there are actual changes
-        if !files_to_delete.is_empty() || !files_to_upload.is_empty() {
-            emit(SyncProgress::DiffComputed {
-                to_delete: files_to_delete.len(),
-                to_upload: files_to_upload.len(),
-                modified: modified_count,
-            })
-            .await;
+        if added + deleted + modified > 0 {
+            emit(SyncProgress::DiffComputed { added, deleted, modified }).await;
         }
 
+        let (files_to_delete, files_to_upload, modified_count) = plan.get_operations();
+        let total_operations = files_to_delete.len() + files_to_upload.len() - modified_count;
+
         let mut current = 0;
-        emit(SyncProgress::Syncing {
-            current: current as f64,
-            total: total_operations,
-        })
-        .await;
+        emit(SyncProgress::Syncing { current: current as f64, total: total_operations }).await;
 
         // Delete outdated/orphaned files in batches
         for batch in files_to_delete.chunks(batch_size) {
             self.delete(&user_id, &workspace_id, &token, batch.to_vec())
                 .await?;
             current += batch.len();
-            emit(SyncProgress::Syncing {
-                current: current as f64,
-                total: total_operations,
-            })
-            .await;
+            emit(SyncProgress::Syncing { current: current as f64, total: total_operations }).await;
         }
 
         // Upload new/changed files in batches
@@ -203,11 +205,7 @@ impl<F> ForgeContextEngineService<F> {
             self.upload(&user_id, &workspace_id, &token, batch.to_vec())
                 .await?;
             current += batch.len();
-            emit(SyncProgress::Syncing {
-                current: current as f64,
-                total: total_operations,
-            })
-            .await;
+            emit(SyncProgress::Syncing { current: current as f64, total: total_operations }).await;
         }
 
         // Save workspace metadata
@@ -990,14 +988,8 @@ mod tests {
             .unwrap();
 
         let expected = vec![
-            forge_domain::FileStatus::new(
-                "file1.rs".to_string(),
-                forge_domain::SyncStatus::InSync,
-            ),
-            forge_domain::FileStatus::new(
-                "file2.rs".to_string(),
-                forge_domain::SyncStatus::InSync,
-            ),
+            forge_domain::FileStatus::new("file1.rs".to_string(), forge_domain::SyncStatus::InSync),
+            forge_domain::FileStatus::new("file2.rs".to_string(), forge_domain::SyncStatus::InSync),
         ];
 
         assert_eq!(actual, expected);
@@ -1040,10 +1032,7 @@ mod tests {
             .unwrap();
 
         let expected = vec![
-            forge_domain::FileStatus::new(
-                "file1.rs".to_string(),
-                forge_domain::SyncStatus::InSync,
-            ),
+            forge_domain::FileStatus::new("file1.rs".to_string(), forge_domain::SyncStatus::InSync),
             forge_domain::FileStatus::new(
                 "file2.rs".to_string(),
                 forge_domain::SyncStatus::Modified,
@@ -1082,14 +1071,8 @@ mod tests {
             .unwrap();
 
         let expected = vec![
-            forge_domain::FileStatus::new(
-                "file1.rs".to_string(),
-                forge_domain::SyncStatus::InSync,
-            ),
-            forge_domain::FileStatus::new(
-                "file2.rs".to_string(),
-                forge_domain::SyncStatus::New,
-            ),
+            forge_domain::FileStatus::new("file1.rs".to_string(), forge_domain::SyncStatus::InSync),
+            forge_domain::FileStatus::new("file2.rs".to_string(), forge_domain::SyncStatus::New),
         ];
 
         assert_eq!(actual, expected);

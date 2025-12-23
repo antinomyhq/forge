@@ -21,21 +21,19 @@ impl SyncProgressDisplay for SyncProgress {
             Self::DiscoveringFiles { path: _ } => None,
             Self::FilesDiscovered { count: _ } => None,
             Self::ComparingFiles { .. } => None,
-            Self::DiffComputed { to_delete, to_upload, modified } => {
-                let total = to_delete + to_upload - modified;
+            Self::DiffComputed { added, deleted, modified } => {
+                let total = added + deleted + modified;
                 if total == 0 {
                     Some("Index is up to date".to_string())
                 } else {
-                    let deleted = to_delete - modified;
-                    let new = to_upload - modified;
                     let mut parts = Vec::new();
-                    if new > 0 {
-                        parts.push(format!("{} new", new));
+                    if *added > 0 {
+                        parts.push(format!("{} added", added));
                     }
                     if *modified > 0 {
                         parts.push(format!("{} modified", modified));
                     }
-                    if deleted > 0 {
+                    if *deleted > 0 {
                         parts.push(format!("{} removed", deleted));
                     }
                     Some(format!("Change scan completed [{}]", parts.join(", ")))
@@ -90,7 +88,7 @@ mod tests {
 
     #[test]
     fn test_diff_computed_no_changes() {
-        let fixture = SyncProgress::DiffComputed { to_delete: 0, to_upload: 0, modified: 0 };
+        let fixture = SyncProgress::DiffComputed { added: 0, deleted: 0, modified: 0 };
         let actual = fixture.message();
         let expected = Some("Index is up to date".to_string());
         assert_eq!(actual, expected);
@@ -98,7 +96,7 @@ mod tests {
 
     #[test]
     fn test_diff_computed_with_changes() {
-        let fixture = SyncProgress::DiffComputed { to_delete: 3, to_upload: 5, modified: 2 };
+        let fixture = SyncProgress::DiffComputed { added: 3, deleted: 1, modified: 2 };
         let actual = fixture.message();
         let expected = Some("Change scan completed [3 new, 2 modified, 1 removed]".to_string());
         assert_eq!(actual, expected);

@@ -34,11 +34,11 @@ pub enum SyncProgress {
     },
     /// Diff computed showing breakdown of changes
     DiffComputed {
-        /// Number of files to delete (orphaned on server)
-        to_delete: usize,
-        /// Number of files to upload (new files)
-        to_upload: usize,
-        /// Number of modified files (delete + upload same path)
+        /// Number of files added (new files)
+        added: usize,
+        /// Number of files deleted (orphaned on server)
+        deleted: usize,
+        /// Number of files modified (changed files)
         modified: usize,
     },
     /// Syncing files (deleting outdated + uploading new/changed)
