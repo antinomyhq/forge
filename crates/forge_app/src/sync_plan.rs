@@ -76,15 +76,13 @@ impl SyncPlan {
     ///
     /// # Returns
     ///
-    /// A tuple of (files_to_delete, files_to_upload, modified_count) where:
+    /// A tuple of (files_to_delete, files_to_upload) where:
     /// - `files_to_delete`: Vector of file paths to delete from remote
     /// - `files_to_upload`: Vector of files to upload to remote
-    /// - `modified_count`: Number of files that are modified (appear in both lists)
-    pub fn get_operations(&self) -> (Vec<String>, Vec<forge_domain::FileRead>, usize) {
+    pub fn get_operations(&self) -> (Vec<String>, Vec<forge_domain::FileRead>) {
         let statuses = self.file_statuses();
         let mut files_to_delete = Vec::new();
         let mut files_to_upload = Vec::new();
-        let mut modified_count = 0;
 
         // Create a map for quick lookup of local files
         let local_files_map: HashMap<&str, &FileNode> =
@@ -100,7 +98,6 @@ impl SyncPlan {
                             file.content.clone(),
                         ));
                     }
-                    modified_count += 1;
                 }
                 SyncStatus::New => {
                     if let Some(file) = local_files_map.get(status.path.as_str()) {
@@ -119,7 +116,7 @@ impl SyncPlan {
             }
         }
 
-        (files_to_delete, files_to_upload, modified_count)
+        (files_to_delete, files_to_upload)
     }
 }
 

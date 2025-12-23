@@ -186,8 +186,8 @@ impl<F> ForgeContextEngineService<F> {
             emit(SyncProgress::DiffComputed { added, deleted, modified }).await;
         }
 
-        let (files_to_delete, files_to_upload, modified_count) = plan.get_operations();
-        let total_operations = files_to_delete.len() + files_to_upload.len() - modified_count;
+        let (files_to_delete, files_to_upload) = plan.get_operations();
+        let total_operations = files_to_delete.len() + files_to_upload.len() - modified;
 
         let mut current = 0;
         emit(SyncProgress::Syncing { current: current as f64, total: total_operations }).await;
