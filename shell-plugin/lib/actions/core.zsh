@@ -4,11 +4,28 @@
 
 # Action handler: Start a new conversation
 function _forge_action_new() {
+    local input_text="$1"
+    
     _FORGE_CONVERSATION_ID=""
     _FORGE_ACTIVE_AGENT="forge"
     
     echo
-    _forge_exec banner
+    
+    # If input_text is provided, send it to the new conversation
+    if [[ -n "$input_text" ]]; then
+        # Generate new conversation ID
+        _FORGE_CONVERSATION_ID=$($_FORGE_BIN conversation new)
+        
+        # Execute the forge command with the input text
+        _forge_exec -p "$input_text" --cid "$_FORGE_CONVERSATION_ID"
+        
+        # Start background sync job if enabled and not already running
+        _forge_start_background_sync
+    else
+        # Only show banner if no input text (starting fresh conversation)
+        _forge_exec banner
+    fi
+    
     _forge_reset
 }
 
