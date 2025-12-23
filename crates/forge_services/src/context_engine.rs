@@ -221,15 +221,22 @@ impl<F> ForgeContextEngineService<F> {
         Ok(())
     }
 
-    /// Extract WorkspaceAuth components from AuthCredential
+    /// Gets the forge services credential and extracts workspace auth components
     ///
     /// # Errors
-    /// Returns an error if the credential is not an API key or contains invalid
-    /// data
-    fn extract_workspace_auth(
-        credential: &AuthCredential,
-    ) -> Result<(forge_domain::ApiKey, UserId)> {
+    /// Returns an error if the credential is not found, if there's a database error,
+    /// or if the credential format is invalid
+    async fn get_workspace_credentials(&self) -> Result<(forge_domain::ApiKey, UserId)>
+    where
+        F: ProviderRepository,
+    {
         use forge_domain::AuthDetails;
+
+        let credential = self
+            .infra
+            .get_credential(&ProviderId::FORGE_SERVICES)
+            .await?
+            .context("No authentication credentials found. Please authenticate first.")?;
 
         match &credential.auth_details {
             AuthDetails::ApiKey(token) => {
@@ -246,24 +253,6 @@ impl<F> ForgeContextEngineService<F> {
             }
             _ => anyhow::bail!("ForgeServices credential must be an API key"),
         }
-    }
-
-    /// Gets the forge services credential and extracts workspace auth components
-    ///
-    /// # Errors
-    /// Returns an error if the credential is not found, if there's a database error,
-    /// or if the credential format is invalid
-    async fn get_workspace_credentials(&self) -> Result<(forge_domain::ApiKey, UserId)>
-    where
-        F: ProviderRepository,
-    {
-        let credential = self
-            .infra
-            .get_credential(&ProviderId::FORGE_SERVICES)
-            .await?
-            .context("No authentication credentials found. Please authenticate first.")?;
-
-        Self::extract_workspace_auth(&credential)
     }
 
     /// Canonicalizes a path and finds the associated workspace
