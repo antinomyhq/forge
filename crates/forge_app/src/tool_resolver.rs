@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::collections::HashSet;
 
 use forge_domain::{Agent, ToolDefinition, ToolName};
@@ -7,6 +8,11 @@ use glob::Pattern;
 /// tool list
 pub struct ToolResolver {
     all_tool_definitions: Vec<ToolDefinition>,
+}
+
+/// Maps deprecated tool names to their current names for backward compatibility
+fn deprecated_tool_aliases() -> HashMap<&'static str, ToolName> {
+    HashMap::from([("search", ToolName::new("fs_search"))])
 }
 
 impl ToolResolver {
@@ -42,13 +48,21 @@ impl ToolResolver {
     }
 
     /// Builds glob patterns from the agent's tool patterns, deduplicating
-    /// patterns
+    /// patterns. Supports backward compatibility by automatically adding
+    /// current tool names when deprecated aliases are used.
     fn build_patterns(agent: &Agent) -> Vec<Pattern> {
-        agent
+        let aliases = deprecated_tool_aliases();
+        let tool_names = agent
             .tools
             .iter()
             .flatten()
-            .collect::<HashSet<_>>()
+            .map(|name| {
+                // Resolve deprecated tool name via aliases
+                aliases.get(name.as_str()).unwrap_or(name)
+            })
+            .collect::<HashSet<_>>();
+
+        tool_names
             .into_iter()
             .filter_map(|pattern| Pattern::new(pattern.as_str()).ok())
             .collect()
@@ -310,6 +324,33 @@ mod tests {
         let expected = vec![
             &tool_resolver.all_tool_definitions[0], // fs_read
             &tool_resolver.all_tool_definitions[1], // fs_write
+        ];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_backward_compatibility_search_alias() {
+        // Test that deprecated "search" name resolves to "fs_search"
+        let all_tool_definitions = vec![
+            ToolDefinition::new("read").description("Read Tool"),
+            ToolDefinition::new("fs_search").description("Search Tool"),
+        ];
+
+        let tool_resolver = ToolResolver::new(all_tool_definitions);
+
+        // Agent uses old "search" name
+        let fixture = Agent::new(
+            AgentId::new("test-agent"),
+            ProviderId::ANTHROPIC,
+            ModelId::new("claude-3-5-sonnet-20241022"),
+        )
+        .tools(vec![ToolName::new("read"), ToolName::new("search")]);
+
+        let actual = tool_resolver.resolve(&fixture);
+        let expected = vec![
+            &tool_resolver.all_tool_definitions[1], // fs_search (alphabetically first)
+            &tool_resolver.all_tool_definitions[0], // read
         ];
 
         assert_eq!(actual, expected);
