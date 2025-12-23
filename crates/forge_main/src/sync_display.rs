@@ -44,9 +44,7 @@ impl SyncProgressDisplay for SyncProgress {
                 let file_word = pluralize(*total);
                 Some(format!(
                     "Syncing {:>width$}/{} {}",
-                    current.round() as usize,
-                    total,
-                    file_word
+                    current, total, file_word
                 ))
             }
             Self::Completed { uploaded_files, total_files } => {
@@ -104,7 +102,7 @@ mod tests {
 
     #[test]
     fn test_syncing_single_file() {
-        let fixture = SyncProgress::Syncing { current: 1.0, total: 1 };
+        let fixture = SyncProgress::Syncing { current: 1, total: 1 };
         let actual = fixture.message();
         let expected = Some("Syncing 1/1 file".to_string());
         assert_eq!(actual, expected);
@@ -112,9 +110,9 @@ mod tests {
 
     #[test]
     fn test_syncing_multiple_files() {
-        let fixture = SyncProgress::Syncing { current: 5.5, total: 10 };
+        let fixture = SyncProgress::Syncing { current: 5, total: 10 };
         let actual = fixture.message();
-        let expected = Some("Syncing  6/10 files".to_string());
+        let expected = Some("Syncing  5/10 files".to_string());
         assert_eq!(actual, expected);
     }
 

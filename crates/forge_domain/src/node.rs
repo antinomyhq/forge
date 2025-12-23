@@ -43,9 +43,8 @@ pub enum SyncProgress {
     },
     /// Syncing files (deleting outdated + uploading new/changed)
     Syncing {
-        /// Current progress score (modified files contribute 0.5 for delete +
-        /// 0.5 for upload)
-        current: f64,
+        /// Current progress
+        current: usize,
         /// Total number of files to sync
         total: usize,
     },
@@ -63,11 +62,7 @@ impl SyncProgress {
     pub fn weight(&self) -> Option<u64> {
         match self {
             Self::Syncing { current, total } => {
-                let sync_progress = if *total > 0 {
-                    (*current * 100.0 / *total as f64) as u64
-                } else {
-                    0
-                };
+                let sync_progress = if *total > 0 { *current as u64 } else { 0 };
                 Some(sync_progress)
             }
             _ => None,

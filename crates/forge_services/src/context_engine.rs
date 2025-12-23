@@ -26,6 +26,27 @@ impl<F> Clone for ForgeContextEngineService<F> {
     }
 }
 
+// FIXME: move to domain
+struct SyncProgressCounter {
+    total_files: usize,
+    total_operations: usize,
+    completed_operation: usize,
+}
+
+impl SyncProgressCounter {
+    fn new(total_files: usize, total_operations: usize) -> Self {
+        Self { total_files, total_operations, completed_operation: 0 }
+    }
+
+    fn complete(&mut self, count: usize) {
+        self.completed_operation += count;
+    }
+
+    fn sync_progress(&self) -> SyncProgress {
+        SyncProgress::Syncing { current: 0, total: self.total_files }
+    }
+}
+
 impl<F> ForgeContextEngineService<F> {
     /// Creates a new indexing service with the provided infrastructure.
     pub fn new(infra: Arc<F>) -> Self {
@@ -181,31 +202,35 @@ impl<F> ForgeContextEngineService<F> {
             .filter(|s| s.status == forge_domain::SyncStatus::Modified)
             .count();
 
+        // Compute total number of affected files
+        let total_files = added + deleted + modified;
+
         // Only emit diff computed event if there are actual changes
-        if added + deleted + modified > 0 {
+        if total_files > 0 {
             emit(SyncProgress::DiffComputed { added, deleted, modified }).await;
         }
 
         let (files_to_delete, files_to_upload) = plan.get_operations();
-        let total_operations = files_to_delete.len() + files_to_upload.len() - modified;
 
-        let mut current = 0;
-        emit(SyncProgress::Syncing { current: current as f64, total: total_operations }).await;
+        let total_operations = files_to_delete.len() + files_to_upload.len();
+        let mut counter = SyncProgressCounter::new(total_files, total_operations);
+
+        emit(counter.sync_progress()).await;
 
         // Delete outdated/orphaned files in batches
         for batch in files_to_delete.chunks(batch_size) {
             self.delete(&user_id, &workspace_id, &token, batch.to_vec())
                 .await?;
-            current += batch.len();
-            emit(SyncProgress::Syncing { current: current as f64, total: total_operations }).await;
+            counter.complete(batch.len());
+            emit(counter.sync_progress()).await;
         }
 
         // Upload new/changed files in batches
         for batch in files_to_upload.chunks(batch_size) {
             self.upload(&user_id, &workspace_id, &token, batch.to_vec())
                 .await?;
-            current += batch.len();
-            emit(SyncProgress::Syncing { current: current as f64, total: total_operations }).await;
+            counter.complete(batch.len());
+            emit(counter.sync_progress()).await;
         }
 
         // Save workspace metadata
