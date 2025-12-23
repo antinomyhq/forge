@@ -1,0 +1,150 @@
+name: ⚡ Performance Issue
+description: Report performance problems, slowness, or resource usage issues
+title: "[Performance]: "
+labels: ["performance", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a performance issue! Please provide detailed information to help us investigate.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Performance Issue Description
+      description: Describe the performance problem you're experiencing
+      placeholder: Forge becomes slow when...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: issue-type
+    attributes:
+      label: Issue Type
+      description: What type of performance issue are you experiencing?
+      options:
+        - Slow response time
+        - High CPU usage
+        - High memory usage
+        - Network latency
+        - File I/O slowness
+        - Startup time
+        - Tool execution time
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: What actions lead to the performance issue?
+      placeholder: |
+        1. Run command '...'
+        2. Process large file/directory
+        3. Notice slowdown after...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected-performance
+    attributes:
+      label: Expected Performance
+      description: What performance did you expect?
+      placeholder: I expected the operation to complete in...
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual-performance
+    attributes:
+      label: Actual Performance
+      description: What performance are you experiencing?
+      placeholder: The operation takes... and uses...
+    validations:
+      required: true
+
+  - type: textarea
+    id: measurements
+    attributes:
+      label: Performance Measurements
+      description: |
+        If possible, provide specific measurements (time, memory, CPU usage, etc.)
+        You can use tools like `time`, `htop`, Activity Monitor, or Task Manager
+      placeholder: |
+        - Execution time: 45 seconds
+        - Memory usage: 2.5 GB
+        - CPU usage: 180%
+      render: markdown
+
+  - type: input
+    id: project-size
+    attributes:
+      label: Project Size
+      description: Approximate size of your project (number of files, lines of code, etc.)
+      placeholder: e.g., 500 files, ~50k lines of code
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment Details
+      description: |
+        Provide details about your environment:
+        - Forge version (`forge --version`)
+        - Operating system and version
+        - CPU, RAM
+        - AI provider and model
+        - Shell
+      placeholder: |
+        - Forge: 0.1.0
+        - OS: macOS 14.1
+        - CPU: M2 Pro
+        - RAM: 16GB
+        - Provider: Anthropic
+        - Model: claude-3.7-sonnet
+        - Shell: zsh
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Configuration
+      description: Share relevant parts of your `forge.yaml` (remove sensitive data)
+      render: yaml
+
+  - type: textarea
+    id: profiling
+    attributes:
+      label: Profiling Data
+      description: |
+        If you have any profiling data or verbose logs, please share them here.
+        Run with `--verbose` flag for detailed output.
+      render: shell
+
+  - type: dropdown
+    id: frequency
+    attributes:
+      label: Frequency
+      description: How often does this performance issue occur?
+      options:
+        - Always
+        - Often (>50% of the time)
+        - Sometimes (25-50% of the time)
+        - Rarely (<25% of the time)
+        - Only in specific scenarios
+    validations:
+      required: true
+
+  - type: textarea
+    id: workarounds
+    attributes:
+      label: Workarounds
+      description: Have you found any workarounds for this issue?
+      placeholder: I can work around this by...
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other relevant information about the performance issue
