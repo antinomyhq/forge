@@ -248,28 +248,21 @@ pub enum WorkspaceCommand {
         ends_with: Option<String>,
     },
 
-    /// Show workspace information for an indexed directory.
+    /// Show workspace information and file sync status for an indexed directory.
     Info {
         /// Path to the directory to get information for
-        #[arg(default_value = ".")]
-        path: PathBuf,
-    },
-
-    /// Delete a workspace.
-    Delete {
-        /// Workspace ID to delete
-        workspace_id: String,
-    },
-
-    /// Show sync status of all files in the workspace.
-    Status {
-        /// Path to the directory to check status for
         #[arg(default_value = ".")]
         path: PathBuf,
 
         /// Output in machine-readable format
         #[arg(short, long)]
         porcelain: bool,
+    },
+
+    /// Delete a workspace.
+    Delete {
+        /// Workspace ID to delete
+        workspace_id: String,
     },
 }
 
