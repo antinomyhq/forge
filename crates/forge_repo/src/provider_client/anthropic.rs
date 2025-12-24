@@ -182,10 +182,10 @@ mod tests {
         async fn http_get(
             &self,
             url: &Url,
-            _headers: Option<HeaderMap>,
+            headers: Option<HeaderMap>,
         ) -> anyhow::Result<reqwest::Response> {
             let mut request = self.client.get(url.clone());
-            if let Some(headers) = _headers {
+            if let Some(headers) = headers {
                 request = request.headers(headers);
             }
             Ok(request.send().await?)
