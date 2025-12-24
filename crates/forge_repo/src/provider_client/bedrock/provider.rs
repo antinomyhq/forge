@@ -659,31 +659,29 @@ impl FromDomain<forge_domain::ContextMessage> for aws_sdk_bedrockruntime::types:
                 // is enabled) AWS requires that when thinking is enabled,
                 // assistant messages MUST start with thinking blocks
                 if text_msg.role == forge_domain::Role::Assistant
-                    && let Some(reasoning_details) = &text_msg.reasoning_details {
-                        for reasoning in reasoning_details {
-                            // Create a thinking content block
-                            if let Some(text) = &reasoning.text {
-                                use aws_sdk_bedrockruntime::types::{
-                                    ReasoningContentBlock, ReasoningTextBlock,
-                                };
+                    && let Some(reasoning_details) = &text_msg.reasoning_details
+                {
+                    for reasoning in reasoning_details {
+                        // Create a thinking content block
+                        if let Some(text) = &reasoning.text {
+                            use aws_sdk_bedrockruntime::types::{
+                                ReasoningContentBlock, ReasoningTextBlock,
+                            };
 
-                                let reasoning_text_block = ReasoningTextBlock::builder()
-                                    .text(text.clone())
-                                    .set_signature(reasoning.signature.clone())
-                                    .build()
-                                    .map_err(|e| {
-                                        anyhow::anyhow!(
-                                            "Failed to build reasoning text block: {}",
-                                            e
-                                        )
-                                    })?;
+                            let reasoning_text_block = ReasoningTextBlock::builder()
+                                .text(text.clone())
+                                .set_signature(reasoning.signature.clone())
+                                .build()
+                                .map_err(|e| {
+                                    anyhow::anyhow!("Failed to build reasoning text block: {}", e)
+                                })?;
 
-                                content_blocks.push(ContentBlock::ReasoningContent(
-                                    ReasoningContentBlock::ReasoningText(reasoning_text_block),
-                                ));
-                            }
+                            content_blocks.push(ContentBlock::ReasoningContent(
+                                ReasoningContentBlock::ReasoningText(reasoning_text_block),
+                            ));
                         }
                     }
+                }
 
                 // Add text content if not empty
                 if !text_msg.content.is_empty() {

@@ -72,14 +72,15 @@ impl<H: HttpInfra> OpenAIProvider<H> {
         let mut headers = self.get_headers();
         // Add Session-Id header for zai and zai_coding providers
         if let Some(session_id) = &request.session_id
-            && (self.provider.id == ProviderId::ZAI || self.provider.id == ProviderId::ZAI_CODING) {
-                headers.push(("Session-Id".to_string(), session_id.clone()));
-                debug!(
-                    provider = %self.provider.url,
-                    session_id = %session_id,
-                    "Added Session-Id header for zai provider"
-                );
-            }
+            && (self.provider.id == ProviderId::ZAI || self.provider.id == ProviderId::ZAI_CODING)
+        {
+            headers.push(("Session-Id".to_string(), session_id.clone()));
+            debug!(
+                provider = %self.provider.url,
+                session_id = %session_id,
+                "Added Session-Id header for zai provider"
+            );
+        }
 
         headers
     }
