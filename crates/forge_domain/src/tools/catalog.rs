@@ -349,8 +349,8 @@ pub struct FSUndo {
 /// CRITICAL: Do NOT use `cd` commands in the command string. This is FORBIDDEN.
 /// Always use the `cwd` parameter to set the working directory instead. Any use
 /// of `cd` in the command is redundant, incorrect, and violates the tool
-/// contract. Use for file system interaction, running utilities, installing
-/// packages, or executing build commands. Returns complete output including
+/// contract. Use for running utilities, installing packages, or executing
+/// build commands. Returns complete output including
 /// stdout, stderr, and exit code for diagnostic purposes.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct Shell {
