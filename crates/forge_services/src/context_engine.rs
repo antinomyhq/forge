@@ -798,8 +798,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_query_error_when_not_found() {
-        let mut mock = MockInfra::default();
-        mock.authenticated = true; // Provide authentication
+        let mock = MockInfra { authenticated: true, ..Default::default() };
         let service = ForgeWorkspaceService::new(Arc::new(mock));
 
         let params = forge_domain::SearchParams::new("test", "fest").limit(10usize);
@@ -1013,30 +1012,31 @@ mod tests {
     async fn test_get_workspace_status_with_modifications() {
         // Setup: local has file1.rs and file2.rs (modified), server has file1.rs and
         // file3.rs
-        let mut mock = MockInfra::default();
-        mock.files = [
-            ("file1.rs".to_string(), "content of file1.rs".to_string()),
-            ("file2.rs".to_string(), "modified content".to_string()),
-        ]
-        .into_iter()
-        .collect();
-
-        mock.workspace = Some(workspace());
-        mock.authenticated = true;
-        mock.server_files = vec![
-            FileHash {
-                path: "file1.rs".to_string(),
-                hash: compute_hash("content of file1.rs"),
-            },
-            FileHash {
-                path: "file2.rs".to_string(),
-                hash: compute_hash("content of file2.rs"), // Different from local
-            },
-            FileHash {
-                path: "file3.rs".to_string(),
-                hash: compute_hash("content of file3.rs"),
-            },
-        ];
+        let mock = MockInfra {
+            files: [
+                ("file1.rs".to_string(), "content of file1.rs".to_string()),
+                ("file2.rs".to_string(), "modified content".to_string()),
+            ]
+            .into_iter()
+            .collect(),
+            workspace: Some(workspace()),
+            authenticated: true,
+            server_files: vec![
+                FileHash {
+                    path: "file1.rs".to_string(),
+                    hash: compute_hash("content of file1.rs"),
+                },
+                FileHash {
+                    path: "file2.rs".to_string(),
+                    hash: compute_hash("content of file2.rs"), // Different from local
+                },
+                FileHash {
+                    path: "file3.rs".to_string(),
+                    hash: compute_hash("content of file3.rs"),
+                },
+            ],
+            ..Default::default()
+        };
 
         let service = ForgeWorkspaceService::new(Arc::new(mock));
 
@@ -1062,20 +1062,21 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_workspace_status_with_new_files() {
-        let mut mock = MockInfra::default();
-        mock.files = [
-            ("file1.rs".to_string(), "content of file1.rs".to_string()),
-            ("file2.rs".to_string(), "content of file2.rs".to_string()),
-        ]
-        .into_iter()
-        .collect();
-
-        mock.workspace = Some(workspace());
-        mock.authenticated = true;
-        mock.server_files = vec![FileHash {
-            path: "file1.rs".to_string(),
-            hash: compute_hash("content of file1.rs"),
-        }];
+        let mock = MockInfra {
+            files: [
+                ("file1.rs".to_string(), "content of file1.rs".to_string()),
+                ("file2.rs".to_string(), "content of file2.rs".to_string()),
+            ]
+            .into_iter()
+            .collect(),
+            workspace: Some(workspace()),
+            authenticated: true,
+            server_files: vec![FileHash {
+                path: "file1.rs".to_string(),
+                hash: compute_hash("content of file1.rs"),
+            }],
+            ..Default::default()
+        };
 
         let service = ForgeWorkspaceService::new(Arc::new(mock));
 
@@ -1094,8 +1095,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_workspace_status_not_indexed() {
-        let mut mock = MockInfra::default(); // No workspace
-        mock.authenticated = true; // Provide authentication
+        let mock = MockInfra { authenticated: true, ..Default::default() };
         let service = ForgeWorkspaceService::new(Arc::new(mock));
 
         let actual = service.get_workspace_status(PathBuf::from(".")).await;

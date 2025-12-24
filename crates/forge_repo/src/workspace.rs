@@ -5,8 +5,8 @@ use chrono::{NaiveDateTime, Utc};
 use diesel::prelude::*;
 use forge_domain::{UserId, Workspace, WorkspaceId, WorkspaceRepository};
 
-use crate::database::schema::workspace;
 use crate::database::DatabasePool;
+use crate::database::schema::workspace;
 
 /// Repository implementation for workspace persistence in local database
 pub struct ForgeWorkspaceRepository {
