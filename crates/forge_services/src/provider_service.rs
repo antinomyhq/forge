@@ -83,3 +83,187 @@ impl<R: ChatRepository + ProviderRepository> ProviderService for ForgeProviderSe
         self.repository.migrate_env_credentials().await
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use forge_app::domain::ProviderId;
+    use forge_domain::{AuthDetails, AuthMethod, ModelSource, ProviderType};
+    use pretty_assertions::assert_eq;
+
+    // Mock repository for testing
+    struct MockProviderRepository {
+        models: Vec<Model>,
+        call_count: Arc<Mutex<usize>>,
+    }
+
+    impl MockProviderRepository {
+        fn new(models: Vec<Model>) -> Self {
+            Self {
+                models,
+                call_count: Arc::new(Mutex::new(0)),
+            }
+        }
+
+        async fn get_call_count(&self) -> usize {
+            *self.call_count.lock().await
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl ChatRepository for MockProviderRepository {
+        async fn chat(
+            &self,
+            _model_id: &ModelId,
+            _context: Context,
+            _provider: Provider<Url>,
+        ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
+            Ok(Box::pin(tokio_stream::empty()))
+        }
+
+        async fn models(&self, _provider: Provider<Url>) -> Result<Vec<Model>> {
+            let mut count = self.call_count.lock().await;
+            *count += 1;
+            Ok(self.models.clone())
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl ProviderRepository for MockProviderRepository {
+        async fn get_all_providers(&self) -> Result<Vec<AnyProvider>> {
+            Ok(vec![])
+        }
+
+        async fn get_provider(&self, _id: ProviderId) -> Result<Provider<Url>> {
+            Ok(test_provider())
+        }
+
+        async fn get_credential(&self, _id: &ProviderId) -> Result<Option<AuthCredential>> {
+            Ok(None)
+        }
+
+        async fn upsert_credential(&self, _credential: AuthCredential) -> Result<()> {
+            Ok(())
+        }
+
+        async fn remove_credential(&self, _id: &ProviderId) -> Result<()> {
+            Ok(())
+        }
+
+        async fn migrate_env_credentials(&self) -> Result<Option<MigrationResult>> {
+            Ok(None)
+        }
+    }
+
+    fn test_provider() -> Provider<Url> {
+        Provider {
+            id: ProviderId::OPENAI,
+            provider_type: ProviderType::Llm,
+            response: Some(forge_app::domain::ProviderResponse::OpenAI),
+            url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
+            auth_methods: vec![AuthMethod::ApiKey],
+            url_params: vec![],
+            credential: Some(AuthCredential {
+                id: ProviderId::OPENAI,
+                auth_details: AuthDetails::ApiKey(forge_domain::ApiKey::from(
+                    "test-key".to_string(),
+                )),
+                url_params: HashMap::new(),
+            }),
+            models: Some(ModelSource::Url(
+                Url::parse("https://api.openai.com/v1/models").unwrap(),
+            )),
+        }
+    }
+
+    fn test_model(id: &str) -> Model {
+        Model {
+            id: ModelId::from(id),
+            name: Some(id.to_string()),
+            description: None,
+            context_length: Some(4096),
+            tools_supported: Some(true),
+            supports_parallel_tool_calls: Some(true),
+            supports_reasoning: Some(false),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_cache_initialization() {
+        let repository = Arc::new(MockProviderRepository::new(vec![]));
+        let service = ForgeProviderService::new(repository);
+
+        // Verify cache is initialized as empty
+        let cache = service.cached_models.lock().await;
+        assert!(cache.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_models_caches_on_first_call() {
+        let models = vec![test_model("gpt-4"), test_model("gpt-3.5-turbo")];
+        let repository = Arc::new(MockProviderRepository::new(models.clone()));
+        let service = ForgeProviderService::new(repository.clone());
+        let provider = test_provider();
+
+        // First call - should fetch from repository
+        let actual = service.models(provider.clone()).await.unwrap();
+        assert_eq!(actual, models);
+        assert_eq!(repository.get_call_count().await, 1);
+
+        // Verify cache is populated
+        let cache = service.cached_models.lock().await;
+        assert_eq!(cache.len(), 1);
+        assert!(cache.contains_key(&ProviderId::OPENAI));
+    }
+
+    #[tokio::test]
+    async fn test_models_returns_cached_on_second_call() {
+        let models = vec![test_model("gpt-4"), test_model("gpt-3.5-turbo")];
+        let repository = Arc::new(MockProviderRepository::new(models.clone()));
+        let service = ForgeProviderService::new(repository.clone());
+        let provider = test_provider();
+
+        // First call - populates cache
+        let _ = service.models(provider.clone()).await.unwrap();
+        assert_eq!(repository.get_call_count().await, 1);
+
+        // Second call - should use cache, not call repository
+        let actual = service.models(provider.clone()).await.unwrap();
+        assert_eq!(actual, models);
+        assert_eq!(repository.get_call_count().await, 1); // Still 1, no additional call
+    }
+
+    #[tokio::test]
+    async fn test_models_caches_per_provider() {
+        let openai_models = vec![test_model("gpt-4")];
+        let repository = Arc::new(MockProviderRepository::new(openai_models.clone()));
+        let service = ForgeProviderService::new(repository.clone());
+
+        let openai_provider = test_provider();
+        let mut anthropic_provider = test_provider();
+        anthropic_provider.id = ProviderId::ANTHROPIC;
+
+        // Fetch models for OpenAI
+        let _ = service.models(openai_provider).await.unwrap();
+
+        // Fetch models for Anthropic
+        let _ = service.models(anthropic_provider).await.unwrap();
+
+        // Verify both providers are cached separately
+        let cache = service.cached_models.lock().await;
+        assert_eq!(cache.len(), 2);
+        assert!(cache.contains_key(&ProviderId::OPENAI));
+        assert!(cache.contains_key(&ProviderId::ANTHROPIC));
+    }
+
+    #[tokio::test]
+    async fn test_service_initialization_with_default() {
+        let repository = Arc::new(MockProviderRepository::new(vec![]));
+        let service = ForgeProviderService::new(repository);
+
+        // Verify service is properly initialized
+        let cache = service.cached_models.lock().await;
+        assert!(cache.is_empty());
+    }
+}
