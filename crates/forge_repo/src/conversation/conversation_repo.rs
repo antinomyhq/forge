@@ -4,8 +4,8 @@ use diesel::prelude::*;
 use forge_domain::{Conversation, ConversationId, ConversationRepository, WorkspaceHash};
 
 use crate::conversation::conversation_record::ConversationRecord;
-use crate::database::schema::conversations;
 use crate::database::DatabasePool;
+use crate::database::schema::conversations;
 
 pub struct ConversationRepositoryImpl {
     pool: Arc<DatabasePool>,
