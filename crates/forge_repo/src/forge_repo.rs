@@ -16,8 +16,8 @@ use forge_domain::{
 };
 // Re-export CacacheStorage from forge_infra
 pub use forge_infra::CacacheStorage;
-use reqwest::header::HeaderMap;
 use reqwest::Response;
+use reqwest::header::HeaderMap;
 use reqwest_eventsource::EventSource;
 use url::Url;
 

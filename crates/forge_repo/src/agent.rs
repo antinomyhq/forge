@@ -3,8 +3,8 @@ use std::sync::Arc;
 use anyhow::{Context, Result};
 use forge_app::domain::{AgentDefinition, Template};
 use forge_app::{AgentRepository, DirectoryReaderInfra, EnvironmentInfra, FileInfoInfra};
-use gray_matter::engine::YAML;
 use gray_matter::Matter;
+use gray_matter::engine::YAML;
 
 /// Infrastructure implementation for loading agent definitions from multiple
 /// sources:
