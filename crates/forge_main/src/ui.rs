@@ -3086,64 +3086,62 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         self.spinner.start(Some("Fetching workspace info..."))?;
 
         // Fetch workspace info and status in parallel
-        let (workspace_result, status_result) = tokio::join!(
+        let (workspace, statuses) = tokio::try_join!(
             self.api.get_workspace_info(path.clone()),
             self.api.get_workspace_status(path)
-        );
+        )?;
 
         self.spinner.stop(None)?;
 
-        match workspace_result {
-            Ok(Some(workspace)) => {
+        match workspace {
+            Some(workspace) => {
                 // When viewing a specific workspace's info, it's implicitly the active one
                 let mut info = Self::format_workspace_info(&workspace, true);
 
                 // Add sync status summary if available
-                if let Ok(statuses) = status_result {
-                    use forge_domain::SyncStatus;
 
-                    let in_sync = statuses
-                        .iter()
-                        .filter(|s| s.status == SyncStatus::InSync)
-                        .count();
-                    let modified = statuses
-                        .iter()
-                        .filter(|s| s.status == SyncStatus::Modified)
-                        .count();
-                    let added = statuses
-                        .iter()
-                        .filter(|s| s.status == SyncStatus::New)
-                        .count();
-                    let deleted = statuses
-                        .iter()
-                        .filter(|s| s.status == SyncStatus::Deleted)
-                        .count();
+                use forge_domain::SyncStatus;
 
-                    // Add sync status section
-                    info = info.add_title("Sync Status");
-                    info = info.add_key_value("Total Files", statuses.len().to_string());
-                    if in_sync > 0 {
-                        info = info.add_key_value("In Sync", in_sync.to_string());
-                    }
-                    if modified > 0 {
-                        info = info.add_key_value("Modified", modified.to_string());
-                    }
-                    if added > 0 {
-                        info = info.add_key_value("Added", added.to_string());
-                    }
-                    if deleted > 0 {
-                        info = info.add_key_value("Deleted", deleted.to_string());
-                    }
+                let in_sync = statuses
+                    .iter()
+                    .filter(|s| s.status == SyncStatus::InSync)
+                    .count();
+                let modified = statuses
+                    .iter()
+                    .filter(|s| s.status == SyncStatus::Modified)
+                    .count();
+                let added = statuses
+                    .iter()
+                    .filter(|s| s.status == SyncStatus::New)
+                    .count();
+                let deleted = statuses
+                    .iter()
+                    .filter(|s| s.status == SyncStatus::Deleted)
+                    .count();
+
+                // Add sync status section
+                info = info.add_title("Sync Status");
+                info = info.add_key_value("Total Files", statuses.len().to_string());
+                if in_sync > 0 {
+                    info = info.add_key_value("In Sync", in_sync.to_string());
+                }
+                if modified > 0 {
+                    info = info.add_key_value("Modified", modified.to_string());
+                }
+                if added > 0 {
+                    info = info.add_key_value("Added", added.to_string());
+                }
+                if deleted > 0 {
+                    info = info.add_key_value("Deleted", deleted.to_string());
                 }
 
                 self.writeln(info)
             }
-            Ok(None) => self.writeln_to_stderr(
+            None => self.writeln_to_stderr(
                 TitleFormat::error("No workspace found")
                     .display()
                     .to_string(),
             ),
-            Err(e) => Err(e),
         }
     }
 
