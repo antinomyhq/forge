@@ -387,11 +387,12 @@ impl JsonRepairParser {
             }
 
             if let Some(stop_idx) = stop_at_index
-                && self.i == stop_idx {
-                    str_content = self.insert_before_last_whitespace_str(&str_content, "\"");
-                    self.output.push_str(&str_content);
-                    return Ok(true);
-                }
+                && self.i == stop_idx
+            {
+                str_content = self.insert_before_last_whitespace_str(&str_content, "\"");
+                self.output.push_str(&str_content);
+                return Ok(true);
+            }
 
             let ch = self.current_char().unwrap();
 

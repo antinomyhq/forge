@@ -86,19 +86,20 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> AppConfigRepositor
         // If only model override (no provider override), update existing provider
         // models
         if provider.is_none()
-            && let Some(model_id) = model {
-                if config.model.is_empty() {
-                    // If no models configured but we have a default provider, set the model for it
-                    if let Some(ref default_provider) = config.provider {
-                        config.model.insert(default_provider.clone(), model_id);
-                    }
-                } else {
-                    // Update all existing provider models
-                    for (_, mut_model_id) in config.model.iter_mut() {
-                        *mut_model_id = model_id.clone();
-                    }
+            && let Some(model_id) = model
+        {
+            if config.model.is_empty() {
+                // If no models configured but we have a default provider, set the model for it
+                if let Some(ref default_provider) = config.provider {
+                    config.model.insert(default_provider.clone(), model_id);
+                }
+            } else {
+                // Update all existing provider models
+                for (_, mut_model_id) in config.model.iter_mut() {
+                    *mut_model_id = model_id.clone();
                 }
             }
+        }
 
         config
     }
