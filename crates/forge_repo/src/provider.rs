@@ -1349,4 +1349,76 @@ mod env_tests {
             .find(|c| c.id == ProviderId::OPEN_ROUTER);
         assert!(openrouter_config.is_some());
     }
+
+    #[tokio::test]
+    async fn test_client_caching() {
+        let infra = Arc::new(MockInfra::new(HashMap::new()));
+        let repo = ForgeProviderRepository::new(infra.clone());
+        let provider = Provider {
+            id: ProviderId::OPENAI,
+            provider_type: Default::default(),
+            response: Some(ProviderResponse::OpenAI),
+            url: Url::parse("https://api.openai.com/v1").unwrap(),
+            auth_methods: vec![],
+            url_params: vec![],
+            credential: None,
+            models: None,
+        };
+
+        let _c1 = repo.client(provider.clone()).await.unwrap();
+        let _c2 = repo.client(provider).await.unwrap();
+        
+        let cache = repo.cached_clients.lock().await;
+        assert_eq!(cache.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_cache_cleared_on_upsert() {
+        let infra = Arc::new(MockInfra::new(HashMap::new()));
+        let repo = ForgeProviderRepository::new(infra.clone());
+        let provider = Provider {
+            id: ProviderId::OPENAI,
+            provider_type: Default::default(),
+            response: Some(ProviderResponse::OpenAI),
+            url: Url::parse("https://api.openai.com/v1").unwrap(),
+            auth_methods: vec![],
+            url_params: vec![],
+            credential: None,
+            models: None,
+        };
+
+        let _c = repo.client(provider).await.unwrap();
+        
+        let credential = AuthCredential {
+            id: ProviderId::OPENAI,
+            auth_details: AuthDetails::ApiKey(ApiKey::from("key".to_string())),
+            url_params: HashMap::new(),
+        };
+        repo.upsert_credential(credential).await.unwrap();
+
+        let cache = repo.cached_clients.lock().await;
+        assert!(!cache.contains_key(&ProviderId::OPENAI));
+    }
+
+    #[tokio::test]
+    async fn test_cache_cleared_on_remove() {
+        let infra = Arc::new(MockInfra::new(HashMap::new()));
+        let repo = ForgeProviderRepository::new(infra.clone());
+        let provider = Provider {
+            id: ProviderId::OPENAI,
+            provider_type: Default::default(),
+            response: Some(ProviderResponse::OpenAI),
+            url: Url::parse("https://api.openai.com/v1").unwrap(),
+            auth_methods: vec![],
+            url_params: vec![],
+            credential: None,
+            models: None,
+        };
+
+        let _c = repo.client(provider).await.unwrap();
+        repo.remove_credential(&ProviderId::OPENAI).await.unwrap();
+
+        let cache = repo.cached_clients.lock().await;
+        assert!(!cache.contains_key(&ProviderId::OPENAI));
+    }
 }
