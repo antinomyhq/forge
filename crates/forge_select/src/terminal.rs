@@ -1,7 +1,7 @@
 use std::io::{self, stdout};
 
 use crossterm::event::{DisableBracketedPaste, EnableBracketedPaste};
-use crossterm::{execute, Command};
+use crossterm::{Command, execute};
 
 /// Terminal control utilities for managing terminal modes
 pub struct TerminalControl;

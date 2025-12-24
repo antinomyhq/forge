@@ -85,8 +85,8 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> AppConfigRepositor
 
         // If only model override (no provider override), update existing provider
         // models
-        if provider.is_none() {
-            if let Some(model_id) = model {
+        if provider.is_none()
+            && let Some(model_id) = model {
                 if config.model.is_empty() {
                     // If no models configured but we have a default provider, set the model for it
                     if let Some(ref default_provider) = config.provider {
@@ -99,7 +99,6 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> AppConfigRepositor
                     }
                 }
             }
-        }
 
         config
     }
@@ -425,10 +424,12 @@ mod tests {
         let actual = repo.set_app_config(&config).await;
 
         assert!(actual.is_err());
-        assert!(actual
-            .unwrap_err()
-            .to_string()
-            .contains("Model or Provider was overridden"));
+        assert!(
+            actual
+                .unwrap_err()
+                .to_string()
+                .contains("Model or Provider was overridden")
+        );
     }
 
     #[tokio::test]
