@@ -1,14 +1,11 @@
-mod anthropic;
-mod bedrock;
-mod client;
+pub(crate) mod anthropic;
+pub(crate) mod bedrock;
 mod event;
 #[cfg(test)]
 mod mock_server;
-mod openai;
-mod retry;
+pub(crate) mod openai;
+pub(crate) mod retry;
 mod utils;
-
-pub use client::{Client, ClientBuilder};
 
 /// Trait for converting types into domain types
 pub trait IntoDomain {

@@ -6,8 +6,9 @@ use forge_app::{
     McpServerInfra, Services, StrategyFactory, UserInfra, WalkerInfra,
 };
 use forge_domain::{
-    AppConfigRepository, ConversationRepository, ProviderRepository, SkillRepository,
-    SnapshotRepository, ValidationRepository, WorkspaceIndexRepository, WorkspaceRepository,
+    AppConfigRepository, ChatRepository, ConversationRepository, ProviderRepository,
+    SkillRepository, SnapshotRepository, ValidationRepository, WorkspaceIndexRepository,
+    WorkspaceRepository,
 };
 
 use crate::ForgeProviderAuthService;
@@ -50,6 +51,7 @@ pub struct ForgeServices<
         + ConversationRepository
         + AppConfigRepository
         + KVStore
+        + ChatRepository
         + ProviderRepository
         + forge_domain::WorkspaceRepository
         + WorkspaceIndexRepository
@@ -102,6 +104,7 @@ impl<
         + SnapshotRepository
         + ConversationRepository
         + AppConfigRepository
+        + ChatRepository
         + ProviderRepository
         + KVStore
         + forge_domain::WorkspaceRepository
@@ -197,6 +200,7 @@ impl<
         + ConversationRepository
         + AppConfigRepository
         + KVStore
+        + ChatRepository
         + ProviderRepository
         + AgentRepository
         + SkillRepository

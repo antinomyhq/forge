@@ -523,8 +523,9 @@ mod tests {
 
     use forge_app::WalkedFile;
     use forge_domain::{
-        ApiKey, CodeSearchQuery, FileDeletion, FileHash, FileInfo, FileUpload, FileUploadInfo,
-        Node, UserId, Workspace, WorkspaceAuth, WorkspaceFiles, WorkspaceId, WorkspaceInfo,
+        ApiKey, ChatRepository, CodeSearchQuery, FileDeletion, FileHash, FileInfo, FileUpload,
+        FileUploadInfo, Node, UserId, Workspace, WorkspaceAuth, WorkspaceFiles, WorkspaceId,
+        WorkspaceInfo,
     };
     use futures::StreamExt;
     use pretty_assertions::assert_eq;
@@ -628,7 +629,7 @@ mod tests {
     }
 
     #[async_trait::async_trait]
-    impl ProviderRepository for MockInfra {
+    impl ChatRepository for MockInfra {
         async fn chat(
             &self,
             _model_id: &forge_app::domain::ModelId,
@@ -645,7 +646,10 @@ mod tests {
         ) -> Result<Vec<forge_app::domain::Model>> {
             Ok(vec![])
         }
+    }
 
+    #[async_trait::async_trait]
+    impl ProviderRepository for MockInfra {
         async fn get_all_providers(&self) -> Result<Vec<forge_domain::AnyProvider>> {
             Ok(vec![])
         }

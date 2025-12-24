@@ -12,9 +12,8 @@ use forge_app::dto::anthropic::{
 use reqwest::Url;
 use tracing::debug;
 
-use crate::provider_client::client::create_headers;
 use crate::provider_client::event::into_chat_completion_message;
-use crate::provider_client::utils::format_http_context;
+use crate::provider_client::utils::{create_headers, format_http_context};
 
 #[derive(Clone)]
 pub struct Anthropic<T> {

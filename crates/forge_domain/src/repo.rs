@@ -96,7 +96,7 @@ pub trait AppConfigRepository: Send + Sync {
 }
 
 #[async_trait::async_trait]
-pub trait ProviderRepository: Send + Sync {
+pub trait ChatRepository: Send + Sync {
     async fn chat(
         &self,
         model_id: &ModelId,
@@ -104,6 +104,10 @@ pub trait ProviderRepository: Send + Sync {
         provider: Provider<Url>,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error>;
     async fn models(&self, provider: Provider<Url>) -> anyhow::Result<Vec<Model>>;
+}
+
+#[async_trait::async_trait]
+pub trait ProviderRepository: Send + Sync {
     async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>>;
     async fn get_provider(&self, id: ProviderId) -> anyhow::Result<Provider<Url>>;
     async fn upsert_credential(&self, credential: AuthCredential) -> anyhow::Result<()>;

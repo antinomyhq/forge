@@ -1,22 +1,19 @@
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
-use anyhow::Context as _;
 use bytes::Bytes;
 use forge_app::domain::{
     ChatCompletionMessage, Context, Model, ModelId, ProviderId, ProviderResponse, ResultStream,
 };
 use forge_app::{EnvironmentInfra, FileReaderInfra, FileWriterInfra, HttpInfra};
 use forge_domain::{
-    AnyProvider, ApiKey, AuthCredential, AuthDetails, Error, MigrationResult, Provider,
-    ProviderRepository, ProviderType, URLParam, URLParamValue,
+    AnyProvider, ApiKey, AuthCredential, AuthDetails, ChatRepository, Error, MigrationResult,
+    Provider, ProviderRepository, ProviderType, URLParam, URLParamValue,
 };
 use handlebars::Handlebars;
 use merge::Merge;
 use serde::Deserialize;
 use url::Url;
-
-use crate::provider_client::{Client, ClientBuilder};
 
 /// Represents the source of models for a provider
 #[derive(Debug, Clone, Deserialize)]
@@ -128,30 +125,37 @@ fn get_provider_configs() -> &'static Vec<ProviderConfig> {
 pub struct ForgeProviderRepository<F> {
     infra: Arc<F>,
     handlebars: &'static Handlebars<'static>,
-    version: String,
+    openai_repo: crate::provider_openai_repo::OpenAIResponseRepository<F>,
+    anthropic_repo: crate::provider_anthropic_repo::AnthropicResponseRepository<F>,
+    bedrock_repo: crate::provider_bedrock_repo::BedrockResponseRepository<F>,
 }
 
-impl<F: EnvironmentInfra> ForgeProviderRepository<F> {
+impl<F: EnvironmentInfra + HttpInfra> ForgeProviderRepository<F> {
     pub fn new(infra: Arc<F>) -> Self {
         let env = infra.get_environment();
-        let version = env.version();
-        Self { infra, handlebars: get_handlebars(), version }
+        let retry_config = Arc::new(env.retry_config.clone());
+
+        let openai_repo = crate::provider_openai_repo::OpenAIResponseRepository::new(infra.clone())
+            .retry_config(retry_config.clone());
+        let anthropic_repo =
+            crate::provider_anthropic_repo::AnthropicResponseRepository::new(infra.clone())
+                .retry_config(retry_config.clone());
+        let bedrock_repo = crate::provider_bedrock_repo::BedrockResponseRepository::new()
+            .retry_config(retry_config);
+
+        Self {
+            infra,
+            handlebars: get_handlebars(),
+            openai_repo,
+            anthropic_repo,
+            bedrock_repo,
+        }
     }
 }
 
 impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
     ForgeProviderRepository<F>
 {
-    /// Creates a provider client without caching
-    /// The service layer is responsible for caching
-    pub async fn client(&self, provider: Provider<Url>) -> anyhow::Result<Client<F>> {
-        let infra = self.infra.clone();
-        let retry_config = Arc::new(self.infra.get_environment().retry_config);
-        ClientBuilder::new(provider, &self.version)
-            .retry_config(retry_config)
-            .build(infra)
-    }
-
     async fn get_custom_provider_configs(&self) -> anyhow::Result<Vec<ProviderConfig>> {
         let environment = self.infra.get_environment();
         let provider_json_path = environment.base_path.join("provider.json");
@@ -419,7 +423,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
 }
 
 #[async_trait::async_trait]
-impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Sync> ProviderRepository
+impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Sync> ChatRepository
     for ForgeProviderRepository<F>
 {
     async fn chat(
@@ -428,19 +432,42 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Sync>
         context: Context,
         provider: Provider<Url>,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
-        let client = self.client(provider).await?;
-
-        client
-            .chat(model_id, context)
-            .await
-            .with_context(|| format!("Failed to chat with model: {model_id}"))
+        // Route based on provider response type
+        match provider.response {
+            Some(ProviderResponse::OpenAI) => {
+                self.openai_repo.chat(model_id, context, provider).await
+            }
+            Some(ProviderResponse::Anthropic) => {
+                self.anthropic_repo.chat(model_id, context, provider).await
+            }
+            Some(ProviderResponse::Bedrock) => {
+                self.bedrock_repo.chat(model_id, context, provider).await
+            }
+            None => Err(anyhow::anyhow!(
+                "Provider response type not configured for provider: {}",
+                provider.id
+            )),
+        }
     }
 
     async fn models(&self, provider: Provider<Url>) -> anyhow::Result<Vec<Model>> {
-        let client = self.client(provider).await?;
-        client.models().await
+        // Route based on provider response type
+        match provider.response {
+            Some(ProviderResponse::OpenAI) => self.openai_repo.models(provider).await,
+            Some(ProviderResponse::Anthropic) => self.anthropic_repo.models(provider).await,
+            Some(ProviderResponse::Bedrock) => self.bedrock_repo.models(provider).await,
+            None => Err(anyhow::anyhow!(
+                "Provider response type not configured for provider: {}",
+                provider.id
+            )),
+        }
     }
+}
 
+#[async_trait::async_trait]
+impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Sync> ProviderRepository
+    for ForgeProviderRepository<F>
+{
     async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
         Ok(self.get_providers().await.clone())
     }
@@ -752,7 +779,7 @@ mod env_tests {
     }
 
     #[async_trait::async_trait]
-    impl ProviderRepository for MockInfra {
+    impl ChatRepository for MockInfra {
         async fn chat(
             &self,
             _model_id: &ModelId,
@@ -765,7 +792,10 @@ mod env_tests {
         async fn models(&self, _provider: Provider<Url>) -> anyhow::Result<Vec<Model>> {
             Ok(vec![])
         }
+    }
 
+    #[async_trait::async_trait]
+    impl ProviderRepository for MockInfra {
         async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
             Ok(vec![])
         }
@@ -1209,7 +1239,7 @@ mod env_tests {
         }
 
         #[async_trait::async_trait]
-        impl ProviderRepository for CustomMockInfra {
+        impl ChatRepository for CustomMockInfra {
             async fn chat(
                 &self,
                 _model_id: &ModelId,
@@ -1222,7 +1252,10 @@ mod env_tests {
             async fn models(&self, _provider: Provider<Url>) -> anyhow::Result<Vec<Model>> {
                 Ok(vec![])
             }
+        }
 
+        #[async_trait::async_trait]
+        impl ProviderRepository for CustomMockInfra {
             async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
                 Ok(vec![])
             }

@@ -10,8 +10,8 @@ use forge_app::{
 };
 use forge_domain::{
     AnyProvider, AppConfig, AppConfigRepository, AuthCredential, ChatCompletionMessage,
-    CommandOutput, Context, Conversation, ConversationId, ConversationRepository, Environment,
-    FileInfo, McpServerConfig, MigrationResult, Model, ModelId, Provider, ProviderId,
+    ChatRepository, CommandOutput, Context, Conversation, ConversationId, ConversationRepository,
+    Environment, FileInfo, McpServerConfig, MigrationResult, Model, ModelId, Provider, ProviderId,
     ProviderRepository, ResultStream, Skill, SkillRepository, Snapshot, SnapshotRepository,
 };
 // Re-export CacacheStorage from forge_infra
@@ -47,7 +47,7 @@ pub struct ForgeRepo<F> {
     validation_repository: Arc<crate::ForgeValidationRepository<F>>,
 }
 
-impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra> ForgeRepo<F> {
+impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpInfra> ForgeRepo<F> {
     pub fn new(infra: Arc<F>) -> Self {
         let env = infra.get_environment();
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
@@ -139,7 +139,7 @@ impl<F: Send + Sync> ConversationRepository for ForgeRepo<F> {
 
 #[async_trait::async_trait]
 impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Send + Sync>
-    ProviderRepository for ForgeRepo<F>
+    ChatRepository for ForgeRepo<F>
 {
     async fn chat(
         &self,
@@ -151,9 +151,16 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Send 
             .chat(model_id, context, provider)
             .await
     }
+
     async fn models(&self, provider: Provider<Url>) -> anyhow::Result<Vec<Model>> {
         self.provider_repository.models(provider).await
     }
+}
+
+#[async_trait::async_trait]
+impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Send + Sync>
+    ProviderRepository for ForgeRepo<F>
+{
     async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
         self.provider_repository.get_all_providers().await
     }

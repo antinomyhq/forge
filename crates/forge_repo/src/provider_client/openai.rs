@@ -12,9 +12,10 @@ use reqwest::header::AUTHORIZATION;
 use tracing::{debug, info};
 use url::Url;
 
-use crate::provider_client::client::{create_headers, join_url};
 use crate::provider_client::event::into_chat_completion_message;
-use crate::provider_client::utils::{format_http_context, sanitize_headers};
+use crate::provider_client::utils::{
+    create_headers, format_http_context, join_url, sanitize_headers,
+};
 
 #[derive(Clone)]
 pub struct OpenAIProvider<H> {

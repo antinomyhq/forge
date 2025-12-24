@@ -97,8 +97,8 @@ mod tests {
     use std::sync::Mutex;
 
     use forge_domain::{
-        AnyProvider, AppConfig, MigrationResult, Model, ModelSource, Provider, ProviderId,
-        ProviderResponse,
+        AnyProvider, AppConfig, ChatRepository, MigrationResult, Model, ModelSource, Provider,
+        ProviderId, ProviderResponse,
     };
     use pretty_assertions::assert_eq;
     use url::Url;
@@ -182,7 +182,7 @@ mod tests {
     }
 
     #[async_trait::async_trait]
-    impl ProviderRepository for MockInfra {
+    impl ChatRepository for MockInfra {
         async fn chat(
             &self,
             _model_id: &forge_app::domain::ModelId,
@@ -199,7 +199,10 @@ mod tests {
         ) -> anyhow::Result<Vec<forge_app::domain::Model>> {
             Ok(vec![])
         }
+    }
 
+    #[async_trait::async_trait]
+    impl ProviderRepository for MockInfra {
         async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
             Ok(self
                 .providers
