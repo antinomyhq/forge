@@ -97,9 +97,9 @@ impl CodeBlockParser {
     /// None if it's not a code fence.
     fn detect_code_fence(line: &str) -> Option<String> {
         let trimmed = line.trim_start();
-        if trimmed.starts_with("```") {
+        if let Some(stripped) = trimmed.strip_prefix("```") {
             // Extract language tag (everything after ``` until whitespace or end)
-            let lang = trimmed[3..].split_whitespace().next().unwrap_or("");
+            let lang = stripped.split_whitespace().next().unwrap_or("");
             Some(lang.to_string())
         } else {
             None
