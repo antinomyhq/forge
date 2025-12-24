@@ -1,6 +1,5 @@
 // Context trait is needed for error handling in the provider implementations
 
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use anyhow::{Context as _, Result};
@@ -12,7 +11,6 @@ use forge_app::domain::{
 use forge_domain::Provider;
 use reqwest::Url;
 use reqwest::header::HeaderMap;
-use tokio::sync::RwLock;
 use tokio_stream::StreamExt;
 
 use crate::provider_client::anthropic::Anthropic;
@@ -96,18 +94,13 @@ impl ClientBuilder {
             )),
         };
 
-        Ok(Client {
-            inner: Arc::new(inner),
-            retry_config,
-            models_cache: Arc::new(RwLock::new(HashMap::new())),
-        })
+        Ok(Client { inner: Arc::new(inner), retry_config })
     }
 }
 
 pub struct Client<T> {
     retry_config: Arc<RetryConfig>,
     inner: Arc<InnerClient<T>>,
-    models_cache: Arc<RwLock<HashMap<ModelId, Model>>>,
 }
 
 impl<T> Clone for Client<T> {
@@ -115,7 +108,6 @@ impl<T> Clone for Client<T> {
         Self {
             retry_config: self.retry_config.clone(),
             inner: self.inner.clone(),
-            models_cache: self.models_cache.clone(),
         }
     }
 }
@@ -133,22 +125,11 @@ impl<T: HttpInfra> Client<T> {
     }
 
     pub async fn refresh_models(&self) -> anyhow::Result<Vec<Model>> {
-        let models = self.clone().retry(match self.inner.as_ref() {
+        self.clone().retry(match self.inner.as_ref() {
             InnerClient::OpenAICompat(provider) => provider.models().await,
             InnerClient::Anthropic(provider) => provider.models().await,
             InnerClient::Bedrock(provider) => provider.models().await,
-        })?;
-
-        // Update the cache with all fetched models
-        {
-            let mut cache = self.models_cache.write().await;
-            cache.clear(); // Clear existing cache to ensure freshness
-            for model in &models {
-                cache.insert(model.id.clone(), model.clone());
-            }
-        }
-
-        Ok(models)
+        })
     }
 }
 
@@ -172,22 +153,6 @@ impl<T: HttpInfra> Client<T> {
 
     pub async fn models(&self) -> anyhow::Result<Vec<Model>> {
         self.refresh_models().await
-    }
-
-    #[allow(dead_code)]
-    pub async fn model(&self, model: &ModelId) -> anyhow::Result<Option<Model>> {
-        // First, check if the model is in the cache
-        {
-            let cache = self.models_cache.read().await;
-            if let Some(model) = cache.get(model) {
-                return Ok(Some(model.clone()));
-            }
-        }
-
-        // Cache miss - refresh models (which will populate the cache) and find the
-        // model in the result
-        let models = self.refresh_models().await?;
-        Ok(models.into_iter().find(|m| m.id == *model))
     }
 }
 
@@ -220,6 +185,7 @@ pub fn create_headers(headers: Vec<(String, String)>) -> HeaderMap {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
     use std::sync::Arc;
 
     use bytes::Bytes;
@@ -273,29 +239,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_cache_initialization() {
-        let provider = forge_domain::Provider {
-            id: ProviderId::OPENAI,
-            provider_type: Default::default(),
-            response: Some(ProviderResponse::OpenAI),
-            url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
-            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
-            url_params: vec![],
-            credential: make_test_credential(),
-            models: Some(forge_domain::ModelSource::Url(
-                Url::parse("https://api.openai.com/v1/models").unwrap(),
-            )),
-        };
-        let client = ClientBuilder::new(provider, "dev")
-            .build(Arc::new(MockHttpClient))
-            .unwrap();
-
-        // Verify cache is initialized as empty
-        let cache = client.models_cache.read().await;
-        assert!(cache.is_empty());
-    }
-
-    #[tokio::test]
     async fn test_refresh_models_method_exists() {
         let provider = forge_domain::Provider {
             id: ProviderId::OPENAI,
@@ -318,56 +261,5 @@ mod tests {
         let result = client.refresh_models().await;
         assert!(result.is_err()); // Expected to fail since we're not hitting a
         // real API
-    }
-
-    #[tokio::test]
-    async fn test_builder_pattern_api() {
-        let provider = forge_domain::Provider {
-            id: ProviderId::OPENAI,
-            provider_type: Default::default(),
-            response: Some(ProviderResponse::OpenAI),
-            url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
-            credential: make_test_credential(),
-            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
-            url_params: vec![],
-            models: Some(forge_domain::ModelSource::Url(
-                Url::parse("https://api.openai.com/v1/models").unwrap(),
-            )),
-        };
-
-        // Test the builder pattern API
-        let client = ClientBuilder::new(provider, "dev")
-            .retry_config(Arc::new(RetryConfig::default()))
-            .build(Arc::new(MockHttpClient))
-            .unwrap();
-
-        // Verify cache is initialized as empty
-        let cache = client.models_cache.read().await;
-        assert!(cache.is_empty());
-    }
-
-    #[tokio::test]
-    async fn test_builder_with_defaults() {
-        let provider = forge_domain::Provider {
-            id: ProviderId::OPENAI,
-            provider_type: forge_domain::ProviderType::Llm,
-            response: Some(ProviderResponse::OpenAI),
-            url: Url::parse("https://api.openai.com/v1/chat/completions").unwrap(),
-            credential: make_test_credential(),
-            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
-            url_params: vec![],
-            models: Some(forge_domain::ModelSource::Url(
-                Url::parse("https://api.openai.com/v1/models").unwrap(),
-            )),
-        };
-
-        // Test that ClientBuilder::new works with minimal parameters
-        let client = ClientBuilder::new(provider, "dev")
-            .build(Arc::new(MockHttpClient))
-            .unwrap();
-
-        // Verify cache is initialized as empty
-        let cache = client.models_cache.read().await;
-        assert!(cache.is_empty());
     }
 }

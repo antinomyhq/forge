@@ -135,11 +135,7 @@ impl<F: EnvironmentInfra> ForgeProviderRepository<F> {
     pub fn new(infra: Arc<F>) -> Self {
         let env = infra.get_environment();
         let version = env.version();
-        Self {
-            infra,
-            handlebars: get_handlebars(),
-            version,
-        }
+        Self { infra, handlebars: get_handlebars(), version }
     }
 }
 
