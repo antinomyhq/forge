@@ -610,6 +610,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     crate::cli::WorkspaceCommand::Delete { workspace_id } => {
                         self.on_delete_workspace(workspace_id).await?;
                     }
+                    crate::cli::WorkspaceCommand::Status { path, porcelain } => {
+                        self.on_workspace_status(path, porcelain).await?;
+                    }
                 }
                 return Ok(());
             }
@@ -3127,6 +3130,102 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 Err(e)
             }
         }
+    }
+
+    /// Displays sync status for all files in the workspace.
+    async fn on_workspace_status(
+        &mut self,
+        path: std::path::PathBuf,
+        porcelain: bool,
+    ) -> anyhow::Result<()> {
+        use forge_domain::SyncStatus;
+
+        if !porcelain {
+            self.spinner.start(Some("Checking file status..."))?;
+        }
+
+        let mut statuses = self.api.get_workspace_status(path.clone()).await?;
+        statuses.sort_by(|a, b| a.status.cmp(&b.status));
+        let workspace_info = self.api.get_workspace_info(path).await?;
+
+        if !porcelain {
+            self.spinner.stop(None)?;
+        }
+
+        // Get workspace ID if available
+        let workspace_id = workspace_info
+            .as_ref()
+            .map(|info| info.workspace_id.to_string())
+            .unwrap_or_else(|| "Unknown".to_string());
+
+        // Calculate counts
+        let in_sync = statuses
+            .iter()
+            .filter(|s| s.status == SyncStatus::InSync)
+            .count();
+        let modified = statuses
+            .iter()
+            .filter(|s| s.status == SyncStatus::Modified)
+            .count();
+        let added = statuses
+            .iter()
+            .filter(|s| s.status == SyncStatus::New)
+            .count();
+        let deleted = statuses
+            .iter()
+            .filter(|s| s.status == SyncStatus::Deleted)
+            .count();
+
+        let out_of_sync = modified + added + deleted;
+
+        // Build file list info
+        let mut info = Info::new().add_title(format!("File Status [{} out of sync]", out_of_sync));
+
+        // Add file list (skip in-sync files)
+        for (status, label) in statuses.iter().filter_map(|status| match status.status {
+            SyncStatus::InSync => None,
+            SyncStatus::Modified => Some((status, "modified")),
+            SyncStatus::New => Some((status, "added")),
+            SyncStatus::Deleted => Some((status, "deleted")),
+        }) {
+            info = info.add_key_value(&status.path, label);
+        }
+
+        // Output based on mode
+        if porcelain {
+            self.writeln(
+                Porcelain::from(info)
+                    .into_long()
+                    .drop_col(0)
+                    .swap_cols(0, 1)
+                    .set_headers(["STATUS", "FILE"])
+                    .sort_by(&[0])
+                    .uppercase_headers(),
+            )?;
+        } else {
+            self.writeln(info)?;
+
+            // Build summary info
+            let mut summary =
+                Info::new().add_title(format!("Workspace Status [{} files]", statuses.len()));
+            summary = summary.add_key_value("ID", workspace_id);
+            if in_sync > 0 {
+                summary = summary.add_key_value("In Sync", in_sync.to_string());
+            }
+            if modified > 0 {
+                summary = summary.add_key_value("Modified", modified.to_string());
+            }
+            if added > 0 {
+                summary = summary.add_key_value("Added", added.to_string());
+            }
+            if deleted > 0 {
+                summary = summary.add_key_value("Deleted", deleted.to_string());
+            }
+
+            self.writeln(summary)?;
+        }
+
+        Ok(())
     }
 
     /// Handle credential migration

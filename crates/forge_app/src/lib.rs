@@ -36,6 +36,7 @@ mod user;
 pub mod user_prompt;
 pub mod utils;
 mod walker;
+mod workspace_status;
 
 pub use agent::*;
 pub use agent_provider_resolver::*;
@@ -51,6 +52,7 @@ pub use tool_resolver::*;
 pub use user::*;
 pub use utils::compute_hash;
 pub use walker::*;
+pub use workspace_status::*;
 pub mod domain {
     pub use forge_domain::*;
 }

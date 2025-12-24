@@ -34,18 +34,17 @@ pub enum SyncProgress {
     },
     /// Diff computed showing breakdown of changes
     DiffComputed {
-        /// Number of files to delete (orphaned on server)
-        to_delete: usize,
-        /// Number of files to upload (new files)
-        to_upload: usize,
-        /// Number of modified files (delete + upload same path)
+        /// Number of files added (new files)
+        added: usize,
+        /// Number of files deleted (orphaned on server)
+        deleted: usize,
+        /// Number of files modified (changed files)
         modified: usize,
     },
     /// Syncing files (deleting outdated + uploading new/changed)
     Syncing {
-        /// Current progress score (modified files contribute 0.5 for delete +
-        /// 0.5 for upload)
-        current: f64,
+        /// Current progress
+        current: usize,
         /// Total number of files to sync
         total: usize,
     },
@@ -64,11 +63,11 @@ impl SyncProgress {
         match self {
             Self::Syncing { current, total } => {
                 let sync_progress = if *total > 0 {
-                    (*current * 100.0 / *total as f64) as u64
+                    (*current as f64) / (*total as f64) * 100.0
                 } else {
-                    0
+                    0.0
                 };
-                Some(sync_progress)
+                Some(sync_progress as u64)
             }
             _ => None,
         }
@@ -249,17 +248,6 @@ pub struct WorkspaceInfo {
     pub last_updated: Option<chrono::DateTime<chrono::Utc>>,
     /// Workspace created time.
     pub created_at: chrono::DateTime<chrono::Utc>,
-}
-
-/// File hash information from the server
-///
-/// Contains the relative file path and its SHA-256 hash
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct FileHash {
-    /// Relative file path from workspace root
-    pub path: String,
-    /// SHA-256 hash of the file content
-    pub hash: String,
 }
 
 /// Result of a codebase sync operation

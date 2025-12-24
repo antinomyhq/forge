@@ -135,7 +135,7 @@ function forge-accept-line() {
     # Dispatch to appropriate action handler using pattern matching
     case "$user_action" in
         new|n)
-            _forge_action_new
+            _forge_action_new "$input_text"
         ;;
         info|i)
             _forge_action_info
