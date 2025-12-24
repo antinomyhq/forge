@@ -4,8 +4,7 @@ use std::sync::{Arc, OnceLock};
 use anyhow::Context as _;
 use bytes::Bytes;
 use forge_app::domain::{
-    ChatCompletionMessage, Context, HttpConfig, Model, ModelId, ProviderId, ProviderResponse,
-    ResultStream, RetryConfig,
+    ChatCompletionMessage, Context, Model, ModelId, ProviderId, ProviderResponse, ResultStream,
 };
 use forge_app::{EnvironmentInfra, FileReaderInfra, FileWriterInfra, HttpInfra};
 use forge_domain::{
@@ -129,8 +128,6 @@ fn get_provider_configs() -> &'static Vec<ProviderConfig> {
 pub struct ForgeProviderRepository<F> {
     infra: Arc<F>,
     handlebars: &'static Handlebars<'static>,
-    retry_config: Arc<RetryConfig>,
-    timeout_config: HttpConfig,
     version: String,
 }
 
@@ -138,13 +135,9 @@ impl<F: EnvironmentInfra> ForgeProviderRepository<F> {
     pub fn new(infra: Arc<F>) -> Self {
         let env = infra.get_environment();
         let version = env.version();
-        let retry_config = Arc::new(env.retry_config);
-        let timeout_config = env.http;
         Self {
             infra,
             handlebars: get_handlebars(),
-            retry_config,
-            timeout_config,
             version,
         }
     }
@@ -157,10 +150,9 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
     /// The service layer is responsible for caching
     pub async fn build_client(&self, provider: Provider<Url>) -> anyhow::Result<Client<F>> {
         let infra = self.infra.clone();
+        let retry_config = Arc::new(self.infra.get_environment().retry_config);
         ClientBuilder::new(provider, &self.version)
-            .retry_config(self.retry_config.clone())
-            .timeout_config(self.timeout_config.clone())
-            .use_hickory(false) // use native DNS resolver(GAI)
+            .retry_config(retry_config)
             .build(infra)
     }
 

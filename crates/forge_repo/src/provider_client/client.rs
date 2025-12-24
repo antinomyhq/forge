@@ -7,8 +7,7 @@ use anyhow::{Context as _, Result};
 use derive_setters::Setters;
 use forge_app::HttpInfra;
 use forge_app::domain::{
-    ChatCompletionMessage, Context, HttpConfig, Model, ModelId, ProviderResponse, ResultStream,
-    RetryConfig,
+    ChatCompletionMessage, Context, Model, ModelId, ProviderResponse, ResultStream, RetryConfig,
 };
 use forge_domain::Provider;
 use reqwest::Url;
@@ -24,8 +23,6 @@ use crate::provider_client::retry::into_retry;
 #[setters(strip_option, into)]
 pub struct ClientBuilder {
     pub retry_config: Arc<RetryConfig>,
-    pub timeout_config: HttpConfig,
-    pub use_hickory: bool,
     pub provider: Provider<Url>,
     #[allow(dead_code)]
     pub version: String,
@@ -37,8 +34,6 @@ impl ClientBuilder {
     pub fn new(provider: Provider<Url>, version: impl Into<String>) -> Self {
         Self {
             retry_config: Arc::new(RetryConfig::default()),
-            timeout_config: HttpConfig::default(),
-            use_hickory: false,
             provider,
             version: version.into(),
         }
@@ -343,8 +338,6 @@ mod tests {
         // Test the builder pattern API
         let client = ClientBuilder::new(provider, "dev")
             .retry_config(Arc::new(RetryConfig::default()))
-            .timeout_config(HttpConfig::default())
-            .use_hickory(true)
             .build(Arc::new(MockHttpClient))
             .unwrap();
 
