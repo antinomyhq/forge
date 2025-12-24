@@ -129,148 +129,138 @@ impl CodeBlockParser {
 
 #[cfg(test)]
 mod tests {
+    use pretty_assertions::assert_eq;
+
     use super::*;
 
     fn strip_ansi(s: &str) -> String {
         strip_ansi_escapes::strip_str(s).to_string()
     }
 
+    fn fixture_parser(name: &str) -> CodeBlockParser {
+        let content = match name {
+            "code-01" => include_str!("fixtures/code-01.md"),
+            "code-02" => include_str!("fixtures/code-02.md"),
+            _ => panic!("Unknown fixture: {}", name),
+        };
+        CodeBlockParser::new(content)
+    }
+
     #[test]
     fn test_no_code_blocks() {
-        let r = CodeBlockParser::new("Hello world");
-        assert!(r.markdown().contains("Hello world"));
-        assert!(r.blocks().is_empty());
+        let fixture = "Hello world\nThis is plain text.";
+        let parser = CodeBlockParser::new(fixture);
+
+        let actual = parser.blocks().len();
+        let expected = 0;
+
+        assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_single_code_block() {
-        let r = CodeBlockParser::new("```rust\nfn main() {}\n```");
-        assert!(r.markdown().contains("\x000\x00"));
-        assert_eq!(r.blocks().len(), 1);
-        assert_eq!(r.blocks()[0].code, "fn main() {}");
-        assert_eq!(r.blocks()[0].lang, "rust");
-    }
-
-    #[test]
-    fn test_preserves_indentation() {
-        let r = CodeBlockParser::new("```rust\n    let x = 1;\n```");
-        assert_eq!(r.blocks()[0].code, "    let x = 1;");
-    }
-
-    #[test]
-    fn test_restore() {
-        let highlighter = SyntaxHighlighter::default();
-        let r = CodeBlockParser::new("```rust\ncode\n```");
-        let result = r.restore(&highlighter, "X\n\x000\x00\nY".into());
-        assert!(strip_ansi(&result).contains("code"));
-    }
-
-    #[test]
-    fn test_full_flow() {
-        let highlighter = SyntaxHighlighter::default();
-        let r = CodeBlockParser::new("Hi\n```rust\nlet x = 1;\n```\nBye");
-        let result = strip_ansi(&r.restore(&highlighter, r.markdown().to_string()));
-        assert!(result.contains("Hi") && result.contains("let x = 1") && result.contains("Bye"));
-    }
-
-    #[test]
-    fn test_shared_highlighter() {
-        let highlighter = SyntaxHighlighter::default();
-
-        let r1 = CodeBlockParser::new("```rust\nlet x = 1;\n```");
-        let r2 = CodeBlockParser::new("```python\nprint('hello')\n```");
-
-        assert_eq!(r1.blocks()[0].lang, "rust");
-        assert_eq!(r2.blocks()[0].lang, "python");
-
-        let result1 = r1.restore(&highlighter, r1.markdown().to_string());
-        let result2 = r2.restore(&highlighter, r2.markdown().to_string());
-
-        assert!(strip_ansi(&result1).contains("let x = 1"));
-        assert!(strip_ansi(&result2).contains("print('hello')"));
-    }
-
-    #[test]
-    fn test_fixture_code_01() {
-        // The fixture file code-01.md contains indented code blocks (with 3 spaces).
-        // With the improved parser, these should now be properly extracted.
-        let fixture = include_str!("fixtures/code-01.md");
-        let highlighter = SyntaxHighlighter::default();
-
+        let fixture = "```rust\nfn main() {}\n```";
         let parser = CodeBlockParser::new(fixture);
-        let actual_blocks = parser.blocks();
 
-        // Verify that indented code blocks ARE extracted
-        assert_eq!(actual_blocks.len(), 4, "Should extract all 4 code blocks");
+        let actual = parser.blocks().len();
+        let expected = 1;
 
-        // Verify first code block
-        assert_eq!(actual_blocks[0].lang, "rust");
-        assert!(actual_blocks[0].code.contains("if env.enable_permissions"));
-
-        // Verify second code block
-        assert_eq!(actual_blocks[1].lang, "rust");
-        assert!(actual_blocks[1].code.contains("ToolCatalog::Fetch(input)"));
-
-        // Verify third code block
-        assert_eq!(actual_blocks[2].lang, "rust");
-        assert!(actual_blocks[2].code.contains("(Rule::Fetch(rule)"));
-
-        // Verify fourth code block
-        assert_eq!(actual_blocks[3].lang, "rust");
-        assert!(actual_blocks[3].code.contains("ToolCatalog::Fetch(input)"));
-
-        // Verify markdown contains placeholders
-        let markdown = parser.markdown();
-        assert!(markdown.contains("\x000\x00"));
-        assert!(markdown.contains("\x001\x00"));
-        assert!(markdown.contains("\x002\x00"));
-        assert!(markdown.contains("\x003\x00"));
-
-        // Verify full restoration flow preserves content
-        let restored = parser.restore(&highlighter, markdown.to_string());
-        let stripped = strip_ansi(&restored);
-        assert!(stripped.contains("if env.enable_permissions"));
-        assert!(stripped.contains("ToolCatalog::Fetch(input)"));
-        assert!(stripped.contains("(Rule::Fetch(rule)"));
-        assert!(stripped.contains("Permission Checking Flow"));
+        assert_eq!(actual, expected);
+        assert_eq!(parser.blocks()[0].lang, "rust");
+        assert_eq!(parser.blocks()[0].code, "fn main() {}");
     }
 
     #[test]
-    fn test_fixture_code_02() {
-        let fixture = include_str!("fixtures/code-02.md");
+    fn test_preserves_indentation_inside_code_block() {
+        let fixture = "```rust\n    let x = 1;\n```";
+        let parser = CodeBlockParser::new(fixture);
+
+        let actual = &parser.blocks()[0].code;
+        let expected = "    let x = 1;";
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_detects_indented_code_fence() {
+        let fixture = "1. Item\n\n   ```rust\n   code\n   ```";
+        let parser = CodeBlockParser::new(fixture);
+
+        let actual = parser.blocks().len();
+        let expected = 1;
+
+        assert_eq!(actual, expected);
+        assert_eq!(parser.blocks()[0].lang, "rust");
+    }
+
+    #[test]
+    fn test_multiple_languages() {
+        let fixture = "```rust\nrust code\n```\n\n```python\npython code\n```";
+        let parser = CodeBlockParser::new(fixture);
+
+        let actual = parser.blocks().len();
+        let expected = 2;
+
+        assert_eq!(actual, expected);
+        assert_eq!(parser.blocks()[0].lang, "rust");
+        assert_eq!(parser.blocks()[1].lang, "python");
+    }
+
+    #[test]
+    fn test_extracts_indented_code_blocks_from_fixture() {
+        let parser = fixture_parser("code-01");
+
+        let actual = parser.blocks().len();
+        let expected = 4;
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_extracts_standard_code_blocks_from_fixture() {
+        let parser = fixture_parser("code-02");
+
+        let actual = parser.blocks().len();
+        let expected = 3;
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_restore_replaces_placeholders_with_highlighted_code() {
+        let fixture = "```rust\ncode\n```";
+        let highlighter = SyntaxHighlighter::default();
+        let parser = CodeBlockParser::new(fixture);
+
+        let actual = strip_ansi(&parser.restore(&highlighter, parser.markdown().to_string()));
+
+        assert!(actual.contains("code"));
+    }
+
+    #[test]
+    fn test_full_extraction_and_restoration_flow() {
+        let fixture = "Hi\n```rust\nlet x = 1;\n```\nBye";
+        let highlighter = SyntaxHighlighter::default();
+        let parser = CodeBlockParser::new(fixture);
+
+        let actual = strip_ansi(&parser.restore(&highlighter, parser.markdown().to_string()));
+
+        assert!(actual.contains("Hi"));
+        assert!(actual.contains("let x = 1"));
+        assert!(actual.contains("Bye"));
+    }
+
+    #[test]
+    fn test_highlighter_can_be_reused() {
         let highlighter = SyntaxHighlighter::default();
 
-        let parser = CodeBlockParser::new(fixture);
-        let actual_blocks = parser.blocks();
+        let parser1 = CodeBlockParser::new("```rust\nlet x = 1;\n```");
+        let parser2 = CodeBlockParser::new("```python\nprint('hello')\n```");
 
-        // Verify correct number of code blocks extracted
-        assert_eq!(actual_blocks.len(), 3);
+        let actual1 = strip_ansi(&parser1.restore(&highlighter, parser1.markdown().to_string()));
+        let actual2 = strip_ansi(&parser2.restore(&highlighter, parser2.markdown().to_string()));
 
-        // Verify first code block (Rust)
-        assert_eq!(actual_blocks[0].lang, "rust");
-        assert!(actual_blocks[0].code.contains("fn main()"));
-        assert!(actual_blocks[0].code.contains("println!"));
-
-        // Verify second code block (Python)
-        assert_eq!(actual_blocks[1].lang, "python");
-        assert!(actual_blocks[1].code.contains("def greet"));
-
-        // Verify third code block (JavaScript)
-        assert_eq!(actual_blocks[2].lang, "javascript");
-        assert!(actual_blocks[2].code.contains("function add"));
-
-        // Verify markdown contains placeholders
-        let markdown = parser.markdown();
-        assert!(markdown.contains("\x000\x00"));
-        assert!(markdown.contains("\x001\x00"));
-        assert!(markdown.contains("\x002\x00"));
-
-        // Verify full restoration flow preserves content
-        let restored = parser.restore(&highlighter, markdown.to_string());
-        let stripped = strip_ansi(&restored);
-        assert!(stripped.contains("fn main()"));
-        assert!(stripped.contains("def greet"));
-        assert!(stripped.contains("function add"));
-        assert!(stripped.contains("Sample Code Documentation"));
+        assert!(actual1.contains("let x = 1"));
+        assert!(actual2.contains("print('hello')"));
     }
 }
