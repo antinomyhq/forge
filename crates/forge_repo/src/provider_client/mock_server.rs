@@ -9,6 +9,7 @@ impl MockServer {
         let server = Server::new_async().await;
         Self { server }
     }
+
     pub async fn mock_models(&mut self, body: serde_json::Value, status: usize) -> Mock {
         self.server
             .mock("GET", "/models")

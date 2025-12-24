@@ -1,7 +1,7 @@
 use anyhow::{Context as _, Result};
-use aws_sdk_bedrockruntime::Client;
 use aws_sdk_bedrockruntime::config::Token;
-use forge_app::HttpClientService;
+use aws_sdk_bedrockruntime::Client;
+use forge_app::HttpInfra;
 use forge_domain::{
     AuthDetails, ChatCompletionMessage, Context, Model, ModelId, Provider, ResultStream,
     Transformer,
@@ -10,7 +10,7 @@ use reqwest::Url;
 use tokio::sync::OnceCell;
 
 use super::SetCache;
-use crate::{FromDomain, IntoDomain};
+use crate::provider_client::{FromDomain, IntoDomain};
 
 /// Provider implementation for Amazon Bedrock using Bearer token authentication
 ///
@@ -23,7 +23,7 @@ pub struct BedrockProvider<T> {
     _phantom: std::marker::PhantomData<T>,
 }
 
-impl<H: HttpClientService> BedrockProvider<H> {
+impl<H: HttpInfra> BedrockProvider<H> {
     /// Creates a new BedrockProvider instance
     ///
     /// Credentials are loaded from the provider's credential:
@@ -658,27 +658,30 @@ impl FromDomain<forge_domain::ContextMessage> for aws_sdk_bedrockruntime::types:
                 // Add reasoning blocks FIRST if present (required by AWS when extended thinking
                 // is enabled) AWS requires that when thinking is enabled,
                 // assistant messages MUST start with thinking blocks
-                if text_msg.role == forge_domain::Role::Assistant
-                    && let Some(reasoning_details) = &text_msg.reasoning_details
-                {
-                    for reasoning in reasoning_details {
-                        // Create a thinking content block
-                        if let Some(text) = &reasoning.text {
-                            use aws_sdk_bedrockruntime::types::{
-                                ReasoningContentBlock, ReasoningTextBlock,
-                            };
+                if text_msg.role == forge_domain::Role::Assistant {
+                    if let Some(reasoning_details) = &text_msg.reasoning_details {
+                        for reasoning in reasoning_details {
+                            // Create a thinking content block
+                            if let Some(text) = &reasoning.text {
+                                use aws_sdk_bedrockruntime::types::{
+                                    ReasoningContentBlock, ReasoningTextBlock,
+                                };
 
-                            let reasoning_text_block = ReasoningTextBlock::builder()
-                                .text(text.clone())
-                                .set_signature(reasoning.signature.clone())
-                                .build()
-                                .map_err(|e| {
-                                    anyhow::anyhow!("Failed to build reasoning text block: {}", e)
-                                })?;
+                                let reasoning_text_block = ReasoningTextBlock::builder()
+                                    .text(text.clone())
+                                    .set_signature(reasoning.signature.clone())
+                                    .build()
+                                    .map_err(|e| {
+                                        anyhow::anyhow!(
+                                            "Failed to build reasoning text block: {}",
+                                            e
+                                        )
+                                    })?;
 
-                            content_blocks.push(ContentBlock::ReasoningContent(
-                                ReasoningContentBlock::ReasoningText(reasoning_text_block),
-                            ));
+                                content_blocks.push(ContentBlock::ReasoningContent(
+                                    ReasoningContentBlock::ReasoningText(reasoning_text_block),
+                                ));
+                            }
                         }
                     }
                 }
@@ -886,37 +889,38 @@ impl FromDomain<forge_domain::ToolChoice> for aws_sdk_bedrockruntime::types::Too
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
+    use reqwest::header::HeaderMap;
 
     use super::*;
 
     struct MockHttpClient;
 
     #[async_trait::async_trait]
-    impl HttpClientService for MockHttpClient {
-        async fn get(
+    impl HttpInfra for MockHttpClient {
+        async fn http_get(
             &self,
-            _url: &reqwest::Url,
-            _headers: Option<reqwest::header::HeaderMap>,
+            _url: &Url,
+            _headers: Option<HeaderMap>,
         ) -> anyhow::Result<reqwest::Response> {
             Err(anyhow::anyhow!("Mock HTTP client - no real requests"))
         }
 
-        async fn post(
+        async fn http_post(
             &self,
-            _url: &reqwest::Url,
+            _url: &Url,
             _body: bytes::Bytes,
         ) -> anyhow::Result<reqwest::Response> {
             Err(anyhow::anyhow!("Mock HTTP client - no real requests"))
         }
 
-        async fn delete(&self, _url: &reqwest::Url) -> anyhow::Result<reqwest::Response> {
+        async fn http_delete(&self, _url: &Url) -> anyhow::Result<reqwest::Response> {
             Err(anyhow::anyhow!("Mock HTTP client - no real requests"))
         }
 
-        async fn eventsource(
+        async fn http_eventsource(
             &self,
-            _url: &reqwest::Url,
-            _headers: Option<reqwest::header::HeaderMap>,
+            _url: &Url,
+            _headers: Option<HeaderMap>,
             _body: bytes::Bytes,
         ) -> anyhow::Result<reqwest_eventsource::EventSource> {
             Err(anyhow::anyhow!("Mock HTTP client - no real requests"))

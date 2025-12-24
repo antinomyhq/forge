@@ -183,6 +183,23 @@ mod tests {
 
     #[async_trait::async_trait]
     impl ProviderRepository for MockInfra {
+        async fn chat(
+            &self,
+            _model_id: &forge_app::domain::ModelId,
+            _context: forge_app::domain::Context,
+            _provider: Provider<Url>,
+        ) -> forge_app::domain::ResultStream<forge_app::domain::ChatCompletionMessage, anyhow::Error>
+        {
+            Ok(Box::pin(tokio_stream::iter(vec![])))
+        }
+
+        async fn models(
+            &self,
+            _provider: Provider<Url>,
+        ) -> anyhow::Result<Vec<forge_app::domain::Model>> {
+            Ok(vec![])
+        }
+
         async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
             Ok(self
                 .providers

@@ -1,9 +1,13 @@
 use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
+use anyhow::Context as _;
 use bytes::Bytes;
-use forge_app::domain::{ProviderId, ProviderResponse};
-use forge_app::{EnvironmentInfra, FileReaderInfra, FileWriterInfra};
+use forge_app::domain::{
+    ChatCompletionMessage, Context, HttpConfig, Model, ModelId, ProviderId, ProviderResponse,
+    ResultStream, RetryConfig,
+};
+use forge_app::{EnvironmentInfra, FileReaderInfra, FileWriterInfra, HttpInfra};
 use forge_domain::{
     AnyProvider, ApiKey, AuthCredential, AuthDetails, Error, MigrationResult, Provider,
     ProviderRepository, ProviderType, URLParam, URLParamValue,
@@ -11,7 +15,10 @@ use forge_domain::{
 use handlebars::Handlebars;
 use merge::Merge;
 use serde::Deserialize;
+use tokio::sync::Mutex;
 use url::Url;
+
+use crate::provider_client::{Client, ClientBuilder};
 
 /// Represents the source of models for a provider
 #[derive(Debug, Clone, Deserialize)]
@@ -123,15 +130,63 @@ fn get_provider_configs() -> &'static Vec<ProviderConfig> {
 pub struct ForgeProviderRepository<F> {
     infra: Arc<F>,
     handlebars: &'static Handlebars<'static>,
+    cached_clients: Arc<Mutex<HashMap<ProviderId, Client<F>>>>,
+    cached_models: Arc<Mutex<HashMap<ProviderId, Vec<Model>>>>,
+    retry_config: Arc<RetryConfig>,
+    timeout_config: HttpConfig,
+    version: String,
 }
 
-impl<F> ForgeProviderRepository<F> {
+impl<F: EnvironmentInfra> ForgeProviderRepository<F> {
     pub fn new(infra: Arc<F>) -> Self {
-        Self { infra, handlebars: get_handlebars() }
+        let env = infra.get_environment();
+        let version = env.version();
+        let retry_config = Arc::new(env.retry_config);
+        let timeout_config = env.http;
+        Self {
+            infra,
+            handlebars: get_handlebars(),
+            cached_clients: Arc::new(Mutex::new(HashMap::new())),
+            cached_models: Arc::new(Mutex::new(HashMap::new())),
+            retry_config,
+            timeout_config,
+            version,
+        }
     }
 }
 
-impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepository<F> {
+impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
+    ForgeProviderRepository<F>
+{
+    /// Creates or retrieves a cached provider client
+    async fn client(&self, provider: Provider<Url>) -> anyhow::Result<Client<F>> {
+        let provider_id = provider.id.clone();
+
+        // Check cache first
+        {
+            let clients_guard = self.cached_clients.lock().await;
+            if let Some(cached_client) = clients_guard.get(&provider_id) {
+                return Ok(cached_client.clone());
+            }
+        }
+
+        // Client not in cache, create new client
+        let infra = self.infra.clone();
+        let client = ClientBuilder::new(provider, &self.version)
+            .retry_config(self.retry_config.clone())
+            .timeout_config(self.timeout_config.clone())
+            .use_hickory(false) // use native DNS resolver(GAI)
+            .build(infra)?;
+
+        // Cache the new client for this provider
+        {
+            let mut clients_guard = self.cached_clients.lock().await;
+            clients_guard.insert(provider_id, client.clone());
+        }
+
+        Ok(client)
+    }
+
     async fn get_custom_provider_configs(&self) -> anyhow::Result<Vec<ProviderConfig>> {
         let environment = self.infra.get_environment();
         let provider_json_path = environment.base_path.join("provider.json");
@@ -399,9 +454,47 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
 }
 
 #[async_trait::async_trait]
-impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Sync> ProviderRepository
+impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Sync> ProviderRepository
     for ForgeProviderRepository<F>
 {
+    async fn chat(
+        &self,
+        model_id: &ModelId,
+        context: Context,
+        provider: Provider<Url>,
+    ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
+        let client = self.client(provider).await?;
+
+        client
+            .chat(model_id, context)
+            .await
+            .with_context(|| format!("Failed to chat with model: {model_id}"))
+    }
+
+    async fn models(&self, provider: Provider<Url>) -> anyhow::Result<Vec<Model>> {
+        let provider_id = provider.id.clone();
+
+        // Check cache first
+        {
+            let models_guard = self.cached_models.lock().await;
+            if let Some(cached_models) = models_guard.get(&provider_id) {
+                return Ok(cached_models.clone());
+            }
+        }
+
+        // Models not in cache, fetch from client
+        let client = self.client(provider).await?;
+        let models = client.models().await?;
+
+        // Cache the models for this provider
+        {
+            let mut models_guard = self.cached_models.lock().await;
+            models_guard.insert(provider_id, models.clone());
+        }
+
+        Ok(models)
+    }
+
     async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
         Ok(self.get_providers().await.clone())
     }
@@ -413,6 +506,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Sync> ProviderRep
     async fn upsert_credential(&self, credential: AuthCredential) -> anyhow::Result<()> {
         let mut credentials = self.read_credentials().await;
         let id = credential.id.clone();
+
         // Update existing credential or add new one
         if let Some(existing) = credentials.iter_mut().find(|c| c.id == id) {
             *existing = credential;
@@ -420,6 +514,13 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Sync> ProviderRep
             credentials.push(credential);
         }
         self.write_credentials(&credentials).await?;
+
+        // Clear the cached client for this provider to force recreation with new
+        // credentials
+        {
+            let mut clients_guard = self.cached_clients.lock().await;
+            clients_guard.remove(&id);
+        }
 
         Ok(())
     }
@@ -433,6 +534,12 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Sync> ProviderRep
         let mut credentials = self.read_credentials().await;
         credentials.retain(|c| &c.id != id);
         self.write_credentials(&credentials).await?;
+
+        // Clear the cached client for this provider
+        {
+            let mut clients_guard = self.cached_clients.lock().await;
+            clients_guard.remove(id);
+        }
 
         Ok(())
     }
@@ -680,7 +787,52 @@ mod env_tests {
     }
 
     #[async_trait::async_trait]
+    impl HttpInfra for MockInfra {
+        async fn http_get(
+            &self,
+            _url: &reqwest::Url,
+            _headers: Option<reqwest::header::HeaderMap>,
+        ) -> anyhow::Result<reqwest::Response> {
+            Err(anyhow::anyhow!("HTTP not implemented in mock"))
+        }
+
+        async fn http_post(
+            &self,
+            _url: &reqwest::Url,
+            _body: bytes::Bytes,
+        ) -> anyhow::Result<reqwest::Response> {
+            Err(anyhow::anyhow!("HTTP not implemented in mock"))
+        }
+
+        async fn http_delete(&self, _url: &reqwest::Url) -> anyhow::Result<reqwest::Response> {
+            Err(anyhow::anyhow!("HTTP not implemented in mock"))
+        }
+
+        async fn http_eventsource(
+            &self,
+            _url: &reqwest::Url,
+            _headers: Option<reqwest::header::HeaderMap>,
+            _body: bytes::Bytes,
+        ) -> anyhow::Result<reqwest_eventsource::EventSource> {
+            Err(anyhow::anyhow!("HTTP not implemented in mock"))
+        }
+    }
+
+    #[async_trait::async_trait]
     impl ProviderRepository for MockInfra {
+        async fn chat(
+            &self,
+            _model_id: &ModelId,
+            _context: Context,
+            _provider: Provider<Url>,
+        ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
+            Ok(Box::pin(tokio_stream::iter(vec![])))
+        }
+
+        async fn models(&self, _provider: Provider<Url>) -> anyhow::Result<Vec<Model>> {
+            Ok(vec![])
+        }
+
         async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
             Ok(vec![])
         }
@@ -1092,7 +1244,52 @@ mod env_tests {
         }
 
         #[async_trait::async_trait]
+        impl HttpInfra for CustomMockInfra {
+            async fn http_get(
+                &self,
+                _url: &reqwest::Url,
+                _headers: Option<reqwest::header::HeaderMap>,
+            ) -> anyhow::Result<reqwest::Response> {
+                Err(anyhow::anyhow!("HTTP not implemented in mock"))
+            }
+
+            async fn http_post(
+                &self,
+                _url: &reqwest::Url,
+                _body: bytes::Bytes,
+            ) -> anyhow::Result<reqwest::Response> {
+                Err(anyhow::anyhow!("HTTP not implemented in mock"))
+            }
+
+            async fn http_delete(&self, _url: &reqwest::Url) -> anyhow::Result<reqwest::Response> {
+                Err(anyhow::anyhow!("HTTP not implemented in mock"))
+            }
+
+            async fn http_eventsource(
+                &self,
+                _url: &reqwest::Url,
+                _headers: Option<reqwest::header::HeaderMap>,
+                _body: bytes::Bytes,
+            ) -> anyhow::Result<reqwest_eventsource::EventSource> {
+                Err(anyhow::anyhow!("HTTP not implemented in mock"))
+            }
+        }
+
+        #[async_trait::async_trait]
         impl ProviderRepository for CustomMockInfra {
+            async fn chat(
+                &self,
+                _model_id: &ModelId,
+                _context: Context,
+                _provider: Provider<Url>,
+            ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
+                Ok(Box::pin(tokio_stream::iter(vec![])))
+            }
+
+            async fn models(&self, _provider: Provider<Url>) -> anyhow::Result<Vec<Model>> {
+                Ok(vec![])
+            }
+
             async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
                 Ok(vec![])
             }

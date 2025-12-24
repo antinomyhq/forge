@@ -6,6 +6,7 @@ mod database;
 mod forge_repo;
 mod fs_snap;
 mod provider;
+mod provider_client;
 mod skill;
 mod validation;
 mod workspace;

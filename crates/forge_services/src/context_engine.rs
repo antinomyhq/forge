@@ -822,6 +822,23 @@ mod tests {
 
     #[async_trait::async_trait]
     impl ProviderRepository for MockInfra {
+        async fn chat(
+            &self,
+            _model_id: &forge_app::domain::ModelId,
+            _context: forge_app::domain::Context,
+            _provider: forge_domain::Provider<url::Url>,
+        ) -> forge_app::domain::ResultStream<forge_app::domain::ChatCompletionMessage, anyhow::Error>
+        {
+            Ok(Box::pin(tokio_stream::iter(vec![])))
+        }
+
+        async fn models(
+            &self,
+            _provider: forge_domain::Provider<url::Url>,
+        ) -> Result<Vec<forge_app::domain::Model>> {
+            Ok(vec![])
+        }
+
         async fn get_all_providers(&self) -> Result<Vec<forge_domain::AnyProvider>> {
             Ok(vec![])
         }

@@ -5,20 +5,20 @@ use std::sync::Arc;
 
 use anyhow::{Context as _, Result};
 use derive_setters::Setters;
-use forge_app::HttpClientService;
 use forge_app::domain::{
     ChatCompletionMessage, Context, HttpConfig, Model, ModelId, ProviderResponse, ResultStream,
     RetryConfig,
 };
+use forge_app::HttpInfra;
 use forge_domain::Provider;
-use reqwest::Url;
 use reqwest::header::HeaderMap;
+use reqwest::Url;
 use tokio::sync::RwLock;
 use tokio_stream::StreamExt;
 
-use crate::provider::anthropic::Anthropic;
-use crate::provider::openai::OpenAIProvider;
-use crate::provider::retry::into_retry;
+use crate::provider_client::anthropic::Anthropic;
+use crate::provider_client::openai::OpenAIProvider;
+use crate::provider_client::retry::into_retry;
 
 #[derive(Setters)]
 #[setters(strip_option, into)]
@@ -45,7 +45,7 @@ impl ClientBuilder {
     }
 
     /// Build the client with the configured settings.
-    pub fn build<T: HttpClientService>(self, http: Arc<T>) -> Result<Client<T>> {
+    pub fn build<T: HttpInfra>(self, http: Arc<T>) -> Result<Client<T>> {
         let provider = self.provider;
         let retry_config = self.retry_config;
 
@@ -97,7 +97,7 @@ impl ClientBuilder {
             }
 
             ProviderResponse::Bedrock => InnerClient::Bedrock(Box::new(
-                crate::provider::bedrock::BedrockProvider::new(provider.clone())?,
+                crate::provider_client::bedrock::BedrockProvider::new(provider.clone())?,
             )),
         };
 
@@ -128,10 +128,10 @@ impl<T> Clone for Client<T> {
 enum InnerClient<T> {
     OpenAICompat(Box<OpenAIProvider<T>>),
     Anthropic(Box<Anthropic<T>>),
-    Bedrock(Box<crate::provider::bedrock::BedrockProvider<T>>),
+    Bedrock(Box<crate::provider_client::bedrock::BedrockProvider<T>>),
 }
 
-impl<T: HttpClientService> Client<T> {
+impl<T: HttpInfra> Client<T> {
     fn retry<A>(&self, result: anyhow::Result<A>) -> anyhow::Result<A> {
         let retry_config = &self.retry_config;
         result.map_err(move |e| into_retry(e, retry_config))
@@ -157,7 +157,7 @@ impl<T: HttpClientService> Client<T> {
     }
 }
 
-impl<T: HttpClientService> Client<T> {
+impl<T: HttpInfra> Client<T> {
     pub async fn chat(
         &self,
         model: &ModelId,
@@ -228,10 +228,10 @@ mod tests {
     use std::sync::Arc;
 
     use bytes::Bytes;
-    use forge_app::HttpClientService;
     use forge_app::domain::ProviderId;
-    use reqwest::Url;
+    use forge_app::HttpInfra;
     use reqwest::header::HeaderMap;
+    use reqwest::Url;
     use reqwest_eventsource::EventSource;
 
     use super::*;
@@ -240,8 +240,8 @@ mod tests {
     struct MockHttpClient;
 
     #[async_trait::async_trait]
-    impl HttpClientService for MockHttpClient {
-        async fn get(
+    impl HttpInfra for MockHttpClient {
+        async fn http_get(
             &self,
             _url: &Url,
             _headers: Option<HeaderMap>,
@@ -249,15 +249,15 @@ mod tests {
             Err(anyhow::anyhow!("Mock HTTP client - no real requests"))
         }
 
-        async fn post(&self, _url: &Url, _body: Bytes) -> anyhow::Result<reqwest::Response> {
+        async fn http_post(&self, _url: &Url, _body: Bytes) -> anyhow::Result<reqwest::Response> {
             Err(anyhow::anyhow!("Mock HTTP client - no real requests"))
         }
 
-        async fn delete(&self, _url: &Url) -> anyhow::Result<reqwest::Response> {
+        async fn http_delete(&self, _url: &Url) -> anyhow::Result<reqwest::Response> {
             Err(anyhow::anyhow!("Mock HTTP client - no real requests"))
         }
 
-        async fn eventsource(
+        async fn http_eventsource(
             &self,
             _url: &Url,
             _headers: Option<HeaderMap>,
@@ -322,7 +322,7 @@ mod tests {
         // but that's expected)
         let result = client.refresh_models().await;
         assert!(result.is_err()); // Expected to fail since we're not hitting a
-        // real API
+                                  // real API
     }
 
     #[tokio::test]

@@ -22,7 +22,7 @@ use crate::env::ForgeEnvironmentService;
 use crate::instructions::ForgeCustomInstructionsService;
 use crate::mcp::{ForgeMcpManager, ForgeMcpService};
 use crate::policy::ForgePolicyService;
-use crate::provider::ForgeProviderService;
+use crate::provider_service::ForgeProviderService;
 use crate::template::ForgeTemplateService;
 use crate::tool_services::{
     ForgeFetch, ForgeFollowup, ForgeFsCreate, ForgeFsPatch, ForgeFsRead, ForgeFsRemove,
@@ -167,7 +167,6 @@ impl<
             env_service,
             custom_instructions_service,
             auth_service,
-            chat_service,
             config_service,
             agent_registry_service,
             command_loader_service,
@@ -175,6 +174,7 @@ impl<
             provider_auth_service,
             codebase_service,
             skill_service,
+            chat_service,
         }
     }
 }
@@ -208,7 +208,6 @@ impl<
         + 'static,
 > Services for ForgeServices<F>
 {
-    type ProviderService = ForgeProviderService<F>;
     type AppConfigService = ForgeAppConfigService<F>;
     type ConversationService = ForgeConversationService<F>;
     type TemplateService = ForgeTemplateService<F>;
@@ -239,12 +238,9 @@ impl<
     type AgentRegistry = ForgeAgentRegistryService<F>;
     type CommandLoaderService = ForgeCommandLoaderService<F>;
     type PolicyService = ForgePolicyService<F>;
+    type ProviderService = ForgeProviderService<F>;
     type CodebaseService = crate::context_engine::ForgeContextEngineService<F>;
     type SkillFetchService = ForgeSkillFetch<F>;
-
-    fn provider_service(&self) -> &Self::ProviderService {
-        &self.chat_service
-    }
 
     fn config_service(&self) -> &Self::AppConfigService {
         &self.config_service
@@ -350,5 +346,9 @@ impl<
     }
     fn skill_fetch_service(&self) -> &Self::SkillFetchService {
         &self.skill_service
+    }
+
+    fn provider_service(&self) -> &Self::ProviderService {
+        &self.chat_service
     }
 }

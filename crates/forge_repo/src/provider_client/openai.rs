@@ -1,20 +1,20 @@
 use std::sync::Arc;
 
 use anyhow::{Context as _, Result};
-use forge_app::HttpClientService;
 use forge_app::domain::{
     ChatCompletionMessage, Context as ChatContext, ModelId, ProviderId, ResultStream, Transformer,
 };
 use forge_app::dto::openai::{ListModelResponse, ProviderPipeline, Request, Response};
+use forge_app::HttpInfra;
 use forge_domain::Provider;
 use lazy_static::lazy_static;
 use reqwest::header::AUTHORIZATION;
 use tracing::{debug, info};
 use url::Url;
 
-use crate::provider::client::{create_headers, join_url};
-use crate::provider::event::into_chat_completion_message;
-use crate::provider::utils::{format_http_context, sanitize_headers};
+use crate::provider_client::client::{create_headers, join_url};
+use crate::provider_client::event::into_chat_completion_message;
+use crate::provider_client::utils::{format_http_context, sanitize_headers};
 
 #[derive(Clone)]
 pub struct OpenAIProvider<H> {
@@ -22,7 +22,7 @@ pub struct OpenAIProvider<H> {
     http: Arc<H>,
 }
 
-impl<H: HttpClientService> OpenAIProvider<H> {
+impl<H: HttpInfra> OpenAIProvider<H> {
     pub fn new(provider: Provider<Url>, http: Arc<H>) -> Self {
         Self { provider, http }
     }
@@ -71,15 +71,15 @@ impl<H: HttpClientService> OpenAIProvider<H> {
     fn get_headers_with_request(&self, request: &Request) -> Vec<(String, String)> {
         let mut headers = self.get_headers();
         // Add Session-Id header for zai and zai_coding providers
-        if let Some(session_id) = &request.session_id
-            && (self.provider.id == ProviderId::ZAI || self.provider.id == ProviderId::ZAI_CODING)
-        {
-            headers.push(("Session-Id".to_string(), session_id.clone()));
-            debug!(
-                provider = %self.provider.url,
-                session_id = %session_id,
-                "Added Session-Id header for zai provider"
-            );
+        if let Some(session_id) = &request.session_id {
+            if self.provider.id == ProviderId::ZAI || self.provider.id == ProviderId::ZAI_CODING {
+                headers.push(("Session-Id".to_string(), session_id.clone()));
+                debug!(
+                    provider = %self.provider.url,
+                    session_id = %session_id,
+                    "Added Session-Id header for zai provider"
+                );
+            }
         }
 
         headers
@@ -111,7 +111,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
 
         let es = self
             .http
-            .eventsource(&url, Some(headers), json_bytes.into())
+            .http_eventsource(&url, Some(headers), json_bytes.into())
             .await
             .with_context(|| format_http_context(None, "POST", &url))?;
 
@@ -162,7 +162,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
 
         let response = self
             .http
-            .get(&url, Some(headers))
+            .http_get(&url, Some(headers))
             .await
             .with_context(|| format_http_context(None, "GET", &url))
             .with_context(|| "Failed to fetch the models")?;
@@ -198,7 +198,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
     }
 }
 
-impl<T: HttpClientService> OpenAIProvider<T> {
+impl<T: HttpInfra> OpenAIProvider<T> {
     pub async fn chat(
         &self,
         model: &ModelId,
@@ -219,14 +219,14 @@ mod tests {
 
     use anyhow::Context;
     use bytes::Bytes;
-    use forge_app::HttpClientService;
     use forge_app::domain::{Provider, ProviderId, ProviderResponse};
+    use forge_app::HttpInfra;
     use reqwest::header::HeaderMap;
     use reqwest_eventsource::EventSource;
     use url::Url;
 
     use super::*;
-    use crate::provider::mock_server::{MockServer, normalize_ports};
+    use crate::provider_client::mock_server::{normalize_ports, MockServer};
 
     // Test helper functions
     fn make_credential(provider_id: ProviderId, key: &str) -> Option<forge_domain::AuthCredential> {
@@ -299,7 +299,7 @@ mod tests {
         }
     }
 
-    // Mock implementation of HttpClientService for testing
+    // Mock implementation of HttpInfra for testing
     #[derive(Clone)]
     struct MockHttpClient {
         client: reqwest::Client,
@@ -312,34 +312,30 @@ mod tests {
     }
 
     #[async_trait::async_trait]
-    impl HttpClientService for MockHttpClient {
-        async fn get(
+    impl HttpInfra for MockHttpClient {
+        async fn http_get(
             &self,
-            url: &reqwest::Url,
-            headers: Option<HeaderMap>,
+            url: &Url,
+            _headers: Option<HeaderMap>,
         ) -> anyhow::Result<reqwest::Response> {
             let mut request = self.client.get(url.clone());
-            if let Some(headers) = headers {
+            if let Some(headers) = _headers {
                 request = request.headers(headers);
             }
             Ok(request.send().await?)
         }
 
-        async fn post(
-            &self,
-            _url: &reqwest::Url,
-            _body: Bytes,
-        ) -> anyhow::Result<reqwest::Response> {
+        async fn http_post(&self, _url: &Url, _body: Bytes) -> anyhow::Result<reqwest::Response> {
             unimplemented!()
         }
 
-        async fn delete(&self, _url: &reqwest::Url) -> anyhow::Result<reqwest::Response> {
+        async fn http_delete(&self, _url: &Url) -> anyhow::Result<reqwest::Response> {
             unimplemented!()
         }
 
-        async fn eventsource(
+        async fn http_eventsource(
             &self,
-            _url: &reqwest::Url,
+            _url: &Url,
             _headers: Option<HeaderMap>,
             _body: Bytes,
         ) -> anyhow::Result<EventSource> {
@@ -515,16 +511,12 @@ mod tests {
 
         // Should have Authorization and Session-Id headers
         assert_eq!(headers.len(), 2);
-        assert!(
-            headers
-                .iter()
-                .any(|(k, v)| k == "authorization" && v == "Bearer test-key")
-        );
-        assert!(
-            headers
-                .iter()
-                .any(|(k, v)| k == "Session-Id" && v == "test-conversation-id")
-        );
+        assert!(headers
+            .iter()
+            .any(|(k, v)| k == "authorization" && v == "Bearer test-key"));
+        assert!(headers
+            .iter()
+            .any(|(k, v)| k == "Session-Id" && v == "test-conversation-id"));
         Ok(())
     }
 
@@ -544,16 +536,12 @@ mod tests {
 
         // Should have Authorization and Session-Id headers
         assert_eq!(headers.len(), 2);
-        assert!(
-            headers
-                .iter()
-                .any(|(k, v)| k == "authorization" && v == "Bearer test-key")
-        );
-        assert!(
-            headers
-                .iter()
-                .any(|(k, v)| k == "Session-Id" && v == "test-conversation-id")
-        );
+        assert!(headers
+            .iter()
+            .any(|(k, v)| k == "authorization" && v == "Bearer test-key"));
+        assert!(headers
+            .iter()
+            .any(|(k, v)| k == "Session-Id" && v == "test-conversation-id"));
         Ok(())
     }
 
@@ -573,11 +561,9 @@ mod tests {
 
         // Should only have Authorization header (no Session-Id for non-zai providers)
         assert_eq!(headers.len(), 1);
-        assert!(
-            headers
-                .iter()
-                .any(|(k, v)| k == "authorization" && v == "Bearer test-key")
-        );
+        assert!(headers
+            .iter()
+            .any(|(k, v)| k == "authorization" && v == "Bearer test-key"));
         assert!(!headers.iter().any(|(k, _)| k == "Session-Id"));
         Ok(())
     }
@@ -595,11 +581,9 @@ mod tests {
 
         // Should only have Authorization header (no Session-Id when session_id is None)
         assert_eq!(headers.len(), 1);
-        assert!(
-            headers
-                .iter()
-                .any(|(k, v)| k == "authorization" && v == "Bearer test-key")
-        );
+        assert!(headers
+            .iter()
+            .any(|(k, v)| k == "authorization" && v == "Bearer test-key"));
         assert!(!headers.iter().any(|(k, _)| k == "Session-Id"));
         Ok(())
     }
@@ -620,11 +604,9 @@ mod tests {
 
         // Should only have Authorization header (no Session-Id for Anthropic providers)
         assert_eq!(headers.len(), 1);
-        assert!(
-            headers
-                .iter()
-                .any(|(k, v)| k == "authorization" && v == "Bearer test-key")
-        );
+        assert!(headers
+            .iter()
+            .any(|(k, v)| k == "authorization" && v == "Bearer test-key"));
         assert!(!headers.iter().any(|(k, _)| k == "Session-Id"));
         Ok(())
     }
@@ -640,11 +622,9 @@ mod tests {
         // Should only have Authorization header (fallback method doesn't add
         // Session-Id)
         assert_eq!(headers.len(), 1);
-        assert!(
-            headers
-                .iter()
-                .any(|(k, v)| k == "authorization" && v == "Bearer test-key")
-        );
+        assert!(headers
+            .iter()
+            .any(|(k, v)| k == "authorization" && v == "Bearer test-key"));
         assert!(!headers.iter().any(|(k, _)| k == "Session-Id"));
         Ok(())
     }

@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use anyhow::Context as _;
-use forge_app::HttpClientService;
 use forge_app::domain::{
     ChatCompletionMessage, Context, Model, ModelId, ResultStream, Transformer,
 };
@@ -9,12 +8,13 @@ use forge_app::dto::anthropic::{
     AuthSystemMessage, DropInvalidToolUse, EventData, ListModelResponse, ReasoningTransform,
     Request, SetCache,
 };
+use forge_app::HttpInfra;
 use reqwest::Url;
 use tracing::debug;
 
-use crate::provider::client::create_headers;
-use crate::provider::event::into_chat_completion_message;
-use crate::provider::utils::format_http_context;
+use crate::provider_client::client::create_headers;
+use crate::provider_client::event::into_chat_completion_message;
+use crate::provider_client::utils::format_http_context;
 
 #[derive(Clone)]
 pub struct Anthropic<T> {
@@ -26,7 +26,7 @@ pub struct Anthropic<T> {
     use_oauth: bool,
 }
 
-impl<H: HttpClientService> Anthropic<H> {
+impl<H: HttpInfra> Anthropic<H> {
     pub fn new(
         http: Arc<H>,
         api_key: String,
@@ -70,7 +70,7 @@ impl<H: HttpClientService> Anthropic<H> {
     }
 }
 
-impl<T: HttpClientService> Anthropic<T> {
+impl<T: HttpInfra> Anthropic<T> {
     pub async fn chat(
         &self,
         model: &ModelId,
@@ -97,7 +97,7 @@ impl<T: HttpClientService> Anthropic<T> {
 
         let source = self
             .http
-            .eventsource(
+            .http_eventsource(
                 url,
                 Some(create_headers(self.get_headers())),
                 json_bytes.into(),
@@ -117,7 +117,7 @@ impl<T: HttpClientService> Anthropic<T> {
 
                 let response = self
                     .http
-                    .get(url, Some(create_headers(self.get_headers())))
+                    .http_get(url, Some(create_headers(self.get_headers())))
                     .await
                     .with_context(|| format_http_context(None, "GET", url))
                     .with_context(|| "Failed to fetch models")?;
@@ -154,18 +154,18 @@ impl<T: HttpClientService> Anthropic<T> {
 mod tests {
 
     use bytes::Bytes;
-    use forge_app::HttpClientService;
     use forge_app::domain::{
         Context, ContextMessage, ToolCallFull, ToolCallId, ToolChoice, ToolName, ToolOutput,
         ToolResult,
     };
+    use forge_app::HttpInfra;
     use reqwest::header::HeaderMap;
     use reqwest_eventsource::EventSource;
 
     use super::*;
-    use crate::provider::mock_server::{MockServer, normalize_ports};
+    use crate::provider_client::mock_server::{normalize_ports, MockServer};
 
-    // Mock implementation of HttpClientService for testing
+    // Mock implementation of HttpInfra for testing
     #[derive(Clone)]
     struct MockHttpClient {
         client: reqwest::Client,
@@ -178,28 +178,28 @@ mod tests {
     }
 
     #[async_trait::async_trait]
-    impl HttpClientService for MockHttpClient {
-        async fn get(
+    impl HttpInfra for MockHttpClient {
+        async fn http_get(
             &self,
-            url: &reqwest::Url,
-            headers: Option<HeaderMap>,
+            url: &Url,
+            _headers: Option<HeaderMap>,
         ) -> anyhow::Result<reqwest::Response> {
             let mut request = self.client.get(url.clone());
-            if let Some(headers) = headers {
+            if let Some(headers) = _headers {
                 request = request.headers(headers);
             }
             Ok(request.send().await?)
         }
 
-        async fn post(&self, _url: &Url, _body: Bytes) -> anyhow::Result<reqwest::Response> {
+        async fn http_post(&self, _url: &Url, _body: Bytes) -> anyhow::Result<reqwest::Response> {
             unimplemented!()
         }
 
-        async fn delete(&self, _url: &Url) -> anyhow::Result<reqwest::Response> {
+        async fn http_delete(&self, _url: &Url) -> anyhow::Result<reqwest::Response> {
             unimplemented!()
         }
 
-        async fn eventsource(
+        async fn http_eventsource(
             &self,
             _url: &Url,
             _headers: Option<HeaderMap>,

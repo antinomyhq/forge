@@ -29,30 +29,30 @@ impl Transformer for SetCache {
         }
 
         // Add cache point after first system message
-        if let Some(system_messages) = request.system.as_mut()
-            && !system_messages.is_empty()
-        {
-            system_messages.insert(
-                1,
-                SystemContentBlock::CachePoint(
+        if let Some(system_messages) = request.system.as_mut() {
+            if !system_messages.is_empty() {
+                system_messages.insert(
+                    1,
+                    SystemContentBlock::CachePoint(
+                        CachePointBlock::builder()
+                            .r#type(CachePointType::Default)
+                            .build()
+                            .expect("Failed to build CachePointBlock"),
+                    ),
+                );
+            }
+        }
+
+        // Add cache point at the end of the last message's content
+        if let Some(messages) = request.messages.as_mut() {
+            if let Some(last_message) = messages.last_mut() {
+                last_message.content.push(ContentBlock::CachePoint(
                     CachePointBlock::builder()
                         .r#type(CachePointType::Default)
                         .build()
                         .expect("Failed to build CachePointBlock"),
-                ),
-            );
-        }
-
-        // Add cache point at the end of the last message's content
-        if let Some(messages) = request.messages.as_mut()
-            && let Some(last_message) = messages.last_mut()
-        {
-            last_message.content.push(ContentBlock::CachePoint(
-                CachePointBlock::builder()
-                    .r#type(CachePointType::Default)
-                    .build()
-                    .expect("Failed to build CachePointBlock"),
-            ));
+                ));
+            }
         }
 
         request
@@ -65,7 +65,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::FromDomain;
+    use crate::provider_client::FromDomain;
 
     fn has_cache_point_after_first_system(request: &ConverseStreamInput) -> bool {
         request
