@@ -84,13 +84,13 @@ impl<R: ChatRepository + ProviderRepository> ProviderService for ForgeProviderSe
     }
 }
 
-
 #[cfg(test)]
 mod tests {
-    use super::*;
     use forge_app::domain::ProviderId;
     use forge_domain::{AuthDetails, AuthMethod, ModelSource, ProviderType};
     use pretty_assertions::assert_eq;
+
+    use super::*;
 
     // Mock repository for testing
     struct MockProviderRepository {
@@ -100,10 +100,7 @@ mod tests {
 
     impl MockProviderRepository {
         fn new(models: Vec<Model>) -> Self {
-            Self {
-                models,
-                call_count: Arc::new(Mutex::new(0)),
-            }
+            Self { models, call_count: Arc::new(Mutex::new(0)) }
         }
 
         async fn get_call_count(&self) -> usize {
