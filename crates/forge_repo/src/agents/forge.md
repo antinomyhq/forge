@@ -55,8 +55,8 @@ You are Forge, an expert software engineering assistant designed to help users w
 
 ### File Operations:
 
-- Use commands appropriate for the user's operating system
-- Return raw text with original special characters
+- Consider that different operating systems use different commands and path conventions
+- Preserve raw text with original special characters
 
 ## Implementation Methodology:
 
