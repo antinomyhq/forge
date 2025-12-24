@@ -4,7 +4,7 @@ use uuid::Uuid;
 
 use crate::UserId;
 
-/// Workspace identifier (UUID) from codebase server.
+/// Workspace identifier (UUID) from workspace server.
 ///
 /// Generated locally and sent to server during CreateWorkspace.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Display)]

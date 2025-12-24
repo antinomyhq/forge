@@ -133,9 +133,9 @@ pub trait WorkspaceRepository: Send + Sync {
     async fn delete(&self, workspace_id: &WorkspaceId) -> anyhow::Result<()>;
 }
 
-/// Repository for managing codebase indexing and search operations
+/// Repository for managing workspace indexing and search operations
 #[async_trait::async_trait]
-pub trait ContextEngineRepository: Send + Sync {
+pub trait WorkspaceIndexRepository: Send + Sync {
     /// Authenticate with the indexing service via gRPC API
     async fn authenticate(&self) -> anyhow::Result<WorkspaceAuth>;
 

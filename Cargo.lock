@@ -1661,7 +1661,6 @@ dependencies = [
  "console 0.16.2",
  "derive_setters",
  "insta",
- "minimad 0.14.0",
  "pretty_assertions",
  "regex",
  "similar",
@@ -3337,15 +3336,6 @@ name = "minimad"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a9c5d708226d186590a7b6d4a9780e2bdda5f689e0d58cd17012a298efd745d2"
-dependencies = [
- "once_cell",
-]
-
-[[package]]
-name = "minimad"
-version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df8b688969b16915f3ecadc7829d5b7779dee4977e503f767f34136803d5c06f"
 dependencies = [
  "once_cell",
 ]
@@ -5427,7 +5417,7 @@ dependencies = [
  "crokey",
  "crossbeam",
  "lazy-regex",
- "minimad 0.13.1",
+ "minimad",
  "serde",
  "thiserror 2.0.17",
  "unicode-width 0.1.14",
