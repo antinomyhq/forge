@@ -1,6 +1,6 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -16,33 +16,26 @@ use forge_stream::MpscStream;
 use futures::future::join_all;
 use tracing::{info, warn};
 
-/// Helper module for filtering files by allowed extensions
-mod file_filter {
-    use std::collections::HashSet;
-    use std::path::Path;
-    use std::sync::OnceLock;
+/// Loads allowed file extensions from allowed_extensions.txt into a HashSet
+fn allowed_extensions() -> &'static HashSet<String> {
+    static ALLOWED_EXTENSIONS: OnceLock<HashSet<String>> = OnceLock::new();
+    ALLOWED_EXTENSIONS.get_or_init(|| {
+        let extensions_str = include_str!("allowed_extensions.txt");
+        extensions_str
+            .lines()
+            .map(|line| line.trim().to_lowercase())
+            .filter(|line| !line.is_empty())
+            .collect()
+    })
+}
 
-    /// Loads allowed file extensions from allowed_extensions.txt into a HashSet
-    fn allowed_extensions() -> &'static HashSet<String> {
-        static ALLOWED_EXTENSIONS: OnceLock<HashSet<String>> = OnceLock::new();
-        ALLOWED_EXTENSIONS.get_or_init(|| {
-            let extensions_str = include_str!("allowed_extensions.txt");
-            extensions_str
-                .lines()
-                .map(|line| line.trim().to_lowercase())
-                .filter(|line| !line.is_empty())
-                .collect()
-        })
-    }
-
-    /// Checks if a file has an allowed extension for workspace syncing (O(1) lookup)
-    pub fn has_allowed_extension(path: &Path) -> bool {
-        if let Some(extension) = path.extension() {
-            let ext = extension.to_string_lossy().to_lowercase();
-            allowed_extensions().contains(&ext)
-        } else {
-            false
-        }
+/// Checks if a file has an allowed extension for workspace syncing (O(1) lookup)
+fn has_allowed_extension(path: &Path) -> bool {
+    if let Some(extension) = path.extension() {
+        let ext = extension.to_string_lossy().to_lowercase();
+        allowed_extensions().contains(&ext)
+    } else {
+        false
     }
 }
 
@@ -345,7 +338,7 @@ impl<F> ForgeWorkspaceService<F> {
             .into_iter()
             .filter(|walked| {
                 let file_path = dir_path.join(&walked.path);
-                file_filter::has_allowed_extension(&file_path)
+                has_allowed_extension(&file_path)
             })
             .collect();
 
