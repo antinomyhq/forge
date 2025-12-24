@@ -6,10 +6,10 @@ use anyhow::Result;
 use forge_app::dto::ToolsOverview;
 use forge_app::{
     AgentProviderResolver, AgentRegistry, AppConfigService, AuthService, CommandInfra,
-    CommandLoaderService, ContextEngineService, ConversationService, DataGenerationApp,
-    EnvironmentInfra, EnvironmentService, FileDiscoveryService, ForgeApp, GitApp, GrpcInfra,
-    McpConfigManager, McpService, ProviderAuthService, ProviderService, Services, User, UserUsage,
-    Walker,
+    CommandLoaderService, ConversationService, DataGenerationApp, EnvironmentInfra,
+    EnvironmentService, FileDiscoveryService, ForgeApp, GitApp, GrpcInfra, McpConfigManager,
+    McpService, ProviderAuthService, ProviderService, Services, User, UserUsage, Walker,
+    WorkspaceService,
 };
 use forge_domain::{Agent, InitAuth, LoginInfo, *};
 use forge_infra::ForgeInfra;
@@ -327,24 +327,24 @@ impl<
         self.services.remove_credential(provider_id).await
     }
 
-    async fn sync_codebase(
+    async fn sync_workspace(
         &self,
         path: PathBuf,
         batch_size: usize,
     ) -> Result<MpscStream<Result<forge_domain::SyncProgress>>> {
-        self.services.sync_codebase(path, batch_size).await
+        self.services.sync_workspace(path, batch_size).await
     }
 
-    async fn query_codebase(
+    async fn query_workspace(
         &self,
         path: PathBuf,
         params: forge_domain::SearchParams<'_>,
     ) -> Result<Vec<forge_domain::Node>> {
-        self.services.query_codebase(path, params).await
+        self.services.query_workspace(path, params).await
     }
 
-    async fn list_codebases(&self) -> Result<Vec<forge_domain::WorkspaceInfo>> {
-        self.services.list_codebase().await
+    async fn list_workspaces(&self) -> Result<Vec<forge_domain::WorkspaceInfo>> {
+        self.services.list_workspaces().await
     }
 
     async fn get_workspace_info(
@@ -354,8 +354,8 @@ impl<
         self.services.get_workspace_info(path).await
     }
 
-    async fn delete_codebase(&self, workspace_id: forge_domain::WorkspaceId) -> Result<()> {
-        self.services.delete_codebase(&workspace_id).await
+    async fn delete_workspace(&self, workspace_id: forge_domain::WorkspaceId) -> Result<()> {
+        self.services.delete_workspace(&workspace_id).await
     }
 
     async fn get_workspace_status(&self, path: PathBuf) -> Result<Vec<forge_domain::FileStatus>> {

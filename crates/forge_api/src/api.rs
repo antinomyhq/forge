@@ -182,22 +182,22 @@ pub trait API: Sync + Send {
     /// Remove provider credentials (logout)
     async fn remove_provider(&self, provider_id: &ProviderId) -> Result<()>;
 
-    /// Sync a codebase directory for semantic search
-    async fn sync_codebase(
+    /// Sync a workspace directory for semantic search
+    async fn sync_workspace(
         &self,
         path: PathBuf,
         batch_size: usize,
     ) -> Result<MpscStream<Result<forge_domain::SyncProgress>>>;
 
-    /// Query the indexed codebase
-    async fn query_codebase(
+    /// Query the indexed workspace
+    async fn query_workspace(
         &self,
         path: PathBuf,
         params: forge_domain::SearchParams<'_>,
     ) -> Result<Vec<forge_domain::Node>>;
 
     /// List all workspaces
-    async fn list_codebases(&self) -> Result<Vec<forge_domain::WorkspaceInfo>>;
+    async fn list_workspaces(&self) -> Result<Vec<forge_domain::WorkspaceInfo>>;
 
     /// Get workspace information for a specific path
     async fn get_workspace_info(
@@ -206,7 +206,7 @@ pub trait API: Sync + Send {
     ) -> Result<Option<forge_domain::WorkspaceInfo>>;
 
     /// Delete a workspace
-    async fn delete_codebase(&self, workspace_id: forge_domain::WorkspaceId) -> Result<()>;
+    async fn delete_workspace(&self, workspace_id: forge_domain::WorkspaceId) -> Result<()>;
 
     /// Get sync status for all files in workspace
     async fn get_workspace_status(&self, path: PathBuf) -> Result<Vec<forge_domain::FileStatus>>;

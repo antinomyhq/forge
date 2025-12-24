@@ -16,7 +16,7 @@ use crate::dto::ToolsOverview;
 use crate::error::Error;
 use crate::mcp_executor::McpExecutor;
 use crate::tool_executor::ToolExecutor;
-use crate::{ContextEngineService, EnvironmentService, McpService, Services, ToolResolver};
+use crate::{EnvironmentService, McpService, Services, ToolResolver, WorkspaceService};
 
 pub struct ToolRegistry<S> {
     tool_executor: ToolExecutor<S>,
