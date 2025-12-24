@@ -1367,7 +1367,7 @@ mod env_tests {
 
         let _c1 = repo.client(provider.clone()).await.unwrap();
         let _c2 = repo.client(provider).await.unwrap();
-        
+
         let cache = repo.cached_clients.lock().await;
         assert_eq!(cache.len(), 1);
     }
@@ -1388,7 +1388,7 @@ mod env_tests {
         };
 
         let _c = repo.client(provider).await.unwrap();
-        
+
         let credential = AuthCredential {
             id: ProviderId::OPENAI,
             auth_details: AuthDetails::ApiKey(ApiKey::from("key".to_string())),
