@@ -54,7 +54,8 @@ pub struct CodeBlockParser {
 
 impl CodeBlockParser {
     /// Extract code blocks from markdown content.
-    /// Supports both standard and indented code blocks (up to 3 spaces of indentation).
+    /// Supports both standard and indented code blocks (up to 3 spaces of
+    /// indentation).
     pub fn new(content: &str) -> Self {
         let original_lines: Vec<&str> = content.lines().collect();
         let mut blocks = Vec::new();
@@ -73,10 +74,7 @@ impl CodeBlockParser {
                 } else {
                     // Closing fence
                     result.push_str(&format!("\x00{}\x00\n", blocks.len()));
-                    blocks.push(CodeBlock {
-                        code: code_lines.join("\n"),
-                        lang: lang.clone(),
-                    });
+                    blocks.push(CodeBlock { code: code_lines.join("\n"), lang: lang.clone() });
                     code_lines.clear();
                     in_code = false;
                 }
@@ -101,7 +99,7 @@ impl CodeBlockParser {
         let trimmed = line.trim_start();
         if trimmed.starts_with("```") {
             // Extract language tag (everything after ``` until whitespace or end)
-            let lang = trimmed[3..].trim().split_whitespace().next().unwrap_or("");
+            let lang = trimmed[3..].split_whitespace().next().unwrap_or("");
             Some(lang.to_string())
         } else {
             None
@@ -198,36 +196,36 @@ mod tests {
         // With the improved parser, these should now be properly extracted.
         let fixture = include_str!("fixtures/code-01.md");
         let highlighter = SyntaxHighlighter::default();
-        
+
         let parser = CodeBlockParser::new(fixture);
         let actual_blocks = parser.blocks();
-        
+
         // Verify that indented code blocks ARE extracted
         assert_eq!(actual_blocks.len(), 4, "Should extract all 4 code blocks");
-        
+
         // Verify first code block
         assert_eq!(actual_blocks[0].lang, "rust");
         assert!(actual_blocks[0].code.contains("if env.enable_permissions"));
-        
+
         // Verify second code block
         assert_eq!(actual_blocks[1].lang, "rust");
         assert!(actual_blocks[1].code.contains("ToolCatalog::Fetch(input)"));
-        
+
         // Verify third code block
         assert_eq!(actual_blocks[2].lang, "rust");
         assert!(actual_blocks[2].code.contains("(Rule::Fetch(rule)"));
-        
+
         // Verify fourth code block
         assert_eq!(actual_blocks[3].lang, "rust");
         assert!(actual_blocks[3].code.contains("ToolCatalog::Fetch(input)"));
-        
+
         // Verify markdown contains placeholders
         let markdown = parser.markdown();
         assert!(markdown.contains("\x000\x00"));
         assert!(markdown.contains("\x001\x00"));
         assert!(markdown.contains("\x002\x00"));
         assert!(markdown.contains("\x003\x00"));
-        
+
         // Verify full restoration flow preserves content
         let restored = parser.restore(&highlighter, markdown.to_string());
         let stripped = strip_ansi(&restored);
@@ -241,32 +239,32 @@ mod tests {
     fn test_fixture_code_02() {
         let fixture = include_str!("fixtures/code-02.md");
         let highlighter = SyntaxHighlighter::default();
-        
+
         let parser = CodeBlockParser::new(fixture);
         let actual_blocks = parser.blocks();
-        
+
         // Verify correct number of code blocks extracted
         assert_eq!(actual_blocks.len(), 3);
-        
+
         // Verify first code block (Rust)
         assert_eq!(actual_blocks[0].lang, "rust");
         assert!(actual_blocks[0].code.contains("fn main()"));
         assert!(actual_blocks[0].code.contains("println!"));
-        
+
         // Verify second code block (Python)
         assert_eq!(actual_blocks[1].lang, "python");
         assert!(actual_blocks[1].code.contains("def greet"));
-        
+
         // Verify third code block (JavaScript)
         assert_eq!(actual_blocks[2].lang, "javascript");
         assert!(actual_blocks[2].code.contains("function add"));
-        
+
         // Verify markdown contains placeholders
         let markdown = parser.markdown();
         assert!(markdown.contains("\x000\x00"));
         assert!(markdown.contains("\x001\x00"));
         assert!(markdown.contains("\x002\x00"));
-        
+
         // Verify full restoration flow preserves content
         let restored = parser.restore(&highlighter, markdown.to_string());
         let stripped = strip_ansi(&restored);

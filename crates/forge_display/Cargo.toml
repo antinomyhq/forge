@@ -11,7 +11,6 @@ similar.workspace = true
 console.workspace = true
 regex.workspace = true
 termimad.workspace = true
-minimad.workspace = true
 syntect.workspace = true
 
 [dev-dependencies]
