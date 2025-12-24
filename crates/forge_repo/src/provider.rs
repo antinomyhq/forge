@@ -148,7 +148,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
 {
     /// Creates a provider client without caching
     /// The service layer is responsible for caching
-    pub async fn build_client(&self, provider: Provider<Url>) -> anyhow::Result<Client<F>> {
+    pub async fn client(&self, provider: Provider<Url>) -> anyhow::Result<Client<F>> {
         let infra = self.infra.clone();
         let retry_config = Arc::new(self.infra.get_environment().retry_config);
         ClientBuilder::new(provider, &self.version)
@@ -432,7 +432,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Sync>
         context: Context,
         provider: Provider<Url>,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
-        let client = self.build_client(provider).await?;
+        let client = self.client(provider).await?;
 
         client
             .chat(model_id, context)
@@ -441,7 +441,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Sync>
     }
 
     async fn models(&self, provider: Provider<Url>) -> anyhow::Result<Vec<Model>> {
-        let client = self.build_client(provider).await?;
+        let client = self.client(provider).await?;
         client.models().await
     }
 
