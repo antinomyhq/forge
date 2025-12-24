@@ -5,14 +5,14 @@ use std::sync::Arc;
 
 use anyhow::{Context as _, Result};
 use derive_setters::Setters;
+use forge_app::HttpInfra;
 use forge_app::domain::{
     ChatCompletionMessage, Context, HttpConfig, Model, ModelId, ProviderResponse, ResultStream,
     RetryConfig,
 };
-use forge_app::HttpInfra;
 use forge_domain::Provider;
-use reqwest::header::HeaderMap;
 use reqwest::Url;
+use reqwest::header::HeaderMap;
 use tokio::sync::RwLock;
 use tokio_stream::StreamExt;
 
@@ -228,10 +228,10 @@ mod tests {
     use std::sync::Arc;
 
     use bytes::Bytes;
-    use forge_app::domain::ProviderId;
     use forge_app::HttpInfra;
-    use reqwest::header::HeaderMap;
+    use forge_app::domain::ProviderId;
     use reqwest::Url;
+    use reqwest::header::HeaderMap;
     use reqwest_eventsource::EventSource;
 
     use super::*;
@@ -322,7 +322,7 @@ mod tests {
         // but that's expected)
         let result = client.refresh_models().await;
         assert!(result.is_err()); // Expected to fail since we're not hitting a
-                                  // real API
+        // real API
     }
 
     #[tokio::test]

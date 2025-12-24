@@ -29,8 +29,8 @@ impl Transformer for SetCache {
         }
 
         // Add cache point after first system message
-        if let Some(system_messages) = request.system.as_mut() {
-            if !system_messages.is_empty() {
+        if let Some(system_messages) = request.system.as_mut()
+            && !system_messages.is_empty() {
                 system_messages.insert(
                     1,
                     SystemContentBlock::CachePoint(
@@ -41,11 +41,10 @@ impl Transformer for SetCache {
                     ),
                 );
             }
-        }
 
         // Add cache point at the end of the last message's content
-        if let Some(messages) = request.messages.as_mut() {
-            if let Some(last_message) = messages.last_mut() {
+        if let Some(messages) = request.messages.as_mut()
+            && let Some(last_message) = messages.last_mut() {
                 last_message.content.push(ContentBlock::CachePoint(
                     CachePointBlock::builder()
                         .r#type(CachePointType::Default)
@@ -53,7 +52,6 @@ impl Transformer for SetCache {
                         .expect("Failed to build CachePointBlock"),
                 ));
             }
-        }
 
         request
     }

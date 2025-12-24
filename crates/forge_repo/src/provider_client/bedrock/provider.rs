@@ -1,6 +1,6 @@
 use anyhow::{Context as _, Result};
-use aws_sdk_bedrockruntime::config::Token;
 use aws_sdk_bedrockruntime::Client;
+use aws_sdk_bedrockruntime::config::Token;
 use forge_app::HttpInfra;
 use forge_domain::{
     AuthDetails, ChatCompletionMessage, Context, Model, ModelId, Provider, ResultStream,
@@ -658,8 +658,8 @@ impl FromDomain<forge_domain::ContextMessage> for aws_sdk_bedrockruntime::types:
                 // Add reasoning blocks FIRST if present (required by AWS when extended thinking
                 // is enabled) AWS requires that when thinking is enabled,
                 // assistant messages MUST start with thinking blocks
-                if text_msg.role == forge_domain::Role::Assistant {
-                    if let Some(reasoning_details) = &text_msg.reasoning_details {
+                if text_msg.role == forge_domain::Role::Assistant
+                    && let Some(reasoning_details) = &text_msg.reasoning_details {
                         for reasoning in reasoning_details {
                             // Create a thinking content block
                             if let Some(text) = &reasoning.text {
@@ -684,7 +684,6 @@ impl FromDomain<forge_domain::ContextMessage> for aws_sdk_bedrockruntime::types:
                             }
                         }
                     }
-                }
 
                 // Add text content if not empty
                 if !text_msg.content.is_empty() {

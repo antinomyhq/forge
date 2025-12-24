@@ -7,11 +7,9 @@ pub fn into_retry(error: anyhow::Error, retry_config: &RetryConfig) -> anyhow::E
     if let Some(code) = get_req_status_code(&error)
         .or(get_event_req_status_code(&error))
         .or(get_api_status_code(&error))
-    {
-        if retry_config.retry_status_codes.contains(&code) {
+        && retry_config.retry_status_codes.contains(&code) {
             return DomainError::Retryable(error).into();
         }
-    }
 
     if is_api_transport_error(&error)
         || is_req_transport_error(&error)

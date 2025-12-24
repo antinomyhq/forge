@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::Context as _;
+use forge_app::HttpInfra;
 use forge_app::domain::{
     ChatCompletionMessage, Context, Model, ModelId, ResultStream, Transformer,
 };
@@ -8,7 +9,6 @@ use forge_app::dto::anthropic::{
     AuthSystemMessage, DropInvalidToolUse, EventData, ListModelResponse, ReasoningTransform,
     Request, SetCache,
 };
-use forge_app::HttpInfra;
 use reqwest::Url;
 use tracing::debug;
 
@@ -154,16 +154,16 @@ impl<T: HttpInfra> Anthropic<T> {
 mod tests {
 
     use bytes::Bytes;
+    use forge_app::HttpInfra;
     use forge_app::domain::{
         Context, ContextMessage, ToolCallFull, ToolCallId, ToolChoice, ToolName, ToolOutput,
         ToolResult,
     };
-    use forge_app::HttpInfra;
     use reqwest::header::HeaderMap;
     use reqwest_eventsource::EventSource;
 
     use super::*;
-    use crate::provider_client::mock_server::{normalize_ports, MockServer};
+    use crate::provider_client::mock_server::{MockServer, normalize_ports};
 
     // Mock implementation of HttpInfra for testing
     #[derive(Clone)]
