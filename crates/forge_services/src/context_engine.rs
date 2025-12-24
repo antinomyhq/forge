@@ -798,10 +798,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_query_error_when_not_found() {
-        let mock = MockInfra {
-            authenticated: true,
-            ..Default::default()
-        };
+        let mock = MockInfra { authenticated: true, ..Default::default() };
         let service = ForgeContextEngineService::new(Arc::new(mock));
 
         let params = forge_domain::SearchParams::new("test", "fest").limit(10usize);
@@ -1089,10 +1086,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_get_workspace_status_not_indexed() {
-        let mock = MockInfra {
-            authenticated: true,
-            ..Default::default()
-        };
+        let mock = MockInfra { authenticated: true, ..Default::default() };
         let service = ForgeContextEngineService::new(Arc::new(mock));
 
         let actual = service.get_workspace_status(PathBuf::from(".")).await;
