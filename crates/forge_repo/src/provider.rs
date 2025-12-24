@@ -15,7 +15,6 @@ use forge_domain::{
 use handlebars::Handlebars;
 use merge::Merge;
 use serde::Deserialize;
-use tokio::sync::Mutex;
 use url::Url;
 
 use crate::provider_client::{Client, ClientBuilder};
@@ -130,8 +129,6 @@ fn get_provider_configs() -> &'static Vec<ProviderConfig> {
 pub struct ForgeProviderRepository<F> {
     infra: Arc<F>,
     handlebars: &'static Handlebars<'static>,
-    cached_clients: Arc<Mutex<HashMap<ProviderId, Client<F>>>>,
-    cached_models: Arc<Mutex<HashMap<ProviderId, Vec<Model>>>>,
     retry_config: Arc<RetryConfig>,
     timeout_config: HttpConfig,
     version: String,
@@ -146,8 +143,6 @@ impl<F: EnvironmentInfra> ForgeProviderRepository<F> {
         Self {
             infra,
             handlebars: get_handlebars(),
-            cached_clients: Arc::new(Mutex::new(HashMap::new())),
-            cached_models: Arc::new(Mutex::new(HashMap::new())),
             retry_config,
             timeout_config,
             version,
@@ -158,33 +153,15 @@ impl<F: EnvironmentInfra> ForgeProviderRepository<F> {
 impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
     ForgeProviderRepository<F>
 {
-    /// Creates or retrieves a cached provider client
-    async fn client(&self, provider: Provider<Url>) -> anyhow::Result<Client<F>> {
-        let provider_id = provider.id.clone();
-
-        // Check cache first
-        {
-            let clients_guard = self.cached_clients.lock().await;
-            if let Some(cached_client) = clients_guard.get(&provider_id) {
-                return Ok(cached_client.clone());
-            }
-        }
-
-        // Client not in cache, create new client
+    /// Creates a provider client without caching
+    /// The service layer is responsible for caching
+    pub async fn build_client(&self, provider: Provider<Url>) -> anyhow::Result<Client<F>> {
         let infra = self.infra.clone();
-        let client = ClientBuilder::new(provider, &self.version)
+        ClientBuilder::new(provider, &self.version)
             .retry_config(self.retry_config.clone())
             .timeout_config(self.timeout_config.clone())
             .use_hickory(false) // use native DNS resolver(GAI)
-            .build(infra)?;
-
-        // Cache the new client for this provider
-        {
-            let mut clients_guard = self.cached_clients.lock().await;
-            clients_guard.insert(provider_id, client.clone());
-        }
-
-        Ok(client)
+            .build(infra)
     }
 
     async fn get_custom_provider_configs(&self) -> anyhow::Result<Vec<ProviderConfig>> {
@@ -463,7 +440,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Sync>
         context: Context,
         provider: Provider<Url>,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
-        let client = self.client(provider).await?;
+        let client = self.build_client(provider).await?;
 
         client
             .chat(model_id, context)
@@ -472,27 +449,8 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Sync>
     }
 
     async fn models(&self, provider: Provider<Url>) -> anyhow::Result<Vec<Model>> {
-        let provider_id = provider.id.clone();
-
-        // Check cache first
-        {
-            let models_guard = self.cached_models.lock().await;
-            if let Some(cached_models) = models_guard.get(&provider_id) {
-                return Ok(cached_models.clone());
-            }
-        }
-
-        // Models not in cache, fetch from client
-        let client = self.client(provider).await?;
-        let models = client.models().await?;
-
-        // Cache the models for this provider
-        {
-            let mut models_guard = self.cached_models.lock().await;
-            models_guard.insert(provider_id, models.clone());
-        }
-
-        Ok(models)
+        let client = self.build_client(provider).await?;
+        client.models().await
     }
 
     async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
@@ -515,13 +473,6 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Sync>
         }
         self.write_credentials(&credentials).await?;
 
-        // Clear the cached client for this provider to force recreation with new
-        // credentials
-        {
-            let mut clients_guard = self.cached_clients.lock().await;
-            clients_guard.remove(&id);
-        }
-
         Ok(())
     }
 
@@ -534,12 +485,6 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Sync>
         let mut credentials = self.read_credentials().await;
         credentials.retain(|c| &c.id != id);
         self.write_credentials(&credentials).await?;
-
-        // Clear the cached client for this provider
-        {
-            let mut clients_guard = self.cached_clients.lock().await;
-            clients_guard.remove(id);
-        }
 
         Ok(())
     }
@@ -1348,77 +1293,5 @@ mod env_tests {
             .iter()
             .find(|c| c.id == ProviderId::OPEN_ROUTER);
         assert!(openrouter_config.is_some());
-    }
-
-    #[tokio::test]
-    async fn test_client_caching() {
-        let infra = Arc::new(MockInfra::new(HashMap::new()));
-        let repo = ForgeProviderRepository::new(infra.clone());
-        let provider = Provider {
-            id: ProviderId::OPENAI,
-            provider_type: Default::default(),
-            response: Some(ProviderResponse::OpenAI),
-            url: Url::parse("https://api.openai.com/v1").unwrap(),
-            auth_methods: vec![],
-            url_params: vec![],
-            credential: None,
-            models: None,
-        };
-
-        let _c1 = repo.client(provider.clone()).await.unwrap();
-        let _c2 = repo.client(provider).await.unwrap();
-
-        let cache = repo.cached_clients.lock().await;
-        assert_eq!(cache.len(), 1);
-    }
-
-    #[tokio::test]
-    async fn test_cache_cleared_on_upsert() {
-        let infra = Arc::new(MockInfra::new(HashMap::new()));
-        let repo = ForgeProviderRepository::new(infra.clone());
-        let provider = Provider {
-            id: ProviderId::OPENAI,
-            provider_type: Default::default(),
-            response: Some(ProviderResponse::OpenAI),
-            url: Url::parse("https://api.openai.com/v1").unwrap(),
-            auth_methods: vec![],
-            url_params: vec![],
-            credential: None,
-            models: None,
-        };
-
-        let _c = repo.client(provider).await.unwrap();
-
-        let credential = AuthCredential {
-            id: ProviderId::OPENAI,
-            auth_details: AuthDetails::ApiKey(ApiKey::from("key".to_string())),
-            url_params: HashMap::new(),
-        };
-        repo.upsert_credential(credential).await.unwrap();
-
-        let cache = repo.cached_clients.lock().await;
-        assert!(!cache.contains_key(&ProviderId::OPENAI));
-    }
-
-    #[tokio::test]
-    async fn test_cache_cleared_on_remove() {
-        let infra = Arc::new(MockInfra::new(HashMap::new()));
-        let repo = ForgeProviderRepository::new(infra.clone());
-        let provider = Provider {
-            id: ProviderId::OPENAI,
-            provider_type: Default::default(),
-            response: Some(ProviderResponse::OpenAI),
-            url: Url::parse("https://api.openai.com/v1").unwrap(),
-            auth_methods: vec![],
-            url_params: vec![],
-            credential: None,
-            models: None,
-        };
-
-        let _c = repo.client(provider).await.unwrap();
-        repo.remove_credential(&ProviderId::OPENAI).await.unwrap();
-
-        let cache = repo.cached_clients.lock().await;
-        assert!(!cache.contains_key(&ProviderId::OPENAI));
     }
 }
