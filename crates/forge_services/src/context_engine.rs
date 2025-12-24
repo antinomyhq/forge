@@ -1,6 +1,6 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -15,6 +15,30 @@ use forge_domain::{
 use forge_stream::MpscStream;
 use futures::future::join_all;
 use tracing::{info, warn};
+
+/// Loads allowed file extensions from allowed_extensions.txt into a HashSet
+fn allowed_extensions() -> &'static HashSet<String> {
+    static ALLOWED_EXTENSIONS: OnceLock<HashSet<String>> = OnceLock::new();
+    ALLOWED_EXTENSIONS.get_or_init(|| {
+        let extensions_str = include_str!("allowed_extensions.txt");
+        extensions_str
+            .lines()
+            .map(|line| line.trim().to_lowercase())
+            .filter(|line| !line.is_empty())
+            .collect()
+    })
+}
+
+/// Checks if a file has an allowed extension for workspace syncing (O(1)
+/// lookup)
+fn has_allowed_extension(path: &Path) -> bool {
+    if let Some(extension) = path.extension() {
+        let ext = extension.to_string_lossy().to_lowercase();
+        allowed_extensions().contains(&ext)
+    } else {
+        false
+    }
+}
 
 /// Service for indexing workspaces and performing semantic search
 pub struct ForgeWorkspaceService<F> {
@@ -284,6 +308,7 @@ impl<F> ForgeWorkspaceService<F> {
     }
 
     /// Walks the directory, reads all files, and computes their hashes.
+    /// Only includes files with allowed extensions.
     async fn read_files(&self, dir_path: &Path) -> Result<Vec<FileNode>>
     where
         F: WalkerInfra + FileReaderInfra,
@@ -294,7 +319,7 @@ impl<F> ForgeWorkspaceService<F> {
             .max_depth(usize::MAX)
             .max_breadth(usize::MAX)
             .max_files(usize::MAX)
-            .skip_binary(true);
+            .skip_binary(true); // Walker filters binary files
         walker_config.max_file_size = None;
         walker_config.max_total_size = None;
 
@@ -307,12 +332,32 @@ impl<F> ForgeWorkspaceService<F> {
             .filter(|f| !f.is_dir())
             .collect::<Vec<_>>();
 
-        info!(file_count = walked_files.len(), "Discovered files");
-        anyhow::ensure!(!walked_files.is_empty(), "No files found to index");
+        info!(
+            file_count = walked_files.len(),
+            "Discovered files from walker"
+        );
 
-        // Filter binary files and read all text files
+        // Filter files by allowed extension (pure function, no I/O)
+        let filtered_files: Vec<_> = walked_files
+            .into_iter()
+            .filter(|walked| {
+                let file_path = dir_path.join(&walked.path);
+                has_allowed_extension(&file_path)
+            })
+            .collect();
+
+        info!(
+            filtered_count = filtered_files.len(),
+            "Files after extension filtering"
+        );
+        anyhow::ensure!(
+            !filtered_files.is_empty(),
+            "No valid source files found to index"
+        );
+
+        // Read all filtered files
         let infra = self.infra.clone();
-        let read_tasks = walked_files.into_iter().map(|walked| {
+        let read_tasks = filtered_files.into_iter().map(|walked| {
             let infra = infra.clone();
             let file_path = dir_path.join(&walked.path);
             let relative_path = walked.path.clone();
@@ -521,7 +566,7 @@ mod tests {
     use std::path::PathBuf;
     use std::sync::Arc;
 
-    use forge_app::WalkedFile;
+    use forge_app::{WalkedFile, WorkspaceService};
     use forge_domain::{
         ApiKey, ChatRepository, CodeSearchQuery, FileDeletion, FileHash, FileInfo, FileUpload,
         FileUploadInfo, Node, UserId, Workspace, WorkspaceAuth, WorkspaceFiles, WorkspaceId,
@@ -827,6 +872,43 @@ mod tests {
 
         assert!(actual.is_err());
         assert!(actual.unwrap_err().to_string().contains("not found"));
+    }
+
+    #[tokio::test]
+    async fn test_sync_filters_non_source_files() {
+        // Setup with various file types - source and text files should be synced,
+        // binaries filtered
+        let mut files = HashMap::new();
+        files.insert("source.rs".to_string(), "fn main() {}".to_string());
+        files.insert("image.png".to_string(), "binary content".to_string());
+        files.insert("document.pdf".to_string(), "pdf content".to_string());
+        files.insert("readme.md".to_string(), "# Readme".to_string());
+
+        let mock = MockInfra {
+            files,
+            workspace: None,
+            authenticated: true,
+            ..Default::default()
+        };
+
+        let service = ForgeWorkspaceService::new(Arc::new(mock.clone()));
+
+        let mut stream = service
+            .sync_workspace(PathBuf::from("."), 20)
+            .await
+            .unwrap();
+
+        // Consume the stream
+        while let Some(_) = stream.next().await {}
+
+        // source.rs and readme.md should be uploaded (both have allowed extensions)
+        // image.png and document.pdf should be filtered (not in allowed extensions)
+        let uploaded = mock.uploaded_files.lock().await;
+        assert_eq!(uploaded.len(), 2);
+        assert!(uploaded.contains(&"source.rs".into()));
+        assert!(uploaded.contains(&"readme.md".into()));
+        assert!(!uploaded.contains(&"image.png".into()));
+        assert!(!uploaded.contains(&"document.pdf".into()));
     }
 
     #[tokio::test]
