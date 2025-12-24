@@ -29,7 +29,8 @@ fn allowed_extensions() -> &'static HashSet<String> {
     })
 }
 
-/// Checks if a file has an allowed extension for workspace syncing (O(1) lookup)
+/// Checks if a file has an allowed extension for workspace syncing (O(1)
+/// lookup)
 fn has_allowed_extension(path: &Path) -> bool {
     if let Some(extension) = path.extension() {
         let ext = extension.to_string_lossy().to_lowercase();
@@ -331,7 +332,10 @@ impl<F> ForgeWorkspaceService<F> {
             .filter(|f| !f.is_dir())
             .collect::<Vec<_>>();
 
-        info!(file_count = walked_files.len(), "Discovered files from walker");
+        info!(
+            file_count = walked_files.len(),
+            "Discovered files from walker"
+        );
 
         // Filter files by allowed extension (pure function, no I/O)
         let filtered_files: Vec<_> = walked_files
@@ -346,7 +350,10 @@ impl<F> ForgeWorkspaceService<F> {
             filtered_count = filtered_files.len(),
             "Files after extension filtering"
         );
-        anyhow::ensure!(!filtered_files.is_empty(), "No valid source files found to index");
+        anyhow::ensure!(
+            !filtered_files.is_empty(),
+            "No valid source files found to index"
+        );
 
         // Read all filtered files
         let infra = self.infra.clone();
@@ -848,20 +855,21 @@ mod tests {
 
     #[tokio::test]
     async fn test_sync_filters_non_source_files() {
-        // Setup with various file types - source and text files should be synced, binaries filtered
+        // Setup with various file types - source and text files should be synced,
+        // binaries filtered
         let mut files = HashMap::new();
         files.insert("source.rs".to_string(), "fn main() {}".to_string());
         files.insert("image.png".to_string(), "binary content".to_string());
         files.insert("document.pdf".to_string(), "pdf content".to_string());
         files.insert("readme.md".to_string(), "# Readme".to_string());
-        
+
         let mock = MockInfra {
             files,
             workspace: None,
             authenticated: true,
             ..Default::default()
         };
-        
+
         let service = ForgeWorkspaceService::new(Arc::new(mock.clone()));
 
         let mut stream = service
