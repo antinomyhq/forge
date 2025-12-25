@@ -2,22 +2,16 @@ use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
 use bytes::Bytes;
-use forge_app::domain::{
-    ChatCompletionMessage, Context, Model, ModelId, ProviderId, ProviderResponse, ResultStream,
-};
+use forge_app::domain::{ProviderId, ProviderResponse};
 use forge_app::{EnvironmentInfra, FileReaderInfra, FileWriterInfra, HttpInfra};
 use forge_domain::{
-    AnyProvider, ApiKey, AuthCredential, AuthDetails, ChatRepository, Error, MigrationResult,
-    Provider, ProviderRepository, ProviderType, URLParam, URLParamValue,
+    AnyProvider, ApiKey, AuthCredential, AuthDetails, Error, MigrationResult, Provider,
+    ProviderRepository, ProviderType, URLParam, URLParamValue,
 };
 use handlebars::Handlebars;
 use merge::Merge;
 use serde::Deserialize;
 use url::Url;
-
-use crate::provider::anthropic::AnthropicResponseRepository;
-use crate::provider::bedrock::BedrockResponseRepository;
-use crate::provider::openai::OpenAIResponseRepository;
 
 /// Represents the source of models for a provider
 #[derive(Debug, Clone, Deserialize)]
@@ -129,31 +123,11 @@ fn get_provider_configs() -> &'static Vec<ProviderConfig> {
 pub struct ForgeProviderRepository<F> {
     infra: Arc<F>,
     handlebars: &'static Handlebars<'static>,
-    openai_repo: OpenAIResponseRepository<F>,
-    anthropic_repo: AnthropicResponseRepository<F>,
-    bedrock_repo: BedrockResponseRepository,
 }
 
 impl<F: EnvironmentInfra + HttpInfra> ForgeProviderRepository<F> {
     pub fn new(infra: Arc<F>) -> Self {
-        let env = infra.get_environment();
-        let retry_config = Arc::new(env.retry_config.clone());
-
-        let openai_repo =
-            OpenAIResponseRepository::new(infra.clone()).retry_config(retry_config.clone());
-
-        let anthropic_repo =
-            AnthropicResponseRepository::new(infra.clone()).retry_config(retry_config.clone());
-
-        let bedrock_repo = BedrockResponseRepository::new(retry_config);
-
-        Self {
-            infra,
-            handlebars: get_handlebars(),
-            openai_repo,
-            anthropic_repo,
-            bedrock_repo,
-        }
+        Self { infra, handlebars: get_handlebars() }
     }
 }
 
@@ -427,48 +401,6 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
 }
 
 #[async_trait::async_trait]
-impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Sync> ChatRepository
-    for ForgeProviderRepository<F>
-{
-    async fn chat(
-        &self,
-        model_id: &ModelId,
-        context: Context,
-        provider: Provider<Url>,
-    ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
-        // Route based on provider response type
-        match provider.response {
-            Some(ProviderResponse::OpenAI) => {
-                self.openai_repo.chat(model_id, context, provider).await
-            }
-            Some(ProviderResponse::Anthropic) => {
-                self.anthropic_repo.chat(model_id, context, provider).await
-            }
-            Some(ProviderResponse::Bedrock) => {
-                self.bedrock_repo.chat(model_id, context, provider).await
-            }
-            None => Err(anyhow::anyhow!(
-                "Provider response type not configured for provider: {}",
-                provider.id
-            )),
-        }
-    }
-
-    async fn models(&self, provider: Provider<Url>) -> anyhow::Result<Vec<Model>> {
-        // Route based on provider response type
-        match provider.response {
-            Some(ProviderResponse::OpenAI) => self.openai_repo.models(provider).await,
-            Some(ProviderResponse::Anthropic) => self.anthropic_repo.models(provider).await,
-            Some(ProviderResponse::Bedrock) => self.bedrock_repo.models(provider).await,
-            None => Err(anyhow::anyhow!(
-                "Provider response type not configured for provider: {}",
-                provider.id
-            )),
-        }
-    }
-}
-
-#[async_trait::async_trait]
 impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Sync> ProviderRepository
     for ForgeProviderRepository<F>
 {
@@ -656,8 +588,10 @@ mod env_tests {
     use std::path::PathBuf;
     use std::sync::Arc;
 
-    use forge_app::domain::Environment;
-    use forge_domain::AnyProvider;
+    use forge_app::domain::{
+        ChatCompletionMessage, Context, Environment, Model, ModelId, ResultStream,
+    };
+    use forge_domain::{AnyProvider, ChatRepository};
     use pretty_assertions::assert_eq;
 
     use super::*;

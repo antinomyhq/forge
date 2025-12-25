@@ -27,7 +27,7 @@ use crate::context_engine::ForgeContextEngineRepository;
 use crate::conversation::ConversationRepositoryImpl;
 use crate::database::{DatabasePool, PoolConfig};
 use crate::fs_snap::ForgeFileSnapshotService;
-use crate::provider::ForgeProviderRepository;
+use crate::provider::{ForgeChatRepository, ForgeProviderRepository};
 use crate::skill::ForgeSkillRepository;
 use crate::validation::ForgeValidationRepository;
 use crate::workspace::ForgeWorkspaceRepository;
@@ -44,6 +44,7 @@ pub struct ForgeRepo<F> {
     app_config_repository: Arc<AppConfigRepositoryImpl<F>>,
     mcp_cache_repository: Arc<CacacheStorage>,
     provider_repository: Arc<ForgeProviderRepository<F>>,
+    chat_repository: Arc<ForgeChatRepository<F>>,
     indexing_repository: Arc<ForgeWorkspaceRepository>,
     codebase_repo: Arc<ForgeContextEngineRepository<F>>,
     agent_repository: Arc<ForgeAgentRepository<F>>,
@@ -70,6 +71,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpI
         )); // 1 hour TTL
 
         let provider_repository = Arc::new(ForgeProviderRepository::new(infra.clone()));
+        let chat_repository = Arc::new(ForgeChatRepository::new(infra.clone()));
 
         let indexing_repository = Arc::new(ForgeWorkspaceRepository::new(db_pool.clone()));
 
@@ -84,6 +86,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpI
             app_config_repository,
             mcp_cache_repository,
             provider_repository,
+            chat_repository,
             indexing_repository,
             codebase_repo,
             agent_repository,
@@ -151,13 +154,11 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Send 
         context: Context,
         provider: Provider<Url>,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
-        self.provider_repository
-            .chat(model_id, context, provider)
-            .await
+        self.chat_repository.chat(model_id, context, provider).await
     }
 
     async fn models(&self, provider: Provider<Url>) -> anyhow::Result<Vec<Model>> {
-        self.provider_repository.models(provider).await
+        self.chat_repository.models(provider).await
     }
 }
 

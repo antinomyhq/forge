@@ -1,15 +1,17 @@
 mod anthropic;
 mod bedrock;
 mod bedrock_cache;
+mod chat;
 mod event;
 #[cfg(test)]
 mod mock_server;
 mod openai;
 mod retry;
-mod router;
+mod provider_repo;
 mod utils;
 
-pub use router::*;
+pub use chat::*;
+pub use provider_repo::*;
 
 /// Trait for converting types into domain types
 pub(crate) trait IntoDomain {
