@@ -60,6 +60,7 @@ impl ForgeEnvironmentInfra {
             .and_then(|s| ProviderId::from_str(&s).ok());
         let enable_permissions =
             parse_env::<bool>("FORGE_ENABLE_PERMISSIONS").unwrap_or(cfg!(debug_assertions));
+        let model_cache_ttl_seconds = parse_env::<u64>("FORGE_MODEL_CACHE_TTL").unwrap_or(3600);
 
         Environment {
             os: std::env::consts::OS.to_string(),
@@ -97,6 +98,7 @@ impl ForgeEnvironmentInfra {
             override_model,
             override_provider,
             enable_permissions,
+            model_cache_ttl_seconds,
         }
     }
 

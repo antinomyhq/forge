@@ -197,6 +197,14 @@ mod tests {
         async fn migrate_env_credentials(&self) -> anyhow::Result<Option<MigrationResult>> {
             Ok(None)
         }
+
+        async fn cache_all_models(&self, _models: Vec<forge_domain::Model>) {}
+
+        async fn get_cached_all_models(&self) -> Option<Vec<forge_domain::Model>> {
+            None
+        }
+
+        async fn invalidate_caches(&self) {}
     }
 
     #[async_trait::async_trait]

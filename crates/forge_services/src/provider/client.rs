@@ -105,6 +105,7 @@ impl ClientBuilder {
             inner: Arc::new(inner),
             retry_config,
             models_cache: Arc::new(RwLock::new(HashMap::new())),
+            provider_id: provider.id.clone(),
         })
     }
 }
@@ -113,6 +114,7 @@ pub struct Client<T> {
     retry_config: Arc<RetryConfig>,
     inner: Arc<InnerClient<T>>,
     models_cache: Arc<RwLock<HashMap<ModelId, Model>>>,
+    provider_id: forge_domain::ProviderId,
 }
 
 impl<T> Clone for Client<T> {
@@ -121,6 +123,7 @@ impl<T> Clone for Client<T> {
             retry_config: self.retry_config.clone(),
             inner: self.inner.clone(),
             models_cache: self.models_cache.clone(),
+            provider_id: self.provider_id.clone(),
         }
     }
 }
@@ -138,10 +141,11 @@ impl<T: HttpClientService> Client<T> {
     }
 
     pub async fn refresh_models(&self) -> anyhow::Result<Vec<Model>> {
+        let provider_id = self.provider_id.clone();
         let models = self.clone().retry(match self.inner.as_ref() {
-            InnerClient::OpenAICompat(provider) => provider.models().await,
-            InnerClient::Anthropic(provider) => provider.models().await,
-            InnerClient::Bedrock(provider) => provider.models().await,
+            InnerClient::OpenAICompat(provider) => provider.models(provider_id).await,
+            InnerClient::Anthropic(provider) => provider.models(provider_id).await,
+            InnerClient::Bedrock(provider) => provider.models(provider_id).await,
         })?;
 
         // Update the cache with all fetched models

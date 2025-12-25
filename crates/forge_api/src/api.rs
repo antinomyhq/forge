@@ -20,8 +20,10 @@ pub trait API: Sync + Send {
     /// environment
     async fn get_tools(&self) -> anyhow::Result<ToolsOverview>;
 
-    /// Provides a list of models available in the current environment
+    /// Provides a list of models available in the current environment (with
+    /// caching)
     async fn get_models(&self) -> Result<Vec<Model>>;
+
     /// Provides a list of agents available in the current environment
     async fn get_agents(&self) -> Result<Vec<Agent>>;
     /// Provides a list of providers available in the current environment

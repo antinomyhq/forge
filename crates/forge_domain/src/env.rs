@@ -94,6 +94,10 @@ pub struct Environment {
     /// Controlled by FORGE_ENABLE_PERMISSIONS environment variable.
     /// When enabled, tools will check policies before execution.
     pub enable_permissions: bool,
+    /// Cache TTL in seconds for model lists.
+    /// Controlled by FORGE_MODEL_CACHE_TTL environment variable.
+    /// Defaults to 3600 seconds (1 hour).
+    pub model_cache_ttl_seconds: u64,
 }
 
 impl Environment {
@@ -153,6 +157,10 @@ impl Environment {
     /// Returns the path to the cache directory
     pub fn cache_dir(&self) -> PathBuf {
         self.base_path.join("cache")
+    }
+    /// Returns the path to the model cache file
+    pub fn model_cache_path(&self) -> PathBuf {
+        self.cache_dir().join("models.json")
     }
 
     /// Returns the global skills directory path (~/forge/skills)
@@ -303,6 +311,7 @@ fn test_command_path() {
         override_model: None,
         override_provider: None,
         enable_permissions: false,
+        model_cache_ttl_seconds: 3600,
     };
 
     let actual = fixture.command_path();
@@ -343,6 +352,7 @@ fn test_command_cwd_path() {
         override_model: None,
         override_provider: None,
         enable_permissions: false,
+        model_cache_ttl_seconds: 3600,
     };
 
     let actual = fixture.command_cwd_path();
@@ -383,6 +393,7 @@ fn test_command_cwd_path_independent_from_command_path() {
         override_model: None,
         override_provider: None,
         enable_permissions: false,
+        model_cache_ttl_seconds: 3600,
     };
 
     let command_path = fixture.command_path();

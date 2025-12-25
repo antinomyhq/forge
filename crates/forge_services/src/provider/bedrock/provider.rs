@@ -250,11 +250,18 @@ impl<H: HttpClientService> BedrockProvider<H> {
     }
 
     /// Get available models
-    pub async fn models(&self) -> Result<Vec<Model>> {
+    pub async fn models(&self, provider_id: forge_domain::ProviderId) -> Result<Vec<Model>> {
         // Bedrock doesn't have a models list API
         // Return hardcoded models from configuration
         match &self.provider.models {
-            Some(forge_domain::ModelSource::Hardcoded(models)) => Ok(models.clone()),
+            Some(forge_domain::ModelSource::Hardcoded(models)) => {
+                let mut models = models.clone();
+                // Set provider_id on all hardcoded models
+                for model in &mut models {
+                    model.provider_id = Some(provider_id.clone());
+                }
+                Ok(models)
+            }
             _ => Ok(vec![]),
         }
     }
@@ -1216,6 +1223,7 @@ mod tests {
                 tools_supported: None,
                 supports_parallel_tool_calls: None,
                 supports_reasoning: None,
+                provider_id: Some(forge_domain::ProviderId::BEDROCK),
             },
             Model {
                 id: ModelId::from("claude-3-sonnet".to_string()),
@@ -1225,6 +1233,7 @@ mod tests {
                 tools_supported: None,
                 supports_parallel_tool_calls: None,
                 supports_reasoning: None,
+                provider_id: Some(forge_domain::ProviderId::BEDROCK),
             },
         ];
         fixture_provider.models = Some(ModelSource::Hardcoded(fixture_models.clone()));
@@ -1236,7 +1245,10 @@ mod tests {
             _phantom: std::marker::PhantomData::<MockHttpClient>,
         };
 
-        let actual = bedrock.models().await.unwrap();
+        let actual = bedrock
+            .models(forge_domain::ProviderId::BEDROCK)
+            .await
+            .unwrap();
         let expected = fixture_models;
         assert_eq!(actual, expected);
     }
@@ -1251,7 +1263,10 @@ mod tests {
             _phantom: std::marker::PhantomData::<MockHttpClient>,
         };
 
-        let actual = bedrock.models().await.unwrap();
+        let actual = bedrock
+            .models(forge_domain::ProviderId::BEDROCK)
+            .await
+            .unwrap();
         let expected: Vec<Model> = vec![];
         assert_eq!(actual, expected);
     }
