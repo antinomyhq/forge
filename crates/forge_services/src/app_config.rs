@@ -276,11 +276,13 @@ mod tests {
                     id: p.id.clone(),
                     provider_type: p.provider_type,
                     response: p.response.clone(),
-                    url: forge_domain::Template::new(p.url.as_str()),
+                    url: forge_domain::Template::<forge_domain::URLParameters>::new(p.url.as_str()),
                     models: p.models.as_ref().map(|m| match m {
-                        ModelSource::Url(url) => {
-                            ModelSource::Url(forge_domain::Template::new(url.as_str()))
-                        }
+                        ModelSource::Url(url) => ModelSource::Url(forge_domain::Template::<
+                            forge_domain::URLParameters,
+                        >::new(
+                            url.as_str()
+                        )),
                         ModelSource::Hardcoded(list) => ModelSource::Hardcoded(list.clone()),
                     }),
                     auth_methods: p.auth_methods.clone(),

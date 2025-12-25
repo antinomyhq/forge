@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
 use bytes::Bytes;
@@ -70,16 +69,12 @@ fn merge_configs(base: &mut Vec<ProviderConfig>, other: Vec<ProviderConfig>) {
     base.extend(map.into_values());
 }
 
-impl From<&ProviderConfig>
-    for Provider<
-        forge_domain::Template<HashMap<forge_domain::URLParam, forge_domain::URLParamValue>>,
-    >
-{
+impl From<&ProviderConfig> for forge_domain::ProviderTemplate {
     fn from(config: &ProviderConfig) -> Self {
         let models = config.models.as_ref().map(|m| match m {
-            Models::Url(model_url_template) => {
-                forge_domain::ModelSource::Url(forge_domain::Template::new(model_url_template))
-            }
+            Models::Url(model_url_template) => forge_domain::ModelSource::Url(
+                forge_domain::Template::<forge_domain::URLParameters>::new(model_url_template),
+            ),
             Models::Hardcoded(model_list) => {
                 forge_domain::ModelSource::Hardcoded(model_list.clone())
             }
@@ -89,7 +84,7 @@ impl From<&ProviderConfig>
             id: config.id.clone(),
             provider_type: config.provider_type,
             response: config.response_type.clone(),
-            url: forge_domain::Template::new(&config.url),
+            url: forge_domain::Template::<forge_domain::URLParameters>::new(&config.url),
             auth_methods: config.auth_methods.clone(),
             url_params: config
                 .url_param_vars
@@ -273,9 +268,9 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
 
         // Handle models - keep as templates
         let models = config.models.as_ref().map(|m| match m {
-            Models::Url(model_url_template) => {
-                forge_domain::ModelSource::Url(forge_domain::Template::new(model_url_template))
-            }
+            Models::Url(model_url_template) => forge_domain::ModelSource::Url(
+                forge_domain::Template::<forge_domain::URLParameters>::new(model_url_template),
+            ),
             Models::Hardcoded(model_list) => {
                 forge_domain::ModelSource::Hardcoded(model_list.clone())
             }
@@ -285,7 +280,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
             id: config.id.clone(),
             provider_type: config.provider_type,
             response: config.response_type.clone(),
-            url: forge_domain::Template::new(&config.url),
+            url: forge_domain::Template::<forge_domain::URLParameters>::new(&config.url),
             auth_methods: config.auth_methods.clone(),
             url_params: config
                 .url_param_vars
@@ -301,11 +296,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
     fn create_unconfigured_provider(
         &self,
         config: &ProviderConfig,
-    ) -> anyhow::Result<
-        Provider<
-            forge_domain::Template<HashMap<forge_domain::URLParam, forge_domain::URLParamValue>>,
-        >,
-    > {
+    ) -> anyhow::Result<forge_domain::ProviderTemplate> {
         Ok(config.into())
     }
 

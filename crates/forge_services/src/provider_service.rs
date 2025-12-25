@@ -233,7 +233,9 @@ mod tests {
             id: ProviderId::OPENAI,
             provider_type: ProviderType::Llm,
             response: Some(forge_app::domain::ProviderResponse::OpenAI),
-            url: Template::new("https://api.openai.com/v1/chat/completions"),
+            url: Template::<forge_domain::URLParameters>::new(
+                "https://api.openai.com/v1/chat/completions",
+            ),
             auth_methods: vec![AuthMethod::ApiKey],
             url_params: vec![],
             credential: Some(AuthCredential {
@@ -241,11 +243,11 @@ mod tests {
                 auth_details: AuthDetails::ApiKey(forge_domain::ApiKey::from(
                     "test-key".to_string(),
                 )),
-                url_params: HashMap::new(),
+                url_params: HashMap::new().into(),
             }),
-            models: Some(ModelSource::Url(Template::new(
-                "https://api.openai.com/v1/models",
-            ))),
+            models: Some(ModelSource::Url(
+                Template::<forge_domain::URLParameters>::new("https://api.openai.com/v1/models"),
+            )),
         }
     }
 
