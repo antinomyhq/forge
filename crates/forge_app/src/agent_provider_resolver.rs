@@ -24,12 +24,12 @@ where
     /// agent is provided. Automatically refreshes OAuth credentials if they're
     /// about to expire.
     pub async fn get_provider(&self, agent_id: Option<AgentId>) -> Result<Provider<url::Url>> {
-        let provider = if let Some(agent_id) = agent_id {
+        let provider_id = if let Some(agent_id) = agent_id {
             // Load all agent definitions and find the one we need
 
             if let Some(agent) = self.0.get_agent(&agent_id).await? {
                 // If the agent definition has a provider, use it; otherwise use default
-                self.0.get_provider(agent.provider).await?
+                agent.provider
             } else {
                 // TODO: Needs review, should we throw an err here?
                 // we can throw crate::Error::AgentNotFound
@@ -39,6 +39,7 @@ where
             self.0.get_default_provider().await?
         };
 
+        let provider = self.0.get_provider(provider_id).await?;
         Ok(provider)
     }
 

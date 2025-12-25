@@ -1,12 +1,7 @@
-use std::collections::HashMap;
 use std::sync::Arc;
 
 use forge_app::AppConfigService;
-use forge_domain::{
-    AppConfig, AppConfigRepository, ModelId, ModelSource, Provider, ProviderId, ProviderRepository,
-    ProviderTemplate,
-};
-use url::Url;
+use forge_domain::{AppConfig, AppConfigRepository, ModelId, ProviderId, ProviderRepository};
 
 /// Service for managing user preferences for default providers and models.
 pub struct ForgeAppConfigService<F> {
@@ -17,60 +12,6 @@ impl<F> ForgeAppConfigService<F> {
     /// Creates a new provider preferences service.
     pub fn new(infra: Arc<F>) -> Self {
         Self { infra }
-    }
-
-    /// Renders a URL template with provided parameters
-    fn render_url_template(
-        &self,
-        template: &str,
-        params: &HashMap<forge_domain::URLParam, forge_domain::URLParamValue>,
-    ) -> anyhow::Result<Url> {
-        let template_data: HashMap<&str, &str> = params
-            .iter()
-            .map(|(k, v)| (k.as_str(), v.as_str()))
-            .collect();
-
-        let handlebars = forge_app::TemplateEngine::handlebar_instance();
-        let rendered = handlebars.render_template(template, &template_data)?;
-
-        Ok(Url::parse(&rendered)?)
-    }
-
-    /// Renders a provider from template to fully resolved URLs
-    fn render_provider(
-        &self,
-        template_provider: ProviderTemplate,
-    ) -> anyhow::Result<Provider<Url>> {
-        let credential = template_provider
-            .credential
-            .as_ref()
-            .ok_or_else(|| anyhow::anyhow!("Provider has no credential"))?;
-
-        // Render main URL
-        let url =
-            self.render_url_template(&template_provider.url.template, &credential.url_params)?;
-
-        // Render model source URLs
-        let models = template_provider.models.as_ref().and_then(|m| match m {
-            ModelSource::Url(template) => {
-                let model_url = self
-                    .render_url_template(&template.template, &credential.url_params)
-                    .ok();
-                model_url.map(ModelSource::Url)
-            }
-            ModelSource::Hardcoded(list) => Some(ModelSource::Hardcoded(list.clone())),
-        });
-
-        Ok(Provider {
-            id: template_provider.id,
-            provider_type: template_provider.provider_type,
-            response: template_provider.response,
-            url,
-            models,
-            auth_methods: template_provider.auth_methods,
-            url_params: template_provider.url_params,
-            credential: template_provider.credential,
-        })
     }
 }
 
@@ -91,17 +32,11 @@ impl<F: ProviderRepository + AppConfigRepository> ForgeAppConfigService<F> {
 impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
     for ForgeAppConfigService<F>
 {
-    async fn get_default_provider(&self) -> anyhow::Result<Provider<Url>> {
+    async fn get_default_provider(&self) -> anyhow::Result<ProviderId> {
         let app_config = self.infra.get_app_config().await?;
-        if let Some(provider_id) = app_config.provider
-            && let Ok(template_provider) = self.infra.get_provider(provider_id).await
-            && template_provider.is_configured()
-        {
-            return self.render_provider(template_provider);
-        }
-
-        // No default provider configured - return error to force explicit configuration
-        Err(forge_domain::Error::NoDefaultProvider.into())
+        app_config
+            .provider
+            .ok_or_else(|| forge_domain::Error::NoDefaultProvider.into())
     }
 
     async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
@@ -154,7 +89,7 @@ mod tests {
 
     use forge_domain::{
         AnyProvider, AppConfig, ChatRepository, MigrationResult, Model, ModelSource, Provider,
-        ProviderId, ProviderResponse,
+        ProviderId, ProviderResponse, ProviderTemplate,
     };
     use pretty_assertions::assert_eq;
     use url::Url;
@@ -335,7 +270,7 @@ mod tests {
         let actual = service.get_default_provider().await?;
         let expected = ProviderId::ANTHROPIC;
 
-        assert_eq!(actual.id, expected);
+        assert_eq!(actual, expected);
         Ok(())
     }
 
@@ -350,10 +285,11 @@ mod tests {
         // Set OpenAI as the default provider in config
         service.set_default_provider(ProviderId::OPENAI).await?;
 
-        // Should return error since configured provider is not available
-        let result = service.get_default_provider().await;
+        // Should return the provider ID even if provider is not available
+        // Validation happens when getting the actual provider via ProviderService
+        let result = service.get_default_provider().await?;
 
-        assert!(result.is_err());
+        assert_eq!(result, ProviderId::OPENAI);
         Ok(())
     }
 
