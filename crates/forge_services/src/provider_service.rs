@@ -117,7 +117,27 @@ impl<R: ChatRepository + ProviderRepository> ProviderService for ForgeProviderSe
     }
 
     async fn get_all_providers(&self) -> Result<Vec<AnyProvider>> {
-        self.repository.get_all_providers().await
+        let providers = self.repository.get_all_providers().await?;
+
+        // Render configured providers from Template to Url
+        let rendered_providers = providers
+            .into_iter()
+            .map(|provider| {
+                // If provider is a Template with credentials, render it to Url
+                if let AnyProvider::Template(template_provider) = &provider {
+                    if template_provider.is_configured() {
+                        // Clone and render the provider
+                        if let Ok(rendered) = self.render_provider(template_provider.clone()) {
+                            return AnyProvider::Url(rendered);
+                        }
+                    }
+                }
+                // Otherwise return as-is
+                provider
+            })
+            .collect();
+
+        Ok(rendered_providers)
     }
 
     async fn get_provider(&self, id: ProviderId) -> Result<Provider<Url>> {
@@ -150,11 +170,21 @@ mod tests {
     struct MockProviderRepository {
         models: Vec<Model>,
         call_count: Arc<Mutex<usize>>,
+        providers: Vec<AnyProvider>,
     }
 
     impl MockProviderRepository {
         fn new(models: Vec<Model>) -> Self {
-            Self { models, call_count: Arc::new(Mutex::new(0)) }
+            Self {
+                models,
+                call_count: Arc::new(Mutex::new(0)),
+                providers: vec![],
+            }
+        }
+
+        fn with_providers(mut self, providers: Vec<AnyProvider>) -> Self {
+            self.providers = providers;
+            self
         }
 
         async fn get_call_count(&self) -> usize {
@@ -183,7 +213,7 @@ mod tests {
     #[async_trait::async_trait]
     impl ProviderRepository for MockProviderRepository {
         async fn get_all_providers(&self) -> Result<Vec<AnyProvider>> {
-            Ok(vec![])
+            Ok(self.providers.clone())
         }
 
         async fn get_provider(&self, _id: ProviderId) -> Result<ProviderTemplate> {
@@ -201,6 +231,7 @@ mod tests {
         async fn remove_credential(&self, _id: &ProviderId) -> Result<()> {
             Ok(())
         }
+
 
         async fn migrate_env_credentials(&self) -> Result<Option<MigrationResult>> {
             Ok(None)
@@ -339,5 +370,35 @@ mod tests {
         // Verify service is properly initialized
         let cache = service.cached_models.lock().await;
         assert!(cache.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_get_all_providers_renders_configured_providers() {
+        let configured = test_template_provider();
+        let unconfigured = Provider {
+            credential: None,
+            ..test_template_provider()
+        };
+
+        let repository = Arc::new(
+            MockProviderRepository::new(vec![]).with_providers(vec![
+                AnyProvider::Template(configured),
+                AnyProvider::Template(unconfigured),
+            ]),
+        );
+
+        let service = ForgeProviderService::new(repository);
+        let actual = service.get_all_providers().await.unwrap();
+
+        assert_eq!(actual.len(), 2);
+        assert!(matches!(actual[0], AnyProvider::Url(_)));
+        assert!(matches!(actual[1], AnyProvider::Template(_)));
+
+        if let AnyProvider::Url(provider) = &actual[0] {
+            assert_eq!(
+                provider.url.as_str(),
+                "https://api.openai.com/v1/chat/completions"
+            );
+        }
     }
 }
