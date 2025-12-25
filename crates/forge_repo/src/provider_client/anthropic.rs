@@ -1,22 +1,26 @@
 use std::sync::Arc;
 
 use anyhow::Context as _;
+use derive_setters::Setters;
 use forge_app::HttpInfra;
 use forge_app::domain::{
-    ChatCompletionMessage, Context, Model, ModelId, ResultStream, Transformer,
+    ChatCompletionMessage, Context, Model, ModelId, ResultStream, RetryConfig, Transformer,
 };
 use forge_app::dto::anthropic::{
     AuthSystemMessage, DropInvalidToolUse, EventData, ListModelResponse, ReasoningTransform,
     Request, SetCache,
 };
+use forge_domain::{ChatRepository, Provider};
 use reqwest::Url;
+use tokio_stream::StreamExt;
 use tracing::debug;
 
 use crate::provider_client::event::into_chat_completion_message;
+use crate::provider_client::into_retry;
 use crate::provider_client::utils::{create_headers, format_http_context};
 
 #[derive(Clone)]
-pub struct Anthropic<T> {
+struct Anthropic<T> {
     http: Arc<T>,
     api_key: String,
     chat_url: Url,
@@ -378,5 +382,77 @@ mod tests {
         mock.assert_async().await;
         assert!(actual.is_empty());
         Ok(())
+    }
+}
+
+/// Repository for Anthropic provider responses
+#[derive(Setters)]
+#[setters(strip_option, into)]
+pub struct AnthropicResponseRepository<F> {
+    infra: Arc<F>,
+    retry_config: Arc<RetryConfig>,
+}
+
+impl<F> AnthropicResponseRepository<F> {
+    pub fn new(infra: Arc<F>) -> Self {
+        Self { infra, retry_config: Arc::new(RetryConfig::default()) }
+    }
+}
+
+impl<F: HttpInfra> AnthropicResponseRepository<F> {
+    /// Creates an Anthropic client from a provider configuration
+    fn create_client(&self, provider: &Provider<Url>) -> anyhow::Result<Anthropic<F>> {
+        let api_key = provider
+            .api_key()
+            .context("Anthropic requires an API key")?
+            .as_str()
+            .to_string();
+        let chat_url = provider.url.clone();
+        let models = provider
+            .models
+            .clone()
+            .context("Anthropic requires models configuration")?;
+
+        Ok(Anthropic::new(
+            self.infra.clone(),
+            api_key,
+            chat_url,
+            models,
+            "2023-06-01".to_string(),
+            false,
+        ))
+    }
+}
+
+#[async_trait::async_trait]
+impl<F: HttpInfra + 'static> ChatRepository for AnthropicResponseRepository<F> {
+    async fn chat(
+        &self,
+        model_id: &ModelId,
+        context: Context,
+        provider: Provider<Url>,
+    ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
+        let retry_config = self.retry_config.clone();
+        let provider_client = self.create_client(&provider)?;
+
+        let stream = provider_client
+            .chat(model_id, context)
+            .await
+            .map_err(|e| into_retry(e, &retry_config))?;
+
+        Ok(Box::pin(stream.map(move |item| {
+            item.map_err(|e| into_retry(e, &retry_config))
+        })))
+    }
+
+    async fn models(&self, provider: Provider<Url>) -> anyhow::Result<Vec<Model>> {
+        let retry_config = self.retry_config.clone();
+        let provider_client = self.create_client(&provider)?;
+
+        provider_client
+            .models()
+            .await
+            .map_err(|e| into_retry(e, &retry_config))
+            .context("Failed to fetch models from Anthropic provider")
     }
 }

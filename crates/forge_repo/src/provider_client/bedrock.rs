@@ -1,29 +1,31 @@
+use std::sync::Arc;
+
 use anyhow::{Context as _, Result};
 use aws_sdk_bedrockruntime::Client;
 use aws_sdk_bedrockruntime::config::Token;
-use forge_app::HttpInfra;
+use forge_app::domain::RetryConfig;
 use forge_domain::{
-    AuthDetails, ChatCompletionMessage, Context, Model, ModelId, Provider, ResultStream,
-    Transformer,
+    AuthDetails, ChatCompletionMessage, ChatRepository, Context, Model, ModelId, Provider,
+    ResultStream, Transformer,
 };
 use reqwest::Url;
 use tokio::sync::OnceCell;
+use tokio_stream::StreamExt;
 
 use crate::provider_client::bedrock_cache::SetCache;
-use crate::provider_client::{FromDomain, IntoDomain};
+use crate::provider_client::{FromDomain, IntoDomain, into_retry};
 
 /// Provider implementation for Amazon Bedrock using Bearer token authentication
 ///
 /// This provider uses the AWS SDK with Bearer token authentication instead of
 /// AWS SigV4 signing, allowing it to work with Bedrock Access Gateway.
-pub struct BedrockProvider<T> {
+struct BedrockProvider {
     provider: Provider<Url>,
     region: String,
     client: OnceCell<Client>,
-    _phantom: std::marker::PhantomData<T>,
 }
 
-impl<H: HttpInfra> BedrockProvider<H> {
+impl BedrockProvider {
     /// Creates a new BedrockProvider instance
     ///
     /// Credentials are loaded from the provider's credential:
@@ -61,12 +63,7 @@ impl<H: HttpInfra> BedrockProvider<H> {
         let client_cell = OnceCell::new();
         client_cell.set(client).ok();
 
-        Ok(Self {
-            provider,
-            region,
-            client: client_cell,
-            _phantom: std::marker::PhantomData,
-        })
+        Ok(Self { provider, region, client: client_cell })
     }
 
     /// Check if the model supports prompt caching
@@ -886,43 +883,8 @@ impl FromDomain<forge_domain::ToolChoice> for aws_sdk_bedrockruntime::types::Too
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
-    use reqwest::header::HeaderMap;
 
     use super::*;
-
-    struct MockHttpClient;
-
-    #[async_trait::async_trait]
-    impl HttpInfra for MockHttpClient {
-        async fn http_get(
-            &self,
-            _url: &Url,
-            _headers: Option<HeaderMap>,
-        ) -> anyhow::Result<reqwest::Response> {
-            Err(anyhow::anyhow!("Mock HTTP client - no real requests"))
-        }
-
-        async fn http_post(
-            &self,
-            _url: &Url,
-            _body: bytes::Bytes,
-        ) -> anyhow::Result<reqwest::Response> {
-            Err(anyhow::anyhow!("Mock HTTP client - no real requests"))
-        }
-
-        async fn http_delete(&self, _url: &Url) -> anyhow::Result<reqwest::Response> {
-            Err(anyhow::anyhow!("Mock HTTP client - no real requests"))
-        }
-
-        async fn http_eventsource(
-            &self,
-            _url: &Url,
-            _headers: Option<HeaderMap>,
-            _body: bytes::Bytes,
-        ) -> anyhow::Result<reqwest_eventsource::EventSource> {
-            Err(anyhow::anyhow!("Mock HTTP client - no real requests"))
-        }
-    }
 
     fn provider_fixture(token: &str, region: Option<&str>) -> Provider<Url> {
         use forge_domain::{
@@ -954,19 +916,18 @@ mod tests {
         }
     }
 
-    fn bedrock_provider_fixture(region: &str) -> BedrockProvider<MockHttpClient> {
+    fn bedrock_provider_fixture(region: &str) -> BedrockProvider {
         BedrockProvider {
             provider: provider_fixture("test-token", Some(region)),
             client: OnceCell::new(),
             region: region.to_string(),
-            _phantom: std::marker::PhantomData,
         }
     }
 
     #[test]
     fn test_new_with_valid_credentials() {
         let fixture = provider_fixture("my-bearer-token", Some("eu-central-1"));
-        let actual = BedrockProvider::<MockHttpClient>::new(fixture);
+        let actual = BedrockProvider::new(fixture);
         assert!(actual.is_ok());
     }
 
@@ -974,7 +935,7 @@ mod tests {
     fn test_new_without_credentials() {
         let mut fixture = provider_fixture("token", None);
         fixture.credential = None;
-        let actual = BedrockProvider::<MockHttpClient>::new(fixture);
+        let actual = BedrockProvider::new(fixture);
         assert!(actual.is_err());
         assert_eq!(
             actual.err().unwrap().to_string(),
@@ -985,7 +946,7 @@ mod tests {
     #[test]
     fn test_new_with_empty_token() {
         let fixture = provider_fixture("", None);
-        let actual = BedrockProvider::<MockHttpClient>::new(fixture);
+        let actual = BedrockProvider::new(fixture);
         assert!(actual.is_err());
         assert_eq!(
             actual.err().unwrap().to_string(),
@@ -996,7 +957,7 @@ mod tests {
     #[test]
     fn test_new_defaults_to_us_east_1() {
         let fixture = provider_fixture("token", None);
-        let actual = BedrockProvider::<MockHttpClient>::new(fixture).unwrap();
+        let actual = BedrockProvider::new(fixture).unwrap();
         let expected = "us-east-1";
         assert_eq!(actual.region, expected);
     }
@@ -1004,27 +965,26 @@ mod tests {
     #[test]
     fn test_new_uses_custom_region() {
         let fixture = provider_fixture("token", Some("ap-southeast-2"));
-        let actual = BedrockProvider::<MockHttpClient>::new(fixture).unwrap();
+        let actual = BedrockProvider::new(fixture).unwrap();
         let expected = "ap-southeast-2";
         assert_eq!(actual.region, expected);
     }
 
     #[test]
     fn test_supports_caching_claude() {
-        let actual =
-            BedrockProvider::<MockHttpClient>::supports_caching("anthropic.claude-3-sonnet");
+        let actual = BedrockProvider::supports_caching("anthropic.claude-3-sonnet");
         assert!(actual);
     }
 
     #[test]
     fn test_supports_caching_anthropic() {
-        let actual = BedrockProvider::<MockHttpClient>::supports_caching("anthropic.claude-v2");
+        let actual = BedrockProvider::supports_caching("anthropic.claude-v2");
         assert!(actual);
     }
 
     #[test]
     fn test_supports_caching_non_claude() {
-        let actual = BedrockProvider::<MockHttpClient>::supports_caching("amazon.nova-pro-v1:0");
+        let actual = BedrockProvider::supports_caching("amazon.nova-pro-v1:0");
         assert!(!actual);
     }
 
@@ -1234,7 +1194,6 @@ mod tests {
             provider: fixture_provider,
             client: OnceCell::new(),
             region: "us-east-1".to_string(),
-            _phantom: std::marker::PhantomData::<MockHttpClient>,
         };
 
         let actual = bedrock.models().await.unwrap();
@@ -1249,7 +1208,6 @@ mod tests {
             provider: fixture,
             client: OnceCell::new(),
             region: "us-east-1".to_string(),
-            _phantom: std::marker::PhantomData::<MockHttpClient>,
         };
 
         let actual = bedrock.models().await.unwrap();
@@ -1682,5 +1640,49 @@ mod tests {
             }
             _ => panic!("Expected array document"),
         }
+    }
+}
+
+/// Repository for AWS Bedrock provider responses
+pub struct BedrockResponseRepository {
+    retry_config: Arc<RetryConfig>,
+}
+
+impl BedrockResponseRepository {
+    pub fn new(retry_config: Arc<RetryConfig>) -> Self {
+        Self { retry_config }
+    }
+}
+
+#[async_trait::async_trait]
+impl ChatRepository for BedrockResponseRepository {
+    async fn chat(
+        &self,
+        model_id: &ModelId,
+        context: Context,
+        provider: Provider<Url>,
+    ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
+        let retry_config = self.retry_config.clone();
+        let provider_client =
+            BedrockProvider::new(provider).map_err(|e| into_retry(e, &retry_config))?;
+
+        let stream = provider_client
+            .chat(model_id, context)
+            .await
+            .map_err(|e| into_retry(e, &retry_config))?;
+
+        Ok(Box::pin(stream.map(move |item| {
+            item.map_err(|e| into_retry(e, &retry_config))
+        })))
+    }
+
+    async fn models(&self, provider: Provider<Url>) -> anyhow::Result<Vec<Model>> {
+        let retry_config = self.retry_config.clone();
+        let provider_client = BedrockProvider::new(provider)?;
+        provider_client
+            .models()
+            .await
+            .map_err(|e| into_retry(e, &retry_config))
+            .context("Failed to fetch models from Bedrock provider")
     }
 }

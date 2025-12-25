@@ -15,6 +15,8 @@ use merge::Merge;
 use serde::Deserialize;
 use url::Url;
 
+use crate::{AnthropicResponseRepository, BedrockResponseRepository, OpenAIResponseRepository};
+
 /// Represents the source of models for a provider
 #[derive(Debug, Clone, Deserialize)]
 #[serde(untagged)]
@@ -125,9 +127,9 @@ fn get_provider_configs() -> &'static Vec<ProviderConfig> {
 pub struct ForgeProviderRepository<F> {
     infra: Arc<F>,
     handlebars: &'static Handlebars<'static>,
-    openai_repo: crate::provider_openai_repo::OpenAIResponseRepository<F>,
-    anthropic_repo: crate::provider_anthropic_repo::AnthropicResponseRepository<F>,
-    bedrock_repo: crate::provider_bedrock_repo::BedrockResponseRepository<F>,
+    openai_repo: OpenAIResponseRepository<F>,
+    anthropic_repo: AnthropicResponseRepository<F>,
+    bedrock_repo: BedrockResponseRepository,
 }
 
 impl<F: EnvironmentInfra + HttpInfra> ForgeProviderRepository<F> {
@@ -135,13 +137,13 @@ impl<F: EnvironmentInfra + HttpInfra> ForgeProviderRepository<F> {
         let env = infra.get_environment();
         let retry_config = Arc::new(env.retry_config.clone());
 
-        let openai_repo = crate::provider_openai_repo::OpenAIResponseRepository::new(infra.clone())
-            .retry_config(retry_config.clone());
+        let openai_repo =
+            OpenAIResponseRepository::new(infra.clone()).retry_config(retry_config.clone());
+
         let anthropic_repo =
-            crate::provider_anthropic_repo::AnthropicResponseRepository::new(infra.clone())
-                .retry_config(retry_config.clone());
-        let bedrock_repo = crate::provider_bedrock_repo::BedrockResponseRepository::new()
-            .retry_config(retry_config);
+            AnthropicResponseRepository::new(infra.clone()).retry_config(retry_config.clone());
+
+        let bedrock_repo = BedrockResponseRepository::new(retry_config);
 
         Self {
             infra,
