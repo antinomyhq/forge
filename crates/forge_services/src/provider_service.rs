@@ -125,12 +125,13 @@ impl<R: ChatRepository + ProviderRepository> ProviderService for ForgeProviderSe
             .map(|provider| {
                 // If provider is a Template with credentials, render it to Url
                 if let AnyProvider::Template(template_provider) = &provider
-                    && template_provider.is_configured() {
-                        // Clone and render the provider
-                        if let Ok(rendered) = self.render_provider(template_provider.clone()) {
-                            return AnyProvider::Url(rendered);
-                        }
+                    && template_provider.is_configured()
+                {
+                    // Clone and render the provider
+                    if let Ok(rendered) = self.render_provider(template_provider.clone()) {
+                        return AnyProvider::Url(rendered);
                     }
+                }
                 // Otherwise return as-is
                 provider
             })
