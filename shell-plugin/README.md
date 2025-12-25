@@ -16,20 +16,20 @@ A powerful ZSH plugin that provides intelligent command transformation, file tag
 Before using this plugin, ensure you have the following tools installed:
 
 - **fzf** - Command-line fuzzy finder
-- **fd** - Fast file finder (alternative to find)
+- **ripgrep (rg)** - Fast file finder and search tool
 - **forge** - The Forge CLI tool
 
 ### Installation of Prerequisites
 
 ```bash
 # macOS (using Homebrew)
-brew install fzf fd
+brew install fzf ripgrep
 
 # Ubuntu/Debian
-sudo apt install fzf fd-find
+sudo apt install fzf ripgrep
 
 # Arch Linux
-sudo pacman -S fzf fd
+sudo pacman -S fzf ripgrep
 ```
 
 ## Usage
@@ -197,7 +197,7 @@ This will check:
 - Forge installation and version
 - Plugin and theme loading status
 - Completions availability
-- Dependencies (fzf, fd, bat)
+- Dependencies (fzf, ripgrep, bat)
 - ZSH plugins (autosuggestions, syntax-highlighting)
 - Editor configuration and PATH setup
 - Nerd Font support for icons

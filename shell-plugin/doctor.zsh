@@ -200,23 +200,16 @@ else
     print_result fail "fzf not found" "Required for interactive features. See installation: https://github.com/junegunn/fzf#installation"
 fi
 
-# Check for fd/fdfind - used for file discovery
-if command -v fd &> /dev/null; then
-    local fd_version=$(fd --version 2>&1 | awk '{print $2}')
-    if [[ -n "$fd_version" ]]; then
-        print_result pass "fd: ${fd_version}"
+# Check for ripgrep - used for file discovery
+if command -v rg &> /dev/null; then
+    local rg_version=$(rg --version 2>&1 | head -n1 | awk '{print $2}')
+    if [[ -n "$rg_version" ]]; then
+        print_result pass "ripgrep: ${rg_version}"
     else
-        print_result pass "fd: installed"
-    fi
-elif command -v fdfind &> /dev/null; then
-    local fd_version=$(fdfind --version 2>&1 | awk '{print $2}')
-    if [[ -n "$fd_version" ]]; then
-        print_result pass "fdfind: ${fd_version}"
-    else
-        print_result pass "fdfind: installed"
+        print_result pass "ripgrep: installed"
     fi
 else
-    print_result warn "fd/fdfind not found" "Enhanced file discovery. See installation: https://github.com/sharkdp/fd#installation"
+    print_result fail "ripgrep not found" "Required for file discovery. See installation: https://github.com/BurntSushi/ripgrep#installation"
 fi
 
 # Check for bat - used for syntax highlighting

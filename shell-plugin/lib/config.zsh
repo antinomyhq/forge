@@ -9,8 +9,9 @@ typeset -h _FORGE_MAX_COMMIT_DIFF="${FORGE_MAX_COMMIT_DIFF:-100000}"
 typeset -h _FORGE_DELIMITER='\s\s+'
 typeset -h _FORGE_PREVIEW_WINDOW="--preview-window=top:75%:wrap:border-sharp"
 
-# Detect fd command - Ubuntu/Debian use 'fdfind', others use 'fd'
-typeset -h _FORGE_FD_CMD="$(command -v fdfind 2>/dev/null || command -v fd 2>/dev/null || echo 'fd')"
+# Use ripgrep for file discovery
+typeset -h _FORGE_RG_CMD="$(command -v rg 2>/dev/null || echo 'rg')"
+# typeset -h _FORGE_FD_CMD="$(command -v fdfind 2>/dev/null || command -v fd 2>/dev/null || echo 'fd')"
 
 # Detect bat command - use bat if available, otherwise fall back to cat
 if command -v bat &>/dev/null; then
