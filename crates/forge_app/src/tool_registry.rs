@@ -67,8 +67,7 @@ impl<S: Services> ToolRegistry<S> {
 
         // First, try to call a Forge tool
         if ToolCatalog::contains(&input.name) {
-            self.call_with_timeout(&tool_name, || self.tool_executor.execute(input, context))
-                .await
+            self.tool_executor.execute(input, context).await
         } else if self.agent_executor.contains_tool(&input.name).await? {
             // Handle agent delegation tool calls
             let agent_input = AgentInput::try_from(&input)?;

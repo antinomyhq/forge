@@ -58,6 +58,10 @@ pub struct Environment {
     /// Maximum execution time in seconds for a single tool call.
     /// Controls how long a tool can run before being terminated.
     pub tool_timeout: u64,
+    /// Maximum execution time in seconds for permission checks.
+    /// Controls how long a permission check can run before being terminated.
+    /// Controlled by FORGE_PERMISSION_TIMEOUT environment variable.
+    pub permission_timeout: u64,
     /// Whether to automatically open HTML dump files in the browser.
     /// Controlled by FORGE_DUMP_AUTO_OPEN environment variable.
     pub auto_open_dump: bool,
@@ -292,6 +296,7 @@ fn test_command_path() {
         http: HttpConfig::default(),
         max_file_size: 104857600,
         tool_timeout: 300,
+        permission_timeout: 300,
         auto_open_dump: false,
         debug_requests: None,
         custom_history_path: None,
@@ -332,6 +337,7 @@ fn test_command_cwd_path() {
         http: HttpConfig::default(),
         max_file_size: 104857600,
         tool_timeout: 300,
+        permission_timeout: 30,
         auto_open_dump: false,
         debug_requests: None,
         custom_history_path: None,
@@ -372,6 +378,7 @@ fn test_command_cwd_path_independent_from_command_path() {
         http: HttpConfig::default(),
         max_file_size: 104857600,
         tool_timeout: 300,
+        permission_timeout: 300,
         auto_open_dump: false,
         debug_requests: None,
         custom_history_path: None,
