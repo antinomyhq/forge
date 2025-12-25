@@ -1,11 +1,17 @@
-pub(crate) mod anthropic;
-pub(crate) mod bedrock;
+mod anthropic;
+mod bedrock;
+mod bedrock_cache;
 mod event;
 #[cfg(test)]
 mod mock_server;
-pub(crate) mod openai;
-pub(crate) mod retry;
+mod openai;
+mod retry;
 mod utils;
+
+pub use anthropic::*;
+pub use bedrock::*;
+pub use openai::*;
+pub use retry::*;
 
 /// Trait for converting types into domain types
 pub trait IntoDomain {

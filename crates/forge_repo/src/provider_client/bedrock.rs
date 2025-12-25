@@ -9,7 +9,7 @@ use forge_domain::{
 use reqwest::Url;
 use tokio::sync::OnceCell;
 
-use super::SetCache;
+use crate::provider_client::bedrock_cache::SetCache;
 use crate::provider_client::{FromDomain, IntoDomain};
 
 /// Provider implementation for Amazon Bedrock using Bearer token authentication

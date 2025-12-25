@@ -1,17 +1,15 @@
-use std::marker::PhantomData;
-use std::sync::Arc;
-
+use crate::provider_client::BedrockProvider;
+use crate::provider_client::into_retry;
 use anyhow::Context as _;
 use derive_setters::Setters;
 use forge_app::domain::{
     ChatCompletionMessage, Context, Model, ModelId, Provider, ResultStream, RetryConfig,
 };
 use forge_domain::ChatRepository;
+use std::marker::PhantomData;
+use std::sync::Arc;
 use tokio_stream::StreamExt;
 use url::Url;
-
-use crate::provider_client::bedrock::BedrockProvider;
-use crate::provider_client::retry::into_retry;
 
 /// Repository for AWS Bedrock provider responses
 #[derive(Setters)]

@@ -11,8 +11,8 @@ use forge_domain::ChatRepository;
 use tokio_stream::StreamExt;
 use url::Url;
 
-use crate::provider_client::openai::OpenAIProvider;
-use crate::provider_client::retry::into_retry;
+use crate::provider_client::OpenAIProvider;
+use crate::provider_client::into_retry;
 
 /// Repository for OpenAI-compatible provider responses
 ///
