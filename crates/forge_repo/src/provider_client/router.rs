@@ -15,7 +15,9 @@ use merge::Merge;
 use serde::Deserialize;
 use url::Url;
 
-use crate::{AnthropicResponseRepository, BedrockResponseRepository, OpenAIResponseRepository};
+use crate::provider_client::anthropic::AnthropicResponseRepository;
+use crate::provider_client::bedrock::BedrockResponseRepository;
+use crate::provider_client::openai::OpenAIResponseRepository;
 
 /// Represents the source of models for a provider
 #[derive(Debug, Clone, Deserialize)]

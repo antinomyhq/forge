@@ -22,7 +22,7 @@ use reqwest_eventsource::EventSource;
 use url::Url;
 
 use crate::fs_snap::ForgeFileSnapshotService;
-use crate::provider::ForgeProviderRepository;
+use crate::provider_client::ForgeProviderRepository;
 use crate::{
     AppConfigRepositoryImpl, ConversationRepositoryImpl, DatabasePool, ForgeAgentRepository,
     ForgeSkillRepository, PoolConfig,

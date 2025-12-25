@@ -16,7 +16,7 @@ use tokio_stream::StreamExt;
 use tracing::debug;
 
 use crate::provider_client::event::into_chat_completion_message;
-use crate::provider_client::into_retry;
+use crate::provider_client::retry::into_retry;
 use crate::provider_client::utils::{create_headers, format_http_context};
 
 #[derive(Clone)]

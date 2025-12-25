@@ -5,7 +5,6 @@ mod conversation;
 mod database;
 mod forge_repo;
 mod fs_snap;
-mod provider;
 mod provider_client;
 mod skill;
 mod validation;
@@ -18,10 +17,6 @@ pub use conversation::*;
 pub use database::*;
 pub use forge_repo::*;
 pub use fs_snap::*;
-pub use provider::*;
-pub use provider_client::{
-    AnthropicResponseRepository, BedrockResponseRepository, OpenAIResponseRepository,
-};
 pub use skill::*;
 pub use validation::*;
 pub use workspace::*;
