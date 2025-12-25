@@ -1241,4 +1241,49 @@ mod tests {
                 .contains("Workspace not indexed")
         );
     }
+
+    #[tokio::test]
+    async fn test_recommend_skills_returns_selected_skills() {
+        // Fixture
+        let mut mock = MockInfra::synced(&["main.rs"]);
+        mock.skills = vec![
+            forge_domain::Skill::new("pdf", "PDF handling", "Handle PDF files"),
+            forge_domain::Skill::new("excel", "Excel handling", "Handle Excel files"),
+        ];
+        mock.selected_skills = vec![forge_domain::SelectedSkill::new("pdf", 0.95, 1)];
+        let service = ForgeWorkspaceService::new(Arc::new(mock));
+
+        // Act
+        let actual = service
+            .recommend_skills("I need to handle PDF files".to_string())
+            .await
+            .unwrap();
+
+        // Assert
+        let expected = vec![forge_domain::SelectedSkill::new("pdf", 0.95, 1)];
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_recommend_skills_creates_credentials_when_not_authenticated() {
+        // Fixture
+        let mut mock = MockInfra::synced(&["main.rs"]);
+        mock.authenticated = false;
+        mock.skills = vec![forge_domain::Skill::new(
+            "test_skill",
+            "Test skill",
+            "Test skill description",
+        )];
+        mock.selected_skills = vec![forge_domain::SelectedSkill::new("test_skill", 0.9, 1)];
+        let service = ForgeWorkspaceService::new(Arc::new(mock));
+
+        // Act - should create credentials and succeed
+        let actual = service.recommend_skills("test".to_string()).await;
+
+        // Assert - should succeed after creating credentials
+        assert!(actual.is_ok());
+        let skills = actual.unwrap();
+        assert_eq!(skills.len(), 1);
+        assert_eq!(skills[0].name, "test_skill");
+    }
 }
