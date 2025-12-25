@@ -1093,8 +1093,6 @@ impl<I: Services> WorkspaceService for I {
         &self,
         use_case: String,
     ) -> anyhow::Result<Vec<forge_domain::SelectedSkill>> {
-        self.workspace_service()
-            .recommend_skills(use_case)
-            .await
+        self.workspace_service().recommend_skills(use_case).await
     }
 }

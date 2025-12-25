@@ -273,7 +273,10 @@ mod tests {
             unimplemented!()
         }
 
-        async fn get_workspace_status(&self, _path: std::path::PathBuf) -> anyhow::Result<Vec<forge_domain::FileStatus>> {
+        async fn get_workspace_status(
+            &self,
+            _path: std::path::PathBuf,
+        ) -> anyhow::Result<Vec<forge_domain::FileStatus>> {
             unimplemented!()
         }
 
