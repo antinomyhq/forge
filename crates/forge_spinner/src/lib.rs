@@ -196,7 +196,6 @@ impl Drop for SpinnerManager {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
