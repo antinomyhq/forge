@@ -1,5 +1,5 @@
 ---
-source: crates/forge_repo/src/provider_client/openai.rs
+source: crates/forge_repo/src/provider/openai.rs
 expression: actual
 ---
 [

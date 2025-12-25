@@ -1,5 +1,5 @@
 ---
-source: crates/forge_repo/src/provider_client/anthropic.rs
+source: crates/forge_repo/src/provider/openai.rs
 expression: "normalize_ports(format!(\"{:#?}\", actual.unwrap_err()))"
 ---
 Error {

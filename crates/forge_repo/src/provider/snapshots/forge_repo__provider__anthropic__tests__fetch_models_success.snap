@@ -1,5 +1,5 @@
 ---
-source: crates/forge_repo/src/provider_client/anthropic.rs
+source: crates/forge_repo/src/provider/anthropic.rs
 expression: actual
 ---
 [
