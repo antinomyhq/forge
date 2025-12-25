@@ -26,9 +26,10 @@ use futures::StreamExt;
 use reqwest::header::AUTHORIZATION;
 use tracing::info;
 use url::Url;
+
+use crate::provider::retry::into_retry;
 use crate::provider::utils::{create_headers, format_http_context, sanitize_headers};
 use crate::provider::{FromDomain, IntoDomain};
-use crate::provider::retry::into_retry;
 
 #[derive(Clone)]
 struct OpenAIResponsesProvider<H> {
@@ -699,10 +700,7 @@ pub struct OpenAIResponsesResponseRepository<F> {
 
 impl<F> OpenAIResponsesResponseRepository<F> {
     pub fn new(infra: Arc<F>) -> Self {
-        Self {
-            infra,
-            retry_config: Arc::new(RetryConfig::default()),
-        }
+        Self { infra, retry_config: Arc::new(RetryConfig::default()) }
     }
 }
 
@@ -950,7 +948,11 @@ mod tests {
                 Ok(request.send().await?)
             }
 
-            async fn http_post(&self, _url: &reqwest::Url, _body: Bytes) -> anyhow::Result<reqwest::Response> {
+            async fn http_post(
+                &self,
+                _url: &reqwest::Url,
+                _body: Bytes,
+            ) -> anyhow::Result<reqwest::Response> {
                 unimplemented!()
             }
 
@@ -968,9 +970,7 @@ mod tests {
             }
         }
 
-        let mock_http = Arc::new(MockHttpClient {
-            client: reqwest::Client::new(),
-        });
+        let _mock_http = Arc::new(MockHttpClient { client: reqwest::Client::new() });
 
         let provider: OpenAIResponsesProvider<MockHttpClient> =
             OpenAIResponsesProvider::new(provider);

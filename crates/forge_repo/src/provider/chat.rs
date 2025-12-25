@@ -34,20 +34,15 @@ impl<F: EnvironmentInfra + HttpInfra> ForgeChatRepository<F> {
         let openai_repo =
             OpenAIResponseRepository::new(infra.clone()).retry_config(retry_config.clone());
 
-        let codex_repo =
-            OpenAIResponsesResponseRepository::new(infra.clone()).retry_config(retry_config.clone());
+        let codex_repo = OpenAIResponsesResponseRepository::new(infra.clone())
+            .retry_config(retry_config.clone());
 
         let anthropic_repo =
             AnthropicResponseRepository::new(infra.clone()).retry_config(retry_config.clone());
 
         let bedrock_repo = BedrockResponseRepository::new(retry_config);
 
-        Self {
-            openai_repo,
-            codex_repo,
-            anthropic_repo,
-            bedrock_repo,
-        }
+        Self { openai_repo, codex_repo, anthropic_repo, bedrock_repo }
     }
 }
 
