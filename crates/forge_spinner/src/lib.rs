@@ -33,7 +33,14 @@ impl SpinnerManager {
     pub fn test_with_tick_counter(
         tick_counter: std::sync::Arc<std::sync::atomic::AtomicU64>,
     ) -> Self {
-        Self { tick_counter: Some(tick_counter), ..Self::default() }
+        Self {
+            spinner: None,
+            stopwatch: Stopwatch::default(),
+            message: None,
+            tracker: None,
+            word_index: None,
+            tick_counter: Some(tick_counter),
+        }
     }
 
     /// Start the spinner with a message
@@ -165,11 +172,6 @@ impl SpinnerManager {
         let prev_message = self.message.clone();
         self.stop_inner(Some(message.to_string()), writer)?;
 
-        // Flush both stdout and stderr to ensure all output is visible
-        // This prevents race conditions with shell prompt resets
-        let _ = io::stdout().flush();
-        let _ = io::stderr().flush();
-
         if is_running {
             self.start(prev_message.as_deref())?
         }
@@ -184,6 +186,16 @@ impl SpinnerManager {
         self.write_with_restart(message, |msg| eprintln!("{msg}"))
     }
 }
+
+impl Drop for SpinnerManager {
+    fn drop(&mut self) {
+        // Flush both stdout and stderr to ensure all output is visible
+        // This prevents race conditions with shell prompt resets
+        let _ = io::stdout().flush();
+        let _ = io::stderr().flush();
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
