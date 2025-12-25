@@ -124,14 +124,13 @@ impl<R: ChatRepository + ProviderRepository> ProviderService for ForgeProviderSe
             .into_iter()
             .map(|provider| {
                 // If provider is a Template with credentials, render it to Url
-                if let AnyProvider::Template(template_provider) = &provider {
-                    if template_provider.is_configured() {
+                if let AnyProvider::Template(template_provider) = &provider
+                    && template_provider.is_configured() {
                         // Clone and render the provider
                         if let Ok(rendered) = self.render_provider(template_provider.clone()) {
                             return AnyProvider::Url(rendered);
                         }
                     }
-                }
                 // Otherwise return as-is
                 provider
             })
@@ -231,7 +230,6 @@ mod tests {
         async fn remove_credential(&self, _id: &ProviderId) -> Result<()> {
             Ok(())
         }
-
 
         async fn migrate_env_credentials(&self) -> Result<Option<MigrationResult>> {
             Ok(None)
@@ -375,17 +373,12 @@ mod tests {
     #[tokio::test]
     async fn test_get_all_providers_renders_configured_providers() {
         let configured = test_template_provider();
-        let unconfigured = Provider {
-            credential: None,
-            ..test_template_provider()
-        };
+        let unconfigured = Provider { credential: None, ..test_template_provider() };
 
-        let repository = Arc::new(
-            MockProviderRepository::new(vec![]).with_providers(vec![
-                AnyProvider::Template(configured),
-                AnyProvider::Template(unconfigured),
-            ]),
-        );
+        let repository = Arc::new(MockProviderRepository::new(vec![]).with_providers(vec![
+            AnyProvider::Template(configured),
+            AnyProvider::Template(unconfigured),
+        ]));
 
         let service = ForgeProviderService::new(repository);
         let actual = service.get_all_providers().await.unwrap();
