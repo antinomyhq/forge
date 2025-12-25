@@ -4,7 +4,7 @@ use std::sync::Arc;
 use forge_app::AppConfigService;
 use forge_domain::{
     AppConfig, AppConfigRepository, ModelId, ModelSource, Provider, ProviderId, ProviderRepository,
-    Template, URLParam, URLParamValue,
+    ProviderTemplate,
 };
 use url::Url;
 
@@ -23,7 +23,7 @@ impl<F> ForgeAppConfigService<F> {
     fn render_url_template(
         &self,
         template: &str,
-        params: &HashMap<URLParam, URLParamValue>,
+        params: &HashMap<forge_domain::URLParam, forge_domain::URLParamValue>,
     ) -> anyhow::Result<Url> {
         let template_data: HashMap<&str, &str> = params
             .iter()
@@ -37,10 +37,7 @@ impl<F> ForgeAppConfigService<F> {
     }
 
     /// Renders a provider from template to fully resolved URLs
-    fn render_provider(
-        &self,
-        template_provider: Provider<Template<HashMap<URLParam, URLParamValue>>>,
-    ) -> anyhow::Result<Provider<Url>> {
+    fn render_provider(&self, template_provider: ProviderTemplate) -> anyhow::Result<Provider<Url>> {
         let credential = template_provider
             .credential
             .as_ref()
@@ -270,11 +267,7 @@ mod tests {
                 .collect())
         }
 
-        async fn get_provider(
-            &self,
-            id: ProviderId,
-        ) -> anyhow::Result<Provider<forge_domain::Template<HashMap<URLParam, URLParamValue>>>>
-        {
+        async fn get_provider(&self, id: ProviderId) -> anyhow::Result<ProviderTemplate> {
             // Convert Provider<Url> to Provider<Template<...>> for testing
             self.providers
                 .iter()

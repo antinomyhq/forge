@@ -8,7 +8,7 @@ use forge_app::domain::{
 };
 use forge_domain::{
     AuthCredential, ChatRepository, Context, MigrationResult, ModelSource, Provider,
-    ProviderRepository, Template, URLParam, URLParamValue,
+    ProviderRepository, ProviderTemplate,
 };
 use tokio::sync::Mutex;
 use url::Url;
@@ -33,7 +33,7 @@ impl<R> ForgeProviderService<R> {
     fn render_url_template(
         &self,
         template: &str,
-        params: &HashMap<URLParam, URLParamValue>,
+        params: &HashMap<forge_domain::URLParam, forge_domain::URLParamValue>,
     ) -> Result<Url> {
         let template_data: HashMap<&str, &str> = params
             .iter()
@@ -47,10 +47,7 @@ impl<R> ForgeProviderService<R> {
     }
 
     /// Renders a provider from template to fully resolved URLs
-    fn render_provider(
-        &self,
-        template_provider: Provider<Template<HashMap<URLParam, URLParamValue>>>,
-    ) -> Result<Provider<Url>> {
+    fn render_provider(&self, template_provider: ProviderTemplate) -> Result<Provider<Url>> {
         let credential = template_provider
             .credential
             .as_ref()
@@ -147,7 +144,7 @@ impl<R: ChatRepository + ProviderRepository> ProviderService for ForgeProviderSe
 #[cfg(test)]
 mod tests {
     use forge_app::domain::ProviderId;
-    use forge_domain::{AuthDetails, AuthMethod, ModelSource, ProviderType};
+    use forge_domain::{AuthDetails, AuthMethod, ModelSource, ProviderType, Template};
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -192,10 +189,7 @@ mod tests {
             Ok(vec![])
         }
 
-        async fn get_provider(
-            &self,
-            _id: ProviderId,
-        ) -> Result<Provider<forge_domain::Template<HashMap<URLParam, URLParamValue>>>> {
+        async fn get_provider(&self, _id: ProviderId) -> Result<ProviderTemplate> {
             Ok(test_template_provider())
         }
 
@@ -237,7 +231,7 @@ mod tests {
         }
     }
 
-    fn test_template_provider() -> Provider<Template<HashMap<URLParam, URLParamValue>>> {
+    fn test_template_provider() -> ProviderTemplate {
         Provider {
             id: ProviderId::OPENAI,
             provider_type: ProviderType::Llm,

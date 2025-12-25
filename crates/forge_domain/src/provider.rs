@@ -191,6 +191,9 @@ pub struct Provider<T> {
     pub credential: Option<AuthCredential>,
 }
 
+/// Type alias for a provider with template URLs (not yet rendered)
+pub type ProviderTemplate = Provider<Template<HashMap<crate::URLParam, crate::URLParamValue>>>;
+
 impl<T> Provider<T> {
     pub fn is_configured(&self) -> bool {
         self.credential.is_some()
@@ -220,7 +223,7 @@ impl Provider<Url> {
 #[derive(Debug, Clone, PartialEq, From)]
 pub enum AnyProvider {
     Url(Provider<Url>),
-    Template(Provider<Template<HashMap<crate::URLParam, crate::URLParamValue>>>),
+    Template(ProviderTemplate),
 }
 
 impl AnyProvider {

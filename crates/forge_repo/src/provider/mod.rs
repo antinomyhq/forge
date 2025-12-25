@@ -14,13 +14,13 @@ pub use chat::*;
 pub use provider_repo::*;
 
 /// Trait for converting types into domain types
-pub(crate) trait IntoDomain {
+trait IntoDomain {
     type Domain;
     fn into_domain(self) -> Self::Domain;
 }
 
 /// Trait for converting from domain types
-pub(crate) trait FromDomain<T> {
+trait FromDomain<T> {
     fn from_domain(value: T) -> anyhow::Result<Self>
     where
         Self: Sized;

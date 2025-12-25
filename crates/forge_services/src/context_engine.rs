@@ -569,8 +569,8 @@ mod tests {
     use forge_app::{WalkedFile, WorkspaceService};
     use forge_domain::{
         ApiKey, ChatRepository, CodeSearchQuery, FileDeletion, FileHash, FileInfo, FileUpload,
-        FileUploadInfo, Node, URLParam, URLParamValue, UserId, Workspace, WorkspaceAuth,
-        WorkspaceFiles, WorkspaceId, WorkspaceInfo,
+        FileUploadInfo, Node, ProviderTemplate, UserId, Workspace, WorkspaceAuth, WorkspaceFiles,
+        WorkspaceId, WorkspaceInfo,
     };
     use futures::StreamExt;
     use pretty_assertions::assert_eq;
@@ -699,11 +699,7 @@ mod tests {
             Ok(vec![])
         }
 
-        async fn get_provider(
-            &self,
-            _id: ProviderId,
-        ) -> Result<forge_domain::Provider<forge_domain::Template<HashMap<URLParam, URLParamValue>>>>
-        {
+        async fn get_provider(&self, _id: ProviderId) -> Result<ProviderTemplate> {
             unimplemented!("Not needed for indexing tests")
         }
 

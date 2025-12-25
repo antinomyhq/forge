@@ -264,7 +264,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
     async fn create_provider(
         &self,
         config: &ProviderConfig,
-    ) -> anyhow::Result<Provider<forge_domain::Template<HashMap<URLParam, URLParamValue>>>> {
+    ) -> anyhow::Result<forge_domain::ProviderTemplate> {
         // Get credential from file
         let credential = self
             .get_credential(&config.id)
@@ -309,10 +309,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
         Ok(config.into())
     }
 
-    async fn provider_from_id(
-        &self,
-        id: ProviderId,
-    ) -> anyhow::Result<Provider<forge_domain::Template<HashMap<URLParam, URLParamValue>>>> {
+    async fn provider_from_id(&self, id: ProviderId) -> anyhow::Result<forge_domain::ProviderTemplate> {
         // Handle special cases first
         if id == ProviderId::FORGE {
             // Forge provider isn't typically configured via env vars in the registry
@@ -378,10 +375,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Sync>
         Ok(self.get_providers().await.clone())
     }
 
-    async fn get_provider(
-        &self,
-        id: ProviderId,
-    ) -> anyhow::Result<Provider<forge_domain::Template<HashMap<URLParam, URLParamValue>>>> {
+    async fn get_provider(&self, id: ProviderId) -> anyhow::Result<forge_domain::ProviderTemplate> {
         self.provider_from_id(id).await
     }
 
@@ -564,7 +558,8 @@ mod env_tests {
     use forge_app::domain::{
         ChatCompletionMessage, Context, Environment, Model, ModelId, ResultStream,
     };
-    use forge_domain::{AnyProvider, ChatRepository};
+    use forge_domain::{AnyProvider, ChatRepository, ProviderTemplate};
+    use url::Url;
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -711,7 +706,7 @@ mod env_tests {
             Ok(vec![])
         }
 
-        async fn get_provider(&self, _id: ProviderId) -> anyhow::Result<Provider<Url>> {
+        async fn get_provider(&self, _id: ProviderId) -> anyhow::Result<ProviderTemplate> {
             Err(anyhow::anyhow!("Provider not found"))
         }
 
@@ -965,22 +960,22 @@ mod env_tests {
             Some("test-key-123".to_string())
         );
 
-        // Check chat completion URL (url field now contains the chat completion URL)
-        let chat_url = provider.url();
+        // Check that URL template is returned (not rendered)
+        let url_template = &provider.url;
         assert_eq!(
-            chat_url.as_str(),
-            "https://my-test-resource.openai.azure.com/openai/deployments/gpt-4-deployment/chat/completions?api-version=2024-02-01-preview"
+            url_template.template,
+            "https://{{AZURE_RESOURCE_NAME}}.openai.azure.com/openai/deployments/{{AZURE_DEPLOYMENT_NAME}}/chat/completions?api-version={{AZURE_API_VERSION}}"
         );
 
-        // Check model URL
+        // Check that model URL template is returned (not rendered)
         match &provider.models.as_ref().unwrap() {
-            forge_domain::ModelSource::Url(model_url) => {
+            forge_domain::ModelSource::Url(model_template) => {
                 assert_eq!(
-                    model_url.as_str(),
-                    "https://my-test-resource.openai.azure.com/openai/models?api-version=2024-02-01-preview"
+                    model_template.template,
+                    "https://{{AZURE_RESOURCE_NAME}}.openai.azure.com/openai/models?api-version={{AZURE_API_VERSION}}"
                 );
             }
-            forge_domain::ModelSource::Hardcoded(_) => panic!("Expected Models::Url variant"),
+            forge_domain::ModelSource::Hardcoded(_) => panic!("Expected ModelSource::Url variant"),
         }
     }
 
@@ -1001,25 +996,25 @@ mod env_tests {
         let openai_provider = providers
             .iter()
             .find_map(|p| match p {
-                AnyProvider::Url(cp) if cp.id == ProviderId::OPENAI => Some(cp),
+                AnyProvider::Template(cp) if cp.id == ProviderId::OPENAI => Some(cp),
                 _ => None,
             })
             .unwrap();
         let anthropic_provider = providers
             .iter()
             .find_map(|p| match p {
-                AnyProvider::Url(cp) if cp.id == ProviderId::ANTHROPIC => Some(cp),
+                AnyProvider::Template(cp) if cp.id == ProviderId::ANTHROPIC => Some(cp),
                 _ => None,
             })
             .unwrap();
 
-        // Regular OpenAI and Anthropic providers use hardcoded URLs
+        // Regular OpenAI and Anthropic providers return template URLs (not rendered)
         assert_eq!(
-            openai_provider.url.as_str(),
+            openai_provider.url.template,
             "https://api.openai.com/v1/chat/completions"
         );
         assert_eq!(
-            anthropic_provider.url.as_str(),
+            anthropic_provider.url.template,
             "https://api.anthropic.com/v1/messages"
         );
     }
@@ -1171,7 +1166,7 @@ mod env_tests {
                 Ok(vec![])
             }
 
-            async fn get_provider(&self, _id: ProviderId) -> anyhow::Result<Provider<Url>> {
+            async fn get_provider(&self, _id: ProviderId) -> anyhow::Result<ProviderTemplate> {
                 Err(anyhow::anyhow!("Provider not found"))
             }
 
