@@ -65,7 +65,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::provider_client::FromDomain;
+    use crate::provider::FromDomain;
 
     fn has_cache_point_after_first_system(request: &ConverseStreamInput) -> bool {
         request

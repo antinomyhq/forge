@@ -21,12 +21,16 @@ use reqwest::header::HeaderMap;
 use reqwest_eventsource::EventSource;
 use url::Url;
 
+use crate::agent::ForgeAgentRepository;
+use crate::app_config::AppConfigRepositoryImpl;
+use crate::context_engine::ForgeContextEngineRepository;
+use crate::conversation::ConversationRepositoryImpl;
+use crate::database::{DatabasePool, PoolConfig};
 use crate::fs_snap::ForgeFileSnapshotService;
-use crate::provider_client::ForgeProviderRepository;
-use crate::{
-    AppConfigRepositoryImpl, ConversationRepositoryImpl, DatabasePool, ForgeAgentRepository,
-    ForgeSkillRepository, PoolConfig,
-};
+use crate::provider::ForgeProviderRepository;
+use crate::skill::ForgeSkillRepository;
+use crate::validation::ForgeValidationRepository;
+use crate::workspace::ForgeWorkspaceRepository;
 
 /// Repository layer that implements all domain repository traits
 ///
@@ -40,11 +44,11 @@ pub struct ForgeRepo<F> {
     app_config_repository: Arc<AppConfigRepositoryImpl<F>>,
     mcp_cache_repository: Arc<CacacheStorage>,
     provider_repository: Arc<ForgeProviderRepository<F>>,
-    indexing_repository: Arc<crate::ForgeWorkspaceRepository>,
-    codebase_repo: Arc<crate::ForgeContextEngineRepository<F>>,
+    indexing_repository: Arc<ForgeWorkspaceRepository>,
+    codebase_repo: Arc<ForgeContextEngineRepository<F>>,
     agent_repository: Arc<ForgeAgentRepository<F>>,
     skill_repository: Arc<ForgeSkillRepository<F>>,
-    validation_repository: Arc<crate::ForgeValidationRepository<F>>,
+    validation_repository: Arc<ForgeValidationRepository<F>>,
 }
 
 impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpInfra> ForgeRepo<F> {
@@ -67,12 +71,12 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpI
 
         let provider_repository = Arc::new(ForgeProviderRepository::new(infra.clone()));
 
-        let indexing_repository = Arc::new(crate::ForgeWorkspaceRepository::new(db_pool.clone()));
+        let indexing_repository = Arc::new(ForgeWorkspaceRepository::new(db_pool.clone()));
 
-        let codebase_repo = Arc::new(crate::ForgeContextEngineRepository::new(infra.clone()));
+        let codebase_repo = Arc::new(ForgeContextEngineRepository::new(infra.clone()));
         let agent_repository = Arc::new(ForgeAgentRepository::new(infra.clone()));
         let skill_repository = Arc::new(ForgeSkillRepository::new(infra.clone()));
-        let validation_repository = Arc::new(crate::ForgeValidationRepository::new(infra.clone()));
+        let validation_repository = Arc::new(ForgeValidationRepository::new(infra.clone()));
         Self {
             infra,
             file_snapshot_service,

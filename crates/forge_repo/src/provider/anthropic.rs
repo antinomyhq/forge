@@ -15,9 +15,9 @@ use reqwest::Url;
 use tokio_stream::StreamExt;
 use tracing::debug;
 
-use crate::provider_client::event::into_chat_completion_message;
-use crate::provider_client::retry::into_retry;
-use crate::provider_client::utils::{create_headers, format_http_context};
+use crate::provider::event::into_chat_completion_message;
+use crate::provider::retry::into_retry;
+use crate::provider::utils::{create_headers, format_http_context};
 
 #[derive(Clone)]
 struct Anthropic<T> {
@@ -166,7 +166,7 @@ mod tests {
     use reqwest_eventsource::EventSource;
 
     use super::*;
-    use crate::provider_client::mock_server::{MockServer, normalize_ports};
+    use crate::provider::mock_server::{MockServer, normalize_ports};
 
     // Mock implementation of HttpInfra for testing
     #[derive(Clone)]

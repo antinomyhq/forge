@@ -15,9 +15,9 @@ use tokio_stream::StreamExt;
 use tracing::{debug, info};
 use url::Url;
 
-use crate::provider_client::event::into_chat_completion_message;
-use crate::provider_client::retry::into_retry;
-use crate::provider_client::utils::{
+use crate::provider::event::into_chat_completion_message;
+use crate::provider::retry::into_retry;
+use crate::provider::utils::{
     create_headers, format_http_context, join_url, sanitize_headers,
 };
 
@@ -231,7 +231,7 @@ mod tests {
     use url::Url;
 
     use super::*;
-    use crate::provider_client::mock_server::{MockServer, normalize_ports};
+    use crate::provider::mock_server::{MockServer, normalize_ports};
 
     // Test helper functions
     fn make_credential(provider_id: ProviderId, key: &str) -> Option<forge_domain::AuthCredential> {

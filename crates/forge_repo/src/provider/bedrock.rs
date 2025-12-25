@@ -12,9 +12,9 @@ use reqwest::Url;
 use tokio::sync::OnceCell;
 use tokio_stream::StreamExt;
 
-use crate::provider_client::bedrock_cache::SetCache;
-use crate::provider_client::retry::into_retry;
-use crate::provider_client::{FromDomain, IntoDomain};
+use crate::provider::bedrock_cache::SetCache;
+use crate::provider::retry::into_retry;
+use crate::provider::{FromDomain, IntoDomain};
 
 /// Provider implementation for Amazon Bedrock using Bearer token authentication
 ///

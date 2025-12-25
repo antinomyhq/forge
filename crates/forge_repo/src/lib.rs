@@ -5,18 +5,10 @@ mod conversation;
 mod database;
 mod forge_repo;
 mod fs_snap;
-mod provider_client;
+mod provider;
 mod skill;
 mod validation;
 mod workspace;
 
-pub use agent::*;
-pub use app_config::*;
-pub use context_engine::*;
-pub use conversation::*;
-pub use database::*;
+// Only expose forge_repo container
 pub use forge_repo::*;
-pub use fs_snap::*;
-pub use skill::*;
-pub use validation::*;
-pub use workspace::*;
