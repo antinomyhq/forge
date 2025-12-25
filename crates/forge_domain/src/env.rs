@@ -295,7 +295,7 @@ fn test_command_path() {
         max_read_size: 2000,
         http: HttpConfig::default(),
         max_file_size: 104857600,
-        tool_timeout: 300,        
+        tool_timeout: 300,
         permission_timeout: 300,
         auto_open_dump: false,
         debug_requests: None,

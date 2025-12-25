@@ -357,7 +357,8 @@ impl<
 
         // Check permissions before executing the tool (if enabled)
         if env.enable_permissions {
-            // In case of timeout, let the request go through (default behavior allow requests if permission timeouts.)
+            // In case of timeout, let the request go through (default behavior allow
+            // requests if permission timeouts.)
             let permission_check = timeout(
                 Duration::from_secs(env.permission_timeout),
                 self.check_tool_permission(&tool_input, context),
