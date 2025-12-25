@@ -362,8 +362,7 @@ impl<
                 Duration::from_secs(env.permission_timeout),
                 self.check_tool_permission(&tool_input, context),
             )
-            .await
-            .unwrap_or(Ok(false))
+            .await?
             .unwrap_or_default();
 
             if permission_check {
