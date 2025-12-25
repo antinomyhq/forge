@@ -11,7 +11,6 @@ tools:
   - patch
   - shell
   - fetch
-  - search
   - undo
   - sage
   - mcp_*
