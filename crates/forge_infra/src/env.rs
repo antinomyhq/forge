@@ -78,6 +78,7 @@ impl ForgeEnvironmentInfra {
             stdout_max_prefix_length: 200,
             stdout_max_suffix_length: 200,
             tool_timeout: parse_env::<u64>("FORGE_TOOL_TIMEOUT").unwrap_or(300),
+            permission_timeout: parse_env::<u64>("FORGE_PERMISSION_TIMEOUT").unwrap_or(300),
             auto_open_dump: parse_env::<bool>("FORGE_DUMP_AUTO_OPEN").unwrap_or(false),
             debug_requests: parse_env::<String>("FORGE_DEBUG_REQUESTS").map(PathBuf::from),
             stdout_max_line_length: parse_env::<usize>("FORGE_STDOUT_MAX_LINE_LENGTH")

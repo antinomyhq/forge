@@ -1,11 +1,16 @@
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 
+use anyhow::Context;
 use forge_domain::{
-    CodebaseQueryResult, TitleFormat, ToolCallContext, ToolCallFull, ToolCatalog, ToolOutput,
+    CodebaseQueryResult, TitleFormat, ToolCallContext, ToolCallFull, ToolCatalog, ToolName,
+    ToolOutput,
 };
 use forge_template::Element;
+use tokio::time::timeout;
 
+use crate::error::Error;
 use crate::fmt::content::FormatContent;
 use crate::operation::{TempContentFiles, ToolOperation};
 use crate::services::ShellService;
@@ -319,11 +324,30 @@ impl<
         })
     }
 
+    async fn call_with_timeout<F, Fut>(
+        &self,
+        tool_timeout: Duration,
+        tool_name: &ToolName,
+        future: F,
+    ) -> anyhow::Result<ToolOperation>
+    where
+        F: FnOnce() -> Fut,
+        Fut: std::future::Future<Output = anyhow::Result<ToolOperation>>,
+    {
+        timeout(tool_timeout, future())
+            .await
+            .context(Error::CallTimeout {
+                timeout: tool_timeout.as_secs() / 60,
+                tool_name: tool_name.clone(),
+            })?
+    }
+
     pub async fn execute(
         &self,
         input: ToolCallFull,
         context: &ToolCallContext,
     ) -> anyhow::Result<ToolOutput> {
+        let tool_name = input.name.clone();
         let tool_input: ToolCatalog = ToolCatalog::try_from(input)?;
         let tool_kind = tool_input.kind();
         let env = self.services.get_environment();
@@ -332,19 +356,36 @@ impl<
         }
 
         // Check permissions before executing the tool (if enabled)
-        if env.enable_permissions && self.check_tool_permission(&tool_input, context).await? {
-            // Send formatted output message for policy denial
-            context
-                .send(TitleFormat::error("Permission Denied"))
-                .await?;
+        if env.enable_permissions {
+            // In case of timeout, let the request go through (default behavior allow requests if permission timeouts.)
+            let permission_check = timeout(
+                Duration::from_secs(env.permission_timeout),
+                self.check_tool_permission(&tool_input, context),
+            )
+            .await
+            .unwrap_or(Ok(false))
+            .unwrap_or_default();
 
-            return Ok(ToolOutput::text(
-                Element::new("permission_denied")
-                    .cdata("User has denied the permission to execute this tool"),
-            ));
+            if permission_check {
+                // Send formatted output message for policy denial
+                context
+                    .send(TitleFormat::error("Permission Denied"))
+                    .await?;
+
+                return Ok(ToolOutput::text(
+                    Element::new("permission_denied")
+                        .cdata("User has denied the permission to execute this tool"),
+                ));
+            }
         }
 
-        let execution_result = self.call_internal(tool_input.clone()).await;
+        let execution_result = self
+            .call_with_timeout(
+                Duration::from_secs(env.tool_timeout),
+                &tool_name,
+                || async { self.call_internal(tool_input.clone()).await },
+            )
+            .await;
 
         if let Err(ref error) = execution_result {
             tracing::error!(error = ?error, "Tool execution failed");
