@@ -7,12 +7,14 @@ use forge_app::domain::{
     AnyProvider, ChatCompletionMessage, Model, ModelId, ProviderId, ResultStream,
 };
 use forge_domain::{
-    AuthCredential, ChatRepository, Context, MigrationResult, Provider, ProviderRepository,
+    AuthCredential, ChatRepository, Context, MigrationResult, ModelSource, Provider,
+    ProviderRepository, Template, URLParam, URLParamValue,
 };
 use tokio::sync::Mutex;
 use url::Url;
 
-/// Service layer wrapper for ProviderRepository that handles model caching
+/// Service layer wrapper for ProviderRepository that handles model caching and
+/// template rendering
 pub struct ForgeProviderService<R> {
     repository: Arc<R>,
     cached_models: Arc<Mutex<HashMap<ProviderId, Vec<Model>>>>,
@@ -25,6 +27,63 @@ impl<R> ForgeProviderService<R> {
             repository,
             cached_models: Arc::new(Mutex::new(HashMap::new())),
         }
+    }
+
+    /// Renders a URL template with provided parameters
+    fn render_url_template(
+        &self,
+        template: &str,
+        params: &HashMap<URLParam, URLParamValue>,
+    ) -> Result<Url> {
+        let template_data: HashMap<&str, &str> = params
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect();
+
+        let handlebars = forge_app::TemplateEngine::handlebar_instance();
+        let rendered = handlebars.render_template(template, &template_data)?;
+
+        Ok(Url::parse(&rendered)?)
+    }
+
+    /// Renders a provider from template to fully resolved URLs
+    fn render_provider(
+        &self,
+        template_provider: Provider<Template<HashMap<URLParam, URLParamValue>>>,
+    ) -> Result<Provider<Url>> {
+        let credential = template_provider
+            .credential
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Provider has no credential"))?;
+
+        // Render main URL
+        let url =
+            self.render_url_template(&template_provider.url.template, &credential.url_params)?;
+
+        // Render model source URLs
+        let models = template_provider
+            .models
+            .as_ref()
+            .and_then(|m| match m {
+                ModelSource::Url(template) => {
+                    let model_url = self
+                        .render_url_template(&template.template, &credential.url_params)
+                        .ok();
+                    model_url.map(ModelSource::Url)
+                }
+                ModelSource::Hardcoded(list) => Some(ModelSource::Hardcoded(list.clone())),
+            });
+
+        Ok(Provider {
+            id: template_provider.id,
+            provider_type: template_provider.provider_type,
+            response: template_provider.response,
+            url,
+            models,
+            auth_methods: template_provider.auth_methods,
+            url_params: template_provider.url_params,
+            credential: template_provider.credential,
+        })
     }
 }
 
@@ -68,7 +127,8 @@ impl<R: ChatRepository + ProviderRepository> ProviderService for ForgeProviderSe
     }
 
     async fn get_provider(&self, id: ProviderId) -> Result<Provider<Url>> {
-        self.repository.get_provider(id).await
+        let template_provider = self.repository.get_provider(id).await?;
+        self.render_provider(template_provider)
     }
 
     async fn upsert_credential(&self, credential: AuthCredential) -> Result<()> {
@@ -132,8 +192,11 @@ mod tests {
             Ok(vec![])
         }
 
-        async fn get_provider(&self, _id: ProviderId) -> Result<Provider<Url>> {
-            Ok(test_provider())
+        async fn get_provider(
+            &self,
+            _id: ProviderId,
+        ) -> Result<Provider<forge_domain::Template<HashMap<URLParam, URLParamValue>>>> {
+            Ok(test_template_provider())
         }
 
         async fn get_credential(&self, _id: &ProviderId) -> Result<Option<AuthCredential>> {
@@ -171,6 +234,27 @@ mod tests {
             models: Some(ModelSource::Url(
                 Url::parse("https://api.openai.com/v1/models").unwrap(),
             )),
+        }
+    }
+
+    fn test_template_provider() -> Provider<Template<HashMap<URLParam, URLParamValue>>> {
+        Provider {
+            id: ProviderId::OPENAI,
+            provider_type: ProviderType::Llm,
+            response: Some(forge_app::domain::ProviderResponse::OpenAI),
+            url: Template::new("https://api.openai.com/v1/chat/completions"),
+            auth_methods: vec![AuthMethod::ApiKey],
+            url_params: vec![],
+            credential: Some(AuthCredential {
+                id: ProviderId::OPENAI,
+                auth_details: AuthDetails::ApiKey(forge_domain::ApiKey::from(
+                    "test-key".to_string(),
+                )),
+                url_params: HashMap::new(),
+            }),
+            models: Some(ModelSource::Url(Template::new(
+                "https://api.openai.com/v1/models",
+            ))),
         }
     }
 

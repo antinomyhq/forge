@@ -109,7 +109,12 @@ pub trait ChatRepository: Send + Sync {
 #[async_trait::async_trait]
 pub trait ProviderRepository: Send + Sync {
     async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>>;
-    async fn get_provider(&self, id: ProviderId) -> anyhow::Result<Provider<Url>>;
+    async fn get_provider(
+        &self,
+        id: ProviderId,
+    ) -> anyhow::Result<
+        Provider<crate::Template<std::collections::HashMap<crate::URLParam, crate::URLParamValue>>>,
+    >;
     async fn upsert_credential(&self, credential: AuthCredential) -> anyhow::Result<()>;
     async fn get_credential(&self, id: &ProviderId) -> anyhow::Result<Option<AuthCredential>>;
     async fn remove_credential(&self, id: &ProviderId) -> anyhow::Result<()>;

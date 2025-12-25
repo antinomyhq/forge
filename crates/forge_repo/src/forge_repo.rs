@@ -170,7 +170,16 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Send 
         self.provider_repository.get_all_providers().await
     }
 
-    async fn get_provider(&self, id: ProviderId) -> anyhow::Result<Provider<Url>> {
+    async fn get_provider(
+        &self,
+        id: ProviderId,
+    ) -> anyhow::Result<
+        Provider<
+            forge_domain::Template<
+                std::collections::HashMap<forge_domain::URLParam, forge_domain::URLParamValue>,
+            >,
+        >,
+    > {
         self.provider_repository.get_provider(id).await
     }
 

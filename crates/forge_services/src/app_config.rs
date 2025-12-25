@@ -1,8 +1,10 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use forge_app::AppConfigService;
 use forge_domain::{
-    AppConfig, AppConfigRepository, ModelId, Provider, ProviderId, ProviderRepository,
+    AppConfig, AppConfigRepository, ModelId, ModelSource, Provider, ProviderId, ProviderRepository,
+    Template, URLParam, URLParamValue,
 };
 use url::Url;
 
@@ -15,6 +17,63 @@ impl<F> ForgeAppConfigService<F> {
     /// Creates a new provider preferences service.
     pub fn new(infra: Arc<F>) -> Self {
         Self { infra }
+    }
+
+    /// Renders a URL template with provided parameters
+    fn render_url_template(
+        &self,
+        template: &str,
+        params: &HashMap<URLParam, URLParamValue>,
+    ) -> anyhow::Result<Url> {
+        let template_data: HashMap<&str, &str> = params
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect();
+
+        let handlebars = forge_app::TemplateEngine::handlebar_instance();
+        let rendered = handlebars.render_template(template, &template_data)?;
+
+        Ok(Url::parse(&rendered)?)
+    }
+
+    /// Renders a provider from template to fully resolved URLs
+    fn render_provider(
+        &self,
+        template_provider: Provider<Template<HashMap<URLParam, URLParamValue>>>,
+    ) -> anyhow::Result<Provider<Url>> {
+        let credential = template_provider
+            .credential
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Provider has no credential"))?;
+
+        // Render main URL
+        let url =
+            self.render_url_template(&template_provider.url.template, &credential.url_params)?;
+
+        // Render model source URLs
+        let models = template_provider
+            .models
+            .as_ref()
+            .and_then(|m| match m {
+                ModelSource::Url(template) => {
+                    let model_url = self
+                        .render_url_template(&template.template, &credential.url_params)
+                        .ok();
+                    model_url.map(ModelSource::Url)
+                }
+                ModelSource::Hardcoded(list) => Some(ModelSource::Hardcoded(list.clone())),
+            });
+
+        Ok(Provider {
+            id: template_provider.id,
+            provider_type: template_provider.provider_type,
+            response: template_provider.response,
+            url,
+            models,
+            auth_methods: template_provider.auth_methods,
+            url_params: template_provider.url_params,
+            credential: template_provider.credential,
+        })
     }
 }
 
@@ -38,10 +97,10 @@ impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
     async fn get_default_provider(&self) -> anyhow::Result<Provider<Url>> {
         let app_config = self.infra.get_app_config().await?;
         if let Some(provider_id) = app_config.provider
-            && let Ok(provider) = self.infra.get_provider(provider_id).await
-            && provider.is_configured()
+            && let Ok(template_provider) = self.infra.get_provider(provider_id).await
+            && template_provider.is_configured()
         {
-            return Ok(provider);
+            return self.render_provider(template_provider);
         }
 
         // No default provider configured - return error to force explicit configuration
@@ -211,11 +270,30 @@ mod tests {
                 .collect())
         }
 
-        async fn get_provider(&self, id: ProviderId) -> anyhow::Result<Provider<Url>> {
+        async fn get_provider(
+            &self,
+            id: ProviderId,
+        ) -> anyhow::Result<Provider<forge_domain::Template<HashMap<URLParam, URLParamValue>>>>
+        {
+            // Convert Provider<Url> to Provider<Template<...>> for testing
             self.providers
                 .iter()
                 .find(|p| p.id == id)
-                .cloned()
+                .map(|p| Provider {
+                    id: p.id.clone(),
+                    provider_type: p.provider_type,
+                    response: p.response.clone(),
+                    url: forge_domain::Template::new(p.url.as_str()),
+                    models: p.models.as_ref().map(|m| match m {
+                        ModelSource::Url(url) => {
+                            ModelSource::Url(forge_domain::Template::new(url.as_str()))
+                        }
+                        ModelSource::Hardcoded(list) => ModelSource::Hardcoded(list.clone()),
+                    }),
+                    auth_methods: p.auth_methods.clone(),
+                    url_params: p.url_params.clone(),
+                    credential: p.credential.clone(),
+                })
                 .ok_or_else(|| anyhow::anyhow!("Provider not found"))
         }
 

@@ -8,10 +8,8 @@ use forge_domain::{
     AnyProvider, ApiKey, AuthCredential, AuthDetails, Error, MigrationResult, Provider,
     ProviderRepository, ProviderType, URLParam, URLParamValue,
 };
-use handlebars::Handlebars;
 use merge::Merge;
 use serde::Deserialize;
-use url::Url;
 
 /// Represents the source of models for a provider
 #[derive(Debug, Clone, Deserialize)]
@@ -104,12 +102,7 @@ impl From<&ProviderConfig>
     }
 }
 
-static HANDLEBARS: OnceLock<Handlebars<'static>> = OnceLock::new();
 static PROVIDER_CONFIGS: OnceLock<Vec<ProviderConfig>> = OnceLock::new();
-
-fn get_handlebars() -> &'static Handlebars<'static> {
-    HANDLEBARS.get_or_init(Handlebars::new)
-}
 
 fn get_provider_configs() -> &'static Vec<ProviderConfig> {
     PROVIDER_CONFIGS.get_or_init(|| {
@@ -122,12 +115,11 @@ fn get_provider_configs() -> &'static Vec<ProviderConfig> {
 
 pub struct ForgeProviderRepository<F> {
     infra: Arc<F>,
-    handlebars: &'static Handlebars<'static>,
 }
 
 impl<F: EnvironmentInfra + HttpInfra> ForgeProviderRepository<F> {
     pub fn new(infra: Arc<F>) -> Self {
-        Self { infra, handlebars: get_handlebars() }
+        Self { infra }
     }
 }
 
@@ -153,7 +145,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
                 continue;
             }
 
-            // Try to create configured provider, fallback to unconfigured
+            // Try to create configured template provider, fallback to unconfigured
             let provider_entry = if let Ok(provider) = self.create_provider(&config).await {
                 Some(provider.into())
             } else if let Ok(provider) = self.create_unconfigured_provider(&config) {
@@ -267,49 +259,22 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
         })
     }
 
-    /// Creates a configured provider from file-based credentials.
-    /// The credential file (.credentials.json) is the single source of
-    /// truth.
-    async fn create_provider(&self, config: &ProviderConfig) -> anyhow::Result<Provider<Url>> {
+    /// Creates a provider with template URLs (not rendered).
+    /// The service layer is responsible for rendering templates.
+    async fn create_provider(
+        &self,
+        config: &ProviderConfig,
+    ) -> anyhow::Result<Provider<forge_domain::Template<HashMap<URLParam, URLParamValue>>>> {
         // Get credential from file
         let credential = self
             .get_credential(&config.id)
             .await?
             .ok_or_else(|| Error::provider_not_available(config.id.clone()))?;
 
-        // Build template data from URL parameters in credential
-        let mut template_data = std::collections::HashMap::new();
-        for (param, value) in &credential.url_params {
-            template_data.insert(param.as_str(), value.as_str());
-        }
-
-        // Render URL using handlebars
-        let url = self
-            .handlebars
-            .render_template(&config.url, &template_data)
-            .map_err(|e| {
-                anyhow::anyhow!("Failed to render URL template for {}: {}", config.id, e)
-            })?;
-        let final_url = Url::parse(&url)?;
-
-        // Handle models based on the variant
+        // Handle models - keep as templates
         let models = config.models.as_ref().map(|m| match m {
             Models::Url(model_url_template) => {
-                let model_url = Url::parse(
-                    &self
-                        .handlebars
-                        .render_template(model_url_template, &template_data)
-                        .map_err(|e| {
-                            anyhow::anyhow!(
-                                "Failed to render model_url template for {}: {}",
-                                config.id,
-                                e
-                            )
-                        })
-                        .unwrap(),
-                )
-                .unwrap();
-                forge_domain::ModelSource::Url(model_url)
+                forge_domain::ModelSource::Url(forge_domain::Template::new(model_url_template))
             }
             Models::Hardcoded(model_list) => {
                 forge_domain::ModelSource::Hardcoded(model_list.clone())
@@ -320,7 +285,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
             id: config.id.clone(),
             provider_type: config.provider_type,
             response: config.response_type.clone(),
-            url: final_url,
+            url: forge_domain::Template::new(&config.url),
             auth_methods: config.auth_methods.clone(),
             url_params: config
                 .url_param_vars
@@ -344,19 +309,24 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
         Ok(config.into())
     }
 
-    async fn provider_from_id(&self, id: ProviderId) -> anyhow::Result<Provider<Url>> {
+    async fn provider_from_id(
+        &self,
+        id: ProviderId,
+    ) -> anyhow::Result<Provider<forge_domain::Template<HashMap<URLParam, URLParamValue>>>> {
         // Handle special cases first
         if id == ProviderId::FORGE {
             // Forge provider isn't typically configured via env vars in the registry
             return Err(Error::provider_not_available(ProviderId::FORGE).into());
         }
 
-        // Look up provider from cached providers - only return configured ones
+        // Look up provider from cached providers - return configured template providers
         self.get_providers()
             .await
             .iter()
             .find_map(|p| match p {
-                AnyProvider::Url(cp) if cp.id == id => Some(cp.clone()),
+                AnyProvider::Template(tp) if tp.id == id && tp.credential.is_some() => {
+                    Some(tp.clone())
+                }
                 _ => None,
             })
             .ok_or_else(|| Error::provider_not_available(id).into())
@@ -408,7 +378,10 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Sync>
         Ok(self.get_providers().await.clone())
     }
 
-    async fn get_provider(&self, id: ProviderId) -> anyhow::Result<Provider<Url>> {
+    async fn get_provider(
+        &self,
+        id: ProviderId,
+    ) -> anyhow::Result<Provider<forge_domain::Template<HashMap<URLParam, URLParamValue>>>> {
         self.provider_from_id(id).await
     }
 
