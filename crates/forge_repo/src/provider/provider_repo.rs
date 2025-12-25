@@ -309,7 +309,10 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
         Ok(config.into())
     }
 
-    async fn provider_from_id(&self, id: ProviderId) -> anyhow::Result<forge_domain::ProviderTemplate> {
+    async fn provider_from_id(
+        &self,
+        id: ProviderId,
+    ) -> anyhow::Result<forge_domain::ProviderTemplate> {
         // Handle special cases first
         if id == ProviderId::FORGE {
             // Forge provider isn't typically configured via env vars in the registry
@@ -559,8 +562,8 @@ mod env_tests {
         ChatCompletionMessage, Context, Environment, Model, ModelId, ResultStream,
     };
     use forge_domain::{AnyProvider, ChatRepository, ProviderTemplate};
-    use url::Url;
     use pretty_assertions::assert_eq;
+    use url::Url;
 
     use super::*;
 

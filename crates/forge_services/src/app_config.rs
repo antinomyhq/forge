@@ -37,7 +37,10 @@ impl<F> ForgeAppConfigService<F> {
     }
 
     /// Renders a provider from template to fully resolved URLs
-    fn render_provider(&self, template_provider: ProviderTemplate) -> anyhow::Result<Provider<Url>> {
+    fn render_provider(
+        &self,
+        template_provider: ProviderTemplate,
+    ) -> anyhow::Result<Provider<Url>> {
         let credential = template_provider
             .credential
             .as_ref()
@@ -48,18 +51,15 @@ impl<F> ForgeAppConfigService<F> {
             self.render_url_template(&template_provider.url.template, &credential.url_params)?;
 
         // Render model source URLs
-        let models = template_provider
-            .models
-            .as_ref()
-            .and_then(|m| match m {
-                ModelSource::Url(template) => {
-                    let model_url = self
-                        .render_url_template(&template.template, &credential.url_params)
-                        .ok();
-                    model_url.map(ModelSource::Url)
-                }
-                ModelSource::Hardcoded(list) => Some(ModelSource::Hardcoded(list.clone())),
-            });
+        let models = template_provider.models.as_ref().and_then(|m| match m {
+            ModelSource::Url(template) => {
+                let model_url = self
+                    .render_url_template(&template.template, &credential.url_params)
+                    .ok();
+                model_url.map(ModelSource::Url)
+            }
+            ModelSource::Hardcoded(list) => Some(ModelSource::Hardcoded(list.clone())),
+        });
 
         Ok(Provider {
             id: template_provider.id,
