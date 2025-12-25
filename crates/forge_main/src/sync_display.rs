@@ -21,21 +21,19 @@ impl SyncProgressDisplay for SyncProgress {
             Self::DiscoveringFiles { path: _ } => None,
             Self::FilesDiscovered { count: _ } => None,
             Self::ComparingFiles { .. } => None,
-            Self::DiffComputed { to_delete, to_upload, modified } => {
-                let total = to_delete + to_upload - modified;
+            Self::DiffComputed { added, deleted, modified } => {
+                let total = added + deleted + modified;
                 if total == 0 {
                     Some("Index is up to date".to_string())
                 } else {
-                    let deleted = to_delete - modified;
-                    let new = to_upload - modified;
                     let mut parts = Vec::new();
-                    if new > 0 {
-                        parts.push(format!("{} new", new));
+                    if *added > 0 {
+                        parts.push(format!("{} added", added));
                     }
                     if *modified > 0 {
                         parts.push(format!("{} modified", modified));
                     }
-                    if deleted > 0 {
+                    if *deleted > 0 {
                         parts.push(format!("{} removed", deleted));
                     }
                     Some(format!("Change scan completed [{}]", parts.join(", ")))
@@ -46,9 +44,7 @@ impl SyncProgressDisplay for SyncProgress {
                 let file_word = pluralize(*total);
                 Some(format!(
                     "Syncing {:>width$}/{} {}",
-                    current.round() as usize,
-                    total,
-                    file_word
+                    current, total, file_word
                 ))
             }
             Self::Completed { uploaded_files, total_files } => {
@@ -90,7 +86,7 @@ mod tests {
 
     #[test]
     fn test_diff_computed_no_changes() {
-        let fixture = SyncProgress::DiffComputed { to_delete: 0, to_upload: 0, modified: 0 };
+        let fixture = SyncProgress::DiffComputed { added: 0, deleted: 0, modified: 0 };
         let actual = fixture.message();
         let expected = Some("Index is up to date".to_string());
         assert_eq!(actual, expected);
@@ -98,15 +94,15 @@ mod tests {
 
     #[test]
     fn test_diff_computed_with_changes() {
-        let fixture = SyncProgress::DiffComputed { to_delete: 3, to_upload: 5, modified: 2 };
+        let fixture = SyncProgress::DiffComputed { added: 3, deleted: 1, modified: 2 };
         let actual = fixture.message();
-        let expected = Some("Change scan completed [3 new, 2 modified, 1 removed]".to_string());
+        let expected = Some("Change scan completed [3 added, 2 modified, 1 removed]".to_string());
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_syncing_single_file() {
-        let fixture = SyncProgress::Syncing { current: 1.0, total: 1 };
+        let fixture = SyncProgress::Syncing { current: 1, total: 1 };
         let actual = fixture.message();
         let expected = Some("Syncing 1/1 file".to_string());
         assert_eq!(actual, expected);
@@ -114,9 +110,9 @@ mod tests {
 
     #[test]
     fn test_syncing_multiple_files() {
-        let fixture = SyncProgress::Syncing { current: 5.5, total: 10 };
+        let fixture = SyncProgress::Syncing { current: 5, total: 10 };
         let actual = fixture.message();
-        let expected = Some("Syncing  6/10 files".to_string());
+        let expected = Some("Syncing  5/10 files".to_string());
         assert_eq!(actual, expected);
     }
 

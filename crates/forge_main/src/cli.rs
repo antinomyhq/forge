@@ -190,7 +190,7 @@ pub enum AgentCommand {
     List,
 }
 
-/// Command group for codebase management.
+/// Command group for workspace management.
 #[derive(Parser, Debug, Clone)]
 pub struct WorkspaceCommandGroup {
     #[command(subcommand)]
@@ -207,7 +207,7 @@ pub enum WorkspaceCommand {
 
         /// Number of files to upload per batch. Reduce this if you encounter
         /// token limit errors.
-        #[arg(long, default_value = "10")]
+        #[arg(long, default_value = "1")]
         batch_size: usize,
     },
     /// List all workspaces.
@@ -217,7 +217,7 @@ pub enum WorkspaceCommand {
         porcelain: bool,
     },
 
-    /// Query the codebase.
+    /// Query the workspace.
     Query {
         /// Search query.
         query: String,
@@ -259,6 +259,17 @@ pub enum WorkspaceCommand {
     Delete {
         /// Workspace ID to delete
         workspace_id: String,
+    },
+
+    /// Show sync status of all files in the workspace.
+    Status {
+        /// Path to the directory to check status for
+        #[arg(default_value = ".")]
+        path: PathBuf,
+
+        /// Output in machine-readable format
+        #[arg(short, long)]
+        porcelain: bool,
     },
 }
 

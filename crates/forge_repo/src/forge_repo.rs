@@ -16,8 +16,8 @@ use forge_domain::{
 };
 // Re-export CacacheStorage from forge_infra
 pub use forge_infra::CacacheStorage;
-use reqwest::header::HeaderMap;
 use reqwest::Response;
+use reqwest::header::HeaderMap;
 use reqwest_eventsource::EventSource;
 use url::Url;
 
@@ -488,7 +488,7 @@ impl<F: Send + Sync> forge_domain::WorkspaceRepository for ForgeRepo<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: GrpcInfra + Send + Sync> forge_domain::ContextEngineRepository for ForgeRepo<F> {
+impl<F: GrpcInfra + Send + Sync> forge_domain::WorkspaceIndexRepository for ForgeRepo<F> {
     async fn authenticate(&self) -> anyhow::Result<forge_domain::WorkspaceAuth> {
         self.codebase_repo.authenticate().await
     }
@@ -571,7 +571,7 @@ impl<F: GrpcInfra + Send + Sync> forge_domain::ValidationRepository for ForgeRep
         &self,
         path: impl AsRef<std::path::Path> + Send,
         content: &str,
-    ) -> anyhow::Result<Option<String>> {
+    ) -> anyhow::Result<Vec<forge_domain::SyntaxError>> {
         self.validation_repository
             .validate_file(path, content)
             .await

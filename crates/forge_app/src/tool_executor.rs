@@ -11,10 +11,9 @@ use crate::operation::{TempContentFiles, ToolOperation};
 use crate::services::ShellService;
 use crate::utils::format_display_path;
 use crate::{
-    ContextEngineService, ConversationService, EnvironmentService, FollowUpService,
-    FsCreateService, FsPatchService, FsReadService, FsRemoveService, FsSearchService,
-    FsUndoService, ImageReadService, NetFetchService, PlanCreateService, PolicyService,
-    SkillFetchService,
+    ConversationService, EnvironmentService, FollowUpService, FsCreateService, FsPatchService,
+    FsReadService, FsRemoveService, FsSearchService, FsUndoService, ImageReadService,
+    NetFetchService, PlanCreateService, PolicyService, SkillFetchService, WorkspaceService,
 };
 
 pub struct ToolExecutor<S> {
@@ -26,7 +25,7 @@ impl<
         + ImageReadService
         + FsCreateService
         + FsSearchService
-        + ContextEngineService
+        + WorkspaceService
         + NetFetchService
         + FsRemoveService
         + FsPatchService
@@ -182,7 +181,7 @@ impl<
                     .await?;
                 (input, output).into()
             }
-            ToolCatalog::Search(input) => {
+            ToolCatalog::FsSearch(input) => {
                 let normalized_path = self.normalize_path(input.path.clone());
                 let output = self
                     .services
@@ -220,7 +219,7 @@ impl<
                 // Execute all queries in parallel
                 let futures: Vec<_> = params
                     .into_iter()
-                    .map(|param| services.query_codebase(cwd.clone(), param))
+                    .map(|param| services.query_workspace(cwd.clone(), param))
                     .collect();
 
                 let mut results = futures::future::try_join_all(futures).await?;
