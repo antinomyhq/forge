@@ -881,6 +881,50 @@ impl FromDomain<forge_domain::ToolChoice> for aws_sdk_bedrockruntime::types::Too
     }
 }
 
+/// Repository for AWS Bedrock provider responses
+pub struct BedrockResponseRepository {
+    retry_config: Arc<RetryConfig>,
+}
+
+impl BedrockResponseRepository {
+    pub fn new(retry_config: Arc<RetryConfig>) -> Self {
+        Self { retry_config }
+    }
+}
+
+#[async_trait::async_trait]
+impl ChatRepository for BedrockResponseRepository {
+    async fn chat(
+        &self,
+        model_id: &ModelId,
+        context: Context,
+        provider: Provider<Url>,
+    ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
+        let retry_config = self.retry_config.clone();
+        let provider_client =
+            BedrockProvider::new(provider).map_err(|e| into_retry(e, &retry_config))?;
+
+        let stream = provider_client
+            .chat(model_id, context)
+            .await
+            .map_err(|e| into_retry(e, &retry_config))?;
+
+        Ok(Box::pin(stream.map(move |item| {
+            item.map_err(|e| into_retry(e, &retry_config))
+        })))
+    }
+
+    async fn models(&self, provider: Provider<Url>) -> anyhow::Result<Vec<Model>> {
+        let retry_config = self.retry_config.clone();
+        let provider_client = BedrockProvider::new(provider)?;
+        provider_client
+            .models()
+            .await
+            .map_err(|e| into_retry(e, &retry_config))
+            .context("Failed to fetch models from Bedrock provider")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;
@@ -1641,49 +1685,5 @@ mod tests {
             }
             _ => panic!("Expected array document"),
         }
-    }
-}
-
-/// Repository for AWS Bedrock provider responses
-pub struct BedrockResponseRepository {
-    retry_config: Arc<RetryConfig>,
-}
-
-impl BedrockResponseRepository {
-    pub fn new(retry_config: Arc<RetryConfig>) -> Self {
-        Self { retry_config }
-    }
-}
-
-#[async_trait::async_trait]
-impl ChatRepository for BedrockResponseRepository {
-    async fn chat(
-        &self,
-        model_id: &ModelId,
-        context: Context,
-        provider: Provider<Url>,
-    ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
-        let retry_config = self.retry_config.clone();
-        let provider_client =
-            BedrockProvider::new(provider).map_err(|e| into_retry(e, &retry_config))?;
-
-        let stream = provider_client
-            .chat(model_id, context)
-            .await
-            .map_err(|e| into_retry(e, &retry_config))?;
-
-        Ok(Box::pin(stream.map(move |item| {
-            item.map_err(|e| into_retry(e, &retry_config))
-        })))
-    }
-
-    async fn models(&self, provider: Provider<Url>) -> anyhow::Result<Vec<Model>> {
-        let retry_config = self.retry_config.clone();
-        let provider_client = BedrockProvider::new(provider)?;
-        provider_client
-            .models()
-            .await
-            .map_err(|e| into_retry(e, &retry_config))
-            .context("Failed to fetch models from Bedrock provider")
     }
 }

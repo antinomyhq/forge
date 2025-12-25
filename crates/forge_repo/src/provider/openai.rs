@@ -17,9 +17,7 @@ use url::Url;
 
 use crate::provider::event::into_chat_completion_message;
 use crate::provider::retry::into_retry;
-use crate::provider::utils::{
-    create_headers, format_http_context, join_url, sanitize_headers,
-};
+use crate::provider::utils::{create_headers, format_http_context, join_url, sanitize_headers};
 
 #[derive(Clone)]
 struct OpenAIProvider<H> {
