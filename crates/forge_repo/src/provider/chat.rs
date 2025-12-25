@@ -37,11 +37,7 @@ impl<F: EnvironmentInfra + HttpInfra> ForgeChatRepository<F> {
 
         let bedrock_repo = BedrockResponseRepository::new(retry_config);
 
-        Self {
-            openai_repo,
-            anthropic_repo,
-            bedrock_repo,
-        }
+        Self { openai_repo, anthropic_repo, bedrock_repo }
     }
 }
 

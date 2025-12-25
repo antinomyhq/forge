@@ -6,8 +6,8 @@ mod event;
 #[cfg(test)]
 mod mock_server;
 mod openai;
-mod retry;
 mod provider_repo;
+mod retry;
 mod utils;
 
 pub use chat::*;
