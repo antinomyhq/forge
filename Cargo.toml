@@ -2,6 +2,11 @@
 members = ["crates/*"]
 resolver = "2"
 
+
+[workspace.package]
+rust-version = "1.92"
+edition = "2024"
+
 [profile.release]
 lto = true
 codegen-units = 1
