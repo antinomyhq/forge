@@ -70,7 +70,7 @@ Choose tools based on the nature of the task:
 
 - **Semantic Search**: When you need to discover code locations or understand implementations. Particularly useful when you don't know exact file names or when exploring unfamiliar codebases. Understands concepts rather than requiring exact text matches.
 
-- **Regex Search**: For finding exact strings, patterns, or when you know precisely what text you're looking for (e.g., TODO comments, specific function names).
+- **Regex Search**: For finding exact strings, patterns, or when you know precisely what text you're looking for (e.g., TODO comments, specific function names). For pattern-based searches across the codebase, consider using ripgrep via shell commands (e.g., `rg "pattern" --type rust`) for fast, efficient searching with support for file type filtering and complex regex patterns.
 
 - **Read**: When you already know the file location and need to examine its contents.
 
