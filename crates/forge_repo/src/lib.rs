@@ -21,3 +21,6 @@ pub use provider::*;
 pub use skill::*;
 pub use validation::*;
 pub use workspace::*;
+
+#[cfg(feature = "tree_sitter_validation")]
+mod tree_sitter_impl;
