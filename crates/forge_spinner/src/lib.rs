@@ -1,3 +1,5 @@
+use std::io::{self, Write};
+
 use anyhow::Result;
 use colored::Colorize;
 use indicatif::{ProgressBar, ProgressStyle};
@@ -31,7 +33,14 @@ impl SpinnerManager {
     pub fn test_with_tick_counter(
         tick_counter: std::sync::Arc<std::sync::atomic::AtomicU64>,
     ) -> Self {
-        Self { tick_counter: Some(tick_counter), ..Self::default() }
+        Self {
+            spinner: None,
+            stopwatch: Stopwatch::default(),
+            message: None,
+            tracker: None,
+            word_index: None,
+            tick_counter: Some(tick_counter),
+        }
     }
 
     /// Start the spinner with a message
@@ -160,6 +169,7 @@ impl SpinnerManager {
         F: FnOnce(&str),
     {
         let msg = message.to_string();
+
         if let Some(spinner) = &self.spinner {
             spinner.suspend(|| writer(&msg));
         } else {
@@ -174,6 +184,15 @@ impl SpinnerManager {
 
     pub fn ewrite_ln(&mut self, message: impl ToString) -> Result<()> {
         self.write_with_restart(message, |msg| eprintln!("{msg}"))
+    }
+}
+
+impl Drop for SpinnerManager {
+    fn drop(&mut self) {
+        // Flush both stdout and stderr to ensure all output is visible
+        // This prevents race conditions with shell prompt resets
+        let _ = io::stdout().flush();
+        let _ = io::stderr().flush();
     }
 }
 
