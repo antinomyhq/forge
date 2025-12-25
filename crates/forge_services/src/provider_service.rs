@@ -243,7 +243,7 @@ mod tests {
                 auth_details: AuthDetails::ApiKey(forge_domain::ApiKey::from(
                     "test-key".to_string(),
                 )),
-                url_params: HashMap::new().into(),
+                url_params: HashMap::new(),
             }),
             models: Some(ModelSource::Url(
                 Template::<forge_domain::URLParameters>::new("https://api.openai.com/v1/models"),
