@@ -23,6 +23,15 @@ impl MockServer {
     pub fn url(&self) -> String {
         self.server.url()
     }
+     pub async fn mock_responses(&mut self, body: serde_json::Value, status: usize) -> Mock {
+        self.server
+            .mock("POST", "/v1/responses")
+            .with_status(status)
+            .with_header("content-type", "application/json")
+            .with_body(body.to_string())
+            .create_async()
+            .await
+    }
 }
 
 /// Normalize dynamic addresses in messages for testing/logging.

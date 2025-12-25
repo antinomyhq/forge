@@ -10,11 +10,13 @@ use url::Url;
 use crate::provider::anthropic::AnthropicResponseRepository;
 use crate::provider::bedrock::BedrockResponseRepository;
 use crate::provider::openai::OpenAIResponseRepository;
+use crate::provider::openai_responses::OpenAIResponsesResponseRepository;
 
 /// Repository responsible for routing chat requests to the appropriate provider
 /// implementation based on the provider's response type.
 pub struct ForgeChatRepository<F> {
     openai_repo: OpenAIResponseRepository<F>,
+    codex_repo: OpenAIResponsesResponseRepository<F>,
     anthropic_repo: AnthropicResponseRepository<F>,
     bedrock_repo: BedrockResponseRepository,
 }
@@ -32,12 +34,20 @@ impl<F: EnvironmentInfra + HttpInfra> ForgeChatRepository<F> {
         let openai_repo =
             OpenAIResponseRepository::new(infra.clone()).retry_config(retry_config.clone());
 
+        let codex_repo =
+            OpenAIResponsesResponseRepository::new(infra.clone()).retry_config(retry_config.clone());
+
         let anthropic_repo =
             AnthropicResponseRepository::new(infra.clone()).retry_config(retry_config.clone());
 
         let bedrock_repo = BedrockResponseRepository::new(retry_config);
 
-        Self { openai_repo, anthropic_repo, bedrock_repo }
+        Self {
+            openai_repo,
+            codex_repo,
+            anthropic_repo,
+            bedrock_repo,
+        }
     }
 }
 
@@ -52,7 +62,12 @@ impl<F: EnvironmentInfra + HttpInfra + Sync> ChatRepository for ForgeChatReposit
         // Route based on provider response type
         match provider.response {
             Some(ProviderResponse::OpenAI) => {
-                self.openai_repo.chat(model_id, context, provider).await
+                // Check if model is a Codex model
+                if model_id.as_str().contains("codex") {
+                    self.codex_repo.chat(model_id, context, provider).await
+                } else {
+                    self.openai_repo.chat(model_id, context, provider).await
+                }
             }
             Some(ProviderResponse::Anthropic) => {
                 self.anthropic_repo.chat(model_id, context, provider).await

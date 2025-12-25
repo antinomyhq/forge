@@ -45,6 +45,7 @@ thiserror.workspace = true
 derive_more.workspace = true
 gray_matter = { workspace = true }
 dirs.workspace = true
+async-openai.workspace = true
 
 # gRPC for codebase client
 tonic.workspace = true

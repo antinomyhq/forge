@@ -6,6 +6,7 @@ mod event;
 #[cfg(test)]
 mod mock_server;
 mod openai;
+mod openai_responses;
 mod provider_repo;
 mod retry;
 mod utils;
