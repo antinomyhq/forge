@@ -368,11 +368,11 @@ mod tests {
 
     #[test]
     fn test_parse_new_tool_call_format() {
-        let input = r#"<forge_tool_call><search><path>/test/path</path><regex>test</regex></search></forge_tool_call>"#;
+        let input = r#"<forge_tool_call><fs_search><path>/test/path</path><regex>test</regex></fs_search></forge_tool_call>"#;
 
         let action = parse(input).unwrap();
         let expected = vec![ToolCallFull {
-            name: ToolName::new("search"),
+            name: ToolName::new("fs_search"),
             call_id: None,
             arguments: json!({"path":"/test/path","regex":"test"}).into(),
         }];

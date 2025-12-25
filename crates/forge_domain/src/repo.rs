@@ -125,9 +125,9 @@ pub trait WorkspaceRepository: Send + Sync {
     async fn delete(&self, workspace_id: &WorkspaceId) -> anyhow::Result<()>;
 }
 
-/// Repository for managing codebase indexing and search operations
+/// Repository for managing workspace indexing and search operations
 #[async_trait::async_trait]
-pub trait ContextEngineRepository: Send + Sync {
+pub trait WorkspaceIndexRepository: Send + Sync {
     /// Authenticate with the indexing service via gRPC API
     async fn authenticate(&self) -> anyhow::Result<WorkspaceAuth>;
 
@@ -221,12 +221,12 @@ pub trait ValidationRepository: Send + Sync {
     /// * `content` - Content of the file to validate
     ///
     /// # Returns
-    /// * `Ok(None)` - File is valid or file type is not supported by backend
-    /// * `Ok(Some(String))` - Validation failed with error message
+    /// * `Ok(vec![])` - File is valid or file type is not supported by backend
+    /// * `Ok(errors)` - Validation failed with list of syntax errors
     /// * `Err(_)` - Communication error with validation service
     async fn validate_file(
         &self,
         path: impl AsRef<std::path::Path> + Send,
         content: &str,
-    ) -> Result<Option<String>>;
+    ) -> Result<Vec<crate::SyntaxError>>;
 }

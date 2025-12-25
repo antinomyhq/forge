@@ -160,10 +160,18 @@
       "fix",
       "improvement",
       "optimization",
-      "refactor",
       "Type: Fix",
-      "Type: Refactoring",
       "bug"
+    ]
+  },
+  {
+    "name": "type: refactor",
+    "color": "FA1DD4",
+    "description": "Code refactoring and restructuring.",
+    "aliases": [
+      "refactor",
+      "Type: Refactoring",
+      "refactoring"
     ]
   },
   {

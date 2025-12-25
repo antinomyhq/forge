@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use chrono::Utc;
 use forge_app::GrpcInfra;
 use forge_domain::{
-    ApiKey, ContextEngineRepository, FileUploadInfo, Node, UserId, WorkspaceAuth, WorkspaceId,
+    ApiKey, FileUploadInfo, Node, UserId, WorkspaceAuth, WorkspaceId, WorkspaceIndexRepository,
     WorkspaceInfo,
 };
 
@@ -119,7 +119,7 @@ impl<I> ForgeContextEngineRepository<I> {
 }
 
 #[async_trait]
-impl<I: GrpcInfra> ContextEngineRepository for ForgeContextEngineRepository<I> {
+impl<I: GrpcInfra> WorkspaceIndexRepository for ForgeContextEngineRepository<I> {
     async fn authenticate(&self) -> Result<WorkspaceAuth> {
         let channel = self.infra.channel();
         let mut client = ForgeServiceClient::new(channel);

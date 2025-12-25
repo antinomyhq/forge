@@ -221,8 +221,8 @@ impl SkillFetchService for Runner {
 }
 
 #[async_trait::async_trait]
-impl crate::ContextEngineService for Runner {
-    async fn sync_codebase(
+impl crate::WorkspaceService for Runner {
+    async fn sync_workspace(
         &self,
         _path: std::path::PathBuf,
         _batch_size: usize,
@@ -230,7 +230,7 @@ impl crate::ContextEngineService for Runner {
         unimplemented!()
     }
 
-    async fn query_codebase(
+    async fn query_workspace(
         &self,
         _path: std::path::PathBuf,
         _params: forge_domain::SearchParams<'_>,
@@ -238,7 +238,7 @@ impl crate::ContextEngineService for Runner {
         unimplemented!()
     }
 
-    async fn list_codebase(&self) -> anyhow::Result<Vec<forge_domain::WorkspaceInfo>> {
+    async fn list_workspaces(&self) -> anyhow::Result<Vec<forge_domain::WorkspaceInfo>> {
         unimplemented!()
     }
 
@@ -249,7 +249,7 @@ impl crate::ContextEngineService for Runner {
         unimplemented!()
     }
 
-    async fn delete_codebase(
+    async fn delete_workspace(
         &self,
         _workspace_id: &forge_domain::WorkspaceId,
     ) -> anyhow::Result<()> {
@@ -260,11 +260,15 @@ impl crate::ContextEngineService for Runner {
         unimplemented!()
     }
 
+    async fn get_workspace_status(&self, _path: std::path::PathBuf) -> anyhow::Result<Vec<forge_domain::FileStatus>> {
+        unimplemented!()
+    }
+
     async fn is_authenticated(&self) -> anyhow::Result<bool> {
         unimplemented!()
     }
 
-    async fn create_auth_credentials(&self) -> anyhow::Result<forge_domain::WorkspaceAuth> {
+    async fn init_auth_credentials(&self) -> anyhow::Result<forge_domain::WorkspaceAuth> {
         unimplemented!()
     }
 

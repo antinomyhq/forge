@@ -16,7 +16,7 @@ use crate::dto::ToolsOverview;
 use crate::error::Error;
 use crate::mcp_executor::McpExecutor;
 use crate::tool_executor::ToolExecutor;
-use crate::{ContextEngineService, EnvironmentService, McpService, Services, ToolResolver};
+use crate::{EnvironmentService, McpService, Services, ToolResolver, WorkspaceService};
 
 pub struct ToolRegistry<S> {
     tool_executor: ToolExecutor<S>,
@@ -193,7 +193,7 @@ mod tests {
             ProviderId::ANTHROPIC,
             ModelId::new("claude-3-5-sonnet-20241022"),
         )
-        .tools(vec![ToolName::new("read"), ToolName::new("search")])
+        .tools(vec![ToolName::new("read"), ToolName::new("fs_search")])
     }
 
     #[tokio::test]
@@ -212,7 +212,7 @@ mod tests {
             .to_string();
         assert_eq!(
             error,
-            "Tool 'write' is not available. Please try again with one of these tools: [read, search]"
+            "Tool 'write' is not available. Please try again with one of these tools: [read, fs_search]"
         );
     }
 
@@ -360,7 +360,7 @@ mod tests {
         .tools(vec![
             ToolName::new("read"),
             ToolName::new("write"),
-            ToolName::new("search"),
+            ToolName::new("fs_search"),
         ]);
 
         let actual_read = ToolRegistry::<()>::validate_tool_call(&fixture, &ToolName::new("read"));

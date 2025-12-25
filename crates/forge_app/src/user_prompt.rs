@@ -6,7 +6,7 @@ use forge_template::Element;
 use serde_json::json;
 use tracing::{debug, warn};
 
-use crate::{AttachmentService, ContextEngineService, TemplateEngine};
+use crate::{AttachmentService, TemplateEngine, WorkspaceService};
 
 /// Service responsible for setting user prompts in the conversation context
 #[derive(Clone)]
@@ -17,7 +17,7 @@ pub struct UserPromptGenerator<S> {
     current_time: chrono::DateTime<chrono::Local>,
 }
 
-impl<S: AttachmentService + ContextEngineService> UserPromptGenerator<S> {
+impl<S: AttachmentService + WorkspaceService> UserPromptGenerator<S> {
     /// Creates a new UserPromptService
     pub fn new(
         service: Arc<S>,
@@ -237,8 +237,8 @@ mod tests {
     }
 
     #[async_trait::async_trait]
-    impl ContextEngineService for MockService {
-        async fn sync_codebase(
+    impl WorkspaceService for MockService {
+        async fn sync_workspace(
             &self,
             _path: std::path::PathBuf,
             _batch_size: usize,
@@ -246,7 +246,7 @@ mod tests {
             unimplemented!()
         }
 
-        async fn query_codebase(
+        async fn query_workspace(
             &self,
             _path: std::path::PathBuf,
             _params: SearchParams<'_>,
@@ -254,7 +254,7 @@ mod tests {
             unimplemented!()
         }
 
-        async fn list_codebase(&self) -> anyhow::Result<Vec<WorkspaceInfo>> {
+        async fn list_workspaces(&self) -> anyhow::Result<Vec<WorkspaceInfo>> {
             unimplemented!()
         }
 
@@ -265,7 +265,7 @@ mod tests {
             unimplemented!()
         }
 
-        async fn delete_codebase(&self, _workspace_id: &WorkspaceId) -> anyhow::Result<()> {
+        async fn delete_workspace(&self, _workspace_id: &WorkspaceId) -> anyhow::Result<()> {
             unimplemented!()
         }
 
@@ -273,11 +273,15 @@ mod tests {
             unimplemented!()
         }
 
+        async fn get_workspace_status(&self, _path: std::path::PathBuf) -> anyhow::Result<Vec<forge_domain::FileStatus>> {
+            unimplemented!()
+        }
+
         async fn is_authenticated(&self) -> anyhow::Result<bool> {
             unimplemented!()
         }
 
-        async fn create_auth_credentials(&self) -> anyhow::Result<WorkspaceAuth> {
+        async fn init_auth_credentials(&self) -> anyhow::Result<WorkspaceAuth> {
             unimplemented!()
         }
 

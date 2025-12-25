@@ -189,6 +189,31 @@ fn create_stream_element<T: StreamElement>(
 
     Some(elem)
 }
+
+/// Creates a validation warning element for syntax errors
+///
+/// # Arguments
+/// * `path` - The file path
+/// * `errors` - Vector of syntax errors
+///
+/// Returns an Element containing the formatted warning with all error details
+fn create_validation_warning(path: &str, errors: &[forge_domain::SyntaxError]) -> Element {
+    Element::new("warning")
+        .append(Element::new("message").text("Syntax validation failed"))
+        .append(Element::new("file").attr("path", path))
+        .append(Element::new("details").text(format!(
+            "The file was written successfully but contains {} syntax error(s)",
+            errors.len()
+        )))
+        .append(errors.iter().map(|error| {
+            Element::new("error")
+                .attr("line", error.line.to_string())
+                .attr("column", error.column.to_string())
+                .cdata(&error.message)
+        }))
+        .append(Element::new("suggestion").text("Review and fix the syntax issues"))
+}
+
 impl ToolOperation {
     pub fn into_tool_output(
         self,
@@ -247,11 +272,11 @@ impl ToolOperation {
                 };
 
                 elm = elm
-                    .attr("path", input.path)
+                    .attr("path", &input.path)
                     .attr("total_lines", input.content.lines().count());
 
-                if let Some(warning) = output.warning {
-                    elm = elm.append(Element::new("warning").text(warning));
+                if !output.errors.is_empty() {
+                    elm = elm.append(create_validation_warning(&input.path, &output.errors));
                 }
 
                 forge_domain::ToolOutput::text(elm)
@@ -397,8 +422,8 @@ impl ToolOperation {
                     .attr("total_lines", output.after.lines().count())
                     .cdata(diff);
 
-                if let Some(warning) = &output.warning {
-                    elm = elm.append(Element::new("warning").text(warning));
+                if !output.errors.is_empty() {
+                    elm = elm.append(create_validation_warning(&input.path, &output.errors));
                 }
 
                 *metrics = metrics.clone().insert(
@@ -615,6 +640,20 @@ mod tests {
         result
     }
 
+    /// Creates test syntax errors for testing purposes
+    fn test_syntax_errors(errors: Vec<(u32, u32, &str)>) -> Vec<forge_domain::SyntaxError> {
+        use forge_domain::SyntaxError;
+
+        errors
+            .into_iter()
+            .map(|(line, column, message)| SyntaxError {
+                line,
+                column,
+                message: message.to_string(),
+            })
+            .collect()
+    }
+
     // Helper functions for semantic search tests
     mod sem_search_helpers {
         use fake::{Fake, Faker};
@@ -807,7 +846,7 @@ mod tests {
             output: FsCreateOutput {
                 path: "/home/user/new_file.txt".to_string(),
                 before: None,
-                warning: None,
+                errors: vec![],
                 content_hash: compute_hash(content),
             },
         };
@@ -836,7 +875,7 @@ mod tests {
             output: FsCreateOutput {
                 path: "/home/user/existing_file.txt".to_string(),
                 before: Some("Old content".to_string()),
-                warning: None,
+                errors: vec![],
                 content_hash: compute_hash(content),
             },
         };
@@ -1138,7 +1177,7 @@ mod tests {
         let env = fixture_environment(); // max_search_lines is 25
 
         let actual = fixture.into_tool_output(
-            ToolKind::Search,
+            ToolKind::FsSearch,
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
@@ -1178,7 +1217,7 @@ mod tests {
         env.max_search_lines = 10;
 
         let actual = fixture.into_tool_output(
-            ToolKind::Search,
+            ToolKind::FsSearch,
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
@@ -1220,7 +1259,7 @@ mod tests {
         env.max_search_result_bytes = max_bytes.ceil() as usize; // limit to 0.001 MB
 
         let actual = fixture.into_tool_output(
-            ToolKind::Search,
+            ToolKind::FsSearch,
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
@@ -1265,7 +1304,7 @@ mod tests {
         env.max_search_result_bytes = max_bytes.ceil() as usize; // limit to 0.001 MB
 
         let actual = fixture.into_tool_output(
-            ToolKind::Search,
+            ToolKind::FsSearch,
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
@@ -1290,7 +1329,7 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.into_tool_output(
-            ToolKind::Search,
+            ToolKind::FsSearch,
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
@@ -1311,7 +1350,39 @@ mod tests {
             output: FsCreateOutput {
                 path: "/home/user/file_with_warning.txt".to_string(),
                 before: None,
-                warning: Some("File created in non-standard location".to_string()),
+                errors: test_syntax_errors(vec![(10, 5, "Syntax error on line 10")]),
+                content_hash: compute_hash(content),
+            },
+        };
+
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(
+            ToolKind::Write,
+            TempContentFiles::default(),
+            &env,
+            &mut Metrics::default(),
+        );
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_fs_create_with_warning_xml_tags() {
+        let content = "Content with warning";
+        let fixture = ToolOperation::FsCreate {
+            input: forge_domain::FSWrite {
+                path: "/home/user/file_with_warning.txt".to_string(),
+                content: content.to_string(),
+                overwrite: false,
+            },
+            output: FsCreateOutput {
+                path: "/home/user/file_with_warning.txt".to_string(),
+                before: None,
+                errors: test_syntax_errors(vec![
+                    (10, 5, "Syntax error on line 10"),
+                    (20, 15, "Missing semicolon"),
+                ]),
                 content_hash: compute_hash(content),
             },
         };
@@ -1380,7 +1451,7 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.into_tool_output(
-            ToolKind::Search,
+            ToolKind::FsSearch,
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
@@ -1405,7 +1476,7 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.into_tool_output(
-            ToolKind::Search,
+            ToolKind::FsSearch,
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
@@ -1425,7 +1496,7 @@ mod tests {
                 content: "universe".to_string(),
             },
             output: PatchOutput {
-                warning: None,
+                errors: vec![],
                 before: "Hello world\nThis is a test".to_string(),
                 after: after_content.to_string(),
                 content_hash: compute_hash(after_content),
@@ -1455,7 +1526,45 @@ mod tests {
                 content: "\nnew line".to_string(),
             },
             output: PatchOutput {
-                warning: Some("Large file modification".to_string()),
+                errors: test_syntax_errors(vec![(5, 10, "Invalid syntax")]),
+                before: "line1\nline2".to_string(),
+                after: after_content.to_string(),
+                content_hash: compute_hash(after_content),
+            },
+        };
+
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(
+            ToolKind::Patch,
+            TempContentFiles::default(),
+            &env,
+            &mut Metrics::default(),
+        );
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_fs_patch_with_warning_special_chars() {
+        let after_content = "line1\nnew line\nline2";
+        let fixture = ToolOperation::FsPatch {
+            input: forge_domain::FSPatch {
+                path: "/home/user/test.zsh".to_string(),
+                search: Some("line1".to_string()),
+                operation: forge_domain::PatchOperation::Append,
+                content: "\nnew line".to_string(),
+            },
+            output: PatchOutput {
+                errors: test_syntax_errors(vec![
+                    (
+                        22,
+                        1,
+                        r#"Syntax error at 'function dim() { echo "${_DIM}${1}${RESET}"'"#,
+                    ),
+                    (25, 5, "Unexpected token"),
+                    (30, 10, "Missing closing brace"),
+                ]),
                 before: "line1\nline2".to_string(),
                 after: after_content.to_string(),
                 content_hash: compute_hash(after_content),

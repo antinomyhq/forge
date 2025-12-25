@@ -51,7 +51,7 @@ impl MarkdownFormat {
         }
 
         // Extract code blocks
-        let processed = CodeBlockParser::parse(&content);
+        let processed = CodeBlockParser::new(&content);
 
         // Render with termimad, then restore highlighted code
         let rendered = self.skin.term_text(processed.markdown()).to_string();
