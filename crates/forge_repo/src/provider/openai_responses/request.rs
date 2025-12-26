@@ -18,7 +18,6 @@ impl FromDomain<ToolChoice> for oai::ToolChoiceParam {
     }
 }
 
-
 /// Converts domain ReasoningConfig to OpenAI Reasoning configuration
 impl FromDomain<ReasoningConfig> for oai::Reasoning {
     fn from_domain(config: ReasoningConfig) -> anyhow::Result<Self> {
