@@ -885,12 +885,51 @@ mod tests {
         Ok(())
     }
 
-    #[tokio::test]
-    async fn test_openai_responses_provider_uses_responses_api_via_async_openai()
-    -> anyhow::Result<()> {
-        let mut fixture = MockServer::new().await;
+    /// Test fixture for creating a mock HTTP client.
+    #[derive(Clone)]
+    struct MockHttpClient {
+        client: reqwest::Client,
+    }
 
-        let response = serde_json::json!({
+    #[async_trait::async_trait]
+    impl HttpInfra for MockHttpClient {
+        async fn http_get(
+            &self,
+            url: &reqwest::Url,
+            headers: Option<reqwest::header::HeaderMap>,
+        ) -> anyhow::Result<reqwest::Response> {
+            let mut request = self.client.get(url.clone());
+            if let Some(headers) = headers {
+                request = request.headers(headers);
+            }
+            Ok(request.send().await?)
+        }
+
+        async fn http_post(
+            &self,
+            _url: &reqwest::Url,
+            _body: bytes::Bytes,
+        ) -> anyhow::Result<reqwest::Response> {
+            unimplemented!()
+        }
+
+        async fn http_delete(&self, _url: &reqwest::Url) -> anyhow::Result<reqwest::Response> {
+            unimplemented!()
+        }
+
+        async fn http_eventsource(
+            &self,
+            _url: &reqwest::Url,
+            _headers: Option<reqwest::header::HeaderMap>,
+            _body: bytes::Bytes,
+        ) -> anyhow::Result<reqwest_eventsource::EventSource> {
+            unimplemented!()
+        }
+    }
+
+    /// Test fixture for creating a sample OpenAI Responses API response.
+    fn openai_response_fixture() -> serde_json::Value {
+        serde_json::json!({
             "created_at": 0,
             "id": "resp_1",
             "model": "codex-mini-latest",
@@ -915,62 +954,19 @@ mod tests {
                 "input_tokens_details": {"cached_tokens": 0},
                 "output_tokens_details": {"reasoning_tokens": 0}
             }
-        });
+        })
+    }
 
-        let mock = fixture.mock_responses(response, 200).await;
+    #[tokio::test]
+    async fn test_openai_responses_provider_uses_responses_api_via_async_openai()
+    -> anyhow::Result<()> {
+        let mut fixture = MockServer::new().await;
+        let mock = fixture.mock_responses(openai_response_fixture(), 200).await;
 
         let provider = openai_responses(
             "test-api-key",
             &format!("{}/v1/chat/completions", fixture.url()),
         );
-
-        // Using a MockHttpClient for testing
-        use bytes::Bytes;
-        use reqwest::header::HeaderMap;
-        use reqwest_eventsource::EventSource;
-
-        #[derive(Clone)]
-        struct MockHttpClient {
-            client: reqwest::Client,
-        }
-
-        #[async_trait::async_trait]
-        impl HttpInfra for MockHttpClient {
-            async fn http_get(
-                &self,
-                url: &reqwest::Url,
-                headers: Option<HeaderMap>,
-            ) -> anyhow::Result<reqwest::Response> {
-                let mut request = self.client.get(url.clone());
-                if let Some(headers) = headers {
-                    request = request.headers(headers);
-                }
-                Ok(request.send().await?)
-            }
-
-            async fn http_post(
-                &self,
-                _url: &reqwest::Url,
-                _body: Bytes,
-            ) -> anyhow::Result<reqwest::Response> {
-                unimplemented!()
-            }
-
-            async fn http_delete(&self, _url: &reqwest::Url) -> anyhow::Result<reqwest::Response> {
-                unimplemented!()
-            }
-
-            async fn http_eventsource(
-                &self,
-                _url: &reqwest::Url,
-                _headers: Option<HeaderMap>,
-                _body: Bytes,
-            ) -> anyhow::Result<EventSource> {
-                unimplemented!()
-            }
-        }
-
-        let _mock_http = Arc::new(MockHttpClient { client: reqwest::Client::new() });
 
         let provider: OpenAIResponsesProvider<MockHttpClient> =
             OpenAIResponsesProvider::new(provider);
