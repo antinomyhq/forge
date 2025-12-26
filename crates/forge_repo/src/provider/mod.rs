@@ -15,7 +15,7 @@ pub use chat::*;
 pub use provider_repo::*;
 
 /// Trait for converting types into domain types
-trait IntoDomain {
+pub(crate) trait IntoDomain {
     type Domain;
     fn into_domain(self) -> Self::Domain;
 }

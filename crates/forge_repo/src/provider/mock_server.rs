@@ -23,12 +23,15 @@ impl MockServer {
     pub fn url(&self) -> String {
         self.server.url()
     }
-    pub async fn mock_responses(&mut self, body: serde_json::Value, status: usize) -> Mock {
+
+    pub async fn mock_responses_stream(&mut self, events: Vec<String>, status: usize) -> Mock {
+        let sse_body = events.join("\n\n");
         self.server
             .mock("POST", "/v1/responses")
             .with_status(status)
-            .with_header("content-type", "application/json")
-            .with_body(body.to_string())
+            .with_header("content-type", "text/event-stream")
+            .with_header("cache-control", "no-cache")
+            .with_body(sse_body)
             .create_async()
             .await
     }
