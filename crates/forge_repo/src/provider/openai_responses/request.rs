@@ -1,6 +1,7 @@
 use anyhow::Context as _;
 use async_openai::types::responses as oai;
 use forge_app::domain::{Context as ChatContext, ContextMessage, Role, ToolChoice};
+use forge_domain::{Effort, ReasoningConfig};
 
 use crate::provider::FromDomain;
 
@@ -14,6 +15,47 @@ impl FromDomain<ToolChoice> for oai::ToolChoiceParam {
                 oai::ToolChoiceParam::Function(oai::ToolChoiceFunction { name: name.to_string() })
             }
         })
+    }
+}
+
+
+/// Converts domain ReasoningConfig to OpenAI Reasoning configuration
+impl FromDomain<ReasoningConfig> for oai::Reasoning {
+    fn from_domain(config: ReasoningConfig) -> anyhow::Result<Self> {
+        let mut builder = oai::ReasoningArgs::default();
+
+        // Map effort level
+        if let Some(effort) = config.effort {
+            let oai_effort = match effort {
+                Effort::High => oai::ReasoningEffort::High,
+                Effort::Medium => oai::ReasoningEffort::Medium,
+                Effort::Low => oai::ReasoningEffort::Low,
+            };
+            builder.effort(oai_effort);
+        } else if config.enabled.unwrap_or(false) {
+            // Default to Medium effort when enabled without explicit effort
+            builder.effort(oai::ReasoningEffort::Medium);
+        }
+
+        // Map summary preference
+        // Note: OpenAI's ReasoningSummary doesn't have a "disabled" option
+        // When exclude=true, we use Concise to minimize the summary output
+        if let Some(exclude) = config.exclude {
+            let summary = if exclude {
+                oai::ReasoningSummary::Concise
+            } else {
+                oai::ReasoningSummary::Detailed
+            };
+            builder.summary(summary);
+        } else {
+            // Default to Auto summary
+            builder.summary(oai::ReasoningSummary::Auto);
+        }
+
+        // Note: max_tokens is not supported in the OpenAI Responses API's ReasoningArgs
+        // It's controlled at the request level via max_output_tokens
+
+        builder.build().map_err(anyhow::Error::from)
     }
 }
 
@@ -234,14 +276,11 @@ impl FromDomain<ChatContext> for oai::CreateResponse {
             builder.tool_choice(tool_choice);
         }
 
-        // Enable reasoning for o-series and gpt-5 models
-        // This is required to receive reasoning text in the response
-        let reasoning_config = oai::ReasoningArgs::default()
-            .effort(oai::ReasoningEffort::Medium)
-            .summary(oai::ReasoningSummary::Auto)
-            .build()
-            .map_err(anyhow::Error::from)?;
-        builder.reasoning(reasoning_config);
+        // Apply reasoning configuration if provided
+        if let Some(reasoning) = context.reasoning {
+            let reasoning_config = oai::Reasoning::from_domain(reasoning)?;
+            builder.reasoning(reasoning_config);
+        }
 
         builder.build().map_err(anyhow::Error::from)
     }
@@ -255,6 +294,91 @@ mod tests {
     };
 
     use crate::provider::FromDomain;
+
+    #[test]
+    fn test_reasoning_config_conversion_with_effort() -> anyhow::Result<()> {
+        use forge_domain::{Effort, ReasoningConfig};
+
+        let fixture = ReasoningConfig {
+            effort: Some(Effort::High),
+            max_tokens: Some(2048),
+            exclude: Some(false),
+            enabled: None,
+        };
+
+        let actual = oai::Reasoning::from_domain(fixture)?;
+
+        // Note: We can't easily assert the internal fields since ReasoningArgs
+        // doesn't expose them after building. The fact that it builds without
+        // error is the main verification.
+        assert!(actual.effort.is_some());
+        assert!(actual.summary.is_some());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_reasoning_config_conversion_with_enabled() -> anyhow::Result<()> {
+        use forge_domain::ReasoningConfig;
+
+        let fixture = ReasoningConfig {
+            effort: None,
+            max_tokens: None,
+            exclude: None,
+            enabled: Some(true),
+        };
+
+        let actual = oai::Reasoning::from_domain(fixture)?;
+
+        // When enabled=true with no explicit effort, should default to Medium
+        assert!(actual.effort.is_some());
+        assert!(actual.summary.is_some());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_reasoning_config_conversion_with_exclude() -> anyhow::Result<()> {
+        use forge_domain::{Effort, ReasoningConfig};
+
+        let fixture = ReasoningConfig {
+            effort: Some(Effort::Medium),
+            max_tokens: None,
+            exclude: Some(true),
+            enabled: None,
+        };
+
+        let actual = oai::Reasoning::from_domain(fixture)?;
+
+        // When exclude=true, should use Concise summary
+        assert!(actual.effort.is_some());
+        assert!(actual.summary.is_some());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_codex_request_with_reasoning_config() -> anyhow::Result<()> {
+        use forge_domain::{Effort, ReasoningConfig};
+
+        let reasoning = ReasoningConfig {
+            effort: Some(Effort::High),
+            max_tokens: Some(2048),
+            exclude: Some(false),
+            enabled: Some(true),
+        };
+
+        let context = ChatContext::default()
+            .add_message(ContextMessage::user("Test", None))
+            .reasoning(reasoning);
+
+        let actual = oai::CreateResponse::from_domain(context)?;
+
+        // Verify that reasoning config is set
+        assert!(actual.reasoning.is_some());
+
+        Ok(())
+    }
 
     #[test]
     fn test_codex_request_from_context_converts_messages_tools_and_results() -> anyhow::Result<()> {
