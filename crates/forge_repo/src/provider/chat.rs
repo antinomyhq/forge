@@ -4,7 +4,7 @@ use forge_app::domain::{
     ChatCompletionMessage, Context, Model, ModelId, ProviderResponse, ResultStream,
 };
 use forge_app::{EnvironmentInfra, HttpInfra};
-use forge_domain::{ChatRepository, Provider};
+use forge_domain::{ChatRepository, Provider, ProviderId};
 use url::Url;
 
 use crate::provider::anthropic::AnthropicResponseRepository;
@@ -58,7 +58,10 @@ impl<F: EnvironmentInfra + HttpInfra + Sync> ChatRepository for ForgeChatReposit
         match provider.response {
             Some(ProviderResponse::OpenAI) => {
                 // Check if model is a Codex model
-                if model_id.as_str().contains("codex") {
+                if model_id.as_str().contains("codex")
+                    && (provider.id == ProviderId::OPENAI
+                        || provider.id == ProviderId::GITHUB_COPILOT)
+                {
                     self.codex_repo.chat(model_id, context, provider).await
                 } else {
                     self.openai_repo.chat(model_id, context, provider).await
