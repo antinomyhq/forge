@@ -899,7 +899,7 @@ mod tests {
             .unwrap();
 
         // Consume the stream
-        while let Some(_) = stream.next().await {}
+        while stream.next().await.is_some() {}
 
         // source.rs and readme.md should be uploaded (both have allowed extensions)
         // image.png and document.pdf should be filtered (not in allowed extensions)
