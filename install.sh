@@ -270,10 +270,10 @@ else
         
         # Provide shell-specific instructions
         if [ -n "$ZSH_VERSION" ]; then
-            echo -e "  echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.zshrc"
+            echo -e "  echo 'export PATH=\"$INSTALL_DIR:\$PATH\"' >> ~/.zshrc"
             echo -e "  source ~/.zshrc"
         elif [ -n "$BASH_VERSION" ]; then
-            echo -e "  echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.bashrc"
+            echo -e "  echo 'export PATH=\"$INSTALL_DIR:\$PATH\"' >> ~/.bashrc"
             echo -e "  source ~/.bashrc"
         else
             echo -e "  export PATH=\"$INSTALL_DIR:\$PATH\""
