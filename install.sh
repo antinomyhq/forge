@@ -275,11 +275,29 @@ else
         elif [ -n "$BASH_VERSION" ]; then
             echo -e "  echo 'export PATH=\"$INSTALL_DIR:\$PATH\"' >> ~/.bashrc"
             echo -e "  source ~/.bashrc"
+        elif [ -n "$FISH_VERSION" ]; then
+            echo -e "  fish_add_path $INSTALL_DIR"
         else
             echo -e "  export PATH=\"$INSTALL_DIR:\$PATH\""
         fi
     else
         echo -e "${BLUE}Restart your shell or run:${NC}"
-        echo -e "  source ~/.$(basename $SHELL)rc"
+        
+        # Detect shell and provide appropriate source command
+        local shell_name=$(basename "${SHELL:-bash}")
+        case "$shell_name" in
+            zsh)
+                echo -e "  source ~/.zshrc"
+                ;;
+            bash)
+                echo -e "  source ~/.bashrc"
+                ;;
+            fish)
+                echo -e "  Restart your terminal (fish doesn't need source)"
+                ;;
+            *)
+                echo -e "  Restart your terminal"
+                ;;
+        esac
     fi
 fi
