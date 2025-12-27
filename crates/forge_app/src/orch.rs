@@ -249,7 +249,7 @@ impl<S: AgentService> Orchestrator<S> {
                 }),
             ).await?;
 
-            // FIXME: Add a unit test in orch spec, to guarantee that compaction is
+            // TODO: Add a unit test in orch spec, to guarantee that compaction is
             // triggered after receiving the response Trigger compaction after
             // making a request NOTE: Ideally compaction should be implemented
             // as a transformer

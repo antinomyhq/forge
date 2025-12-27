@@ -22,6 +22,7 @@ categories:
     labels:
       - "type: chore"
       - "type: testing"
+      - "type: refactor"
       - "ratatui"
 
   - title: "💥 Breaking Changes"
@@ -54,12 +55,14 @@ version-resolver:
       - "type: docs"
       - "type: bug"
       - "type: testing"
+      - "type: refactor"
     # Add direct commit message pattern matching for patches
     commits:
       - "fix:"
       - "perf:"
       - "chore:"
       - "docs:"
+      - "refactor:"
   default: patch
 
 exclude-labels:
@@ -73,7 +76,11 @@ autolabeler:
   - label: "type: chore"
     title:
       - /chore/i
+
+  - label: "type: refactor"
+    title:
       - /refactor/i
+      - /refactoring/i
 
   - label: "type: fix"
     title:

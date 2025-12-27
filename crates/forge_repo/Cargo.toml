@@ -1,7 +1,8 @@
 [package]
 name = "forge_repo"
 version = "0.1.0"
-edition = "2021"
+edition.workspace = true
+rust-version.workspace = true
 
 [dependencies]
 forge_app.workspace = true
@@ -18,6 +19,7 @@ async-trait.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
+tokio-stream.workspace = true
 tracing.workspace = true
 reqwest.workspace = true
 url.workspace = true
@@ -26,6 +28,16 @@ strum.workspace = true
 reqwest-eventsource.workspace = true
 handlebars.workspace = true
 merge.workspace = true
+aws-sdk-bedrockruntime.workspace = true
+aws-credential-types.workspace = true
+aws-smithy-types.workspace = true
+aws-smithy-runtime-api.workspace = true
+aws-smithy-async.workspace = true
+aws-smithy-runtime.workspace = true
+lazy_static.workspace = true
+derive_setters.workspace = true
+base64.workspace = true
+schemars.workspace = true
 chrono = { version = "0.4", features = ["serde"] }
 diesel = { version = "2.2.12", features = ["sqlite", "r2d2", "chrono"] }
 diesel_migrations = "2.2.0"
@@ -49,6 +61,9 @@ forge_test_kit.workspace = true
 tokio = { workspace = true, features = ["macros", "rt", "time", "test-util"] }
 tempfile = { workspace = true }
 pretty_assertions = { workspace = true }
+insta = { workspace = true }
 serial_test = "3.2"
 fake = { version = "4.4.0", features = ["derive"] }
 derive_setters.workspace = true
+mockito = { workspace = true }
+regex = { workspace = true }

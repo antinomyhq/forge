@@ -4,8 +4,9 @@ use anyhow::Result;
 use url::Url;
 
 use crate::{
-    AnyProvider, AppConfig, AuthCredential, Conversation, ConversationId, MigrationResult,
-    Provider, ProviderId, Skill, Snapshot, UserId, Workspace, WorkspaceAuth, WorkspaceId,
+    AnyProvider, AppConfig, AuthCredential, ChatCompletionMessage, Context, Conversation,
+    ConversationId, MigrationResult, Model, ModelId, Provider, ProviderId, ProviderTemplate,
+    ResultStream, Skill, Snapshot, UserId, Workspace, WorkspaceAuth, WorkspaceId,
 };
 
 /// Repository for managing file snapshots
@@ -95,9 +96,20 @@ pub trait AppConfigRepository: Send + Sync {
 }
 
 #[async_trait::async_trait]
+pub trait ChatRepository: Send + Sync {
+    async fn chat(
+        &self,
+        model_id: &ModelId,
+        context: Context,
+        provider: Provider<Url>,
+    ) -> ResultStream<ChatCompletionMessage, anyhow::Error>;
+    async fn models(&self, provider: Provider<Url>) -> anyhow::Result<Vec<Model>>;
+}
+
+#[async_trait::async_trait]
 pub trait ProviderRepository: Send + Sync {
     async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>>;
-    async fn get_provider(&self, id: ProviderId) -> anyhow::Result<Provider<Url>>;
+    async fn get_provider(&self, id: ProviderId) -> anyhow::Result<ProviderTemplate>;
     async fn upsert_credential(&self, credential: AuthCredential) -> anyhow::Result<()>;
     async fn get_credential(&self, id: &ProviderId) -> anyhow::Result<Option<AuthCredential>>;
     async fn remove_credential(&self, id: &ProviderId) -> anyhow::Result<()>;
@@ -125,9 +137,9 @@ pub trait WorkspaceRepository: Send + Sync {
     async fn delete(&self, workspace_id: &WorkspaceId) -> anyhow::Result<()>;
 }
 
-/// Repository for managing codebase indexing and search operations
+/// Repository for managing workspace indexing and search operations
 #[async_trait::async_trait]
-pub trait ContextEngineRepository: Send + Sync {
+pub trait WorkspaceIndexRepository: Send + Sync {
     /// Authenticate with the indexing service via gRPC API
     async fn authenticate(&self) -> anyhow::Result<WorkspaceAuth>;
 
@@ -214,12 +226,12 @@ pub trait ValidationRepository: Send + Sync {
     /// * `content` - Content of the file to validate
     ///
     /// # Returns
-    /// * `Ok(None)` - File is valid or file type is not supported by backend
-    /// * `Ok(Some(String))` - Validation failed with error message
+    /// * `Ok(vec![])` - File is valid or file type is not supported by backend
+    /// * `Ok(errors)` - Validation failed with list of syntax errors
     /// * `Err(_)` - Communication error with validation service
     async fn validate_file(
         &self,
         path: impl AsRef<std::path::Path> + Send,
         content: &str,
-    ) -> Result<Option<String>>;
+    ) -> Result<Vec<crate::SyntaxError>>;
 }

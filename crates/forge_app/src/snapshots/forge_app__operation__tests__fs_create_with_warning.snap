@@ -6,5 +6,18 @@ expression: to_value(actual)
   path="/home/user/file_with_warning.txt"
   total_lines="1"
 >
-<warning>File created in non-standard location</warning>
+<warning>
+<message>Syntax validation failed</message>
+<file
+  path="/home/user/file_with_warning.txt"
+>
+</file>
+<details>The file was written successfully but contains 1 syntax error(s)</details>
+<error
+  line="10"
+  column="5"
+><![CDATA[Syntax error on line 10]]>
+</error>
+<suggestion>Review and fix the syntax issues</suggestion>
+</warning>
 </file_created>

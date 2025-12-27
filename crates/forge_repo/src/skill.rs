@@ -7,8 +7,8 @@ use forge_app::{
 };
 use forge_domain::SkillRepository;
 use futures::future::join_all;
-use gray_matter::engine::YAML;
 use gray_matter::Matter;
+use gray_matter::engine::YAML;
 use serde::Deserialize;
 
 /// Repository implementation for loading skills from multiple sources:
@@ -355,9 +355,11 @@ mod tests {
             execute_plan.path,
             Some(std::path::Path::new("forge://skills/execute-plan/SKILL.md").to_path_buf())
         );
-        assert!(execute_plan
-            .description
-            .contains("Execute structured task plans"));
+        assert!(
+            execute_plan
+                .description
+                .contains("Execute structured task plans")
+        );
         assert!(execute_plan.command.contains("Execute Plan"));
     }
 
@@ -416,23 +418,30 @@ mod tests {
         assert_eq!(test_skill.resources.len(), 3); // file_1.txt, foo/file_2.txt, foo/bar/file_3.txt
 
         // Verify nested directory structure is captured
-        assert!(test_skill
-            .resources
-            .iter()
-            .any(|p| p.ends_with("file_1.txt")));
-        assert!(test_skill
-            .resources
-            .iter()
-            .any(|p| p.ends_with("foo/file_2.txt")));
-        assert!(test_skill
-            .resources
-            .iter()
-            .any(|p| p.ends_with("foo/bar/file_3.txt")));
+        assert!(
+            test_skill
+                .resources
+                .iter()
+                .any(|p| p.ends_with("file_1.txt"))
+        );
+        assert!(
+            test_skill
+                .resources
+                .iter()
+                .any(|p| p.ends_with("foo/file_2.txt"))
+        );
+        assert!(
+            test_skill
+                .resources
+                .iter()
+                .any(|p| p.ends_with("foo/bar/file_3.txt"))
+        );
 
         // Ensure SKILL.md is never included in resources
-        assert!(actual.iter().all(|s| !s
-            .resources
-            .iter()
-            .any(|p| p.file_name().unwrap() == "SKILL.md")));
+        assert!(actual.iter().all(|s| {
+            !s.resources
+                .iter()
+                .any(|p| p.file_name().unwrap() == "SKILL.md")
+        }));
     }
 }

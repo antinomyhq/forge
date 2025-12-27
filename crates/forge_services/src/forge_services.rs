@@ -6,8 +6,9 @@ use forge_app::{
     McpServerInfra, Services, StrategyFactory, UserInfra, WalkerInfra,
 };
 use forge_domain::{
-    AppConfigRepository, ContextEngineRepository, ConversationRepository, ProviderRepository,
-    SkillRepository, SnapshotRepository, ValidationRepository, WorkspaceRepository,
+    AppConfigRepository, ChatRepository, ConversationRepository, ProviderRepository,
+    SkillRepository, SnapshotRepository, ValidationRepository, WorkspaceIndexRepository,
+    WorkspaceRepository,
 };
 
 use crate::ForgeProviderAuthService;
@@ -22,7 +23,7 @@ use crate::env::ForgeEnvironmentService;
 use crate::instructions::ForgeCustomInstructionsService;
 use crate::mcp::{ForgeMcpManager, ForgeMcpService};
 use crate::policy::ForgePolicyService;
-use crate::provider::ForgeProviderService;
+use crate::provider_service::ForgeProviderService;
 use crate::template::ForgeTemplateService;
 use crate::tool_services::{
     ForgeFetch, ForgeFollowup, ForgeFsCreate, ForgeFsPatch, ForgeFsRead, ForgeFsRemove,
@@ -50,9 +51,10 @@ pub struct ForgeServices<
         + ConversationRepository
         + AppConfigRepository
         + KVStore
+        + ChatRepository
         + ProviderRepository
         + forge_domain::WorkspaceRepository
-        + ContextEngineRepository
+        + WorkspaceIndexRepository
         + AgentRepository
         + SkillRepository
         + ValidationRepository,
@@ -84,7 +86,7 @@ pub struct ForgeServices<
     command_loader_service: Arc<ForgeCommandLoaderService<F>>,
     policy_service: ForgePolicyService<F>,
     provider_auth_service: ForgeProviderAuthService<F>,
-    codebase_service: Arc<crate::context_engine::ForgeContextEngineService<F>>,
+    workspace_service: Arc<crate::context_engine::ForgeWorkspaceService<F>>,
     skill_service: Arc<ForgeSkillFetch<F>>,
 }
 
@@ -102,10 +104,11 @@ impl<
         + SnapshotRepository
         + ConversationRepository
         + AppConfigRepository
+        + ChatRepository
         + ProviderRepository
         + KVStore
         + forge_domain::WorkspaceRepository
-        + ContextEngineRepository
+        + WorkspaceIndexRepository
         + AgentRepository
         + SkillRepository
         + ValidationRepository,
@@ -140,7 +143,7 @@ impl<
         let command_loader_service = Arc::new(ForgeCommandLoaderService::new(infra.clone()));
         let policy_service = ForgePolicyService::new(infra.clone());
         let provider_auth_service = ForgeProviderAuthService::new(infra.clone());
-        let codebase_service = Arc::new(crate::context_engine::ForgeContextEngineService::new(
+        let workspace_service = Arc::new(crate::context_engine::ForgeWorkspaceService::new(
             infra.clone(),
         ));
         let skill_service = Arc::new(ForgeSkillFetch::new(infra.clone()));
@@ -167,14 +170,14 @@ impl<
             env_service,
             custom_instructions_service,
             auth_service,
-            chat_service,
             config_service,
             agent_registry_service,
             command_loader_service,
             policy_service,
             provider_auth_service,
-            codebase_service,
+            workspace_service,
             skill_service,
+            chat_service,
         }
     }
 }
@@ -197,18 +200,18 @@ impl<
         + ConversationRepository
         + AppConfigRepository
         + KVStore
+        + ChatRepository
         + ProviderRepository
         + AgentRepository
         + SkillRepository
         + StrategyFactory
         + WorkspaceRepository
-        + ContextEngineRepository
+        + WorkspaceIndexRepository
         + ValidationRepository
         + Clone
         + 'static,
 > Services for ForgeServices<F>
 {
-    type ProviderService = ForgeProviderService<F>;
     type AppConfigService = ForgeAppConfigService<F>;
     type ConversationService = ForgeConversationService<F>;
     type TemplateService = ForgeTemplateService<F>;
@@ -239,12 +242,9 @@ impl<
     type AgentRegistry = ForgeAgentRegistryService<F>;
     type CommandLoaderService = ForgeCommandLoaderService<F>;
     type PolicyService = ForgePolicyService<F>;
-    type CodebaseService = crate::context_engine::ForgeContextEngineService<F>;
+    type ProviderService = ForgeProviderService<F>;
+    type WorkspaceService = crate::context_engine::ForgeWorkspaceService<F>;
     type SkillFetchService = ForgeSkillFetch<F>;
-
-    fn provider_service(&self) -> &Self::ProviderService {
-        &self.chat_service
-    }
 
     fn config_service(&self) -> &Self::AppConfigService {
         &self.config_service
@@ -341,8 +341,8 @@ impl<
         &self.policy_service
     }
 
-    fn context_engine_service(&self) -> &Self::CodebaseService {
-        &self.codebase_service
+    fn workspace_service(&self) -> &Self::WorkspaceService {
+        &self.workspace_service
     }
 
     fn image_read_service(&self) -> &Self::ImageReadService {
@@ -350,5 +350,9 @@ impl<
     }
     fn skill_fetch_service(&self) -> &Self::SkillFetchService {
         &self.skill_service
+    }
+
+    fn provider_service(&self) -> &Self::ProviderService {
+        &self.chat_service
     }
 }

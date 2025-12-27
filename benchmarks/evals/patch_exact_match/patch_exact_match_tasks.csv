@@ -1,0 +1,7 @@
+task
+"Remove all backticks from test_files/plan.md. Make multiple separate patches to remove backticks from different sections."
+"Update test_files/plan.md to remove markdown code formatting. Apply patches to remove backticks from each task rationale."
+"Fix test_files/plan.md by converting backtick-wrapped identifiers. Use patch for each occurrence."
+"Clean up test_files/plan.md by removing backticks. Patch each task description separately."
+"In test_files/plan.md, convert backtick-enclosed terms. Use patch operations for different lines."
+"Remove markdown code formatting (backticks) from test_files/plan.md. Apply multiple patches."

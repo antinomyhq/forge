@@ -1,5 +1,4 @@
 use std::borrow::Cow;
-use std::collections::HashMap;
 
 use derive_more::{AsRef, Deref, From};
 use schemars::JsonSchema;
@@ -191,6 +190,9 @@ pub struct Provider<T> {
     pub credential: Option<AuthCredential>,
 }
 
+/// Type alias for a provider with template URLs (not yet rendered)
+pub type ProviderTemplate = Provider<Template<crate::URLParameters>>;
+
 impl<T> Provider<T> {
     pub fn is_configured(&self) -> bool {
         self.credential.is_some()
@@ -220,7 +222,7 @@ impl Provider<Url> {
 #[derive(Debug, Clone, PartialEq, From)]
 pub enum AnyProvider {
     Url(Provider<Url>),
-    Template(Provider<Template<HashMap<crate::URLParam, crate::URLParamValue>>>),
+    Template(ProviderTemplate),
 }
 
 impl AnyProvider {
