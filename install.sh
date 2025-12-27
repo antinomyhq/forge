@@ -27,23 +27,103 @@ case $ARCH in
         ;;
 esac
 
+# Check if running on Android
+is_android() {
+    # Check for Termux environment
+    if [ -n "$PREFIX" ] && echo "$PREFIX" | grep -q "com.termux"; then
+        return 0
+    fi
+    
+    # Check for Android-specific environment variables
+    if [ -n "$ANDROID_ROOT" ] || [ -n "$ANDROID_DATA" ]; then
+        return 0
+    fi
+    
+    # Check for Android-specific system properties
+    if [ -f "/system/build.prop" ]; then
+        return 0
+    fi
+    
+    # Try getprop command (Android-specific)
+    if command -v getprop >/dev/null 2>&1; then
+        if getprop ro.build.version.release >/dev/null 2>&1; then
+            return 0
+        fi
+    fi
+    
+    return 1
+}
+
+# Get glibc version and type
+get_libc_info() {
+    # Try ldd first
+    local ldd_output=$(ldd --version 2>&1 | head -n 1 || true)
+    
+    # Check if this is musl libc
+    if echo "$ldd_output" | grep -qiF "musl"; then
+        echo "musl"
+        return
+    fi
+    
+    # Extract glibc version
+    local version=$(echo "$ldd_output" | grep -oE '[0-9]+\.[0-9]+' | head -n 1)
+    
+    # If no version found from ldd, try getconf
+    if [ -z "$version" ]; then
+        if command -v getconf >/dev/null 2>&1; then
+            local getconf_output=$(getconf GNU_LIBC_VERSION 2>/dev/null || true)
+            version=$(echo "$getconf_output" | grep -oE '[0-9]+\.[0-9]+' | head -n 1)
+        fi
+    fi
+    
+    # If we have a version, check if it's sufficient (>= 2.39)
+    if [ -n "$version" ]; then
+        # Convert version to comparable number (e.g., 2.39 -> 239)
+        local major=$(echo "$version" | cut -d. -f1)
+        local minor=$(echo "$version" | cut -d. -f2)
+        local version_num=$((major * 100 + minor))
+        
+        # Our binary requires glibc 2.39 or higher
+        if [ "$version_num" -ge 239 ]; then
+            echo "gnu"
+        else
+            echo "musl"
+        fi
+    else
+        # Default to gnu if we can't determine version
+        echo "gnu"
+    fi
+}
+
 # Detect OS
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-case $OS in
-    linux)
-        # Detect libc for Linux
-        LIBC_INFO=$(ldd --version 2>&1 | head -n 1 || true)
-        if echo "$LIBC_INFO" | grep -qiF "musl"; then
-            LIBC_SUFFIX="-musl"
-        else
-            LIBC_SUFFIX="-gnu"
-        fi
-        TARGET="$ARCH-unknown-linux$LIBC_SUFFIX"
-        BINARY_NAME="forge"
-        INSTALL_DIR="/usr/local/bin"
-        USE_SUDO=true
-        ;;
-    darwin)
+
+# Check for Android first
+if [ "$OS" = "linux" ] && is_android; then
+    TARGET="$ARCH-linux-android"
+    BINARY_NAME="forge"
+    INSTALL_DIR="$PREFIX/bin"
+    if [ -z "$INSTALL_DIR" ]; then
+        INSTALL_DIR="$HOME/.local/bin"
+    fi
+    USE_SUDO=false
+else
+    case $OS in
+        linux)
+            # Check for FORCE_MUSL environment variable
+            if [ "$FORCE_MUSL" = "1" ]; then
+                LIBC_SUFFIX="-musl"
+            else
+                # Detect libc type and version
+                LIBC_TYPE=$(get_libc_info)
+                LIBC_SUFFIX="-$LIBC_TYPE"
+            fi
+            TARGET="$ARCH-unknown-linux$LIBC_SUFFIX"
+            BINARY_NAME="forge"
+            INSTALL_DIR="/usr/local/bin"
+            USE_SUDO=true
+            ;;
+        darwin)
         TARGET="$ARCH-apple-darwin"
         BINARY_NAME="forge"
         INSTALL_DIR="/usr/local/bin"
@@ -65,14 +145,15 @@ case $OS in
         fi
         USE_SUDO=false
         ;;
-    *)
-        echo -e "${RED}Unsupported operating system: $OS${NC}"
-        echo -e "${YELLOW}Supported operating systems: Linux, macOS (Darwin), Windows${NC}"
-        echo -e "${BLUE}For installation instructions, visit:${NC}"
-        echo -e "${BLUE}https://github.com/antinomyhq/forge#installation${NC}"
-        exit 1
-        ;;
-esac
+        *)
+            echo -e "${RED}Unsupported operating system: $OS${NC}"
+            echo -e "${YELLOW}Supported operating systems: Linux, macOS (Darwin), Windows${NC}"
+            echo -e "${BLUE}For installation instructions, visit:${NC}"
+            echo -e "${BLUE}https://github.com/antinomyhq/forge#installation${NC}"
+            exit 1
+            ;;
+    esac
+fi
 
 echo -e "${BLUE}Detected platform: $TARGET${NC}"
 
