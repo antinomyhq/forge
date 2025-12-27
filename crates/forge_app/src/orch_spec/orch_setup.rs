@@ -5,7 +5,7 @@ use chrono::{DateTime, Local};
 use derive_setters::Setters;
 use forge_domain::{
     Agent, AgentId, Attachment, ChatCompletionMessage, ChatResponse, Conversation, Environment,
-    Event, File, HttpConfig, MessageEntry, ModelId, ProviderId, RetryConfig, Role, Template,
+    Event, File, HttpConfig, MessageEntry, ModelId, ProviderId, RetryConfig, Role, Skill, Template,
     ToolCallFull, ToolDefinition, ToolResult, Workflow,
 };
 use url::Url;
@@ -31,6 +31,7 @@ pub struct TestContext {
     pub title: Option<String>,
     pub model: ModelId,
     pub attachments: Vec<Attachment>,
+    pub skills: Vec<Skill>,
 
     // Final output of the test is store in the context
     pub output: TestOutput,
@@ -50,6 +51,7 @@ impl Default for TestContext {
             templates: Default::default(),
             files: Default::default(),
             attachments: Default::default(),
+            skills: Default::default(),
             env: Environment {
                 os: "MacOS".to_string(),
                 pid: 1234,

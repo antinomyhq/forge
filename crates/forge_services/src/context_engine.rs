@@ -389,6 +389,7 @@ impl<
         + WorkspaceIndexRepository
         + WalkerInfra
         + FileReaderInfra
+        + forge_domain::SkillRepository
         + 'static,
 > WorkspaceService for ForgeWorkspaceService<F>
 {
@@ -558,6 +559,39 @@ impl<
 
         Ok(auth)
     }
+
+    async fn recommend_skills(&self, use_case: String) -> Result<Vec<forge_domain::SelectedSkill>> {
+        // Get auth token and skills in parallel
+        let (credential, skills) = tokio::join!(
+            self.infra.get_credential(&ProviderId::FORGE_SERVICES),
+            self.infra.load_skills()
+        );
+
+        // Get token from existing credential or create new credentials if none exists
+        let token = match credential? {
+            Some(cred) => match cred.auth_details {
+                forge_domain::AuthDetails::ApiKey(token) => token,
+                _ => anyhow::bail!("ForgeServices credential must be an API key"),
+            },
+            None => {
+                // Create new credentials if none exist
+                let auth = self.init_auth_credentials().await?;
+                auth.token
+            }
+        };
+
+        let skill_infos: Vec<_> = skills?
+            .iter()
+            .map(|s| forge_domain::SkillInfo::new(&s.name, &s.description))
+            .collect();
+
+        // Build params and call the repository
+        let params = forge_domain::SkillSelectionParams::new(skill_infos, use_case);
+        self.infra
+            .select_skill(params, &token)
+            .await
+            .context("Failed to select skills")
+    }
 }
 
 #[cfg(test)]
@@ -587,6 +621,8 @@ mod tests {
         deleted_files: Arc<tokio::sync::Mutex<Vec<String>>>,
         uploaded_files: Arc<tokio::sync::Mutex<Vec<String>>>,
         authenticated: bool, // Track whether user is authenticated
+        skills: Vec<forge_domain::Skill>,
+        selected_skills: Vec<forge_domain::SelectedSkill>,
     }
 
     impl MockInfra {
@@ -814,6 +850,21 @@ mod tests {
                 .await
                 .retain(|w| w.workspace_id != *workspace_id);
             Ok(())
+        }
+
+        async fn select_skill(
+            &self,
+            _params: forge_domain::SkillSelectionParams,
+            _token: &ApiKey,
+        ) -> Result<Vec<forge_domain::SelectedSkill>> {
+            Ok(self.selected_skills.clone())
+        }
+    }
+
+    #[async_trait]
+    impl forge_domain::SkillRepository for MockInfra {
+        async fn load_skills(&self) -> Result<Vec<forge_domain::Skill>> {
+            Ok(self.skills.clone())
         }
     }
 
@@ -1210,5 +1261,50 @@ mod tests {
                 .to_string()
                 .contains("Workspace not indexed")
         );
+    }
+
+    #[tokio::test]
+    async fn test_recommend_skills_returns_selected_skills() {
+        // Fixture
+        let mut mock = MockInfra::synced(&["main.rs"]);
+        mock.skills = vec![
+            forge_domain::Skill::new("pdf", "PDF handling", "Handle PDF files"),
+            forge_domain::Skill::new("excel", "Excel handling", "Handle Excel files"),
+        ];
+        mock.selected_skills = vec![forge_domain::SelectedSkill::new("pdf", 0.95, 1)];
+        let service = ForgeWorkspaceService::new(Arc::new(mock));
+
+        // Act
+        let actual = service
+            .recommend_skills("I need to handle PDF files".to_string())
+            .await
+            .unwrap();
+
+        // Assert
+        let expected = vec![forge_domain::SelectedSkill::new("pdf", 0.95, 1)];
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_recommend_skills_creates_credentials_when_not_authenticated() {
+        // Fixture
+        let mut mock = MockInfra::synced(&["main.rs"]);
+        mock.authenticated = false;
+        mock.skills = vec![forge_domain::Skill::new(
+            "test_skill",
+            "Test skill",
+            "Test skill description",
+        )];
+        mock.selected_skills = vec![forge_domain::SelectedSkill::new("test_skill", 0.9, 1)];
+        let service = ForgeWorkspaceService::new(Arc::new(mock));
+
+        // Act - should create credentials and succeed
+        let actual = service.recommend_skills("test".to_string()).await;
+
+        // Assert - should succeed after creating credentials
+        assert!(actual.is_ok());
+        let skills = actual.unwrap();
+        assert_eq!(skills.len(), 1);
+        assert_eq!(skills[0].name, "test_skill");
     }
 }

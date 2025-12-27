@@ -287,6 +287,12 @@ pub trait WorkspaceService: Send + Sync {
 
     /// Create new authentication credentials
     async fn init_auth_credentials(&self) -> anyhow::Result<WorkspaceAuth>;
+
+    /// Recommend skills based on use case.
+    async fn recommend_skills(
+        &self,
+        use_case: String,
+    ) -> anyhow::Result<Vec<forge_domain::SelectedSkill>>;
 }
 
 #[async_trait::async_trait]
@@ -1080,5 +1086,12 @@ impl<I: Services> WorkspaceService for I {
 
     async fn init_auth_credentials(&self) -> anyhow::Result<WorkspaceAuth> {
         self.workspace_service().init_auth_credentials().await
+    }
+
+    async fn recommend_skills(
+        &self,
+        use_case: String,
+    ) -> anyhow::Result<Vec<forge_domain::SelectedSkill>> {
+        self.workspace_service().recommend_skills(use_case).await
     }
 }
