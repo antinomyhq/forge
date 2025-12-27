@@ -11,6 +11,31 @@ NC='\033[0m' # No Color
 
 echo -e "${BLUE}Installing Forge...${NC}"
 
+# Check for required dependencies
+DOWNLOADER=""
+if command -v curl >/dev/null 2>&1; then
+    DOWNLOADER="curl"
+elif command -v wget >/dev/null 2>&1; then
+    DOWNLOADER="wget"
+else
+    echo -e "${RED}Error: Either curl or wget is required but neither is installed${NC}" >&2
+    exit 1
+fi
+
+# Download function that works with both curl and wget
+download_file() {
+    local url="$1"
+    local output="$2"
+    
+    if [ "$DOWNLOADER" = "curl" ]; then
+        curl -fsSL -o "$output" "$url"
+    elif [ "$DOWNLOADER" = "wget" ]; then
+        wget -q -O "$output" "$url"
+    else
+        return 1
+    fi
+}
+
 # Detect architecture
 ARCH=$(uname -m)
 case $ARCH in
@@ -56,43 +81,65 @@ is_android() {
 
 # Get glibc version and type
 get_libc_info() {
-    # Try ldd first
-    local ldd_output=$(ldd --version 2>&1 | head -n 1 || true)
-    
-    # Check if this is musl libc
-    if echo "$ldd_output" | grep -qiF "musl"; then
+    # Check for musl library files first (faster and more reliable)
+    if [ -f "/lib/libc.musl-x86_64.so.1" ] || [ -f "/lib/libc.musl-aarch64.so.1" ]; then
         echo "musl"
         return
     fi
     
-    # Extract glibc version
-    local version=$(echo "$ldd_output" | grep -oE '[0-9]+\.[0-9]+' | head -n 1)
+    # Find ls binary dynamically (more portable)
+    local ls_binary=$(command -v ls 2>/dev/null || echo "/bin/ls")
     
-    # If no version found from ldd, try getconf
-    if [ -z "$version" ]; then
-        if command -v getconf >/dev/null 2>&1; then
-            local getconf_output=$(getconf GNU_LIBC_VERSION 2>/dev/null || true)
-            version=$(echo "$getconf_output" | grep -oE '[0-9]+\.[0-9]+' | head -n 1)
-        fi
-    fi
-    
-    # If we have a version, check if it's sufficient (>= 2.39)
-    if [ -n "$version" ]; then
-        # Convert version to comparable number (e.g., 2.39 -> 239)
-        local major=$(echo "$version" | cut -d. -f1)
-        local minor=$(echo "$version" | cut -d. -f2)
-        local version_num=$((major * 100 + minor))
-        
-        # Our binary requires glibc 2.39 or higher
-        if [ "$version_num" -ge 239 ]; then
-            echo "gnu"
-        else
+    # Check if ldd reports musl (if ldd exists)
+    if command -v ldd >/dev/null 2>&1; then
+        if ldd "$ls_binary" 2>&1 | grep -q musl; then
             echo "musl"
+            return
         fi
-    else
-        # Default to gnu if we can't determine version
-        echo "gnu"
     fi
+    
+    # Try ldd for glibc version (if ldd exists)
+    if command -v ldd >/dev/null 2>&1; then
+        local ldd_output=$(ldd --version 2>&1 | head -n 1 || true)
+        
+        # Double-check it's not musl
+        if echo "$ldd_output" | grep -qiF "musl"; then
+            echo "musl"
+            return
+        fi
+        
+        # Extract glibc version
+        local version=$(echo "$ldd_output" | grep -oE '[0-9]+\.[0-9]+' | head -n 1)
+        
+        # If no version found from ldd, try getconf
+        if [ -z "$version" ]; then
+            if command -v getconf >/dev/null 2>&1; then
+                local getconf_output=$(getconf GNU_LIBC_VERSION 2>/dev/null || true)
+                version=$(echo "$getconf_output" | grep -oE '[0-9]+\.[0-9]+' | head -n 1)
+            fi
+        fi
+        
+        # If we have a version, check if it's sufficient (>= 2.39)
+        if [ -n "$version" ]; then
+            # Convert version to comparable number (e.g., 2.39 -> 239)
+            local major=$(echo "$version" | cut -d. -f1)
+            local minor=$(echo "$version" | cut -d. -f2)
+            local version_num=$((major * 100 + minor))
+            
+            # Our binary requires glibc 2.39 or higher
+            if [ "$version_num" -ge 239 ]; then
+                echo "gnu"
+                return
+            else
+                echo "musl"
+                return
+            fi
+        fi
+    fi
+    
+    # If ldd doesn't exist or we couldn't determine, default to gnu
+    # (most common on standard Linux distributions)
+    echo "gnu"
 }
 
 # Detect OS
@@ -167,12 +214,12 @@ TEMP_BINARY="$TMP_DIR/$BINARY_NAME"
 
 # Download Forge
 echo -e "${BLUE}Downloading Forge from $DOWNLOAD_URL...${NC}"
-if ! curl -fL "$DOWNLOAD_URL" -o "$TEMP_BINARY"; then
-    echo -e "${RED}Failed to download Forge.${NC}"
-    echo -e "${YELLOW}Please check:${NC}"
-    echo -e "  - Your internet connection"
-    echo -e "  - The version '$VERSION' exists"
-    echo -e "  - The target '$TARGET' is supported"
+if ! download_file "$DOWNLOAD_URL" "$TEMP_BINARY"; then
+    echo -e "${RED}Failed to download Forge.${NC}" >&2
+    echo -e "${YELLOW}Please check:${NC}" >&2
+    echo -e "  - Your internet connection" >&2
+    echo -e "  - The version '$VERSION' exists" >&2
+    echo -e "  - The target '$TARGET' is supported" >&2
     rm -rf "$TMP_DIR"
     exit 1
 fi
