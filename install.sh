@@ -102,9 +102,10 @@ OS=$(uname -s | tr '[:upper:]' '[:lower:]')
 if [ "$OS" = "linux" ] && is_android; then
     TARGET="$ARCH-linux-android"
     BINARY_NAME="forge"
-    INSTALL_DIR="$PREFIX/bin"
-    if [ -z "$INSTALL_DIR" ]; then
+    if [ -z "$PREFIX" ]; then
         INSTALL_DIR="$HOME/.local/bin"
+    else
+        INSTALL_DIR="$PREFIX/bin"
     fi
     USE_SUDO=false
 else
