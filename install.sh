@@ -120,31 +120,28 @@ else
             fi
             TARGET="$ARCH-unknown-linux$LIBC_SUFFIX"
             BINARY_NAME="forge"
-            INSTALL_DIR="/usr/local/bin"
-            USE_SUDO=true
+            # Prefer user-local directory to avoid sudo
+            INSTALL_DIR="$HOME/.local/bin"
+            USE_SUDO=false
             ;;
         darwin)
-        TARGET="$ARCH-apple-darwin"
-        BINARY_NAME="forge"
-        INSTALL_DIR="/usr/local/bin"
-        # Check if we need sudo for /usr/local/bin
-        if [ -w "$INSTALL_DIR" ]; then
-            USE_SUDO=false
-        else
-            USE_SUDO=true
-        fi
-        ;;
-    msys* | mingw* | cygwin* | windows*)
-        TARGET="$ARCH-pc-windows-msvc"
-        BINARY_NAME="forge.exe"
-        # Windows install to user's local bin or AppData
-        if [ -n "$LOCALAPPDATA" ]; then
-            INSTALL_DIR="$LOCALAPPDATA/Programs/Forge"
-        else
+            TARGET="$ARCH-apple-darwin"
+            BINARY_NAME="forge"
+            # Prefer user-local directory to avoid sudo
             INSTALL_DIR="$HOME/.local/bin"
-        fi
-        USE_SUDO=false
-        ;;
+            USE_SUDO=false
+            ;;
+        msys* | mingw* | cygwin* | windows*)
+            TARGET="$ARCH-pc-windows-msvc"
+            BINARY_NAME="forge.exe"
+            # Windows install to user's local bin or AppData
+            if [ -n "$LOCALAPPDATA" ]; then
+                INSTALL_DIR="$LOCALAPPDATA/Programs/Forge"
+            else
+                INSTALL_DIR="$HOME/.local/bin"
+            fi
+            USE_SUDO=false
+            ;;
         *)
             echo -e "${RED}Unsupported operating system: $OS${NC}"
             echo -e "${YELLOW}Supported operating systems: Linux, macOS (Darwin), Windows${NC}"
@@ -209,15 +206,32 @@ if [ "$OS" = "windows" ] || [ "$OS" = "msys" ] || [ "$OS" = "mingw" ] || [ "$OS"
 fi
 
 # Verify installation
+echo ""
 if command -v forge >/dev/null 2>&1; then
-    echo -e "${GREEN}Forge has been successfully installed!${NC}"
+    echo -e "${GREEN}✓ Forge has been successfully installed!${NC}"
     forge --version 2>/dev/null || true
-    echo -e "${BLUE}You can now run 'forge' to get started.${NC}"
+    echo -e "${BLUE}Run 'forge' to get started.${NC}"
 else
-    echo -e "${YELLOW}Forge has been installed to $INSTALL_PATH${NC}"
-    echo -e "${YELLOW}If 'forge' command is not found, ensure $INSTALL_DIR is in your PATH${NC}"
-    if [ "$USE_SUDO" = false ]; then
-        echo -e "${BLUE}You may need to restart your shell or run:${NC}"
-        echo -e "  export PATH=\"\$PATH:$INSTALL_DIR\""
+    echo -e "${GREEN}✓ Forge has been installed to $INSTALL_PATH${NC}"
+    echo ""
+    echo -e "${YELLOW}The 'forge' command is not in your PATH yet.${NC}"
+    
+    # Check if the install directory is in PATH
+    if ! echo "$PATH" | grep -q "$INSTALL_DIR"; then
+        echo -e "${BLUE}Add it to your PATH by running:${NC}"
+        
+        # Provide shell-specific instructions
+        if [ -n "$ZSH_VERSION" ]; then
+            echo -e "  echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.zshrc"
+            echo -e "  source ~/.zshrc"
+        elif [ -n "$BASH_VERSION" ]; then
+            echo -e "  echo 'export PATH=\"\$HOME/.local/bin:\$PATH\"' >> ~/.bashrc"
+            echo -e "  source ~/.bashrc"
+        else
+            echo -e "  export PATH=\"$INSTALL_DIR:\$PATH\""
+        fi
+    else
+        echo -e "${BLUE}Restart your shell or run:${NC}"
+        echo -e "  source ~/.$(basename $SHELL)rc"
     fi
 fi
