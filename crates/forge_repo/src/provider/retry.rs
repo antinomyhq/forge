@@ -379,4 +379,3 @@ mod tests {
         assert!(get_event_req_status_code(&error).is_none());
     }
 }
-
