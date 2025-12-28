@@ -1,6 +1,42 @@
 #!/usr/bin/env zsh
 
 # Conversation management action handlers
+# 
+# Features:
+# - :conversation          - List and switch conversations (with fzf)
+# - :conversation <id>     - Switch to specific conversation by ID
+# - :conversation -        - Toggle between current and previous conversation (like cd -)
+# - :clone                 - Clone current or selected conversation
+# - :clone <id>            - Clone specific conversation by ID
+#
+# Helper Functions:
+# - _forge_switch_conversation <id>  - Switch to a conversation and track previous
+# - _forge_clear_conversation        - Clear conversation and save as previous
+
+# Helper function to switch to a conversation and track previous (like cd -)
+function _forge_switch_conversation() {
+    local new_conversation_id="$1"
+    
+    # Only update previous if we're switching to a different conversation
+    if [[ -n "$_FORGE_CONVERSATION_ID" && "$_FORGE_CONVERSATION_ID" != "$new_conversation_id" ]]; then
+        # Save current as previous
+        _FORGE_PREVIOUS_CONVERSATION_ID="$_FORGE_CONVERSATION_ID"
+    fi
+    
+    # Set the new conversation as active
+    _FORGE_CONVERSATION_ID="$new_conversation_id"
+}
+
+# Helper function to reset/clear conversation and track previous (like cd -)
+function _forge_clear_conversation() {
+    # Save current as previous before clearing
+    if [[ -n "$_FORGE_CONVERSATION_ID" ]]; then
+        _FORGE_PREVIOUS_CONVERSATION_ID="$_FORGE_CONVERSATION_ID"
+    fi
+    
+    # Clear the current conversation
+    _FORGE_CONVERSATION_ID=""
+}
 
 # Action handler: List/switch conversations
 function _forge_action_conversation() {
@@ -8,12 +44,40 @@ function _forge_action_conversation() {
     
     echo
     
+    # Handle toggling to previous conversation (like cd -)
+    if [[ "$input_text" == "-" ]]; then
+        # Check if there's a previous conversation
+        if [[ -z "$_FORGE_PREVIOUS_CONVERSATION_ID" ]]; then
+            # No previous conversation tracked, show conversation list like :conversation
+            input_text=""
+            # Fall through to the conversation list logic below
+        else
+            # Swap current and previous
+            local temp="$_FORGE_CONVERSATION_ID"
+            _FORGE_CONVERSATION_ID="$_FORGE_PREVIOUS_CONVERSATION_ID"
+            _FORGE_PREVIOUS_CONVERSATION_ID="$temp"
+            
+            # Show conversation content
+            echo
+            _forge_exec conversation show "$_FORGE_CONVERSATION_ID"
+            
+            # Show conversation info
+            _forge_exec conversation info "$_FORGE_CONVERSATION_ID"
+            
+            # Print log about conversation switching
+            _forge_log success "Switched to conversation \033[1m${_FORGE_CONVERSATION_ID}\033[0m"
+            
+            _forge_reset
+            return 0
+        fi
+    fi
+    
     # If an ID is provided directly, use it
     if [[ -n "$input_text" ]]; then
         local conversation_id="$input_text"
         
-        # Set the conversation as active
-        _FORGE_CONVERSATION_ID="$conversation_id"
+        # Switch to conversation and track in history
+        _forge_switch_conversation "$conversation_id"
         
         # Show conversation content
         echo
@@ -62,8 +126,9 @@ function _forge_action_conversation() {
             # Extract the first field (UUID) - everything before the first multi-space delimiter
             local conversation_id=$(echo "$selected_conversation" | sed -E 's/  .*//' | tr -d '\n')
             
-            # Set the selected conversation as active (in parent shell)
-            _FORGE_CONVERSATION_ID="$conversation_id"
+            # Switch to conversation and track in history
+            _forge_switch_conversation "$conversation_id"
+            
             # Show conversation content
             echo
             _forge_exec conversation show "$conversation_id"

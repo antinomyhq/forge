@@ -25,3 +25,6 @@ typeset -h _FORGE_COMMANDS=""
 # Hidden variables to be used only via the ForgeCLI
 typeset -h _FORGE_CONVERSATION_ID
 typeset -h _FORGE_ACTIVE_AGENT
+
+# Previous conversation ID for :conversation - (like cd -)
+typeset -h _FORGE_PREVIOUS_CONVERSATION_ID

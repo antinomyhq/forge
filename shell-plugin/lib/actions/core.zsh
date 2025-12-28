@@ -6,7 +6,8 @@
 function _forge_action_new() {
     local input_text="$1"
     
-    _FORGE_CONVERSATION_ID=""
+    # Clear conversation and save as previous (like cd -)
+    _forge_clear_conversation
     _FORGE_ACTIVE_AGENT="forge"
     
     echo
