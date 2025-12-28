@@ -8,20 +8,21 @@ use forge_domain::{SnapshotRepository, ValidationRepository};
 use thiserror::Error;
 use tokio::fs;
 use strsim::levenshtein;
+use strum::IntoEnumIterator;
 
 use crate::utils::assert_absolute_path;
 
 /// A match found in the source text. Represents a range in the source text that
 /// can be used for extraction or replacement operations.
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Ord, PartialOrd)]
-struct Match {
+struct Range {
     /// Starting position of the match in the source text
     start: usize,
     /// Length of the matched text
     length: usize,
 }
 
-impl Match {
+impl Range {
     /// Create a new match from a start position and length
     fn new(start: usize, length: usize) -> Self {
         Self { start, length }
@@ -33,8 +34,8 @@ impl Match {
     }
 }
 
-impl From<Match> for std::ops::Range<usize> {
-    fn from(m: Match) -> Self {
+impl From<Range> for std::ops::Range<usize> {
+    fn from(m: Range) -> Self {
         m.start..m.end()
     }
 }
@@ -43,13 +44,13 @@ impl From<Match> for std::ops::Range<usize> {
 #[derive(Debug, Clone)]
 struct MatchResult {
     /// The position of the match in the source text
-    match_range: Match,
+    match_range: Range,
     /// The actual text that was matched (may differ from search due to fuzzy matching)
     matched_text: String,
 }
 
 impl MatchResult {
-    fn new(match_range: Match, matched_text: String) -> Self {
+    fn new(match_range: Range, matched_text: String) -> Self {
         Self {
             match_range,
             matched_text,
@@ -385,8 +386,8 @@ impl MatchStrategy for MultiOccurrenceStrategy {
     }
 }
 
-/// Enum representing all available matching strategies
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// Strategy for matching search text in the source content
+#[derive(Debug, Clone, Copy, PartialEq, Eq, strum_macros::EnumIter)]
 enum MatchingStrategy {
     Simple,
     LineTrimmed,
@@ -413,21 +414,6 @@ impl MatchingStrategy {
             MatchingStrategy::ContextAware => Box::new(ContextAwareStrategy),
             MatchingStrategy::MultiOccurrence => Box::new(MultiOccurrenceStrategy),
         }
-    }
-
-    /// Get all strategies in order of preference
-    fn all_strategies() -> Vec<Self> {
-        vec![
-            MatchingStrategy::Simple,
-            MatchingStrategy::LineTrimmed,
-            MatchingStrategy::BlockAnchor,
-            MatchingStrategy::WhitespaceNormalized,
-            MatchingStrategy::IndentationFlexible,
-            MatchingStrategy::EscapeNormalized,
-            MatchingStrategy::TrimmedBoundary,
-            MatchingStrategy::ContextAware,
-            MatchingStrategy::MultiOccurrence,
-        ]
     }
 }
 
@@ -475,7 +461,7 @@ impl Matcher {
         search: &str,
         replace_all: bool,
     ) -> Result<MatchResult, PatchError> {
-        for strategy in MatchingStrategy::all_strategies() {
+        for strategy in MatchingStrategy::iter() {
             let impl_strategy = strategy.as_strategy();
 
             if let Some(matches) = impl_strategy.find_matches(content, search) {
@@ -484,7 +470,7 @@ impl Matcher {
                     if let Some(matched_text) = matches.first() {
                         if let Some(pos) = content.find(matched_text) {
                             return Ok(MatchResult::new(
-                                Match::new(pos, matched_text.len()),
+                                Range::new(pos, matched_text.len()),
                                 matched_text.clone(),
                             ));
                         }
@@ -495,7 +481,7 @@ impl Matcher {
                         if let Some(matched_text) = matches.first() {
                             if let Some(pos) = content.find(matched_text) {
                                 return Ok(MatchResult::new(
-                                    Match::new(pos, matched_text.len()),
+                                    Range::new(pos, matched_text.len()),
                                     matched_text.clone(),
                                 ));
                             }
@@ -685,11 +671,12 @@ mod tests {
     use forge_app::domain::PatchOperation;
     use pretty_assertions::assert_eq;
     use strsim::levenshtein;
+    use strum::IntoEnumIterator;
 
     use super::{
         MatchingStrategy, apply_replacement, SimpleStrategy, LineTrimmedStrategy,
         WhitespaceNormalizedStrategy, IndentationFlexibleStrategy, TrimmedBoundaryStrategy,
-        EscapeNormalizedStrategy, Match, MatchStrategy,
+        EscapeNormalizedStrategy, MatchStrategy,
     };
 
     #[test]
@@ -742,7 +729,7 @@ mod tests {
 
     #[test]
     fn test_all_strategies_order() {
-        let strategies = MatchingStrategy::all_strategies();
+        let strategies: Vec<_> = MatchingStrategy::iter().collect();
         assert_eq!(strategies.len(), 9);
         assert_eq!(strategies[0], MatchingStrategy::Simple);
         assert_eq!(strategies[1], MatchingStrategy::LineTrimmed);
