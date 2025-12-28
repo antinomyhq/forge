@@ -463,4 +463,243 @@ mod tests {
         let actual = into_retry(error, &retry_config);
         assert!(is_retryable(actual));
     }
+
+    // Common fixture functions
+    fn fixture_retry_config(codes: Vec<u16>) -> RetryConfig {
+        RetryConfig::default().retry_status_codes(codes)
+    }
+
+    fn fixture_api_error(code: &str) -> ApiError {
+        ApiError {
+            message: "Test error".to_string(),
+            r#type: Some("test_error".to_string()),
+            param: None,
+            code: Some(code.to_string()),
+        }
+    }
+
+    #[test]
+    fn test_into_retry_with_async_openai_server_error_code_is_retryable() {
+        let retry_config = fixture_retry_config(vec![]);
+        let api_error = fixture_api_error("server_error");
+
+        let error = anyhow::Error::from(AsyncOpenAIError::ApiError(api_error));
+        let actual = into_retry(error, &retry_config);
+        assert!(is_retryable(actual));
+    }
+
+    #[test]
+    fn test_into_retry_with_async_openai_timeout_code_is_retryable() {
+        let retry_config = fixture_retry_config(vec![]);
+        let api_error = fixture_api_error("timeout");
+
+        let error = anyhow::Error::from(AsyncOpenAIError::ApiError(api_error));
+        let actual = into_retry(error, &retry_config);
+        assert!(is_retryable(actual));
+    }
+
+    #[test]
+    fn test_into_retry_with_async_openai_overloaded_code_is_retryable() {
+        let retry_config = fixture_retry_config(vec![]);
+        let api_error = fixture_api_error("overloaded");
+
+        let error = anyhow::Error::from(AsyncOpenAIError::ApiError(api_error));
+        let actual = into_retry(error, &retry_config);
+        assert!(is_retryable(actual));
+    }
+
+    #[test]
+    fn test_into_retry_with_async_openai_unknown_code_is_not_retryable() {
+        let retry_config = fixture_retry_config(vec![]);
+        let api_error = ApiError {
+            message: "Test error".to_string(),
+            r#type: Some("test_error".to_string()),
+            param: None,
+            code: Some("unknown_error".to_string()),
+        };
+
+        let error = anyhow::Error::from(AsyncOpenAIError::ApiError(api_error));
+        let actual = into_retry(error, &retry_config);
+        assert!(!is_retryable(actual));
+    }
+
+    #[test]
+    fn test_into_retry_with_async_openai_api_error_no_code_is_not_retryable() {
+        let retry_config = fixture_retry_config(vec![]);
+        let api_error = ApiError {
+            message: "Test error".to_string(),
+            r#type: Some("test_error".to_string()),
+            param: None,
+            code: None,
+        };
+
+        let error = anyhow::Error::from(AsyncOpenAIError::ApiError(api_error));
+        let actual = into_retry(error, &retry_config);
+        assert!(!is_retryable(actual));
+    }
+
+    #[test]
+    fn test_into_retry_with_non_async_openai_error_is_not_retryable() {
+        let retry_config = fixture_retry_config(vec![]);
+        let error = anyhow!("Some other error");
+
+        let actual = into_retry(error, &retry_config);
+        assert!(!is_retryable(actual));
+    }
+
+    #[test]
+    fn test_has_transport_error_code_with_err_stream_premature_close() {
+        let error = ErrorResponse::default()
+            .code(ErrorCode::String("ERR_STREAM_PREMATURE_CLOSE".to_string()));
+
+        let actual = has_transport_error_code(&error);
+        assert!(actual);
+    }
+
+    #[test]
+    fn test_has_transport_error_code_with_econnreset() {
+        let error = ErrorResponse::default()
+            .code(ErrorCode::String("ECONNRESET".to_string()));
+
+        let actual = has_transport_error_code(&error);
+        assert!(actual);
+    }
+
+    #[test]
+    fn test_has_transport_error_code_with_etimedout() {
+        let error = ErrorResponse::default()
+            .code(ErrorCode::String("ETIMEDOUT".to_string()));
+
+        let actual = has_transport_error_code(&error);
+        assert!(actual);
+    }
+
+    #[test]
+    fn test_has_transport_error_code_with_unknown_code() {
+        let error = ErrorResponse::default()
+            .code(ErrorCode::String("UNKNOWN_ERROR".to_string()));
+
+        let actual = has_transport_error_code(&error);
+        assert!(!actual);
+    }
+
+    #[test]
+    fn test_has_transport_error_code_with_no_code() {
+        let error = ErrorResponse::default();
+
+        let actual = has_transport_error_code(&error);
+        assert!(!actual);
+    }
+
+    #[test]
+    fn test_has_transport_error_code_with_nested_transport_code() {
+        let nested = ErrorResponse::default()
+            .code(ErrorCode::String("ECONNRESET".to_string()));
+        let error = ErrorResponse::default().error(Box::new(nested));
+
+        let actual = has_transport_error_code(&error);
+        assert!(actual);
+    }
+
+    #[test]
+    fn test_has_transport_error_code_with_nested_unknown_code() {
+        let nested = ErrorResponse::default()
+            .code(ErrorCode::String("UNKNOWN".to_string()));
+        let error = ErrorResponse::default().error(Box::new(nested));
+
+        let actual = has_transport_error_code(&error);
+        assert!(!actual);
+    }
+
+    #[test]
+    fn test_is_api_transport_error_with_transport_code() {
+        let inner_error = ErrorResponse::default()
+            .code(ErrorCode::String("ETIMEDOUT".to_string()));
+        let error = anyhow::Error::from(Error::Response(inner_error));
+
+        let actual = is_api_transport_error(&error);
+        assert!(actual);
+    }
+
+    #[test]
+    fn test_is_api_transport_error_with_non_transport_code() {
+        let inner_error = ErrorResponse::default()
+            .code(ErrorCode::String("INVALID_REQUEST".to_string()));
+        let error = anyhow::Error::from(Error::Response(inner_error));
+
+        let actual = is_api_transport_error(&error);
+        assert!(!actual);
+    }
+
+    #[test]
+    fn test_is_api_transport_error_with_invalid_status_code() {
+        let error = anyhow::Error::from(Error::InvalidStatusCode(500));
+
+        let actual = is_api_transport_error(&error);
+        assert!(!actual);
+    }
+
+    #[test]
+    fn test_is_api_transport_error_with_generic_error() {
+        let error = anyhow!("Generic error");
+
+        let actual = is_api_transport_error(&error);
+        assert!(!actual);
+    }
+
+    #[test]
+    fn test_is_req_transport_error_with_generic_error() {
+        let error = anyhow!("Generic error");
+
+        let actual = is_req_transport_error(&error);
+        assert!(!actual);
+    }
+
+    #[test]
+    fn test_is_event_transport_error_with_generic_error() {
+        let error = anyhow!("Generic error");
+
+        let actual = is_event_transport_error(&error);
+        assert!(!actual);
+    }
+
+    #[test]
+    fn test_is_async_openai_transport_error_with_non_async_openai_error() {
+        let error = anyhow!("Generic error");
+
+        let actual = is_async_openai_transport_error(&error);
+        assert!(!actual);
+    }
+
+    #[test]
+    fn test_get_async_openai_status_code_with_non_async_openai_error() {
+        let error = anyhow!("Generic error");
+
+        let actual = get_async_openai_status_code(&error);
+        assert!(actual.is_none());
+    }
+
+    #[test]
+    fn test_get_api_status_code_with_non_api_error() {
+        let error = anyhow!("Generic error");
+
+        let actual = get_api_status_code(&error);
+        assert!(actual.is_none());
+    }
+
+    #[test]
+    fn test_get_req_status_code_with_non_reqwest_error() {
+        let error = anyhow!("Generic error");
+
+        let actual = get_req_status_code(&error);
+        assert!(actual.is_none());
+    }
+
+    #[test]
+    fn test_get_event_req_status_code_with_non_event_error() {
+        let error = anyhow!("Generic error");
+
+        let actual = get_event_req_status_code(&error);
+        assert!(actual.is_none());
+    }
 }
