@@ -98,7 +98,10 @@ enum MarkerState {
     /// Valid markers with correct positions
     Valid { start: usize, end: usize },
     /// Invalid markers (incorrect order or incomplete)
-    Invalid,
+    Invalid {
+        start: Option<usize>,
+        end: Option<usize>,
+    },
 }
 
 /// Parses the file content to find and validate marker positions
@@ -114,8 +117,8 @@ fn parse_markers(lines: &[String], start_marker: &str, end_marker: &str) -> Mark
 
     match (start_idx, end_idx) {
         (Some(start), Some(end)) if start < end => MarkerState::Valid { start, end },
-        (Some(_), Some(_)) | (Some(_), None) | (None, Some(_)) => MarkerState::Invalid,
         (None, None) => MarkerState::NotFound,
+        (start, end) => MarkerState::Invalid { start, end },
     }
 }
 
@@ -158,11 +161,16 @@ pub fn setup_zsh_integration() -> Result<String> {
             lines.splice(start..=end, forge_config.iter().cloned());
             (lines.join("\n") + "\n", "updated")
         }
-        MarkerState::Invalid => {
-            return Err(anyhow::anyhow!(
-                "Invalid forge markers found in {}. Please remove them manually and run setup again.",
-                zshrc_path.display()
-            ));
+        MarkerState::Invalid { start, end } => {
+            let location = match (start, end) {
+                (Some(s), Some(e)) => format!("{}:{}-{}", zshrc_path.display(), s + 1, e + 1),
+                (Some(s), None) => format!("{}:{}", zshrc_path.display(), s + 1),
+                (None, Some(e)) => format!("{}:{}", zshrc_path.display(), e + 1),
+                (None, None) => unreachable!("Invalid state must have at least one marker"),
+            };
+
+            return Err(anyhow::anyhow!("Corrupt markers in .zshrc")
+                .context(format!("Failed to parse markers at {location}")));
         }
         MarkerState::NotFound => {
             // No markers - add them at the end
