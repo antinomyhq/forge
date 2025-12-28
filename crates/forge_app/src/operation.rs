@@ -6,8 +6,8 @@ use console::strip_ansi_codes;
 use derive_setters::Setters;
 use forge_display::DiffFormat;
 use forge_domain::{
-    CodebaseSearchResults, Environment, FSPatch, FSMultiPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite,
-    FileOperation, LineNumbers, Metrics, NetFetch, PlanCreate, ToolKind,
+    CodebaseSearchResults, Environment, FSMultiPatch, FSPatch, FSRead, FSRemove, FSSearch, FSUndo,
+    FSWrite, FileOperation, LineNumbers, Metrics, NetFetch, PlanCreate, ToolKind,
 };
 use forge_template::Element;
 
@@ -17,8 +17,8 @@ use crate::truncation::{
 };
 use crate::utils::{compute_hash, format_display_path};
 use crate::{
-    FsCreateOutput, FsRemoveOutput, FsUndoOutput, HttpResponse, MultiPatchOutput, PatchOutput, PlanCreateOutput,
-    ReadOutput, ResponseContext, SearchResult, ShellOutput,
+    FsCreateOutput, FsRemoveOutput, FsUndoOutput, HttpResponse, MultiPatchOutput, PatchOutput,
+    PlanCreateOutput, ReadOutput, ResponseContext, SearchResult, ShellOutput,
 };
 
 #[derive(Debug, Default, Setters)]

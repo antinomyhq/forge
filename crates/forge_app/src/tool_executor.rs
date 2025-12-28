@@ -264,10 +264,7 @@ impl<
             }
             ToolCatalog::MultiPatch(input) => {
                 let normalized_path = self.normalize_path(input.path.clone());
-                let patches = FSMultiPatch {
-                    path: normalized_path,
-                    edits: input.edits.clone(),
-                };
+                let patches = FSMultiPatch { path: normalized_path, edits: input.edits.clone() };
                 let output = self.services.multi_patch(patches).await?;
                 (input, output).into()
             }

@@ -23,11 +23,13 @@ impl FormatContent for ToolOperation {
                     .diff()
                     .to_string(),
             )),
-            ToolOperation::FsMultiPatch { input: _, output } => Some(ChatResponseContent::PlainText(
-                DiffFormat::format(&output.before, &output.after)
-                    .diff()
-                    .to_string(),
-            )),
+            ToolOperation::FsMultiPatch { input: _, output } => {
+                Some(ChatResponseContent::PlainText(
+                    DiffFormat::format(&output.before, &output.after)
+                        .diff()
+                        .to_string(),
+                ))
+            }
             ToolOperation::PlanCreate { input: _, output } => Some({
                 let title = TitleFormat::debug(format!(
                     "Create {}",

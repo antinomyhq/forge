@@ -5,10 +5,9 @@ use bytes::Bytes;
 use forge_app::domain::PatchOperation;
 use forge_app::{FileWriterInfra, FsPatchService, PatchOutput, compute_hash};
 use forge_domain::{SnapshotRepository, ValidationRepository};
+use strsim::levenshtein;
 use thiserror::Error;
 use tokio::fs;
-use strsim::levenshtein;
-use strum::IntoEnumIterator;
 
 use crate::utils::assert_absolute_path;
 
@@ -45,16 +44,14 @@ impl From<Range> for std::ops::Range<usize> {
 struct MatchResult {
     /// The position of the match in the source text
     match_range: Range,
-    /// The actual text that was matched (may differ from search due to fuzzy matching)
+    /// The actual text that was matched (may differ from search due to fuzzy
+    /// matching)
     matched_text: String,
 }
 
 impl MatchResult {
     fn new(match_range: Range, matched_text: String) -> Self {
-        Self {
-            match_range,
-            matched_text,
-        }
+        Self { match_range, matched_text }
     }
 }
 
@@ -116,9 +113,7 @@ impl MatchStrategy for LineTrimmedStrategy {
             let matches = window
                 .iter()
                 .zip(search_lines.iter())
-                .all(|(content_line, search_line)| {
-                    content_line.trim() == search_line.trim()
-                });
+                .all(|(content_line, search_line)| content_line.trim() == search_line.trim());
 
             if matches {
                 results.push(window.join("\n"));
@@ -231,12 +226,13 @@ impl MatchStrategy for IndentationFlexibleStrategy {
         for i in 0..=content_lines.len().saturating_sub(search_lines.len()) {
             let window = &content_lines[i..i + search_lines.len()];
 
-            let matches = window
-                .iter()
-                .zip(search_lines.iter())
-                .all(|(content_line, search_line)| {
-                    content_line.trim_start() == search_line.trim_start()
-                });
+            let matches =
+                window
+                    .iter()
+                    .zip(search_lines.iter())
+                    .all(|(content_line, search_line)| {
+                        content_line.trim_start() == search_line.trim_start()
+                    });
 
             if matches {
                 results.push(window.join("\n"));
@@ -279,10 +275,7 @@ impl MatchStrategy for EscapeNormalizedStrategy {
         for i in 0..=content_lines.len().saturating_sub(search_lines.len()) {
             let window = &content_lines[i..i + search_lines.len()];
 
-            let matches = window
-                .iter()
-                .zip(search_lines.iter())
-                .all(|(c, s)| c == s);
+            let matches = window.iter().zip(search_lines.iter()).all(|(c, s)| c == s);
 
             if matches {
                 return Some(vec![window.join("\n")]);
@@ -386,42 +379,9 @@ impl MatchStrategy for MultiOccurrenceStrategy {
     }
 }
 
-/// Strategy for matching search text in the source content
-#[derive(Debug, Clone, Copy, PartialEq, Eq, strum_macros::EnumIter)]
-enum MatchingStrategy {
-    Simple,
-    LineTrimmed,
-    BlockAnchor,
-    WhitespaceNormalized,
-    IndentationFlexible,
-    EscapeNormalized,
-    TrimmedBoundary,
-    ContextAware,
-    MultiOccurrence,
-}
-
-impl MatchingStrategy {
-    /// Convert to the actual strategy implementation
-    fn as_strategy(&self) -> Box<dyn MatchStrategy> {
-        match self {
-            MatchingStrategy::Simple => Box::new(SimpleStrategy),
-            MatchingStrategy::LineTrimmed => Box::new(LineTrimmedStrategy),
-            MatchingStrategy::BlockAnchor => Box::new(BlockAnchorStrategy),
-            MatchingStrategy::WhitespaceNormalized => Box::new(WhitespaceNormalizedStrategy),
-            MatchingStrategy::IndentationFlexible => Box::new(IndentationFlexibleStrategy),
-            MatchingStrategy::EscapeNormalized => Box::new(EscapeNormalizedStrategy),
-            MatchingStrategy::TrimmedBoundary => Box::new(TrimmedBoundaryStrategy),
-            MatchingStrategy::ContextAware => Box::new(ContextAwareStrategy),
-            MatchingStrategy::MultiOccurrence => Box::new(MultiOccurrenceStrategy),
-        }
-    }
-}
-
 /// Normalize whitespace by collapsing consecutive whitespace characters
 fn normalize_whitespace(s: &str) -> String {
-    s.split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
+    s.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 /// Find the original match in source text by approximate position
@@ -455,43 +415,86 @@ fn find_original_match(source: &str, search: &str, approximate_pos: usize) -> Op
 struct Matcher;
 
 impl Matcher {
+    /// Try a specific strategy to find a match
+    fn try_strategy<S: MatchStrategy>(
+        strategy: &S,
+        content: &str,
+        search: &str,
+        replace_all: bool,
+    ) -> Option<MatchResult> {
+        let matches = strategy.find_matches(content, search)?;
+
+        if replace_all {
+            // For replace_all, use the first match pattern
+            let matched_text = matches.first()?;
+            let pos = content.find(matched_text)?;
+            Some(MatchResult::new(
+                Range::new(pos, matched_text.len()),
+                matched_text.clone(),
+            ))
+        } else {
+            // For single replace, ensure only one match
+            if matches.len() == 1 {
+                let matched_text = matches.first()?;
+                let pos = content.find(matched_text)?;
+                Some(MatchResult::new(
+                    Range::new(pos, matched_text.len()),
+                    matched_text.clone(),
+                ))
+            } else {
+                // Multiple matches, continue to next strategy
+                None
+            }
+        }
+    }
+
     /// Try all strategies to find a match for the search text in content
     fn find_match(
         content: &str,
         search: &str,
         replace_all: bool,
     ) -> Result<MatchResult, PatchError> {
-        for strategy in MatchingStrategy::iter() {
-            let impl_strategy = strategy.as_strategy();
-
-            if let Some(matches) = impl_strategy.find_matches(content, search) {
-                if replace_all {
-                    // For replace_all, use the first match pattern
-                    if let Some(matched_text) = matches.first() {
-                        if let Some(pos) = content.find(matched_text) {
-                            return Ok(MatchResult::new(
-                                Range::new(pos, matched_text.len()),
-                                matched_text.clone(),
-                            ));
-                        }
-                    }
-                } else {
-                    // For single replace, ensure only one match
-                    if matches.len() == 1 {
-                        if let Some(matched_text) = matches.first() {
-                            if let Some(pos) = content.find(matched_text) {
-                                return Ok(MatchResult::new(
-                                    Range::new(pos, matched_text.len()),
-                                    matched_text.clone(),
-                                ));
-                            }
-                        }
-                    } else if matches.len() > 1 {
-                        // Continue to next strategy if multiple matches
-                        continue;
-                    }
-                }
-            }
+        // Try each strategy in order
+        if let Some(result) = Self::try_strategy(&SimpleStrategy, content, search, replace_all) {
+            return Ok(result);
+        }
+        if let Some(result) = Self::try_strategy(&LineTrimmedStrategy, content, search, replace_all)
+        {
+            return Ok(result);
+        }
+        if let Some(result) = Self::try_strategy(&BlockAnchorStrategy, content, search, replace_all)
+        {
+            return Ok(result);
+        }
+        if let Some(result) =
+            Self::try_strategy(&WhitespaceNormalizedStrategy, content, search, replace_all)
+        {
+            return Ok(result);
+        }
+        if let Some(result) =
+            Self::try_strategy(&IndentationFlexibleStrategy, content, search, replace_all)
+        {
+            return Ok(result);
+        }
+        if let Some(result) =
+            Self::try_strategy(&EscapeNormalizedStrategy, content, search, replace_all)
+        {
+            return Ok(result);
+        }
+        if let Some(result) =
+            Self::try_strategy(&TrimmedBoundaryStrategy, content, search, replace_all)
+        {
+            return Ok(result);
+        }
+        if let Some(result) =
+            Self::try_strategy(&ContextAwareStrategy, content, search, replace_all)
+        {
+            return Ok(result);
+        }
+        if let Some(result) =
+            Self::try_strategy(&MultiOccurrenceStrategy, content, search, replace_all)
+        {
+            return Ok(result);
         }
 
         Err(PatchError::NoMatch(search.to_string()))
@@ -671,12 +674,10 @@ mod tests {
     use forge_app::domain::PatchOperation;
     use pretty_assertions::assert_eq;
     use strsim::levenshtein;
-    use strum::IntoEnumIterator;
 
     use super::{
-        MatchingStrategy, apply_replacement, SimpleStrategy, LineTrimmedStrategy,
-        WhitespaceNormalizedStrategy, IndentationFlexibleStrategy, TrimmedBoundaryStrategy,
-        EscapeNormalizedStrategy, MatchStrategy,
+        EscapeNormalizedStrategy, IndentationFlexibleStrategy, LineTrimmedStrategy, MatchStrategy,
+        SimpleStrategy, TrimmedBoundaryStrategy, WhitespaceNormalizedStrategy, apply_replacement,
     };
 
     #[test]
@@ -725,21 +726,6 @@ mod tests {
         let search = "hello\\nworld";
         let result = EscapeNormalizedStrategy.find_matches(content, search);
         assert!(result.is_some());
-    }
-
-    #[test]
-    fn test_all_strategies_order() {
-        let strategies: Vec<_> = MatchingStrategy::iter().collect();
-        assert_eq!(strategies.len(), 9);
-        assert_eq!(strategies[0], MatchingStrategy::Simple);
-        assert_eq!(strategies[1], MatchingStrategy::LineTrimmed);
-        assert_eq!(strategies[2], MatchingStrategy::BlockAnchor);
-        assert_eq!(strategies[3], MatchingStrategy::WhitespaceNormalized);
-        assert_eq!(strategies[4], MatchingStrategy::IndentationFlexible);
-        assert_eq!(strategies[5], MatchingStrategy::EscapeNormalized);
-        assert_eq!(strategies[6], MatchingStrategy::TrimmedBoundary);
-        assert_eq!(strategies[7], MatchingStrategy::ContextAware);
-        assert_eq!(strategies[8], MatchingStrategy::MultiOccurrence);
     }
 
     #[test]

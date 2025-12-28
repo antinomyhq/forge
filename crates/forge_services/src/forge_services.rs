@@ -26,8 +26,9 @@ use crate::policy::ForgePolicyService;
 use crate::provider_service::ForgeProviderService;
 use crate::template::ForgeTemplateService;
 use crate::tool_services::{
-    ForgeFetch, ForgeFollowup, ForgeFsCreate, ForgeFsMultiPatch, ForgeFsPatch, ForgeFsRead, ForgeFsRemove,
-    ForgeFsSearch, ForgeFsUndo, ForgeImageRead, ForgePlanCreate, ForgeShell, ForgeSkillFetch,
+    ForgeFetch, ForgeFollowup, ForgeFsCreate, ForgeFsMultiPatch, ForgeFsPatch, ForgeFsRead,
+    ForgeFsRemove, ForgeFsSearch, ForgeFsUndo, ForgeImageRead, ForgePlanCreate, ForgeShell,
+    ForgeSkillFetch,
 };
 use crate::workflow::ForgeWorkflowService;
 

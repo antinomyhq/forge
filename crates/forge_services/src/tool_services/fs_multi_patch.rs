@@ -6,15 +6,15 @@ use forge_app::{FileWriterInfra, FsMultiPatchService, MultiPatchOutput, compute_
 use forge_domain::{FSMultiPatch, SnapshotRepository, ValidationRepository};
 use tokio::fs;
 
-use crate::tool_services::fs_patch::apply_replacement;
 use crate::tool_services::PatchError;
+use crate::tool_services::fs_patch::apply_replacement;
 use crate::utils::assert_absolute_path;
 
 /// Service for applying multiple patch operations in sequence to a single file
 ///
-/// This service applies multiple edits sequentially, where each edit operates on the
-/// result of the previous edit. This is useful for making multiple related
-/// changes to a file without having to read and patch multiple times.
+/// This service applies multiple edits sequentially, where each edit operates
+/// on the result of the previous edit. This is useful for making multiple
+/// related changes to a file without having to read and patch multiple times.
 pub struct ForgeFsMultiPatch<F> {
     infra: Arc<F>,
 }
@@ -26,18 +26,17 @@ impl<F> ForgeFsMultiPatch<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: FileWriterInfra + SnapshotRepository + ValidationRepository>
-    FsMultiPatchService for ForgeFsMultiPatch<F>
+impl<F: FileWriterInfra + SnapshotRepository + ValidationRepository> FsMultiPatchService
+    for ForgeFsMultiPatch<F>
 {
-    async fn multi_patch(
-        &self,
-        patches: FSMultiPatch,
-    ) -> anyhow::Result<MultiPatchOutput> {
+    async fn multi_patch(&self, patches: FSMultiPatch) -> anyhow::Result<MultiPatchOutput> {
         let path = Path::new(&patches.path);
         assert_absolute_path(path)?;
 
         if patches.edits.is_empty() {
-            return Err(anyhow::anyhow!("No edits provided for multi-patch operation"));
+            return Err(anyhow::anyhow!(
+                "No edits provided for multi-patch operation"
+            ));
         }
 
         // Read the original content once

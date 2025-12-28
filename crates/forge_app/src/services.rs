@@ -5,11 +5,11 @@ use bytes::Bytes;
 use derive_setters::Setters;
 use forge_domain::{
     AgentId, AnyProvider, Attachment, AuthContextRequest, AuthContextResponse, AuthMethod,
-    ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId, Environment, File,
-    FileStatus, FSMultiPatch, Image, InitAuth, LoginInfo, McpConfig, McpServers, Model, ModelId, Node,
-    PatchOperation, Provider, ProviderId, ResultStream, Scope, SearchParams, SyncProgress,
-    SyntaxError, Template, ToolCallFull, ToolOutput, Workflow, WorkspaceAuth, WorkspaceId,
-    WorkspaceInfo,
+    ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId, Environment,
+    FSMultiPatch, File, FileStatus, Image, InitAuth, LoginInfo, McpConfig, McpServers, Model,
+    ModelId, Node, PatchOperation, Provider, ProviderId, ResultStream, Scope, SearchParams,
+    SyncProgress, SyntaxError, Template, ToolCallFull, ToolOutput, Workflow, WorkspaceAuth,
+    WorkspaceId, WorkspaceInfo,
 };
 use merge::Merge;
 use reqwest::Response;

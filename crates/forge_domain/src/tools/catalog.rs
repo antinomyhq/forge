@@ -336,17 +336,18 @@ pub struct FSPatch {
 }
 
 /// Applies multiple patch operations in sequence to the same file. Each patch
-/// operation is applied to the result of the previous operation. This is useful for
-/// making multiple related edits to a single file without having to read and
-/// patch multiple times. Each edit in the sequence supports the same operations
-/// as the patch tool: prepend, append, replace, replace_all, and swap.
+/// operation is applied to the result of the previous operation. This is useful
+/// for making multiple related edits to a single file without having to read
+/// and patch multiple times. Each edit in the sequence supports the same
+/// operations as the patch tool: prepend, append, replace, replace_all, and
+/// swap.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct FSMultiPatch {
     /// The path to the file to modify
     pub path: String,
 
-    /// A list of patch operations to apply sequentially. Each operation is applied
-    /// to the result of the previous operation.
+    /// A list of patch operations to apply sequentially. Each operation is
+    /// applied to the result of the previous operation.
     pub edits: Vec<MultiPatchEdit>,
 }
 
@@ -718,7 +719,10 @@ impl ToolCatalog {
             ToolCatalog::MultiPatch(input) => Some(crate::policies::PermissionOperation::Write {
                 path: std::path::PathBuf::from(&input.path),
                 cwd,
-                message: format!("Modify file (multiple patches): {}", display_path_for(&input.path)),
+                message: format!(
+                    "Modify file (multiple patches): {}",
+                    display_path_for(&input.path)
+                ),
             }),
             ToolCatalog::Shell(input) => Some(crate::policies::PermissionOperation::Execute {
                 command: input.command.clone(),

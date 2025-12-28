@@ -54,7 +54,7 @@ pub use utils::compute_hash;
 pub use walker::*;
 pub use workspace_status::*;
 pub mod domain {
-    pub use forge_domain::*;
     pub use forge_domain::catalog::MultiPatchEdit;
+    pub use forge_domain::*;
 }
 pub use services::{FsMultiPatchService, MultiPatchOutput, PatchResult};
