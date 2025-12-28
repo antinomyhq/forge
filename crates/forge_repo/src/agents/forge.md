@@ -9,6 +9,7 @@ tools:
   - write
   - remove
   - patch
+  - multi_patch
   - shell
   - fetch
   - search

@@ -45,6 +45,7 @@ pub enum ToolCatalog {
     SemSearch(SemanticSearch),
     Remove(FSRemove),
     Patch(FSPatch),
+    MultiPatch(FSMultiPatch),
     Undo(FSUndo),
     Shell(Shell),
     Fetch(NetFetch),
@@ -334,6 +335,46 @@ pub struct FSPatch {
     pub content: String,
 }
 
+/// Applies multiple patch operations in sequence to the same file. Each patch
+/// operation is applied to the result of the previous operation. This is useful for
+/// making multiple related edits to a single file without having to read and
+/// patch multiple times. Each edit in the sequence supports the same operations
+/// as the patch tool: prepend, append, replace, replace_all, and swap.
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+pub struct FSMultiPatch {
+    /// The path to the file to modify
+    pub path: String,
+
+    /// A list of patch operations to apply sequentially. Each operation is applied
+    /// to the result of the previous operation.
+    pub edits: Vec<MultiPatchEdit>,
+}
+
+/// A single patch operation within a multi-patch sequence
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct MultiPatchEdit {
+    /// The text to replace. When skipped the patch operation applies to the
+    /// entire content. `Append` adds the new content to the end, `Prepend` adds
+    /// it to the beginning, and `Replace` fully overwrites the original
+    /// content. `Swap` requires a search target, so without one, it makes no
+    /// changes.
+    pub search: Option<String>,
+
+    /// The operation to perform on the matched text. Possible options are: -
+    /// 'prepend': Add content before the matched text - 'append': Add content
+    /// after the matched text - 'replace': Use only for specific, targeted
+    /// replacements where you need to modify just the first match. -
+    /// 'replace_all': Should be used for renaming variables, functions, types,
+    /// or any widespread replacements across the file. This is the recommended
+    /// choice for consistent refactoring operations as it ensures all
+    /// occurrences are updated. - 'swap': Replace the matched text with another
+    /// text (search for the second text and swap them)
+    pub operation: PatchOperation,
+
+    /// The text to replace it with (must be different from search)
+    pub content: String,
+}
+
 /// Reverts the most recent file operation (create/modify/delete) on a specific
 /// file. Use this tool when you need to recover from incorrect file changes or
 /// if a revert is requested by the user.
@@ -540,6 +581,7 @@ impl ToolDescription for ToolCatalog {
     fn description(&self) -> String {
         match self {
             ToolCatalog::Patch(v) => v.description(),
+            ToolCatalog::MultiPatch(v) => v.description(),
             ToolCatalog::Shell(v) => v.description(),
             ToolCatalog::Followup(v) => v.description(),
             ToolCatalog::Fetch(v) => v.description(),
@@ -577,6 +619,7 @@ impl ToolCatalog {
             .into_generator();
         match self {
             ToolCatalog::Patch(_) => r#gen.into_root_schema_for::<FSPatch>(),
+            ToolCatalog::MultiPatch(_) => r#gen.into_root_schema_for::<FSMultiPatch>(),
             ToolCatalog::Shell(_) => r#gen.into_root_schema_for::<Shell>(),
             ToolCatalog::Followup(_) => r#gen.into_root_schema_for::<Followup>(),
             ToolCatalog::Fetch(_) => r#gen.into_root_schema_for::<NetFetch>(),
@@ -671,6 +714,11 @@ impl ToolCatalog {
                 path: std::path::PathBuf::from(&input.path),
                 cwd,
                 message: format!("Modify file: {}", display_path_for(&input.path)),
+            }),
+            ToolCatalog::MultiPatch(input) => Some(crate::policies::PermissionOperation::Write {
+                path: std::path::PathBuf::from(&input.path),
+                cwd,
+                message: format!("Modify file (multiple patches): {}", display_path_for(&input.path)),
             }),
             ToolCatalog::Shell(input) => Some(crate::policies::PermissionOperation::Execute {
                 command: input.command.clone(),

@@ -26,7 +26,7 @@ use crate::policy::ForgePolicyService;
 use crate::provider_service::ForgeProviderService;
 use crate::template::ForgeTemplateService;
 use crate::tool_services::{
-    ForgeFetch, ForgeFollowup, ForgeFsCreate, ForgeFsPatch, ForgeFsRead, ForgeFsRemove,
+    ForgeFetch, ForgeFollowup, ForgeFsCreate, ForgeFsMultiPatch, ForgeFsPatch, ForgeFsRead, ForgeFsRemove,
     ForgeFsSearch, ForgeFsUndo, ForgeImageRead, ForgePlanCreate, ForgeShell, ForgeSkillFetch,
 };
 use crate::workflow::ForgeWorkflowService;
@@ -74,6 +74,7 @@ pub struct ForgeServices<
     file_search_service: Arc<ForgeFsSearch<F>>,
     file_remove_service: Arc<ForgeFsRemove<F>>,
     file_patch_service: Arc<ForgeFsPatch<F>>,
+    file_multi_patch_service: Arc<ForgeFsMultiPatch<F>>,
     file_undo_service: Arc<ForgeFsUndo<F>>,
     shell_service: Arc<ForgeShell<F>>,
     fetch_service: Arc<ForgeFetch>,
@@ -132,6 +133,7 @@ impl<
         let file_search_service = Arc::new(ForgeFsSearch::new(infra.clone()));
         let file_remove_service = Arc::new(ForgeFsRemove::new(infra.clone()));
         let file_patch_service = Arc::new(ForgeFsPatch::new(infra.clone()));
+        let file_multi_patch_service = Arc::new(ForgeFsMultiPatch::new(infra.clone()));
         let file_undo_service = Arc::new(ForgeFsUndo::new(infra.clone()));
         let shell_service = Arc::new(ForgeShell::new(infra.clone()));
         let fetch_service = Arc::new(ForgeFetch::new());
@@ -162,6 +164,7 @@ impl<
             file_search_service,
             file_remove_service,
             file_patch_service,
+            file_multi_patch_service,
             file_undo_service,
             shell_service,
             fetch_service,
@@ -229,6 +232,7 @@ impl<
     type FsCreateService = ForgeFsCreate<F>;
     type PlanCreateService = ForgePlanCreate<F>;
     type FsPatchService = ForgeFsPatch<F>;
+    type FsMultiPatchService = ForgeFsMultiPatch<F>;
     type FsReadService = ForgeFsRead<F>;
     type ImageReadService = ForgeImageRead<F>;
     type FsRemoveService = ForgeFsRemove<F>;
@@ -291,6 +295,10 @@ impl<
 
     fn fs_patch_service(&self) -> &Self::FsPatchService {
         &self.file_patch_service
+    }
+
+    fn fs_multi_patch_service(&self) -> &Self::FsMultiPatchService {
+        &self.file_multi_patch_service
     }
 
     fn fs_read_service(&self) -> &Self::FsReadService {

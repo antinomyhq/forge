@@ -6,7 +6,7 @@ use console::strip_ansi_codes;
 use derive_setters::Setters;
 use forge_display::DiffFormat;
 use forge_domain::{
-    CodebaseSearchResults, Environment, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite,
+    CodebaseSearchResults, Environment, FSPatch, FSMultiPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite,
     FileOperation, LineNumbers, Metrics, NetFetch, PlanCreate, ToolKind,
 };
 use forge_template::Element;
@@ -17,7 +17,7 @@ use crate::truncation::{
 };
 use crate::utils::{compute_hash, format_display_path};
 use crate::{
-    FsCreateOutput, FsRemoveOutput, FsUndoOutput, HttpResponse, PatchOutput, PlanCreateOutput,
+    FsCreateOutput, FsRemoveOutput, FsUndoOutput, HttpResponse, MultiPatchOutput, PatchOutput, PlanCreateOutput,
     ReadOutput, ResponseContext, SearchResult, ShellOutput,
 };
 
@@ -55,6 +55,10 @@ pub enum ToolOperation {
     FsPatch {
         input: FSPatch,
         output: PatchOutput,
+    },
+    FsMultiPatch {
+        input: FSMultiPatch,
+        output: MultiPatchOutput,
     },
     FsUndo {
         input: FSUndo,
@@ -420,6 +424,30 @@ impl ToolOperation {
                 let mut elm = Element::new("file_diff")
                     .attr("path", &input.path)
                     .attr("total_lines", output.after.lines().count())
+                    .cdata(diff);
+
+                if !output.errors.is_empty() {
+                    elm = elm.append(create_validation_warning(&input.path, &output.errors));
+                }
+
+                *metrics = metrics.clone().insert(
+                    input.path.clone(),
+                    FileOperation::new(tool_kind)
+                        .lines_added(diff_result.lines_added())
+                        .lines_removed(diff_result.lines_removed())
+                        .content_hash(Some(output.content_hash.clone())),
+                );
+
+                forge_domain::ToolOutput::text(elm)
+            }
+            ToolOperation::FsMultiPatch { input, output } => {
+                let diff_result = DiffFormat::format(&output.before, &output.after);
+                let diff = console::strip_ansi_codes(diff_result.diff()).to_string();
+
+                let mut elm = Element::new("file_diff")
+                    .attr("path", &input.path)
+                    .attr("total_lines", output.after.lines().count())
+                    .attr("edits_applied", output.edits_applied)
                     .cdata(diff);
 
                 if !output.errors.is_empty() {

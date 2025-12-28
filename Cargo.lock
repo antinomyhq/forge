@@ -1943,6 +1943,7 @@ dependencies = [
  "serde_urlencoded",
  "serde_yml",
  "strip-ansi-escapes",
+ "strsim",
  "strum 0.27.2",
  "strum_macros 0.27.2",
  "tempfile",

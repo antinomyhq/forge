@@ -6,7 +6,7 @@ use derive_setters::Setters;
 use forge_domain::{
     AgentId, AnyProvider, Attachment, AuthContextRequest, AuthContextResponse, AuthMethod,
     ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId, Environment, File,
-    FileStatus, Image, InitAuth, LoginInfo, McpConfig, McpServers, Model, ModelId, Node,
+    FileStatus, FSMultiPatch, Image, InitAuth, LoginInfo, McpConfig, McpServers, Model, ModelId, Node,
     PatchOperation, Provider, ProviderId, ResultStream, Scope, SearchParams, SyncProgress,
     SyntaxError, Template, ToolCallFull, ToolOutput, Workflow, WorkspaceAuth, WorkspaceId,
     WorkspaceInfo,
@@ -26,7 +26,7 @@ pub struct ShellOutput {
     pub shell: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PatchOutput {
     pub errors: Vec<SyntaxError>,
     pub before: String,
@@ -114,10 +114,27 @@ pub struct PlanCreateOutput {
     pub before: Option<String>,
 }
 
-#[derive(Default, Debug, derive_more::From)]
+#[derive(Debug, Default)]
 pub struct FsUndoOutput {
     pub before_undo: Option<String>,
     pub after_undo: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MultiPatchOutput {
+    pub results: Vec<PatchResult>,
+    pub before: String,
+    pub after: String,
+    pub edits_applied: usize,
+    pub errors: Vec<SyntaxError>,
+    pub content_hash: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PatchResult {
+    pub path: String,
+    pub success: bool,
+    pub errors: Vec<String>,
 }
 
 #[derive(Debug)]
@@ -355,6 +372,12 @@ pub trait FsPatchService: Send + Sync {
 }
 
 #[async_trait::async_trait]
+pub trait FsMultiPatchService: Send + Sync {
+    /// Applies multiple patches to files atomically.
+    async fn multi_patch(&self, patches: FSMultiPatch) -> anyhow::Result<MultiPatchOutput>;
+}
+
+#[async_trait::async_trait]
 pub trait FsReadService: Send + Sync {
     /// Reads a file at the specified path and returns its content.
     async fn read(
@@ -533,6 +556,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type FsCreateService: FsCreateService;
     type PlanCreateService: PlanCreateService;
     type FsPatchService: FsPatchService;
+    type FsMultiPatchService: FsMultiPatchService;
     type FsReadService: FsReadService;
     type ImageReadService: ImageReadService;
     type FsRemoveService: FsRemoveService;
@@ -561,6 +585,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn fs_create_service(&self) -> &Self::FsCreateService;
     fn plan_create_service(&self) -> &Self::PlanCreateService;
     fn fs_patch_service(&self) -> &Self::FsPatchService;
+    fn fs_multi_patch_service(&self) -> &Self::FsMultiPatchService;
     fn fs_read_service(&self) -> &Self::FsReadService;
     fn image_read_service(&self) -> &Self::ImageReadService;
     fn fs_remove_service(&self) -> &Self::FsRemoveService;
@@ -775,6 +800,13 @@ impl<I: Services> FsPatchService for I {
         self.fs_patch_service()
             .patch(path, search, operation, content)
             .await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> FsMultiPatchService for I {
+    async fn multi_patch(&self, patches: FSMultiPatch) -> anyhow::Result<MultiPatchOutput> {
+        self.fs_multi_patch_service().multi_patch(patches).await
     }
 }
 

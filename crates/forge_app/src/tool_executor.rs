@@ -2,7 +2,8 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use forge_domain::{
-    CodebaseQueryResult, TitleFormat, ToolCallContext, ToolCallFull, ToolCatalog, ToolOutput,
+    CodebaseQueryResult, FSMultiPatch, TitleFormat, ToolCallContext, ToolCallFull, ToolCatalog,
+    ToolOutput,
 };
 use forge_template::Element;
 
@@ -11,9 +12,10 @@ use crate::operation::{TempContentFiles, ToolOperation};
 use crate::services::ShellService;
 use crate::utils::format_display_path;
 use crate::{
-    ConversationService, EnvironmentService, FollowUpService, FsCreateService, FsPatchService,
-    FsReadService, FsRemoveService, FsSearchService, FsUndoService, ImageReadService,
-    NetFetchService, PlanCreateService, PolicyService, SkillFetchService, WorkspaceService,
+    ConversationService, EnvironmentService, FollowUpService, FsCreateService, FsMultiPatchService,
+    FsPatchService, FsReadService, FsRemoveService, FsSearchService, FsUndoService,
+    ImageReadService, NetFetchService, PlanCreateService, PolicyService, SkillFetchService,
+    WorkspaceService,
 };
 
 pub struct ToolExecutor<S> {
@@ -29,6 +31,7 @@ impl<
         + NetFetchService
         + FsRemoveService
         + FsPatchService
+        + FsMultiPatchService
         + FsUndoService
         + ShellService
         + FollowUpService
@@ -257,6 +260,15 @@ impl<
                         input.content.clone(),
                     )
                     .await?;
+                (input, output).into()
+            }
+            ToolCatalog::MultiPatch(input) => {
+                let normalized_path = self.normalize_path(input.path.clone());
+                let patches = FSMultiPatch {
+                    path: normalized_path,
+                    edits: input.edits.clone(),
+                };
+                let output = self.services.multi_patch(patches).await?;
                 (input, output).into()
             }
             ToolCatalog::Undo(input) => {

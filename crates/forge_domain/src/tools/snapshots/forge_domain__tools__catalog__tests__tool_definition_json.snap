@@ -194,6 +194,55 @@ expression: tools
   }
 }
 {
+  "title": "FSMultiPatch",
+  "description": "Applies multiple patch operations in sequence to the same file. Each patch operation is applied to the result of the previous operation. This is useful for making multiple related edits to a single file without having to read and patch multiple times. Each edit in the sequence supports the same operations as the patch tool: prepend, append, replace, replace_all, and swap.",
+  "type": "object",
+  "required": [
+    "edits",
+    "path"
+  ],
+  "properties": {
+    "edits": {
+      "description": "A list of patch operations to apply sequentially. Each operation is applied to the result of the previous operation.",
+      "type": "array",
+      "items": {
+        "description": "A single patch operation within a multi-patch sequence",
+        "type": "object",
+        "required": [
+          "content",
+          "operation"
+        ],
+        "properties": {
+          "content": {
+            "description": "The text to replace it with (must be different from search)",
+            "type": "string"
+          },
+          "operation": {
+            "description": "The operation to perform on the matched text. Possible options are: - 'prepend': Add content before the matched text - 'append': Add content after the matched text - 'replace': Use only for specific, targeted replacements where you need to modify just the first match. - 'replace_all': Should be used for renaming variables, functions, types, or any widespread replacements across the file. This is the recommended choice for consistent refactoring operations as it ensures all occurrences are updated. - 'swap': Replace the matched text with another text (search for the second text and swap them)",
+            "type": "string",
+            "enum": [
+              "prepend",
+              "append",
+              "replace",
+              "replace_all",
+              "swap"
+            ]
+          },
+          "search": {
+            "description": "The text to replace. When skipped the patch operation applies to the entire content. `Append` adds the new content to the end, `Prepend` adds it to the beginning, and `Replace` fully overwrites the original content. `Swap` requires a search target, so without one, it makes no changes.",
+            "type": "string",
+            "nullable": true
+          }
+        }
+      }
+    },
+    "path": {
+      "description": "The path to the file to modify",
+      "type": "string"
+    }
+  }
+}
+{
   "title": "FSUndo",
   "description": "Reverts the most recent file operation (create/modify/delete) on a specific file. Use this tool when you need to recover from incorrect file changes or if a revert is requested by the user.",
   "type": "object",
