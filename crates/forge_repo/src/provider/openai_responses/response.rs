@@ -247,13 +247,694 @@ impl IntoDomain for oai::ResponseStream {
 #[cfg(test)]
 mod tests {
     use async_openai::types::responses as oai;
-    use forge_app::domain::{Content, FinishReason};
+    use forge_app::domain::{Content, FinishReason, Reasoning, ReasoningFull, TokenCount, Usage};
     use tokio_stream::StreamExt;
 
     use super::*;
 
+
+    #[test]
+    fn test_response_usage_into_domain() {
+        let fixture = oai::ResponseUsage {
+            input_tokens: 100,
+            output_tokens: 50,
+            total_tokens: 150,
+            input_tokens_details: oai::InputTokenDetails {
+                cached_tokens: 20,
+            },
+            output_tokens_details: oai::OutputTokenDetails {
+                reasoning_tokens: 0,
+            },
+        };
+
+        let actual = fixture.into_domain();
+
+        let expected = Usage {
+            prompt_tokens: TokenCount::Actual(100),
+            completion_tokens: TokenCount::Actual(50),
+            total_tokens: TokenCount::Actual(150),
+            cached_tokens: TokenCount::Actual(20),
+            cost: None,
+        };
+
+        assert_eq!(actual, expected);
+    }
+
+
+    #[test]
+    fn test_response_into_domain_with_text_only() {
+        let fixture: oai::Response = serde_json::from_value(serde_json::json!({
+            "id": "resp_1",
+            "created_at": 0,
+            "model": "codex-mini-latest",
+            "object": "response",
+            "status": "completed",
+            "output": [
+                {
+                    "id": "msg_1",
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": "Hello world",
+                            "annotations": []
+                        }
+                    ],
+                    "status": "completed"
+                }
+            ]
+        }))
+        .unwrap();
+
+        let actual = fixture.into_domain();
+
+        assert_eq!(actual.content, Some(Content::full("Hello world")));
+        assert_eq!(actual.finish_reason, Some(FinishReason::Stop));
+        assert!(actual.tool_calls.is_empty());
+    }
+
+    #[test]
+    fn test_response_into_domain_with_function_call() {
+        let fixture: oai::Response = serde_json::from_value(serde_json::json!({
+            "id": "resp_1",
+            "created_at": 0,
+            "model": "codex-mini-latest",
+            "object": "response",
+            "status": "completed",
+            "output": [
+                {
+                    "type": "function_call",
+                    "call_id": "call_123",
+                    "name": "shell",
+                    "arguments": "{\"cmd\":\"echo hi\"}"
+                }
+            ]
+        }))
+        .unwrap();
+
+        let actual = fixture.into_domain();
+
+        assert_eq!(actual.tool_calls.len(), 1);
+        assert_eq!(actual.finish_reason, Some(FinishReason::ToolCalls));
+        assert!(actual.content.is_none());
+    }
+
+    #[test]
+    fn test_response_into_domain_with_reasoning_text() {
+        let fixture: oai::Response = serde_json::from_value(serde_json::json!({
+            "id": "resp_1",
+            "created_at": 0,
+            "model": "codex-mini-latest",
+            "object": "response",
+            "status": "completed",
+            "output": [
+                {
+                    "id": "reasoning_1",
+                    "type": "reasoning",
+                    "content": [
+                        {
+                            "type": "reasoning_text",
+                            "text": "This is my reasoning"
+                        }
+                    ],
+                    "summary": [],
+                    "annotations": []
+                }
+            ]
+        }))
+        .unwrap();
+
+        let actual = fixture.into_domain();
+
+        assert_eq!(actual.reasoning, Some(Content::full("This is my reasoning")));
+        assert_eq!(
+            actual.reasoning_details,
+            Some(vec![Reasoning::Full(vec![ReasoningFull {
+                text: Some("This is my reasoning".to_string()),
+                type_of: Some("reasoning.text".to_string()),
+                ..Default::default()
+            }])])
+        );
+        assert_eq!(actual.finish_reason, Some(FinishReason::Stop));
+    }
+
+    #[test]
+    fn test_response_into_domain_with_reasoning_summary() {
+        let fixture: oai::Response = serde_json::from_value(serde_json::json!({
+            "id": "resp_1",
+            "created_at": 0,
+            "model": "codex-mini-latest",
+            "object": "response",
+            "status": "completed",
+            "output": [
+                {
+                    "id": "reasoning_1",
+                    "type": "reasoning",
+                    "summary": [
+                        {
+                            "type": "summary_text",
+                            "text": "Summary of reasoning"
+                        }
+                    ],
+                    "annotations": []
+                }
+            ]
+        }))
+        .unwrap();
+
+        let actual = fixture.into_domain();
+
+        assert_eq!(
+            actual.reasoning,
+            Some(Content::full("Summary of reasoning"))
+        );
+        assert_eq!(
+            actual.reasoning_details,
+            Some(vec![Reasoning::Full(vec![ReasoningFull {
+                text: Some("Summary of reasoning".to_string()),
+                type_of: Some("reasoning.summary".to_string()),
+                ..Default::default()
+            }])])
+        );
+        assert_eq!(actual.finish_reason, Some(FinishReason::Stop));
+    }
+
+    #[test]
+    fn test_response_into_domain_with_reasoning_text_and_summary() {
+        let fixture: oai::Response = serde_json::from_value(serde_json::json!({
+            "id": "resp_1",
+            "created_at": 0,
+            "model": "codex-mini-latest",
+            "object": "response",
+            "status": "completed",
+            "output": [
+                {
+                    "id": "reasoning_1",
+                    "type": "reasoning",
+                    "content": [
+                        {
+                            "type": "reasoning_text",
+                            "text": "Reasoning text"
+                        }
+                    ],
+                    "summary": [
+                        {
+                            "type": "summary_text",
+                            "text": "Summary"
+                        }
+                    ],
+                    "annotations": []
+                }
+            ]
+        }))
+        .unwrap();
+
+        let actual = fixture.into_domain();
+
+        assert_eq!(
+            actual.reasoning,
+            Some(Content::full("Reasoning textSummary"))
+        );
+        assert_eq!(
+            actual.reasoning_details,
+            Some(vec![
+                Reasoning::Full(vec![ReasoningFull {
+                    text: Some("Reasoning text".to_string()),
+                    type_of: Some("reasoning.text".to_string()),
+                    ..Default::default()
+                }]),
+                Reasoning::Full(vec![ReasoningFull {
+                    text: Some("Summary".to_string()),
+                    type_of: Some("reasoning.summary".to_string()),
+                    ..Default::default()
+                }]),
+            ])
+        );
+    }
+
+    #[test]
+    fn test_response_into_domain_with_usage() {
+        let fixture: oai::Response = serde_json::from_value(serde_json::json!({
+            "id": "resp_1",
+            "created_at": 0,
+            "model": "codex-mini-latest",
+            "object": "response",
+            "status": "completed",
+            "output": [
+                {
+                    "id": "msg_1",
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": "Hello",
+                            "annotations": []
+                        }
+                    ],
+                    "status": "completed"
+                }
+            ],
+            "usage": {
+                "input_tokens": 100,
+                "output_tokens": 50,
+                "total_tokens": 150,
+                "input_tokens_details": {
+                    "cached_tokens": 20
+                },
+                "output_tokens_details": {
+                    "reasoning_tokens": 0
+                }
+            }
+        }))
+        .unwrap();
+
+        let actual = fixture.into_domain();
+
+        assert_eq!(
+            actual.usage,
+            Some(Usage {
+                prompt_tokens: TokenCount::Actual(100),
+                completion_tokens: TokenCount::Actual(50),
+                total_tokens: TokenCount::Actual(150),
+                cached_tokens: TokenCount::Actual(20),
+                cost: None,
+            })
+        );
+    }
+
+    // ============== ResponseStream Tests ==============
+
     #[tokio::test]
-    async fn test_into_chat_completion_message_codex_maps_text_and_finish() -> anyhow::Result<()> {
+    async fn test_stream_with_output_text_delta() -> anyhow::Result<()> {
+        let delta = oai::ResponseTextDeltaEvent {
+            sequence_number: 1,
+            item_id: "item_1".to_string(),
+            output_index: 0,
+            content_index: 0,
+            delta: "hello".to_string(),
+            logprobs: None,
+        };
+
+        let stream: oai::ResponseStream =
+            Box::pin(tokio_stream::iter([Ok(oai::ResponseStreamEvent::ResponseOutputTextDelta(
+                delta,
+            ))]));
+
+        let mut stream_domain = stream.into_domain()?;
+        let actual = stream_domain.next().await.unwrap()?;
+
+        assert_eq!(actual.content, Some(Content::part("hello")));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_stream_with_reasoning_text_delta() -> anyhow::Result<()> {
+        let delta = oai::ResponseReasoningTextDeltaEvent {
+            sequence_number: 1,
+            item_id: "item_1".to_string(),
+            output_index: 0,
+            content_index: 0,
+            delta: "thinking...".to_string(),
+        };
+
+        let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([Ok(
+            oai::ResponseStreamEvent::ResponseReasoningTextDelta(delta),
+        )]));
+
+        let mut stream_domain = stream.into_domain()?;
+        let actual = stream_domain.next().await.unwrap()?;
+
+        assert_eq!(actual.reasoning, Some(Content::part("thinking...")));
+        assert_eq!(
+            actual.reasoning_details,
+            Some(vec![Reasoning::Part(vec![forge_domain::ReasoningPart {
+                text: Some("thinking...".to_string()),
+                type_of: Some("reasoning.text".to_string()),
+                ..Default::default()
+            }])])
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_stream_with_reasoning_summary_text_delta() -> anyhow::Result<()> {
+        let delta = oai::ResponseReasoningSummaryTextDeltaEvent {
+            sequence_number: 1,
+            item_id: "item_1".to_string(),
+            output_index: 0,
+            summary_index: 0,
+            delta: "summary...".to_string(),
+        };
+
+        let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([Ok(
+            oai::ResponseStreamEvent::ResponseReasoningSummaryTextDelta(delta),
+        )]));
+
+        let mut stream_domain = stream.into_domain()?;
+        let actual = stream_domain.next().await.unwrap()?;
+
+        assert_eq!(actual.reasoning, Some(Content::part("summary...")));
+        assert_eq!(
+            actual.reasoning_details,
+            Some(vec![Reasoning::Part(vec![forge_domain::ReasoningPart {
+                text: Some("summary...".to_string()),
+                type_of: Some("reasoning.summary".to_string()),
+                ..Default::default()
+            }])])
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_stream_with_function_call_added_with_arguments() -> anyhow::Result<()> {
+        let added = oai::ResponseOutputItemAddedEvent {
+            sequence_number: 1,
+            output_index: 0,
+            item: serde_json::from_value(serde_json::json!({
+                "type": "function_call",
+                "call_id": "call_123",
+                "name": "shell",
+                "arguments": "{\"cmd\":\"echo\"}"
+            }))
+            .unwrap(),
+        };
+
+        let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([Ok(
+            oai::ResponseStreamEvent::ResponseOutputItemAdded(added),
+        )]));
+
+        let mut stream_domain = stream.into_domain()?;
+        let actual = stream_domain.next().await.unwrap()?;
+
+        assert_eq!(actual.tool_calls.len(), 1);
+        let tool_call = actual.tool_calls.first().unwrap();
+        let part = tool_call.as_partial().unwrap();
+        assert_eq!(part.call_id.as_ref().map(|id| id.as_str()), Some("call_123"));
+        assert_eq!(part.name.as_ref().map(|n| n.as_str()), Some("shell"));
+        assert_eq!(part.arguments_part, r#"{"cmd":"echo"}"#);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_stream_with_function_call_added_without_arguments() -> anyhow::Result<()> {
+        let added = oai::ResponseOutputItemAddedEvent {
+            sequence_number: 1,
+            output_index: 0,
+            item: serde_json::from_value(serde_json::json!({
+                "type": "function_call",
+                "call_id": "call_123",
+                "name": "shell",
+                "arguments": ""
+            }))
+            .unwrap(),
+        };
+
+        let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([Ok(
+            oai::ResponseStreamEvent::ResponseOutputItemAdded(added),
+        )]));
+
+        let mut stream_domain = stream.into_domain()?;
+        let actual = stream_domain.next().await;
+
+        // Should not emit when arguments are empty
+        assert!(actual.is_none());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_stream_with_reasoning_added() -> anyhow::Result<()> {
+        let added = oai::ResponseOutputItemAddedEvent {
+            sequence_number: 1,
+            output_index: 0,
+            item: serde_json::from_value(serde_json::json!({
+                "id": "reasoning_1",
+                "type": "reasoning",
+                "summary": [],
+                "annotations": []
+            }))
+            .unwrap(),
+        };
+
+        let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([Ok(
+            oai::ResponseStreamEvent::ResponseOutputItemAdded(added),
+        )]));
+
+        let mut stream_domain = stream.into_domain()?;
+        let actual = stream_domain.next().await;
+
+        // Reasoning items don't emit content in real-time
+        assert!(actual.is_none());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_stream_with_function_call_arguments_delta() -> anyhow::Result<()> {
+        let added = oai::ResponseOutputItemAddedEvent {
+            sequence_number: 1,
+            output_index: 0,
+            item: serde_json::from_value(serde_json::json!({
+                "type": "function_call",
+                "call_id": "call_123",
+                "name": "shell",
+                "arguments": ""
+            }))
+            .unwrap(),
+        };
+
+        let delta = oai::ResponseFunctionCallArgumentsDeltaEvent {
+            sequence_number: 2,
+            item_id: "item_1".to_string(),
+            output_index: 0,
+            delta: r#"{"cmd":"echo"}"#.to_string(),
+        };
+
+        let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([
+            Ok(oai::ResponseStreamEvent::ResponseOutputItemAdded(added)),
+            Ok(oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDelta(delta)),
+        ]));
+
+        let mut stream_domain = stream.into_domain()?;
+        let actual = stream_domain.next().await.unwrap()?;
+
+        assert_eq!(actual.tool_calls.len(), 1);
+        let tool_call = actual.tool_calls.first().unwrap();
+        let part = tool_call.as_partial().unwrap();
+        assert_eq!(part.call_id.as_ref().map(|id| id.as_str()), Some("call_123"));
+        assert_eq!(part.name.as_ref().map(|n| n.as_str()), Some("shell"));
+        assert_eq!(part.arguments_part, r#"{"cmd":"echo"}"#);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_stream_with_function_call_arguments_delta_unknown_index() -> anyhow::Result<()>
+    {
+        let delta = oai::ResponseFunctionCallArgumentsDeltaEvent {
+            sequence_number: 1,
+            item_id: "item_1".to_string(),
+            output_index: 999,
+            delta: r#"{"cmd":"echo"}"#.to_string(),
+        };
+
+        let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([Ok(
+            oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDelta(delta),
+        )]));
+
+        let mut stream_domain = stream.into_domain()?;
+        let actual = stream_domain.next().await.unwrap()?;
+
+        assert_eq!(actual.tool_calls.len(), 1);
+        let tool_call = actual.tool_calls.first().unwrap();
+        let part = tool_call.as_partial().unwrap();
+        assert_eq!(
+            part.call_id.as_ref().map(|id| id.as_str()),
+            Some("output_999")
+        );
+        assert!(part.name.is_none());
+        assert_eq!(part.arguments_part, r#"{"cmd":"echo"}"#);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_stream_with_function_call_arguments_done() -> anyhow::Result<()> {
+        let done = oai::ResponseFunctionCallArgumentsDoneEvent {
+            sequence_number: 1,
+            output_index: 0,
+            item_id: "item_1".to_string(),
+            name: Some("shell".to_string()),
+            arguments: String::new(),
+        };
+
+        let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([Ok(
+            oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDone(done),
+        )]));
+
+        let mut stream_domain = stream.into_domain()?;
+        let actual = stream_domain.next().await;
+
+        // Arguments are already sent via deltas, no need to emit here
+        assert!(actual.is_none());
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_stream_with_response_completed() -> anyhow::Result<()> {
+        let response: oai::Response = serde_json::from_value(serde_json::json!({
+            "id": "resp_1",
+            "created_at": 0,
+            "model": "codex-mini-latest",
+            "object": "response",
+            "status": "completed",
+            "output": [
+                {
+                    "id": "msg_1",
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": "Final message",
+                            "annotations": []
+                        }
+                    ],
+                    "status": "completed"
+                }
+            ]
+        }))
+        .unwrap();
+
+        let completed = oai::ResponseCompletedEvent {
+            sequence_number: 2,
+            response,
+        };
+
+        let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([Ok(
+            oai::ResponseStreamEvent::ResponseCompleted(completed),
+        )]));
+
+        let mut stream_domain = stream.into_domain()?;
+        let actual = stream_domain.next().await.unwrap()?;
+
+        assert_eq!(actual.content, Some(Content::full("Final message")));
+        assert_eq!(actual.finish_reason, Some(FinishReason::Stop));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_stream_with_response_incomplete() -> anyhow::Result<()> {
+        let response: oai::Response = serde_json::from_value(serde_json::json!({
+            "id": "resp_1",
+            "created_at": 0,
+            "model": "codex-mini-latest",
+            "object": "response",
+            "status": "incomplete",
+            "output": [
+                {
+                    "id": "msg_1",
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": "Partial message",
+                            "annotations": []
+                        }
+                    ],
+                    "status": "incomplete"
+                }
+            ]
+        }))
+        .unwrap();
+
+        let incomplete = oai::ResponseIncompleteEvent {
+            sequence_number: 2,
+            response,
+        };
+
+        let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([Ok(
+            oai::ResponseStreamEvent::ResponseIncomplete(incomplete),
+        )]));
+
+        let mut stream_domain = stream.into_domain()?;
+        let actual = stream_domain.next().await.unwrap()?;
+
+        assert_eq!(actual.content, Some(Content::full("Partial message")));
+        assert_eq!(actual.finish_reason, Some(FinishReason::Length));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_stream_with_response_failed() -> anyhow::Result<()> {
+        let response: oai::Response = serde_json::from_value(serde_json::json!({
+            "id": "resp_1",
+            "created_at": 0,
+            "model": "codex-mini-latest",
+            "object": "response",
+            "status": "failed",
+            "output": [],
+            "error": {
+                "code": "rate_limit",
+                "message": "Rate limit exceeded",
+                "type": "invalid_request_error"
+            }
+        }))
+        .unwrap();
+
+        let failed = oai::ResponseFailedEvent {
+            sequence_number: 2,
+            response,
+        };
+
+        let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([Ok(
+            oai::ResponseStreamEvent::ResponseFailed(failed),
+        )]));
+
+        let mut stream_domain = stream.into_domain()?;
+        let actual = stream_domain.next().await.unwrap();
+
+        assert!(actual.is_err());
+        assert!(actual.unwrap_err().to_string().contains("Upstream response failed"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_stream_with_response_error() -> anyhow::Result<()> {
+        let error = oai::ResponseErrorEvent {
+            sequence_number: 1,
+            code: Some("connection_error".to_string()),
+            message: "Connection error".to_string(),
+            param: None,
+        };
+
+        let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([Ok(
+            oai::ResponseStreamEvent::ResponseError(error),
+        )]));
+
+        let mut stream_domain = stream.into_domain()?;
+        let actual = stream_domain.next().await.unwrap();
+
+        assert!(actual.is_err());
+        assert!(actual.unwrap_err().to_string().contains("Upstream error"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_into_chat_completion_message_codex_maps_text_and_finish() -> anyhow::Result<()>
+    {
         let delta = oai::ResponseTextDeltaEvent {
             sequence_number: 1,
             item_id: "item_1".to_string(),
@@ -290,6 +971,68 @@ mod tests {
 
         let second = actual.remove(0)?;
         assert_eq!(second.finish_reason, Some(FinishReason::Stop));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_stream_with_multiple_function_call_deltas() -> anyhow::Result<()> {
+        let added = oai::ResponseOutputItemAddedEvent {
+            sequence_number: 1,
+            output_index: 0,
+            item: serde_json::from_value(serde_json::json!({
+                "type": "function_call",
+                "call_id": "call_123",
+                "name": "shell",
+                "arguments": ""
+            }))
+            .unwrap(),
+        };
+
+        let delta1 = oai::ResponseFunctionCallArgumentsDeltaEvent {
+            sequence_number: 2,
+            item_id: "item_1".to_string(),
+            output_index: 0,
+            delta: r#"{"cmd":"echo"#.to_string(),
+        };
+
+        let delta2 = oai::ResponseFunctionCallArgumentsDeltaEvent {
+            sequence_number: 3,
+            item_id: "item_1".to_string(),
+            output_index: 0,
+            delta: r#" hi"}"#.to_string(),
+        };
+
+        let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([
+            Ok(oai::ResponseStreamEvent::ResponseOutputItemAdded(added)),
+            Ok(oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDelta(delta1)),
+            Ok(oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDelta(delta2)),
+        ]));
+
+        let mut stream_domain = stream.into_domain()?;
+        let mut messages = vec![];
+
+        while let Some(msg) = stream_domain.next().await {
+            messages.push(msg);
+        }
+
+        assert_eq!(messages.len(), 2);
+
+        // First delta
+        let first = messages.remove(0).unwrap();
+        assert_eq!(first.tool_calls.len(), 1);
+        let part1 = first.tool_calls[0].as_partial().unwrap();
+        assert_eq!(part1.call_id.as_ref().map(|id| id.as_str()), Some("call_123"));
+        assert_eq!(part1.name.as_ref().map(|n| n.as_str()), Some("shell"));
+        assert_eq!(part1.arguments_part, r#"{"cmd":"echo"#);
+
+        // Second delta
+        let second = messages.remove(0).unwrap();
+        assert_eq!(second.tool_calls.len(), 1);
+        let part2 = second.tool_calls[0].as_partial().unwrap();
+        assert_eq!(part2.call_id.as_ref().map(|id| id.as_str()), Some("call_123"));
+        assert_eq!(part2.name.as_ref().map(|n| n.as_str()), Some("shell"));
+        assert_eq!(part2.arguments_part, r#" hi"}"#);
 
         Ok(())
     }
