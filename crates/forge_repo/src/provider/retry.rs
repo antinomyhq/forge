@@ -328,7 +328,6 @@ mod tests {
                 "Code {code} should be transport error"
             );
         }
-    }
 
         let error = ErrorResponse::default().code(ErrorCode::String("UNKNOWN".to_string()));
         assert!(!has_transport_error_code(&error));
@@ -380,3 +379,4 @@ mod tests {
         assert!(get_event_req_status_code(&error).is_none());
     }
 }
+
