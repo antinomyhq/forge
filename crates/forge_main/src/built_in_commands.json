@@ -78,5 +78,9 @@
   {
     "command": "doctor",
     "description": "Run environment diagnostics for the shell plugin"
+  },
+  {
+    "command": "setup",
+    "description": "Setup zsh integration by updating .zshrc"
   }
 ]

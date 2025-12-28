@@ -428,6 +428,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         }
                         return Ok(());
                     }
+                    crate::cli::ZshCommandGroup::Setup => {
+                        self.on_zsh_setup().await?;
+                    }
                 }
                 return Ok(());
             }
@@ -1445,6 +1448,17 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let report = crate::zsh::run_zsh_doctor()?;
         self.spinner.stop(None)?;
         println!("{report}");
+        Ok(())
+    }
+
+    /// Setup ZSH integration by updating .zshrc
+    async fn on_zsh_setup(&mut self) -> anyhow::Result<()> {
+        let message = crate::zsh::setup_zsh_integration()?;
+        self.writeln_title(forge_domain::TitleFormat::info(message))?;
+
+        // Run doctor to validate setup
+        println!();
+        self.on_zsh_doctor().await?;
         Ok(())
     }
 

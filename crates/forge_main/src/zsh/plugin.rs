@@ -3,6 +3,8 @@ use clap::CommandFactory;
 use clap_complete::generate;
 use clap_complete::shells::Zsh;
 use rust_embed::RustEmbed;
+use std::fs;
+use std::path::PathBuf;
 
 use crate::cli::Cli;
 
@@ -87,4 +89,75 @@ pub fn run_zsh_doctor() -> Result<String> {
     }
 
     Ok(result)
+}
+
+/// Sets up ZSH integration by updating the .zshrc file using markers
+///
+/// # Errors
+///
+/// Returns error if the .zshrc file cannot be read or written
+pub fn setup_zsh_integration() -> Result<String> {
+    const START_MARKER: &str = "# >>> forge initialize >>>";
+    const END_MARKER: &str = "# <<< forge initialize <<<";
+    const FORGE_INIT_CONFIG: &str = include_str!("../../../../shell-plugin/forge.setup.zsh");
+
+    let home = std::env::var("HOME").context("HOME environment variable not set")?;
+    let zdotdir = std::env::var("ZDOTDIR").unwrap_or_else(|_| home.clone());
+    let zshrc_path = PathBuf::from(&zdotdir).join(".zshrc");
+
+    // Read existing .zshrc or create new one
+    let content = if zshrc_path.exists() {
+        fs::read_to_string(&zshrc_path)
+            .context(format!("Failed to read {}", zshrc_path.display()))?
+    } else {
+        String::new()
+    };
+
+    let mut lines: Vec<String> = content.lines().map(String::from).collect();
+
+    // Find existing forge markers
+    let start_idx = lines.iter().position(|line| line.trim() == START_MARKER);
+    let end_idx = lines.iter().position(|line| line.trim() == END_MARKER);
+
+    // Build the forge config block with markers
+    let mut forge_config: Vec<String> = vec![START_MARKER.to_string()];
+    forge_config.extend(FORGE_INIT_CONFIG.lines().map(String::from));
+    forge_config.push(END_MARKER.to_string());
+
+    // Add or update forge configuration block
+    let (new_content, config_action) = match (start_idx, end_idx) {
+        (Some(start), Some(end)) if start < end => {
+            // Markers exist - replace content between them
+            lines.splice(start..=end, forge_config.iter().cloned());
+            (lines.join("\n") + "\n", "updated")
+        }
+        (Some(_), Some(_)) => {
+            return Err(anyhow::anyhow!(
+                "Forge markers found in incorrect order in {}. Please remove them manually and run setup again.",
+                zshrc_path.display()
+            ));
+        }
+        (Some(_), None) | (None, Some(_)) => {
+            return Err(anyhow::anyhow!(
+                "Incomplete forge markers found in {}. Please remove them manually and run setup again.",
+                zshrc_path.display()
+            ));
+        }
+        (None, None) => {
+            // No markers - add them at the end
+            // Add blank line before markers if file is not empty and doesn't end with blank line
+            if !lines.is_empty() && !lines[lines.len() - 1].trim().is_empty() {
+                lines.push(String::new());
+            }
+
+            lines.extend(forge_config.iter().cloned());
+            (lines.join("\n") + "\n", "added")
+        }
+    };
+
+    // Write back to .zshrc
+    fs::write(&zshrc_path, &new_content)
+        .context(format!("Failed to write to {}", zshrc_path.display()))?;
+
+    Ok(format!("Forge configuration {}", config_action))
 }
