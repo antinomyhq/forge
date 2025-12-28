@@ -252,38 +252,32 @@ mod tests {
 
     use super::*;
 
+    // ============== Common Fixtures ==============
 
-    #[test]
-    fn test_response_usage_into_domain() {
-        let fixture = oai::ResponseUsage {
+    fn fixture_response_usage() -> oai::ResponseUsage {
+        oai::ResponseUsage {
             input_tokens: 100,
             output_tokens: 50,
             total_tokens: 150,
-            input_tokens_details: oai::InputTokenDetails {
-                cached_tokens: 20,
-            },
-            output_tokens_details: oai::OutputTokenDetails {
-                reasoning_tokens: 0,
-            },
-        };
-
-        let actual = fixture.into_domain();
-
-        let expected = Usage {
-            prompt_tokens: TokenCount::Actual(100),
-            completion_tokens: TokenCount::Actual(50),
-            total_tokens: TokenCount::Actual(150),
-            cached_tokens: TokenCount::Actual(20),
-            cost: None,
-        };
-
-        assert_eq!(actual, expected);
+            input_tokens_details: oai::InputTokenDetails { cached_tokens: 20 },
+            output_tokens_details: oai::OutputTokenDetails { reasoning_tokens: 0 },
+        }
     }
 
+    fn fixture_response_base(status: &str) -> oai::Response {
+        serde_json::from_value(serde_json::json!({
+            "id": "resp_1",
+            "created_at": 0,
+            "model": "codex-mini-latest",
+            "object": "response",
+            "status": status,
+            "output": []
+        }))
+        .unwrap()
+    }
 
-    #[test]
-    fn test_response_into_domain_with_text_only() {
-        let fixture: oai::Response = serde_json::from_value(serde_json::json!({
+    fn fixture_response_with_text(text: &str) -> oai::Response {
+        serde_json::from_value(serde_json::json!({
             "id": "resp_1",
             "created_at": 0,
             "model": "codex-mini-latest",
@@ -297,7 +291,7 @@ mod tests {
                     "content": [
                         {
                             "type": "output_text",
-                            "text": "Hello world",
+                            "text": text,
                             "annotations": []
                         }
                     ],
@@ -305,18 +299,11 @@ mod tests {
                 }
             ]
         }))
-        .unwrap();
-
-        let actual = fixture.into_domain();
-
-        assert_eq!(actual.content, Some(Content::full("Hello world")));
-        assert_eq!(actual.finish_reason, Some(FinishReason::Stop));
-        assert!(actual.tool_calls.is_empty());
+        .unwrap()
     }
 
-    #[test]
-    fn test_response_into_domain_with_function_call() {
-        let fixture: oai::Response = serde_json::from_value(serde_json::json!({
+    fn fixture_response_with_function_call(call_id: &str, name: &str, args: &str) -> oai::Response {
+        serde_json::from_value(serde_json::json!({
             "id": "resp_1",
             "created_at": 0,
             "model": "codex-mini-latest",
@@ -325,24 +312,17 @@ mod tests {
             "output": [
                 {
                     "type": "function_call",
-                    "call_id": "call_123",
-                    "name": "shell",
-                    "arguments": "{\"cmd\":\"echo hi\"}"
+                    "call_id": call_id,
+                    "name": name,
+                    "arguments": args
                 }
             ]
         }))
-        .unwrap();
-
-        let actual = fixture.into_domain();
-
-        assert_eq!(actual.tool_calls.len(), 1);
-        assert_eq!(actual.finish_reason, Some(FinishReason::ToolCalls));
-        assert!(actual.content.is_none());
+        .unwrap()
     }
 
-    #[test]
-    fn test_response_into_domain_with_reasoning_text() {
-        let fixture: oai::Response = serde_json::from_value(serde_json::json!({
+    fn fixture_response_with_reasoning_text(text: &str) -> oai::Response {
+        serde_json::from_value(serde_json::json!({
             "id": "resp_1",
             "created_at": 0,
             "model": "codex-mini-latest",
@@ -355,7 +335,7 @@ mod tests {
                     "content": [
                         {
                             "type": "reasoning_text",
-                            "text": "This is my reasoning"
+                            "text": text
                         }
                     ],
                     "summary": [],
@@ -363,11 +343,290 @@ mod tests {
                 }
             ]
         }))
-        .unwrap();
+        .unwrap()
+    }
 
+    fn fixture_response_with_reasoning_summary(summary: &str) -> oai::Response {
+        serde_json::from_value(serde_json::json!({
+            "id": "resp_1",
+            "created_at": 0,
+            "model": "codex-mini-latest",
+            "object": "response",
+            "status": "completed",
+            "output": [
+                {
+                    "id": "reasoning_1",
+                    "type": "reasoning",
+                    "summary": [
+                        {
+                            "type": "summary_text",
+                            "text": summary
+                        }
+                    ],
+                    "annotations": []
+                }
+            ]
+        }))
+        .unwrap()
+    }
+
+    fn fixture_response_with_reasoning_both(reasoning_text: &str, summary: &str) -> oai::Response {
+        serde_json::from_value(serde_json::json!({
+            "id": "resp_1",
+            "created_at": 0,
+            "model": "codex-mini-latest",
+            "object": "response",
+            "status": "completed",
+            "output": [
+                {
+                    "id": "reasoning_1",
+                    "type": "reasoning",
+                    "content": [
+                        {
+                            "type": "reasoning_text",
+                            "text": reasoning_text
+                        }
+                    ],
+                    "summary": [
+                        {
+                            "type": "summary_text",
+                            "text": summary
+                        }
+                    ],
+                    "annotations": []
+                }
+            ]
+        }))
+        .unwrap()
+    }
+
+    fn fixture_response_with_usage(text: &str) -> oai::Response {
+        serde_json::from_value(serde_json::json!({
+            "id": "resp_1",
+            "created_at": 0,
+            "model": "codex-mini-latest",
+            "object": "response",
+            "status": "completed",
+            "output": [
+                {
+                    "id": "msg_1",
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": text,
+                            "annotations": []
+                        }
+                    ],
+                    "status": "completed"
+                }
+            ],
+            "usage": {
+                "input_tokens": 100,
+                "output_tokens": 50,
+                "total_tokens": 150,
+                "input_tokens_details": {
+                    "cached_tokens": 20
+                },
+                "output_tokens_details": {
+                    "reasoning_tokens": 0
+                }
+            }
+        }))
+        .unwrap()
+    }
+
+    fn fixture_response_failed() -> oai::Response {
+        serde_json::from_value(serde_json::json!({
+            "id": "resp_1",
+            "created_at": 0,
+            "model": "codex-mini-latest",
+            "object": "response",
+            "status": "failed",
+            "output": [],
+            "error": {
+                "code": "rate_limit",
+                "message": "Rate limit exceeded",
+                "type": "invalid_request_error"
+            }
+        }))
+        .unwrap()
+    }
+
+    fn fixture_response_incomplete(text: &str) -> oai::Response {
+        serde_json::from_value(serde_json::json!({
+            "id": "resp_1",
+            "created_at": 0,
+            "model": "codex-mini-latest",
+            "object": "response",
+            "status": "incomplete",
+            "output": [
+                {
+                    "id": "msg_1",
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "output_text",
+                            "text": text,
+                            "annotations": []
+                        }
+                    ],
+                    "status": "incomplete"
+                }
+            ]
+        }))
+        .unwrap()
+    }
+
+    fn fixture_delta_text(delta: &str) -> oai::ResponseTextDeltaEvent {
+        oai::ResponseTextDeltaEvent {
+            sequence_number: 1,
+            item_id: "item_1".to_string(),
+            output_index: 0,
+            content_index: 0,
+            delta: delta.to_string(),
+            logprobs: None,
+        }
+    }
+
+    fn fixture_delta_reasoning_text(delta: &str) -> oai::ResponseReasoningTextDeltaEvent {
+        oai::ResponseReasoningTextDeltaEvent {
+            sequence_number: 1,
+            item_id: "item_1".to_string(),
+            output_index: 0,
+            content_index: 0,
+            delta: delta.to_string(),
+        }
+    }
+
+    fn fixture_delta_reasoning_summary(delta: &str) -> oai::ResponseReasoningSummaryTextDeltaEvent {
+        oai::ResponseReasoningSummaryTextDeltaEvent {
+            sequence_number: 1,
+            item_id: "item_1".to_string(),
+            output_index: 0,
+            summary_index: 0,
+            delta: delta.to_string(),
+        }
+    }
+
+    fn fixture_function_call_added(
+        call_id: &str,
+        name: &str,
+        arguments: &str,
+    ) -> oai::ResponseOutputItemAddedEvent {
+        oai::ResponseOutputItemAddedEvent {
+            sequence_number: 1,
+            output_index: 0,
+            item: serde_json::from_value(serde_json::json!({
+                "type": "function_call",
+                "call_id": call_id,
+                "name": name,
+                "arguments": arguments
+            }))
+            .unwrap(),
+        }
+    }
+
+    fn fixture_reasoning_added() -> oai::ResponseOutputItemAddedEvent {
+        oai::ResponseOutputItemAddedEvent {
+            sequence_number: 1,
+            output_index: 0,
+            item: serde_json::from_value(serde_json::json!({
+                "id": "reasoning_1",
+                "type": "reasoning",
+                "summary": [],
+                "annotations": []
+            }))
+            .unwrap(),
+        }
+    }
+
+    fn fixture_function_call_arguments_delta(
+        output_index: u32,
+        delta: &str,
+    ) -> oai::ResponseFunctionCallArgumentsDeltaEvent {
+        oai::ResponseFunctionCallArgumentsDeltaEvent {
+            sequence_number: 2,
+            item_id: "item_1".to_string(),
+            output_index,
+            delta: delta.to_string(),
+        }
+    }
+
+    fn fixture_function_call_arguments_done() -> oai::ResponseFunctionCallArgumentsDoneEvent {
+        oai::ResponseFunctionCallArgumentsDoneEvent {
+            sequence_number: 1,
+            output_index: 0,
+            item_id: "item_1".to_string(),
+            name: Some("shell".to_string()),
+            arguments: String::new(),
+        }
+    }
+
+    fn fixture_response_error_event() -> oai::ResponseErrorEvent {
+        oai::ResponseErrorEvent {
+            sequence_number: 1,
+            code: Some("connection_error".to_string()),
+            message: "Connection error".to_string(),
+            param: None,
+        }
+    }
+
+    fn fixture_expected_usage() -> Usage {
+        Usage {
+            prompt_tokens: TokenCount::Actual(100),
+            completion_tokens: TokenCount::Actual(50),
+            total_tokens: TokenCount::Actual(150),
+            cached_tokens: TokenCount::Actual(20),
+            cost: None,
+        }
+    }
+
+    // ============== ResponseUsage Tests ==============
+
+    #[test]
+    fn test_response_usage_into_domain() {
+        let fixture = fixture_response_usage();
+        let actual = fixture.into_domain();
+        let expected = fixture_expected_usage();
+
+        assert_eq!(actual, expected);
+    }
+
+    // ============== Response Tests ==============
+
+    #[test]
+    fn test_response_into_domain_with_text_only() {
+        let fixture = fixture_response_with_text("Hello world");
         let actual = fixture.into_domain();
 
-        assert_eq!(actual.reasoning, Some(Content::full("This is my reasoning")));
+        assert_eq!(actual.content, Some(Content::full("Hello world")));
+        assert_eq!(actual.finish_reason, Some(FinishReason::Stop));
+        assert!(actual.tool_calls.is_empty());
+    }
+
+    #[test]
+    fn test_response_into_domain_with_function_call() {
+        let fixture =
+            fixture_response_with_function_call("call_123", "shell", r#"{"cmd":"echo hi"}"#);
+        let actual = fixture.into_domain();
+
+        assert_eq!(actual.tool_calls.len(), 1);
+        assert_eq!(actual.finish_reason, Some(FinishReason::ToolCalls));
+        assert!(actual.content.is_none());
+    }
+
+    #[test]
+    fn test_response_into_domain_with_reasoning_text() {
+        let fixture = fixture_response_with_reasoning_text("This is my reasoning");
+        let actual = fixture.into_domain();
+
+        assert_eq!(
+            actual.reasoning,
+            Some(Content::full("This is my reasoning"))
+        );
         assert_eq!(
             actual.reasoning_details,
             Some(vec![Reasoning::Full(vec![ReasoningFull {
@@ -381,28 +640,7 @@ mod tests {
 
     #[test]
     fn test_response_into_domain_with_reasoning_summary() {
-        let fixture: oai::Response = serde_json::from_value(serde_json::json!({
-            "id": "resp_1",
-            "created_at": 0,
-            "model": "codex-mini-latest",
-            "object": "response",
-            "status": "completed",
-            "output": [
-                {
-                    "id": "reasoning_1",
-                    "type": "reasoning",
-                    "summary": [
-                        {
-                            "type": "summary_text",
-                            "text": "Summary of reasoning"
-                        }
-                    ],
-                    "annotations": []
-                }
-            ]
-        }))
-        .unwrap();
-
+        let fixture = fixture_response_with_reasoning_summary("Summary of reasoning");
         let actual = fixture.into_domain();
 
         assert_eq!(
@@ -422,34 +660,7 @@ mod tests {
 
     #[test]
     fn test_response_into_domain_with_reasoning_text_and_summary() {
-        let fixture: oai::Response = serde_json::from_value(serde_json::json!({
-            "id": "resp_1",
-            "created_at": 0,
-            "model": "codex-mini-latest",
-            "object": "response",
-            "status": "completed",
-            "output": [
-                {
-                    "id": "reasoning_1",
-                    "type": "reasoning",
-                    "content": [
-                        {
-                            "type": "reasoning_text",
-                            "text": "Reasoning text"
-                        }
-                    ],
-                    "summary": [
-                        {
-                            "type": "summary_text",
-                            "text": "Summary"
-                        }
-                    ],
-                    "annotations": []
-                }
-            ]
-        }))
-        .unwrap();
-
+        let fixture = fixture_response_with_reasoning_both("Reasoning text", "Summary");
         let actual = fixture.into_domain();
 
         assert_eq!(
@@ -475,72 +686,21 @@ mod tests {
 
     #[test]
     fn test_response_into_domain_with_usage() {
-        let fixture: oai::Response = serde_json::from_value(serde_json::json!({
-            "id": "resp_1",
-            "created_at": 0,
-            "model": "codex-mini-latest",
-            "object": "response",
-            "status": "completed",
-            "output": [
-                {
-                    "id": "msg_1",
-                    "type": "message",
-                    "role": "assistant",
-                    "content": [
-                        {
-                            "type": "output_text",
-                            "text": "Hello",
-                            "annotations": []
-                        }
-                    ],
-                    "status": "completed"
-                }
-            ],
-            "usage": {
-                "input_tokens": 100,
-                "output_tokens": 50,
-                "total_tokens": 150,
-                "input_tokens_details": {
-                    "cached_tokens": 20
-                },
-                "output_tokens_details": {
-                    "reasoning_tokens": 0
-                }
-            }
-        }))
-        .unwrap();
-
+        let fixture = fixture_response_with_usage("Hello");
         let actual = fixture.into_domain();
 
-        assert_eq!(
-            actual.usage,
-            Some(Usage {
-                prompt_tokens: TokenCount::Actual(100),
-                completion_tokens: TokenCount::Actual(50),
-                total_tokens: TokenCount::Actual(150),
-                cached_tokens: TokenCount::Actual(20),
-                cost: None,
-            })
-        );
+        assert_eq!(actual.usage, Some(fixture_expected_usage()));
     }
 
     // ============== ResponseStream Tests ==============
 
     #[tokio::test]
     async fn test_stream_with_output_text_delta() -> anyhow::Result<()> {
-        let delta = oai::ResponseTextDeltaEvent {
-            sequence_number: 1,
-            item_id: "item_1".to_string(),
-            output_index: 0,
-            content_index: 0,
-            delta: "hello".to_string(),
-            logprobs: None,
-        };
+        let delta = fixture_delta_text("hello");
 
-        let stream: oai::ResponseStream =
-            Box::pin(tokio_stream::iter([Ok(oai::ResponseStreamEvent::ResponseOutputTextDelta(
-                delta,
-            ))]));
+        let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([Ok(
+            oai::ResponseStreamEvent::ResponseOutputTextDelta(delta),
+        )]));
 
         let mut stream_domain = stream.into_domain()?;
         let actual = stream_domain.next().await.unwrap()?;
@@ -552,13 +712,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_stream_with_reasoning_text_delta() -> anyhow::Result<()> {
-        let delta = oai::ResponseReasoningTextDeltaEvent {
-            sequence_number: 1,
-            item_id: "item_1".to_string(),
-            output_index: 0,
-            content_index: 0,
-            delta: "thinking...".to_string(),
-        };
+        let delta = fixture_delta_reasoning_text("thinking...");
 
         let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([Ok(
             oai::ResponseStreamEvent::ResponseReasoningTextDelta(delta),
@@ -582,13 +736,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_stream_with_reasoning_summary_text_delta() -> anyhow::Result<()> {
-        let delta = oai::ResponseReasoningSummaryTextDeltaEvent {
-            sequence_number: 1,
-            item_id: "item_1".to_string(),
-            output_index: 0,
-            summary_index: 0,
-            delta: "summary...".to_string(),
-        };
+        let delta = fixture_delta_reasoning_summary("summary...");
 
         let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([Ok(
             oai::ResponseStreamEvent::ResponseReasoningSummaryTextDelta(delta),
@@ -612,17 +760,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_stream_with_function_call_added_with_arguments() -> anyhow::Result<()> {
-        let added = oai::ResponseOutputItemAddedEvent {
-            sequence_number: 1,
-            output_index: 0,
-            item: serde_json::from_value(serde_json::json!({
-                "type": "function_call",
-                "call_id": "call_123",
-                "name": "shell",
-                "arguments": "{\"cmd\":\"echo\"}"
-            }))
-            .unwrap(),
-        };
+        let added = fixture_function_call_added("call_123", "shell", r#"{"cmd":"echo"}"#);
 
         let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([Ok(
             oai::ResponseStreamEvent::ResponseOutputItemAdded(added),
@@ -634,7 +772,10 @@ mod tests {
         assert_eq!(actual.tool_calls.len(), 1);
         let tool_call = actual.tool_calls.first().unwrap();
         let part = tool_call.as_partial().unwrap();
-        assert_eq!(part.call_id.as_ref().map(|id| id.as_str()), Some("call_123"));
+        assert_eq!(
+            part.call_id.as_ref().map(|id| id.as_str()),
+            Some("call_123")
+        );
         assert_eq!(part.name.as_ref().map(|n| n.as_str()), Some("shell"));
         assert_eq!(part.arguments_part, r#"{"cmd":"echo"}"#);
 
@@ -643,17 +784,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_stream_with_function_call_added_without_arguments() -> anyhow::Result<()> {
-        let added = oai::ResponseOutputItemAddedEvent {
-            sequence_number: 1,
-            output_index: 0,
-            item: serde_json::from_value(serde_json::json!({
-                "type": "function_call",
-                "call_id": "call_123",
-                "name": "shell",
-                "arguments": ""
-            }))
-            .unwrap(),
-        };
+        let added = fixture_function_call_added("call_123", "shell", "");
 
         let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([Ok(
             oai::ResponseStreamEvent::ResponseOutputItemAdded(added),
@@ -670,17 +801,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_stream_with_reasoning_added() -> anyhow::Result<()> {
-        let added = oai::ResponseOutputItemAddedEvent {
-            sequence_number: 1,
-            output_index: 0,
-            item: serde_json::from_value(serde_json::json!({
-                "id": "reasoning_1",
-                "type": "reasoning",
-                "summary": [],
-                "annotations": []
-            }))
-            .unwrap(),
-        };
+        let added = fixture_reasoning_added();
 
         let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([Ok(
             oai::ResponseStreamEvent::ResponseOutputItemAdded(added),
@@ -697,24 +818,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_stream_with_function_call_arguments_delta() -> anyhow::Result<()> {
-        let added = oai::ResponseOutputItemAddedEvent {
-            sequence_number: 1,
-            output_index: 0,
-            item: serde_json::from_value(serde_json::json!({
-                "type": "function_call",
-                "call_id": "call_123",
-                "name": "shell",
-                "arguments": ""
-            }))
-            .unwrap(),
-        };
-
-        let delta = oai::ResponseFunctionCallArgumentsDeltaEvent {
-            sequence_number: 2,
-            item_id: "item_1".to_string(),
-            output_index: 0,
-            delta: r#"{"cmd":"echo"}"#.to_string(),
-        };
+        let added = fixture_function_call_added("call_123", "shell", "");
+        let delta = fixture_function_call_arguments_delta(0, r#"{"cmd":"echo"}"#);
 
         let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([
             Ok(oai::ResponseStreamEvent::ResponseOutputItemAdded(added)),
@@ -727,7 +832,10 @@ mod tests {
         assert_eq!(actual.tool_calls.len(), 1);
         let tool_call = actual.tool_calls.first().unwrap();
         let part = tool_call.as_partial().unwrap();
-        assert_eq!(part.call_id.as_ref().map(|id| id.as_str()), Some("call_123"));
+        assert_eq!(
+            part.call_id.as_ref().map(|id| id.as_str()),
+            Some("call_123")
+        );
         assert_eq!(part.name.as_ref().map(|n| n.as_str()), Some("shell"));
         assert_eq!(part.arguments_part, r#"{"cmd":"echo"}"#);
 
@@ -735,14 +843,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_stream_with_function_call_arguments_delta_unknown_index() -> anyhow::Result<()>
-    {
-        let delta = oai::ResponseFunctionCallArgumentsDeltaEvent {
-            sequence_number: 1,
-            item_id: "item_1".to_string(),
-            output_index: 999,
-            delta: r#"{"cmd":"echo"}"#.to_string(),
-        };
+    async fn test_stream_with_function_call_arguments_delta_unknown_index() -> anyhow::Result<()> {
+        let delta = fixture_function_call_arguments_delta(999, r#"{"cmd":"echo"}"#);
 
         let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([Ok(
             oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDelta(delta),
@@ -766,13 +868,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_stream_with_function_call_arguments_done() -> anyhow::Result<()> {
-        let done = oai::ResponseFunctionCallArgumentsDoneEvent {
-            sequence_number: 1,
-            output_index: 0,
-            item_id: "item_1".to_string(),
-            name: Some("shell".to_string()),
-            arguments: String::new(),
-        };
+        let done = fixture_function_call_arguments_done();
 
         let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([Ok(
             oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDone(done),
@@ -789,34 +885,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_stream_with_response_completed() -> anyhow::Result<()> {
-        let response: oai::Response = serde_json::from_value(serde_json::json!({
-            "id": "resp_1",
-            "created_at": 0,
-            "model": "codex-mini-latest",
-            "object": "response",
-            "status": "completed",
-            "output": [
-                {
-                    "id": "msg_1",
-                    "type": "message",
-                    "role": "assistant",
-                    "content": [
-                        {
-                            "type": "output_text",
-                            "text": "Final message",
-                            "annotations": []
-                        }
-                    ],
-                    "status": "completed"
-                }
-            ]
-        }))
-        .unwrap();
-
-        let completed = oai::ResponseCompletedEvent {
-            sequence_number: 2,
-            response,
-        };
+        let response = fixture_response_with_text("Final message");
+        let completed = oai::ResponseCompletedEvent { sequence_number: 2, response };
 
         let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([Ok(
             oai::ResponseStreamEvent::ResponseCompleted(completed),
@@ -833,34 +903,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_stream_with_response_incomplete() -> anyhow::Result<()> {
-        let response: oai::Response = serde_json::from_value(serde_json::json!({
-            "id": "resp_1",
-            "created_at": 0,
-            "model": "codex-mini-latest",
-            "object": "response",
-            "status": "incomplete",
-            "output": [
-                {
-                    "id": "msg_1",
-                    "type": "message",
-                    "role": "assistant",
-                    "content": [
-                        {
-                            "type": "output_text",
-                            "text": "Partial message",
-                            "annotations": []
-                        }
-                    ],
-                    "status": "incomplete"
-                }
-            ]
-        }))
-        .unwrap();
-
-        let incomplete = oai::ResponseIncompleteEvent {
-            sequence_number: 2,
-            response,
-        };
+        let response = fixture_response_incomplete("Partial message");
+        let incomplete = oai::ResponseIncompleteEvent { sequence_number: 2, response };
 
         let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([Ok(
             oai::ResponseStreamEvent::ResponseIncomplete(incomplete),
@@ -877,25 +921,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_stream_with_response_failed() -> anyhow::Result<()> {
-        let response: oai::Response = serde_json::from_value(serde_json::json!({
-            "id": "resp_1",
-            "created_at": 0,
-            "model": "codex-mini-latest",
-            "object": "response",
-            "status": "failed",
-            "output": [],
-            "error": {
-                "code": "rate_limit",
-                "message": "Rate limit exceeded",
-                "type": "invalid_request_error"
-            }
-        }))
-        .unwrap();
-
-        let failed = oai::ResponseFailedEvent {
-            sequence_number: 2,
-            response,
-        };
+        let response = fixture_response_failed();
+        let failed = oai::ResponseFailedEvent { sequence_number: 2, response };
 
         let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([Ok(
             oai::ResponseStreamEvent::ResponseFailed(failed),
@@ -905,19 +932,19 @@ mod tests {
         let actual = stream_domain.next().await.unwrap();
 
         assert!(actual.is_err());
-        assert!(actual.unwrap_err().to_string().contains("Upstream response failed"));
+        assert!(
+            actual
+                .unwrap_err()
+                .to_string()
+                .contains("Upstream response failed")
+        );
 
         Ok(())
     }
 
     #[tokio::test]
     async fn test_stream_with_response_error() -> anyhow::Result<()> {
-        let error = oai::ResponseErrorEvent {
-            sequence_number: 1,
-            code: Some("connection_error".to_string()),
-            message: "Connection error".to_string(),
-            param: None,
-        };
+        let error = fixture_response_error_event();
 
         let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([Ok(
             oai::ResponseStreamEvent::ResponseError(error),
@@ -933,26 +960,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_into_chat_completion_message_codex_maps_text_and_finish() -> anyhow::Result<()>
-    {
-        let delta = oai::ResponseTextDeltaEvent {
-            sequence_number: 1,
-            item_id: "item_1".to_string(),
-            output_index: 0,
-            content_index: 0,
-            delta: "hello".to_string(),
-            logprobs: None,
-        };
-
-        let response: oai::Response = serde_json::from_value(serde_json::json!({
-            "created_at": 0,
-            "id": "resp_1",
-            "model": "codex-mini-latest",
-            "object": "response",
-            "output": [],
-            "status": "completed"
-        }))?;
-
+    async fn test_into_chat_completion_message_codex_maps_text_and_finish() -> anyhow::Result<()> {
+        let delta = fixture_delta_text("hello");
+        let response = fixture_response_base("completed");
         let completed = oai::ResponseCompletedEvent { sequence_number: 2, response };
 
         let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([
@@ -977,31 +987,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_stream_with_multiple_function_call_deltas() -> anyhow::Result<()> {
-        let added = oai::ResponseOutputItemAddedEvent {
-            sequence_number: 1,
-            output_index: 0,
-            item: serde_json::from_value(serde_json::json!({
-                "type": "function_call",
-                "call_id": "call_123",
-                "name": "shell",
-                "arguments": ""
-            }))
-            .unwrap(),
-        };
-
-        let delta1 = oai::ResponseFunctionCallArgumentsDeltaEvent {
-            sequence_number: 2,
-            item_id: "item_1".to_string(),
-            output_index: 0,
-            delta: r#"{"cmd":"echo"#.to_string(),
-        };
-
-        let delta2 = oai::ResponseFunctionCallArgumentsDeltaEvent {
-            sequence_number: 3,
-            item_id: "item_1".to_string(),
-            output_index: 0,
-            delta: r#" hi"}"#.to_string(),
-        };
+        let added = fixture_function_call_added("call_123", "shell", "");
+        let delta1 = fixture_function_call_arguments_delta(0, r#"{"cmd":"echo"#);
+        let delta2 = fixture_function_call_arguments_delta(0, r#" hi"}"#);
 
         let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([
             Ok(oai::ResponseStreamEvent::ResponseOutputItemAdded(added)),
@@ -1022,7 +1010,10 @@ mod tests {
         let first = messages.remove(0).unwrap();
         assert_eq!(first.tool_calls.len(), 1);
         let part1 = first.tool_calls[0].as_partial().unwrap();
-        assert_eq!(part1.call_id.as_ref().map(|id| id.as_str()), Some("call_123"));
+        assert_eq!(
+            part1.call_id.as_ref().map(|id| id.as_str()),
+            Some("call_123")
+        );
         assert_eq!(part1.name.as_ref().map(|n| n.as_str()), Some("shell"));
         assert_eq!(part1.arguments_part, r#"{"cmd":"echo"#);
 
@@ -1030,7 +1021,10 @@ mod tests {
         let second = messages.remove(0).unwrap();
         assert_eq!(second.tool_calls.len(), 1);
         let part2 = second.tool_calls[0].as_partial().unwrap();
-        assert_eq!(part2.call_id.as_ref().map(|id| id.as_str()), Some("call_123"));
+        assert_eq!(
+            part2.call_id.as_ref().map(|id| id.as_str()),
+            Some("call_123")
+        );
         assert_eq!(part2.name.as_ref().map(|n| n.as_str()), Some("shell"));
         assert_eq!(part2.arguments_part, r#" hi"}"#);
 
