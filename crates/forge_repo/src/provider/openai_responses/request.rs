@@ -576,7 +576,10 @@ mod tests {
 
         super::normalize_openai_json_schema(&mut schema);
 
-        assert_eq!(schema["additionalProperties"], serde_json::Value::Bool(false));
+        assert_eq!(
+            schema["additionalProperties"],
+            serde_json::Value::Bool(false)
+        );
         assert_eq!(schema["required"], serde_json::json!(["name"]));
     }
 
@@ -590,7 +593,10 @@ mod tests {
 
         super::normalize_openai_json_schema(&mut schema);
 
-        assert_eq!(schema["additionalProperties"], serde_json::Value::Bool(false));
+        assert_eq!(
+            schema["additionalProperties"],
+            serde_json::Value::Bool(false)
+        );
         assert_eq!(schema["required"], serde_json::json!(["age"]));
     }
 
@@ -606,7 +612,10 @@ mod tests {
             schema["properties"],
             serde_json::Value::Object(serde_json::Map::new())
         );
-        assert_eq!(schema["additionalProperties"], serde_json::Value::Bool(false));
+        assert_eq!(
+            schema["additionalProperties"],
+            serde_json::Value::Bool(false)
+        );
         assert_eq!(schema["required"], serde_json::json!([]));
     }
 
@@ -627,7 +636,10 @@ mod tests {
         super::normalize_openai_json_schema(&mut schema);
 
         // Top level should have additionalProperties
-        assert_eq!(schema["additionalProperties"], serde_json::Value::Bool(false));
+        assert_eq!(
+            schema["additionalProperties"],
+            serde_json::Value::Bool(false)
+        );
         assert_eq!(schema["required"], serde_json::json!(["user"]));
 
         // Nested object should also be normalized
@@ -742,7 +754,11 @@ mod tests {
 
         let context = ChatContext::default()
             .add_message(ContextMessage::user("Do two things", None))
-            .add_message(ContextMessage::assistant("", None, Some(vec![tool_call1, tool_call2])));
+            .add_message(ContextMessage::assistant(
+                "",
+                None,
+                Some(vec![tool_call1, tool_call2]),
+            ));
 
         let actual = oai::CreateResponse::from_domain(context)?;
 
@@ -765,10 +781,7 @@ mod tests {
 
         let actual = oai::CreateResponse::from_domain(context)?;
 
-        assert_eq!(
-            actual.instructions.as_deref(),
-            Some("System 1\n\nSystem 2")
-        );
+        assert_eq!(actual.instructions.as_deref(), Some("System 1\n\nSystem 2"));
 
         Ok(())
     }
@@ -828,22 +841,24 @@ mod tests {
         use forge_domain::Image;
 
         let image = Image::new_base64("test123".to_string(), "image/png");
-        let context = ChatContext::default()
-            .add_message(ContextMessage::Image(image));
+        let context = ChatContext::default().add_message(ContextMessage::Image(image));
 
         let result = oai::CreateResponse::from_domain(context);
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Codex (Responses API) path does not yet support image inputs"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Codex (Responses API) path does not yet support image inputs")
+        );
     }
 
     #[test]
     fn test_codex_request_with_tool_call_missing_call_id_returns_error() {
-        let tool_call = forge_app::domain::ToolCallFull::new("shell")
-            .arguments(forge_app::domain::ToolCallArguments::from_json(r#"{"cmd":"ls"}"#));
+        let tool_call = forge_app::domain::ToolCallFull::new("shell").arguments(
+            forge_app::domain::ToolCallArguments::from_json(r#"{"cmd":"ls"}"#),
+        );
 
         let context = ChatContext::default()
             .add_message(ContextMessage::user("Run command", None))
@@ -852,10 +867,12 @@ mod tests {
         let result = oai::CreateResponse::from_domain(context);
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Tool call is missing call_id"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Tool call is missing call_id")
+        );
     }
 
     #[test]
@@ -869,10 +886,12 @@ mod tests {
         let result = oai::CreateResponse::from_domain(context);
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Tool result is missing call_id"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Tool result is missing call_id")
+        );
     }
 
     #[test]
@@ -884,9 +903,11 @@ mod tests {
         let result = oai::CreateResponse::from_domain(context);
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("max_tokens must fit into u32"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("max_tokens must fit into u32")
+        );
     }
 }
