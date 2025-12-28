@@ -169,8 +169,11 @@ pub fn setup_zsh_integration() -> Result<String> {
                 (None, None) => unreachable!("Invalid state must have at least one marker"),
             };
 
-            return Err(anyhow::anyhow!("Corrupt markers in .zshrc")
-                .context(format!("Failed to parse markers at {location}")));
+            let mut error = anyhow::anyhow!("Invalid forge markers found in {}", zshrc_path.display());
+            if let Some(loc) = location {
+                error = error.context(format!("Markers found at {}", loc));
+            }
+            return Err(error);
         }
         MarkerState::NotFound => {
             // No markers - add them at the end
