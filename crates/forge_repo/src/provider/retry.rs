@@ -532,15 +532,14 @@ mod tests {
 
     #[test]
     fn test_has_transport_error_code_with_known_codes() {
-        let transport_codes = [
-            "ERR_STREAM_PREMATURE_CLOSE",
-            "ECONNRESET",
-            "ETIMEDOUT",
-        ];
+        let transport_codes = ["ERR_STREAM_PREMATURE_CLOSE", "ECONNRESET", "ETIMEDOUT"];
 
         for code in transport_codes {
             let error = ErrorResponse::default().code(ErrorCode::String(code.to_string()));
-            assert!(has_transport_error_code(&error), "Code {code} should be transport error");
+            assert!(
+                has_transport_error_code(&error),
+                "Code {code} should be transport error"
+            );
         }
     }
 
