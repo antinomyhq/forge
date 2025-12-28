@@ -1444,10 +1444,12 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Run ZSH environment diagnostics
     async fn on_zsh_doctor(&mut self) -> anyhow::Result<()> {
-        self.spinner.start(Some("Running diagnostics"))?;
-        let report = crate::zsh::run_zsh_doctor()?;
+        // Stop spinner before streaming output to avoid interference
         self.spinner.stop(None)?;
-        println!("{report}");
+        
+        // Stream the diagnostic output in real-time
+        crate::zsh::run_zsh_doctor()?;
+        
         Ok(())
     }
 

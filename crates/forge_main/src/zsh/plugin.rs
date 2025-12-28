@@ -4,7 +4,9 @@ use clap_complete::generate;
 use clap_complete::shells::Zsh;
 use rust_embed::RustEmbed;
 use std::fs;
+use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
+use std::process::Stdio;
 
 use crate::cli::Cli;
 
@@ -62,33 +64,64 @@ pub fn generate_zsh_theme() -> Result<String> {
     Ok(content)
 }
 
-/// Runs diagnostics on the ZSH shell environment
+/// Runs diagnostics on the ZSH shell environment with streaming output
 ///
 /// # Errors
 ///
 /// Returns error if the doctor script cannot be executed
-pub fn run_zsh_doctor() -> Result<String> {
+pub fn run_zsh_doctor() -> Result<()> {
     // Get the embedded doctor script
     let script_content = include_str!("../../../../shell-plugin/doctor.zsh");
 
-    // Execute the script in a zsh subprocess
-    let output = std::process::Command::new("zsh")
+    // Execute the script in a zsh subprocess with piped output
+    let mut child = std::process::Command::new("zsh")
         .arg("-c")
         .arg(script_content)
-        .output()
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
         .context("Failed to execute zsh doctor script")?;
 
-    // Combine stdout and stderr for complete diagnostic output
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
+    // Get stdout and stderr handles
+    let stdout = child.stdout.take().context("Failed to capture stdout")?;
+    let stderr = child.stderr.take().context("Failed to capture stderr")?;
 
-    let mut result = stdout.to_string();
-    if !stderr.is_empty() {
-        result.push_str("\n\nErrors:\n");
-        result.push_str(&stderr);
+    // Create buffered readers for streaming
+    let stdout_reader = BufReader::new(stdout);
+    let stderr_reader = BufReader::new(stderr);
+
+    // Stream stdout line by line
+    let stdout_handle = std::thread::spawn(move || {
+        for line in stdout_reader.lines() {
+            match line {
+                Ok(line) => println!("{}", line),
+                Err(e) => eprintln!("Error reading stdout: {}", e),
+            }
+        }
+    });
+
+    // Stream stderr line by line
+    let stderr_handle = std::thread::spawn(move || {
+        for line in stderr_reader.lines() {
+            match line {
+                Ok(line) => eprintln!("{}", line),
+                Err(e) => eprintln!("Error reading stderr: {}", e),
+            }
+        }
+    });
+
+    // Wait for both threads to complete
+    stdout_handle.join().expect("stdout thread panicked");
+    stderr_handle.join().expect("stderr thread panicked");
+
+    // Wait for the child process to complete
+    let status = child.wait().context("Failed to wait for zsh doctor script")?;
+
+    if !status.success() {
+        anyhow::bail!("ZSH doctor script failed with exit code: {:?}", status.code());
     }
 
-    Ok(result)
+    Ok(())
 }
 
 /// Represents the state of markers in a file
@@ -163,10 +196,10 @@ pub fn setup_zsh_integration() -> Result<String> {
         }
         MarkerState::Invalid { start, end } => {
             let location = match (start, end) {
-                (Some(s), Some(e)) => format!("{}:{}-{}", zshrc_path.display(), s + 1, e + 1),
-                (Some(s), None) => format!("{}:{}", zshrc_path.display(), s + 1),
-                (None, Some(e)) => format!("{}:{}", zshrc_path.display(), e + 1),
-                (None, None) => unreachable!("Invalid state must have at least one marker"),
+                (Some(s), Some(e)) => Some(format!("{}:{}-{}", zshrc_path.display(), s + 1, e + 1)),
+                (Some(s), None) => Some(format!("{}:{}", zshrc_path.display(), s + 1)),
+                (None, Some(e)) => Some(format!("{}:{}", zshrc_path.display(), e + 1)),
+                (None, None) => None,
             };
 
             let mut error = anyhow::anyhow!("Invalid forge markers found in {}", zshrc_path.display());
@@ -192,4 +225,19 @@ pub fn setup_zsh_integration() -> Result<String> {
         .context(format!("Failed to write to {}", zshrc_path.display()))?;
 
     Ok(format!("Forge configuration {}", config_action))
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Test that the doctor script executes successfully with streaming output
+    #[test]
+    fn test_run_zsh_doctor_streaming() {
+        let actual = run_zsh_doctor();
+        
+        // Should execute without errors
+        assert!(actual.is_ok(), "Doctor command should execute successfully");
+    }
 }
