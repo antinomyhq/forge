@@ -558,8 +558,7 @@ mod tests {
 
     #[test]
     fn test_has_transport_error_code_with_econnreset() {
-        let error = ErrorResponse::default()
-            .code(ErrorCode::String("ECONNRESET".to_string()));
+        let error = ErrorResponse::default().code(ErrorCode::String("ECONNRESET".to_string()));
 
         let actual = has_transport_error_code(&error);
         assert!(actual);
@@ -567,8 +566,7 @@ mod tests {
 
     #[test]
     fn test_has_transport_error_code_with_etimedout() {
-        let error = ErrorResponse::default()
-            .code(ErrorCode::String("ETIMEDOUT".to_string()));
+        let error = ErrorResponse::default().code(ErrorCode::String("ETIMEDOUT".to_string()));
 
         let actual = has_transport_error_code(&error);
         assert!(actual);
@@ -576,8 +574,7 @@ mod tests {
 
     #[test]
     fn test_has_transport_error_code_with_unknown_code() {
-        let error = ErrorResponse::default()
-            .code(ErrorCode::String("UNKNOWN_ERROR".to_string()));
+        let error = ErrorResponse::default().code(ErrorCode::String("UNKNOWN_ERROR".to_string()));
 
         let actual = has_transport_error_code(&error);
         assert!(!actual);
@@ -593,8 +590,7 @@ mod tests {
 
     #[test]
     fn test_has_transport_error_code_with_nested_transport_code() {
-        let nested = ErrorResponse::default()
-            .code(ErrorCode::String("ECONNRESET".to_string()));
+        let nested = ErrorResponse::default().code(ErrorCode::String("ECONNRESET".to_string()));
         let error = ErrorResponse::default().error(Box::new(nested));
 
         let actual = has_transport_error_code(&error);
@@ -603,8 +599,7 @@ mod tests {
 
     #[test]
     fn test_has_transport_error_code_with_nested_unknown_code() {
-        let nested = ErrorResponse::default()
-            .code(ErrorCode::String("UNKNOWN".to_string()));
+        let nested = ErrorResponse::default().code(ErrorCode::String("UNKNOWN".to_string()));
         let error = ErrorResponse::default().error(Box::new(nested));
 
         let actual = has_transport_error_code(&error);
@@ -613,8 +608,7 @@ mod tests {
 
     #[test]
     fn test_is_api_transport_error_with_transport_code() {
-        let inner_error = ErrorResponse::default()
-            .code(ErrorCode::String("ETIMEDOUT".to_string()));
+        let inner_error = ErrorResponse::default().code(ErrorCode::String("ETIMEDOUT".to_string()));
         let error = anyhow::Error::from(Error::Response(inner_error));
 
         let actual = is_api_transport_error(&error);
@@ -623,8 +617,8 @@ mod tests {
 
     #[test]
     fn test_is_api_transport_error_with_non_transport_code() {
-        let inner_error = ErrorResponse::default()
-            .code(ErrorCode::String("INVALID_REQUEST".to_string()));
+        let inner_error =
+            ErrorResponse::default().code(ErrorCode::String("INVALID_REQUEST".to_string()));
         let error = anyhow::Error::from(Error::Response(inner_error));
 
         let actual = is_api_transport_error(&error);
