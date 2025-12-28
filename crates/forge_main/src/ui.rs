@@ -1446,24 +1446,68 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     async fn on_zsh_doctor(&mut self) -> anyhow::Result<()> {
         // Stop spinner before streaming output to avoid interference
         self.spinner.stop(None)?;
-        
+
         // Stream the diagnostic output in real-time
         crate::zsh::run_zsh_doctor()?;
-        
+
         Ok(())
     }
 
     /// Setup ZSH integration by updating .zshrc
     async fn on_zsh_setup(&mut self) -> anyhow::Result<()> {
-        self.spinner.start(Some("Setting up ZSH"))?;
-        crate::zsh::setup_zsh_integration()?;
-
-        self.spinner.stop(None)?;
-
-        // Run doctor to validate setup
+        // Check nerd font support
         println!();
-        self.on_zsh_doctor().await?;
-        Ok(())
+        println!(
+            "{} {} {}",
+            "󱙺".bold(),
+            "FORGE 33.0k".bold(),
+            " tonic-1.0".cyan()
+        );
+        println!();
+
+        let can_see_nerd_fonts =
+            ForgeSelect::confirm("Can you see all the icons clearly without any overlap?")
+                .with_default(true)
+                .prompt()?;
+
+        let disable_nerd_font = match can_see_nerd_fonts {
+            Some(true) => {
+                println!();
+                None
+            }
+            Some(false) => {
+                println!();
+                println!("   {} Nerd Fonts will be disabled", "⚠".yellow());
+                println!();
+                println!("   You can enable them later by:");
+                println!(
+                    "   1. Installing a Nerd Font from: {}",
+                    "https://www.nerdfonts.com/".dimmed()
+                );
+                println!("   2. Configuring your terminal to use a Nerd Font");
+                println!(
+                    "   3. Removing {} from your ~/.zshrc",
+                    "NERD_FONT=0".dimmed()
+                );
+                println!();
+                Some(true)
+            }
+            None => {
+                // User interrupted, default to not disabling
+                println!();
+                None
+            }
+        };
+
+        // Setup ZSH integration with nerd font configuration
+        self.spinner.start(Some("Configuring ZSH"))?;
+        crate::zsh::setup_zsh_integration_with_nerd_font(disable_nerd_font)?;
+        self.spinner.stop(None)?;
+        self.writeln_title(TitleFormat::info(".zshrc updated successfully"))?;
+
+        self.writeln_title(TitleFormat::debug("running forge zsh doctor"))?;
+        println!();
+        self.on_zsh_doctor().await
     }
 
     /// Handle the cmd command - generates shell command from natural language
