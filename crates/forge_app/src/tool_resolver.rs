@@ -81,8 +81,6 @@ impl ToolResolver {
         let mut seen = HashSet::new();
         resolved.retain(|tool| seen.insert(&tool.name));
     }
-
-
 }
 
 #[cfg(test)]
@@ -349,7 +347,8 @@ mod tests {
         .tools(vec![ToolName::new("read"), ToolName::new("search")]);
 
         let actual = tool_resolver.resolve(&fixture);
-        // Tools are ordered as specified in the tools list: read, then search (-> fs_search)
+        // Tools are ordered as specified in the tools list: read, then search (->
+        // fs_search)
         let expected = vec![
             &tool_resolver.all_tool_definitions[0], // read
             &tool_resolver.all_tool_definitions[1], // fs_search (from "search" alias)

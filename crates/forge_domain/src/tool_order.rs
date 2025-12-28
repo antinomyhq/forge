@@ -9,22 +9,17 @@ use crate::{ToolDefinition, ToolName};
 /// Tools are ordered based on the list provided, with glob patterns supported.
 /// When the list is empty, tools are sorted alphabetically.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[derive(Default)]
 pub struct ToolOrder(Vec<ToolName>);
 
-impl Default for ToolOrder {
-    fn default() -> Self {
-        // Default is empty list, which behaves as alphabetical
-        Self(Vec::new())
-    }
-}
 
 impl ToolOrder {
-
     /// Creates a new ToolOrder with the specified tool names
     ///
     /// # Arguments
     ///
-    /// * `tools` - List of tool names (and patterns) to use as the basis for ordering
+    /// * `tools` - List of tool names (and patterns) to use as the basis for
+    ///   ordering
     pub fn new(tools: Vec<ToolName>) -> Self {
         Self(tools)
     }
@@ -34,7 +29,8 @@ impl ToolOrder {
     ///
     /// # Arguments
     ///
-    /// * `tools` - List of tool names (and patterns) to use as the basis for ordering
+    /// * `tools` - List of tool names (and patterns) to use as the basis for
+    ///   ordering
     pub fn from_tool_list(tools: &[ToolName]) -> Self {
         if tools.is_empty() {
             return Self::default();
@@ -86,11 +82,7 @@ impl ToolOrder {
     /// Tools in the custom order list come first, in the order specified.
     /// This handles both exact matches and glob pattern matches.
     /// Tools not in the list come after, sorted alphabetically.
-    fn compare_with_custom_order(
-        &self,
-        a: &ToolName,
-        b: &ToolName,
-    ) -> Ordering {
+    fn compare_with_custom_order(&self, a: &ToolName, b: &ToolName) -> Ordering {
         use glob::Pattern;
 
         // Helper to find position considering both exact match and glob patterns
@@ -102,11 +94,10 @@ impl ToolOrder {
 
             // Then try glob pattern match
             for (pos, pattern_name) in self.0.iter().enumerate() {
-                if let Ok(pattern) = Pattern::new(pattern_name.as_str()) {
-                    if pattern.matches(tool.as_str()) {
+                if let Ok(pattern) = Pattern::new(pattern_name.as_str())
+                    && pattern.matches(tool.as_str()) {
                         return Some(pos);
                     }
-                }
             }
 
             None
@@ -181,10 +172,7 @@ mod tests {
 
     #[test]
     fn test_custom_order_partial_specification() {
-        let fixture_order = ToolOrder::new(vec![
-            ToolName::new("zebra"),
-            ToolName::new("beta"),
-        ]);
+        let fixture_order = ToolOrder::new(vec![ToolName::new("zebra"), ToolName::new("beta")]);
         let mut fixture = vec![
             ToolDefinition::new("alpha").description("A tool"),
             ToolDefinition::new("beta").description("B tool"),
@@ -204,10 +192,7 @@ mod tests {
 
     #[test]
     fn test_custom_order_with_refs() {
-        let fixture_order = ToolOrder::new(vec![
-            ToolName::new("write"),
-            ToolName::new("read"),
-        ]);
+        let fixture_order = ToolOrder::new(vec![ToolName::new("write"), ToolName::new("read")]);
         let tools = vec![
             ToolDefinition::new("read").description("Read tool"),
             ToolDefinition::new("write").description("Write tool"),
@@ -240,7 +225,6 @@ mod tests {
 
         assert_eq!(actual, expected);
     }
-
 
     #[test]
     fn test_from_tool_list_exact_order() {
@@ -332,7 +316,8 @@ mod tests {
         fixture_order.sort(&mut fixture);
 
         let actual: Vec<String> = fixture.iter().map(|t| t.name.to_string()).collect();
-        // read (pos 0), fs_read and fs_write (both match fs_* at pos 1, alphabetically sorted), shell (pos 2)
+        // read (pos 0), fs_read and fs_write (both match fs_* at pos 1, alphabetically
+        // sorted), shell (pos 2)
         let expected = vec!["read", "fs_read", "fs_write", "shell"];
 
         assert_eq!(actual, expected);
