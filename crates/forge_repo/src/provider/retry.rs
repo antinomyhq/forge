@@ -479,33 +479,16 @@ mod tests {
     }
 
     #[test]
-    fn test_into_retry_with_async_openai_server_error_code_is_retryable() {
+    fn test_into_retry_with_async_openai_retryable_codes() {
         let retry_config = fixture_retry_config(vec![]);
-        let api_error = fixture_api_error("server_error");
+        let retryable_codes = ["server_error", "timeout", "overloaded"];
 
-        let error = anyhow::Error::from(AsyncOpenAIError::ApiError(api_error));
-        let actual = into_retry(error, &retry_config);
-        assert!(is_retryable(actual));
-    }
-
-    #[test]
-    fn test_into_retry_with_async_openai_timeout_code_is_retryable() {
-        let retry_config = fixture_retry_config(vec![]);
-        let api_error = fixture_api_error("timeout");
-
-        let error = anyhow::Error::from(AsyncOpenAIError::ApiError(api_error));
-        let actual = into_retry(error, &retry_config);
-        assert!(is_retryable(actual));
-    }
-
-    #[test]
-    fn test_into_retry_with_async_openai_overloaded_code_is_retryable() {
-        let retry_config = fixture_retry_config(vec![]);
-        let api_error = fixture_api_error("overloaded");
-
-        let error = anyhow::Error::from(AsyncOpenAIError::ApiError(api_error));
-        let actual = into_retry(error, &retry_config);
-        assert!(is_retryable(actual));
+        for code in retryable_codes {
+            let api_error = fixture_api_error(code);
+            let error = anyhow::Error::from(AsyncOpenAIError::ApiError(api_error));
+            let actual = into_retry(error, &retry_config);
+            assert!(is_retryable(actual), "Code {code} should be retryable");
+        }
     }
 
     #[test]
@@ -548,62 +531,58 @@ mod tests {
     }
 
     #[test]
-    fn test_has_transport_error_code_with_err_stream_premature_close() {
-        let error = ErrorResponse::default()
-            .code(ErrorCode::String("ERR_STREAM_PREMATURE_CLOSE".to_string()));
+    fn test_has_transport_error_code_with_known_codes() {
+        let transport_codes = [
+            "ERR_STREAM_PREMATURE_CLOSE",
+            "ECONNRESET",
+            "ETIMEDOUT",
+        ];
 
-        let actual = has_transport_error_code(&error);
-        assert!(actual);
-    }
-
-    #[test]
-    fn test_has_transport_error_code_with_econnreset() {
-        let error = ErrorResponse::default().code(ErrorCode::String("ECONNRESET".to_string()));
-
-        let actual = has_transport_error_code(&error);
-        assert!(actual);
-    }
-
-    #[test]
-    fn test_has_transport_error_code_with_etimedout() {
-        let error = ErrorResponse::default().code(ErrorCode::String("ETIMEDOUT".to_string()));
-
-        let actual = has_transport_error_code(&error);
-        assert!(actual);
+        for code in transport_codes {
+            let error = ErrorResponse::default().code(ErrorCode::String(code.to_string()));
+            assert!(has_transport_error_code(&error), "Code {code} should be transport error");
+        }
     }
 
     #[test]
     fn test_has_transport_error_code_with_unknown_code() {
         let error = ErrorResponse::default().code(ErrorCode::String("UNKNOWN_ERROR".to_string()));
-
-        let actual = has_transport_error_code(&error);
-        assert!(!actual);
+        assert!(!has_transport_error_code(&error));
     }
 
     #[test]
     fn test_has_transport_error_code_with_no_code() {
         let error = ErrorResponse::default();
-
-        let actual = has_transport_error_code(&error);
-        assert!(!actual);
+        assert!(!has_transport_error_code(&error));
     }
 
     #[test]
-    fn test_has_transport_error_code_with_nested_transport_code() {
-        let nested = ErrorResponse::default().code(ErrorCode::String("ECONNRESET".to_string()));
-        let error = ErrorResponse::default().error(Box::new(nested));
+    fn test_has_transport_error_code_with_nested_errors() {
+        // Test transport code at bottom level
+        let level3 = ErrorResponse::default().code(ErrorCode::String("ECONNRESET".to_string()));
+        let level2 = ErrorResponse::default().error(Box::new(level3));
+        let level1 = ErrorResponse::default().error(Box::new(level2));
+        assert!(has_transport_error_code(&level1));
 
-        let actual = has_transport_error_code(&error);
-        assert!(actual);
+        // Test transport code at top level
+        let level2 = ErrorResponse::default().code(ErrorCode::String("UNKNOWN".to_string()));
+        let level1 = ErrorResponse::default()
+            .code(ErrorCode::String("ERR_STREAM_PREMATURE_CLOSE".to_string()))
+            .error(Box::new(level2));
+        assert!(has_transport_error_code(&level1));
+
+        // Test 3-level nesting with transport at bottom
+        let level3 = ErrorResponse::default().code(ErrorCode::String("ETIMEDOUT".to_string()));
+        let level2 = ErrorResponse::default().error(Box::new(level3));
+        let level1 = ErrorResponse::default().error(Box::new(level2));
+        assert!(has_transport_error_code(&level1));
     }
 
     #[test]
     fn test_has_transport_error_code_with_nested_unknown_code() {
         let nested = ErrorResponse::default().code(ErrorCode::String("UNKNOWN".to_string()));
         let error = ErrorResponse::default().error(Box::new(nested));
-
-        let actual = has_transport_error_code(&error);
-        assert!(!actual);
+        assert!(!has_transport_error_code(&error));
     }
 
     #[test]
@@ -634,66 +613,168 @@ mod tests {
     }
 
     #[test]
-    fn test_is_api_transport_error_with_generic_error() {
+    fn test_generic_error_handlers_return_defaults() {
         let error = anyhow!("Generic error");
 
-        let actual = is_api_transport_error(&error);
+        // All transport error handlers return false for generic errors
+        assert!(!is_api_transport_error(&error));
+        assert!(!is_req_transport_error(&error));
+        assert!(!is_event_transport_error(&error));
+        assert!(!is_async_openai_transport_error(&error));
+
+        // All status code getters return None for generic errors
+        assert!(get_async_openai_status_code(&error).is_none());
+        assert!(get_api_status_code(&error).is_none());
+        assert!(get_req_status_code(&error).is_none());
+        assert!(get_event_req_status_code(&error).is_none());
+    }
+
+    #[test]
+    fn test_into_retry_with_empty_retry_config() {
+        let retry_config = RetryConfig::default().retry_status_codes(vec![]);
+        let inner_error = ErrorResponse::default().code(ErrorCode::Number(500));
+        let error = anyhow::Error::from(Error::Response(inner_error));
+
+        let actual = into_retry(error, &retry_config);
+
+        // Should not be retryable since 500 is not in empty retry_codes
+        assert!(!is_retryable(actual));
+    }
+
+    #[test]
+    fn test_into_retry_with_all_retryable_status_codes() {
+        let retry_config = RetryConfig::default().retry_status_codes(vec![429, 500, 502, 503, 504]);
+
+        // Test 429
+        let error_429 = anyhow::Error::from(Error::Response(
+            ErrorResponse::default().code(ErrorCode::Number(429)),
+        ));
+        assert!(is_retryable(into_retry(error_429, &retry_config)));
+
+        // Test 500
+        let error_500 = anyhow::Error::from(Error::Response(
+            ErrorResponse::default().code(ErrorCode::Number(500)),
+        ));
+        assert!(is_retryable(into_retry(error_500, &retry_config)));
+
+        // Test 502
+        let error_502 = anyhow::Error::from(Error::Response(
+            ErrorResponse::default().code(ErrorCode::Number(502)),
+        ));
+        assert!(is_retryable(into_retry(error_502, &retry_config)));
+
+        // Test 503
+        let error_503 = anyhow::Error::from(Error::Response(
+            ErrorResponse::default().code(ErrorCode::Number(503)),
+        ));
+        assert!(is_retryable(into_retry(error_503, &retry_config)));
+
+        // Test 504
+        let error_504 = anyhow::Error::from(Error::Response(
+            ErrorResponse::default().code(ErrorCode::Number(504)),
+        ));
+        assert!(is_retryable(into_retry(error_504, &retry_config)));
+    }
+
+    #[test]
+    fn test_into_retry_with_non_retryable_status_codes() {
+        let retry_config = RetryConfig::default().retry_status_codes(vec![429, 500, 502, 503, 504]);
+
+        // Test 400 - not in retryable list
+        let error_400 = anyhow::Error::from(Error::Response(
+            ErrorResponse::default().code(ErrorCode::Number(400)),
+        ));
+        assert!(!is_retryable(into_retry(error_400, &retry_config)));
+
+        // Test 401 - not in retryable list
+        let error_401 = anyhow::Error::from(Error::Response(
+            ErrorResponse::default().code(ErrorCode::Number(401)),
+        ));
+        assert!(!is_retryable(into_retry(error_401, &retry_config)));
+
+        // Test 403 - not in retryable list
+        let error_403 = anyhow::Error::from(Error::Response(
+            ErrorResponse::default().code(ErrorCode::Number(403)),
+        ));
+        assert!(!is_retryable(into_retry(error_403, &retry_config)));
+
+        // Test 404 - not in retryable list
+        let error_404 = anyhow::Error::from(Error::Response(
+            ErrorResponse::default().code(ErrorCode::Number(404)),
+        ));
+        assert!(!is_retryable(into_retry(error_404, &retry_config)));
+    }
+
+    #[test]
+    fn test_into_retry_with_empty_error_and_empty_retry_config() {
+        let retry_config = RetryConfig::default().retry_status_codes(vec![]);
+        let error = anyhow::Error::from(Error::Response(ErrorResponse::default()));
+
+        // Empty error should be retryable regardless of retry config
+        let actual = into_retry(error, &retry_config);
+        assert!(is_retryable(actual));
+    }
+
+    #[test]
+    fn test_into_retry_with_string_status_code_not_in_retry_codes() {
+        let retry_config = RetryConfig::default().retry_status_codes(vec![429, 500, 503]);
+        let inner_error = ErrorResponse::default().code(ErrorCode::String("404".to_string()));
+        let error = anyhow::Error::from(Error::Response(inner_error));
+
+        let actual = into_retry(error, &retry_config);
+
+        // Should not be retryable as 404 is not in retry_codes
+        assert!(!is_retryable(actual));
+    }
+
+    #[test]
+    fn test_has_transport_error_code_with_no_transport_anywhere() {
+        // Create a deeply nested error with no transport codes
+        let level3 = ErrorResponse::default().code(ErrorCode::String("UNKNOWN".to_string()));
+        let level2 = ErrorResponse::default().error(Box::new(level3));
+        let level1 = ErrorResponse::default().error(Box::new(level2));
+
+        assert!(!has_transport_error_code(&level1));
+    }
+
+    #[test]
+    fn test_is_empty_error_with_only_nested_error() {
+        // Empty at top level, but nested error has content
+        let nested = ErrorResponse::default().message("Nested error".to_string());
+        let fixture = anyhow::Error::from(Error::Response(
+            ErrorResponse::default().error(Box::new(nested)),
+        ));
+
+        let actual = is_empty_error(&fixture);
         assert!(!actual);
     }
 
     #[test]
-    fn test_is_req_transport_error_with_generic_error() {
-        let error = anyhow!("Generic error");
+    fn test_is_empty_error_with_nested_code_only() {
+        // Empty at top level, but nested error has code
+        let nested = ErrorResponse::default().code(ErrorCode::Number(500));
+        let fixture = anyhow::Error::from(Error::Response(
+            ErrorResponse::default().error(Box::new(nested)),
+        ));
 
-        let actual = is_req_transport_error(&error);
+        let actual = is_empty_error(&fixture);
         assert!(!actual);
     }
 
     #[test]
-    fn test_is_event_transport_error_with_generic_error() {
-        let error = anyhow!("Generic error");
+    fn test_is_empty_error_with_all_fields_populated() {
+        let fixture = anyhow::Error::from(Error::Response(ErrorResponse {
+            message: Some("Error message".to_string()),
+            code: Some(ErrorCode::Number(500)),
+            error: Some(Box::new(ErrorResponse::default())),
+            errno: None,
+            metadata: std::collections::BTreeMap::new(),
+            syscall: None,
+            type_of: None,
+            param: None,
+        }));
 
-        let actual = is_event_transport_error(&error);
+        let actual = is_empty_error(&fixture);
         assert!(!actual);
-    }
-
-    #[test]
-    fn test_is_async_openai_transport_error_with_non_async_openai_error() {
-        let error = anyhow!("Generic error");
-
-        let actual = is_async_openai_transport_error(&error);
-        assert!(!actual);
-    }
-
-    #[test]
-    fn test_get_async_openai_status_code_with_non_async_openai_error() {
-        let error = anyhow!("Generic error");
-
-        let actual = get_async_openai_status_code(&error);
-        assert!(actual.is_none());
-    }
-
-    #[test]
-    fn test_get_api_status_code_with_non_api_error() {
-        let error = anyhow!("Generic error");
-
-        let actual = get_api_status_code(&error);
-        assert!(actual.is_none());
-    }
-
-    #[test]
-    fn test_get_req_status_code_with_non_reqwest_error() {
-        let error = anyhow!("Generic error");
-
-        let actual = get_req_status_code(&error);
-        assert!(actual.is_none());
-    }
-
-    #[test]
-    fn test_get_event_req_status_code_with_non_event_error() {
-        let error = anyhow!("Generic error");
-
-        let actual = get_event_req_status_code(&error);
-        assert!(actual.is_none());
     }
 }
