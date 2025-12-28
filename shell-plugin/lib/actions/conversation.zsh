@@ -220,8 +220,8 @@ function _forge_clone_and_switch() {
         local new_id=$(echo "$clone_output" | grep -oE '[a-f0-9-]{36}' | tail -1)
         
         if [[ -n "$new_id" ]]; then
-            # Set as active conversation
-            _FORGE_CONVERSATION_ID="$new_id"
+            # Switch to cloned conversation and track previous
+            _forge_switch_conversation "$new_id"
             
             _forge_log success "└─ Switched to conversation \033[1m${new_id}\033[0m"
             
