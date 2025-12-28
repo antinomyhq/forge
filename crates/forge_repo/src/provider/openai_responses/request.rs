@@ -440,4 +440,453 @@ mod tests {
 
         Ok(())
     }
+
+    // Common fixture functions
+    fn fixture_tool_definition(name: &str) -> forge_app::domain::ToolDefinition {
+        forge_app::domain::ToolDefinition::new(name).description("Test tool")
+    }
+
+    fn fixture_tool_call(name: &str, call_id: &str, args: &str) -> forge_app::domain::ToolCallFull {
+        forge_app::domain::ToolCallFull::new(name)
+            .call_id(ToolCallId::new(call_id))
+            .arguments(forge_app::domain::ToolCallArguments::from_json(args))
+    }
+
+    #[test]
+    fn test_tool_choice_none_conversion() -> anyhow::Result<()> {
+        let actual = oai::ToolChoiceParam::from_domain(ToolChoice::None)?;
+        assert!(matches!(
+            actual,
+            oai::ToolChoiceParam::Mode(oai::ToolChoiceOptions::None)
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn test_tool_choice_auto_conversion() -> anyhow::Result<()> {
+        let actual = oai::ToolChoiceParam::from_domain(ToolChoice::Auto)?;
+        assert!(matches!(
+            actual,
+            oai::ToolChoiceParam::Mode(oai::ToolChoiceOptions::Auto)
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn test_tool_choice_required_conversion() -> anyhow::Result<()> {
+        let actual = oai::ToolChoiceParam::from_domain(ToolChoice::Required)?;
+        assert!(matches!(
+            actual,
+            oai::ToolChoiceParam::Mode(oai::ToolChoiceOptions::Required)
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn test_tool_choice_call_conversion() -> anyhow::Result<()> {
+        let actual = oai::ToolChoiceParam::from_domain(ToolChoice::Call("test_tool".into()))?;
+        assert!(matches!(
+            actual,
+            oai::ToolChoiceParam::Function(oai::ToolChoiceFunction { name, .. }) if name == "test_tool"
+        ));
+        Ok(())
+    }
+
+    #[test]
+    fn test_reasoning_config_conversion_low_effort() -> anyhow::Result<()> {
+        use forge_domain::{Effort, ReasoningConfig};
+
+        let fixture = ReasoningConfig {
+            effort: Some(Effort::Low),
+            max_tokens: None,
+            exclude: None,
+            enabled: None,
+        };
+
+        let actual = oai::Reasoning::from_domain(fixture)?;
+        assert!(actual.effort.is_some());
+        assert!(actual.summary.is_some());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_reasoning_config_conversion_medium_effort() -> anyhow::Result<()> {
+        use forge_domain::{Effort, ReasoningConfig};
+
+        let fixture = ReasoningConfig {
+            effort: Some(Effort::Medium),
+            max_tokens: None,
+            exclude: None,
+            enabled: None,
+        };
+
+        let actual = oai::Reasoning::from_domain(fixture)?;
+        assert!(actual.effort.is_some());
+        assert!(actual.summary.is_some());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_reasoning_config_conversion_with_detailed_summary() -> anyhow::Result<()> {
+        use forge_domain::{Effort, ReasoningConfig};
+
+        let fixture = ReasoningConfig {
+            effort: Some(Effort::Medium),
+            max_tokens: None,
+            exclude: Some(false),
+            enabled: None,
+        };
+
+        let actual = oai::Reasoning::from_domain(fixture)?;
+        assert!(actual.effort.is_some());
+        assert!(actual.summary.is_some());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_reasoning_config_conversion_with_enabled_false() -> anyhow::Result<()> {
+        use forge_domain::ReasoningConfig;
+
+        let fixture = ReasoningConfig {
+            effort: None,
+            max_tokens: None,
+            exclude: None,
+            enabled: Some(false),
+        };
+
+        let actual = oai::Reasoning::from_domain(fixture)?;
+        // When enabled=false, no effort should be set
+        assert!(actual.effort.is_none());
+        assert!(actual.summary.is_some());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_normalize_openai_json_schema_with_object_type() {
+        let mut schema = serde_json::json!({
+            "type": "object",
+            "properties": {
+                "name": {"type": "string"}
+            }
+        });
+
+        super::normalize_openai_json_schema(&mut schema);
+
+        assert_eq!(schema["additionalProperties"], serde_json::Value::Bool(false));
+        assert_eq!(schema["required"], serde_json::json!(["name"]));
+    }
+
+    #[test]
+    fn test_normalize_openai_json_schema_with_properties_key() {
+        let mut schema = serde_json::json!({
+            "properties": {
+                "age": {"type": "number"}
+            }
+        });
+
+        super::normalize_openai_json_schema(&mut schema);
+
+        assert_eq!(schema["additionalProperties"], serde_json::Value::Bool(false));
+        assert_eq!(schema["required"], serde_json::json!(["age"]));
+    }
+
+    #[test]
+    fn test_normalize_openai_json_schema_without_properties() {
+        let mut schema = serde_json::json!({
+            "type": "object"
+        });
+
+        super::normalize_openai_json_schema(&mut schema);
+
+        assert_eq!(
+            schema["properties"],
+            serde_json::Value::Object(serde_json::Map::new())
+        );
+        assert_eq!(schema["additionalProperties"], serde_json::Value::Bool(false));
+        assert_eq!(schema["required"], serde_json::json!([]));
+    }
+
+    #[test]
+    fn test_normalize_openai_json_schema_with_nested_objects() {
+        let mut schema = serde_json::json!({
+            "type": "object",
+            "properties": {
+                "user": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"}
+                    }
+                }
+            }
+        });
+
+        super::normalize_openai_json_schema(&mut schema);
+
+        // Top level should have additionalProperties
+        assert_eq!(schema["additionalProperties"], serde_json::Value::Bool(false));
+        assert_eq!(schema["required"], serde_json::json!(["user"]));
+
+        // Nested object should also be normalized
+        assert_eq!(
+            schema["properties"]["user"]["additionalProperties"],
+            serde_json::Value::Bool(false)
+        );
+        assert_eq!(
+            schema["properties"]["user"]["required"],
+            serde_json::json!(["name"])
+        );
+    }
+
+    #[test]
+    fn test_normalize_openai_json_schema_with_array() {
+        let mut schema = serde_json::json!({
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string"}
+                }
+            }
+        });
+
+        super::normalize_openai_json_schema(&mut schema);
+
+        // Array items should be normalized
+        assert_eq!(
+            schema["items"]["additionalProperties"],
+            serde_json::Value::Bool(false)
+        );
+        assert_eq!(schema["items"]["required"], serde_json::json!(["id"]));
+    }
+
+    #[test]
+    fn test_normalize_openai_json_schema_with_string() {
+        let mut schema = serde_json::json!({
+            "type": "string"
+        });
+
+        super::normalize_openai_json_schema(&mut schema);
+
+        // String type should remain unchanged
+        assert_eq!(schema, serde_json::json!({"type": "string"}));
+    }
+
+    #[test]
+    fn test_normalize_openai_json_schema_sorts_required_keys() {
+        let mut schema = serde_json::json!({
+            "type": "object",
+            "properties": {
+                "zebra": {"type": "string"},
+                "alpha": {"type": "string"},
+                "beta": {"type": "string"}
+            }
+        });
+
+        super::normalize_openai_json_schema(&mut schema);
+
+        assert_eq!(
+            schema["required"],
+            serde_json::json!(["alpha", "beta", "zebra"])
+        );
+    }
+
+    #[test]
+    fn test_codex_request_with_temperature() -> anyhow::Result<()> {
+        use forge_app::domain::Temperature;
+
+        let context = ChatContext::default()
+            .add_message(ContextMessage::user("Hello", None))
+            .temperature(Temperature::from(0.7));
+
+        let actual = oai::CreateResponse::from_domain(context)?;
+
+        assert_eq!(actual.temperature, Some(0.7));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_codex_request_with_empty_assistant_message() -> anyhow::Result<()> {
+        let tool_call = fixture_tool_call("shell", "call_1", r#"{"cmd":"ls"}"#);
+
+        let context = ChatContext::default()
+            .add_message(ContextMessage::user("Run command", None))
+            .add_message(ContextMessage::assistant("", None, Some(vec![tool_call])))
+            .add_message(ContextMessage::tool_result(
+                forge_app::domain::ToolResult::new("shell")
+                    .call_id(Some(ToolCallId::new("call_1")))
+                    .success("output"),
+            ));
+
+        let actual = oai::CreateResponse::from_domain(context)?;
+
+        let oai::InputParam::Items(items) = actual.input else {
+            anyhow::bail!("Expected items input");
+        };
+
+        // Should only have user message, function call, and function call output
+        // Empty assistant message should be skipped
+        assert_eq!(items.len(), 3);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_codex_request_with_multiple_tool_calls() -> anyhow::Result<()> {
+        let tool_call1 = fixture_tool_call("shell", "call_1", r#"{"cmd":"ls"}"#);
+        let tool_call2 = fixture_tool_call("search", "call_2", r#"{"query":"test"}"#);
+
+        let context = ChatContext::default()
+            .add_message(ContextMessage::user("Do two things", None))
+            .add_message(ContextMessage::assistant("", None, Some(vec![tool_call1, tool_call2])));
+
+        let actual = oai::CreateResponse::from_domain(context)?;
+
+        let oai::InputParam::Items(items) = actual.input else {
+            anyhow::bail!("Expected items input");
+        };
+
+        // Should have user message and 2 function calls
+        assert_eq!(items.len(), 3);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_codex_request_with_multiple_system_messages() -> anyhow::Result<()> {
+        let context = ChatContext::default()
+            .add_message(ContextMessage::system("System 1"))
+            .add_message(ContextMessage::system("System 2"))
+            .add_message(ContextMessage::user("Hello", None));
+
+        let actual = oai::CreateResponse::from_domain(context)?;
+
+        assert_eq!(
+            actual.instructions.as_deref(),
+            Some("System 1\n\nSystem 2")
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_codex_request_with_tool_choice_required() -> anyhow::Result<()> {
+        let tool = fixture_tool_definition("shell");
+
+        let context = ChatContext::default()
+            .add_message(ContextMessage::user("Hello", None))
+            .add_tool(tool)
+            .tool_choice(ToolChoice::Required);
+
+        let actual = oai::CreateResponse::from_domain(context)?;
+
+        assert!(matches!(
+            actual.tool_choice,
+            Some(oai::ToolChoiceParam::Mode(oai::ToolChoiceOptions::Required))
+        ));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_codex_request_with_tool_choice_function() -> anyhow::Result<()> {
+        let tool = fixture_tool_definition("shell");
+
+        let context = ChatContext::default()
+            .add_message(ContextMessage::user("Hello", None))
+            .add_tool(tool)
+            .tool_choice(ToolChoice::Call("shell".into()));
+
+        let actual = oai::CreateResponse::from_domain(context)?;
+
+        assert!(matches!(
+            actual.tool_choice,
+            Some(oai::ToolChoiceParam::Function(oai::ToolChoiceFunction { name, .. })) if name == "shell"
+        ));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_codex_request_without_tools() -> anyhow::Result<()> {
+        let context = ChatContext::default().add_message(ContextMessage::user("Hello", None));
+
+        let actual = oai::CreateResponse::from_domain(context)?;
+
+        assert!(actual.tools.is_none());
+        assert!(actual.tool_choice.is_none());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_codex_request_with_image_input_returns_error() {
+        use forge_domain::Image;
+
+        let image = Image::new_base64("test123".to_string(), "image/png");
+        let context = ChatContext::default()
+            .add_message(ContextMessage::Image(image));
+
+        let result = oai::CreateResponse::from_domain(context);
+
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Codex (Responses API) path does not yet support image inputs"));
+    }
+
+    #[test]
+    fn test_codex_request_with_tool_call_missing_call_id_returns_error() {
+        let tool_call = forge_app::domain::ToolCallFull::new("shell")
+            .arguments(forge_app::domain::ToolCallArguments::from_json(r#"{"cmd":"ls"}"#));
+
+        let context = ChatContext::default()
+            .add_message(ContextMessage::user("Run command", None))
+            .add_message(ContextMessage::assistant("", None, Some(vec![tool_call])));
+
+        let result = oai::CreateResponse::from_domain(context);
+
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Tool call is missing call_id"));
+    }
+
+    #[test]
+    fn test_codex_request_with_tool_result_missing_call_id_returns_error() {
+        let context = ChatContext::default()
+            .add_message(ContextMessage::user("Run command", None))
+            .add_message(ContextMessage::tool_result(
+                forge_app::domain::ToolResult::new("shell").success("output"),
+            ));
+
+        let result = oai::CreateResponse::from_domain(context);
+
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Tool result is missing call_id"));
+    }
+
+    #[test]
+    fn test_codex_request_with_max_tokens_overflow_returns_error() {
+        let context = ChatContext::default()
+            .add_message(ContextMessage::user("Hello", None))
+            .max_tokens(u32::MAX as usize + 1);
+
+        let result = oai::CreateResponse::from_domain(context);
+
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("max_tokens must fit into u32"));
+    }
 }
