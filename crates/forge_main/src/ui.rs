@@ -1463,7 +1463,6 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             "FORGE 33.0k".bold(),
             " tonic-1.0".cyan()
         );
-        println!();
 
         let can_see_nerd_fonts =
             ForgeSelect::confirm("Can you see all the icons clearly without any overlap?")
@@ -1473,7 +1472,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let disable_nerd_font = match can_see_nerd_fonts {
             Some(true) => {
                 println!();
-                None
+                false
             }
             Some(false) => {
                 println!();
@@ -1490,18 +1489,48 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     "NERD_FONT=0".dimmed()
                 );
                 println!();
-                Some(true)
+                true
             }
             None => {
                 // User interrupted, default to not disabling
                 println!();
-                None
+                false
             }
         };
 
-        // Setup ZSH integration with nerd font configuration
+        // Ask about editor preference
+        let editor_options = vec![
+            "Use system default ($EDITOR)",
+            "VS Code (code --wait)",
+            "Vim",
+            "Neovim (nvim)",
+            "Nano",
+            "Emacs",
+            "Sublime Text (subl --wait)",
+            "Skip - I'll configure it later",
+        ];
+
+        let selected_editor = ForgeSelect::select(
+            "Which editor would you like to use for editing prompts?",
+            editor_options,
+        )
+        .prompt()?;
+
+        let forge_editor = match selected_editor {
+            Some("Use system default ($EDITOR)") => None,
+            Some("VS Code (code --wait)") => Some("code --wait"),
+            Some("Vim") => Some("vim"),
+            Some("Neovim (nvim)") => Some("nvim"),
+            Some("Nano") => Some("nano"),
+            Some("Emacs") => Some("emacs"),
+            Some("Sublime Text (subl --wait)") => Some("subl --wait"),
+            Some("Skip - I'll configure it later") => None,
+            _ => None,
+        };
+
+        // Setup ZSH integration with nerd font and editor configuration
         self.spinner.start(Some("Configuring ZSH"))?;
-        crate::zsh::setup_zsh_integration_with_nerd_font(disable_nerd_font)?;
+        crate::zsh::setup_zsh_integration_with_config(disable_nerd_font, forge_editor)?;
         self.spinner.stop(None)?;
         self.writeln_title(TitleFormat::info(".zshrc updated successfully"))?;
 
