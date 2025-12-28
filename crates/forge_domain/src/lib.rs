@@ -43,6 +43,8 @@ mod system_context;
 mod temperature;
 mod template;
 mod tools;
+
+mod tool_order;
 mod top_k;
 mod top_p;
 mod transformer;
@@ -94,6 +96,8 @@ pub use system_context::*;
 pub use temperature::*;
 pub use template::*;
 pub use tools::*;
+
+pub use tool_order::*;
 pub use top_k::*;
 pub use top_p::*;
 pub use transformer::*;

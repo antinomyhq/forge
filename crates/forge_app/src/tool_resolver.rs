@@ -26,13 +26,14 @@ impl ToolResolver {
     /// Filters and deduplicates tool definitions based on agent's tools
     /// configuration. Returns only the tool definitions that are specified
     /// in the agent's tools list. Maintains deduplication to avoid
-    /// duplicate tool definitions. Returns tools sorted alphabetically by name.
+    /// duplicate tool definitions. Returns tools sorted according to the
+    /// agent's tool order (derived from the tools list).
     /// Returns references to avoid unnecessary cloning.
     pub fn resolve<'a>(&'a self, agent: &Agent) -> Vec<&'a ToolDefinition> {
         let patterns = Self::build_patterns(agent);
         let mut resolved = self.match_tools(&patterns);
         self.dedupe_tools(&mut resolved);
-        self.sort_tools(&mut resolved);
+        agent.tool_order().sort_refs(&mut resolved);
         resolved
     }
 
@@ -81,10 +82,7 @@ impl ToolResolver {
         resolved.retain(|tool| seen.insert(&tool.name));
     }
 
-    /// Sorts tool definitions alphabetically by name
-    fn sort_tools(&self, resolved: &mut [&ToolDefinition]) {
-        resolved.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
-    }
+
 }
 
 #[cfg(test)]
@@ -112,9 +110,10 @@ mod tests {
         .tools(vec![ToolName::new("read"), ToolName::new("fs_search")]);
 
         let actual = tool_resolver.resolve(&fixture);
+        // Tools are ordered based on the tools list order: read, then fs_search
         let expected = vec![
-            &tool_resolver.all_tool_definitions[2], // fs_search (alphabetically first)
             &tool_resolver.all_tool_definitions[0], // read
+            &tool_resolver.all_tool_definitions[2], // fs_search
         ];
 
         assert_eq!(actual, expected);
@@ -320,9 +319,12 @@ mod tests {
         ]);
 
         let actual = tool_resolver.resolve(&fixture);
+        // fs_write matches fs_* at pos 0
+        // fs_read has exact match at pos 1 (takes precedence over pattern matches)
+        // So order is: fs_write (pos 0), fs_read (pos 1)
         let expected = vec![
-            &tool_resolver.all_tool_definitions[0], // fs_read
             &tool_resolver.all_tool_definitions[1], // fs_write
+            &tool_resolver.all_tool_definitions[0], // fs_read
         ];
 
         assert_eq!(actual, expected);
@@ -347,9 +349,10 @@ mod tests {
         .tools(vec![ToolName::new("read"), ToolName::new("search")]);
 
         let actual = tool_resolver.resolve(&fixture);
+        // Tools are ordered as specified in the tools list: read, then search (-> fs_search)
         let expected = vec![
-            &tool_resolver.all_tool_definitions[1], // fs_search (alphabetically first)
             &tool_resolver.all_tool_definitions[0], // read
+            &tool_resolver.all_tool_definitions[1], // fs_search (from "search" alias)
         ];
 
         assert_eq!(actual, expected);
