@@ -47,7 +47,7 @@ mod tests {
     fn test_sorts_tools_alphabetically() {
         let fixture = fixture_context_with_tools();
 
-        let mut transformer = SortTools::new(ToolOrder::Custom(vec![])); // Empty = alphabetical
+        let mut transformer = SortTools::new(ToolOrder::new(vec![])); // Empty = alphabetical
         let actual = transformer.transform(fixture);
 
         let expected_order = vec!["alpha_tool", "beta_tool", "zebra_tool"];
@@ -66,7 +66,7 @@ mod tests {
 
         let fixture = fixture_context_with_tools();
 
-        let custom_order = ToolOrder::Custom(vec![
+        let custom_order = ToolOrder::new(vec![
             ToolName::new("zebra_tool"),
             ToolName::new("alpha_tool"),
         ]);
