@@ -91,6 +91,34 @@ pub fn run_zsh_doctor() -> Result<String> {
     Ok(result)
 }
 
+/// Represents the state of markers in a file
+enum MarkerState {
+    /// No markers found
+    NotFound,
+    /// Valid markers with correct positions
+    Valid { start: usize, end: usize },
+    /// Invalid markers (incorrect order or incomplete)
+    Invalid,
+}
+
+/// Parses the file content to find and validate marker positions
+///
+/// # Arguments
+///
+/// * `lines` - The lines of the file to parse
+/// * `start_marker` - The start marker to look for
+/// * `end_marker` - The end marker to look for
+fn parse_markers(lines: &[String], start_marker: &str, end_marker: &str) -> MarkerState {
+    let start_idx = lines.iter().position(|line| line.trim() == start_marker);
+    let end_idx = lines.iter().position(|line| line.trim() == end_marker);
+
+    match (start_idx, end_idx) {
+        (Some(start), Some(end)) if start < end => MarkerState::Valid { start, end },
+        (Some(_), Some(_)) | (Some(_), None) | (None, Some(_)) => MarkerState::Invalid,
+        (None, None) => MarkerState::NotFound,
+    }
+}
+
 /// Sets up ZSH integration by updating the .zshrc file using markers
 ///
 /// # Errors
@@ -115,35 +143,28 @@ pub fn setup_zsh_integration() -> Result<String> {
 
     let mut lines: Vec<String> = content.lines().map(String::from).collect();
 
-    // Find existing forge markers
-    let start_idx = lines.iter().position(|line| line.trim() == START_MARKER);
-    let end_idx = lines.iter().position(|line| line.trim() == END_MARKER);
+    // Parse markers to determine their state
+    let marker_state = parse_markers(&lines, START_MARKER, END_MARKER);
 
     // Build the forge config block with markers
     let mut forge_config: Vec<String> = vec![START_MARKER.to_string()];
     forge_config.extend(FORGE_INIT_CONFIG.lines().map(String::from));
     forge_config.push(END_MARKER.to_string());
 
-    // Add or update forge configuration block
-    let (new_content, config_action) = match (start_idx, end_idx) {
-        (Some(start), Some(end)) if start < end => {
+    // Add or update forge configuration block based on marker state
+    let (new_content, config_action) = match marker_state {
+        MarkerState::Valid { start, end } => {
             // Markers exist - replace content between them
             lines.splice(start..=end, forge_config.iter().cloned());
             (lines.join("\n") + "\n", "updated")
         }
-        (Some(_), Some(_)) => {
+        MarkerState::Invalid => {
             return Err(anyhow::anyhow!(
-                "Forge markers found in incorrect order in {}. Please remove them manually and run setup again.",
+                "Invalid forge markers found in {}. Please remove them manually and run setup again.",
                 zshrc_path.display()
             ));
         }
-        (Some(_), None) | (None, Some(_)) => {
-            return Err(anyhow::anyhow!(
-                "Incomplete forge markers found in {}. Please remove them manually and run setup again.",
-                zshrc_path.display()
-            ));
-        }
-        (None, None) => {
+        MarkerState::NotFound => {
             // No markers - add them at the end
             // Add blank line before markers if file is not empty and doesn't end with blank line
             if !lines.is_empty() && !lines[lines.len() - 1].trim().is_empty() {

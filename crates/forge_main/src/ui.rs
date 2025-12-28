@@ -1453,8 +1453,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Setup ZSH integration by updating .zshrc
     async fn on_zsh_setup(&mut self) -> anyhow::Result<()> {
-        let message = crate::zsh::setup_zsh_integration()?;
-        self.writeln_title(forge_domain::TitleFormat::info(message))?;
+        self.spinner.start(Some("Setting up ZSH"))?;
+        crate::zsh::setup_zsh_integration()?;
+
+        self.spinner.stop(None)?;
 
         // Run doctor to validate setup
         println!();
