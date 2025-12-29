@@ -117,6 +117,42 @@ This displays:
 
 - Current configuration
 
+#### Switching Conversations
+
+Browse and switch between conversations interactively:
+
+```bash
+:conversation
+# or use the alias
+:c
+```
+
+This will display an interactive list of all conversations with preview, allowing you to select and switch.
+
+Switch to a specific conversation by ID:
+
+```bash
+:conversation <conversation_id>
+```
+
+Toggle between current and previous conversation (like `cd -`):
+
+```bash
+:conversation -
+# or
+:c -
+```
+
+The plugin remembers your previous conversation, allowing you to quickly toggle back and forth. This works just like `cd -` in your shell, and **also works with `:new`** - when you start a new conversation, you can toggle back to your previous one.
+
+If there's no previous conversation tracked (e.g., first time using the plugin), `:c -` will show the conversation list popup, allowing you to select a conversation.
+
+This is useful when:
+- You need to temporarily check another conversation and come back
+- You're comparing or referencing information between two conversations
+- You want to quickly switch context between related tasks
+- You started a new conversation but want to reference the previous one
+
 #### Cloning Conversations
 
 Create a copy of an existing conversation with interactive selection:

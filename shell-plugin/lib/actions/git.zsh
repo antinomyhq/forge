@@ -36,6 +36,5 @@ function _forge_action_commit() {
         zle reset-prompt
     else
         echo "$commit_message"
-        _forge_reset
     fi
 }
