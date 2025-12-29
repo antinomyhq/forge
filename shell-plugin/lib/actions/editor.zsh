@@ -13,7 +13,6 @@ function _forge_action_editor() {
     # Validate editor exists
     if ! command -v "${editor_cmd%% *}" &>/dev/null; then
         _forge_log error "Editor not found: $editor_cmd (set FORGE_EDITOR or EDITOR)"
-        _forge_reset
         return 1
     fi
     
@@ -22,7 +21,6 @@ function _forge_action_editor() {
     if [[ ! -d "$forge_dir" ]]; then
         mkdir -p "$forge_dir" || {
             _forge_log error "Failed to create .forge directory"
-            _forge_reset
             return 1
         }
     fi
@@ -31,7 +29,6 @@ function _forge_action_editor() {
     local temp_file="${forge_dir}/FORGE_EDITMSG.md"
     touch "$temp_file" || {
         _forge_log error "Failed to create temporary file"
-        _forge_reset
         return 1
     }
     
@@ -49,7 +46,6 @@ function _forge_action_editor() {
     
     if [ $editor_exit_code -ne 0 ]; then
         _forge_log error "Editor exited with error code $editor_exit_code"
-        _forge_reset
         return 1
     fi
     
@@ -59,7 +55,6 @@ function _forge_action_editor() {
     
     if [ -z "$content" ]; then
         _forge_log info "Editor closed with no content"
-        _forge_reset
         return 0
     fi
     
@@ -78,7 +73,6 @@ function _forge_action_suggest() {
     
     if [[ -z "$description" ]]; then
         _forge_log error "Please provide a command description"
-        _forge_reset
         return 0
     fi
     
@@ -94,6 +88,5 @@ function _forge_action_suggest() {
         zle reset-prompt
     else
         _forge_log error "Failed to generate command"
-        _forge_reset
     fi
 }
