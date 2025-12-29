@@ -1,10 +1,7 @@
 use std::sync::Arc;
 
 use forge_app::AppConfigService;
-use forge_domain::{
-    AppConfig, AppConfigRepository, ModelId, Provider, ProviderId, ProviderRepository,
-};
-use url::Url;
+use forge_domain::{AppConfig, AppConfigRepository, ModelId, ProviderId, ProviderRepository};
 
 /// Service for managing user preferences for default providers and models.
 pub struct ForgeAppConfigService<F> {
@@ -35,17 +32,11 @@ impl<F: ProviderRepository + AppConfigRepository> ForgeAppConfigService<F> {
 impl<F: ProviderRepository + AppConfigRepository + Send + Sync> AppConfigService
     for ForgeAppConfigService<F>
 {
-    async fn get_default_provider(&self) -> anyhow::Result<Provider<Url>> {
+    async fn get_default_provider(&self) -> anyhow::Result<ProviderId> {
         let app_config = self.infra.get_app_config().await?;
-        if let Some(provider_id) = app_config.provider
-            && let Ok(provider) = self.infra.get_provider(provider_id).await
-            && provider.is_configured()
-        {
-            return Ok(provider);
-        }
-
-        // No default provider configured - return error to force explicit configuration
-        Err(forge_domain::Error::NoDefaultProvider.into())
+        app_config
+            .provider
+            .ok_or_else(|| forge_domain::Error::NoDefaultProvider.into())
     }
 
     async fn set_default_provider(&self, provider_id: ProviderId) -> anyhow::Result<()> {
@@ -97,8 +88,8 @@ mod tests {
     use std::sync::Mutex;
 
     use forge_domain::{
-        AnyProvider, AppConfig, MigrationResult, Model, ModelSource, Provider, ProviderId,
-        ProviderResponse,
+        AnyProvider, AppConfig, ChatRepository, MigrationResult, Model, ModelSource, Provider,
+        ProviderId, ProviderResponse, ProviderTemplate,
     };
     use pretty_assertions::assert_eq;
     use url::Url;
@@ -182,6 +173,26 @@ mod tests {
     }
 
     #[async_trait::async_trait]
+    impl ChatRepository for MockInfra {
+        async fn chat(
+            &self,
+            _model_id: &forge_app::domain::ModelId,
+            _context: forge_app::domain::Context,
+            _provider: Provider<Url>,
+        ) -> forge_app::domain::ResultStream<forge_app::domain::ChatCompletionMessage, anyhow::Error>
+        {
+            Ok(Box::pin(tokio_stream::iter(vec![])))
+        }
+
+        async fn models(
+            &self,
+            _provider: Provider<Url>,
+        ) -> anyhow::Result<Vec<forge_app::domain::Model>> {
+            Ok(vec![])
+        }
+    }
+
+    #[async_trait::async_trait]
     impl ProviderRepository for MockInfra {
         async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
             Ok(self
@@ -191,11 +202,28 @@ mod tests {
                 .collect())
         }
 
-        async fn get_provider(&self, id: ProviderId) -> anyhow::Result<Provider<Url>> {
+        async fn get_provider(&self, id: ProviderId) -> anyhow::Result<ProviderTemplate> {
+            // Convert Provider<Url> to Provider<Template<...>> for testing
             self.providers
                 .iter()
                 .find(|p| p.id == id)
-                .cloned()
+                .map(|p| Provider {
+                    id: p.id.clone(),
+                    provider_type: p.provider_type,
+                    response: p.response.clone(),
+                    url: forge_domain::Template::<forge_domain::URLParameters>::new(p.url.as_str()),
+                    models: p.models.as_ref().map(|m| match m {
+                        ModelSource::Url(url) => ModelSource::Url(forge_domain::Template::<
+                            forge_domain::URLParameters,
+                        >::new(
+                            url.as_str()
+                        )),
+                        ModelSource::Hardcoded(list) => ModelSource::Hardcoded(list.clone()),
+                    }),
+                    auth_methods: p.auth_methods.clone(),
+                    url_params: p.url_params.clone(),
+                    credential: p.credential.clone(),
+                })
                 .ok_or_else(|| anyhow::anyhow!("Provider not found"))
         }
 
@@ -242,7 +270,7 @@ mod tests {
         let actual = service.get_default_provider().await?;
         let expected = ProviderId::ANTHROPIC;
 
-        assert_eq!(actual.id, expected);
+        assert_eq!(actual, expected);
         Ok(())
     }
 
@@ -257,10 +285,11 @@ mod tests {
         // Set OpenAI as the default provider in config
         service.set_default_provider(ProviderId::OPENAI).await?;
 
-        // Should return error since configured provider is not available
-        let result = service.get_default_provider().await;
+        // Should return the provider ID even if provider is not available
+        // Validation happens when getting the actual provider via ProviderService
+        let result = service.get_default_provider().await?;
 
-        assert!(result.is_err());
+        assert_eq!(result, ProviderId::OPENAI);
         Ok(())
     }
 

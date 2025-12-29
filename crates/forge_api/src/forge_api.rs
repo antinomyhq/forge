@@ -383,7 +383,8 @@ impl<
     }
 
     async fn get_default_provider(&self) -> Result<Provider<Url>> {
-        self.services.get_default_provider().await
+        let provider_id = self.services.get_default_provider().await?;
+        self.services.get_provider(provider_id).await
     }
 
     fn hydrate_channel(&self) -> Result<()> {

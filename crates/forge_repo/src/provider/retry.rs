@@ -1,0 +1,381 @@
+use async_openai::error::{OpenAIError as AsyncOpenAIError, StreamError as AsyncStreamError};
+use forge_app::domain::{Error as DomainError, RetryConfig};
+use forge_app::dto::openai::{Error, ErrorResponse};
+
+const TRANSPORT_ERROR_CODES: [&str; 3] = ["ERR_STREAM_PREMATURE_CLOSE", "ECONNRESET", "ETIMEDOUT"];
+
+pub fn into_retry(error: anyhow::Error, retry_config: &RetryConfig) -> anyhow::Error {
+    if let Some(code) = get_req_status_code(&error)
+        .or(get_event_req_status_code(&error))
+        .or(get_api_status_code(&error))
+        .or(get_async_openai_status_code(&error))
+        && retry_config.retry_status_codes.contains(&code)
+    {
+        return DomainError::Retryable(error).into();
+    }
+
+    if is_api_transport_error(&error)
+        || is_req_transport_error(&error)
+        || is_event_transport_error(&error)
+        || is_async_openai_transport_error(&error)
+        || is_empty_error(&error)
+    {
+        return DomainError::Retryable(error).into();
+    }
+
+    error
+}
+
+fn get_async_openai_status_code(error: &anyhow::Error) -> Option<u16> {
+    error
+        .downcast_ref::<AsyncOpenAIError>()
+        .and_then(|error| match error {
+            AsyncOpenAIError::Reqwest(err) => err.status().map(|status| status.as_u16()),
+            AsyncOpenAIError::StreamError(err) => match err.as_ref() {
+                AsyncStreamError::ReqwestEventSource(inner) => match inner {
+                    reqwest_eventsource::Error::InvalidStatusCode(status, _) => {
+                        Some(status.as_u16())
+                    }
+                    reqwest_eventsource::Error::InvalidContentType(_, response) => {
+                        Some(response.status().as_u16())
+                    }
+                    _ => None,
+                },
+                _ => None,
+            },
+            _ => None,
+        })
+}
+
+fn is_async_openai_transport_error(error: &anyhow::Error) -> bool {
+    error
+        .downcast_ref::<AsyncOpenAIError>()
+        .is_some_and(|error| match error {
+            AsyncOpenAIError::Reqwest(err) => err.is_timeout() || err.is_connect(),
+            AsyncOpenAIError::StreamError(err) => match err.as_ref() {
+                AsyncStreamError::ReqwestEventSource(inner) => {
+                    matches!(inner, reqwest_eventsource::Error::Transport(_))
+                }
+                _ => false,
+            },
+            AsyncOpenAIError::ApiError(api_error) => {
+                api_error.code.as_deref().is_some_and(|code| {
+                    TRANSPORT_ERROR_CODES.iter().any(|message| message == &code)
+                        || matches!(
+                            code,
+                            "rate_limit_exceeded" | "server_error" | "timeout" | "overloaded"
+                        )
+                })
+            }
+            _ => false,
+        })
+}
+
+fn get_api_status_code(error: &anyhow::Error) -> Option<u16> {
+    error.downcast_ref::<Error>().and_then(|error| match error {
+        Error::Response(error) => error
+            .get_code_deep()
+            .as_ref()
+            .and_then(|code| code.as_number()),
+        Error::InvalidStatusCode(code) => Some(*code),
+    })
+}
+
+fn get_req_status_code(error: &anyhow::Error) -> Option<u16> {
+    error
+        .downcast_ref::<reqwest::Error>()
+        .and_then(|error| error.status())
+        .map(|status| status.as_u16())
+}
+
+fn get_event_req_status_code(error: &anyhow::Error) -> Option<u16> {
+    error
+        .downcast_ref::<reqwest_eventsource::Error>()
+        .and_then(|error| match error {
+            reqwest_eventsource::Error::InvalidStatusCode(_, response) => {
+                Some(response.status().as_u16())
+            }
+            reqwest_eventsource::Error::InvalidContentType(_, response) => {
+                Some(response.status().as_u16())
+            }
+            _ => None,
+        })
+}
+
+fn has_transport_error_code(error: &ErrorResponse) -> bool {
+    // Check if the current level has a transport error code
+    let has_direct_code = error
+        .code
+        .as_ref()
+        .and_then(|code| code.as_str())
+        .is_some_and(|code| {
+            TRANSPORT_ERROR_CODES
+                .into_iter()
+                .any(|message| message == code)
+        });
+
+    if has_direct_code {
+        return true;
+    }
+
+    // Recursively check nested errors
+    error.error.as_deref().is_some_and(has_transport_error_code)
+}
+
+fn is_api_transport_error(error: &anyhow::Error) -> bool {
+    error
+        .downcast_ref::<Error>()
+        .is_some_and(|error| match error {
+            Error::Response(error) => has_transport_error_code(error),
+            _ => false,
+        })
+}
+
+fn is_empty_error(error: &anyhow::Error) -> bool {
+    error.downcast_ref::<Error>().is_some_and(|e| match e {
+        Error::Response(error) => {
+            error.message.is_none() && error.code.is_none() && error.error.is_none()
+        }
+        _ => false,
+    })
+}
+
+fn is_req_transport_error(error: &anyhow::Error) -> bool {
+    error
+        .downcast_ref::<reqwest::Error>()
+        .is_some_and(|e| e.is_timeout() || e.is_connect())
+}
+
+fn is_event_transport_error(error: &anyhow::Error) -> bool {
+    error
+        .downcast_ref::<reqwest_eventsource::Error>()
+        .is_some_and(|e| matches!(e, reqwest_eventsource::Error::Transport(_)))
+}
+
+#[cfg(test)]
+mod tests {
+    use anyhow::anyhow;
+    use async_openai::error::{ApiError, OpenAIError as AsyncOpenAIError};
+    use forge_app::dto::openai::{Error, ErrorCode, ErrorResponse};
+
+    use super::*;
+
+    // Helper function to check if an error is retryable
+    fn is_retryable(error: anyhow::Error) -> bool {
+        if let Some(domain_error) = error.downcast_ref::<DomainError>() {
+            matches!(domain_error, DomainError::Retryable(_))
+        } else {
+            false
+        }
+    }
+
+    // Fixture functions
+    fn fixture_retry_config(codes: Vec<u16>) -> RetryConfig {
+        RetryConfig::default().retry_status_codes(codes)
+    }
+
+    fn fixture_response_error(code: Option<u16>) -> anyhow::Error {
+        let error = if let Some(code) = code {
+            ErrorResponse::default().code(ErrorCode::Number(code))
+        } else {
+            ErrorResponse::default()
+        };
+        anyhow::Error::from(Error::Response(error))
+    }
+
+    fn fixture_transport_error(code: &str) -> anyhow::Error {
+        let error = ErrorResponse::default().code(ErrorCode::String(code.to_string()));
+        anyhow::Error::from(Error::Response(error))
+    }
+
+    fn fixture_nested_transport_error(code: &str, depth: usize) -> anyhow::Error {
+        let mut error = ErrorResponse::default().code(ErrorCode::String(code.to_string()));
+        for _ in 0..depth {
+            error = ErrorResponse::default().error(Box::new(error));
+        }
+        anyhow::Error::from(Error::Response(error))
+    }
+
+    fn fixture_async_openai_error(code: Option<&str>) -> anyhow::Error {
+        let api_error = ApiError {
+            message: "Test error".to_string(),
+            r#type: Some("test_error".to_string()),
+            param: None,
+            code: code.map(|c| c.to_string()),
+        };
+        anyhow::Error::from(AsyncOpenAIError::ApiError(api_error))
+    }
+
+    #[test]
+    fn test_into_retry_with_status_codes() {
+        let retry_config = fixture_retry_config(vec![429, 500, 502, 503, 504]);
+
+        // Retryable status codes
+        for code in [429, 500, 502, 503, 504] {
+            let error = fixture_response_error(Some(code));
+            assert!(is_retryable(into_retry(error, &retry_config)));
+        }
+
+        // Non-retryable status codes
+        for code in [400, 401, 403, 404] {
+            let error = fixture_response_error(Some(code));
+            assert!(!is_retryable(into_retry(error, &retry_config)));
+        }
+
+        // Empty retry config - nothing is retryable by status code
+        let empty_config = fixture_retry_config(vec![]);
+        let error = fixture_response_error(Some(500));
+        assert!(!is_retryable(into_retry(error, &empty_config)));
+
+        // String status code that parses to retryable number
+        let error = ErrorResponse::default().code(ErrorCode::String("429".to_string()));
+        let error = anyhow::Error::from(Error::Response(error));
+        assert!(is_retryable(into_retry(error, &retry_config)));
+
+        // String status code that parses to non-retryable number
+        let error = ErrorResponse::default().code(ErrorCode::String("404".to_string()));
+        let error = anyhow::Error::from(Error::Response(error));
+        assert!(!is_retryable(into_retry(error, &retry_config)));
+    }
+
+    #[test]
+    fn test_into_retry_with_invalid_status_code() {
+        let retry_config = fixture_retry_config(vec![429, 500, 503]);
+
+        // Matching InvalidStatusCode
+        let error = anyhow::Error::from(Error::InvalidStatusCode(503));
+        assert!(is_retryable(into_retry(error, &retry_config)));
+
+        // Non-matching InvalidStatusCode
+        let error = anyhow::Error::from(Error::InvalidStatusCode(400));
+        assert!(!is_retryable(into_retry(error, &retry_config)));
+    }
+
+    #[test]
+    fn test_into_retry_with_transport_errors() {
+        let retry_config = fixture_retry_config(vec![]);
+
+        // Known transport error codes
+        for code in ["ERR_STREAM_PREMATURE_CLOSE", "ECONNRESET", "ETIMEDOUT"] {
+            let error = fixture_transport_error(code);
+            assert!(is_retryable(into_retry(error, &retry_config)));
+        }
+
+        // Nested transport errors
+        for depth in [1, 2, 3] {
+            let error = fixture_nested_transport_error("ECONNRESET", depth);
+            assert!(is_retryable(into_retry(error, &retry_config)));
+        }
+
+        // Unknown transport code - not retryable
+        let error = fixture_transport_error("UNKNOWN_ERROR");
+        assert!(!is_retryable(into_retry(error, &retry_config)));
+
+        // Nested unknown code - not retryable
+        let error = fixture_nested_transport_error("UNKNOWN", 2);
+        assert!(!is_retryable(into_retry(error, &retry_config)));
+    }
+
+    #[test]
+    fn test_into_retry_with_async_openai_errors() {
+        let retry_config = fixture_retry_config(vec![]);
+
+        // Retryable async_openai error codes
+        for code in [
+            "rate_limit_exceeded",
+            "server_error",
+            "timeout",
+            "overloaded",
+        ] {
+            let error = fixture_async_openai_error(Some(code));
+            assert!(is_retryable(into_retry(error, &retry_config)));
+        }
+
+        // Unknown async_openai error code - not retryable
+        let error = fixture_async_openai_error(Some("unknown_error"));
+        assert!(!is_retryable(into_retry(error, &retry_config)));
+
+        // No error code - not retryable
+        let error = fixture_async_openai_error(None);
+        assert!(!is_retryable(into_retry(error, &retry_config)));
+    }
+
+    #[test]
+    fn test_into_retry_with_edge_cases() {
+        let retry_config = fixture_retry_config(vec![]);
+
+        // Empty error is retryable
+        let error = anyhow::Error::from(Error::Response(ErrorResponse::default()));
+        assert!(is_retryable(into_retry(error, &retry_config)));
+
+        // Generic error is not retryable
+        let error = anyhow!("Generic error");
+        assert!(!is_retryable(into_retry(error, &retry_config)));
+
+        // Non-Response error is not empty
+        let error = anyhow::Error::from(Error::InvalidStatusCode(404));
+        assert!(!is_empty_error(&error));
+    }
+
+    #[test]
+    fn test_has_transport_error_code_with_known_codes() {
+        let transport_codes = ["ERR_STREAM_PREMATURE_CLOSE", "ECONNRESET", "ETIMEDOUT"];
+
+        for code in transport_codes {
+            let error = ErrorResponse::default().code(ErrorCode::String(code.to_string()));
+            assert!(
+                has_transport_error_code(&error),
+                "Code {code} should be transport error"
+            );
+        }
+
+        let error = ErrorResponse::default().code(ErrorCode::String("UNKNOWN".to_string()));
+        assert!(!has_transport_error_code(&error));
+
+        let error = ErrorResponse::default();
+        assert!(!has_transport_error_code(&error));
+
+        // Nested transport codes
+        let nested = ErrorResponse::default().code(ErrorCode::String("ECONNRESET".to_string()));
+        let error = ErrorResponse::default().error(Box::new(nested));
+        assert!(has_transport_error_code(&error));
+
+        // is_empty_error
+        let error = anyhow::Error::from(Error::Response(ErrorResponse::default()));
+        assert!(is_empty_error(&error));
+
+        let error = anyhow::Error::from(Error::Response(
+            ErrorResponse::default().message("Error".to_string()),
+        ));
+        assert!(!is_empty_error(&error));
+
+        let error = anyhow::Error::from(Error::Response(
+            ErrorResponse::default().code(ErrorCode::Number(500)),
+        ));
+        assert!(!is_empty_error(&error));
+
+        let nested = ErrorResponse::default().message("Nested".to_string());
+        let error = anyhow::Error::from(Error::Response(
+            ErrorResponse::default().error(Box::new(nested)),
+        ));
+        assert!(!is_empty_error(&error));
+
+        // is_api_transport_error
+        let error = fixture_transport_error("ETIMEDOUT");
+        assert!(is_api_transport_error(&error));
+
+        let error = fixture_transport_error("INVALID_REQUEST");
+        assert!(!is_api_transport_error(&error));
+
+        // Generic error handlers return defaults
+        let error = anyhow!("Generic error");
+        assert!(!is_api_transport_error(&error));
+        assert!(!is_req_transport_error(&error));
+        assert!(!is_event_transport_error(&error));
+        assert!(!is_async_openai_transport_error(&error));
+        assert!(get_async_openai_status_code(&error).is_none());
+        assert!(get_api_status_code(&error).is_none());
+        assert!(get_req_status_code(&error).is_none());
+        assert!(get_event_req_status_code(&error).is_none());
+    }
+}

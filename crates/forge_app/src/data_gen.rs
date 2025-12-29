@@ -95,7 +95,8 @@ impl<A: Services> DataGenerationApp<A> {
             concurrency
         );
 
-        let provider = self.services.get_default_provider().await?;
+        let provider_id = self.services.get_default_provider().await?;
+        let provider = self.services.get_provider(provider_id).await?;
         let model_id = self.services.get_provider_model(Some(&provider.id)).await?;
         debug!("Using provider: {}, model: {}", provider.id, model_id);
         let schema: RootSchema =

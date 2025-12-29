@@ -1,0 +1,210 @@
+run:
+  - mkdir -p test_files
+  - |
+    cat > test_files/plan.md << 'EOF'
+    # Support for Remote Tools (Provider-Executed Tools)
+
+    ## Objective
+
+    Enable support for remote tools (also known as provider-executed tools) such as websearch, which are executed by the AI provider's infrastructure rather than by the client application. This allows providers like OpenAI to offer specialized capabilities like web search, code execution, and file retrieval that run on their servers and return results directly to the application.
+
+    ## Implementation Plan
+
+    - [ ] 1. Extend the ToolDefinition structure to support provider-executed tools
+      Add a new field to the `ToolDefinition` struct to distinguish between client-executed tools (current behavior) and provider-executed tools (new capability). This field will indicate that the tool should be passed directly to the provider without local execution logic.
+
+      Rationale: The current `ToolDefinition` at `crates/forge_domain/src/tools/definition/tool_definition.rs:12` only contains name, description, and input_schema. To support provider-executed tools, we need a way to mark which tools are handled by the provider infrastructure. This is similar to how Vercel AI SDK distinguishes between `function` type tools and `provider` type tools.
+
+      Affected files:
+      - `crates/forge_domain/src/tools/definition/tool_definition.rs` - Add field to ToolDefinition
+      - `crates/forge_repo/src/conversation/conversation_record.rs` - Update serialization/deserialization
+
+    - [ ] 2. Create provider-specific tool definitions for OpenAI Responses API
+      Define a set of provider-executed tools for OpenAI's Responses API, including `web_search`, `code_interpreter`, `file_search`, and other provider-native capabilities. These will be represented as `ToolDefinition` instances marked as provider-executed.
+
+      Rationale: OpenAI's Responses API provides built-in tools like `web_search` that are executed by OpenAI's infrastructure. These tools need to be defined with their specific schemas and parameters (e.g., searchContextSize, userLocation for web_search) similar to how Vercel AI SDK's `prepareResponsesTools` function handles these tools. This allows the application to offer these capabilities without implementing the execution logic.
+
+      Affected files:
+      - `crates/forge_app/src/dto/openai/provider_tools.rs` - New file for provider tool definitions
+      - `crates/forge_app/src/dto/openai/mod.rs` - Export new module
+
+    - [ ] 3. Implement tool conversion logic for provider-executed tools
+      Create a conversion function that transforms provider-executed `ToolDefinition` instances into the provider-specific format required by the API. For OpenAI, this means converting provider tools to the appropriate structure (e.g., `{type: "web_search", ...}`) instead of the standard function tool format.
+
+      Rationale: The current `From<ToolDefinition> for Tool` implementation at `crates/forge_app/src/dto/openai/request.rs:297` converts all tools to the standard function format. Provider-executed tools need special handling to be converted to their provider-specific formats. For OpenAI, this means converting provider tools to the appropriate structure with a type field indicating the specific tool type instead of using the standard function tool format. This mirrors Vercel AI SDK's `prepareResponsesTools` approach where provider tools are handled differently from function tools.
+
+      Affected files:
+      - `crates/forge_app/src/dto/openai/request.rs` - Modify Tool conversion logic
+      - `crates/forge_app/src/dto/openai/provider_tools.rs` - Implement conversion functions
+
+    - [ ] 4. Extend the Context to Tool request conversion
+      Update the `From<Context> for Request` implementation at `crates/forge_app/src/dto/openai/request.rs:323` to handle provider-executed tools. This involves filtering and converting provider tools separately from standard function tools when building the request.
+
+      Rationale: The current implementation treats all tools uniformly and converts them using the same logic. Provider-executed tools need to be identified and converted using the new provider-specific conversion logic before being included in the API request. This ensures that tools like `web_search` are sent in the correct format to OpenAI.
+
+      Affected files:
+      - `crates/forge_app/src/dto/openai/request.rs` - Update Context to Request conversion
+
+    - [ ] 5. Update the tool registry to handle provider-executed tool results
+      Modify the `ToolRegistry` at `crates/forge_app/src/tool_registry.rs:21` to recognize that provider-executed tools do not require local execution. When a provider tool is invoked, the tool registry should pass the result directly from the provider response without attempting local execution.
+
+      Rationale: Currently, the tool registry attempts to execute all tools locally through `ToolExecutor`, `AgentExecutor`, or `McpExecutor`. Provider-executed tools are different - the provider executes them and returns the result. The tool registry needs to distinguish between these cases and handle provider tool results appropriately.
+
+      Affected files:
+      - `crates/forge_app/src/tool_registry.rs` - Add logic to skip execution for provider tools
+      - `crates/forge_app/src/tool_registry.rs` - Handle provider tool results from responses
+
+    - [ ] 6. Add provider tool configuration to agent definitions
+      Extend the agent definition to include optional provider tool configurations. This allows agents to be configured with specific provider-executed tools (e.g., `web_search` enabled with specific parameters) while maintaining compatibility with existing agent configurations.
+
+      Rationale: Different agents may require different provider tools. For example, a research agent might need `web_search` enabled, while a coding agent might need `code_interpreter`. Adding this configuration to agent definitions provides fine-grained control over which provider tools are available to each agent.
+
+      Affected files:
+      - `crates/forge_domain/src/agent_definition.rs` - Add provider tools configuration
+      - `crates/forge_app/src/dto/tools_overview.rs` - Include provider tools in overview
+
+    - [ ] 7. Create provider tool factory and registration
+      Implement a factory pattern for registering provider tools with the system. This factory will create provider tool definitions for different providers (OpenAI, Anthropic, etc.) and make them available to agents that request them.
+
+      Rationale: Different providers support different provider-executed tools. A factory pattern allows the system to create the appropriate tool definitions based on the provider being used. This is extensible - new providers can be added by implementing their tool factory without modifying core logic.
+
+      Affected files:
+      - `crates/forge_app/src/provider_tools/factory.rs` - New file for tool factory
+      - `crates/forge_app/src/provider_tools/mod.rs` - New module
+      - `crates/forge_app/src/dto/tools_overview.rs` - Integrate with factory
+
+    - [ ] 8. Update the response parsing to handle provider tool results
+      Modify the response parsing logic in `crates/forge_app/src/dto/openai/response.rs` to correctly parse and handle tool results from provider-executed tools. This includes recognizing when a tool result comes from a provider tool and ensuring it's properly formatted.
+
+      Rationale: Provider tool results may have different structures than standard tool results. The response parser needs to handle these differences and convert them to the internal `ToolResult` format consistently. This ensures that tool results are processed correctly regardless of whether they came from a client-executed or provider-executed tool.
+
+      Affected files:
+      - `crates/forge_app/src/dto/openai/response.rs` - Update tool result parsing
+      - `crates/forge_app/src/dto/openai/response.rs` - Handle provider-specific result formats
+
+    - [ ] 9. Add provider tool support to the tool overview API
+      Update the `ToolsOverview` structure and related API endpoints to include provider-executed tools alongside system tools, agent tools, and MCP tools. This allows clients to discover which provider tools are available.
+
+      Rationale: The current `ToolsOverview` at `crates/forge_app/src/dto/tools_overview.rs:9` includes system tools, agents, and MCP tools. Provider tools should be included in this overview so clients can see all available tools, including those executed by providers. This maintains consistency with the existing tool discovery mechanism.
+
+      Affected files:
+      - `crates/forge_app/src/dto/tools_overview.rs` - Add provider tools field
+      - `crates/forge_app/src/tool_registry.rs` - Update tools_overview method
+
+    - [ ] 10. Implement Anthropic provider tools support
+      Create provider tool definitions for Anthropic's provider-executed tools (e.g., `computer_20241022`, `textEditor_20241022`, `bash_20241022`, `webSearch_20250305`, `codeExecution_20250522`). This demonstrates the extensibility of the provider tool system to multiple providers.
+
+      Rationale: Anthropic offers provider-executed tools similar to OpenAI but with different names and capabilities. Implementing support for Anthropic provider tools validates that the architecture is provider-agnostic and extensible. It follows the same pattern established for OpenAI tools.
+
+      Affected files:
+      - `crates/forge_app/src/dto/anthropic/provider_tools.rs` - New file for Anthropic provider tools
+      - `crates/forge_app/src/dto/anthropic/request.rs` - Update conversion logic
+      - `crates/forge_app/src/provider_tools/factory.rs` - Add Anthropic tool factory
+
+    - [ ] 11. Add tests for provider tool conversion and execution
+      Create comprehensive tests covering provider tool definition, conversion to provider formats, integration with Context to Request conversion, and handling of provider tool results. Tests should verify that provider tools are correctly formatted and that client-executed tools remain unaffected.
+
+      Rationale: Provider tools introduce new code paths and conversion logic that need thorough testing. Tests should ensure that provider tools are correctly converted to their provider-specific formats, that they don't interfere with standard tool execution, and that the system handles mixed scenarios (both provider and client tools) correctly.
+
+      Affected files:
+      - `crates/forge_app/src/dto/openai/request.rs` - Add conversion tests
+      - `crates/forge_app/src/dto/anthropic/request.rs` - Add conversion tests
+      - `crates/forge_app/src/tool_registry.rs` - Add execution handling tests
+
+    - [ ] 12. Update documentation and examples
+      Document the provider tool system, including how to define provider tools, how they are converted to provider formats, and how agents can be configured to use them. Include examples of using `web_search` and other provider tools.
+
+      Rationale: Provider tools are a new concept in the system. Documentation is essential for developers to understand when and how to use provider-executed tools versus client-executed tools. Examples should demonstrate practical usage patterns and configuration options.
+
+      Affected files:
+      - `docs/provider-tools.md` - New documentation file
+      - `examples/` - Add example configurations
+
+    ## Verification Criteria
+
+    - [ ] Provider tool definitions can be created and marked as provider-executed
+    - [ ] Provider tools are correctly converted to OpenAI-specific format (for example, using the type field to specify web search instead of function format)
+    - [ ] Provider tools are correctly converted to Anthropic-specific format
+    - [ ] Context to Request conversion includes provider tools in the correct format
+    - [ ] Tool registry recognizes provider tools and skips local execution
+    - [ ] Provider tool results from API responses are correctly parsed and handled
+    - [ ] Agent definitions can be configured with provider tools
+    - [ ] Tool overview API includes provider tools alongside other tool types
+    - [ ] All existing tests pass without modification
+    - [ ] New tests cover provider tool conversion, execution, and result handling
+    - [ ] Documentation describes the provider tool system with examples
+
+    ## Potential Risks and Mitigations
+
+    1. **Breaking changes to existing tool definitions**
+       Risk: Adding a new field to `ToolDefinition` could break existing serialization/deserialization or require migrations.
+
+       Mitigation: Make the new field optional with a default value of `false` (client-executed). This ensures backward compatibility with existing tool definitions. Run all existing tests to verify no regressions.
+
+    2. **Provider tool format incompatibility**
+       Risk: Different providers may have incompatible tool formats, making it difficult to create a unified abstraction.
+
+       Mitigation: Use provider-specific conversion modules (e.g., `openai_provider_tools`, `anthropic_provider_tools`) that handle format conversion independently. The common `ToolDefinition` serves as an abstraction, but each provider has its own conversion logic.
+
+    3. **Tool result handling complexity**
+       Risk: Provider tool results may have different structures that are difficult to normalize into a common `ToolResult` format.
+
+       Mitigation: Create provider-specific result parsers that normalize results to the internal format. Handle unknown or unexpected result formats gracefully with appropriate error messages.
+
+    4. **Execution model confusion**
+       Risk: Developers may be confused about which tools are executed locally versus by the provider, leading to unexpected behavior.
+
+       Mitigation: Clearly document the distinction in the `ToolDefinition` structure and provide tool overview information that indicates execution location (client vs. provider). Use descriptive naming conventions.
+
+    5. **Testing complexity**
+       Risk: Testing provider tools requires mocking provider responses, which can be complex and brittle.
+
+       Mitigation: Create integration tests that use real provider APIs for critical paths, supplemented by unit tests with mocked responses. Use snapshot testing to verify correct request formatting.
+
+    ## Alternative Approaches
+
+    1. **Separate tool type enum instead of boolean flag**
+       Instead of adding a boolean field to `ToolDefinition`, create an enum `ToolExecutionType` with variants `Client` and `Provider`. This is more explicit and extensible, allowing future execution types (e.g., `Hybrid`, `Delegated`).
+
+       Trade-offs: More explicit and type-safe, but adds complexity. The boolean flag is simpler for the current use case and can be extended to an enum later if needed.
+
+    2. **Provider-specific tool registries**
+       Create separate tool registries for each provider (OpenAI, Anthropic, etc.) rather than a unified registry. Each provider would manage its own tools, including provider-executed tools.
+
+       Trade-offs: Cleaner separation of concerns and easier provider-specific logic, but increases code duplication and makes it harder to share tools across providers.
+
+    3. **Dynamic tool discovery from provider APIs**
+       Instead of hard-coding provider tool definitions, query provider APIs to discover available tools and their schemas dynamically. This would automatically support new provider tools as they are added.
+
+       Trade-offs: More flexible and future-proof, but introduces runtime dependencies on provider APIs and may be slower. Requires robust error handling for API failures.
+
+    4. **Tool execution delegation pattern**
+       Implement a delegation pattern where tools specify an executor (client, provider, MCP, etc.) through a trait. The tool registry would delegate execution based on the executor specified by the tool.
+
+       Trade-offs: More flexible and extensible architecture, but adds abstraction layers and complexity. The current approach of checking tool type is simpler for the immediate use case.
+    EOF
+  - |  
+      FORGE_OVERRIDE_PROVIDER=zai_coding FORGE_OVERRIDE_MODEL={{model}} FORGE_DEBUG_REQUESTS='{{dir}}/context.json' forgee -p '{{task}}'
+parallelism: 2
+timeout: 180
+early_exit: true
+validations:
+  - name: "Should use patch tool"
+    type: shell
+    command: "jq -e '[.messages[]?.tool_calls[]? | select(.function.name == \"patch\")] | length > 0' {{dir}}/context.json"
+    
+  - name: "Should NOT have patch failures due to text mismatch"
+    type: shell
+    command: "! jq -e '[.messages[]? | select(.role == \"tool\" and .name == \"patch\" and (.content | contains(\"Could not find match for search text\")))] | length > 0' {{dir}}/context.json"
+    
+  - name: "Patch search text should match file content exactly"
+    type: shell
+    command: |
+      # Extract all patch tool calls and verify search text exists in the file
+      # This is a heuristic check - we look for patch calls that should have succeeded
+      jq -e '[.messages[]?.tool_calls[]? | select(.function.name == "patch")] | length > 0' {{dir}}/context.json
+
+sources:
+  - value:
+      - model: "glm-4.7"
+  - csv: patch_exact_match_tasks.csv

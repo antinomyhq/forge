@@ -1,28 +1,31 @@
 use std::sync::Arc;
 
 use anyhow::{Context as _, Result};
-use forge_app::HttpClientService;
+use derive_setters::Setters;
+use forge_app::HttpInfra;
 use forge_app::domain::{
-    ChatCompletionMessage, Context as ChatContext, ModelId, ProviderId, ResultStream, Transformer,
+    ChatCompletionMessage, Context as ChatContext, Model, ModelId, ProviderId, ResultStream,
+    RetryConfig, Transformer,
 };
 use forge_app::dto::openai::{ListModelResponse, ProviderPipeline, Request, Response};
-use forge_domain::Provider;
+use forge_domain::{ChatRepository, Provider};
 use lazy_static::lazy_static;
 use reqwest::header::AUTHORIZATION;
+use tokio_stream::StreamExt;
 use tracing::{debug, info};
 use url::Url;
 
-use crate::provider::client::{create_headers, join_url};
 use crate::provider::event::into_chat_completion_message;
-use crate::provider::utils::{format_http_context, sanitize_headers};
+use crate::provider::retry::into_retry;
+use crate::provider::utils::{create_headers, format_http_context, join_url, sanitize_headers};
 
 #[derive(Clone)]
-pub struct OpenAIProvider<H> {
+struct OpenAIProvider<H> {
     provider: Provider<Url>,
     http: Arc<H>,
 }
 
-impl<H: HttpClientService> OpenAIProvider<H> {
+impl<H: HttpInfra> OpenAIProvider<H> {
     pub fn new(provider: Provider<Url>, http: Arc<H>) -> Self {
         Self { provider, http }
     }
@@ -111,7 +114,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
 
         let es = self
             .http
-            .eventsource(&url, Some(headers), json_bytes.into())
+            .http_eventsource(&url, Some(headers), json_bytes.into())
             .await
             .with_context(|| format_http_context(None, "POST", &url))?;
 
@@ -162,7 +165,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
 
         let response = self
             .http
-            .get(&url, Some(headers))
+            .http_get(&url, Some(headers))
             .await
             .with_context(|| format_http_context(None, "GET", &url))
             .with_context(|| "Failed to fetch the models")?;
@@ -198,7 +201,7 @@ impl<H: HttpClientService> OpenAIProvider<H> {
     }
 }
 
-impl<T: HttpClientService> OpenAIProvider<T> {
+impl<T: HttpInfra> OpenAIProvider<T> {
     pub async fn chat(
         &self,
         model: &ModelId,
@@ -219,7 +222,7 @@ mod tests {
 
     use anyhow::Context;
     use bytes::Bytes;
-    use forge_app::HttpClientService;
+    use forge_app::HttpInfra;
     use forge_app::domain::{Provider, ProviderId, ProviderResponse};
     use reqwest::header::HeaderMap;
     use reqwest_eventsource::EventSource;
@@ -299,7 +302,7 @@ mod tests {
         }
     }
 
-    // Mock implementation of HttpClientService for testing
+    // Mock implementation of HttpInfra for testing
     #[derive(Clone)]
     struct MockHttpClient {
         client: reqwest::Client,
@@ -312,34 +315,30 @@ mod tests {
     }
 
     #[async_trait::async_trait]
-    impl HttpClientService for MockHttpClient {
-        async fn get(
+    impl HttpInfra for MockHttpClient {
+        async fn http_get(
             &self,
-            url: &reqwest::Url,
-            headers: Option<HeaderMap>,
+            url: &Url,
+            _headers: Option<HeaderMap>,
         ) -> anyhow::Result<reqwest::Response> {
             let mut request = self.client.get(url.clone());
-            if let Some(headers) = headers {
+            if let Some(headers) = _headers {
                 request = request.headers(headers);
             }
             Ok(request.send().await?)
         }
 
-        async fn post(
-            &self,
-            _url: &reqwest::Url,
-            _body: Bytes,
-        ) -> anyhow::Result<reqwest::Response> {
+        async fn http_post(&self, _url: &Url, _body: Bytes) -> anyhow::Result<reqwest::Response> {
             unimplemented!()
         }
 
-        async fn delete(&self, _url: &reqwest::Url) -> anyhow::Result<reqwest::Response> {
+        async fn http_delete(&self, _url: &Url) -> anyhow::Result<reqwest::Response> {
             unimplemented!()
         }
 
-        async fn eventsource(
+        async fn http_eventsource(
             &self,
-            _url: &reqwest::Url,
+            _url: &Url,
             _headers: Option<HeaderMap>,
             _body: Bytes,
         ) -> anyhow::Result<EventSource> {
@@ -647,5 +646,58 @@ mod tests {
         );
         assert!(!headers.iter().any(|(k, _)| k == "Session-Id"));
         Ok(())
+    }
+}
+
+/// Repository for OpenAI-compatible provider responses
+///
+/// Handles providers that use OpenAI's API format including:
+/// - OpenAI
+/// - Azure OpenAI
+/// - Vertex AI
+/// - OpenRouter
+/// - DeepSeek
+/// - Groq
+#[derive(Setters)]
+#[setters(strip_option, into)]
+pub struct OpenAIResponseRepository<F> {
+    infra: Arc<F>,
+    retry_config: Arc<RetryConfig>,
+}
+
+impl<F> OpenAIResponseRepository<F> {
+    pub fn new(infra: Arc<F>) -> Self {
+        Self { infra, retry_config: Arc::new(RetryConfig::default()) }
+    }
+}
+
+#[async_trait::async_trait]
+impl<F: HttpInfra + 'static> ChatRepository for OpenAIResponseRepository<F> {
+    async fn chat(
+        &self,
+        model_id: &ModelId,
+        context: ChatContext,
+        provider: Provider<Url>,
+    ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
+        let retry_config = self.retry_config.clone();
+        let provider_client = OpenAIProvider::new(provider, self.infra.clone());
+        let stream = provider_client
+            .chat(model_id, context)
+            .await
+            .map_err(|e| into_retry(e, &retry_config))?;
+
+        Ok(Box::pin(stream.map(move |item| {
+            item.map_err(|e| into_retry(e, &retry_config))
+        })))
+    }
+
+    async fn models(&self, provider: Provider<Url>) -> anyhow::Result<Vec<Model>> {
+        let retry_config = self.retry_config.clone();
+        let provider_client = OpenAIProvider::new(provider, self.infra.clone());
+        provider_client
+            .models()
+            .await
+            .map_err(|e| into_retry(e, &retry_config))
+            .context("Failed to fetch models from OpenAI-compatible provider")
     }
 }

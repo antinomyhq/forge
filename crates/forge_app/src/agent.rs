@@ -42,11 +42,12 @@ impl<T: Services> AgentService for T {
         context: Context,
         provider_id: Option<ProviderId>,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
-        let provider = if let Some(provider_id) = provider_id {
-            self.get_provider(provider_id).await?
+        let provider_id = if let Some(provider_id) = provider_id {
+            provider_id
         } else {
             self.get_default_provider().await?
         };
+        let provider = self.get_provider(provider_id).await?;
 
         self.chat(id, context, provider).await
     }
