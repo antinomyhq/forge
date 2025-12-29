@@ -238,7 +238,7 @@ pub struct SemanticSearch {
     pub file_extension: Option<String>,
 
     /// Directory path to search in. Must be an absolute path to an indexed
-    /// workspace. 
+    /// workspace.
     pub path: String,
 }
 
