@@ -59,6 +59,40 @@ pub fn get_built_in_commands() -> Result<Vec<CommandInfo>> {
     Ok(commands)
 }
 
+/// Get formatted documentation for a specific built-in command
+///
+/// # Errors
+///
+/// Returns error if the command is not found or cannot be parsed
+pub fn get_command_doc(name: &str) -> Result<String> {
+    use gray_matter::Matter;
+    use gray_matter::engine::YAML;
+
+    #[derive(serde::Deserialize)]
+    struct FrontMatter {
+        name: String,
+        description: String,
+    }
+
+    let filename = format!("{}.md", name);
+
+    let content = BuiltInCommands::get(&filename)
+        .with_context(|| format!("Built-in command not found: {}", name))?;
+
+    let content_str = std::str::from_utf8(content.data.as_ref())
+        .with_context(|| format!("Invalid UTF-8 in command file: {}", filename))?;
+
+    let matter = Matter::<YAML>::new();
+    let result = matter.parse::<FrontMatter>(content_str)?;
+
+    let front_matter = result.data.context("Missing command frontmatter")?;
+
+    Ok(format!(
+        "# {}\n\n{}\n\n{}",
+        front_matter.name, front_matter.description, result.content
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use pretty_assertions::assert_eq;

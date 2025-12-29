@@ -539,12 +539,16 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.on_cmd(UserPrompt::from(prompt)).await?;
                 return Ok(());
             }
-            TopLevelCommand::Cmd(run_group) => {
+            TopLevelCommand::Command(run_group) => {
                 let porcelain = run_group.porcelain;
                 match run_group.command {
                     crate::cli::CmdCommand::List => {
                         // List all custom commands
                         self.on_show_custom_commands(porcelain).await?;
+                    }
+                    crate::cli::CmdCommand::Doc { name } => {
+                        // Show documentation for a built-in command
+                        self.on_show_command_doc(&name).await?;
                     }
                     crate::cli::CmdCommand::Execute(args) => {
                         // Execute the custom command
@@ -1168,6 +1172,18 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             self.writeln(info)?;
         }
 
+        Ok(())
+    }
+
+    /// Show documentation for a built-in command
+    ///
+    /// # Errors
+    ///
+    /// Returns error if the command is not found or cannot be rendered
+    async fn on_show_command_doc(&mut self, name: &str) -> anyhow::Result<()> {
+        let content = crate::built_in_commands::get_command_doc(name)?;
+        let rendered = self.markdown.render(&content);
+        self.writeln(rendered)?;
         Ok(())
     }
 
