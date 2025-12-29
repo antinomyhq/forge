@@ -27,8 +27,6 @@ function _forge_action_new() {
         # Only show banner if no input text (starting fresh conversation)
         _forge_exec banner
     fi
-    
-    _forge_reset
 }
 
 # Action handler: Show session info
@@ -39,14 +37,12 @@ function _forge_action_info() {
     else
         _forge_exec info
     fi
-    _forge_reset
 }
 
 # Action handler: Show environment info
 function _forge_action_env() {
     echo
     _forge_exec env
-    _forge_reset
 }
 
 # Action handler: Dump conversation
@@ -79,13 +75,9 @@ function _forge_handle_conversation_command() {
     # Check if FORGE_CONVERSATION_ID is set
     if [[ -z "$_FORGE_CONVERSATION_ID" ]]; then
         _forge_log error "No active conversation. Start a conversation first or use :list to see existing ones"
-        _forge_reset
         return 0
     fi
     
     # Execute the conversation command with conversation ID and any extra arguments
     _forge_exec conversation "$subcommand" "$_FORGE_CONVERSATION_ID" "$@"
-    
-    _forge_reset
-    return 0
 }

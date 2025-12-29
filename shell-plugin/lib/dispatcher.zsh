@@ -20,7 +20,6 @@ function _forge_action_default() {
             if [[ -z "$command_row" ]]; then
                 echo
                 _forge_log error "Command '\033[1m${user_action}\033[0m' not found"
-                _forge_reset
                 return 0
             fi
             
@@ -43,7 +42,6 @@ function _forge_action_default() {
                 else
                     _forge_exec cmd --cid "$_FORGE_CONVERSATION_ID" "$user_action"
                 fi
-                _forge_reset
                 return 0
             fi
         fi
@@ -57,7 +55,6 @@ function _forge_action_default() {
             _FORGE_ACTIVE_AGENT="$user_action"
             _forge_log info "\033[1;37m${_FORGE_ACTIVE_AGENT:u}\033[0m \033[90mis now the active agent\033[0m"
         fi
-        _forge_reset
         return 0
     fi
     
@@ -80,9 +77,6 @@ function _forge_action_default() {
     
     # Start background sync job if enabled and not already running
     _forge_start_background_sync
-    
-    # Reset the prompt
-    _forge_reset
 }
 
 function forge-accept-line() {
@@ -178,12 +172,18 @@ function forge-accept-line() {
         ;;
         edit|ed)
             _forge_action_editor "$input_text"
+            # Note: editor action intentionally modifies BUFFER and handles its own prompt reset
+            return
         ;;
         commit)
             _forge_action_commit "$input_text"
+            # Note: commit action intentionally modifies BUFFER and handles its own prompt reset
+            return
         ;;
         suggest|s)
             _forge_action_suggest "$input_text"
+            # Note: suggest action intentionally modifies BUFFER and handles its own prompt reset
+            return
         ;;
         clone)
             _forge_action_clone "$input_text"
@@ -204,4 +204,9 @@ function forge-accept-line() {
             _forge_action_default "$user_action" "$input_text"
         ;;
     esac
+    
+    # Centralized reset after all actions complete
+    # This ensures consistent prompt state without requiring each action to call _forge_reset
+    # Exceptions: editor, commit, and suggest actions return early as they intentionally modify BUFFER
+    _forge_reset
 }

@@ -67,7 +67,6 @@ function _forge_action_conversation() {
             # Print log about conversation switching
             _forge_log success "Switched to conversation \033[1m${_FORGE_CONVERSATION_ID}\033[0m"
             
-            _forge_reset
             return 0
         fi
     fi
@@ -89,7 +88,6 @@ function _forge_action_conversation() {
         # Print log about conversation switching
         _forge_log success "Switched to conversation \033[1m${conversation_id}\033[0m"
         
-        _forge_reset
         return 0
     fi
     
@@ -143,8 +141,6 @@ function _forge_action_conversation() {
     else
         _forge_log error "No conversations found"
     fi
-    
-    _forge_reset
 }
 
 # Action handler: Clone conversation
@@ -157,7 +153,6 @@ function _forge_action_clone() {
     # Handle explicit clone target if provided
     if [[ -n "$clone_target" ]]; then
         _forge_clone_and_switch "$clone_target"
-        _forge_reset
         return 0
     fi
     
@@ -167,7 +162,6 @@ function _forge_action_clone() {
     
     if [[ -z "$conversations_output" ]]; then
         _forge_log error "No conversations found"
-        _forge_reset
         return 0
     fi
     
@@ -198,8 +192,6 @@ function _forge_action_clone() {
         local conversation_id=$(echo "$selected_conversation" | sed -E 's/  .*//' | tr -d '\n')
         _forge_clone_and_switch "$conversation_id"
     fi
-    
-    _forge_reset
 }
 
 # Helper function to clone and switch to conversation

@@ -12,7 +12,6 @@ function _forge_action_login() {
         local provider=$(echo "$selected" | awk '{print $2}')
         _forge_exec provider login "$provider"
     fi
-    _forge_reset
 }
 
 # Action handler: Logout from provider
@@ -25,5 +24,4 @@ function _forge_action_logout() {
         local provider=$(echo "$selected" | awk '{print $2}')
         _forge_exec provider logout "$provider"
     fi
-    _forge_reset
 }
