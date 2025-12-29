@@ -2410,21 +2410,22 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         };
 
         // Only use CLI piped_input as additional context when BOTH --prompt and piped
-        // input are provided. This handles the case: `echo "context" | forge -p "question"`
-        // where piped input provides context and --prompt provides the actual question.
+        // input are provided. This handles the case: `echo "context" | forge -p
+        // "question"` where piped input provides context and --prompt provides
+        // the actual question.
         //
         // When only piped input is provided (no --prompt), it's already used as the
-        // main content (passed via the `content` parameter). We must NOT add it again as
-        // additional_context, otherwise the input appears twice in the conversation.
-        // We detect this by checking if cli.prompt exists - if it does, the content came
-        // from --prompt and piped input should be additional context.
+        // main content (passed via the `content` parameter). We must NOT add it again
+        // as additional_context, otherwise the input appears twice in the
+        // conversation. We detect this by checking if cli.prompt exists - if it
+        // does, the content came from --prompt and piped input should be
+        // additional context.
         let piped_input = self.cli.piped_input.clone();
         let has_explicit_prompt = self.cli.prompt.is_some();
-        if let Some(piped) = piped_input {
-            if has_content && has_explicit_prompt {
+        if let Some(piped) = piped_input
+            && has_content && has_explicit_prompt {
                 event = event.additional_context(piped);
             }
-        }
 
         // Create the chat request with the event
         let chat = ChatRequest::new(event, conversation_id);
