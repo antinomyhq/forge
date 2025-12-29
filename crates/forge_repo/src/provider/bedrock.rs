@@ -53,11 +53,7 @@ impl BedrockProvider {
             .map(|v| v.to_string())
             .unwrap_or_else(|| "us-east-1".to_string());
 
-        Ok(Self {
-            provider,
-            region,
-            client: OnceCell::new(),
-        })
+        Ok(Self { provider, region, client: OnceCell::new() })
     }
 
     /// Initializes and returns the AWS Bedrock client
@@ -68,7 +64,8 @@ impl BedrockProvider {
     ///
     /// # Errors
     ///
-    /// Returns an error if the bearer token cannot be retrieved from credentials
+    /// Returns an error if the bearer token cannot be retrieved from
+    /// credentials
     async fn init(&self) -> Result<&Client> {
         self.client
             .get_or_try_init(|| async {
