@@ -2423,9 +2423,11 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let piped_input = self.cli.piped_input.clone();
         let has_explicit_prompt = self.cli.prompt.is_some();
         if let Some(piped) = piped_input
-            && has_content && has_explicit_prompt {
-                event = event.additional_context(piped);
-            }
+            && has_content
+            && has_explicit_prompt
+        {
+            event = event.additional_context(piped);
+        }
 
         // Create the chat request with the event
         let chat = ChatRequest::new(event, conversation_id);
