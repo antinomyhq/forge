@@ -224,11 +224,9 @@ mod tests {
     #[test]
     fn test_custom_order_with_refs() {
         let fixture_order = ToolOrder::new(vec![ToolName::new("write"), ToolName::new("read")]);
-        let tools = vec![
-            ToolDefinition::new("read").description("Read tool"),
+        let tools = [ToolDefinition::new("read").description("Read tool"),
             ToolDefinition::new("write").description("Write tool"),
-            ToolDefinition::new("patch").description("Patch tool"),
-        ];
+            ToolDefinition::new("patch").description("Patch tool")];
         let mut fixture: Vec<&ToolDefinition> = tools.iter().collect();
 
         fixture_order.sort_refs(&mut fixture);
