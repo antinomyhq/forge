@@ -219,6 +219,9 @@ impl SearchQuery {
 /// Returns the topK most relevant file:line locations with code context. Use
 /// multiple varied queries (2-3) for best coverage. For exact string matching
 /// (TODO comments, specific function names), use regex search instead.
+///
+/// IMPORTANT: This tool only works on indexed workspaces. If you receive an
+/// error about the workspace not being indexed, use the other tools.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct SemanticSearch {
     /// List of search queries to execute in parallel. Using multiple queries
@@ -233,6 +236,10 @@ pub struct SemanticSearch {
     /// only files with this extension will be included in the search results.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub file_extension: Option<String>,
+
+    /// Directory path to search in. Must be an absolute path to an indexed
+    /// workspace. 
+    pub path: String,
 }
 
 /// Request to remove a file at the specified path. Use this when you need to
@@ -755,10 +762,12 @@ impl ToolCatalog {
     pub fn tool_call_semantic_search(
         queries: Vec<SearchQuery>,
         file_ext: Option<String>,
+        path: String,
     ) -> ToolCallFull {
         ToolCallFull::from(ToolCatalog::SemSearch(SemanticSearch {
             queries,
             file_extension: file_ext,
+            path,
         }))
     }
 

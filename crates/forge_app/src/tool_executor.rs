@@ -196,7 +196,17 @@ impl<
             ToolCatalog::SemSearch(input) => {
                 let env = self.services.get_environment();
                 let services = self.services.clone();
-                let cwd = env.cwd.clone();
+                // Use the provided search path
+                let workspace_path = PathBuf::from(self.normalize_path(input.path));
+                // Check if the directory is indexed before attempting search
+                let is_indexed = services.is_indexed(&workspace_path).await?;
+                if !is_indexed {
+                    anyhow::bail!(
+                        "Workspace '{}' is not indexed. Use 'fs_search' or 'shell' tool instead to explore this workspace.",
+                        workspace_path.display()
+                    );
+                }
+
                 let limit = env.sem_search_limit;
                 let top_k = env.sem_search_top_k as u32;
                 let params: Vec<_> = input
@@ -219,7 +229,7 @@ impl<
                 // Execute all queries in parallel
                 let futures: Vec<_> = params
                     .into_iter()
-                    .map(|param| services.query_workspace(cwd.clone(), param))
+                    .map(|param| services.query_workspace(workspace_path.clone(), param))
                     .collect();
 
                 let mut results = futures::future::try_join_all(futures).await?;
