@@ -11,7 +11,5 @@ mod plugin;
 mod rprompt;
 mod style;
 
-pub use plugin::{
-    generate_zsh_plugin, generate_zsh_theme, run_zsh_doctor, setup_zsh_integration_with_config,
-};
+pub use plugin::{generate_zsh_plugin, generate_zsh_theme, run_zsh_doctor, setup_zsh_integration};
 pub use rprompt::ZshRPrompt;

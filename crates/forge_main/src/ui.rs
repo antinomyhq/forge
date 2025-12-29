@@ -1530,9 +1530,18 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Setup ZSH integration with nerd font and editor configuration
         self.spinner.start(Some("Configuring ZSH"))?;
-        crate::zsh::setup_zsh_integration_with_config(disable_nerd_font, forge_editor)?;
+        let result = crate::zsh::setup_zsh_integration(disable_nerd_font, forge_editor)?;
         self.spinner.stop(None)?;
-        self.writeln_title(TitleFormat::info(".zshrc updated successfully"))?;
+
+        // Log backup creation if one was made
+        if let Some(backup_path) = result.backup_path {
+            self.writeln_title(TitleFormat::debug(&format!(
+                "backup created at {}",
+                backup_path.display()
+            )))?;
+        }
+
+        self.writeln_title(TitleFormat::info(result.message))?;
 
         self.writeln_title(TitleFormat::debug("running forge zsh doctor"))?;
         println!();
