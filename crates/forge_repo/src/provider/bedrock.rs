@@ -9,7 +9,7 @@ use forge_domain::{
     ResultStream, Transformer,
 };
 use reqwest::Url;
-use tokio::sync::OnceCell;
+use std::sync::OnceLock;
 use tokio_stream::StreamExt;
 
 use crate::provider::bedrock_cache::SetCache;
@@ -23,7 +23,7 @@ use crate::provider::{FromDomain, IntoDomain};
 struct BedrockProvider {
     provider: Provider<Url>,
     region: String,
-    client: OnceCell<Client>,
+    client: OnceLock<Client>,
 }
 
 impl BedrockProvider {
@@ -40,10 +40,10 @@ impl BedrockProvider {
             .context("Bedrock requires credentials")?;
 
         // Validate API key (bearer token)
-        let bearer_token = match &credential.auth_details {
-            AuthDetails::ApiKey(key) if !key.is_empty() => key.as_ref().to_string(),
+        match &credential.auth_details {
+            AuthDetails::ApiKey(key) if !key.is_empty() => {}
             _ => anyhow::bail!("Bearer token is required in API key field"),
-        };
+        }
 
         // Extract region from URL params
         let region_param: forge_domain::URLParam = "AWS_REGION".to_string().into();
@@ -53,18 +53,41 @@ impl BedrockProvider {
             .map(|v| v.to_string())
             .unwrap_or_else(|| "us-east-1".to_string());
 
-        // Configure AWS SDK client with Bearer token authentication
-        let config = aws_sdk_bedrockruntime::Config::builder()
-            .region(aws_sdk_bedrockruntime::config::Region::new(region.clone()))
-            .bearer_token(Token::new(bearer_token, None))
-            .build();
+        Ok(Self {
+            provider,
+            region,
+            client: OnceLock::new(),
+        })
+    }
 
-        let client = aws_sdk_bedrockruntime::Client::from_conf(config);
+    /// Initializes and returns the AWS Bedrock client
+    ///
+    /// The client is lazily initialized on first call and reused for subsequent
+    /// calls. This avoids creating the client during tests that only validate
+    /// configuration.
+    fn init(&self) -> &Client {
+        self.client.get_or_init(|| {
+            // Get the bearer token from provider credentials
+            let bearer_token = self
+                .provider
+                .credential
+                .as_ref()
+                .and_then(|c| match &c.auth_details {
+                    AuthDetails::ApiKey(key) => Some(key.as_ref().to_string()),
+                    _ => None,
+                })
+                .expect("Bearer token should be validated in constructor");
 
-        let client_cell = OnceCell::new();
-        client_cell.set(client).ok();
+            // Configure AWS SDK client with Bearer token authentication
+            let config = aws_sdk_bedrockruntime::Config::builder()
+                .region(aws_sdk_bedrockruntime::config::Region::new(
+                    self.region.clone(),
+                ))
+                .bearer_token(Token::new(bearer_token, None))
+                .build();
 
-        Ok(Self { provider, region, client: client_cell })
+            aws_sdk_bedrockruntime::Client::from_conf(config)
+        })
     }
 
     /// Check if the model supports prompt caching
@@ -176,9 +199,7 @@ impl BedrockProvider {
 
         // Build and send the converse_stream request
         let output = self
-            .client
-            .get()
-            .expect("Client should be initialized in constructor")
+            .init()
             .converse_stream()
             .model_id(model_id)
             .set_system(bedrock_input.system.clone())
@@ -964,7 +985,7 @@ mod tests {
     fn bedrock_provider_fixture(region: &str) -> BedrockProvider {
         BedrockProvider {
             provider: provider_fixture("test-token", Some(region)),
-            client: OnceCell::new(),
+            client: OnceLock::new(),
             region: region.to_string(),
         }
     }
@@ -1237,7 +1258,7 @@ mod tests {
 
         let bedrock = BedrockProvider {
             provider: fixture_provider,
-            client: OnceCell::new(),
+            client: OnceLock::new(),
             region: "us-east-1".to_string(),
         };
 
@@ -1251,7 +1272,7 @@ mod tests {
         let fixture = provider_fixture("token", None);
         let bedrock = BedrockProvider {
             provider: fixture,
-            client: OnceCell::new(),
+            client: OnceLock::new(),
             region: "us-east-1".to_string(),
         };
 
