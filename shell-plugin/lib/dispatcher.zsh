@@ -29,8 +29,12 @@ function _forge_action_default() {
             local command_type=$(echo "$command_row" | awk '{print $2}')
             # Case-insensitive comparison using :l (lowercase) modifier
             if [[ "${command_type:l}" == "custom" ]]; then
-                # Generate conversation ID if needed
-                [[ -z "$_FORGE_CONVERSATION_ID" ]] && _FORGE_CONVERSATION_ID=$($_FORGE_BIN conversation new)
+                # Generate conversation ID if needed (don't track previous for auto-generation)
+                if [[ -z "$_FORGE_CONVERSATION_ID" ]]; then
+                    local new_id=$($_FORGE_BIN conversation new)
+                    # Use helper but don't track previous for auto-generation
+                    _FORGE_CONVERSATION_ID="$new_id"
+                fi
                 
                 echo
                 # Execute custom command with run subcommand
@@ -57,9 +61,11 @@ function _forge_action_default() {
         return 0
     fi
     
-    # Generate conversation ID if needed (in parent shell context)
+    # Generate conversation ID if needed (don't track previous for auto-generation)
     if [[ -z "$_FORGE_CONVERSATION_ID" ]]; then
-        _FORGE_CONVERSATION_ID=$($_FORGE_BIN conversation new)
+        local new_id=$($_FORGE_BIN conversation new)
+        # Use direct assignment here - no previous to track for auto-generation
+        _FORGE_CONVERSATION_ID="$new_id"
     fi
     
     echo
