@@ -34,7 +34,8 @@ where
         )?;
 
         // Get required services and data
-        let provider = self.services.get_default_provider().await?;
+        let provider_id = self.services.get_default_provider().await?;
+        let provider = self.services.get_provider(provider_id).await?;
         let model = self.services.get_provider_model(Some(&provider.id)).await?;
 
         // Build user prompt with task and recent commands
@@ -201,8 +202,8 @@ mod tests {
 
     #[async_trait::async_trait]
     impl AppConfigService for MockServices {
-        async fn get_default_provider(&self) -> Result<Provider<Url>> {
-            self.get_provider(ProviderId::OPENAI).await
+        async fn get_default_provider(&self) -> Result<ProviderId> {
+            Ok(ProviderId::OPENAI)
         }
 
         async fn set_default_provider(&self, _provider_id: ProviderId) -> Result<()> {

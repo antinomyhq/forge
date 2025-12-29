@@ -1,0 +1,58 @@
+run:
+  - git clone --depth=1 --branch main https://github.com/antinomyhq/forge .
+  - FORGE_OVERRIDE_PROVIDER=open_router FORGE_OVERRIDE_MODEL={{model}} FORGE_DEBUG_REQUESTS='{{dir}}/context.json' forgee -p '{{task}}'
+parallelism: 10
+timeout: 180
+early_exit: true
+
+validations:
+  # Primary: Model should NOT use shell find command for searching code
+  - name: "No shell find command usage"
+    type: shell
+    command: |
+      jq -e '
+        [.messages[]?.tool_calls[]? | 
+         select(.function.name == "shell") | 
+         .function.arguments | fromjson | 
+         select(.command | test("\\bfind\\s+"))
+        ] | length == 0
+      ' {{dir}}/context.json
+
+  # Model SHOULD use builtin search tools instead
+  - name: "Uses builtin search tools"
+    type: shell
+    command: |
+      jq -e '
+        [.messages[]?.tool_calls[]? | 
+         select(.function.name == "search" or 
+                .function.name == "fs_search" or 
+                .function.name == "sem_search")
+        ] | length > 0
+      ' {{dir}}/context.json
+
+  # Detect specific anti-pattern: find with grep pipeline
+  - name: "No find + grep anti-pattern"
+    type: shell
+    command: |
+      jq -e '
+        [.messages[]?.tool_calls[]? | 
+         select(.function.name == "shell") | 
+         .function.arguments | fromjson | 
+         select(.command | test("find.*\\|.*grep"))
+        ] | length == 0
+      ' {{dir}}/context.json
+
+sources:
+  - value:
+      - model: "anthropic/claude-sonnet-4.5"
+      - model: "z-ai/glm-4.6:exacto"
+  - value:
+      # File discovery tasks - should use fs_search, NOT find command
+      - task: "I need to merge service and app crates. Tell me what files exist in the crates/ directory."
+      - task: "Find all Rust source files in the crates/service directory."
+      - task: "List all Rust files in crates/app to understand the structure."
+      - task: "Show me all .rs files in the project so I can plan refactoring."
+      
+      # Structure understanding - should use fs_search or sem_search
+      - task: "Find all source files under crates/service and crates/app for analysis."
+      - task: "List all Rust source files in the workspace for documentation purposes."

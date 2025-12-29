@@ -1,17 +1,14 @@
-use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
 use bytes::Bytes;
 use forge_app::domain::{ProviderId, ProviderResponse};
-use forge_app::{EnvironmentInfra, FileReaderInfra, FileWriterInfra};
+use forge_app::{EnvironmentInfra, FileReaderInfra, FileWriterInfra, HttpInfra};
 use forge_domain::{
     AnyProvider, ApiKey, AuthCredential, AuthDetails, Error, MigrationResult, Provider,
     ProviderRepository, ProviderType, URLParam, URLParamValue,
 };
-use handlebars::Handlebars;
 use merge::Merge;
 use serde::Deserialize;
-use url::Url;
 
 /// Represents the source of models for a provider
 #[derive(Debug, Clone, Deserialize)]
@@ -72,16 +69,12 @@ fn merge_configs(base: &mut Vec<ProviderConfig>, other: Vec<ProviderConfig>) {
     base.extend(map.into_values());
 }
 
-impl From<&ProviderConfig>
-    for Provider<
-        forge_domain::Template<HashMap<forge_domain::URLParam, forge_domain::URLParamValue>>,
-    >
-{
+impl From<&ProviderConfig> for forge_domain::ProviderTemplate {
     fn from(config: &ProviderConfig) -> Self {
         let models = config.models.as_ref().map(|m| match m {
-            Models::Url(model_url_template) => {
-                forge_domain::ModelSource::Url(forge_domain::Template::new(model_url_template))
-            }
+            Models::Url(model_url_template) => forge_domain::ModelSource::Url(
+                forge_domain::Template::<forge_domain::URLParameters>::new(model_url_template),
+            ),
             Models::Hardcoded(model_list) => {
                 forge_domain::ModelSource::Hardcoded(model_list.clone())
             }
@@ -91,7 +84,7 @@ impl From<&ProviderConfig>
             id: config.id.clone(),
             provider_type: config.provider_type,
             response: config.response_type.clone(),
-            url: forge_domain::Template::new(&config.url),
+            url: forge_domain::Template::<forge_domain::URLParameters>::new(&config.url),
             auth_methods: config.auth_methods.clone(),
             url_params: config
                 .url_param_vars
@@ -104,12 +97,7 @@ impl From<&ProviderConfig>
     }
 }
 
-static HANDLEBARS: OnceLock<Handlebars<'static>> = OnceLock::new();
 static PROVIDER_CONFIGS: OnceLock<Vec<ProviderConfig>> = OnceLock::new();
-
-fn get_handlebars() -> &'static Handlebars<'static> {
-    HANDLEBARS.get_or_init(Handlebars::new)
-}
 
 fn get_provider_configs() -> &'static Vec<ProviderConfig> {
     PROVIDER_CONFIGS.get_or_init(|| {
@@ -122,16 +110,17 @@ fn get_provider_configs() -> &'static Vec<ProviderConfig> {
 
 pub struct ForgeProviderRepository<F> {
     infra: Arc<F>,
-    handlebars: &'static Handlebars<'static>,
 }
 
-impl<F> ForgeProviderRepository<F> {
+impl<F: EnvironmentInfra + HttpInfra> ForgeProviderRepository<F> {
     pub fn new(infra: Arc<F>) -> Self {
-        Self { infra, handlebars: get_handlebars() }
+        Self { infra }
     }
 }
 
-impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepository<F> {
+impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
+    ForgeProviderRepository<F>
+{
     async fn get_custom_provider_configs(&self) -> anyhow::Result<Vec<ProviderConfig>> {
         let environment = self.infra.get_environment();
         let provider_json_path = environment.base_path.join("provider.json");
@@ -151,7 +140,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
                 continue;
             }
 
-            // Try to create configured provider, fallback to unconfigured
+            // Try to create configured template provider, fallback to unconfigured
             let provider_entry = if let Ok(provider) = self.create_provider(&config).await {
                 Some(provider.into())
             } else if let Ok(provider) = self.create_unconfigured_provider(&config) {
@@ -265,50 +254,23 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
         })
     }
 
-    /// Creates a configured provider from file-based credentials.
-    /// The credential file (.credentials.json) is the single source of
-    /// truth.
-    async fn create_provider(&self, config: &ProviderConfig) -> anyhow::Result<Provider<Url>> {
+    /// Creates a provider with template URLs (not rendered).
+    /// The service layer is responsible for rendering templates.
+    async fn create_provider(
+        &self,
+        config: &ProviderConfig,
+    ) -> anyhow::Result<forge_domain::ProviderTemplate> {
         // Get credential from file
         let credential = self
             .get_credential(&config.id)
             .await?
             .ok_or_else(|| Error::provider_not_available(config.id.clone()))?;
 
-        // Build template data from URL parameters in credential
-        let mut template_data = std::collections::HashMap::new();
-        for (param, value) in &credential.url_params {
-            template_data.insert(param.as_str(), value.as_str());
-        }
-
-        // Render URL using handlebars
-        let url = self
-            .handlebars
-            .render_template(&config.url, &template_data)
-            .map_err(|e| {
-                anyhow::anyhow!("Failed to render URL template for {}: {}", config.id, e)
-            })?;
-        let final_url = Url::parse(&url)?;
-
-        // Handle models based on the variant
+        // Handle models - keep as templates
         let models = config.models.as_ref().map(|m| match m {
-            Models::Url(model_url_template) => {
-                let model_url = Url::parse(
-                    &self
-                        .handlebars
-                        .render_template(model_url_template, &template_data)
-                        .map_err(|e| {
-                            anyhow::anyhow!(
-                                "Failed to render model_url template for {}: {}",
-                                config.id,
-                                e
-                            )
-                        })
-                        .unwrap(),
-                )
-                .unwrap();
-                forge_domain::ModelSource::Url(model_url)
-            }
+            Models::Url(model_url_template) => forge_domain::ModelSource::Url(
+                forge_domain::Template::<forge_domain::URLParameters>::new(model_url_template),
+            ),
             Models::Hardcoded(model_list) => {
                 forge_domain::ModelSource::Hardcoded(model_list.clone())
             }
@@ -318,7 +280,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
             id: config.id.clone(),
             provider_type: config.provider_type,
             response: config.response_type.clone(),
-            url: final_url,
+            url: forge_domain::Template::<forge_domain::URLParameters>::new(&config.url),
             auth_methods: config.auth_methods.clone(),
             url_params: config
                 .url_param_vars
@@ -334,27 +296,28 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
     fn create_unconfigured_provider(
         &self,
         config: &ProviderConfig,
-    ) -> anyhow::Result<
-        Provider<
-            forge_domain::Template<HashMap<forge_domain::URLParam, forge_domain::URLParamValue>>,
-        >,
-    > {
+    ) -> anyhow::Result<forge_domain::ProviderTemplate> {
         Ok(config.into())
     }
 
-    async fn provider_from_id(&self, id: ProviderId) -> anyhow::Result<Provider<Url>> {
+    async fn provider_from_id(
+        &self,
+        id: ProviderId,
+    ) -> anyhow::Result<forge_domain::ProviderTemplate> {
         // Handle special cases first
         if id == ProviderId::FORGE {
             // Forge provider isn't typically configured via env vars in the registry
             return Err(Error::provider_not_available(ProviderId::FORGE).into());
         }
 
-        // Look up provider from cached providers - only return configured ones
+        // Look up provider from cached providers - return configured template providers
         self.get_providers()
             .await
             .iter()
             .find_map(|p| match p {
-                AnyProvider::Url(cp) if cp.id == id => Some(cp.clone()),
+                AnyProvider::Template(tp) if tp.id == id && tp.credential.is_some() => {
+                    Some(tp.clone())
+                }
                 _ => None,
             })
             .ok_or_else(|| Error::provider_not_available(id).into())
@@ -399,20 +362,21 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra> ForgeProviderRepos
 }
 
 #[async_trait::async_trait]
-impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Sync> ProviderRepository
+impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Sync> ProviderRepository
     for ForgeProviderRepository<F>
 {
     async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
         Ok(self.get_providers().await.clone())
     }
 
-    async fn get_provider(&self, id: ProviderId) -> anyhow::Result<Provider<Url>> {
+    async fn get_provider(&self, id: ProviderId) -> anyhow::Result<forge_domain::ProviderTemplate> {
         self.provider_from_id(id).await
     }
 
     async fn upsert_credential(&self, credential: AuthCredential) -> anyhow::Result<()> {
         let mut credentials = self.read_credentials().await;
         let id = credential.id.clone();
+
         // Update existing credential or add new one
         if let Some(existing) = credentials.iter_mut().find(|c| c.id == id) {
             *existing = credential;
@@ -585,9 +549,12 @@ mod env_tests {
     use std::path::PathBuf;
     use std::sync::Arc;
 
-    use forge_app::domain::Environment;
-    use forge_domain::AnyProvider;
+    use forge_app::domain::{
+        ChatCompletionMessage, Context, Environment, Model, ModelId, ResultStream,
+    };
+    use forge_domain::{AnyProvider, ChatRepository, ProviderTemplate};
     use pretty_assertions::assert_eq;
+    use url::Url;
 
     use super::*;
 
@@ -680,12 +647,60 @@ mod env_tests {
     }
 
     #[async_trait::async_trait]
+    impl HttpInfra for MockInfra {
+        async fn http_get(
+            &self,
+            _url: &reqwest::Url,
+            _headers: Option<reqwest::header::HeaderMap>,
+        ) -> anyhow::Result<reqwest::Response> {
+            Err(anyhow::anyhow!("HTTP not implemented in mock"))
+        }
+
+        async fn http_post(
+            &self,
+            _url: &reqwest::Url,
+            _body: bytes::Bytes,
+        ) -> anyhow::Result<reqwest::Response> {
+            Err(anyhow::anyhow!("HTTP not implemented in mock"))
+        }
+
+        async fn http_delete(&self, _url: &reqwest::Url) -> anyhow::Result<reqwest::Response> {
+            Err(anyhow::anyhow!("HTTP not implemented in mock"))
+        }
+
+        async fn http_eventsource(
+            &self,
+            _url: &reqwest::Url,
+            _headers: Option<reqwest::header::HeaderMap>,
+            _body: bytes::Bytes,
+        ) -> anyhow::Result<reqwest_eventsource::EventSource> {
+            Err(anyhow::anyhow!("HTTP not implemented in mock"))
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl ChatRepository for MockInfra {
+        async fn chat(
+            &self,
+            _model_id: &ModelId,
+            _context: Context,
+            _provider: Provider<Url>,
+        ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
+            Ok(Box::pin(tokio_stream::iter(vec![])))
+        }
+
+        async fn models(&self, _provider: Provider<Url>) -> anyhow::Result<Vec<Model>> {
+            Ok(vec![])
+        }
+    }
+
+    #[async_trait::async_trait]
     impl ProviderRepository for MockInfra {
         async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
             Ok(vec![])
         }
 
-        async fn get_provider(&self, _id: ProviderId) -> anyhow::Result<Provider<Url>> {
+        async fn get_provider(&self, _id: ProviderId) -> anyhow::Result<ProviderTemplate> {
             Err(anyhow::anyhow!("Provider not found"))
         }
 
@@ -939,22 +954,22 @@ mod env_tests {
             Some("test-key-123".to_string())
         );
 
-        // Check chat completion URL (url field now contains the chat completion URL)
-        let chat_url = provider.url();
+        // Check that URL template is returned (not rendered)
+        let url_template = &provider.url;
         assert_eq!(
-            chat_url.as_str(),
-            "https://my-test-resource.openai.azure.com/openai/deployments/gpt-4-deployment/chat/completions?api-version=2024-02-01-preview"
+            url_template.template,
+            "https://{{AZURE_RESOURCE_NAME}}.openai.azure.com/openai/deployments/{{AZURE_DEPLOYMENT_NAME}}/chat/completions?api-version={{AZURE_API_VERSION}}"
         );
 
-        // Check model URL
+        // Check that model URL template is returned (not rendered)
         match &provider.models.as_ref().unwrap() {
-            forge_domain::ModelSource::Url(model_url) => {
+            forge_domain::ModelSource::Url(model_template) => {
                 assert_eq!(
-                    model_url.as_str(),
-                    "https://my-test-resource.openai.azure.com/openai/models?api-version=2024-02-01-preview"
+                    model_template.template,
+                    "https://{{AZURE_RESOURCE_NAME}}.openai.azure.com/openai/models?api-version={{AZURE_API_VERSION}}"
                 );
             }
-            forge_domain::ModelSource::Hardcoded(_) => panic!("Expected Models::Url variant"),
+            forge_domain::ModelSource::Hardcoded(_) => panic!("Expected ModelSource::Url variant"),
         }
     }
 
@@ -975,25 +990,25 @@ mod env_tests {
         let openai_provider = providers
             .iter()
             .find_map(|p| match p {
-                AnyProvider::Url(cp) if cp.id == ProviderId::OPENAI => Some(cp),
+                AnyProvider::Template(cp) if cp.id == ProviderId::OPENAI => Some(cp),
                 _ => None,
             })
             .unwrap();
         let anthropic_provider = providers
             .iter()
             .find_map(|p| match p {
-                AnyProvider::Url(cp) if cp.id == ProviderId::ANTHROPIC => Some(cp),
+                AnyProvider::Template(cp) if cp.id == ProviderId::ANTHROPIC => Some(cp),
                 _ => None,
             })
             .unwrap();
 
-        // Regular OpenAI and Anthropic providers use hardcoded URLs
+        // Regular OpenAI and Anthropic providers return template URLs (not rendered)
         assert_eq!(
-            openai_provider.url.as_str(),
+            openai_provider.url.template,
             "https://api.openai.com/v1/chat/completions"
         );
         assert_eq!(
-            anthropic_provider.url.as_str(),
+            anthropic_provider.url.template,
             "https://api.anthropic.com/v1/messages"
         );
     }
@@ -1092,12 +1107,60 @@ mod env_tests {
         }
 
         #[async_trait::async_trait]
+        impl HttpInfra for CustomMockInfra {
+            async fn http_get(
+                &self,
+                _url: &reqwest::Url,
+                _headers: Option<reqwest::header::HeaderMap>,
+            ) -> anyhow::Result<reqwest::Response> {
+                Err(anyhow::anyhow!("HTTP not implemented in mock"))
+            }
+
+            async fn http_post(
+                &self,
+                _url: &reqwest::Url,
+                _body: bytes::Bytes,
+            ) -> anyhow::Result<reqwest::Response> {
+                Err(anyhow::anyhow!("HTTP not implemented in mock"))
+            }
+
+            async fn http_delete(&self, _url: &reqwest::Url) -> anyhow::Result<reqwest::Response> {
+                Err(anyhow::anyhow!("HTTP not implemented in mock"))
+            }
+
+            async fn http_eventsource(
+                &self,
+                _url: &reqwest::Url,
+                _headers: Option<reqwest::header::HeaderMap>,
+                _body: bytes::Bytes,
+            ) -> anyhow::Result<reqwest_eventsource::EventSource> {
+                Err(anyhow::anyhow!("HTTP not implemented in mock"))
+            }
+        }
+
+        #[async_trait::async_trait]
+        impl ChatRepository for CustomMockInfra {
+            async fn chat(
+                &self,
+                _model_id: &ModelId,
+                _context: Context,
+                _provider: Provider<Url>,
+            ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
+                Ok(Box::pin(tokio_stream::iter(vec![])))
+            }
+
+            async fn models(&self, _provider: Provider<Url>) -> anyhow::Result<Vec<Model>> {
+                Ok(vec![])
+            }
+        }
+
+        #[async_trait::async_trait]
         impl ProviderRepository for CustomMockInfra {
             async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
                 Ok(vec![])
             }
 
-            async fn get_provider(&self, _id: ProviderId) -> anyhow::Result<Provider<Url>> {
+            async fn get_provider(&self, _id: ProviderId) -> anyhow::Result<ProviderTemplate> {
                 Err(anyhow::anyhow!("Provider not found"))
             }
 

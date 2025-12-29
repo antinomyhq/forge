@@ -1,5 +1,5 @@
 ---
-source: crates/forge_services/src/provider/anthropic.rs
+source: crates/forge_repo/src/provider/anthropic.rs
 expression: "serde_json::to_string_pretty(&request).unwrap()"
 ---
 {
