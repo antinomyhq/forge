@@ -2409,11 +2409,11 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             None => Event::empty(),
         };
 
-            // Only use CLI piped_input as additional context when BOTH --prompt and piped
+        // Only use CLI piped_input as additional context when BOTH --prompt and piped
         // input are provided. This handles the case: `echo "context" | forge -p "question"`
         // where piped input provides context and --prompt provides the actual question.
         //
-        // FIX: When only piped input is provided (no --prompt), it's already used as the
+        // When only piped input is provided (no --prompt), it's already used as the
         // main content (passed via the `content` parameter). We must NOT add it again as
         // additional_context, otherwise the input appears twice in the conversation.
         // We detect this by checking if cli.prompt exists - if it does, the content came
