@@ -75,10 +75,12 @@ impl BedrockProvider {
                     .credential
                     .as_ref()
                     .and_then(|c| match &c.auth_details {
-                        AuthDetails::ApiKey(key) => Some(key.as_ref().to_string()),
+                        AuthDetails::ApiKey(key) if !key.is_empty() => {
+                            Some(key.as_ref().to_string())
+                        }
                         _ => None,
                     })
-                    .context("Bearer token not found in credentials")?;
+                    .context("Bearer token is required in API key field")?;
 
                 // Configure AWS SDK client with Bearer token authentication
                 let config = aws_sdk_bedrockruntime::Config::builder()
