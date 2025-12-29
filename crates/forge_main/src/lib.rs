@@ -1,4 +1,5 @@
 pub mod banner;
+mod built_in_commands;
 mod cli;
 mod completer;
 mod conversation_selector;

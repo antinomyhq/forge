@@ -1082,25 +1082,16 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     async fn on_show_commands(&mut self, porcelain: bool) -> anyhow::Result<()> {
         let mut info = Info::new();
 
-        // Load built-in commands from JSON
-        // NOTE: When adding a new command, update built_in_commands.json AND
-        //       shell-plugin/forge.plugin.zsh (case statement around line 745)
-        const COMMANDS_JSON: &str = include_str!("built_in_commands.json");
+        // Load built-in commands
+        // NOTE: When adding a new command, create a new .md file in built_in_commands/
+        // AND update shell-plugin/forge.plugin.zsh (case statement around line 745)
+        let built_in_commands = crate::built_in_commands::get_built_in_commands()?;
 
-        #[derive(serde::Deserialize)]
-        struct Command<'a> {
-            command: &'a str,
-            description: &'a str,
-        }
-
-        let built_in_commands: Vec<Command> =
-            serde_json::from_str(COMMANDS_JSON).expect("Failed to parse built_in_commands.json");
-
-        for cmd in &built_in_commands {
+        for command in built_in_commands {
             info = info
-                .add_title(cmd.command)
+                .add_title(&command.name)
                 .add_key_value("type", CommandType::Command)
-                .add_key_value("description", cmd.description);
+                .add_key_value("description", &command.description);
         }
 
         // Add agent aliases
