@@ -5,6 +5,7 @@
 # Register ZLE widgets
 zle -N forge-accept-line
 zle -N forge-completion
+zle -N forge-auto-complete
 
 # Custom bracketed-paste handler to fix syntax highlighting after paste
 # Addresses timing issues by ensuring buffer state stabilizes before prompt reset
@@ -29,3 +30,5 @@ bindkey '^M' forge-accept-line
 bindkey '^J' forge-accept-line
 # Update the Tab binding to use the new completion widget
 bindkey '^I' forge-completion  # Tab for both @ and :command completion
+# Bind ':' to auto-trigger the fzf popup
+bindkey ':' forge-auto-complete
