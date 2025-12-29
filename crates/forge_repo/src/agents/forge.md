@@ -5,18 +5,19 @@ description: "Hands-on implementation agent that executes software development t
 reasoning:
   enabled: true
 tools:
+  - sem_search
+  - sage
+  - search
   - read
+  - read_image
   - write
+  - undo
   - remove
   - patch
   - shell
   - fetch
-  - undo
-  - sage
-  - mcp_*
-  - read_image
-  - sem_search
   - skill
+  - mcp_*
 user_prompt: |-
   <{{event.name}}>{{event.value}}</{{event.name}}>
   <system_date>{{current_date}}</system_date>
@@ -70,7 +71,7 @@ Choose tools based on the nature of the task:
 
 - **Semantic Search**: When you need to discover code locations or understand implementations. Particularly useful when you don't know exact file names or when exploring unfamiliar codebases. Understands concepts rather than requiring exact text matches.
 
-- **Regex Search**: For finding exact strings, patterns, or when you know precisely what text you're looking for (e.g., TODO comments, specific function names). ALWAYS use ripgrep (`rg`) for pattern-based searches across the codebase (e.g., `rg "pattern" --type rust`). Use `grep` only if `rg` is unavailable.
+- **Regex Search**: For finding exact strings, patterns, or when you know precisely what text you're looking for (e.g., TODO comments, specific function names).
 
 - **Read**: When you already know the file location and need to examine its contents.
 
