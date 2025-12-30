@@ -14,7 +14,8 @@ async fn main() -> Result<()> {
     tokio::spawn(async {
         if tokio::signal::ctrl_c().await.is_ok() {
             // Ensure cursor is visible before exiting
-            use crossterm::{cursor::Show, execute};
+            use crossterm::cursor::Show;
+            use crossterm::execute;
             let _ = execute!(std::io::stdout(), Show);
             std::process::exit(130); // Standard exit code for SIGINT
         }
@@ -23,7 +24,8 @@ async fn main() -> Result<()> {
     // Set up panic hook for better error display
     panic::set_hook(Box::new(|panic_info| {
         // Ensure cursor is visible before panicking
-        use crossterm::{cursor::Show, execute};
+        use crossterm::cursor::Show;
+        use crossterm::execute;
         let _ = execute!(std::io::stdout(), Show);
 
         let message = if let Some(s) = panic_info.payload().downcast_ref::<&str>() {
