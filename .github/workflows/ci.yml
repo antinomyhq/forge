@@ -59,7 +59,7 @@ jobs:
       with:
         path-to-lcov: lcov.info
   perf_test:
-    name: Performance Test
+    name: 'Performance: zsh rprompt'
     runs-on: ubuntu-latest
     permissions:
       contents: read

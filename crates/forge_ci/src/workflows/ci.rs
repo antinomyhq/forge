@@ -24,7 +24,8 @@ pub fn generate_ci_workflow() {
         );
 
     // Create a performance test job to ensure zsh rprompt stays fast
-    let perf_test_job = Job::new("Performance Test")
+    let perf_test_job = Job::new("zsh-rprompt-performance")
+        .name("Performance: zsh rprompt")
         .permissions(Permissions::default().contents(Level::Read))
         .add_step(Step::checkout())
         .add_step(setup_protoc())
