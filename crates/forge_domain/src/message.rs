@@ -1,4 +1,3 @@
-use std::fmt;
 
 use derive_more::derive::From;
 use derive_setters::Setters;
@@ -35,7 +34,8 @@ impl Usage {
         self
     }
 
-    /// Returns the cache hit rate as a percentage if both input and cached tokens exist.
+    /// Returns the cache hit rate as a percentage if both input and cached
+    /// tokens exist.
     pub fn cache_hit_rate(&self) -> Option<f64> {
         let input = *self.prompt_tokens;
         let cached = *self.cached_tokens;
