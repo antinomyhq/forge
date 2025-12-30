@@ -1787,6 +1787,7 @@ dependencies = [
  "bytes",
  "cacache",
  "chrono",
+ "crossterm 0.28.1",
  "diesel",
  "diesel_migrations",
  "dirs",
@@ -1954,6 +1955,7 @@ dependencies = [
  "derive_more",
  "dialoguer",
  "pretty_assertions",
+ "tokio",
 ]
 
 [[package]]

@@ -7,10 +7,11 @@ rust-version.workspace = true
 [dependencies]
 anyhow.workspace = true
 console.workspace = true
+crossterm.workspace = true
+tokio.workspace = true
+
 derive_more.workspace = true
 dialoguer.workspace = true
-
-crossterm.workspace = true
 
 [dev-dependencies]
 pretty_assertions.workspace = true

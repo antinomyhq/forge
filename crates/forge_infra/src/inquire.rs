@@ -10,6 +10,21 @@ impl Default for ForgeInquire {
     }
 }
 
+/// Wrapper that ensures cursor is shown on Ctrl+C
+pub fn with_cursor_restore<F, T>(f: F) -> anyhow::Result<T>
+where
+    F: FnOnce() -> anyhow::Result<T>,
+{
+    let _handle = tokio::spawn(async {
+        if tokio::signal::ctrl_c().await.is_ok() {
+            use crossterm::{cursor::Show, execute};
+            let _ = execute!(std::io::stdout(), Show);
+            std::process::exit(130);
+        }
+    });
+    f()
+}
+
 impl ForgeInquire {
     pub fn new() -> Self {
         Self
@@ -20,7 +35,7 @@ impl ForgeInquire {
         F: FnOnce() -> Result<Option<T>> + Send + 'static,
         T: Send + 'static,
     {
-        tokio::task::spawn_blocking(f).await?
+        tokio::task::spawn_blocking(|| with_cursor_restore(f)).await?
     }
 }
 
