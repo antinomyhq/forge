@@ -33,7 +33,6 @@ colored = "3.0.0"
 console = "0.16.0"
 dialoguer = { version = "0.12.0", features = ["fuzzy-select"] }
 convert_case = "0.8.0"
-ctrlc = "3.4.5"
 
 crossterm = "0.28.1"
 derive_more = { version = "2.0.1", features = ["from", "display", "debug", "deref", "as_ref"] }

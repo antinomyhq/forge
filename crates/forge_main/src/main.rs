@@ -4,27 +4,14 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use clap::Parser;
-use crossterm::cursor::Show;
-use crossterm::execute;
 use forge_api::ForgeAPI;
 use forge_domain::TitleFormat;
 use forge_main::{Cli, Sandbox, TitleDisplayExt, UI, tracker};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // attach global control + c handler
-    ctrlc::set_handler(move || {
-        // Restore cursor visibility on Ctrl+C
-        let _ = execute!(std::io::stdout(), Show);
-        std::process::exit(130); // 128 + SIGINT (2)
-    })
-    .expect("Error setting Ctrl+C handler");
-
     // Set up panic hook for better error display
     panic::set_hook(Box::new(|panic_info| {
-        // Ensure cursor is shown on panic
-        let _ = execute!(std::io::stdout(), Show);
-
         let message = if let Some(s) = panic_info.payload().downcast_ref::<&str>() {
             s.to_string()
         } else if let Some(s) = panic_info.payload().downcast_ref::<String>() {
