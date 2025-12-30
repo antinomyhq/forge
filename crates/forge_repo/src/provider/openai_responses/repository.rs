@@ -13,9 +13,9 @@ use reqwest::header::AUTHORIZATION;
 use tracing::info;
 use url::Url;
 
+use crate::provider::FromDomain;
 use crate::provider::retry::into_retry;
 use crate::provider::utils::{create_headers, format_http_context, sanitize_headers};
-use crate::provider::FromDomain;
 
 #[derive(Clone)]
 pub(super) struct OpenAIResponsesProvider<H> {
@@ -36,12 +36,7 @@ impl<H: HttpInfra> OpenAIResponsesProvider<H> {
             .expect("Failed to derive API base URL from provider endpoint");
         let responses_url = responses_endpoint_from_api_base(&api_base);
 
-        Self {
-            provider,
-            http,
-            api_base,
-            responses_url,
-        }
+        Self { provider, http, api_base, responses_url }
     }
 
     fn get_headers(&self) -> Vec<(String, String)> {
@@ -114,7 +109,8 @@ impl<T: HttpInfra> OpenAIResponsesProvider<T> {
         use reqwest_eventsource::Event;
         let event_stream = source
             .take_while(|message| {
-                let should_continue = !matches!(message, Err(reqwest_eventsource::Error::StreamEnded));
+                let should_continue =
+                    !matches!(message, Err(reqwest_eventsource::Error::StreamEnded));
                 async move { should_continue }
             })
             .filter_map(|event_result| async move {

@@ -237,7 +237,7 @@ impl IntoDomain
                             }
                             _ => None,
                         },
-                        Err(err) => Some(Err(anyhow::Error::from(err))),
+                        Err(err) => Some(Err(err)),
                     };
 
                     Some(item)
@@ -251,10 +251,12 @@ impl IntoDomain
 #[cfg(test)]
 mod tests {
     use async_openai::types::responses as oai;
-    
-    // Type alias for ResponseStream in tests since it's not provided by response-types
-    type ResponseStream =
-        std::pin::Pin<Box<dyn futures::Stream<Item = anyhow::Result<oai::ResponseStreamEvent>> + Send>>;
+
+    // Type alias for ResponseStream in tests since it's not provided by
+    // response-types
+    type ResponseStream = std::pin::Pin<
+        Box<dyn futures::Stream<Item = anyhow::Result<oai::ResponseStreamEvent>> + Send>,
+    >;
     use forge_app::domain::{Content, FinishReason, Reasoning, ReasoningFull, TokenCount, Usage};
     use forge_domain::{ChatCompletionMessage as Message, ToolCallId, ToolName};
     use tokio_stream::StreamExt;
@@ -785,7 +787,10 @@ mod tests {
             part.call_id.as_ref().map(|id: &ToolCallId| id.as_str()),
             Some("call_123")
         );
-        assert_eq!(part.name.as_ref().map(|n: &ToolName| n.as_str()), Some("shell"));
+        assert_eq!(
+            part.name.as_ref().map(|n: &ToolName| n.as_str()),
+            Some("shell")
+        );
         assert_eq!(part.arguments_part, r#"{"cmd":"echo"}"#);
 
         Ok(())
@@ -845,7 +850,10 @@ mod tests {
             part.call_id.as_ref().map(|id: &ToolCallId| id.as_str()),
             Some("call_123")
         );
-        assert_eq!(part.name.as_ref().map(|n: &ToolName| n.as_str()), Some("shell"));
+        assert_eq!(
+            part.name.as_ref().map(|n: &ToolName| n.as_str()),
+            Some("shell")
+        );
         assert_eq!(part.arguments_part, r#"{"cmd":"echo"}"#);
 
         Ok(())
@@ -1023,7 +1031,10 @@ mod tests {
             part1.call_id.as_ref().map(|id: &ToolCallId| id.as_str()),
             Some("call_123")
         );
-        assert_eq!(part1.name.as_ref().map(|n: &ToolName| n.as_str()), Some("shell"));
+        assert_eq!(
+            part1.name.as_ref().map(|n: &ToolName| n.as_str()),
+            Some("shell")
+        );
         assert_eq!(part1.arguments_part, r#"{"cmd":"echo"#);
 
         // Second delta
@@ -1034,7 +1045,10 @@ mod tests {
             part2.call_id.as_ref().map(|id: &ToolCallId| id.as_str()),
             Some("call_123")
         );
-        assert_eq!(part2.name.as_ref().map(|n: &ToolName| n.as_str()), Some("shell"));
+        assert_eq!(
+            part2.name.as_ref().map(|n: &ToolName| n.as_str()),
+            Some("shell")
+        );
         assert_eq!(part2.arguments_part, r#" hi"}"#);
 
         Ok(())
