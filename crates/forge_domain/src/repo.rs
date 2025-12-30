@@ -4,8 +4,9 @@ use anyhow::Result;
 use url::Url;
 
 use crate::{
-    AnyProvider, AppConfig, AuthCredential, Conversation, ConversationId, MigrationResult,
-    Provider, ProviderId, Skill, Snapshot, UserId, Workspace, WorkspaceAuth, WorkspaceId,
+    AnyProvider, AppConfig, AuthCredential, ChatCompletionMessage, Context, Conversation,
+    ConversationId, MigrationResult, Model, ModelId, Provider, ProviderId, ProviderTemplate,
+    ResultStream, Skill, Snapshot, UserId, Workspace, WorkspaceAuth, WorkspaceId,
 };
 
 /// Repository for managing file snapshots
@@ -95,9 +96,20 @@ pub trait AppConfigRepository: Send + Sync {
 }
 
 #[async_trait::async_trait]
+pub trait ChatRepository: Send + Sync {
+    async fn chat(
+        &self,
+        model_id: &ModelId,
+        context: Context,
+        provider: Provider<Url>,
+    ) -> ResultStream<ChatCompletionMessage, anyhow::Error>;
+    async fn models(&self, provider: Provider<Url>) -> anyhow::Result<Vec<Model>>;
+}
+
+#[async_trait::async_trait]
 pub trait ProviderRepository: Send + Sync {
     async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>>;
-    async fn get_provider(&self, id: ProviderId) -> anyhow::Result<Provider<Url>>;
+    async fn get_provider(&self, id: ProviderId) -> anyhow::Result<ProviderTemplate>;
     async fn upsert_credential(&self, credential: AuthCredential) -> anyhow::Result<()>;
     async fn get_credential(&self, id: &ProviderId) -> anyhow::Result<Option<AuthCredential>>;
     async fn remove_credential(&self, id: &ProviderId) -> anyhow::Result<()>;

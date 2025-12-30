@@ -153,9 +153,8 @@ pub trait ProviderService: Send + Sync {
 /// Manages user preferences for default providers and models.
 #[async_trait::async_trait]
 pub trait AppConfigService: Send + Sync {
-    /// Gets the user's default provider, or falls back to the first available
-    /// provider.
-    async fn get_default_provider(&self) -> anyhow::Result<Provider<Url>>;
+    /// Gets the user's default provider ID.
+    async fn get_default_provider(&self) -> anyhow::Result<ProviderId>;
 
     /// Sets the user's default provider preference.
     async fn set_default_provider(
@@ -966,7 +965,7 @@ impl<I: Services> PolicyService for I {
 
 #[async_trait::async_trait]
 impl<I: Services> AppConfigService for I {
-    async fn get_default_provider(&self) -> anyhow::Result<Provider<Url>> {
+    async fn get_default_provider(&self) -> anyhow::Result<ProviderId> {
         self.config_service().get_default_provider().await
     }
 

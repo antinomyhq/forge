@@ -568,8 +568,9 @@ mod tests {
 
     use forge_app::{WalkedFile, WorkspaceService};
     use forge_domain::{
-        ApiKey, CodeSearchQuery, FileDeletion, FileHash, FileInfo, FileUpload, FileUploadInfo,
-        Node, UserId, Workspace, WorkspaceAuth, WorkspaceFiles, WorkspaceId, WorkspaceInfo,
+        ApiKey, ChatRepository, CodeSearchQuery, FileDeletion, FileHash, FileInfo, FileUpload,
+        FileUploadInfo, Node, ProviderTemplate, UserId, Workspace, WorkspaceAuth, WorkspaceFiles,
+        WorkspaceId, WorkspaceInfo,
     };
     use futures::StreamExt;
     use pretty_assertions::assert_eq;
@@ -673,12 +674,32 @@ mod tests {
     }
 
     #[async_trait::async_trait]
+    impl ChatRepository for MockInfra {
+        async fn chat(
+            &self,
+            _model_id: &forge_app::domain::ModelId,
+            _context: forge_app::domain::Context,
+            _provider: forge_domain::Provider<url::Url>,
+        ) -> forge_app::domain::ResultStream<forge_app::domain::ChatCompletionMessage, anyhow::Error>
+        {
+            Ok(Box::pin(tokio_stream::iter(vec![])))
+        }
+
+        async fn models(
+            &self,
+            _provider: forge_domain::Provider<url::Url>,
+        ) -> Result<Vec<forge_app::domain::Model>> {
+            Ok(vec![])
+        }
+    }
+
+    #[async_trait::async_trait]
     impl ProviderRepository for MockInfra {
         async fn get_all_providers(&self) -> Result<Vec<forge_domain::AnyProvider>> {
             Ok(vec![])
         }
 
-        async fn get_provider(&self, _id: ProviderId) -> Result<forge_domain::Provider<url::Url>> {
+        async fn get_provider(&self, _id: ProviderId) -> Result<ProviderTemplate> {
             unimplemented!("Not needed for indexing tests")
         }
 
@@ -878,7 +899,7 @@ mod tests {
             .unwrap();
 
         // Consume the stream
-        while let Some(_) = stream.next().await {}
+        while stream.next().await.is_some() {}
 
         // source.rs and readme.md should be uploaded (both have allowed extensions)
         // image.png and document.pdf should be filtered (not in allowed extensions)

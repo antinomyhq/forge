@@ -216,7 +216,7 @@ impl SearchQuery {
 /// Understands queries like "authentication flow" (finds login), "retry logic"
 /// (finds backoff), "validation" (finds checking/sanitization).
 ///
-/// Returns file:line locations with code context, ranked by relevance. Use
+/// Returns the topK most relevant file:line locations with code context. Use
 /// multiple varied queries (2-3) for best coverage. For exact string matching
 /// (TODO comments, specific function names), use regex search instead.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
@@ -303,11 +303,10 @@ impl JsonSchema for PatchOperation {
 /// complex refactoring or modifying all pattern occurrences - use `write`
 /// instead for complete rewrites and `undo` for undoing the last operation.
 /// Fails if search pattern isn't found.\n\nUsage Guidelines:\n-When editing
-/// text from Read tool output, ensure you preserve new lines and the exact
-/// indentation (tabs/spaces) as it appears AFTER the line number prefix. The
-/// line number prefix format is: line number + ':'. Everything
-/// after that is the actual file content to match. Never include any part
-/// of the line number prefix in the search or content
+/// text from Read tool output, preserve the EXACT text character-by-character
+/// (indentation, spaces, punctuation, special characters) as it appears AFTER
+/// the line number prefix. Format: 'line_number:'. Never include the prefix.
+/// CRITICAL: Even tiny differences like 'allows to' vs 'allows the' will fail
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct FSPatch {
     /// The path to the file to modify

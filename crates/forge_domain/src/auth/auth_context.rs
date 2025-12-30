@@ -8,7 +8,7 @@ use super::{
     URLParamValue, UserCode,
 };
 
-#[derive(Debug, Clone, Deref, From)]
+#[derive(Debug, Clone, PartialEq, Deref, From)]
 pub struct URLParameters(HashMap<URLParam, URLParamValue>);
 
 // API Key Flow

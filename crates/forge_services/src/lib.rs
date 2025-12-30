@@ -10,12 +10,12 @@ mod discovery;
 mod env;
 mod error;
 mod forge_services;
-mod http;
 mod instructions;
 mod mcp;
 mod policy;
-mod provider;
+
 mod provider_auth;
+mod provider_service;
 mod range;
 mod template;
 mod tool_services;

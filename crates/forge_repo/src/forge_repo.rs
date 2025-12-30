@@ -9,10 +9,10 @@ use forge_app::{
     KVStore, McpServerInfra, StrategyFactory, UserInfra, WalkedFile, Walker, WalkerInfra,
 };
 use forge_domain::{
-    AnyProvider, AppConfig, AppConfigRepository, AuthCredential, CommandOutput, Conversation,
-    ConversationId, ConversationRepository, Environment, FileInfo, McpServerConfig,
-    MigrationResult, Provider, ProviderId, ProviderRepository, Skill, SkillRepository, Snapshot,
-    SnapshotRepository,
+    AnyProvider, AppConfig, AppConfigRepository, AuthCredential, ChatCompletionMessage,
+    ChatRepository, CommandOutput, Context, Conversation, ConversationId, ConversationRepository,
+    Environment, FileInfo, McpServerConfig, MigrationResult, Model, ModelId, Provider, ProviderId,
+    ProviderRepository, ResultStream, Skill, SkillRepository, Snapshot, SnapshotRepository,
 };
 // Re-export CacacheStorage from forge_infra
 pub use forge_infra::CacacheStorage;
@@ -21,12 +21,16 @@ use reqwest::header::HeaderMap;
 use reqwest_eventsource::EventSource;
 use url::Url;
 
+use crate::agent::ForgeAgentRepository;
+use crate::app_config::AppConfigRepositoryImpl;
+use crate::context_engine::ForgeContextEngineRepository;
+use crate::conversation::ConversationRepositoryImpl;
+use crate::database::{DatabasePool, PoolConfig};
 use crate::fs_snap::ForgeFileSnapshotService;
-use crate::provider::ForgeProviderRepository;
-use crate::{
-    AppConfigRepositoryImpl, ConversationRepositoryImpl, DatabasePool, ForgeAgentRepository,
-    ForgeSkillRepository, PoolConfig,
-};
+use crate::provider::{ForgeChatRepository, ForgeProviderRepository};
+use crate::skill::ForgeSkillRepository;
+use crate::validation::ForgeValidationRepository;
+use crate::workspace::ForgeWorkspaceRepository;
 
 /// Repository layer that implements all domain repository traits
 ///
@@ -40,14 +44,15 @@ pub struct ForgeRepo<F> {
     app_config_repository: Arc<AppConfigRepositoryImpl<F>>,
     mcp_cache_repository: Arc<CacacheStorage>,
     provider_repository: Arc<ForgeProviderRepository<F>>,
-    indexing_repository: Arc<crate::ForgeWorkspaceRepository>,
-    codebase_repo: Arc<crate::ForgeContextEngineRepository<F>>,
+    chat_repository: Arc<ForgeChatRepository<F>>,
+    indexing_repository: Arc<ForgeWorkspaceRepository>,
+    codebase_repo: Arc<ForgeContextEngineRepository<F>>,
     agent_repository: Arc<ForgeAgentRepository<F>>,
     skill_repository: Arc<ForgeSkillRepository<F>>,
-    validation_repository: Arc<crate::ForgeValidationRepository<F>>,
+    validation_repository: Arc<ForgeValidationRepository<F>>,
 }
 
-impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra> ForgeRepo<F> {
+impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpInfra> ForgeRepo<F> {
     pub fn new(infra: Arc<F>) -> Self {
         let env = infra.get_environment();
         let file_snapshot_service = Arc::new(ForgeFileSnapshotService::new(env.clone()));
@@ -66,13 +71,14 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra> ForgeR
         )); // 1 hour TTL
 
         let provider_repository = Arc::new(ForgeProviderRepository::new(infra.clone()));
+        let chat_repository = Arc::new(ForgeChatRepository::new(infra.clone()));
 
-        let indexing_repository = Arc::new(crate::ForgeWorkspaceRepository::new(db_pool.clone()));
+        let indexing_repository = Arc::new(ForgeWorkspaceRepository::new(db_pool.clone()));
 
-        let codebase_repo = Arc::new(crate::ForgeContextEngineRepository::new(infra.clone()));
+        let codebase_repo = Arc::new(ForgeContextEngineRepository::new(infra.clone()));
         let agent_repository = Arc::new(ForgeAgentRepository::new(infra.clone()));
         let skill_repository = Arc::new(ForgeSkillRepository::new(infra.clone()));
-        let validation_repository = Arc::new(crate::ForgeValidationRepository::new(infra.clone()));
+        let validation_repository = Arc::new(ForgeValidationRepository::new(infra.clone()));
         Self {
             infra,
             file_snapshot_service,
@@ -80,6 +86,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra> ForgeR
             app_config_repository,
             mcp_cache_repository,
             provider_repository,
+            chat_repository,
             indexing_repository,
             codebase_repo,
             agent_repository,
@@ -138,14 +145,32 @@ impl<F: Send + Sync> ConversationRepository for ForgeRepo<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + Send + Sync> ProviderRepository
-    for ForgeRepo<F>
+impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Send + Sync>
+    ChatRepository for ForgeRepo<F>
+{
+    async fn chat(
+        &self,
+        model_id: &ModelId,
+        context: Context,
+        provider: Provider<Url>,
+    ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
+        self.chat_repository.chat(model_id, context, provider).await
+    }
+
+    async fn models(&self, provider: Provider<Url>) -> anyhow::Result<Vec<Model>> {
+        self.chat_repository.models(provider).await
+    }
+}
+
+#[async_trait::async_trait]
+impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Send + Sync>
+    ProviderRepository for ForgeRepo<F>
 {
     async fn get_all_providers(&self) -> anyhow::Result<Vec<AnyProvider>> {
         self.provider_repository.get_all_providers().await
     }
 
-    async fn get_provider(&self, id: ProviderId) -> anyhow::Result<Provider<Url>> {
+    async fn get_provider(&self, id: ProviderId) -> anyhow::Result<forge_domain::ProviderTemplate> {
         self.provider_repository.get_provider(id).await
     }
 

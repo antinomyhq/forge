@@ -6,8 +6,9 @@ use forge_app::{
     McpServerInfra, Services, StrategyFactory, UserInfra, WalkerInfra,
 };
 use forge_domain::{
-    AppConfigRepository, ConversationRepository, ProviderRepository, SkillRepository,
-    SnapshotRepository, ValidationRepository, WorkspaceIndexRepository, WorkspaceRepository,
+    AppConfigRepository, ChatRepository, ConversationRepository, ProviderRepository,
+    SkillRepository, SnapshotRepository, ValidationRepository, WorkspaceIndexRepository,
+    WorkspaceRepository,
 };
 
 use crate::ForgeProviderAuthService;
@@ -22,7 +23,7 @@ use crate::env::ForgeEnvironmentService;
 use crate::instructions::ForgeCustomInstructionsService;
 use crate::mcp::{ForgeMcpManager, ForgeMcpService};
 use crate::policy::ForgePolicyService;
-use crate::provider::ForgeProviderService;
+use crate::provider_service::ForgeProviderService;
 use crate::template::ForgeTemplateService;
 use crate::tool_services::{
     ForgeFetch, ForgeFollowup, ForgeFsCreate, ForgeFsPatch, ForgeFsRead, ForgeFsRemove,
@@ -50,6 +51,7 @@ pub struct ForgeServices<
         + ConversationRepository
         + AppConfigRepository
         + KVStore
+        + ChatRepository
         + ProviderRepository
         + forge_domain::WorkspaceRepository
         + WorkspaceIndexRepository
@@ -102,6 +104,7 @@ impl<
         + SnapshotRepository
         + ConversationRepository
         + AppConfigRepository
+        + ChatRepository
         + ProviderRepository
         + KVStore
         + forge_domain::WorkspaceRepository
@@ -167,7 +170,6 @@ impl<
             env_service,
             custom_instructions_service,
             auth_service,
-            chat_service,
             config_service,
             agent_registry_service,
             command_loader_service,
@@ -175,6 +177,7 @@ impl<
             provider_auth_service,
             workspace_service,
             skill_service,
+            chat_service,
         }
     }
 }
@@ -197,6 +200,7 @@ impl<
         + ConversationRepository
         + AppConfigRepository
         + KVStore
+        + ChatRepository
         + ProviderRepository
         + AgentRepository
         + SkillRepository
@@ -208,7 +212,6 @@ impl<
         + 'static,
 > Services for ForgeServices<F>
 {
-    type ProviderService = ForgeProviderService<F>;
     type AppConfigService = ForgeAppConfigService<F>;
     type ConversationService = ForgeConversationService<F>;
     type TemplateService = ForgeTemplateService<F>;
@@ -239,12 +242,9 @@ impl<
     type AgentRegistry = ForgeAgentRegistryService<F>;
     type CommandLoaderService = ForgeCommandLoaderService<F>;
     type PolicyService = ForgePolicyService<F>;
+    type ProviderService = ForgeProviderService<F>;
     type WorkspaceService = crate::context_engine::ForgeWorkspaceService<F>;
     type SkillFetchService = ForgeSkillFetch<F>;
-
-    fn provider_service(&self) -> &Self::ProviderService {
-        &self.chat_service
-    }
 
     fn config_service(&self) -> &Self::AppConfigService {
         &self.config_service
@@ -350,5 +350,9 @@ impl<
     }
     fn skill_fetch_service(&self) -> &Self::SkillFetchService {
         &self.skill_service
+    }
+
+    fn provider_service(&self) -> &Self::ProviderService {
+        &self.chat_service
     }
 }
