@@ -1,7 +1,8 @@
+use std::fmt;
+
 use derive_more::derive::From;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
-use std::fmt;
 use strum_macros::{EnumString, IntoStaticStr};
 
 use super::{ToolCall, ToolCallFull};
@@ -49,7 +50,10 @@ impl fmt::Display for Usage {
         }
 
         // Add token counts
-        parts.push(format!("{}/{}", *self.prompt_tokens, *self.completion_tokens));
+        parts.push(format!(
+            "{}/{}",
+            *self.prompt_tokens, *self.completion_tokens
+        ));
 
         // Add cache percentage if applicable
         let input_tokens = *self.prompt_tokens;

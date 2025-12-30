@@ -28,7 +28,8 @@ const THINKING_WORDS: &[&str] = &[
 const TICK_INTERVAL: Duration = Duration::from_millis(60);
 const DEFAULT_HINT: &str = "· Ctrl+C to interrupt";
 
-/// A spinner that displays progress with elapsed time using indicatif's built-in features.
+/// A spinner that displays progress with elapsed time using indicatif's
+/// built-in features.
 ///
 /// Uses indicatif's native capabilities:
 /// - `{elapsed}` template placeholder for automatic time display
@@ -98,8 +99,8 @@ impl Spinner {
     /// The elapsed time continues to accumulate while paused.
     /// Use `resume()` to show the spinner again.
     pub fn pause(&mut self) -> Result<()> {
-        if let Some(pb) = &self.progress_bar {
-            if !self.paused {
+        if let Some(pb) = &self.progress_bar
+            && !self.paused {
                 let elapsed = pb.elapsed();
                 let message = self.current_message.clone().unwrap_or_default();
                 pb.finish_and_clear();
@@ -114,7 +115,6 @@ impl Spinner {
                 self.progress_bar = Some(new_pb);
                 self.paused = true;
             }
-        }
         Ok(())
     }
 
@@ -122,13 +122,12 @@ impl Spinner {
     ///
     /// Has no effect if the spinner is not paused or not active.
     pub fn resume(&mut self) -> Result<()> {
-        if let Some(pb) = &self.progress_bar {
-            if self.paused {
+        if let Some(pb) = &self.progress_bar
+            && self.paused {
                 pb.set_draw_target(ProgressDrawTarget::stderr());
                 pb.enable_steady_tick(TICK_INTERVAL);
                 self.paused = false;
             }
-        }
         Ok(())
     }
 
@@ -180,7 +179,8 @@ impl Spinner {
         Ok(())
     }
 
-    /// Returns whether the spinner is currently active (started and not stopped).
+    /// Returns whether the spinner is currently active (started and not
+    /// stopped).
     pub fn is_active(&self) -> bool {
         self.progress_bar.is_some()
     }
