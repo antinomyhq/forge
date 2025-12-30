@@ -2,6 +2,7 @@ use derive_setters::Setters;
 use gh_workflow::*;
 
 use crate::release_matrix::ReleaseMatrix;
+use crate::steps::setup_protoc;
 
 #[derive(Clone, Default, Setters)]
 #[setters(strip_option, into)]
@@ -41,10 +42,7 @@ impl From<ReleaseBuilderJob> for Job {
             // Install protobuf compiler for non-cross builds
             // Cross builds install protoc via Cross.toml pre-build commands
             .add_step(
-                Step::new("Setup Protobuf Compiler")
-                    .uses("arduino", "setup-protoc", "v3")
-                    .with(("repo-token", "${{ secrets.GITHUB_TOKEN }}"))
-                    .if_condition(Expression::new("${{ matrix.cross == 'false' }}")),
+                setup_protoc().if_condition(Expression::new("${{ matrix.cross == 'false' }}")),
             )
             // Install Rust with cross-compilation target
             .add_step(

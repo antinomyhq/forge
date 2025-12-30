@@ -58,6 +58,24 @@ jobs:
       uses: coverallsapp/github-action@v2
       with:
         path-to-lcov: lcov.info
+  zsh_rprompt_perf:
+    name: 'Performance: zsh rprompt'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v5
+    - name: Setup Protobuf Compiler
+      uses: arduino/setup-protoc@v3
+      with:
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+    - name: Setup Rust Toolchain
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: stable
+    - name: Run performance benchmark
+      run: './scripts/benchmark.sh --threshold 150 zsh rprompt'
   draft_release:
     needs:
     - build
