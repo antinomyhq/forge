@@ -100,21 +100,22 @@ impl Spinner {
     /// Use `resume()` to show the spinner again.
     pub fn pause(&mut self) -> Result<()> {
         if let Some(pb) = &self.progress_bar
-            && !self.paused {
-                let elapsed = pb.elapsed();
-                let message = self.current_message.clone().unwrap_or_default();
-                pb.finish_and_clear();
+            && !self.paused
+        {
+            let elapsed = pb.elapsed();
+            let message = self.current_message.clone().unwrap_or_default();
+            pb.finish_and_clear();
 
-                let mut new_pb = ProgressBar::new_spinner();
-                new_pb.set_draw_target(ProgressDrawTarget::hidden());
-                new_pb = new_pb.with_elapsed(elapsed);
-                new_pb.set_style(Self::create_style());
-                new_pb.set_message(message.green().bold().to_string());
-                new_pb.set_prefix(DEFAULT_HINT);
+            let mut new_pb = ProgressBar::new_spinner();
+            new_pb.set_draw_target(ProgressDrawTarget::hidden());
+            new_pb = new_pb.with_elapsed(elapsed);
+            new_pb.set_style(Self::create_style());
+            new_pb.set_message(message.green().bold().to_string());
+            new_pb.set_prefix(DEFAULT_HINT);
 
-                self.progress_bar = Some(new_pb);
-                self.paused = true;
-            }
+            self.progress_bar = Some(new_pb);
+            self.paused = true;
+        }
         Ok(())
     }
 
@@ -123,11 +124,12 @@ impl Spinner {
     /// Has no effect if the spinner is not paused or not active.
     pub fn resume(&mut self) -> Result<()> {
         if let Some(pb) = &self.progress_bar
-            && self.paused {
-                pb.set_draw_target(ProgressDrawTarget::stderr());
-                pb.enable_steady_tick(TICK_INTERVAL);
-                self.paused = false;
-            }
+            && self.paused
+        {
+            pb.set_draw_target(ProgressDrawTarget::stderr());
+            pb.enable_steady_tick(TICK_INTERVAL);
+            self.paused = false;
+        }
         Ok(())
     }
 
