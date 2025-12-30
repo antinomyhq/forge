@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use anyhow::Result;
 use colored::Colorize;
-use indicatif::{ProgressBar, ProgressDrawTarget, ProgressStyle};
+use indicatif::{ProgressBar, ProgressDrawTarget, ProgressState, ProgressStyle};
 use rand::Rng;
 
 const SPINNER_CHARS: &[&str] = &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
@@ -28,13 +28,30 @@ const THINKING_WORDS: &[&str] = &[
 const TICK_INTERVAL: Duration = Duration::from_millis(60);
 const DEFAULT_HINT: &str = "· Ctrl+C to interrupt";
 
+/// Formats elapsed time as "01s", "1:01m", "1:01h".
+fn format_elapsed(state: &ProgressState, w: &mut dyn std::fmt::Write) {
+    let total_seconds = state.elapsed().as_secs();
+    let formatted = if total_seconds < 60 {
+        format!("{:02}s", total_seconds)
+    } else if total_seconds < 3600 {
+        let minutes = total_seconds / 60;
+        let seconds = total_seconds % 60;
+        format!("{}:{:02}m", minutes, seconds)
+    } else {
+        let hours = total_seconds / 3600;
+        let minutes = (total_seconds % 3600) / 60;
+        format!("{}:{:02}h", hours, minutes)
+    };
+    let _ = w.write_str(&formatted);
+}
+
 /// A spinner that displays progress with elapsed time using indicatif's
 /// built-in features.
 ///
 /// Uses indicatif's native capabilities:
-/// - `{elapsed}` template placeholder for automatic time display
 /// - `enable_steady_tick` for automatic redraw (no background task needed)
 /// - `suspend` for writing during spinner activity
+/// - Custom elapsed time format via `with_key`: "01s", "1:01m", "1:01h"
 #[derive(Default)]
 pub struct Spinner {
     progress_bar: Option<ProgressBar>,
@@ -191,7 +208,8 @@ impl Spinner {
     fn create_style() -> ProgressStyle {
         ProgressStyle::default_spinner()
             .tick_strings(SPINNER_CHARS)
-            .template("{spinner:.green} {msg} {elapsed:.white} {prefix:.white.dim}")
+            .with_key("my_elapsed", format_elapsed)
+            .template("{spinner:.green} {msg} {my_elapsed:.white} {prefix:.white.dim}")
             .expect("Invalid template")
     }
 }
