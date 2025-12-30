@@ -118,10 +118,14 @@ impl SummaryToolCall {
 
     /// Creates a CodebaseSearch tool call with default values (id: None,
     /// is_success: true)
-    pub fn codebase_search(queries: Vec<SearchQuery>, file_extension: Option<String>) -> Self {
+    pub fn codebase_search(
+        queries: Vec<SearchQuery>,
+        file_extension: Option<String>,
+        path: String,
+    ) -> Self {
         Self {
             id: None,
-            tool: SummaryTool::SemSearch { queries, file_extension },
+            tool: SummaryTool::SemSearch { queries, file_extension, path },
             is_success: true,
         }
     }
@@ -188,6 +192,7 @@ pub enum SummaryTool {
     SemSearch {
         queries: Vec<SearchQuery>,
         file_extension: Option<String>,
+        path: String,
     },
     Undo {
         path: String,
@@ -311,6 +316,7 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
         ToolCatalog::SemSearch(input) => Some(SummaryTool::SemSearch {
             queries: input.queries,
             file_extension: input.file_extension,
+            path: input.path,
         }),
         ToolCatalog::Undo(input) => Some(SummaryTool::Undo { path: input.path }),
         ToolCatalog::Fetch(input) => Some(SummaryTool::Fetch { url: input.url }),
@@ -962,6 +968,7 @@ mod tests {
                 ToolCatalog::tool_call_semantic_search(
                     vec![SearchQuery::new("retry mechanism", "find retry logic")],
                     None,
+                    "/test/path".to_string(),
                 )
                 .call_id("call_1"),
             ],
@@ -976,6 +983,7 @@ mod tests {
                 SummaryToolCall::codebase_search(
                     vec![SearchQuery::new("retry mechanism", "find retry logic")],
                     None,
+                    "/test/path".to_string(),
                 )
                 .id("call_1")
                 .is_success(false)

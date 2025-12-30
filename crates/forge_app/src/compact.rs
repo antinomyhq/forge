@@ -378,6 +378,7 @@ mod tests {
                             "Find authentication implementation",
                         )],
                         Some(".rs".to_string()),
+                        "/test/path".to_string(),
                     )
                     .id("call_4")
                     .is_success(false)

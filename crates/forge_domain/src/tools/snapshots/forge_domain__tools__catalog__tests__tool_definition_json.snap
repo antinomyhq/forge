@@ -108,9 +108,10 @@ expression: tools
 }
 {
   "title": "SemanticSearch",
-  "description": "AI-powered semantic code search. YOUR DEFAULT TOOL for code discovery tasks. Use this when you need to find code locations, understand implementations, or explore functionality - it works with natural language about behavior and concepts, not just keyword matching.\n\nStart with sem_search when: locating code to modify, understanding how features work, finding patterns/examples, or exploring unfamiliar areas. Understands queries like \"authentication flow\" (finds login), \"retry logic\" (finds backoff), \"validation\" (finds checking/sanitization).\n\nReturns the topK most relevant file:line locations with code context. Use multiple varied queries (2-3) for best coverage. For exact string matching (TODO comments, specific function names), use regex search instead.",
+  "description": "AI-powered semantic code search. YOUR DEFAULT TOOL for code discovery tasks. Use this when you need to find code locations, understand implementations, or explore functionality - it works with natural language about behavior and concepts, not just keyword matching.\n\nStart with sem_search when: locating code to modify, understanding how features work, finding patterns/examples, or exploring unfamiliar areas. Understands queries like \"authentication flow\" (finds login), \"retry logic\" (finds backoff), \"validation\" (finds checking/sanitization).\n\nReturns file:line locations with code context, ranked by relevance. Use multiple varied queries (2-3) for best coverage. For exact string matching (TODO comments, specific function names), use regex search instead.\n\nIMPORTANT: This tool only works on indexed workspaces. If you receive an error about the workspace not being indexed, use the 'fs_search' tool instead for regex-based file searching.",
   "type": "object",
   "required": [
+    "path",
     "queries"
   ],
   "properties": {
@@ -118,6 +119,10 @@ expression: tools
       "description": "Optional file extension filter (e.g., \".rs\", \".ts\", \".py\"). If provided, only files with this extension will be included in the search results.",
       "type": "string",
       "nullable": true
+    },
+    "path": {
+      "description": "Directory path to search in. Must be an absolute path to an indexed workspace. Use the current working directory path from the system context.",
+      "type": "string"
     },
     "queries": {
       "description": "List of search queries to execute in parallel. Using multiple queries (2-3) with varied phrasings significantly improves results - each query captures different aspects of what you're looking for. Each query pairs a search term with a use_case for reranking. Example: for authentication, try \"user login verification\", \"token generation\", \"OAuth flow\".",
