@@ -3,6 +3,7 @@ use gh_workflow::toolchain::Component;
 use gh_workflow::*;
 
 use crate::jobs;
+use crate::steps::setup_protoc;
 
 /// Generate the autofix workflow
 pub fn generate_autofix_workflow() {
@@ -10,11 +11,7 @@ pub fn generate_autofix_workflow() {
         .permissions(Permissions::default().contents(Level::Read))
         .add_step(Step::new("Checkout Code").uses("actions", "checkout", "v6"))
         .add_step(Step::new("Install SQLite").run("sudo apt-get install -y libsqlite3-dev"))
-        .add_step(
-            Step::new("Setup Protobuf Compiler")
-                .uses("arduino", "setup-protoc", "v3")
-                .with(("repo-token", "${{ secrets.GITHUB_TOKEN }}")),
-        )
+        .add_step(setup_protoc())
         .add_step(
             Step::toolchain()
                 .add_nightly()
