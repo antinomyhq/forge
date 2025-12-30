@@ -213,9 +213,11 @@ impl IntoDomain for BoxStream<oai::ResponseStreamEvent, anyhow::Error> {
                                 None
                             }
                             oai::ResponseStreamEvent::ResponseCompleted(done) => {
-                                // Text content, reasoning, and tool calls were already streamed via delta events
-                                // Only emit metadata (usage, finish_reason)
-                                let mut message: ChatCompletionMessage = done.response.into_domain();
+                                // Text content, reasoning, and tool calls were already streamed via
+                                // delta events Only emit metadata
+                                // (usage, finish_reason)
+                                let mut message: ChatCompletionMessage =
+                                    done.response.into_domain();
                                 message.content = None; // Clear content to avoid duplication
                                 message.reasoning = None; // Clear reasoning to avoid duplication
                                 message.reasoning_details = None; // Clear reasoning details to avoid duplication
@@ -223,7 +225,8 @@ impl IntoDomain for BoxStream<oai::ResponseStreamEvent, anyhow::Error> {
                                 Some(Ok(message))
                             }
                             oai::ResponseStreamEvent::ResponseIncomplete(done) => {
-                                // Text content, reasoning, and tool calls were already streamed via delta events
+                                // Text content, reasoning, and tool calls were already streamed via
+                                // delta events
                                 let mut message: ChatCompletionMessage =
                                     done.response.into_domain();
                                 message.content = None; // Clear content to avoid duplication
@@ -1069,9 +1072,10 @@ mod tests {
         let delta1 = fixture_delta_text("<commit_message>");
         let delta2 = fixture_delta_text("fix: avoid duplication");
         let delta3 = fixture_delta_text("</commit_message>");
-        
+
         // Completion event contains the full text that was already streamed
-        let response = fixture_response_with_text("<commit_message>fix: avoid duplication</commit_message>");
+        let response =
+            fixture_response_with_text("<commit_message>fix: avoid duplication</commit_message>");
         let completed = oai::ResponseCompletedEvent { sequence_number: 4, response };
 
         let stream: ResponseStream = Box::pin(tokio_stream::iter([
@@ -1096,7 +1100,10 @@ mod tests {
         assert_eq!(delta1_msg.content, Some(Content::part("<commit_message>")));
 
         let delta2_msg = messages[1].as_ref().unwrap();
-        assert_eq!(delta2_msg.content, Some(Content::part("fix: avoid duplication")));
+        assert_eq!(
+            delta2_msg.content,
+            Some(Content::part("fix: avoid duplication"))
+        );
 
         let delta3_msg = messages[2].as_ref().unwrap();
         assert_eq!(delta3_msg.content, Some(Content::part("</commit_message>")));
@@ -1115,18 +1122,24 @@ mod tests {
         let reasoning_delta1 = fixture_delta_reasoning_text("Analyzing the request...");
         let reasoning_delta2 = fixture_delta_reasoning_text(" and formulating response.");
         let summary_delta = fixture_delta_reasoning_summary("Summary of analysis");
-        
+
         // Completion event contains the full reasoning that was already streamed
         let response = fixture_response_with_reasoning_both(
             "Analyzing the request... and formulating response.",
-            "Summary of analysis"
+            "Summary of analysis",
         );
         let completed = oai::ResponseCompletedEvent { sequence_number: 4, response };
 
         let stream: ResponseStream = Box::pin(tokio_stream::iter([
-            Ok(oai::ResponseStreamEvent::ResponseReasoningTextDelta(reasoning_delta1)),
-            Ok(oai::ResponseStreamEvent::ResponseReasoningTextDelta(reasoning_delta2)),
-            Ok(oai::ResponseStreamEvent::ResponseReasoningSummaryTextDelta(summary_delta)),
+            Ok(oai::ResponseStreamEvent::ResponseReasoningTextDelta(
+                reasoning_delta1,
+            )),
+            Ok(oai::ResponseStreamEvent::ResponseReasoningTextDelta(
+                reasoning_delta2,
+            )),
+            Ok(oai::ResponseStreamEvent::ResponseReasoningSummaryTextDelta(
+                summary_delta,
+            )),
             Ok(oai::ResponseStreamEvent::ResponseCompleted(completed)),
         ]));
 
@@ -1142,18 +1155,28 @@ mod tests {
 
         // Verify reasoning deltas have reasoning content
         let delta1_msg = messages[0].as_ref().unwrap();
-        assert_eq!(delta1_msg.reasoning, Some(Content::part("Analyzing the request...")));
+        assert_eq!(
+            delta1_msg.reasoning,
+            Some(Content::part("Analyzing the request..."))
+        );
         assert!(delta1_msg.reasoning_details.is_some());
 
         let delta2_msg = messages[1].as_ref().unwrap();
-        assert_eq!(delta2_msg.reasoning, Some(Content::part(" and formulating response.")));
+        assert_eq!(
+            delta2_msg.reasoning,
+            Some(Content::part(" and formulating response."))
+        );
         assert!(delta2_msg.reasoning_details.is_some());
 
         let summary_msg = messages[2].as_ref().unwrap();
-        assert_eq!(summary_msg.reasoning, Some(Content::part("Summary of analysis")));
+        assert_eq!(
+            summary_msg.reasoning,
+            Some(Content::part("Summary of analysis"))
+        );
         assert!(summary_msg.reasoning_details.is_some());
 
-        // Completion event should have NO reasoning or reasoning_details (cleared to avoid duplication)
+        // Completion event should have NO reasoning or reasoning_details (cleared to
+        // avoid duplication)
         let completion_msg = messages[3].as_ref().unwrap();
         assert_eq!(completion_msg.reasoning, None);
         assert_eq!(completion_msg.reasoning_details, None);
@@ -1168,9 +1191,10 @@ mod tests {
         let added = fixture_function_call_added("call_123", "shell", "");
         let delta1 = fixture_function_call_arguments_delta(0, r#"{"cmd":"echo"#);
         let delta2 = fixture_function_call_arguments_delta(0, r#" hello"}"#);
-        
+
         // Completion event contains the full tool call that was already streamed
-        let response = fixture_response_with_function_call("call_123", "shell", r#"{"cmd":"echo hello"}"#);
+        let response =
+            fixture_response_with_function_call("call_123", "shell", r#"{"cmd":"echo hello"}"#);
         let completed = oai::ResponseCompletedEvent { sequence_number: 4, response };
 
         let stream: ResponseStream = Box::pin(tokio_stream::iter([
