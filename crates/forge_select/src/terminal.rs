@@ -53,7 +53,6 @@ impl TerminalControl {
         execute!(stdout(), EnableApplicationCursorKeys)
     }
 
-
     /// Show the terminal cursor
     ///
     /// Makes the cursor visible in the terminal.
