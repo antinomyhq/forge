@@ -2,15 +2,7 @@ use gh_workflow::generate::Generate;
 use gh_workflow::*;
 
 use crate::jobs::{self, ReleaseBuilderJob};
-
-/// Macro to create a protobuf setup step (reusable across jobs)
-macro_rules! setup_protobuf {
-    () => {
-        Step::new("Setup Protobuf Compiler")
-            .uses("arduino", "setup-protoc", "v3")
-            .with(("repo-token", "${{ secrets.GITHUB_TOKEN }}"))
-    };
-}
+use crate::steps::setup_protoc;
 
 /// Generate the main CI workflow
 pub fn generate_ci_workflow() {
@@ -18,7 +10,7 @@ pub fn generate_ci_workflow() {
     let build_job = Job::new("Build and Test")
         .permissions(Permissions::default().contents(Level::Read))
         .add_step(Step::checkout())
-        .add_step(setup_protobuf!())
+        .add_step(setup_protoc())
         .add_step(Step::toolchain().add_stable())
         .add_step(Step::new("Install cargo-llvm-cov").run("cargo install cargo-llvm-cov"))
         .add_step(
@@ -35,7 +27,7 @@ pub fn generate_ci_workflow() {
     let perf_test_job = Job::new("Performance Test")
         .permissions(Permissions::default().contents(Level::Read))
         .add_step(Step::checkout())
-        .add_step(setup_protobuf!())
+        .add_step(setup_protoc())
         .add_step(Step::toolchain().add_stable())
         .add_step(
             Step::new("Run performance benchmark")
