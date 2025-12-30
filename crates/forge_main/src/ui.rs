@@ -539,12 +539,16 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.on_cmd(UserPrompt::from(prompt)).await?;
                 return Ok(());
             }
-            TopLevelCommand::Cmd(run_group) => {
+            TopLevelCommand::Command(run_group) => {
                 let porcelain = run_group.porcelain;
                 match run_group.command {
                     crate::cli::CmdCommand::List => {
                         // List all custom commands
                         self.on_show_custom_commands(porcelain).await?;
+                    }
+                    crate::cli::CmdCommand::Doc { name } => {
+                        // Show documentation for a built-in command
+                        self.on_show_command_doc(&name).await?;
                     }
                     crate::cli::CmdCommand::Execute(args) => {
                         // Execute the custom command
@@ -1082,41 +1086,35 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     async fn on_show_commands(&mut self, porcelain: bool) -> anyhow::Result<()> {
         let mut info = Info::new();
 
-        // Load built-in commands from JSON
-        // NOTE: When adding a new command, update built_in_commands.json AND
-        //       shell-plugin/forge.plugin.zsh (case statement around line 745)
-        const COMMANDS_JSON: &str = include_str!("built_in_commands.json");
+        // Load built-in commands
+        // NOTE: When adding a new command, create a new .md file in built_in_commands/
+        // AND update shell-plugin/forge.plugin.zsh (case statement around line 745)
+        let built_in_commands = crate::built_in_commands::get_built_in_commands()?;
 
-        #[derive(serde::Deserialize)]
-        struct Command<'a> {
-            command: &'a str,
-            description: &'a str,
-        }
-
-        let built_in_commands: Vec<Command> =
-            serde_json::from_str(COMMANDS_JSON).expect("Failed to parse built_in_commands.json");
-
-        for cmd in &built_in_commands {
+        for command in built_in_commands {
             info = info
-                .add_title(cmd.command)
-                .add_key_value("type", CommandType::Command)
-                .add_key_value("description", cmd.description);
+                .add_title(&command.name)
+                .add_key_value("description", &command.description)
+                .add_key_value("alias", command.alias.as_deref().unwrap_or("-"))
+                .add_key_value("type", CommandType::Command);
         }
 
         // Add agent aliases
         info = info
             .add_title("ask")
-            .add_key_value("type", CommandType::Agent)
             .add_key_value(
                 "description",
                 "Research and investigation agent [alias for: sage]",
             )
-            .add_title("plan")
+            .add_key_value("alias", "-")
             .add_key_value("type", CommandType::Agent)
+            .add_title("plan")
             .add_key_value(
                 "description",
                 "Planning and strategy agent [alias for: muse]",
-            );
+            )
+            .add_key_value("alias", "-")
+            .add_key_value("type", CommandType::Agent);
 
         // Fetch agents and add them to the commands list
         let agents = self.api.get_agents().await?;
@@ -1126,24 +1124,26 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 .map(|title| title.lines().collect::<Vec<_>>().join(" "));
             info = info
                 .add_title(agent.id.to_string())
-                .add_key_value("type", CommandType::Agent)
-                .add_key_value("description", title);
+                .add_key_value("description", title)
+                .add_key_value("alias", "-")
+                .add_key_value("type", CommandType::Agent);
         }
 
         let custom_commands = self.api.get_commands().await?;
         for command in custom_commands {
             info = info
                 .add_title(command.name.clone())
-                .add_key_value("type", CommandType::Custom)
-                .add_key_value("description", command.description.clone());
+                .add_key_value("description", command.description.clone())
+                .add_key_value("alias", "-")
+                .add_key_value("type", CommandType::Custom);
         }
 
         if porcelain {
-            // Original order from Info: [$ID, type, description]
+            // Original order from Info: [$ID, description, alias, type]
             // So the original order is fine! But $ID should become COMMAND
             let porcelain = Porcelain::from(&info)
                 .uppercase_headers()
-                .to_case(&[1], Case::UpperSnake)
+                .to_case(&[3], Case::UpperSnake)
                 .map_col(0, |col| {
                     if col.as_deref() == Some(headers::ID) {
                         Some("COMMAND".to_string())
@@ -1177,6 +1177,18 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             self.writeln(info)?;
         }
 
+        Ok(())
+    }
+
+    /// Show documentation for a built-in command
+    ///
+    /// # Errors
+    ///
+    /// Returns error if the command is not found or cannot be rendered
+    async fn on_show_command_doc(&mut self, name: &str) -> anyhow::Result<()> {
+        let content = crate::built_in_commands::get_command_doc(name)?;
+        let rendered = self.markdown.render(&content);
+        self.writeln(rendered)?;
         Ok(())
     }
 

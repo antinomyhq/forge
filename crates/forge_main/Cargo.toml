@@ -53,6 +53,7 @@ open.workspace = true
 humantime.workspace = true
 num-format.workspace = true
 atty = "0.2"
+gray_matter.workspace = true
 url.workspace = true
 rust-embed = { version = "8.5", features = ["interpolate-folder-path"] }
 indexmap.workspace = true

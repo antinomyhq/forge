@@ -40,12 +40,22 @@ function forge-completion() {
         # Lazily load the commands list
         local commands_list=$(_forge_get_commands)
         if [[ -n "$commands_list" ]]; then
-            # Use fzf for interactive selection with prefilled filter
+            # Use fzf for interactive selection with prefilled filter and preview
             local selected
+            local preview_cmd="$_FORGE_BIN cmd doc {1} 2>/dev/null || (test -f \$HOME/.forge/commands/{1}.md && $_FORGE_CAT_CMD \$HOME/.forge/commands/{1}.md) || echo 'Command: {1}\n\nNo documentation available.'"
+            local fzf_args=(
+                --header-lines=1
+                --delimiter="$_FORGE_DELIMITER"
+                --nth=1
+                --prompt="Command ❯ "
+                --preview="$preview_cmd"
+                $_FORGE_PREVIEW_WINDOW
+            )
+            
             if [[ -n "$filter_text" ]]; then
-                selected=$(echo "$commands_list" | _forge_fzf --header-lines=1 --delimiter="$_FORGE_DELIMITER" --nth=1 --query "$filter_text" --prompt="Command ❯ ")
+                selected=$(echo "$commands_list" | _forge_fzf --query "$filter_text" "${fzf_args[@]}")
             else
-                selected=$(echo "$commands_list" | _forge_fzf --header-lines=1 --delimiter="$_FORGE_DELIMITER" --nth=1 --prompt="Command ❯ ")
+                selected=$(echo "$commands_list" | _forge_fzf "${fzf_args[@]}")
             fi
             
             if [[ -n "$selected" ]]; then
