@@ -21,7 +21,7 @@ use forge_domain::{
 };
 use forge_fs::ForgeFS;
 use forge_select::ForgeSelect;
-use forge_spinner::SpinnerManager;
+use forge_spinner::Spinner;
 use forge_tracker::ToolCallPayload;
 use merge::Merge;
 use tokio_stream::StreamExt;
@@ -97,7 +97,7 @@ pub struct UI<A, F: Fn() -> A> {
     console: Console,
     command: Arc<ForgeCommandManager>,
     cli: Cli,
-    spinner: SpinnerManager,
+    spinner: Spinner,
     #[allow(dead_code)] // The guard is kept alive by being held in the struct
     _guard: forge_tracker::Guard,
 }
@@ -220,7 +220,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             console: Console::new(env.clone(), command.clone()),
             cli,
             command,
-            spinner: SpinnerManager::new(),
+            spinner: Spinner::default(),
             markdown: MarkdownFormat::new(),
             _guard: forge_tracker::init_tracing(env.log_path(), TRACKER.clone())?,
         })
@@ -2517,7 +2517,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
             },
             ChatResponse::ToolCallStart(_) => {
-                self.spinner.stop(None)?;
+                self.spinner.pause()?;
             }
             ChatResponse::ToolCallEnd(toolcall_result) => {
                 // Only track toolcall name in case of success else track the error.
@@ -2532,7 +2532,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 };
                 tracker::tool_call(payload);
 
-                self.spinner.start(None)?;
+                self.spinner.resume()?;
                 if !self.cli.verbose {
                     return Ok(());
                 }
@@ -2544,7 +2544,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
             }
             ChatResponse::Interrupt { reason } => {
-                self.spinner.stop(None)?;
+                self.spinner.pause()?;
 
                 let title = match reason {
                     InterruptionReason::MaxRequestPerTurnLimitReached { limit } => {
@@ -2569,6 +2569,22 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     self.writeln_title(
                         TitleFormat::debug("Finished").sub_title(conversation_id.into_string()),
                     )?;
+                }
+            }
+            ChatResponse::Usage { usage } => {
+                let mut out = String::default();
+                if let Some(cost) = usage.cost {
+                    out.push_str(&format!("${:.3} ", cost));
+                }
+                out.push_str(&format!("{}/{}", *usage.prompt_tokens, *usage.completion_tokens));
+                let input_tokens = *usage.prompt_tokens;
+                let cached_tokens = *usage.cached_tokens;
+                if input_tokens > 0 && cached_tokens > 0 {
+                    let percentage = (cached_tokens as f64 / input_tokens as f64) * 100.0;
+                    out.push_str(&format!(" {:.2}%", percentage));
+                }
+                if !out.is_empty() {
+                    self.spinner.set_message(&out)?;
                 }
             }
         }

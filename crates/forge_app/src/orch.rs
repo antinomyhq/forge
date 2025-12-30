@@ -249,6 +249,9 @@ impl<S: AgentService> Orchestrator<S> {
                 }),
             ).await?;
 
+            // Send usage data.
+            let _ = self.send(ChatResponse::Usage { usage: message.usage.clone() }).await;
+
             // TODO: Add a unit test in orch spec, to guarantee that compaction is
             // triggered after receiving the response Trigger compaction after
             // making a request NOTE: Ideally compaction should be implemented

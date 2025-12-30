@@ -7,9 +7,11 @@ use rand::Rng;
 use tokio::task::JoinHandle;
 
 mod progress_bar;
+mod spinner;
 mod stopwatch;
 
 pub use progress_bar::*;
+pub use spinner::Spinner;
 use stopwatch::Stopwatch;
 
 /// Manages spinner functionality for the UI
