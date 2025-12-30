@@ -7,14 +7,7 @@ use forge_app::GrpcInfra;
 use forge_domain::{SyntaxError, ValidationRepository};
 use tracing::{debug, warn};
 
-// Include the generated proto code at module level
-#[allow(dead_code)]
-mod proto_generated {
-    tonic::include_proto!("forge.v1");
-}
-
-use forge_service_client::ForgeServiceClient;
-use proto_generated::*;
+use crate::proto_generated::{self, forge_service_client::ForgeServiceClient, File, ValidateFilesRequest};
 
 /// gRPC implementation of ValidationRepository
 pub struct ForgeValidationRepository<I> {
