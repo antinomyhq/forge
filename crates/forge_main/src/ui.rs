@@ -1535,7 +1535,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Log backup creation if one was made
         if let Some(backup_path) = result.backup_path {
-            self.writeln_title(TitleFormat::debug(&format!(
+            self.writeln_title(TitleFormat::debug(format!(
                 "backup created at {}",
                 backup_path.display()
             )))?;

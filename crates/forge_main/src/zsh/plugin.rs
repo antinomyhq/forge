@@ -296,8 +296,9 @@ pub fn setup_zsh_integration(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::sync::Mutex;
+
+    use super::*;
 
     // Mutex to ensure tests that modify environment variables run serially
     static ENV_LOCK: Mutex<()> = Mutex::new(());
@@ -327,7 +328,8 @@ mod tests {
                 // Success case
             }
             Err(e) => {
-                // Check if it's a non-zero exit code error or zsh not available (both expected in tests)
+                // Check if it's a non-zero exit code error or zsh not available (both expected
+                // in tests)
                 let error_msg = e.to_string();
                 assert!(
                     error_msg.contains("exit code") || error_msg.contains("Failed to execute"),
@@ -617,7 +619,7 @@ mod tests {
         assert!(backup_path.is_some(), "Should create backup on update");
         let backup = backup_path.unwrap();
         assert!(backup.exists(), "Backup file should exist at {:?}", backup);
-        
+
         // Verify backup filename contains timestamp
         let backup_name = backup.file_name().unwrap().to_str().unwrap();
         assert!(
