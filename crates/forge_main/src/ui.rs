@@ -2573,41 +2573,35 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
             }
             ChatResponse::Usage { usage } => {
-                // Fetch accumulated usage from conversation
-                let conversation_usage = if let Some(conversation_id) = &self.state.conversation_id
-                {
-                    self.api
-                        .conversation(conversation_id)
+                let accumulated = self
+                    .state
+                    .conversation_id
+                    .as_ref()
+                    .map(|id| self.api.conversation(id))
+                    .map(|fut| async { fut.await.ok().flatten() });
+
+                let accumulated = match accumulated {
+                    Some(fut) => fut
                         .await
-                        .ok()
-                        .flatten()
                         .and_then(|conv| conv.accumulated_usage())
                         .unwrap_or_default()
-                } else {
-                    Usage::default()
+                        .accumulate(&usage),
+                    None => usage,
                 };
 
-                let accumulated = conversation_usage.accumulate(&usage);
+                let formatted = [
+                    accumulated.cost.map(|c| format!("${:.3}", c)),
+                    Some(format!(
+                        "{}/{}",
+                        *usage.prompt_tokens, *usage.completion_tokens
+                    )),
+                    accumulated.cache_hit_rate().map(|p| format!("{:.2}%", p)),
+                ]
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>()
+                .join(" ");
 
-                let mut parts = Vec::new();
-                // Add cost if available from accumulated
-                if let Some(cost) = accumulated.cost {
-                    parts.push(format!("${:.3}", cost));
-                }
-                // Add token counts from last request
-                parts.push(format!(
-                    "{}/{}",
-                    *usage.prompt_tokens, *usage.completion_tokens
-                ));
-                // Add cache percentage from accumulated usage.
-                let input_tokens = *accumulated.prompt_tokens;
-                let cached_tokens = *accumulated.cached_tokens;
-                if input_tokens > 0 && cached_tokens > 0 {
-                    let percentage = (cached_tokens as f64 / input_tokens as f64) * 100.0;
-                    parts.push(format!("{:.2}%", percentage));
-                }
-
-                let formatted = parts.join(" ").to_string();
                 if !formatted.is_empty() {
                     self.spinner.set_message(&formatted)?;
                 }

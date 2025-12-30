@@ -34,36 +34,12 @@ impl Usage {
         };
         self
     }
-}
 
-impl fmt::Display for Usage {
-    /// Formats usage as: "$0.123 1234/5678 45.67%"
-    /// - Cost (if available): "$0.123 "
-    /// - Token counts: "prompt_tokens/completion_tokens"
-    /// - Cache percentage (if cached tokens exist): " 45.67%"
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let mut parts = Vec::new();
-
-        // Add cost if available
-        if let Some(cost) = self.cost {
-            parts.push(format!("${:.3}", cost));
-        }
-
-        // Add token counts
-        parts.push(format!(
-            "{}/{}",
-            *self.prompt_tokens, *self.completion_tokens
-        ));
-
-        // Add cache percentage if applicable
-        let input_tokens = *self.prompt_tokens;
-        let cached_tokens = *self.cached_tokens;
-        if input_tokens > 0 && cached_tokens > 0 {
-            let percentage = (cached_tokens as f64 / input_tokens as f64) * 100.0;
-            parts.push(format!("{:.2}%", percentage));
-        }
-
-        write!(f, "{}", parts.join(" "))
+    /// Returns the cache hit rate as a percentage if both input and cached tokens exist.
+    pub fn cache_hit_rate(&self) -> Option<f64> {
+        let input = *self.prompt_tokens;
+        let cached = *self.cached_tokens;
+        (input > 0 && cached > 0).then(|| (cached as f64 / input as f64) * 100.0)
     }
 }
 
@@ -387,65 +363,43 @@ mod tests {
     }
 
     #[test]
-    fn test_usage_display_with_cost_and_cache() {
+    fn test_cache_hit_rate() {
         let fixture = Usage {
             prompt_tokens: TokenCount::Actual(1000),
             completion_tokens: TokenCount::Actual(500),
             total_tokens: TokenCount::Actual(1500),
             cached_tokens: TokenCount::Actual(400),
-            cost: Some(0.123),
-        };
-
-        let actual = format!("{}", fixture);
-        let expected = "$0.123 1000/500 40.00%";
-
-        assert_eq!(actual, expected);
-    }
-
-    #[test]
-    fn test_usage_display_without_cost() {
-        let fixture = Usage {
-            prompt_tokens: TokenCount::Actual(1000),
-            completion_tokens: TokenCount::Actual(500),
-            total_tokens: TokenCount::Actual(1500),
-            cached_tokens: TokenCount::Actual(250),
             cost: None,
         };
 
-        let actual = format!("{}", fixture);
-        let expected = "1000/500 25.00%";
+        let actual = fixture.cache_hit_rate();
+        let expected = Some(40.0);
 
         assert_eq!(actual, expected);
     }
 
     #[test]
-    fn test_usage_display_without_cache() {
+    fn test_cache_hit_rate_no_cache() {
         let fixture = Usage {
             prompt_tokens: TokenCount::Actual(1000),
             completion_tokens: TokenCount::Actual(500),
             total_tokens: TokenCount::Actual(1500),
             cached_tokens: TokenCount::Actual(0),
-            cost: Some(0.045),
+            cost: None,
         };
 
-        let actual = format!("{}", fixture);
-        let expected = "$0.045 1000/500";
+        let actual = fixture.cache_hit_rate();
+        let expected = None;
 
         assert_eq!(actual, expected);
     }
 
     #[test]
-    fn test_usage_display_minimal() {
-        let fixture = Usage {
-            prompt_tokens: TokenCount::Actual(100),
-            completion_tokens: TokenCount::Actual(50),
-            total_tokens: TokenCount::Actual(150),
-            cached_tokens: TokenCount::Actual(0),
-            cost: None,
-        };
+    fn test_cache_hit_rate_no_input() {
+        let fixture = Usage::default();
 
-        let actual = format!("{}", fixture);
-        let expected = "100/50";
+        let actual = fixture.cache_hit_rate();
+        let expected = None;
 
         assert_eq!(actual, expected);
     }
