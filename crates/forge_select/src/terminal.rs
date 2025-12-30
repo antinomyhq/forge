@@ -120,26 +120,17 @@ impl Drop for ApplicationCursorKeysGuard {
     }
 }
 
-/// RAII guard that ensures cursor is visible on Ctrl+C
+/// Installs a global Ctrl+C handler that restores cursor visibility before
+/// exiting.
 ///
-/// This guard sets up a global Ctrl+C handler that restores cursor visibility
-/// before exiting. This prevents the cursor from remaining hidden if the user
-/// interrupts a prompt with Ctrl+C.
-///
-/// The `ctrlc` crate internally ensures the handler is only set once, so
-/// creating multiple guards is safe and will reuse the same handler.
-pub struct CursorRestoreGuard {
-    _private: (),
-}
-
-impl Default for CursorRestoreGuard {
-    fn default() -> Self {
-        let _ = ctrlc::try_set_handler(|| {
-            let _ = TerminalControl::show_cursor();
-            std::process::exit(130);
-        });
-        Self { _private: () }
-    }
+/// This prevents the cursor from remaining hidden if the user interrupts a
+/// prompt with Ctrl+C. The handler is installed once and persists for the
+/// process lifetime. Multiple calls are safe and will reuse the same handler.
+pub fn install_cursor_restore_handler() {
+    let _ = ctrlc::try_set_handler(|| {
+        let _ = TerminalControl::show_cursor();
+        std::process::exit(130);
+    });
 }
 /// Custom crossterm command to disable application cursor keys mode
 ///
