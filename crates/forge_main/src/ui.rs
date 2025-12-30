@@ -11,7 +11,8 @@ use convert_case::{Case, Casing};
 use forge_api::{
     API, AgentId, AnyProvider, ApiKeyRequest, AuthContextRequest, AuthContextResponse, ChatRequest,
     ChatResponse, CodeRequest, Conversation, ConversationId, DeviceCodeRequest, Event,
-    InterruptionReason, Model, ModelId, Provider, ProviderId, TextMessage, UserPrompt, Workflow,
+    InterruptionReason, Model, ModelId, Provider, ProviderId, TextMessage, Usage, UserPrompt,
+    Workflow,
 };
 use forge_app::utils::{format_display_path, truncate_key};
 use forge_app::{CommitResult, ToolResolver};
@@ -2572,7 +2573,41 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
             }
             ChatResponse::Usage { usage } => {
-                let formatted = usage.to_string();
+                // Fetch accumulated usage from conversation
+                let conversation_usage = if let Some(conversation_id) = &self.state.conversation_id
+                {
+                    self.api
+                        .conversation(conversation_id)
+                        .await
+                        .ok()
+                        .flatten()
+                        .and_then(|conv| conv.accumulated_usage())
+                        .unwrap_or_default()
+                } else {
+                    Usage::default()
+                };
+
+                let accumulated = conversation_usage.accumulate(&usage);
+
+                let mut parts = Vec::new();
+                // Add cost if available from accumulated
+                if let Some(cost) = accumulated.cost {
+                    parts.push(format!("${:.3}", cost));
+                }
+                // Add token counts from last request
+                parts.push(format!(
+                    "{}/{}",
+                    *usage.prompt_tokens, *usage.completion_tokens
+                ));
+                // Add cache percentage from accumulated usage.
+                let input_tokens = *accumulated.prompt_tokens;
+                let cached_tokens = *accumulated.cached_tokens;
+                if input_tokens > 0 && cached_tokens > 0 {
+                    let percentage = (cached_tokens as f64 / input_tokens as f64) * 100.0;
+                    parts.push(format!("{:.2}%", percentage));
+                }
+
+                let formatted = parts.join(" ").to_string();
                 if !formatted.is_empty() {
                     self.spinner.set_message(&formatted)?;
                 }
