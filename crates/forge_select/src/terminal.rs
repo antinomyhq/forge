@@ -120,7 +120,6 @@ impl Drop for ApplicationCursorKeysGuard {
     }
 }
 
-
 /// RAII guard that ensures cursor is visible on Ctrl+C
 ///
 /// This guard sets up a global Ctrl+C handler that restores cursor visibility
