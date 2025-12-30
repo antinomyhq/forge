@@ -9,6 +9,7 @@ anyhow.workspace = true
 console.workspace = true
 crossterm.workspace = true
 tokio.workspace = true
+ctrlc.workspace = true
 
 derive_more.workspace = true
 dialoguer.workspace = true

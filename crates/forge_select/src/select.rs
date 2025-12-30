@@ -4,7 +4,7 @@ use crossterm::cursor;
 use dialoguer::theme::ColorfulTheme;
 use dialoguer::{Confirm, FuzzySelect, Input, MultiSelect};
 
-use crate::{ApplicationCursorKeysGuard, BracketedPasteGuard};
+use crate::{ApplicationCursorKeysGuard, BracketedPasteGuard, CursorRestoreGuard};
 
 /// Check if a dialoguer error is an interrupted error (CTRL+C)
 fn is_interrupted_error(err: &dialoguer::Error) -> bool {
@@ -163,6 +163,8 @@ impl<T: 'static> SelectBuilder<T> {
         let _paste_guard = BracketedPasteGuard::new()?;
         // Disable application cursor keys to ensure arrow keys work correctly
         let _cursor_guard = ApplicationCursorKeysGuard::new()?;
+        // Ensure cursor is restored on Ctrl+C
+        let _cursor_restore = CursorRestoreGuard::new();
 
         let theme = ForgeSelect::default_theme();
 
@@ -233,6 +235,8 @@ impl<T> SelectBuilderOwned<T> {
         let _paste_guard = BracketedPasteGuard::new()?;
         // Disable application cursor keys to ensure arrow keys work correctly
         let _cursor_guard = ApplicationCursorKeysGuard::new()?;
+        // Ensure cursor is restored on Ctrl+C
+        let _cursor_restore = CursorRestoreGuard::new();
 
         let theme = ForgeSelect::default_theme();
 
@@ -323,6 +327,8 @@ impl InputBuilder {
         let _paste_guard = BracketedPasteGuard::new()?;
         // Disable application cursor keys to ensure arrow keys work correctly
         let _cursor_guard = ApplicationCursorKeysGuard::new()?;
+        // Ensure cursor is restored on Ctrl+C
+        let _cursor_restore = CursorRestoreGuard::new();
 
         let theme = ForgeSelect::default_theme();
 
@@ -399,6 +405,8 @@ impl<T> MultiSelectBuilder<T> {
         let _paste_guard = BracketedPasteGuard::new()?;
         // Disable application cursor keys to ensure arrow keys work correctly
         let _cursor_guard = ApplicationCursorKeysGuard::new()?;
+        // Ensure cursor is restored on Ctrl+C
+        let _cursor_restore = CursorRestoreGuard::new();
 
         let theme = ForgeSelect::default_theme();
         let multi_select = MultiSelect::with_theme(&theme)

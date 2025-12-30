@@ -1,5 +1,6 @@
 use std::io::{self, stdout};
 
+use crossterm::cursor::Show;
 use crossterm::event::{DisableBracketedPaste, EnableBracketedPaste};
 use crossterm::{Command, execute};
 
@@ -50,6 +51,17 @@ impl TerminalControl {
     /// Returns an error if the terminal command fails to execute
     pub fn enable_application_cursor_keys() -> io::Result<()> {
         execute!(stdout(), EnableApplicationCursorKeys)
+    }
+
+    /// Show cursor
+    ///
+    /// Makes the cursor visible in the terminal.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the terminal command fails to execute
+    pub fn show_cursor() -> io::Result<()> {
+        execute!(stdout(), Show)
     }
 }
 
@@ -105,6 +117,34 @@ impl Drop for ApplicationCursorKeysGuard {
     fn drop(&mut self) {
         // Best effort to re-enable - ignore errors during drop
         let _ = TerminalControl::enable_application_cursor_keys();
+    }
+}
+
+
+/// RAII guard that ensures cursor is visible on Ctrl+C
+///
+/// This guard sets up a global Ctrl+C handler that restores cursor visibility
+/// before exiting. This prevents the cursor from remaining hidden if the user
+/// interrupts a prompt with Ctrl+C.
+///
+/// The `ctrlc` crate internally ensures the handler is only set once, so
+/// creating multiple guards is safe and will reuse the same handler.
+pub struct CursorRestoreGuard {
+    _private: (),
+}
+
+impl CursorRestoreGuard {
+    /// Create a new guard and ensure Ctrl+C handler is set
+    ///
+    /// Uses `ctrlc::try_set_handler` which safely handles multiple calls by
+    /// returning an error if a handler is already set. The error is ignored
+    /// since we only care that a handler exists, not who set it.
+    pub fn new() -> Self {
+        let _ = ctrlc::try_set_handler(|| {
+            let _ = TerminalControl::show_cursor();
+            std::process::exit(130);
+        });
+        Self { _private: () }
     }
 }
 

@@ -126,6 +126,7 @@ gray_matter = "0.3.2"
 num-format = "0.4"
 humantime = "2.1.0"
 dashmap = "7.0.0-rc2"
+ctrlc = "3.5.1"
 async-openai = { version = "0.31.1", default-features = false, features = ["responses", "rustls"] } # keep TLS backend aligned with workspace reqwest (rustls, no default features)
 
 # Internal crates

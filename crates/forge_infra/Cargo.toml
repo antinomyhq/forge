@@ -28,7 +28,6 @@ thiserror.workspace = true
 schemars.workspace = true
 forge_app.workspace = true
 forge_walker.workspace = true
-crossterm.workspace = true
 
 
 reqwest-eventsource.workspace = true
