@@ -22,7 +22,7 @@ impl ZshColor {
     pub const DIMMED: Self = Self(240);
 
     /// Creates a color from a 256-color palette value.
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub const fn new(value: u8) -> Self {
         Self(value)
     }
