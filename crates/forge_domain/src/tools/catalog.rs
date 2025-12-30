@@ -676,13 +676,9 @@ impl ToolCatalog {
                 command: input.command.clone(),
                 cwd,
             }),
-            ToolCatalog::Fetch(input) => Some(crate::policies::PermissionOperation::Fetch {
-                url: input.url.clone(),
-                cwd,
-                message: format!("Fetch content from URL: {}", input.url),
-            }),
             // Operations that don't require permission checks
             ToolCatalog::SemSearch(_)
+            | ToolCatalog::Fetch(_)
             | ToolCatalog::Undo(_)
             | ToolCatalog::Followup(_)
             | ToolCatalog::Plan(_)
