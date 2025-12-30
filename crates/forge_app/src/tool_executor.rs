@@ -314,7 +314,7 @@ impl<
             }
             ToolCatalog::Skill(input) => {
                 let skill = self.services.fetch_skill(input.name.clone()).await?;
-                (input, skill).into()
+                ToolOperation::Skill { output: skill }
             }
         })
     }
