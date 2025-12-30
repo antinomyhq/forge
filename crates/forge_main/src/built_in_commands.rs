@@ -11,6 +11,7 @@ struct BuiltInCommands;
 pub struct CommandInfo {
     pub name: String,
     pub description: String,
+    pub alias: Option<String>,
 }
 
 /// Parse a command from markdown content with YAML frontmatter
@@ -22,6 +23,8 @@ fn parse_command_markdown(content: &str) -> Result<CommandInfo> {
     struct FrontMatter {
         name: String,
         description: String,
+        #[serde(default)]
+        alias: Option<String>,
     }
 
     let matter = Matter::<YAML>::new();
@@ -32,6 +35,7 @@ fn parse_command_markdown(content: &str) -> Result<CommandInfo> {
     Ok(CommandInfo {
         name: front_matter.name,
         description: front_matter.description,
+        alias: front_matter.alias,
     })
 }
 

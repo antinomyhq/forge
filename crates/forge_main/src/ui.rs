@@ -1095,6 +1095,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             info = info
                 .add_title(&command.name)
                 .add_key_value("type", CommandType::Command)
+                .add_key_value("alias", command.alias.as_deref().unwrap_or("-"))
                 .add_key_value("description", &command.description);
         }
 
@@ -1102,12 +1103,14 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         info = info
             .add_title("ask")
             .add_key_value("type", CommandType::Agent)
+            .add_key_value("alias", "-")
             .add_key_value(
                 "description",
                 "Research and investigation agent [alias for: sage]",
             )
             .add_title("plan")
             .add_key_value("type", CommandType::Agent)
+            .add_key_value("alias", "-")
             .add_key_value(
                 "description",
                 "Planning and strategy agent [alias for: muse]",
@@ -1122,6 +1125,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             info = info
                 .add_title(agent.id.to_string())
                 .add_key_value("type", CommandType::Agent)
+                .add_key_value("alias", "-")
                 .add_key_value("description", title);
         }
 
@@ -1130,11 +1134,12 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             info = info
                 .add_title(command.name.clone())
                 .add_key_value("type", CommandType::Custom)
+                .add_key_value("alias", "-")
                 .add_key_value("description", command.description.clone());
         }
 
         if porcelain {
-            // Original order from Info: [$ID, type, description]
+            // Original order from Info: [$ID, type, alias, description]
             // So the original order is fine! But $ID should become COMMAND
             let porcelain = Porcelain::from(&info)
                 .uppercase_headers()
