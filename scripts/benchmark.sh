@@ -2,9 +2,10 @@
 
 # Performance test script for forge commands
 # Runs the command 10 times and collects timing statistics
-# Usage: ./test_forge_info_performance.sh [command args...]
-# Example: ./test_forge_info_performance.sh info
-# Example: ./test_forge_info_performance.sh --version
+# Usage: ./benchmark.sh [--threshold MS] [command args...]
+# Example: ./benchmark.sh info
+# Example: ./benchmark.sh --threshold 50 zsh rprompt
+# Example: ./benchmark.sh --version
 
 set -euo pipefail
 
@@ -19,8 +20,26 @@ GRAY='\033[90m'
 
 # Configuration
 BASE_COMMAND="target/debug/forge"
-if [ $# -gt 0 ]; then
-    COMMAND="$BASE_COMMAND $@"
+THRESHOLD=""
+
+# Parse arguments
+ARGS=()
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --threshold)
+            THRESHOLD="$2"
+            shift 2
+            ;;
+        *)
+            ARGS+=("$1")
+            shift
+            ;;
+    esac
+done
+
+# Build command
+if [ ${#ARGS[@]} -gt 0 ]; then
+    COMMAND="$BASE_COMMAND ${ARGS[*]}"
 else
     COMMAND="$BASE_COMMAND"
 fi
@@ -98,3 +117,17 @@ printf "  ${DIM}avg${RESET}  ${CYAN}%5d${RESET} ${DIM}ms${RESET}\n" $AVG
 printf "  ${DIM}min${RESET}  ${GREEN}%5d${RESET} ${DIM}ms${RESET}\n" $MIN
 printf "  ${DIM}max${RESET}  ${YELLOW}%5d${RESET} ${DIM}ms${RESET}\n" $MAX
 echo ""
+
+# Check threshold if provided
+if [ -n "$THRESHOLD" ]; then
+    if [ $AVG -gt $THRESHOLD ]; then
+        echo -e "❌ ${BOLD}Performance regression detected!${RESET}"
+        echo -e "   Average time ${CYAN}${AVG}ms${RESET} exceeds threshold ${YELLOW}${THRESHOLD}ms${RESET}"
+        echo ""
+        exit 1
+    else
+        echo -e "✅ ${BOLD}Performance check passed!${RESET}"
+        echo -e "   Average time ${CYAN}${AVG}ms${RESET} is within threshold ${YELLOW}${THRESHOLD}ms${RESET}"
+        echo ""
+    fi
+fi

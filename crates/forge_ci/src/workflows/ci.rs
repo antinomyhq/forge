@@ -3,17 +3,22 @@ use gh_workflow::*;
 
 use crate::jobs::{self, ReleaseBuilderJob};
 
+/// Macro to create a protobuf setup step (reusable across jobs)
+macro_rules! setup_protobuf {
+    () => {
+        Step::new("Setup Protobuf Compiler")
+            .uses("arduino", "setup-protoc", "v3")
+            .with(("repo-token", "${{ secrets.GITHUB_TOKEN }}"))
+    };
+}
+
 /// Generate the main CI workflow
 pub fn generate_ci_workflow() {
     // Create a basic build job for CI with coverage
     let build_job = Job::new("Build and Test")
         .permissions(Permissions::default().contents(Level::Read))
         .add_step(Step::checkout())
-        .add_step(
-            Step::new("Setup Protobuf Compiler")
-                .uses("arduino", "setup-protoc", "v3")
-                .with(("repo-token", "${{ secrets.GITHUB_TOKEN }}")),
-        )
+        .add_step(setup_protobuf!())
         .add_step(Step::toolchain().add_stable())
         .add_step(Step::new("Install cargo-llvm-cov").run("cargo install cargo-llvm-cov"))
         .add_step(
@@ -24,6 +29,17 @@ pub fn generate_ci_workflow() {
             Step::new("Upload coverage to Coveralls")
                 .uses("coverallsapp", "github-action", "v2")
                 .with(("path-to-lcov", "lcov.info")),
+        );
+
+    // Create a performance test job to ensure zsh rprompt stays fast
+    let perf_test_job = Job::new("Performance Test")
+        .permissions(Permissions::default().contents(Level::Read))
+        .add_step(Step::checkout())
+        .add_step(setup_protobuf!())
+        .add_step(Step::toolchain().add_stable())
+        .add_step(
+            Step::new("Run performance benchmark")
+                .run("./scripts/benchmark.sh --threshold 100 zsh rprompt"),
         );
 
     let draft_release_job = jobs::create_draft_release_job("build");
@@ -68,6 +84,7 @@ pub fn generate_ci_workflow() {
         .concurrency(Concurrency::default().group("${{ github.workflow }}-${{ github.ref }}"))
         .add_env(("OPENROUTER_API_KEY", "${{secrets.OPENROUTER_API_KEY}}"))
         .add_job("build", build_job)
+        .add_job("perf_test", perf_test_job)
         .add_job("draft_release", draft_release_job)
         .add_job("draft_release_pr", draft_release_pr_job)
         .add_job("build_release", build_release_job)
