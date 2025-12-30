@@ -32,7 +32,7 @@ pub fn generate_ci_workflow() {
         .add_step(Step::toolchain().add_stable())
         .add_step(
             Step::new("Run performance benchmark")
-                .run("./scripts/benchmark.sh --threshold 150 zsh rprompt"),
+                .run("./scripts/benchmark.sh --threshold 60 zsh rprompt"),
         );
 
     let draft_release_job = jobs::create_draft_release_job("build");
