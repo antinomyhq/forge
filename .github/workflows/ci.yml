@@ -58,7 +58,7 @@ jobs:
       uses: coverallsapp/github-action@v2
       with:
         path-to-lcov: lcov.info
-  perf_test:
+  zsh_rprompt_perf:
     name: 'Performance: zsh rprompt'
     runs-on: ubuntu-latest
     permissions:

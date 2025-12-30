@@ -77,7 +77,7 @@ pub fn generate_ci_workflow() {
         .concurrency(Concurrency::default().group("${{ github.workflow }}-${{ github.ref }}"))
         .add_env(("OPENROUTER_API_KEY", "${{secrets.OPENROUTER_API_KEY}}"))
         .add_job("build", build_job)
-        .add_job("perf_test", perf_test_job)
+        .add_job("zsh_rprompt_perf", perf_test_job)
         .add_job("draft_release", draft_release_job)
         .add_job("draft_release_pr", draft_release_pr_job)
         .add_job("build_release", build_release_job)
