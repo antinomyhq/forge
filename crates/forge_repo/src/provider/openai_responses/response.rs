@@ -5,7 +5,7 @@ use forge_app::domain::{
     ChatCompletionMessage, Content, FinishReason, TokenCount, ToolCall, ToolCallArguments,
     ToolCallFull, ToolCallId, ToolCallPart, ToolName, Usage,
 };
-use forge_domain::ResultStream;
+use forge_domain::{BoxStream, ResultStream};
 use futures::StreamExt;
 
 use crate::provider::IntoDomain;
@@ -117,11 +117,7 @@ struct CodexStreamState {
     output_index_to_tool_call: HashMap<u32, (ToolCallId, ToolName)>,
 }
 
-impl IntoDomain
-    for std::pin::Pin<
-        Box<dyn futures::Stream<Item = anyhow::Result<oai::ResponseStreamEvent>> + Send>,
-    >
-{
+impl IntoDomain for BoxStream<oai::ResponseStreamEvent, anyhow::Error> {
     type Domain = ResultStream<ChatCompletionMessage, anyhow::Error>;
 
     fn into_domain(self) -> Self::Domain {

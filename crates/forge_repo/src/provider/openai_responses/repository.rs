@@ -7,7 +7,7 @@ use forge_app::HttpInfra;
 use forge_app::domain::{
     ChatCompletionMessage, Context as ChatContext, Model, ModelId, ResultStream, RetryConfig,
 };
-use forge_domain::{ChatRepository, Provider};
+use forge_domain::{BoxStream, ChatRepository, Provider};
 use futures::StreamExt;
 use reqwest::header::AUTHORIZATION;
 use tracing::info;
@@ -130,12 +130,8 @@ impl<T: HttpInfra> OpenAIResponsesProvider<T> {
 
         // Convert to domain messages using the existing conversion logic
         use crate::provider::IntoDomain;
-        let stream: std::pin::Pin<
-            Box<dyn futures::Stream<Item = anyhow::Result<oai::ResponseStreamEvent>> + Send>,
-        > = Box::pin(event_stream);
-        let stream = stream.into_domain().unwrap();
-
-        Ok(stream)
+        let stream: BoxStream<oai::ResponseStreamEvent, anyhow::Error> = Box::pin(event_stream);
+        stream.into_domain()
     }
 }
 
