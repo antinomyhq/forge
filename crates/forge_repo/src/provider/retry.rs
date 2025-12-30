@@ -1,4 +1,3 @@
-use async_openai::error::{OpenAIError as AsyncOpenAIError, StreamError as AsyncStreamError};
 use forge_app::domain::{Error as DomainError, RetryConfig};
 use forge_app::dto::openai::{Error, ErrorResponse};
 
@@ -8,7 +7,6 @@ pub fn into_retry(error: anyhow::Error, retry_config: &RetryConfig) -> anyhow::E
     if let Some(code) = get_req_status_code(&error)
         .or(get_event_req_status_code(&error))
         .or(get_api_status_code(&error))
-        .or(get_async_openai_status_code(&error))
         && retry_config.retry_status_codes.contains(&code)
     {
         return DomainError::Retryable(error).into();
@@ -17,58 +15,12 @@ pub fn into_retry(error: anyhow::Error, retry_config: &RetryConfig) -> anyhow::E
     if is_api_transport_error(&error)
         || is_req_transport_error(&error)
         || is_event_transport_error(&error)
-        || is_async_openai_transport_error(&error)
         || is_empty_error(&error)
     {
         return DomainError::Retryable(error).into();
     }
 
     error
-}
-
-fn get_async_openai_status_code(error: &anyhow::Error) -> Option<u16> {
-    error
-        .downcast_ref::<AsyncOpenAIError>()
-        .and_then(|error| match error {
-            AsyncOpenAIError::Reqwest(err) => err.status().map(|status| status.as_u16()),
-            AsyncOpenAIError::StreamError(err) => match err.as_ref() {
-                AsyncStreamError::ReqwestEventSource(inner) => match inner {
-                    reqwest_eventsource::Error::InvalidStatusCode(status, _) => {
-                        Some(status.as_u16())
-                    }
-                    reqwest_eventsource::Error::InvalidContentType(_, response) => {
-                        Some(response.status().as_u16())
-                    }
-                    _ => None,
-                },
-                _ => None,
-            },
-            _ => None,
-        })
-}
-
-fn is_async_openai_transport_error(error: &anyhow::Error) -> bool {
-    error
-        .downcast_ref::<AsyncOpenAIError>()
-        .is_some_and(|error| match error {
-            AsyncOpenAIError::Reqwest(err) => err.is_timeout() || err.is_connect(),
-            AsyncOpenAIError::StreamError(err) => match err.as_ref() {
-                AsyncStreamError::ReqwestEventSource(inner) => {
-                    matches!(inner, reqwest_eventsource::Error::Transport(_))
-                }
-                _ => false,
-            },
-            AsyncOpenAIError::ApiError(api_error) => {
-                api_error.code.as_deref().is_some_and(|code| {
-                    TRANSPORT_ERROR_CODES.iter().any(|message| message == &code)
-                        || matches!(
-                            code,
-                            "rate_limit_exceeded" | "server_error" | "timeout" | "overloaded"
-                        )
-                })
-            }
-            _ => false,
-        })
 }
 
 fn get_api_status_code(error: &anyhow::Error) -> Option<u16> {
@@ -155,7 +107,6 @@ fn is_event_transport_error(error: &anyhow::Error) -> bool {
 #[cfg(test)]
 mod tests {
     use anyhow::anyhow;
-    use async_openai::error::{ApiError, OpenAIError as AsyncOpenAIError};
     use forge_app::dto::openai::{Error, ErrorCode, ErrorResponse};
 
     use super::*;
@@ -194,16 +145,6 @@ mod tests {
             error = ErrorResponse::default().error(Box::new(error));
         }
         anyhow::Error::from(Error::Response(error))
-    }
-
-    fn fixture_async_openai_error(code: Option<&str>) -> anyhow::Error {
-        let api_error = ApiError {
-            message: "Test error".to_string(),
-            r#type: Some("test_error".to_string()),
-            param: None,
-            code: code.map(|c| c.to_string()),
-        };
-        anyhow::Error::from(AsyncOpenAIError::ApiError(api_error))
     }
 
     #[test]
@@ -273,30 +214,6 @@ mod tests {
 
         // Nested unknown code - not retryable
         let error = fixture_nested_transport_error("UNKNOWN", 2);
-        assert!(!is_retryable(into_retry(error, &retry_config)));
-    }
-
-    #[test]
-    fn test_into_retry_with_async_openai_errors() {
-        let retry_config = fixture_retry_config(vec![]);
-
-        // Retryable async_openai error codes
-        for code in [
-            "rate_limit_exceeded",
-            "server_error",
-            "timeout",
-            "overloaded",
-        ] {
-            let error = fixture_async_openai_error(Some(code));
-            assert!(is_retryable(into_retry(error, &retry_config)));
-        }
-
-        // Unknown async_openai error code - not retryable
-        let error = fixture_async_openai_error(Some("unknown_error"));
-        assert!(!is_retryable(into_retry(error, &retry_config)));
-
-        // No error code - not retryable
-        let error = fixture_async_openai_error(None);
         assert!(!is_retryable(into_retry(error, &retry_config)));
     }
 
@@ -372,8 +289,6 @@ mod tests {
         assert!(!is_api_transport_error(&error));
         assert!(!is_req_transport_error(&error));
         assert!(!is_event_transport_error(&error));
-        assert!(!is_async_openai_transport_error(&error));
-        assert!(get_async_openai_status_code(&error).is_none());
         assert!(get_api_status_code(&error).is_none());
         assert!(get_req_status_code(&error).is_none());
         assert!(get_event_req_status_code(&error).is_none());

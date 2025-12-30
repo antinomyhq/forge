@@ -117,7 +117,11 @@ struct CodexStreamState {
     output_index_to_tool_call: HashMap<u32, (ToolCallId, ToolName)>,
 }
 
-impl IntoDomain for oai::ResponseStream {
+impl IntoDomain
+    for std::pin::Pin<
+        Box<dyn futures::Stream<Item = anyhow::Result<oai::ResponseStreamEvent>> + Send>,
+    >
+{
     type Domain = ResultStream<ChatCompletionMessage, anyhow::Error>;
 
     fn into_domain(self) -> Self::Domain {
@@ -247,7 +251,12 @@ impl IntoDomain for oai::ResponseStream {
 #[cfg(test)]
 mod tests {
     use async_openai::types::responses as oai;
+    
+    // Type alias for ResponseStream in tests since it's not provided by response-types
+    type ResponseStream =
+        std::pin::Pin<Box<dyn futures::Stream<Item = anyhow::Result<oai::ResponseStreamEvent>> + Send>>;
     use forge_app::domain::{Content, FinishReason, Reasoning, ReasoningFull, TokenCount, Usage};
+    use forge_domain::{ChatCompletionMessage as Message, ToolCallId, ToolName};
     use tokio_stream::StreamExt;
 
     use super::*;
@@ -698,12 +707,12 @@ mod tests {
     async fn test_stream_with_output_text_delta() -> anyhow::Result<()> {
         let delta = fixture_delta_text("hello");
 
-        let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([Ok(
+        let stream: ResponseStream = Box::pin(tokio_stream::iter([Ok(
             oai::ResponseStreamEvent::ResponseOutputTextDelta(delta),
         )]));
 
         let mut stream_domain = stream.into_domain()?;
-        let actual = stream_domain.next().await.unwrap()?;
+        let actual: Message = stream_domain.next().await.unwrap()?;
 
         assert_eq!(actual.content, Some(Content::part("hello")));
 
@@ -714,12 +723,12 @@ mod tests {
     async fn test_stream_with_reasoning_text_delta() -> anyhow::Result<()> {
         let delta = fixture_delta_reasoning_text("thinking...");
 
-        let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([Ok(
+        let stream: ResponseStream = Box::pin(tokio_stream::iter([Ok(
             oai::ResponseStreamEvent::ResponseReasoningTextDelta(delta),
         )]));
 
         let mut stream_domain = stream.into_domain()?;
-        let actual = stream_domain.next().await.unwrap()?;
+        let actual: Message = stream_domain.next().await.unwrap()?;
 
         assert_eq!(actual.reasoning, Some(Content::part("thinking...")));
         assert_eq!(
@@ -738,12 +747,12 @@ mod tests {
     async fn test_stream_with_reasoning_summary_text_delta() -> anyhow::Result<()> {
         let delta = fixture_delta_reasoning_summary("summary...");
 
-        let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([Ok(
+        let stream: ResponseStream = Box::pin(tokio_stream::iter([Ok(
             oai::ResponseStreamEvent::ResponseReasoningSummaryTextDelta(delta),
         )]));
 
         let mut stream_domain = stream.into_domain()?;
-        let actual = stream_domain.next().await.unwrap()?;
+        let actual: Message = stream_domain.next().await.unwrap()?;
 
         assert_eq!(actual.reasoning, Some(Content::part("summary...")));
         assert_eq!(
@@ -762,21 +771,21 @@ mod tests {
     async fn test_stream_with_function_call_added_with_arguments() -> anyhow::Result<()> {
         let added = fixture_function_call_added("call_123", "shell", r#"{"cmd":"echo"}"#);
 
-        let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([Ok(
+        let stream: ResponseStream = Box::pin(tokio_stream::iter([Ok(
             oai::ResponseStreamEvent::ResponseOutputItemAdded(added),
         )]));
 
         let mut stream_domain = stream.into_domain()?;
-        let actual = stream_domain.next().await.unwrap()?;
+        let actual: Message = stream_domain.next().await.unwrap()?;
 
         assert_eq!(actual.tool_calls.len(), 1);
         let tool_call = actual.tool_calls.first().unwrap();
         let part = tool_call.as_partial().unwrap();
         assert_eq!(
-            part.call_id.as_ref().map(|id| id.as_str()),
+            part.call_id.as_ref().map(|id: &ToolCallId| id.as_str()),
             Some("call_123")
         );
-        assert_eq!(part.name.as_ref().map(|n| n.as_str()), Some("shell"));
+        assert_eq!(part.name.as_ref().map(|n: &ToolName| n.as_str()), Some("shell"));
         assert_eq!(part.arguments_part, r#"{"cmd":"echo"}"#);
 
         Ok(())
@@ -786,7 +795,7 @@ mod tests {
     async fn test_stream_with_function_call_added_without_arguments() -> anyhow::Result<()> {
         let added = fixture_function_call_added("call_123", "shell", "");
 
-        let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([Ok(
+        let stream: ResponseStream = Box::pin(tokio_stream::iter([Ok(
             oai::ResponseStreamEvent::ResponseOutputItemAdded(added),
         )]));
 
@@ -803,7 +812,7 @@ mod tests {
     async fn test_stream_with_reasoning_added() -> anyhow::Result<()> {
         let added = fixture_reasoning_added();
 
-        let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([Ok(
+        let stream: ResponseStream = Box::pin(tokio_stream::iter([Ok(
             oai::ResponseStreamEvent::ResponseOutputItemAdded(added),
         )]));
 
@@ -821,22 +830,22 @@ mod tests {
         let added = fixture_function_call_added("call_123", "shell", "");
         let delta = fixture_function_call_arguments_delta(0, r#"{"cmd":"echo"}"#);
 
-        let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([
+        let stream: ResponseStream = Box::pin(tokio_stream::iter([
             Ok(oai::ResponseStreamEvent::ResponseOutputItemAdded(added)),
             Ok(oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDelta(delta)),
         ]));
 
         let mut stream_domain = stream.into_domain()?;
-        let actual = stream_domain.next().await.unwrap()?;
+        let actual: Message = stream_domain.next().await.unwrap()?;
 
         assert_eq!(actual.tool_calls.len(), 1);
         let tool_call = actual.tool_calls.first().unwrap();
         let part = tool_call.as_partial().unwrap();
         assert_eq!(
-            part.call_id.as_ref().map(|id| id.as_str()),
+            part.call_id.as_ref().map(|id: &ToolCallId| id.as_str()),
             Some("call_123")
         );
-        assert_eq!(part.name.as_ref().map(|n| n.as_str()), Some("shell"));
+        assert_eq!(part.name.as_ref().map(|n: &ToolName| n.as_str()), Some("shell"));
         assert_eq!(part.arguments_part, r#"{"cmd":"echo"}"#);
 
         Ok(())
@@ -846,18 +855,18 @@ mod tests {
     async fn test_stream_with_function_call_arguments_delta_unknown_index() -> anyhow::Result<()> {
         let delta = fixture_function_call_arguments_delta(999, r#"{"cmd":"echo"}"#);
 
-        let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([Ok(
+        let stream: ResponseStream = Box::pin(tokio_stream::iter([Ok(
             oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDelta(delta),
         )]));
 
         let mut stream_domain = stream.into_domain()?;
-        let actual = stream_domain.next().await.unwrap()?;
+        let actual: Message = stream_domain.next().await.unwrap()?;
 
         assert_eq!(actual.tool_calls.len(), 1);
         let tool_call = actual.tool_calls.first().unwrap();
         let part = tool_call.as_partial().unwrap();
         assert_eq!(
-            part.call_id.as_ref().map(|id| id.as_str()),
+            part.call_id.as_ref().map(|id: &ToolCallId| id.as_str()),
             Some("output_999")
         );
         assert!(part.name.is_none());
@@ -870,7 +879,7 @@ mod tests {
     async fn test_stream_with_function_call_arguments_done() -> anyhow::Result<()> {
         let done = fixture_function_call_arguments_done();
 
-        let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([Ok(
+        let stream: ResponseStream = Box::pin(tokio_stream::iter([Ok(
             oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDone(done),
         )]));
 
@@ -888,12 +897,12 @@ mod tests {
         let response = fixture_response_with_text("Final message");
         let completed = oai::ResponseCompletedEvent { sequence_number: 2, response };
 
-        let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([Ok(
+        let stream: ResponseStream = Box::pin(tokio_stream::iter([Ok(
             oai::ResponseStreamEvent::ResponseCompleted(completed),
         )]));
 
         let mut stream_domain = stream.into_domain()?;
-        let actual = stream_domain.next().await.unwrap()?;
+        let actual: Message = stream_domain.next().await.unwrap()?;
 
         assert_eq!(actual.content, Some(Content::full("Final message")));
         assert_eq!(actual.finish_reason, Some(FinishReason::Stop));
@@ -906,12 +915,12 @@ mod tests {
         let response = fixture_response_incomplete("Partial message");
         let incomplete = oai::ResponseIncompleteEvent { sequence_number: 2, response };
 
-        let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([Ok(
+        let stream: ResponseStream = Box::pin(tokio_stream::iter([Ok(
             oai::ResponseStreamEvent::ResponseIncomplete(incomplete),
         )]));
 
         let mut stream_domain = stream.into_domain()?;
-        let actual = stream_domain.next().await.unwrap()?;
+        let actual: Message = stream_domain.next().await.unwrap()?;
 
         assert_eq!(actual.content, Some(Content::full("Partial message")));
         assert_eq!(actual.finish_reason, Some(FinishReason::Length));
@@ -924,7 +933,7 @@ mod tests {
         let response = fixture_response_failed();
         let failed = oai::ResponseFailedEvent { sequence_number: 2, response };
 
-        let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([Ok(
+        let stream: ResponseStream = Box::pin(tokio_stream::iter([Ok(
             oai::ResponseStreamEvent::ResponseFailed(failed),
         )]));
 
@@ -946,7 +955,7 @@ mod tests {
     async fn test_stream_with_response_error() -> anyhow::Result<()> {
         let error = fixture_response_error_event();
 
-        let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([Ok(
+        let stream: ResponseStream = Box::pin(tokio_stream::iter([Ok(
             oai::ResponseStreamEvent::ResponseError(error),
         )]));
 
@@ -965,7 +974,7 @@ mod tests {
         let response = fixture_response_base("completed");
         let completed = oai::ResponseCompletedEvent { sequence_number: 2, response };
 
-        let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([
+        let stream: ResponseStream = Box::pin(tokio_stream::iter([
             Ok(oai::ResponseStreamEvent::ResponseOutputTextDelta(delta)),
             Ok(oai::ResponseStreamEvent::ResponseCompleted(completed)),
         ]));
@@ -991,14 +1000,14 @@ mod tests {
         let delta1 = fixture_function_call_arguments_delta(0, r#"{"cmd":"echo"#);
         let delta2 = fixture_function_call_arguments_delta(0, r#" hi"}"#);
 
-        let stream: oai::ResponseStream = Box::pin(tokio_stream::iter([
+        let stream: ResponseStream = Box::pin(tokio_stream::iter([
             Ok(oai::ResponseStreamEvent::ResponseOutputItemAdded(added)),
             Ok(oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDelta(delta1)),
             Ok(oai::ResponseStreamEvent::ResponseFunctionCallArgumentsDelta(delta2)),
         ]));
 
         let mut stream_domain = stream.into_domain()?;
-        let mut messages = vec![];
+        let mut messages: Vec<anyhow::Result<Message>> = vec![];
 
         while let Some(msg) = stream_domain.next().await {
             messages.push(msg);
@@ -1011,10 +1020,10 @@ mod tests {
         assert_eq!(first.tool_calls.len(), 1);
         let part1 = first.tool_calls[0].as_partial().unwrap();
         assert_eq!(
-            part1.call_id.as_ref().map(|id| id.as_str()),
+            part1.call_id.as_ref().map(|id: &ToolCallId| id.as_str()),
             Some("call_123")
         );
-        assert_eq!(part1.name.as_ref().map(|n| n.as_str()), Some("shell"));
+        assert_eq!(part1.name.as_ref().map(|n: &ToolName| n.as_str()), Some("shell"));
         assert_eq!(part1.arguments_part, r#"{"cmd":"echo"#);
 
         // Second delta
@@ -1022,10 +1031,10 @@ mod tests {
         assert_eq!(second.tool_calls.len(), 1);
         let part2 = second.tool_calls[0].as_partial().unwrap();
         assert_eq!(
-            part2.call_id.as_ref().map(|id| id.as_str()),
+            part2.call_id.as_ref().map(|id: &ToolCallId| id.as_str()),
             Some("call_123")
         );
-        assert_eq!(part2.name.as_ref().map(|n| n.as_str()), Some("shell"));
+        assert_eq!(part2.name.as_ref().map(|n: &ToolName| n.as_str()), Some("shell"));
         assert_eq!(part2.arguments_part, r#" hi"}"#);
 
         Ok(())
