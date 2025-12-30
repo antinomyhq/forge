@@ -348,6 +348,9 @@ pub enum ZshCommandGroup {
     /// Get rprompt information (model and conversation stats) for shell
     /// integration.
     Rprompt,
+
+    /// Setup zsh integration by updating .zshrc with plugin and theme
+    Setup,
 }
 
 /// Command group for MCP server management.
@@ -1482,6 +1485,18 @@ mod tests {
         let actual = match fixture.subcommands {
             Some(TopLevelCommand::Zsh(terminal)) => {
                 matches!(terminal, ZshCommandGroup::Doctor)
+            }
+            _ => false,
+        };
+        assert_eq!(actual, true);
+    }
+
+    #[test]
+    fn test_zsh_setup() {
+        let fixture = Cli::parse_from(["forge", "zsh", "setup"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Zsh(terminal)) => {
+                matches!(terminal, ZshCommandGroup::Setup)
             }
             _ => false,
         };

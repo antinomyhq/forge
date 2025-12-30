@@ -207,6 +207,10 @@ mod tests {
         fn get_env_vars(&self) -> BTreeMap<String, String> {
             BTreeMap::new()
         }
+
+        fn is_restricted(&self) -> bool {
+            false
+        }
     }
 
     #[async_trait::async_trait]

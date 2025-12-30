@@ -9,15 +9,8 @@ use forge_domain::{
     WorkspaceInfo,
 };
 
-// Include the generated proto code at module level
-// Allow dead code since protobuf generates code that may not be fully used
-#[allow(dead_code)]
-mod proto_generated {
-    tonic::include_proto!("forge.v1");
-}
-
-use forge_service_client::ForgeServiceClient;
-use proto_generated::*;
+use crate::proto_generated::forge_service_client::ForgeServiceClient;
+use crate::proto_generated::{self, *};
 
 // TryFrom implementations for converting proto types to domain types
 

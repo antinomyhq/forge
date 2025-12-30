@@ -114,6 +114,10 @@ mod tests {
         fn get_environment(&self) -> Environment {
             self.environment.clone()
         }
+
+        fn is_restricted(&self) -> bool {
+            false
+        }
     }
 
     #[async_trait::async_trait]

@@ -314,7 +314,7 @@ impl<
             }
             ToolCatalog::Skill(input) => {
                 let skill = self.services.fetch_skill(input.name.clone()).await?;
-                (input, skill).into()
+                ToolOperation::Skill { output: skill }
             }
         })
     }
@@ -331,8 +331,9 @@ impl<
             context.send(content).await?;
         }
 
-        // Check permissions before executing the tool (if enabled)
-        if env.enable_permissions && self.check_tool_permission(&tool_input, context).await? {
+        // Check permissions before executing the tool (only in restricted mode)
+        if self.services.is_restricted() && self.check_tool_permission(&tool_input, context).await?
+        {
             // Send formatted output message for policy denial
             context
                 .send(TitleFormat::error("Permission Denied"))

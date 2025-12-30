@@ -89,7 +89,6 @@ impl Default for TestContext {
                 workspace_server_url: Url::parse("http://localhost:8080").unwrap(),
                 override_model: None,
                 override_provider: None,
-                enable_permissions: false,
             },
             title: Some("test-conversation".into()),
             agent: Agent::new(

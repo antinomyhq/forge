@@ -126,16 +126,12 @@ pub mod tests {
 
     use base64::Engine;
     use bytes::Bytes;
-    use forge_app::domain::{
-        AttachmentContent, CommandOutput, Environment, ToolDefinition, ToolName, ToolOutput,
-    };
+    use forge_app::domain::{AttachmentContent, Environment};
     use forge_app::{
-        AttachmentService, CommandInfra, DirectoryReaderInfra, EnvironmentInfra,
-        FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra,
-        McpClientInfra, McpServerInfra, UserInfra,
+        AttachmentService, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra,
+        FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra,
     };
     use forge_domain::FileInfo;
-    use serde_json::Value;
 
     use crate::attachment::ForgeChatRequest;
 
@@ -162,6 +158,10 @@ pub mod tests {
 
         fn get_env_vars(&self) -> BTreeMap<String, String> {
             BTreeMap::new()
+        }
+
+        fn is_restricted(&self) -> bool {
+            false
         }
     }
 
@@ -407,198 +407,6 @@ pub mod tests {
             }
         }
     }
-    #[derive(Debug, Clone)]
-    #[allow(dead_code)]
-    struct Mock;
-    #[async_trait::async_trait]
-    impl McpClientInfra for Mock {
-        async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
-            Ok(vec![])
-        }
-
-        async fn call(&self, _: &ToolName, _: Value) -> anyhow::Result<ToolOutput> {
-            Ok(ToolOutput::default())
-        }
-    }
-
-    #[async_trait::async_trait]
-    impl McpServerInfra for Mock {
-        type Client = Mock;
-
-        async fn connect(
-            &self,
-            _: forge_app::domain::McpServerConfig,
-            _: &BTreeMap<String, String>,
-        ) -> anyhow::Result<Self::Client> {
-            Ok(Mock)
-        }
-    }
-
-    #[async_trait::async_trait]
-    impl CommandInfra for Mock {
-        async fn execute_command(
-            &self,
-            command: String,
-            working_dir: PathBuf,
-            _silent: bool,
-            _env_vars: Option<Vec<String>>,
-        ) -> anyhow::Result<CommandOutput> {
-            // For test purposes, we'll create outputs that match what the shell tests
-            // expect Check for common command patterns
-            if command == "echo 'Hello, World!'" {
-                // When the test_shell_echo looks for this specific command
-                // It's expecting to see "Mock command executed successfully"
-                return Ok(CommandOutput {
-                    stdout: "Mock command executed successfully\n".to_string(),
-                    stderr: "".to_string(),
-                    command,
-                    exit_code: Some(0),
-                });
-            } else if command.contains("echo") {
-                if command.contains(">") && command.contains(">&2") {
-                    // Commands with both stdout and stderr
-                    let stdout = if command.contains("to stdout") {
-                        "to stdout\n"
-                    } else {
-                        "stdout output\n"
-                    };
-                    let stderr = if command.contains("to stderr") {
-                        "to stderr\n"
-                    } else {
-                        "stderr output\n"
-                    };
-                    return Ok(CommandOutput {
-                        stdout: stdout.to_string(),
-                        stderr: stderr.to_string(),
-                        command,
-                        exit_code: Some(0),
-                    });
-                } else if command.contains(">&2") {
-                    // Command with only stderr
-                    let content = command.split("echo").nth(1).unwrap_or("").trim();
-                    let content = content.trim_matches(|c| c == '\'' || c == '"');
-                    return Ok(CommandOutput {
-                        stdout: "".to_string(),
-                        stderr: format!("{content}\n"),
-                        command,
-                        exit_code: Some(0),
-                    });
-                } else {
-                    // Standard echo command
-                    let content = if command == "echo ''" {
-                        "\n".to_string()
-                    } else if command.contains("&&") {
-                        // Multiple commands
-                        "first\nsecond\n".to_string()
-                    } else if command.contains("$PATH") {
-                        // PATH command returns a mock path
-                        "/usr/bin:/bin:/usr/sbin:/sbin\n".to_string()
-                    } else {
-                        let parts: Vec<&str> = command.split("echo").collect();
-                        if parts.len() > 1 {
-                            let content = parts[1].trim();
-                            // Remove quotes if present
-                            let content = content.trim_matches(|c| c == '\'' || c == '"');
-                            format!("{content}\n")
-                        } else {
-                            "Hello, World!\n".to_string()
-                        }
-                    };
-
-                    return Ok(CommandOutput {
-                        stdout: content,
-                        stderr: "".to_string(),
-                        command,
-                        exit_code: Some(0),
-                    });
-                }
-            } else if command == "pwd" || command == "cd" {
-                // Return working directory for pwd/cd commands
-                return Ok(CommandOutput {
-                    stdout: format!("{working_dir}\n", working_dir = working_dir.display()),
-                    stderr: "".to_string(),
-                    command,
-                    exit_code: Some(0),
-                });
-            } else if command == "true" {
-                // true command returns success with no output
-                return Ok(CommandOutput {
-                    stdout: "".to_string(),
-                    stderr: "".to_string(),
-                    command,
-                    exit_code: Some(0),
-                });
-            } else if command.starts_with("/bin/ls") || command.contains("whoami") {
-                // Full path commands
-                return Ok(CommandOutput {
-                    stdout: "user\n".to_string(),
-                    stderr: "".to_string(),
-                    command,
-                    exit_code: Some(0),
-                });
-            } else if command == "non_existent_command" {
-                // Command not found
-                return Ok(CommandOutput {
-                    stdout: "".to_string(),
-                    stderr: "command not found: non_existent_command\n".to_string(),
-                    command,
-                    exit_code: Some(-1),
-                });
-            }
-
-            // Default response for other commands
-            Ok(CommandOutput {
-                stdout: "Mock command executed successfully\n".to_string(),
-                stderr: "".to_string(),
-                command,
-                exit_code: Some(0),
-            })
-        }
-
-        async fn execute_command_raw(
-            &self,
-            _: &str,
-            _: PathBuf,
-            _env_vars: Option<Vec<String>>,
-        ) -> anyhow::Result<std::process::ExitStatus> {
-            unimplemented!()
-        }
-    }
-
-    #[async_trait::async_trait]
-    impl UserInfra for Mock {
-        /// Prompts the user with question
-        async fn prompt_question(&self, question: &str) -> anyhow::Result<Option<String>> {
-            // For testing, we can just return the question as the answer
-            Ok(Some(question.to_string()))
-        }
-
-        /// Prompts the user to select a single option from a list
-        async fn select_one<T: std::fmt::Display + Send + 'static>(
-            &self,
-            _: &str,
-            options: Vec<T>,
-        ) -> anyhow::Result<Option<T>> {
-            // For testing, we can just return the first option
-            if options.is_empty() {
-                return Err(anyhow::anyhow!("No options provided"));
-            }
-            Ok(Some(options.into_iter().next().unwrap()))
-        }
-
-        /// Prompts the user to select multiple options from a list
-        async fn select_many<T: std::fmt::Display + Clone + Send + 'static>(
-            &self,
-            _: &str,
-            options: Vec<T>,
-        ) -> anyhow::Result<Option<Vec<T>>> {
-            // For testing, we can just return all options
-            if options.is_empty() {
-                return Err(anyhow::anyhow!("No options provided"));
-            }
-            Ok(Some(options))
-        }
-    }
 
     // Create a composite mock service that implements the required traits
     #[derive(Debug, Clone)]
@@ -654,6 +462,10 @@ pub mod tests {
 
         fn get_env_vars(&self) -> BTreeMap<String, String> {
             BTreeMap::new()
+        }
+
+        fn is_restricted(&self) -> bool {
+            false
         }
     }
 
