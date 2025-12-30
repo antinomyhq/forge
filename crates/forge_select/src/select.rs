@@ -164,7 +164,7 @@ impl<T: 'static> SelectBuilder<T> {
         // Disable application cursor keys to ensure arrow keys work correctly
         let _cursor_guard = ApplicationCursorKeysGuard::new()?;
         // Ensure cursor is restored on Ctrl+C
-        let _cursor_restore = CursorRestoreGuard::new();
+        let _cursor_restore = CursorRestoreGuard::default();
 
         let theme = ForgeSelect::default_theme();
 
@@ -236,7 +236,7 @@ impl<T> SelectBuilderOwned<T> {
         // Disable application cursor keys to ensure arrow keys work correctly
         let _cursor_guard = ApplicationCursorKeysGuard::new()?;
         // Ensure cursor is restored on Ctrl+C
-        let _cursor_restore = CursorRestoreGuard::new();
+        let _cursor_restore = CursorRestoreGuard::default();
 
         let theme = ForgeSelect::default_theme();
 
@@ -328,7 +328,7 @@ impl InputBuilder {
         // Disable application cursor keys to ensure arrow keys work correctly
         let _cursor_guard = ApplicationCursorKeysGuard::new()?;
         // Ensure cursor is restored on Ctrl+C
-        let _cursor_restore = CursorRestoreGuard::new();
+        let _cursor_restore = CursorRestoreGuard::default();
 
         let theme = ForgeSelect::default_theme();
 
@@ -406,7 +406,7 @@ impl<T> MultiSelectBuilder<T> {
         // Disable application cursor keys to ensure arrow keys work correctly
         let _cursor_guard = ApplicationCursorKeysGuard::new()?;
         // Ensure cursor is restored on Ctrl+C
-        let _cursor_restore = CursorRestoreGuard::new();
+        let _cursor_restore = CursorRestoreGuard::default();
 
         let theme = ForgeSelect::default_theme();
         let multi_select = MultiSelect::with_theme(&theme)

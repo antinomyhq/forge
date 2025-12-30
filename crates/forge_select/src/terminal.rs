@@ -132,13 +132,8 @@ pub struct CursorRestoreGuard {
     _private: (),
 }
 
-impl CursorRestoreGuard {
-    /// Create a new guard and ensure Ctrl+C handler is set
-    ///
-    /// Uses `ctrlc::try_set_handler` which safely handles multiple calls by
-    /// returning an error if a handler is already set. The error is ignored
-    /// since we only care that a handler exists, not who set it.
-    pub fn new() -> Self {
+impl Default for CursorRestoreGuard {
+    fn default() -> Self {
         let _ = ctrlc::try_set_handler(|| {
             let _ = TerminalControl::show_cursor();
             std::process::exit(130);
@@ -146,7 +141,6 @@ impl CursorRestoreGuard {
         Self { _private: () }
     }
 }
-
 /// Custom crossterm command to disable application cursor keys mode
 ///
 /// Sends the DECCKM escape sequence to disable application cursor keys.
