@@ -1,3 +1,8 @@
+use std::fs;
+use std::io::{BufRead, BufReader};
+use std::path::PathBuf;
+use std::process::Stdio;
+
 use anyhow::{Context, Result};
 use clap::CommandFactory;
 use clap_complete::generate;
@@ -60,31 +65,618 @@ pub fn generate_zsh_theme() -> Result<String> {
     Ok(content)
 }
 
-/// Runs diagnostics on the ZSH shell environment
+/// Runs diagnostics on the ZSH shell environment with streaming output
 ///
 /// # Errors
 ///
 /// Returns error if the doctor script cannot be executed
-pub fn run_zsh_doctor() -> Result<String> {
+pub fn run_zsh_doctor() -> Result<()> {
     // Get the embedded doctor script
     let script_content = include_str!("../../../../shell-plugin/doctor.zsh");
 
-    // Execute the script in a zsh subprocess
-    let output = std::process::Command::new("zsh")
+    // Execute the script in a zsh subprocess with piped output
+    let mut child = std::process::Command::new("zsh")
         .arg("-c")
         .arg(script_content)
-        .output()
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
         .context("Failed to execute zsh doctor script")?;
 
-    // Combine stdout and stderr for complete diagnostic output
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let stderr = String::from_utf8_lossy(&output.stderr);
+    // Get stdout and stderr handles
+    let stdout = child.stdout.take().context("Failed to capture stdout")?;
+    let stderr = child.stderr.take().context("Failed to capture stderr")?;
 
-    let mut result = stdout.to_string();
-    if !stderr.is_empty() {
-        result.push_str("\n\nErrors:\n");
-        result.push_str(&stderr);
+    // Create buffered readers for streaming
+    let stdout_reader = BufReader::new(stdout);
+    let stderr_reader = BufReader::new(stderr);
+
+    // Stream stdout line by line
+    let stdout_handle = std::thread::spawn(move || {
+        for line in stdout_reader.lines() {
+            match line {
+                Ok(line) => println!("{}", line),
+                Err(e) => eprintln!("Error reading stdout: {}", e),
+            }
+        }
+    });
+
+    // Stream stderr line by line
+    let stderr_handle = std::thread::spawn(move || {
+        for line in stderr_reader.lines() {
+            match line {
+                Ok(line) => eprintln!("{}", line),
+                Err(e) => eprintln!("Error reading stderr: {}", e),
+            }
+        }
+    });
+
+    // Wait for both threads to complete
+    stdout_handle.join().expect("stdout thread panicked");
+    stderr_handle.join().expect("stderr thread panicked");
+
+    // Wait for the child process to complete
+    let status = child
+        .wait()
+        .context("Failed to wait for zsh doctor script")?;
+
+    if !status.success() {
+        anyhow::bail!(
+            "ZSH doctor script failed with exit code: {:?}",
+            status.code()
+        );
     }
 
-    Ok(result)
+    Ok(())
+}
+
+/// Represents the state of markers in a file
+enum MarkerState {
+    /// No markers found
+    NotFound,
+    /// Valid markers with correct positions
+    Valid { start: usize, end: usize },
+    /// Invalid markers (incorrect order or incomplete)
+    Invalid {
+        start: Option<usize>,
+        end: Option<usize>,
+    },
+}
+
+/// Parses the file content to find and validate marker positions
+///
+/// # Arguments
+///
+/// * `lines` - The lines of the file to parse
+/// * `start_marker` - The start marker to look for
+/// * `end_marker` - The end marker to look for
+fn parse_markers(lines: &[String], start_marker: &str, end_marker: &str) -> MarkerState {
+    let start_idx = lines.iter().position(|line| line.trim() == start_marker);
+    let end_idx = lines.iter().position(|line| line.trim() == end_marker);
+
+    match (start_idx, end_idx) {
+        (Some(start), Some(end)) if start < end => MarkerState::Valid { start, end },
+        (None, None) => MarkerState::NotFound,
+        (start, end) => MarkerState::Invalid { start, end },
+    }
+}
+
+/// Result of ZSH setup operation
+#[derive(Debug)]
+pub struct ZshSetupResult {
+    /// Status message describing what was done
+    pub message: String,
+    /// Path to backup file if one was created
+    pub backup_path: Option<PathBuf>,
+}
+
+/// Sets up ZSH integration with optional nerd font and editor configuration
+///
+/// # Arguments
+///
+/// * `disable_nerd_font` - If true, adds NERD_FONT=0 to .zshrc
+/// * `forge_editor` - If Some(editor), adds FORGE_EDITOR export to .zshrc
+///
+/// # Errors
+///
+/// Returns error if:
+/// - The HOME environment variable is not set
+/// - The .zshrc file cannot be read or written
+/// - Invalid forge markers are found (incomplete or incorrectly ordered)
+/// - A backup of the existing .zshrc cannot be created
+pub fn setup_zsh_integration(
+    disable_nerd_font: bool,
+    forge_editor: Option<&str>,
+) -> Result<ZshSetupResult> {
+    const START_MARKER: &str = "# >>> forge initialize >>>";
+    const END_MARKER: &str = "# <<< forge initialize <<<";
+    const FORGE_INIT_CONFIG: &str = include_str!("../../../../shell-plugin/forge.setup.zsh");
+
+    let home = std::env::var("HOME").context("HOME environment variable not set")?;
+    let zdotdir = std::env::var("ZDOTDIR").unwrap_or_else(|_| home.clone());
+    let zshrc_path = PathBuf::from(&zdotdir).join(".zshrc");
+
+    // Read existing .zshrc or create new one
+    let content = if zshrc_path.exists() {
+        fs::read_to_string(&zshrc_path)
+            .context(format!("Failed to read {}", zshrc_path.display()))?
+    } else {
+        String::new()
+    };
+
+    let mut lines: Vec<String> = content.lines().map(String::from).collect();
+
+    // Parse markers to determine their state
+    let marker_state = parse_markers(&lines, START_MARKER, END_MARKER);
+
+    // Build the forge config block with markers
+    let mut forge_config: Vec<String> = vec![START_MARKER.to_string()];
+    forge_config.extend(FORGE_INIT_CONFIG.lines().map(String::from));
+
+    // Add nerd font configuration if requested
+    if disable_nerd_font {
+        forge_config.push(String::new()); // Add blank line before comment
+        forge_config.push(
+            "# Disable Nerd Fonts (set during setup - icons not displaying correctly)".to_string(),
+        );
+        forge_config.push("# To re-enable: remove this line and install a Nerd Font from https://www.nerdfonts.com/".to_string());
+        forge_config.push("export NERD_FONT=0".to_string());
+    }
+
+    // Add editor configuration if requested
+    if let Some(editor) = forge_editor {
+        forge_config.push(String::new()); // Add blank line before comment
+        forge_config.push("# Editor for editing prompts (set during setup)".to_string());
+        forge_config.push("# To change: update FORGE_EDITOR or remove to use $EDITOR".to_string());
+        forge_config.push(format!("export FORGE_EDITOR=\"{}\"", editor));
+    }
+
+    forge_config.push(END_MARKER.to_string());
+
+    // Add or update forge configuration block based on marker state
+    let (new_content, config_action) = match marker_state {
+        MarkerState::Valid { start, end } => {
+            // Markers exist - replace content between them
+            lines.splice(start..=end, forge_config.iter().cloned());
+            (lines.join("\n") + "\n", "updated")
+        }
+        MarkerState::Invalid { start, end } => {
+            let location = match (start, end) {
+                (Some(s), Some(e)) => Some(format!("{}:{}-{}", zshrc_path.display(), s + 1, e + 1)),
+                (Some(s), None) => Some(format!("{}:{}", zshrc_path.display(), s + 1)),
+                (None, Some(e)) => Some(format!("{}:{}", zshrc_path.display(), e + 1)),
+                (None, None) => None,
+            };
+
+            let mut error =
+                anyhow::anyhow!("Invalid forge markers found in {}", zshrc_path.display());
+            if let Some(loc) = location {
+                error = error.context(format!("Markers found at {}", loc));
+            }
+            return Err(error);
+        }
+        MarkerState::NotFound => {
+            // No markers - add them at the end
+            // Add blank line before markers if file is not empty and doesn't end with blank
+            // line
+            if !lines.is_empty() && !lines[lines.len() - 1].trim().is_empty() {
+                lines.push(String::new());
+            }
+
+            lines.extend(forge_config.iter().cloned());
+            (lines.join("\n") + "\n", "added")
+        }
+    };
+
+    // Create backup of existing .zshrc if it exists
+    let backup_path = if zshrc_path.exists() {
+        // Generate timestamp for backup filename
+        let timestamp = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
+        let backup = zshrc_path.parent().unwrap().join(format!(
+            "{}.bak.{}",
+            zshrc_path.file_name().unwrap().to_str().unwrap(),
+            timestamp
+        ));
+        fs::copy(&zshrc_path, &backup)
+            .context(format!("Failed to create backup at {}", backup.display()))?;
+        Some(backup)
+    } else {
+        None
+    };
+
+    // Write back to .zshrc
+    fs::write(&zshrc_path, &new_content)
+        .context(format!("Failed to write to {}", zshrc_path.display()))?;
+
+    Ok(ZshSetupResult {
+        message: format!("forge plugins {}", config_action),
+        backup_path,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Mutex;
+
+    use super::*;
+
+    // Mutex to ensure tests that modify environment variables run serially
+    static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    /// Test that the doctor script executes and streams output
+    /// Note: The script may fail with non-zero exit code in test environment
+    /// (e.g., plugin not loaded), or zsh may not be available in CI
+    #[test]
+    fn test_run_zsh_doctor_streaming() {
+        // Set environment variable to skip interactive prompts in tests
+        unsafe {
+            std::env::set_var("FORGE_SKIP_INTERACTIVE", "1");
+        }
+
+        let actual = run_zsh_doctor();
+
+        // Clean up
+        unsafe {
+            std::env::remove_var("FORGE_SKIP_INTERACTIVE");
+        }
+
+        // The doctor script runs successfully even if it reports failures
+        // (failures are expected in test environment where plugin isn't loaded)
+        // Also accept cases where zsh is not available in CI environment
+        match actual {
+            Ok(_) => {
+                // Success case
+            }
+            Err(e) => {
+                // Check if it's a non-zero exit code error or zsh not available (both expected
+                // in tests)
+                let error_msg = e.to_string();
+                assert!(
+                    error_msg.contains("exit code") || error_msg.contains("Failed to execute"),
+                    "Unexpected error: {}",
+                    error_msg
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_setup_zsh_integration_without_nerd_font_config() {
+        use tempfile::TempDir;
+
+        // Lock to prevent parallel test execution that modifies env vars
+        let _guard = ENV_LOCK.lock().unwrap();
+
+        // Create a temporary directory for the test
+        let temp_dir = TempDir::new().unwrap();
+        let zshrc_path = temp_dir.path().join(".zshrc");
+
+        // Set HOME to temp directory
+        let original_home = std::env::var("HOME").ok();
+        let original_zdotdir = std::env::var("ZDOTDIR").ok();
+
+        unsafe {
+            std::env::set_var("HOME", temp_dir.path());
+            std::env::remove_var("ZDOTDIR");
+        }
+
+        // Run setup without nerd font config
+        let actual = setup_zsh_integration(false, None);
+
+        // Restore environment first
+        unsafe {
+            if let Some(home) = original_home {
+                std::env::set_var("HOME", home);
+            } else {
+                std::env::remove_var("HOME");
+            }
+            if let Some(zdotdir) = original_zdotdir {
+                std::env::set_var("ZDOTDIR", zdotdir);
+            } else {
+                std::env::remove_var("ZDOTDIR");
+            }
+        }
+
+        assert!(actual.is_ok(), "Setup should succeed: {:?}", actual);
+
+        // Read the generated .zshrc
+        assert!(
+            zshrc_path.exists(),
+            "zshrc file should be created at {:?}",
+            zshrc_path
+        );
+        let content = fs::read_to_string(&zshrc_path).expect("Should be able to read zshrc");
+
+        // Should not contain NERD_FONT=0
+        assert!(!content.contains("NERD_FONT=0"));
+
+        // Should contain the markers
+        assert!(content.contains("# >>> forge initialize >>>"));
+        assert!(content.contains("# <<< forge initialize <<<"));
+    }
+
+    #[test]
+    fn test_setup_zsh_integration_with_nerd_font_disabled() {
+        use tempfile::TempDir;
+
+        // Lock to prevent parallel test execution that modifies env vars
+        let _guard = ENV_LOCK.lock().unwrap();
+
+        // Create a temporary directory for the test
+        let temp_dir = TempDir::new().unwrap();
+        let zshrc_path = temp_dir.path().join(".zshrc");
+
+        // Set HOME to temp directory
+        let original_home = std::env::var("HOME").ok();
+        let original_zdotdir = std::env::var("ZDOTDIR").ok();
+
+        unsafe {
+            std::env::set_var("HOME", temp_dir.path());
+            std::env::set_var("ZDOTDIR", temp_dir.path());
+        }
+
+        // Run setup with nerd font disabled
+        let actual = setup_zsh_integration(true, None);
+        assert!(actual.is_ok(), "Setup should succeed: {:?}", actual);
+
+        // Read the generated .zshrc
+        assert!(zshrc_path.exists(), "zshrc file should be created");
+        let content = fs::read_to_string(&zshrc_path).expect("Should be able to read zshrc");
+
+        // Should contain NERD_FONT=0 with explanatory comments
+        assert!(
+            content.contains("export NERD_FONT=0"),
+            "Content should contain NERD_FONT=0:\n{}",
+            content
+        );
+        assert!(
+            content.contains(
+                "# Disable Nerd Fonts (set during setup - icons not displaying correctly)"
+            ),
+            "Should contain explanation comment"
+        );
+        assert!(content.contains("# To re-enable: remove this line and install a Nerd Font from https://www.nerdfonts.com/"), "Should contain re-enable instructions");
+
+        // Should contain the markers
+        assert!(content.contains("# >>> forge initialize >>>"));
+        assert!(content.contains("# <<< forge initialize <<<"));
+
+        // Restore environment
+        unsafe {
+            if let Some(home) = original_home {
+                std::env::set_var("HOME", home);
+            }
+            if let Some(zdotdir) = original_zdotdir {
+                std::env::set_var("ZDOTDIR", zdotdir);
+            }
+        }
+    }
+
+    #[test]
+    fn test_setup_zsh_integration_with_editor() {
+        use tempfile::TempDir;
+
+        // Lock to prevent parallel test execution that modifies env vars
+        let _guard = ENV_LOCK.lock().unwrap();
+
+        // Create a temporary directory for the test
+        let temp_dir = TempDir::new().unwrap();
+        let zshrc_path = temp_dir.path().join(".zshrc");
+
+        // Set HOME to temp directory
+        let original_home = std::env::var("HOME").ok();
+        let original_zdotdir = std::env::var("ZDOTDIR").ok();
+
+        unsafe {
+            std::env::set_var("HOME", temp_dir.path());
+            std::env::remove_var("ZDOTDIR");
+        }
+
+        // Run setup with editor configuration
+        let actual = setup_zsh_integration(false, Some("code --wait"));
+
+        assert!(actual.is_ok(), "Setup should succeed: {:?}", actual);
+
+        // Read the generated .zshrc
+        assert!(zshrc_path.exists(), "zshrc file should be created");
+        let content = fs::read_to_string(&zshrc_path).expect("Should be able to read zshrc");
+
+        // Should contain FORGE_EDITOR with explanatory comments
+        assert!(
+            content.contains("export FORGE_EDITOR=\"code --wait\""),
+            "Content should contain FORGE_EDITOR:\n{}",
+            content
+        );
+        assert!(
+            content.contains("# Editor for editing prompts (set during setup)"),
+            "Should contain editor explanation comment"
+        );
+        assert!(
+            content.contains("# To change: update FORGE_EDITOR or remove to use $EDITOR"),
+            "Should contain editor change instructions"
+        );
+
+        // Should contain the markers
+        assert!(content.contains("# >>> forge initialize >>>"));
+        assert!(content.contains("# <<< forge initialize <<<"));
+
+        // Restore environment
+        unsafe {
+            if let Some(home) = original_home {
+                std::env::set_var("HOME", home);
+            } else {
+                std::env::remove_var("HOME");
+            }
+            if let Some(zdotdir) = original_zdotdir {
+                std::env::set_var("ZDOTDIR", zdotdir);
+            } else {
+                std::env::remove_var("ZDOTDIR");
+            }
+        }
+    }
+
+    #[test]
+    fn test_setup_zsh_integration_with_both_configs() {
+        use tempfile::TempDir;
+
+        // Lock to prevent parallel test execution that modifies env vars
+        let _guard = ENV_LOCK.lock().unwrap();
+
+        // Create a temporary directory for the test
+        let temp_dir = TempDir::new().unwrap();
+        let zshrc_path = temp_dir.path().join(".zshrc");
+
+        // Set HOME to temp directory
+        let original_home = std::env::var("HOME").ok();
+        let original_zdotdir = std::env::var("ZDOTDIR").ok();
+
+        unsafe {
+            std::env::set_var("HOME", temp_dir.path());
+            std::env::set_var("ZDOTDIR", temp_dir.path());
+        }
+
+        // Run setup with both nerd font disabled and editor configured
+        let actual = setup_zsh_integration(true, Some("vim"));
+        assert!(actual.is_ok(), "Setup should succeed: {:?}", actual);
+
+        // Read the generated .zshrc
+        assert!(zshrc_path.exists(), "zshrc file should be created");
+        let content = fs::read_to_string(&zshrc_path).expect("Should be able to read zshrc");
+
+        // Should contain both configurations
+        assert!(
+            content.contains("export NERD_FONT=0"),
+            "Content should contain NERD_FONT=0:\n{}",
+            content
+        );
+        assert!(
+            content.contains("export FORGE_EDITOR=\"vim\""),
+            "Content should contain FORGE_EDITOR:\n{}",
+            content
+        );
+
+        // Should contain the markers
+        assert!(content.contains("# >>> forge initialize >>>"));
+        assert!(content.contains("# <<< forge initialize <<<"));
+
+        // Restore environment
+        unsafe {
+            if let Some(home) = original_home {
+                std::env::set_var("HOME", home);
+            }
+            if let Some(zdotdir) = original_zdotdir {
+                std::env::set_var("ZDOTDIR", zdotdir);
+            }
+        }
+    }
+
+    #[test]
+    fn test_setup_zsh_integration_updates_existing_markers() {
+        use tempfile::TempDir;
+
+        // Lock to prevent parallel test execution that modifies env vars
+        let _guard = ENV_LOCK.lock().unwrap();
+
+        // Create a temporary directory for the test
+        let temp_dir = TempDir::new().unwrap();
+        let zshrc_path = temp_dir.path().join(".zshrc");
+
+        // Set HOME to temp directory
+        let original_home = std::env::var("HOME").ok();
+        let original_zdotdir = std::env::var("ZDOTDIR").ok();
+
+        unsafe {
+            std::env::set_var("HOME", temp_dir.path());
+            std::env::remove_var("ZDOTDIR");
+        }
+
+        // First setup - with nerd font disabled
+        let result = setup_zsh_integration(true, None);
+        assert!(result.is_ok(), "Initial setup should succeed: {:?}", result);
+
+        // First setup should not create a backup (no existing file)
+        assert!(
+            result.as_ref().unwrap().backup_path.is_none(),
+            "Should not create backup on initial setup"
+        );
+
+        let content = fs::read_to_string(&zshrc_path).expect("Should be able to read zshrc");
+        assert!(
+            content.contains("export NERD_FONT=0"),
+            "Should contain NERD_FONT=0 after first setup"
+        );
+        assert!(
+            !content.contains("export FORGE_EDITOR"),
+            "Should not contain FORGE_EDITOR after first setup"
+        );
+
+        // Second setup - without nerd font but with editor
+        let result = setup_zsh_integration(false, Some("nvim"));
+        assert!(result.is_ok(), "Update setup should succeed: {:?}", result);
+
+        // Second setup should create a backup (existing file)
+        let backup_path = result.as_ref().unwrap().backup_path.as_ref();
+        assert!(backup_path.is_some(), "Should create backup on update");
+        let backup = backup_path.unwrap();
+        assert!(backup.exists(), "Backup file should exist at {:?}", backup);
+
+        // Verify backup filename contains timestamp
+        let backup_name = backup.file_name().unwrap().to_str().unwrap();
+        assert!(
+            backup_name.starts_with(".zshrc.bak."),
+            "Backup filename should start with .zshrc.bak.: {}",
+            backup_name
+        );
+        assert!(
+            backup_name.len() > ".zshrc.bak.".len(),
+            "Backup filename should include timestamp: {}",
+            backup_name
+        );
+
+        let content = fs::read_to_string(&zshrc_path).expect("Should be able to read zshrc");
+
+        // Should not contain NERD_FONT=0 anymore
+        assert!(
+            !content.contains("export NERD_FONT=0"),
+            "Should not contain NERD_FONT=0 after update:\n{}",
+            content
+        );
+
+        // Should contain the editor
+        assert!(
+            content.contains("export FORGE_EDITOR=\"nvim\""),
+            "Should contain FORGE_EDITOR after update:\n{}",
+            content
+        );
+
+        // Should still have markers
+        assert!(content.contains("# >>> forge initialize >>>"));
+        assert!(content.contains("# <<< forge initialize <<<"));
+
+        // Should only have one set of markers
+        assert_eq!(
+            content.matches("# >>> forge initialize >>>").count(),
+            1,
+            "Should have exactly one start marker"
+        );
+        assert_eq!(
+            content.matches("# <<< forge initialize <<<").count(),
+            1,
+            "Should have exactly one end marker"
+        );
+
+        // Restore environment
+        unsafe {
+            if let Some(home) = original_home {
+                std::env::set_var("HOME", home);
+            } else {
+                std::env::remove_var("HOME");
+            }
+            if let Some(zdotdir) = original_zdotdir {
+                std::env::set_var("ZDOTDIR", zdotdir);
+            } else {
+                std::env::remove_var("ZDOTDIR");
+            }
+        }
+    }
 }
