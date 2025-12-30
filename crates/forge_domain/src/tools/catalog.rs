@@ -216,7 +216,7 @@ impl SearchQuery {
 /// Understands queries like "authentication flow" (finds login), "retry logic"
 /// (finds backoff), "validation" (finds checking/sanitization).
 ///
-/// Returns file:line locations with code context, ranked by relevance. Use
+/// Returns the topK most relevant file:line locations with code context. Use
 /// multiple varied queries (2-3) for best coverage. For exact string matching
 /// (TODO comments, specific function names), use regex search instead.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]

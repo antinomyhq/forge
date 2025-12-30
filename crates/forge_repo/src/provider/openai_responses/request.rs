@@ -281,7 +281,11 @@ impl FromDomain<ChatContext> for oai::CreateResponse {
             builder.reasoning(reasoning_config);
         }
 
-        builder.build().map_err(anyhow::Error::from)
+        let mut response = builder.build().map_err(anyhow::Error::from)?;
+
+        response.stream = Some(true);
+
+        Ok(response)
     }
 }
 

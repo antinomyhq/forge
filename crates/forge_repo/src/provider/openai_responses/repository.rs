@@ -1,32 +1,28 @@
 use std::sync::Arc;
 
 use anyhow::Context as _;
-use async_openai::Client as AsyncOpenAIClient;
-use async_openai::config::OpenAIConfig;
-use async_openai::traits::RequestOptionsBuilder as _;
 use async_openai::types::responses as oai;
 use derive_setters::Setters;
 use forge_app::HttpInfra;
 use forge_app::domain::{
     ChatCompletionMessage, Context as ChatContext, Model, ModelId, ResultStream, RetryConfig,
 };
-use forge_domain::{ChatRepository, Provider};
+use forge_domain::{BoxStream, ChatRepository, Provider};
 use futures::StreamExt;
 use reqwest::header::AUTHORIZATION;
 use tracing::info;
 use url::Url;
 
+use crate::provider::FromDomain;
 use crate::provider::retry::into_retry;
 use crate::provider::utils::{create_headers, format_http_context, sanitize_headers};
-use crate::provider::{FromDomain, IntoDomain};
 
 #[derive(Clone)]
 pub(super) struct OpenAIResponsesProvider<H> {
     provider: Provider<Url>,
-    client: Arc<AsyncOpenAIClient<OpenAIConfig>>,
+    http: Arc<H>,
     api_base: Url,
     responses_url: Url,
-    _phantom: std::marker::PhantomData<H>,
 }
 
 impl<H: HttpInfra> OpenAIResponsesProvider<H> {
@@ -35,34 +31,12 @@ impl<H: HttpInfra> OpenAIResponsesProvider<H> {
     /// # Panics
     ///
     /// Panics if the provider URL cannot be converted to an API base URL
-    pub fn new(provider: Provider<Url>) -> Self {
+    pub fn new(provider: Provider<Url>, http: Arc<H>) -> Self {
         let api_base = api_base_from_endpoint_url(&provider.url)
             .expect("Failed to derive API base URL from provider endpoint");
         let responses_url = responses_endpoint_from_api_base(&api_base);
 
-        let api_key = provider
-            .credential
-            .as_ref()
-            .map(|c| match &c.auth_details {
-                forge_domain::AuthDetails::ApiKey(key) => key.as_str(),
-                forge_domain::AuthDetails::OAuthWithApiKey { api_key, .. } => api_key.as_str(),
-                forge_domain::AuthDetails::OAuth { tokens, .. } => tokens.access_token.as_str(),
-            })
-            .unwrap_or("");
-
-        let config = OpenAIConfig::new()
-            .with_api_key(api_key)
-            .with_api_base(api_base.as_str());
-
-        let client = Arc::new(AsyncOpenAIClient::with_config(config));
-
-        Self {
-            provider,
-            client,
-            api_base,
-            responses_url,
-            _phantom: std::marker::PhantomData,
-        }
+        Self { provider, http, api_base, responses_url }
     }
 
     fn get_headers(&self) -> Vec<(String, String)> {
@@ -122,17 +96,46 @@ impl<T: HttpInfra> OpenAIResponsesProvider<T> {
             "Connecting Upstream (Codex via Responses API)"
         );
 
-        self.client
-            .responses()
-            .headers(headers)
-            .create_stream(request)
+        let json_bytes = serde_json::to_vec(&request)
+            .with_context(|| "Failed to serialize OpenAI Responses request")?;
+
+        let source = self
+            .http
+            .http_eventsource(&self.responses_url, Some(headers), json_bytes.into())
             .await
-            .with_context(|| format_http_context(None, "POST", &self.responses_url))?
-            .into_domain()
+            .with_context(|| format_http_context(None, "POST", &self.responses_url))?;
+
+        // Parse SSE stream into domain messages and convert to domain type
+        use reqwest_eventsource::Event;
+        let event_stream = source
+            .take_while(|message| {
+                let should_continue =
+                    !matches!(message, Err(reqwest_eventsource::Error::StreamEnded));
+                async move { should_continue }
+            })
+            .filter_map(|event_result| async move {
+                match event_result {
+                    Ok(Event::Open) => None,
+                    Ok(Event::Message(msg)) if ["[DONE]", ""].contains(&msg.data.as_str()) => None,
+                    Ok(Event::Message(msg)) => {
+                        // Parse the SSE event data as ResponseStreamEvent
+                        let result = serde_json::from_str::<oai::ResponseStreamEvent>(&msg.data)
+                            .with_context(|| format!("Failed to parse SSE event: {}", msg.data));
+                        Some(result)
+                    }
+                    Err(reqwest_eventsource::Error::StreamEnded) => None,
+                    Err(e) => Some(Err(anyhow::Error::from(e))),
+                }
+            });
+
+        // Convert to domain messages using the existing conversion logic
+        use crate::provider::IntoDomain;
+        let stream: BoxStream<oai::ResponseStreamEvent, anyhow::Error> = Box::pin(event_stream);
+        stream.into_domain()
     }
 }
 
-/// Derives an API base URL suitable for `async-openai` from a configured
+/// Derives an API base URL suitable for OpenAI Responses API from a configured
 /// endpoint URL.
 ///
 /// For Codex/Responses usage we only need the host and the `/v1` prefix.
@@ -172,7 +175,6 @@ fn request_message_count(request: &oai::CreateResponse) -> usize {
 #[derive(Setters)]
 #[setters(strip_option, into)]
 pub struct OpenAIResponsesResponseRepository<F> {
-    #[allow(dead_code)]
     infra: Arc<F>,
     retry_config: Arc<RetryConfig>,
 }
@@ -192,7 +194,8 @@ impl<F: HttpInfra + 'static> ChatRepository for OpenAIResponsesResponseRepositor
         provider: Provider<Url>,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
         let retry_config = self.retry_config.clone();
-        let provider_client: OpenAIResponsesProvider<F> = OpenAIResponsesProvider::new(provider);
+        let provider_client: OpenAIResponsesProvider<F> =
+            OpenAIResponsesProvider::new(provider, self.infra.clone());
         let stream = provider_client
             .chat(model_id, context)
             .await
@@ -281,11 +284,15 @@ mod tests {
 
         async fn http_eventsource(
             &self,
-            _url: &reqwest::Url,
-            _headers: Option<reqwest::header::HeaderMap>,
-            _body: bytes::Bytes,
+            url: &reqwest::Url,
+            headers: Option<reqwest::header::HeaderMap>,
+            body: bytes::Bytes,
         ) -> anyhow::Result<reqwest_eventsource::EventSource> {
-            unimplemented!()
+            let mut request = self.client.post(url.clone()).body(body);
+            if let Some(headers) = headers {
+                request = request.headers(headers);
+            }
+            Ok(reqwest_eventsource::EventSource::new(request)?)
         }
     }
 
@@ -413,7 +420,8 @@ mod tests {
     #[test]
     fn test_openai_responses_provider_new_with_api_key() {
         let provider = openai_responses("test-key", "https://api.openai.com/v1");
-        let provider_impl = OpenAIResponsesProvider::<MockHttpClient>::new(provider);
+        let infra = Arc::new(MockHttpClient { client: reqwest::Client::new() });
+        let provider_impl = OpenAIResponsesProvider::<MockHttpClient>::new(provider, infra);
 
         assert_eq!(provider_impl.api_base.as_str(), "https://api.openai.com/v1");
         assert_eq!(
@@ -457,7 +465,8 @@ mod tests {
             models: None,
         };
 
-        let provider_impl = OpenAIResponsesProvider::<MockHttpClient>::new(provider);
+        let infra = Arc::new(MockHttpClient { client: reqwest::Client::new() });
+        let provider_impl = OpenAIResponsesProvider::<MockHttpClient>::new(provider, infra);
         assert_eq!(provider_impl.api_base.as_str(), "https://api.openai.com/v1");
     }
 
@@ -495,7 +504,8 @@ mod tests {
             models: None,
         };
 
-        let provider_impl = OpenAIResponsesProvider::<MockHttpClient>::new(provider);
+        let infra = Arc::new(MockHttpClient { client: reqwest::Client::new() });
+        let provider_impl = OpenAIResponsesProvider::<MockHttpClient>::new(provider, infra);
         assert_eq!(provider_impl.api_base.as_str(), "https://api.openai.com/v1");
     }
 
@@ -512,14 +522,16 @@ mod tests {
             models: None,
         };
 
-        let provider_impl = OpenAIResponsesProvider::<MockHttpClient>::new(provider);
+        let infra = Arc::new(MockHttpClient { client: reqwest::Client::new() });
+        let provider_impl = OpenAIResponsesProvider::<MockHttpClient>::new(provider, infra);
         assert_eq!(provider_impl.api_base.as_str(), "https://api.openai.com/v1");
     }
 
     #[test]
     fn test_get_headers_with_api_key() {
         let provider = openai_responses("test-key", "https://api.openai.com/v1");
-        let provider_impl = OpenAIResponsesProvider::<MockHttpClient>::new(provider);
+        let infra = Arc::new(MockHttpClient { client: reqwest::Client::new() });
+        let provider_impl = OpenAIResponsesProvider::<MockHttpClient>::new(provider, infra);
 
         let headers = provider_impl.get_headers();
 
@@ -557,7 +569,8 @@ mod tests {
             models: None,
         };
 
-        let provider_impl = OpenAIResponsesProvider::<MockHttpClient>::new(provider);
+        let infra = Arc::new(MockHttpClient { client: reqwest::Client::new() });
+        let provider_impl = OpenAIResponsesProvider::<MockHttpClient>::new(provider, infra);
         let headers = provider_impl.get_headers();
 
         assert_eq!(headers.len(), 2);
@@ -595,7 +608,8 @@ mod tests {
             models: None,
         };
 
-        let provider_impl = OpenAIResponsesProvider::<MockHttpClient>::new(provider);
+        let infra = Arc::new(MockHttpClient { client: reqwest::Client::new() });
+        let provider_impl = OpenAIResponsesProvider::<MockHttpClient>::new(provider, infra);
         let headers = provider_impl.get_headers();
 
         assert_eq!(headers.len(), 2);
@@ -617,7 +631,8 @@ mod tests {
             models: None,
         };
 
-        let provider_impl = OpenAIResponsesProvider::<MockHttpClient>::new(provider);
+        let infra = Arc::new(MockHttpClient { client: reqwest::Client::new() });
+        let provider_impl = OpenAIResponsesProvider::<MockHttpClient>::new(provider, infra);
         let headers = provider_impl.get_headers();
 
         assert!(headers.is_empty());
@@ -655,7 +670,8 @@ mod tests {
             models: None,
         };
 
-        let provider_impl = OpenAIResponsesProvider::<MockHttpClient>::new(provider);
+        let infra = Arc::new(MockHttpClient { client: reqwest::Client::new() });
+        let provider_impl = OpenAIResponsesProvider::<MockHttpClient>::new(provider, infra);
         let headers = provider_impl.get_headers();
 
         assert_eq!(headers.len(), 3);
@@ -690,8 +706,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_openai_responses_provider_uses_responses_api_via_async_openai()
-    -> anyhow::Result<()> {
+    async fn test_openai_responses_provider_uses_direct_http_calls() -> anyhow::Result<()> {
         let mut fixture = MockServer::new().await;
 
         // Create SSE events for streaming response
@@ -728,13 +743,14 @@ mod tests {
             &format!("{}/v1/chat/completions", fixture.url()),
         );
 
-        let provider: OpenAIResponsesProvider<MockHttpClient> =
-            OpenAIResponsesProvider::new(provider);
+        let infra = Arc::new(MockHttpClient { client: reqwest::Client::new() });
+        let provider_impl: OpenAIResponsesProvider<_> =
+            OpenAIResponsesProvider::new(provider, infra);
         let context = ChatContext::default()
             .add_message(ContextMessage::user("Hi", None))
             .stream(true);
 
-        let mut stream = provider
+        let mut stream = provider_impl
             .chat(&ModelId::from("codex-mini-latest"), context)
             .await?;
 
