@@ -212,7 +212,7 @@ mod tests {
 
     #[test]
     fn test_spinner_new_creates_inactive_spinner() {
-        let fixture = Spinner::new();
+        let fixture = Spinner::default();
 
         let actual = fixture.is_active();
         let expected = false;
@@ -222,7 +222,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_spinner_start_activates_spinner() {
-        let mut fixture = Spinner::new();
+        let mut fixture = Spinner::default();
 
         fixture.start(Some("Test")).unwrap();
         let actual = fixture.is_active();
@@ -234,7 +234,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_spinner_stop_deactivates_spinner() {
-        let mut fixture = Spinner::new();
+        let mut fixture = Spinner::default();
 
         fixture.start(Some("Test")).unwrap();
         fixture.stop(None).unwrap();
@@ -247,7 +247,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_word_index_caching_behavior() {
-        let mut fixture = Spinner::new();
+        let mut fixture = Spinner::default();
 
         fixture.start(None).unwrap();
         let first_index = fixture.word_index;
@@ -262,7 +262,7 @@ mod tests {
 
     #[test]
     fn test_reset_clears_word_index() {
-        let mut fixture = Spinner::new();
+        let mut fixture = Spinner::default();
         fixture.word_index = Some(5);
 
         fixture.reset();
@@ -275,7 +275,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_double_stop_is_safe() {
-        let mut fixture = Spinner::new();
+        let mut fixture = Spinner::default();
 
         fixture.start(Some("Test")).unwrap();
         fixture.stop(None).unwrap();
@@ -286,7 +286,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_start_stops_existing_spinner() {
-        let mut fixture = Spinner::new();
+        let mut fixture = Spinner::default();
 
         fixture.start(Some("First")).unwrap();
         let result = fixture.start(Some("Second"));
@@ -298,7 +298,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_pause_and_resume() {
-        let mut fixture = Spinner::new();
+        let mut fixture = Spinner::default();
 
         fixture.start(Some("Test")).unwrap();
         fixture.pause().unwrap();
@@ -316,7 +316,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_pause_on_inactive_spinner_is_safe() {
-        let mut fixture = Spinner::new();
+        let mut fixture = Spinner::default();
 
         let result = fixture.pause();
 
@@ -326,7 +326,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_resume_on_inactive_spinner_is_safe() {
-        let mut fixture = Spinner::new();
+        let mut fixture = Spinner::default();
 
         let result = fixture.resume();
 
@@ -335,7 +335,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_stop_clears_paused_state() {
-        let mut fixture = Spinner::new();
+        let mut fixture = Spinner::default();
 
         fixture.start(Some("Test")).unwrap();
         fixture.pause().unwrap();

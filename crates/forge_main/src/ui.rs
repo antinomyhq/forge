@@ -2572,19 +2572,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
             }
             ChatResponse::Usage { usage } => {
-                let mut out = String::default();
-                if let Some(cost) = usage.cost {
-                    out.push_str(&format!("${:.3} ", cost));
-                }
-                out.push_str(&format!("{}/{}", *usage.prompt_tokens, *usage.completion_tokens));
-                let input_tokens = *usage.prompt_tokens;
-                let cached_tokens = *usage.cached_tokens;
-                if input_tokens > 0 && cached_tokens > 0 {
-                    let percentage = (cached_tokens as f64 / input_tokens as f64) * 100.0;
-                    out.push_str(&format!(" {:.2}%", percentage));
-                }
-                if !out.is_empty() {
-                    self.spinner.set_message(&out)?;
+                let formatted = usage.to_string();
+                if !formatted.is_empty() {
+                    self.spinner.set_message(&formatted)?;
                 }
             }
         }
