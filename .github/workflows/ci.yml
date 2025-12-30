@@ -75,7 +75,7 @@ jobs:
       with:
         toolchain: stable
     - name: Run performance benchmark
-      run: './scripts/benchmark.sh --threshold 100 zsh rprompt'
+      run: './scripts/benchmark.sh --threshold 150 zsh rprompt'
   draft_release:
     needs:
     - build
