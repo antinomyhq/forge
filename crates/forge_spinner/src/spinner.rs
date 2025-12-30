@@ -155,7 +155,11 @@ impl Spinner {
     /// The message is styled with green bold formatting.
     pub fn set_message(&mut self, message: &str) -> Result<()> {
         if let Some(pb) = &self.progress_bar {
-            self.current_message = Some(message.to_owned());
+            let idx = *self
+                .word_index
+                .get_or_insert_with(|| rand::rng().random_range(0..THINKING_WORDS.len()));
+            let word = THINKING_WORDS[idx].to_string();
+            self.current_message = Some(format!("{} {}", word, message));
             pb.set_message(message.green().bold().to_string());
         }
         Ok(())
