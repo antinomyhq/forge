@@ -7,7 +7,8 @@ use forge_app::GrpcInfra;
 use forge_domain::{SyntaxError, ValidationRepository};
 use tracing::{debug, warn};
 
-use crate::proto_generated::{self, forge_service_client::ForgeServiceClient, File, ValidateFilesRequest};
+use crate::proto_generated::forge_service_client::ForgeServiceClient;
+use crate::proto_generated::{self, File, ValidateFilesRequest};
 
 /// gRPC implementation of ValidationRepository
 pub struct ForgeValidationRepository<I> {

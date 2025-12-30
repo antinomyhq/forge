@@ -9,7 +9,8 @@ use forge_domain::{
     WorkspaceInfo,
 };
 
-use crate::proto_generated::{self, forge_service_client::ForgeServiceClient, *};
+use crate::proto_generated::forge_service_client::ForgeServiceClient;
+use crate::proto_generated::{self, *};
 
 // TryFrom implementations for converting proto types to domain types
 
