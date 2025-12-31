@@ -159,11 +159,11 @@ where
 
     /// Adds co-authored-by trailers to a commit message
     ///
-    /// If git user information cannot be retrieved, only the ForgeCode trailer is
-    /// added. This method never fails.
+    /// If git user information cannot be retrieved, only the ForgeCode trailer
+    /// is added. This method never fails.
     async fn add_coauthor_trailers(&self, message: String) -> String {
         let cwd = self.services.get_environment().cwd;
-        
+
         match self.get_git_user_info(&cwd).await {
             Some((user_name, user_email)) => {
                 format!(
@@ -201,19 +201,9 @@ where
             ),
         );
 
-        let user_name = user_name_result
-            .ok()?
-            .output
-            .stdout
-            .trim()
-            .to_string();
+        let user_name = user_name_result.ok()?.output.stdout.trim().to_string();
 
-        let user_email = user_email_result
-            .ok()?
-            .output
-            .stdout
-            .trim()
-            .to_string();
+        let user_email = user_email_result.ok()?.output.stdout.trim().to_string();
 
         if user_name.is_empty() || user_email.is_empty() {
             return None;
