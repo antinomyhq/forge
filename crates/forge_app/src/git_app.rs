@@ -135,10 +135,8 @@ where
     /// Returns an error if git commit fails
     pub async fn commit(&self, message: String, has_staged_files: bool) -> Result<CommitResult> {
         let cwd = self.services.get_environment().cwd;
-        let message_with_trailers = self.add_coauthor_trailers(message).await;
-
         let flags = if has_staged_files { "" } else { " -a" };
-        let commit_command = format!("git commit {flags} -m '{message_with_trailers}'");
+        let commit_command = format!("git commit {flags} -m '{message}'");
 
         let commit_result = self
             .services
@@ -151,7 +149,7 @@ where
         }
 
         Ok(CommitResult {
-            message: message_with_trailers,
+            message,
             committed: true,
             has_staged_files,
         })
