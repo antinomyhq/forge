@@ -169,7 +169,7 @@ pub enum CmdCommand {
 
     /// Execute a custom command.
     Execute {
-        /// Execute a custom command.
+        /// Name of the custom command to execute, followed by any arguments.
         commands: Vec<String>,
     },
 }
