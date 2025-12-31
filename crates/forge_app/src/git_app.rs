@@ -148,11 +148,7 @@ where
             anyhow::bail!("Git commit failed: {}", commit_result.output.stderr);
         }
 
-        Ok(CommitResult {
-            message,
-            committed: true,
-            has_staged_files,
-        })
+        Ok(CommitResult { message, committed: true, has_staged_files })
     }
 
     /// Adds co-authored-by trailers to a commit message
