@@ -137,6 +137,7 @@ pub enum TopLevelCommand {
     Provider(ProviderCommandGroup),
 
     /// Run or list custom commands.
+    #[command(aliases = ["command", "commands"])]
     Cmd(CmdCommandGroup),
 
     /// Manage workspaces for semantic search.
@@ -167,8 +168,10 @@ pub enum CmdCommand {
     List,
 
     /// Execute a custom command.
-    #[command(external_subcommand)]
-    Execute(Vec<String>),
+    Execute {
+        /// Execute a custom command.
+        commands: Vec<String>,
+    },
 }
 
 /// Command group for agent management.
@@ -1316,10 +1319,11 @@ mod tests {
 
     #[test]
     fn test_cmd_command_with_args() {
-        let fixture = Cli::parse_from(["forge", "cmd", "custom-command", "arg1", "arg2"]);
+        let fixture =
+            Cli::parse_from(["forge", "cmd", "execute", "custom-command", "arg1", "arg2"]);
         let actual = match fixture.subcommands {
             Some(TopLevelCommand::Cmd(run_group)) => match run_group.command {
-                CmdCommand::Execute(args) => args.join(" "),
+                CmdCommand::Execute { commands } => commands.join(" "),
                 _ => panic!("Expected Execute command"),
             },
             _ => panic!("Expected Cmd command"),

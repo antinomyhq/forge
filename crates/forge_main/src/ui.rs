@@ -549,7 +549,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         // List all custom commands
                         self.on_show_custom_commands(porcelain).await?;
                     }
-                    crate::cli::CmdCommand::Execute(args) => {
+                    crate::cli::CmdCommand::Execute { commands: args } => {
                         // Execute the custom command
                         self.init_state(false).await?;
 
