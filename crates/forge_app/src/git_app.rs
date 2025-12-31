@@ -163,7 +163,8 @@ where
     /// is added. This method never fails.
     async fn add_coauthor_trailers(&self, message: String) -> String {
         let cwd = self.services.get_environment().cwd;
-
+        let message = message.trim_end();
+        
         match self.get_git_user_info(&cwd).await {
             Some((user_name, user_email)) => {
                 format!(
