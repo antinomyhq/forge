@@ -8,8 +8,10 @@ rust-version.workspace = true
 anyhow.workspace = true
 colored.workspace = true
 tokio.workspace = true
-indicatif = "0.18.0"
 rand = "0.9.2"
+crossterm = "0.27"
+indicatif = "0.18.0"
+mdstream = { path = "/Users/ranjit/Desktop/workspace/block-streamer" }
 
 [dev-dependencies]
 pretty_assertions.workspace = true
