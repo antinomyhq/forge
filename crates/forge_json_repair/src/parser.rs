@@ -762,11 +762,16 @@ impl JsonRepairParser {
             self.i += 1;
 
             while self.i < self.chars.len()
-                && (self.current_char() != Some('/') || self.chars.get(self.i - 1) == Some(&'\\'))
+                && (self.current_char() != Some('/')
+                    || (self.i > 0 && self.chars.get(self.i - 1) == Some(&'\\')))
             {
                 self.i += 1;
             }
-            self.i += 1;
+
+            // Only increment if we found the closing slash
+            if self.i < self.chars.len() {
+                self.i += 1;
+            }
 
             let regex: String = self.chars[start..self.i].iter().collect();
             self.output
