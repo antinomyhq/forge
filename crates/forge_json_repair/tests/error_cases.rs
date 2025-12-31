@@ -22,9 +22,10 @@ fn test_error_cases() {
 
 #[test]
 fn test_regex_single_slash() {
-    // This test case triggers index out of bounds at line 765 and 771 in parse_regex
-    // When self.i == 0, accessing self.chars.get(self.i - 1) causes underflow
-    // After processing single '/', self.i becomes 2 but chars only has length 1
+    // This test case triggers index out of bounds at line 765 and 771 in
+    // parse_regex When self.i == 0, accessing self.chars.get(self.i - 1) causes
+    // underflow After processing single '/', self.i becomes 2 but chars only
+    // has length 1
     let fixture = "/";
     let actual = json_repair::<serde_json::Value>(fixture).unwrap();
     let expected = serde_json::json!("/");
@@ -50,4 +51,3 @@ fn test_string_with_colon_at_start() {
     let expected = serde_json::json!(":");
     assert_eq!(actual, expected);
 }
-
