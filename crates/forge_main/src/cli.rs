@@ -165,7 +165,11 @@ pub struct CmdCommandGroup {
 #[derive(Subcommand, Debug, Clone)]
 pub enum CmdCommand {
     /// List all available custom commands.
-    List,
+    List {
+        /// Shows only custom commands
+        #[arg(long)]
+        custom: bool,
+    },
 
     /// Execute a custom command.
     Execute {
@@ -308,7 +312,11 @@ pub enum ListCommand {
 
     /// List available commands.
     #[command(hide = true, alias = "commands")]
-    Command,
+    Command {
+        /// Shows only custom commands
+        #[arg(long)]
+        custom: bool,
+    },
 
     /// List configuration values.
     #[command(alias = "configs")]
@@ -1003,6 +1011,62 @@ mod tests {
             _ => false,
         };
         assert_eq!(is_conversation_list, true);
+    }
+
+    #[test]
+    fn test_list_command_without_custom_flag() {
+        let fixture = Cli::parse_from(["forge", "list", "command"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::List(list)) => match list.command {
+                ListCommand::Command { custom } => custom,
+                _ => true,
+            },
+            _ => true,
+        };
+        let expected = false;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_list_command_with_custom_flag() {
+        let fixture = Cli::parse_from(["forge", "list", "command", "--custom"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::List(list)) => match list.command {
+                ListCommand::Command { custom } => custom,
+                _ => false,
+            },
+            _ => false,
+        };
+        let expected = true;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cmd_list_with_custom_flag() {
+        let fixture = Cli::parse_from(["forge", "cmd", "list", "--custom"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Cmd(cmd_group)) => match cmd_group.command {
+                CmdCommand::List { custom } => custom,
+                _ => false,
+            },
+            _ => false,
+        };
+        let expected = true;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_command_list_with_custom_flag() {
+        let fixture = Cli::parse_from(["forge", "command", "list", "--custom"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Cmd(cmd_group)) => match cmd_group.command {
+                CmdCommand::List { custom } => custom,
+                _ => false,
+            },
+            _ => false,
+        };
+        let expected = true;
+        assert_eq!(actual, expected);
     }
 
     #[test]

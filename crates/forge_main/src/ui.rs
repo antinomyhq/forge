@@ -387,8 +387,12 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     ListCommand::Model => {
                         self.on_show_models(porcelain).await?;
                     }
-                    ListCommand::Command => {
-                        self.on_show_commands(porcelain).await?;
+                    ListCommand::Command { custom } => {
+                        if custom {
+                            self.on_show_custom_commands(porcelain).await?;
+                        } else {
+                            self.on_show_commands(porcelain).await?;
+                        }
                     }
                     ListCommand::Config => {
                         self.on_show_config(porcelain).await?;
@@ -545,9 +549,12 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             TopLevelCommand::Cmd(run_group) => {
                 let porcelain = run_group.porcelain;
                 match run_group.command {
-                    crate::cli::CmdCommand::List => {
-                        // List all custom commands
-                        self.on_show_custom_commands(porcelain).await?;
+                    crate::cli::CmdCommand::List { custom } => {
+                        if custom {
+                            self.on_show_custom_commands(porcelain).await?;
+                        } else {
+                            self.on_show_commands(porcelain).await?;
+                        }
                     }
                     crate::cli::CmdCommand::Execute { commands: args } => {
                         // Execute the custom command
