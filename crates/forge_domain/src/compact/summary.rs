@@ -326,7 +326,9 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
             }),
             ToolCatalog::Undo(input) => Some(SummaryTool::Undo { path: input.path }),
             ToolCatalog::Fetch(input) => Some(SummaryTool::Fetch { url: input.url }),
-            ToolCatalog::Followup(input) => Some(SummaryTool::Followup { question: input.question }),
+            ToolCatalog::Followup(input) => {
+                Some(SummaryTool::Followup { question: input.question })
+            }
             ToolCatalog::Plan(input) => Some(SummaryTool::Plan { plan_name: input.plan_name }),
             ToolCatalog::Skill(input) => Some(SummaryTool::Skill { name: input.name }),
         };
@@ -833,7 +835,10 @@ mod tests {
 
         let actual = extract_tool_info(&fixture);
 
-        assert_eq!(actual, Some(SummaryTool::Mcp { name: "mcp_github_create_issue".to_string() }));
+        assert_eq!(
+            actual,
+            Some(SummaryTool::Mcp { name: "mcp_github_create_issue".to_string() })
+        );
     }
 
     #[test]
@@ -1388,7 +1393,9 @@ mod tests {
             vec![ToolCallFull {
                 name: ToolName::new("mcp_github_create_issue"),
                 call_id: Some(ToolCallId::new("call_1")),
-                arguments: ToolCallArguments::from_json(r#"{"title": "Bug report", "body": "Description"}"#),
+                arguments: ToolCallArguments::from_json(
+                    r#"{"title": "Bug report", "body": "Description"}"#,
+                ),
             }],
         )]);
 
@@ -1450,7 +1457,9 @@ mod tests {
                 ToolCallFull {
                     name: ToolName::new("mcp_slack_post_message"),
                     call_id: Some(ToolCallId::new("call_2")),
-                    arguments: ToolCallArguments::from_json(r##"{"channel": "#dev", "text": "Hello"}"##),
+                    arguments: ToolCallArguments::from_json(
+                        r##"{"channel": "#dev", "text": "Hello"}"##,
+                    ),
                 },
             ],
         )]);
