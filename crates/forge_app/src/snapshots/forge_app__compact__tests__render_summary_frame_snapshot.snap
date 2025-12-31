@@ -143,6 +143,7 @@ This file has many uses of the old API. Let me read a section to understand the 
 ````
 I see - this file is using a mix of the old struct syntax and the helper methods. This is going to require significant changes. Let me use the sage tool to understand the full scope and then make a comprehensive fix:
 ````
+**MCP:** `sage`
 ````
 This is a complex refactoring. Let me systematically fix the `trim_context_summary.rs` file. First, let me read the implementation section:
 ````
