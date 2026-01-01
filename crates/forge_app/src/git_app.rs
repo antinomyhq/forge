@@ -114,16 +114,18 @@ where
             .generate_commit_message(max_diff_size, diff, additional_context)
             .await?;
 
-        let message_with_trailers = self.add_coauthor_trailers(message).await;
-
         Ok(CommitResult {
-            message: message_with_trailers,
+            message,
             committed: false,
             has_staged_files,
         })
     }
 
     /// Commits changes with the provided commit message
+    ///
+    /// Sets the user as the author (from git config) and ForgeCode as the committer.
+    /// This properly attributes the commit to both the user and ForgeCode using
+    /// Git's author/committer distinction.
     ///
     /// # Arguments
     ///
@@ -136,7 +138,12 @@ where
     pub async fn commit(&self, message: String, has_staged_files: bool) -> Result<CommitResult> {
         let cwd = self.services.get_environment().cwd;
         let flags = if has_staged_files { "" } else { " -a" };
-        let commit_command = format!("git commit {flags} -m '{message}'");
+        
+        // Set ForgeCode as the committer while keeping the user as the author
+        // by prefixing the command with environment variables
+        let commit_command = format!(
+            "GIT_COMMITTER_NAME='ForgeCode' GIT_COMMITTER_EMAIL='noreply@forgecode.dev' git commit {flags} -m '{message}'"
+        );
 
         let commit_result = self
             .services
@@ -149,62 +156,6 @@ where
         }
 
         Ok(CommitResult { message, committed: true, has_staged_files })
-    }
-
-    /// Adds co-authored-by trailers to a commit message
-    ///
-    /// If git user information cannot be retrieved, only the ForgeCode trailer
-    /// is added. This method never fails.
-    async fn add_coauthor_trailers(&self, message: String) -> String {
-        let cwd = self.services.get_environment().cwd;
-        let message = message.trim_end();
-
-        match self.get_git_user_info(&cwd).await {
-            Some((user_name, user_email)) => {
-                format!(
-                    "{}\n\nCo-Authored-By: {} <{}>\nCo-Authored-By: ForgeCode <noreply@forgecode.dev>",
-                    message, user_name, user_email
-                )
-            }
-            None => {
-                format!(
-                    "{}\n\nCo-Authored-By: ForgeCode <noreply@forgecode.dev>",
-                    message
-                )
-            }
-        }
-    }
-
-    /// Gets git user name and email from git config
-    ///
-    /// Returns None if git config is not set or git commands fail
-    async fn get_git_user_info(&self, cwd: &Path) -> Option<(String, String)> {
-        let (user_name_result, user_email_result) = tokio::join!(
-            self.services.execute(
-                "git config user.name".into(),
-                cwd.to_path_buf(),
-                false,
-                true,
-                None,
-            ),
-            self.services.execute(
-                "git config user.email".into(),
-                cwd.to_path_buf(),
-                false,
-                true,
-                None,
-            ),
-        );
-
-        let user_name = user_name_result.ok()?.output.stdout.trim().to_string();
-
-        let user_email = user_email_result.ok()?.output.stdout.trim().to_string();
-
-        if user_name.is_empty() || user_email.is_empty() {
-            return None;
-        }
-
-        Some((user_name, user_email))
     }
 
     /// Generates a commit message based on staged git changes and returns
