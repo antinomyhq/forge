@@ -695,7 +695,6 @@ impl From<DataCommandGroup> for forge_domain::DataGenerationParameters {
 #[derive(Subcommand, Debug, Clone)]
 pub enum InstallCommand {
     /// Install the Forge VS Code extension.
-    #[command(alias = "vscode")]
     VscodeExtension,
 }
 
@@ -1586,16 +1585,6 @@ mod tests {
     #[test]
     fn test_install_vscode_extension() {
         let fixture = Cli::parse_from(["forge", "install", "vscode-extension"]);
-        let actual = match fixture.subcommands {
-            Some(TopLevelCommand::Install(InstallCommand::VscodeExtension)) => true,
-            _ => false,
-        };
-        assert_eq!(actual, true);
-    }
-
-    #[test]
-    fn test_install_vscode_alias() {
-        let fixture = Cli::parse_from(["forge", "install", "vscode"]);
         let actual = match fixture.subcommands {
             Some(TopLevelCommand::Install(InstallCommand::VscodeExtension)) => true,
             _ => false,

@@ -644,7 +644,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             TopLevelCommand::Install(install_command) => {
                 match install_command {
                     crate::cli::InstallCommand::VscodeExtension => {
-                        self.on_vscode_install().await?;
+                        self.on_vscode_extension_install().await?;
                     }
                 }
                 return Ok(());
@@ -1470,7 +1470,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     }
 
     /// Install the Forge VS Code extension
-    async fn on_vscode_install(&mut self) -> anyhow::Result<()> {
+    async fn on_vscode_extension_install(&mut self) -> anyhow::Result<()> {
         self.spinner.start(Some("Installing Forge VS Code extension"))?;
 
         match crate::vscode::install_extension() {
