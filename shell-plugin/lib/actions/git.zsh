@@ -2,7 +2,7 @@
 
 # Git integration action handlers
 
-# Action handler: Commit changes with AI-generated message
+# Action handler: Directly commit changes with AI-generated message
 # Usage: :commit [additional context]
 function _forge_action_commit() {
     local additional_context="$1"
@@ -26,7 +26,7 @@ function _forge_action_commit() {
 }
 
 
-# Action handler: Commit changes with AI-generated message
+# Action handler: Previews AI-generated commit message 
 # Usage: :commit-preview [additional context]
 function _forge_action_commit_preview() {
     local additional_context="$1"
