@@ -19,4 +19,6 @@ function _forge_action_commit() {
     else
         commit_message=$(FORCE_COLOR=true CLICOLOR_FORCE=1 $_FORGE_BIN commit --max-diff "$_FORGE_MAX_COMMIT_DIFF")
     fi
+    
+    zle reset-prompt
 }
