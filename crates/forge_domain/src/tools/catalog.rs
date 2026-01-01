@@ -834,10 +834,10 @@ impl TryFrom<ToolCallFull> for ToolCatalog {
     fn try_from(value: ToolCallFull) -> Result<Self, Self::Error> {
         let mut map = Map::new();
         map.insert("name".into(), value.name.as_str().into());
-        
+
         // Parse the arguments
         let parsed_args = value.arguments.parse()?;
-        
+
         // Try to find the tool definition and coerce types based on schema
         let coerced_args = ToolCatalog::iter()
             .find(|tool| tool.definition().name == value.name)
@@ -846,7 +846,7 @@ impl TryFrom<ToolCallFull> for ToolCatalog {
                 forge_json_repair::coerce_to_schema(parsed_args.clone(), &schema)
             })
             .unwrap_or(parsed_args);
-        
+
         map.insert("arguments".into(), coerced_args);
 
         serde_json::from_value(serde_json::Value::Object(map))
@@ -937,7 +937,10 @@ mod tests {
         // This should not panic - it should coerce strings to integers
         let actual = ToolCatalog::try_from(tool_call);
 
-        assert!(actual.is_ok(), "Should successfully parse with coerced types");
+        assert!(
+            actual.is_ok(),
+            "Should successfully parse with coerced types"
+        );
 
         if let Ok(ToolCatalog::Read(fs_read)) = actual {
             assert_eq!(fs_read.path, "/test/path.rs");
@@ -963,7 +966,10 @@ mod tests {
 
         let actual = ToolCatalog::try_from(tool_call);
 
-        assert!(actual.is_ok(), "Should successfully parse with correct types");
+        assert!(
+            actual.is_ok(),
+            "Should successfully parse with correct types"
+        );
 
         if let Ok(ToolCatalog::Read(fs_read)) = actual {
             assert_eq!(fs_read.path, "/test/path.rs");

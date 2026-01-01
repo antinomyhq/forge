@@ -3,9 +3,9 @@ use serde_json::Value;
 
 /// Coerces a JSON value to match the expected types defined in a JSON schema.
 ///
-/// This function recursively traverses the JSON value and the schema, converting
-/// string values to the expected types (e.g., "42" -> 42) when the schema indicates
-/// a different type is expected.
+/// This function recursively traverses the JSON value and the schema,
+/// converting string values to the expected types (e.g., "42" -> 42) when the
+/// schema indicates a different type is expected.
 ///
 /// # Arguments
 ///
@@ -43,8 +43,8 @@ fn coerce_value_with_schema_object(value: Value, schema: &SchemaObject) -> Value
 
     // Handle arrays
     if let Value::Array(arr) = value {
-        if let Some(array_validation) = &schema.array {
-            if let Some(items_schema) = &array_validation.items {
+        if let Some(array_validation) = &schema.array
+            && let Some(items_schema) = &array_validation.items {
                 match items_schema {
                     SingleOrVec::Single(item_schema) => {
                         return Value::Array(
@@ -60,7 +60,9 @@ fn coerce_value_with_schema_object(value: Value, schema: &SchemaObject) -> Value
                                 .map(|(i, item)| {
                                     item_schemas
                                         .get(i)
-                                        .map(|schema| coerce_value_with_schema(item.clone(), schema))
+                                        .map(|schema| {
+                                            coerce_value_with_schema(item.clone(), schema)
+                                        })
                                         .unwrap_or(item)
                                 })
                                 .collect(),
@@ -68,7 +70,6 @@ fn coerce_value_with_schema_object(value: Value, schema: &SchemaObject) -> Value
                     }
                 }
             }
-        }
         return Value::Array(arr);
     }
 
@@ -134,11 +135,10 @@ fn try_coerce_string(s: &str, target_type: &InstanceType) -> Option<Value> {
                 return Some(Value::Number(num.into()));
             }
             // Then try float
-            if let Ok(num) = s.parse::<f64>() {
-                if let Some(json_num) = serde_json::Number::from_f64(num) {
+            if let Ok(num) = s.parse::<f64>()
+                && let Some(json_num) = serde_json::Number::from_f64(num) {
                     return Some(Value::Number(json_num));
                 }
-            }
             None
         }
         InstanceType::Boolean => match s.trim().to_lowercase().as_str() {
@@ -162,12 +162,13 @@ fn try_coerce_string(s: &str, target_type: &InstanceType) -> Option<Value> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeMap;
+
     use pretty_assertions::assert_eq;
     use schemars::schema::{
         InstanceType, ObjectValidation, RootSchema, Schema, SchemaObject, SingleOrVec,
     };
     use serde_json::json;
-    use std::collections::BTreeMap;
 
     use super::*;
 
@@ -260,7 +261,7 @@ mod tests {
             "start_line": "2255",
             "end_line": "2285"
         });
-        
+
         // Schema matching FSRead structure
         let mut properties = BTreeMap::new();
         properties.insert(
@@ -296,7 +297,7 @@ mod tests {
             },
             ..Default::default()
         };
-        
+
         let actual = coerce_to_schema(fixture, &schema);
         let expected = json!({
             "path": "/Users/amit/code-forge/crates/forge_main/src/ui.rs",
@@ -463,12 +464,14 @@ mod tests {
             Schema::Object(SchemaObject {
                 instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Array))),
                 array: Some(Box::new(schemars::schema::ArrayValidation {
-                    items: Some(SingleOrVec::Single(Box::new(Schema::Object(SchemaObject {
-                        instance_type: Some(SingleOrVec::Single(Box::new(
-                            InstanceType::Integer,
-                        ))),
-                        ..Default::default()
-                    })))),
+                    items: Some(SingleOrVec::Single(Box::new(Schema::Object(
+                        SchemaObject {
+                            instance_type: Some(SingleOrVec::Single(Box::new(
+                                InstanceType::Integer,
+                            ))),
+                            ..Default::default()
+                        },
+                    )))),
                     ..Default::default()
                 })),
                 ..Default::default()
