@@ -834,7 +834,20 @@ impl TryFrom<ToolCallFull> for ToolCatalog {
     fn try_from(value: ToolCallFull) -> Result<Self, Self::Error> {
         let mut map = Map::new();
         map.insert("name".into(), value.name.as_str().into());
-        map.insert("arguments".into(), value.arguments.parse()?);
+        
+        // Parse the arguments
+        let parsed_args = value.arguments.parse()?;
+        
+        // Try to find the tool definition and coerce types based on schema
+        let coerced_args = ToolCatalog::iter()
+            .find(|tool| tool.definition().name == value.name)
+            .map(|tool| {
+                let schema = tool.definition().input_schema;
+                forge_json_repair::coerce_to_schema(parsed_args.clone(), &schema)
+            })
+            .unwrap_or(parsed_args);
+        
+        map.insert("arguments".into(), coerced_args);
 
         serde_json::from_value(serde_json::Value::Object(map))
             .map_err(|error| crate::Error::AgentCallArgument { error })
@@ -906,6 +919,59 @@ mod tests {
             .join("\n");
 
         insta::assert_snapshot!(tools);
+    }
+
+    #[test]
+    fn test_coerce_string_integers_to_i32() {
+        use crate::{ToolCallArguments, ToolCallFull};
+
+        // Simulate the exact error case: read tool with string integers instead of i32
+        let tool_call = ToolCallFull {
+            name: ToolName::new("read"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(
+                r#"{"path": "/test/path.rs", "start_line": "10", "end_line": "20"}"#,
+            ),
+        };
+
+        // This should not panic - it should coerce strings to integers
+        let actual = ToolCatalog::try_from(tool_call);
+
+        assert!(actual.is_ok(), "Should successfully parse with coerced types");
+
+        if let Ok(ToolCatalog::Read(fs_read)) = actual {
+            assert_eq!(fs_read.path, "/test/path.rs");
+            assert_eq!(fs_read.start_line, Some(10));
+            assert_eq!(fs_read.end_line, Some(20));
+        } else {
+            panic!("Expected FSRead variant");
+        }
+    }
+
+    #[test]
+    fn test_coerce_preserves_correct_types() {
+        use crate::{ToolCallArguments, ToolCallFull};
+
+        // Verify that already-correct types are preserved
+        let tool_call = ToolCallFull {
+            name: ToolName::new("read"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(
+                r#"{"path": "/test/path.rs", "start_line": 10, "end_line": 20}"#,
+            ),
+        };
+
+        let actual = ToolCatalog::try_from(tool_call);
+
+        assert!(actual.is_ok(), "Should successfully parse with correct types");
+
+        if let Ok(ToolCatalog::Read(fs_read)) = actual {
+            assert_eq!(fs_read.path, "/test/path.rs");
+            assert_eq!(fs_read.start_line, Some(10));
+            assert_eq!(fs_read.end_line, Some(20));
+        } else {
+            panic!("Expected FSRead variant");
+        }
     }
 
     #[test]
