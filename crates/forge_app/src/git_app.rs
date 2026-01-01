@@ -114,18 +114,14 @@ where
             .generate_commit_message(max_diff_size, diff, additional_context)
             .await?;
 
-        Ok(CommitResult {
-            message,
-            committed: false,
-            has_staged_files,
-        })
+        Ok(CommitResult { message, committed: false, has_staged_files })
     }
 
     /// Commits changes with the provided commit message
     ///
-    /// Sets the user as the author (from git config) and ForgeCode as the committer.
-    /// This properly attributes the commit to both the user and ForgeCode using
-    /// Git's author/committer distinction.
+    /// Sets the user as the author (from git config) and ForgeCode as the
+    /// committer. This properly attributes the commit to both the user and
+    /// ForgeCode using Git's author/committer distinction.
     ///
     /// # Arguments
     ///
@@ -138,7 +134,7 @@ where
     pub async fn commit(&self, message: String, has_staged_files: bool) -> Result<CommitResult> {
         let cwd = self.services.get_environment().cwd;
         let flags = if has_staged_files { "" } else { " -a" };
-        
+
         // Set ForgeCode as the committer while keeping the user as the author
         // by prefixing the command with environment variables
         let commit_command = format!(
