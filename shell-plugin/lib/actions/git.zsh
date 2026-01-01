@@ -59,6 +59,6 @@ function _forge_action_commit_preview() {
         # Refresh display to show the new command
         zle reset-prompt
     else
-        echo "$commit_message"
+        _forge_reset
     fi
 }
