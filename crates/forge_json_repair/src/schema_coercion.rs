@@ -44,32 +44,31 @@ fn coerce_value_with_schema_object(value: Value, schema: &SchemaObject) -> Value
     // Handle arrays
     if let Value::Array(arr) = value {
         if let Some(array_validation) = &schema.array
-            && let Some(items_schema) = &array_validation.items {
-                match items_schema {
-                    SingleOrVec::Single(item_schema) => {
-                        return Value::Array(
-                            arr.into_iter()
-                                .map(|item| coerce_value_with_schema(item, item_schema))
-                                .collect(),
-                        );
-                    }
-                    SingleOrVec::Vec(item_schemas) => {
-                        return Value::Array(
-                            arr.into_iter()
-                                .enumerate()
-                                .map(|(i, item)| {
-                                    item_schemas
-                                        .get(i)
-                                        .map(|schema| {
-                                            coerce_value_with_schema(item.clone(), schema)
-                                        })
-                                        .unwrap_or(item)
-                                })
-                                .collect(),
-                        );
-                    }
+            && let Some(items_schema) = &array_validation.items
+        {
+            match items_schema {
+                SingleOrVec::Single(item_schema) => {
+                    return Value::Array(
+                        arr.into_iter()
+                            .map(|item| coerce_value_with_schema(item, item_schema))
+                            .collect(),
+                    );
+                }
+                SingleOrVec::Vec(item_schemas) => {
+                    return Value::Array(
+                        arr.into_iter()
+                            .enumerate()
+                            .map(|(i, item)| {
+                                item_schemas
+                                    .get(i)
+                                    .map(|schema| coerce_value_with_schema(item.clone(), schema))
+                                    .unwrap_or(item)
+                            })
+                            .collect(),
+                    );
                 }
             }
+        }
         return Value::Array(arr);
     }
 
@@ -136,9 +135,10 @@ fn try_coerce_string(s: &str, target_type: &InstanceType) -> Option<Value> {
             }
             // Then try float
             if let Ok(num) = s.parse::<f64>()
-                && let Some(json_num) = serde_json::Number::from_f64(num) {
-                    return Some(Value::Number(json_num));
-                }
+                && let Some(json_num) = serde_json::Number::from_f64(num)
+            {
+                return Some(Value::Number(json_num));
+            }
             None
         }
         InstanceType::Boolean => match s.trim().to_lowercase().as_str() {
