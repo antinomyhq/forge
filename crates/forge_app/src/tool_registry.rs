@@ -71,8 +71,9 @@ impl<S: Services> ToolRegistry<S> {
 
             // Send custom policy message to the user when a policy file was created
             if let Some(policy_path) = decision.path {
-                use crate::utils::format_display_path;
                 use forge_domain::TitleFormat;
+
+                use crate::utils::format_display_path;
                 context
                     .send_title(
                         TitleFormat::debug("Permissions Update")
