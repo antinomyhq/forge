@@ -198,36 +198,34 @@ fn try_coerce_string(s: &str, target_type: &InstanceType) -> Option<Value> {
         }
         InstanceType::Object => {
             // Try to parse the string as a JSON object
-            if let Ok(parsed) = try_parse_json_string(s) {
-                if parsed.is_object() {
+            if let Ok(parsed) = try_parse_json_string(s)
+                && parsed.is_object() {
                     return Some(parsed);
                 }
-            }
             None
         }
         InstanceType::Array => {
             // Try to parse the string as a JSON array
-            if let Ok(parsed) = try_parse_json_string(s) {
-                if parsed.is_array() {
+            if let Ok(parsed) = try_parse_json_string(s)
+                && parsed.is_array() {
                     return Some(parsed);
                 }
-            }
             None
         }
     }
 }
 
-/// Attempts to parse a string as JSON, handling both valid JSON and JSON5 (Python-style) syntax
+/// Attempts to parse a string as JSON, handling both valid JSON and JSON5
+/// (Python-style) syntax
 fn try_parse_json_string(s: &str) -> Result<Value, serde_json::Error> {
     // First try parsing as-is (valid JSON)
     if let Ok(parsed) = serde_json::from_str::<Value>(s) {
         return Ok(parsed);
     }
-    
+
     // If that fails, try parsing as JSON5 (handles single quotes, comments, etc.)
     // Convert serde_json5::Error to serde_json::Error
-    serde_json5::from_str::<Value>(s)
-        .map_err(|e| serde_json::Error::custom(e.to_string()))
+    serde_json5::from_str::<Value>(s).map_err(|e| serde_json::Error::custom(e.to_string()))
 }
 
 #[cfg(test)]
@@ -1211,21 +1209,33 @@ mod tests {
 
         let fixture = json!({"edits": python_style});
         let actual = coerce_to_schema(fixture, &schema);
-        
+
         // Should coerce string to an array of objects
         assert!(actual["edits"].is_array());
         let edits = actual["edits"].as_array().unwrap();
         assert_eq!(edits.len(), 2);
-        
+
         // Verify first edit object
-        assert_eq!(edits[0]["content"], "use schemars::schema::{InstanceType, RootSchema, Schema, SchemaObject, SingleOrVec};");
+        assert_eq!(
+            edits[0]["content"],
+            "use schemars::schema::{InstanceType, RootSchema, Schema, SchemaObject, SingleOrVec};"
+        );
         assert_eq!(edits[0]["operation"], "replace");
-        assert_eq!(edits[0]["path"], "crates/forge_json_repair/src/schema_coercion.rs");
-        
+        assert_eq!(
+            edits[0]["path"],
+            "crates/forge_json_repair/src/schema_coercion.rs"
+        );
+
         // Verify second edit object
-        assert_eq!(edits[1]["content"], "fn coerce_value_with_schema(value: Value, schema: &Schema) -> Value {");
+        assert_eq!(
+            edits[1]["content"],
+            "fn coerce_value_with_schema(value: Value, schema: &Schema) -> Value {"
+        );
         assert_eq!(edits[1]["operation"], "replace");
-        assert_eq!(edits[1]["path"], "crates/forge_json_repair/src/schema_coercion.rs");
+        assert_eq!(
+            edits[1]["path"],
+            "crates/forge_json_repair/src/schema_coercion.rs"
+        );
     }
 
     // Helper functions to create test schemas
