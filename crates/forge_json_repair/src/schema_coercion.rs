@@ -199,17 +199,19 @@ fn try_coerce_string(s: &str, target_type: &InstanceType) -> Option<Value> {
         InstanceType::Object => {
             // Try to parse the string as a JSON object
             if let Ok(parsed) = try_parse_json_string(s)
-                && parsed.is_object() {
-                    return Some(parsed);
-                }
+                && parsed.is_object()
+            {
+                return Some(parsed);
+            }
             None
         }
         InstanceType::Array => {
             // Try to parse the string as a JSON array
             if let Ok(parsed) = try_parse_json_string(s)
-                && parsed.is_array() {
-                    return Some(parsed);
-                }
+                && parsed.is_array()
+            {
+                return Some(parsed);
+            }
             None
         }
     }
