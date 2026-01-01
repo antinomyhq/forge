@@ -165,7 +165,9 @@ impl<S: AgentService> Orchestrator<S> {
             )
             .await?;
 
-        response.into_full(!tool_supported).await
+        response
+            .into_full_streaming(!tool_supported, self.sender.clone())
+            .await
     }
     /// Checks if compaction is needed and performs it if necessary
     fn check_and_compact(&self, context: &Context) -> anyhow::Result<Option<Context>> {
@@ -285,19 +287,9 @@ impl<S: AgentService> Orchestrator<S> {
                     .iter()
                     .any(|call| ToolCatalog::should_yield(&call.name));
 
-            if let Some(reasoning) = message.reasoning.as_ref()
-                && context.is_reasoning_supported()
-            {
-                // If reasoning is present, send it as a separate message
-                self.send(ChatResponse::TaskReasoning { content: reasoning.to_string() })
-                    .await?;
-            }
-
-            // Send the content message
-            self.send(ChatResponse::TaskMessage {
-                content: ChatResponseContent::Markdown(message.content.clone()),
-            })
-            .await?;
+            // NOTE: Content and reasoning are now streamed via into_full_streaming,
+            // so we don't need to send them here again. The streaming happens during
+            // the LLM response collection, providing real-time output to the user.
 
             // Process tool calls and update context
             let mut tool_call_records = self

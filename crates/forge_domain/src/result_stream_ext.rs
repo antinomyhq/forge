@@ -2,7 +2,10 @@ use anyhow::Context as _;
 use tokio_stream::StreamExt;
 
 use crate::reasoning::{Reasoning, ReasoningFull};
-use crate::{ChatCompletionMessage, ChatCompletionMessageFull, ToolCallFull, ToolCallPart, Usage};
+use crate::{
+    ArcSender, ChatCompletionMessage, ChatCompletionMessageFull, ChatResponse,
+    ChatResponseContent, ToolCallFull, ToolCallPart, Usage,
+};
 
 /// Extension trait for ResultStream to provide additional functionality
 #[async_trait::async_trait]
@@ -21,13 +24,39 @@ pub trait ResultStreamExt<E> {
         self,
         should_interrupt_for_xml: bool,
     ) -> Result<ChatCompletionMessageFull, E>;
+
+    /// Collects all messages from the stream into a single
+    /// ChatCompletionMessageFull while streaming content deltas to the sender.
+    ///
+    /// # Arguments
+    /// * `should_interrupt_for_xml` - Whether to interrupt the stream when XML
+    ///   tool calls are detected
+    /// * `sender` - Optional sender to stream content and reasoning deltas to
+    ///
+    /// # Returns
+    /// A ChatCompletionMessageFull containing the aggregated content, tool
+    /// calls, and usage information
+    async fn into_full_streaming(
+        self,
+        should_interrupt_for_xml: bool,
+        sender: Option<ArcSender>,
+    ) -> Result<ChatCompletionMessageFull, E>;
 }
 
 #[async_trait::async_trait]
 impl ResultStreamExt<anyhow::Error> for crate::BoxStream<ChatCompletionMessage, anyhow::Error> {
     async fn into_full(
+        self,
+        should_interrupt_for_xml: bool,
+    ) -> anyhow::Result<ChatCompletionMessageFull> {
+        self.into_full_streaming(should_interrupt_for_xml, None)
+            .await
+    }
+
+    async fn into_full_streaming(
         mut self,
         should_interrupt_for_xml: bool,
+        sender: Option<ArcSender>,
     ) -> anyhow::Result<ChatCompletionMessageFull> {
         let mut messages = Vec::new();
         let mut usage: Usage = Default::default();
@@ -45,6 +74,33 @@ impl ResultStreamExt<anyhow::Error> for crate::BoxStream<ChatCompletionMessage, 
 
             if !tool_interrupted {
                 messages.push(message.clone());
+
+                // Stream content delta if sender is available
+                if let Some(ref sender) = sender {
+                    if let Some(content_part) = message.content.as_ref() {
+                        let delta = content_part.as_str();
+                        if !delta.is_empty() {
+                            // Ignore send errors - the receiver may have been dropped
+                            let _ = sender
+                                .send(Ok(ChatResponse::TaskMessage {
+                                    content: ChatResponseContent::Markdown(delta.to_string()),
+                                }))
+                                .await;
+                        }
+                    }
+
+                    if let Some(reasoning_part) = message.reasoning.as_ref() {
+                        let delta = reasoning_part.as_str();
+                        if !delta.is_empty() {
+                            // Ignore send errors - the receiver may have been dropped
+                            let _ = sender
+                                .send(Ok(ChatResponse::TaskReasoning {
+                                    content: delta.to_string(),
+                                }))
+                                .await;
+                        }
+                    }
+                }
 
                 // Process content
                 if let Some(content_part) = message.content.as_ref() {
@@ -223,6 +279,95 @@ mod tests {
         };
 
         assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_into_full_streaming_sends_deltas() {
+        // Fixture: Create a stream of messages
+        let messages = vec![
+            Ok(ChatCompletionMessage::default().content(Content::part("Hello "))),
+            Ok(ChatCompletionMessage::default().content(Content::part("world!"))),
+        ];
+
+        let result_stream: BoxStream<ChatCompletionMessage, anyhow::Error> =
+            Box::pin(tokio_stream::iter(messages));
+
+        // Create a channel to receive deltas
+        let (tx, mut rx) = tokio::sync::mpsc::channel::<anyhow::Result<ChatResponse>>(10);
+
+        // Actual: Convert stream to full message with streaming
+        let actual = result_stream
+            .into_full_streaming(false, Some(tx))
+            .await
+            .unwrap();
+
+        // Collect all deltas
+        let mut deltas = Vec::new();
+        while let Ok(msg) = rx.try_recv() {
+            deltas.push(msg.unwrap());
+        }
+
+        // Expected: Two deltas were sent as TaskMessage with Markdown content
+        assert_eq!(deltas.len(), 2);
+        assert!(matches!(
+            &deltas[0],
+            ChatResponse::TaskMessage { content: ChatResponseContent::Markdown(text) } if text == "Hello "
+        ));
+        assert!(matches!(
+            &deltas[1],
+            ChatResponse::TaskMessage { content: ChatResponseContent::Markdown(text) } if text == "world!"
+        ));
+
+        // Expected: Full content is still correct
+        assert_eq!(actual.content, "Hello world!");
+    }
+
+    #[tokio::test]
+    async fn test_into_full_streaming_sends_reasoning_deltas() {
+        // Fixture: Create a stream of messages with reasoning
+        let messages = vec![
+            Ok(ChatCompletionMessage::default()
+                .content(Content::part("Answer: "))
+                .reasoning(Content::part("Let me think..."))),
+            Ok(ChatCompletionMessage::default()
+                .content(Content::part("42"))
+                .reasoning(Content::part(" about this."))),
+        ];
+
+        let result_stream: BoxStream<ChatCompletionMessage, anyhow::Error> =
+            Box::pin(tokio_stream::iter(messages));
+
+        // Create a channel to receive deltas
+        let (tx, mut rx) = tokio::sync::mpsc::channel::<anyhow::Result<ChatResponse>>(10);
+
+        // Actual: Convert stream to full message with streaming
+        let actual = result_stream
+            .into_full_streaming(false, Some(tx))
+            .await
+            .unwrap();
+
+        // Collect all deltas
+        let mut content_deltas = Vec::new();
+        let mut reasoning_deltas = Vec::new();
+        while let Ok(msg) = rx.try_recv() {
+            match msg.unwrap() {
+                ChatResponse::TaskMessage { content: ChatResponseContent::Markdown(text) } => {
+                    content_deltas.push(text)
+                }
+                ChatResponse::TaskReasoning { content } => reasoning_deltas.push(content),
+                _ => {}
+            }
+        }
+
+        // Expected: Two content deltas and two reasoning deltas
+        assert_eq!(content_deltas.len(), 2);
+        assert_eq!(reasoning_deltas.len(), 2);
+        assert_eq!(content_deltas, vec!["Answer: ", "42"]);
+        assert_eq!(reasoning_deltas, vec!["Let me think...", " about this."]);
+
+        // Expected: Full content and reasoning are correct
+        assert_eq!(actual.content, "Answer: 42");
+        assert_eq!(actual.reasoning, Some("Let me think... about this.".to_string()));
     }
 
     #[tokio::test]
