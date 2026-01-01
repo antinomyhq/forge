@@ -1471,7 +1471,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Install the Forge VS Code extension
     async fn on_vscode_extension_install(&mut self) -> anyhow::Result<()> {
-        self.spinner.start(Some("Installing Forge VS Code extension"))?;
+        self.spinner
+            .start(Some("Installing Forge VS Code extension"))?;
 
         match crate::vscode::install_extension() {
             Ok(true) => {
