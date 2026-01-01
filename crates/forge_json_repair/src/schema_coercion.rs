@@ -28,6 +28,44 @@ fn coerce_value_with_schema(value: Value, schema: &Schema) -> Value {
 }
 
 fn coerce_value_with_schema_object(value: Value, schema: &SchemaObject) -> Value {
+    // Handle anyOf/oneOf schemas by trying each sub-schema
+    if let Some(subschemas) = &schema.subschemas {
+        if let Some(any_of) = &subschemas.any_of {
+            // Try each sub-schema in anyOf until one succeeds
+            for sub_schema in any_of {
+                let result = coerce_value_with_schema(value.clone(), sub_schema);
+                if result != value {
+                    return result;
+                }
+            }
+        }
+        if let Some(one_of) = &subschemas.one_of {
+            // Try each sub-schema in oneOf until one succeeds
+            for sub_schema in one_of {
+                let result = coerce_value_with_schema(value.clone(), sub_schema);
+                if result != value {
+                    return result;
+                }
+            }
+        }
+        if let Some(all_of) = &subschemas.all_of {
+            // Apply all schemas in sequence
+            let mut result = value;
+            for sub_schema in all_of {
+                result = coerce_value_with_schema(result, sub_schema);
+            }
+            return result;
+        }
+    }
+
+    // Handle $ref schemas by resolving references
+    if let Some(_reference) = &schema.reference {
+        // For now, we'll fall back to the original schema logic if we can't
+        // resolve In a more complete implementation, we'd resolve the
+        // reference against the root schema But for this fix, we'll
+        // preserve the current behavior for $ref cases
+    }
+
     // Handle objects with properties
     if let Value::Object(mut map) = value {
         if let Some(object_validation) = &schema.object {
@@ -162,11 +200,9 @@ fn try_coerce_string(s: &str, target_type: &InstanceType) -> Option<Value> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
-
-    use pretty_assertions::assert_eq;
     use schemars::schema::{
         InstanceType, ObjectValidation, RootSchema, Schema, SchemaObject, SingleOrVec,
+        SubschemaValidation,
     };
     use serde_json::json;
 
@@ -263,7 +299,7 @@ mod tests {
         });
 
         // Schema matching FSRead structure
-        let mut properties = BTreeMap::new();
+        let mut properties = std::collections::BTreeMap::new();
         properties.insert(
             "path".to_string(),
             Schema::Object(SchemaObject {
@@ -307,9 +343,614 @@ mod tests {
         assert_eq!(actual, expected);
     }
 
+    #[test]
+    fn test_coerce_any_of_union_types() {
+        // Test schema with anyOf that allows integers or null
+        let mut properties = std::collections::BTreeMap::new();
+        properties.insert(
+            "value".to_string(),
+            Schema::Object(SchemaObject {
+                subschemas: Some(Box::new(SubschemaValidation {
+                    any_of: Some(vec![
+                        Schema::Object(SchemaObject {
+                            instance_type: Some(SingleOrVec::Single(Box::new(
+                                InstanceType::Integer,
+                            ))),
+                            ..Default::default()
+                        }),
+                        Schema::Object(SchemaObject {
+                            instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Null))),
+                            ..Default::default()
+                        }),
+                    ]),
+                    ..Default::default()
+                })),
+                ..Default::default()
+            }),
+        );
+
+        let schema = RootSchema {
+            schema: SchemaObject {
+                instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Object))),
+                object: Some(Box::new(ObjectValidation {
+                    properties,
+                    ..Default::default()
+                })),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Test coercing string to integer
+        let fixture = json!({"value": "42"});
+        let actual = coerce_to_schema(fixture, &schema);
+        let expected = json!({"value": 42});
+        assert_eq!(actual, expected);
+
+        // Test preserving null
+        let fixture = json!({"value": null});
+        let actual = coerce_to_schema(fixture, &schema);
+        let expected = json!({"value": null});
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_coerce_one_of_union_types() {
+        // Test schema with oneOf that allows only integers or booleans
+        let mut properties = std::collections::BTreeMap::new();
+        properties.insert(
+            "value".to_string(),
+            Schema::Object(SchemaObject {
+                subschemas: Some(Box::new(SubschemaValidation {
+                    one_of: Some(vec![
+                        Schema::Object(SchemaObject {
+                            instance_type: Some(SingleOrVec::Single(Box::new(
+                                InstanceType::Integer,
+                            ))),
+                            ..Default::default()
+                        }),
+                        Schema::Object(SchemaObject {
+                            instance_type: Some(SingleOrVec::Single(Box::new(
+                                InstanceType::Boolean,
+                            ))),
+                            ..Default::default()
+                        }),
+                    ]),
+                    ..Default::default()
+                })),
+                ..Default::default()
+            }),
+        );
+
+        let schema = RootSchema {
+            schema: SchemaObject {
+                instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Object))),
+                object: Some(Box::new(ObjectValidation {
+                    properties,
+                    ..Default::default()
+                })),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Test coercing string to integer
+        let fixture = json!({"value": "123"});
+        let actual = coerce_to_schema(fixture, &schema);
+        let expected = json!({"value": 123});
+        assert_eq!(actual, expected);
+
+        // Test coercing string to boolean
+        let fixture = json!({"value": "true"});
+        let actual = coerce_to_schema(fixture, &schema);
+        let expected = json!({"value": true});
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_coerce_all_of_composition() {
+        // Test schema with allOf composition
+        let mut properties = std::collections::BTreeMap::new();
+        properties.insert(
+            "value".to_string(),
+            Schema::Object(SchemaObject {
+                subschemas: Some(Box::new(SubschemaValidation {
+                    all_of: Some(vec![
+                        Schema::Object(SchemaObject {
+                            instance_type: Some(SingleOrVec::Single(Box::new(
+                                InstanceType::Integer,
+                            ))),
+                            ..Default::default()
+                        }),
+                        Schema::Object(SchemaObject {
+                            instance_type: Some(SingleOrVec::Single(Box::new(
+                                InstanceType::Number,
+                            ))),
+                            ..Default::default()
+                        }),
+                    ]),
+                    ..Default::default()
+                })),
+                ..Default::default()
+            }),
+        );
+
+        let schema = RootSchema {
+            schema: SchemaObject {
+                instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Object))),
+                object: Some(Box::new(ObjectValidation {
+                    properties,
+                    ..Default::default()
+                })),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Test coercing string to integer via allOf composition
+        let fixture = json!({"value": "42"});
+        let actual = coerce_to_schema(fixture, &schema);
+        let expected = json!({"value": 42});
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_any_of_preserves_original_when_no_match() {
+        // Test that anyOf preserves original value when no subschema matches
+        // Note: oneOf behaves similarly
+        let mut properties = std::collections::BTreeMap::new();
+        properties.insert(
+            "value".to_string(),
+            Schema::Object(SchemaObject {
+                subschemas: Some(Box::new(SubschemaValidation {
+                    any_of: Some(vec![
+                        Schema::Object(SchemaObject {
+                            instance_type: Some(SingleOrVec::Single(Box::new(
+                                InstanceType::Integer,
+                            ))),
+                            ..Default::default()
+                        }),
+                        Schema::Object(SchemaObject {
+                            instance_type: Some(SingleOrVec::Single(Box::new(
+                                InstanceType::Boolean,
+                            ))),
+                            ..Default::default()
+                        }),
+                    ]),
+                    ..Default::default()
+                })),
+                ..Default::default()
+            }),
+        );
+
+        let schema = RootSchema {
+            schema: SchemaObject {
+                instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Object))),
+                object: Some(Box::new(ObjectValidation {
+                    properties,
+                    ..Default::default()
+                })),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Test preserving invalid string
+        let fixture = json!({"value": "not_a_number"});
+        let actual = coerce_to_schema(fixture, &schema);
+        let expected = json!({"value": "not_a_number"});
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_any_of_with_number_coercion() {
+        // Test anyOf with number coercion
+        let mut properties = std::collections::BTreeMap::new();
+        properties.insert(
+            "value".to_string(),
+            Schema::Object(SchemaObject {
+                subschemas: Some(Box::new(SubschemaValidation {
+                    any_of: Some(vec![
+                        Schema::Object(SchemaObject {
+                            instance_type: Some(SingleOrVec::Single(Box::new(
+                                InstanceType::Number,
+                            ))),
+                            ..Default::default()
+                        }),
+                        Schema::Object(SchemaObject {
+                            instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Null))),
+                            ..Default::default()
+                        }),
+                    ]),
+                    ..Default::default()
+                })),
+                ..Default::default()
+            }),
+        );
+
+        let schema = RootSchema {
+            schema: SchemaObject {
+                instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Object))),
+                object: Some(Box::new(ObjectValidation {
+                    properties,
+                    ..Default::default()
+                })),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Test coercing string to float
+        let fixture = json!({"value": "2.14"});
+        let actual = coerce_to_schema(fixture, &schema);
+        let expected = json!({"value": 2.14});
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_array_with_tuple_schema() {
+        // Test array with tuple schema (SingleOrVec::Vec)
+        let mut properties = std::collections::BTreeMap::new();
+        properties.insert(
+            "coordinates".to_string(),
+            Schema::Object(SchemaObject {
+                instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Array))),
+                array: Some(Box::new(schemars::schema::ArrayValidation {
+                    items: Some(SingleOrVec::Vec(vec![
+                        Schema::Object(SchemaObject {
+                            instance_type: Some(SingleOrVec::Single(Box::new(
+                                InstanceType::Number,
+                            ))),
+                            ..Default::default()
+                        }),
+                        Schema::Object(SchemaObject {
+                            instance_type: Some(SingleOrVec::Single(Box::new(
+                                InstanceType::Number,
+                            ))),
+                            ..Default::default()
+                        }),
+                        Schema::Object(SchemaObject {
+                            instance_type: Some(SingleOrVec::Single(Box::new(
+                                InstanceType::Number,
+                            ))),
+                            ..Default::default()
+                        }),
+                    ])),
+                    ..Default::default()
+                })),
+                ..Default::default()
+            }),
+        );
+
+        let schema = RootSchema {
+            schema: SchemaObject {
+                instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Object))),
+                object: Some(Box::new(ObjectValidation {
+                    properties,
+                    ..Default::default()
+                })),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Test coercing string numbers in tuple array
+        let fixture = json!({"coordinates": ["1.5", "2.5", "3.5"]});
+        let actual = coerce_to_schema(fixture, &schema);
+        let expected = json!({"coordinates": [1.5, 2.5, 3.5]});
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_array_with_tuple_schema_mixed_types() {
+        // Test array with tuple schema with mixed types
+        let mut properties = std::collections::BTreeMap::new();
+        properties.insert(
+            "data".to_string(),
+            Schema::Object(SchemaObject {
+                instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Array))),
+                array: Some(Box::new(schemars::schema::ArrayValidation {
+                    items: Some(SingleOrVec::Vec(vec![
+                        Schema::Object(SchemaObject {
+                            instance_type: Some(SingleOrVec::Single(Box::new(
+                                InstanceType::String,
+                            ))),
+                            ..Default::default()
+                        }),
+                        Schema::Object(SchemaObject {
+                            instance_type: Some(SingleOrVec::Single(Box::new(
+                                InstanceType::Integer,
+                            ))),
+                            ..Default::default()
+                        }),
+                        Schema::Object(SchemaObject {
+                            instance_type: Some(SingleOrVec::Single(Box::new(
+                                InstanceType::Boolean,
+                            ))),
+                            ..Default::default()
+                        }),
+                    ])),
+                    ..Default::default()
+                })),
+                ..Default::default()
+            }),
+        );
+
+        let schema = RootSchema {
+            schema: SchemaObject {
+                instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Object))),
+                object: Some(Box::new(ObjectValidation {
+                    properties,
+                    ..Default::default()
+                })),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Test coercing mixed types in tuple array
+        let fixture = json!({"data": ["name", "42", "true"]});
+        let actual = coerce_to_schema(fixture, &schema);
+        let expected = json!({"data": ["name", 42, true]});
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_array_with_tuple_schema_extra_items() {
+        // Test that extra items in tuple array are preserved
+        let mut properties = std::collections::BTreeMap::new();
+        properties.insert(
+            "items".to_string(),
+            Schema::Object(SchemaObject {
+                instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Array))),
+                array: Some(Box::new(schemars::schema::ArrayValidation {
+                    items: Some(SingleOrVec::Vec(vec![
+                        Schema::Object(SchemaObject {
+                            instance_type: Some(SingleOrVec::Single(Box::new(
+                                InstanceType::Integer,
+                            ))),
+                            ..Default::default()
+                        }),
+                        Schema::Object(SchemaObject {
+                            instance_type: Some(SingleOrVec::Single(Box::new(
+                                InstanceType::Integer,
+                            ))),
+                            ..Default::default()
+                        }),
+                    ])),
+                    ..Default::default()
+                })),
+                ..Default::default()
+            }),
+        );
+
+        let schema = RootSchema {
+            schema: SchemaObject {
+                instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Object))),
+                object: Some(Box::new(ObjectValidation {
+                    properties,
+                    ..Default::default()
+                })),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Test that extra items are preserved
+        let fixture = json!({"items": ["1", "2", "3", "4"]});
+        let actual = coerce_to_schema(fixture, &schema);
+        let expected = json!({"items": [1, 2, "3", "4"]});
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_nested_any_of_in_object() {
+        // Test anyOf nested in object properties
+        let mut nested_properties = std::collections::BTreeMap::new();
+        nested_properties.insert(
+            "value".to_string(),
+            Schema::Object(SchemaObject {
+                subschemas: Some(Box::new(SubschemaValidation {
+                    any_of: Some(vec![
+                        Schema::Object(SchemaObject {
+                            instance_type: Some(SingleOrVec::Single(Box::new(
+                                InstanceType::Integer,
+                            ))),
+                            ..Default::default()
+                        }),
+                        Schema::Object(SchemaObject {
+                            instance_type: Some(SingleOrVec::Single(Box::new(
+                                InstanceType::Boolean,
+                            ))),
+                            ..Default::default()
+                        }),
+                    ]),
+                    ..Default::default()
+                })),
+                ..Default::default()
+            }),
+        );
+
+        let mut properties = std::collections::BTreeMap::new();
+        properties.insert(
+            "nested".to_string(),
+            Schema::Object(SchemaObject {
+                instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Object))),
+                object: Some(Box::new(ObjectValidation {
+                    properties: nested_properties,
+                    ..Default::default()
+                })),
+                ..Default::default()
+            }),
+        );
+
+        let schema = RootSchema {
+            schema: SchemaObject {
+                instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Object))),
+                object: Some(Box::new(ObjectValidation {
+                    properties,
+                    ..Default::default()
+                })),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Test coercing in nested object with anyOf
+        let fixture = json!({"nested": {"value": "42"}});
+        let actual = coerce_to_schema(fixture, &schema);
+        let expected = json!({"nested": {"value": 42}});
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_coerce_string_to_null() {
+        // Test coercing string "null" to null type
+        let mut properties = std::collections::BTreeMap::new();
+        properties.insert(
+            "value".to_string(),
+            Schema::Object(SchemaObject {
+                instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Null))),
+                ..Default::default()
+            }),
+        );
+
+        let schema = RootSchema {
+            schema: SchemaObject {
+                instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Object))),
+                object: Some(Box::new(ObjectValidation {
+                    properties,
+                    ..Default::default()
+                })),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Test coercing "null" string to null
+        let fixture = json!({"value": "null"});
+        let actual = coerce_to_schema(fixture, &schema);
+        let expected = json!({"value": null});
+        assert_eq!(actual, expected);
+
+        // Test that "NULL" (uppercase) also works
+        let fixture = json!({"value": "NULL"});
+        let actual = coerce_to_schema(fixture, &schema);
+        let expected = json!({"value": null});
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_coerce_boolean_case_insensitive() {
+        // Test that boolean coercion is case-insensitive
+        let mut properties = std::collections::BTreeMap::new();
+        properties.insert(
+            "value".to_string(),
+            Schema::Object(SchemaObject {
+                instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Boolean))),
+                ..Default::default()
+            }),
+        );
+
+        let schema = RootSchema {
+            schema: SchemaObject {
+                instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Object))),
+                object: Some(Box::new(ObjectValidation {
+                    properties,
+                    ..Default::default()
+                })),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Test various case variations
+        for (input, expected) in [
+            ("true", true),
+            ("TRUE", true),
+            ("True", true),
+            ("false", false),
+            ("FALSE", false),
+            ("False", false),
+        ] {
+            let fixture = json!({"value": input});
+            let actual = coerce_to_schema(fixture, &schema);
+            let expected = json!({"value": expected});
+            assert_eq!(actual, expected);
+        }
+    }
+
+    #[test]
+    fn test_coerce_large_integer() {
+        // Test coercing large integers that fit in i64
+        let mut properties = std::collections::BTreeMap::new();
+        properties.insert(
+            "value".to_string(),
+            Schema::Object(SchemaObject {
+                instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Integer))),
+                ..Default::default()
+            }),
+        );
+
+        let schema = RootSchema {
+            schema: SchemaObject {
+                instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Object))),
+                object: Some(Box::new(ObjectValidation {
+                    properties,
+                    ..Default::default()
+                })),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Test coercing large positive integer
+        let fixture = json!({"value": "9223372036854775807"}); // i64::MAX
+        let actual = coerce_to_schema(fixture, &schema);
+        let expected = json!({"value": 9223372036854775807i64});
+        assert_eq!(actual, expected);
+
+        // Test coercing large negative integer
+        let fixture = json!({"value": "-9223372036854775808"}); // i64::MIN
+        let actual = coerce_to_schema(fixture, &schema);
+        let expected = json!({"value": -9223372036854775808i64});
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_coerce_unsigned_integer() {
+        // Test coercing unsigned integers (u64)
+        let mut properties = std::collections::BTreeMap::new();
+        properties.insert(
+            "value".to_string(),
+            Schema::Object(SchemaObject {
+                instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Integer))),
+                ..Default::default()
+            }),
+        );
+
+        let schema = RootSchema {
+            schema: SchemaObject {
+                instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Object))),
+                object: Some(Box::new(ObjectValidation {
+                    properties,
+                    ..Default::default()
+                })),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Test coercing large unsigned integer that doesn't fit in i64
+        let fixture = json!({"value": "18446744073709551615"}); // u64::MAX
+        let actual = coerce_to_schema(fixture, &schema);
+        let expected = json!({"value": 18446744073709551615u64});
+        assert_eq!(actual, expected);
+    }
+
     // Helper functions to create test schemas
     fn integer_schema() -> RootSchema {
-        let mut properties = BTreeMap::new();
+        let mut properties = std::collections::BTreeMap::new();
         properties.insert(
             "age".to_string(),
             Schema::Object(SchemaObject {
@@ -332,7 +973,7 @@ mod tests {
     }
 
     fn two_integer_schema() -> RootSchema {
-        let mut properties = BTreeMap::new();
+        let mut properties = std::collections::BTreeMap::new();
         properties.insert(
             "start".to_string(),
             Schema::Object(SchemaObject {
@@ -362,7 +1003,7 @@ mod tests {
     }
 
     fn number_schema() -> RootSchema {
-        let mut properties = BTreeMap::new();
+        let mut properties = std::collections::BTreeMap::new();
         properties.insert(
             "price".to_string(),
             Schema::Object(SchemaObject {
@@ -385,7 +1026,7 @@ mod tests {
     }
 
     fn boolean_schema() -> RootSchema {
-        let mut properties = BTreeMap::new();
+        let mut properties = std::collections::BTreeMap::new();
         properties.insert(
             "active".to_string(),
             Schema::Object(SchemaObject {
@@ -415,7 +1056,7 @@ mod tests {
     }
 
     fn nested_schema() -> RootSchema {
-        let mut user_properties = BTreeMap::new();
+        let mut user_properties = std::collections::BTreeMap::new();
         user_properties.insert(
             "age".to_string(),
             Schema::Object(SchemaObject {
@@ -431,7 +1072,7 @@ mod tests {
             }),
         );
 
-        let mut properties = BTreeMap::new();
+        let mut properties = std::collections::BTreeMap::new();
         properties.insert(
             "user".to_string(),
             Schema::Object(SchemaObject {
@@ -458,7 +1099,7 @@ mod tests {
     }
 
     fn array_schema() -> RootSchema {
-        let mut properties = BTreeMap::new();
+        let mut properties = std::collections::BTreeMap::new();
         properties.insert(
             "numbers".to_string(),
             Schema::Object(SchemaObject {
@@ -492,7 +1133,7 @@ mod tests {
     }
 
     fn mixed_schema() -> RootSchema {
-        let mut properties = BTreeMap::new();
+        let mut properties = std::collections::BTreeMap::new();
         properties.insert(
             "name".to_string(),
             Schema::Object(SchemaObject {
