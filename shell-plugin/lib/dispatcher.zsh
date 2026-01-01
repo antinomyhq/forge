@@ -36,11 +36,11 @@ function _forge_action_default() {
                 fi
                 
                 echo
-                # Execute custom command with run subcommand
+                # Execute custom command with execute subcommand
                 if [[ -n "$input_text" ]]; then
-                    _forge_exec cmd --cid "$_FORGE_CONVERSATION_ID" "$user_action" "$input_text"
+                    _forge_exec cmd execute --cid "$_FORGE_CONVERSATION_ID" "$user_action" "$input_text"
                 else
-                    _forge_exec cmd --cid "$_FORGE_CONVERSATION_ID" "$user_action"
+                    _forge_exec cmd execute --cid "$_FORGE_CONVERSATION_ID" "$user_action"
                 fi
                 return 0
             fi
@@ -177,6 +177,10 @@ function forge-accept-line() {
         ;;
         commit)
             _forge_action_commit "$input_text"
+            return
+        ;;
+        commit-preview)
+            _forge_action_commit_preview "$input_text"
             # Note: commit action intentionally modifies BUFFER and handles its own prompt reset
             return
         ;;
