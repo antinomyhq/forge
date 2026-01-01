@@ -145,6 +145,10 @@ pub enum TopLevelCommand {
 
     /// Process JSONL data through LLM with schema-constrained tools.
     Data(DataCommandGroup),
+
+    /// Install components and extensions.
+    #[command(subcommand)]
+    Install(InstallCommand),
 }
 
 /// Command group for custom command management.
@@ -685,6 +689,14 @@ impl From<DataCommandGroup> for forge_domain::DataGenerationParameters {
             concurrency: value.concurrency,
         }
     }
+}
+
+/// Install commands for components and extensions.
+#[derive(Subcommand, Debug, Clone)]
+pub enum InstallCommand {
+    /// Install the Forge VS Code extension.
+    #[command(alias = "vscode")]
+    VscodeExtension,
 }
 
 #[cfg(test)]
@@ -1566,6 +1578,26 @@ mod tests {
             Some(TopLevelCommand::Zsh(terminal)) => {
                 matches!(terminal, ZshCommandGroup::Setup)
             }
+            _ => false,
+        };
+        assert_eq!(actual, true);
+    }
+
+    #[test]
+    fn test_install_vscode_extension() {
+        let fixture = Cli::parse_from(["forge", "install", "vscode-extension"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Install(InstallCommand::VscodeExtension)) => true,
+            _ => false,
+        };
+        assert_eq!(actual, true);
+    }
+
+    #[test]
+    fn test_install_vscode_alias() {
+        let fixture = Cli::parse_from(["forge", "install", "vscode"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Install(InstallCommand::VscodeExtension)) => true,
             _ => false,
         };
         assert_eq!(actual, true);

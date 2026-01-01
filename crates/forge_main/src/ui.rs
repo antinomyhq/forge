@@ -641,6 +641,14 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     self.writeln(data?)?;
                 }
             }
+            TopLevelCommand::Install(install_command) => {
+                match install_command {
+                    crate::cli::InstallCommand::VscodeExtension => {
+                        self.on_vscode_install().await?;
+                    }
+                }
+                return Ok(());
+            }
         }
         Ok(())
     }
@@ -1457,6 +1465,34 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Stream the diagnostic output in real-time
         crate::zsh::run_zsh_doctor()?;
+
+        Ok(())
+    }
+
+    /// Install the Forge VS Code extension
+    async fn on_vscode_install(&mut self) -> anyhow::Result<()> {
+        self.spinner.start(Some("Installing Forge VS Code extension"))?;
+
+        match crate::vscode::install_extension() {
+            Ok(true) => {
+                self.spinner.stop(None)?;
+                self.writeln_title(TitleFormat::info(
+                    "Forge VS Code extension installed successfully",
+                ))?;
+            }
+            Ok(false) => {
+                self.spinner.stop(None)?;
+                self.writeln_title(TitleFormat::error(
+                    "Failed to install Forge VS Code extension. Make sure VS Code CLI (code) is in your PATH.",
+                ))?;
+            }
+            Err(e) => {
+                self.spinner.stop(None)?;
+                self.writeln_title(TitleFormat::error(format!(
+                    "Failed to install Forge VS Code extension: {e}"
+                )))?;
+            }
+        }
 
         Ok(())
     }
