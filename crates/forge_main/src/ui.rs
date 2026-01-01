@@ -2617,6 +2617,46 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
             },
             ChatResponse::ToolCallStart(_) => {
+                // Pull usage from conversation and update spinner before pausing
+                if let Some(conversation_id) = &self.state.conversation_id {
+                    if let Ok(Some(conv)) = self.api.conversation(conversation_id).await {
+                        let accumulated = conv.accumulated_usage();
+                        let last_request = conv.usage();
+
+                        // Use accumulated for cost and cache rate, last request for token counts
+                        let formatted = match (accumulated.as_ref(), last_request.as_ref()) {
+                            (Some(acc), Some(last)) => {
+                                [
+                                    acc.cost.map(|c| format!("${:.3}", c)),
+                                    Some(format!(
+                                        "{}/{}",
+                                        *last.prompt_tokens, *last.completion_tokens
+                                    )),
+                                    acc.cache_hit_rate().map(|p| format!("{:.2}%", p)),
+                                ]
+                            }
+                            (Some(acc), None) | (None, Some(acc)) => {
+                                [
+                                    acc.cost.map(|c| format!("${:.3}", c)),
+                                    Some(format!(
+                                        "{}/{}",
+                                        *acc.prompt_tokens, *acc.completion_tokens
+                                    )),
+                                    acc.cache_hit_rate().map(|p| format!("{:.2}%", p)),
+                                ]
+                            }
+                            (None, None) => [None, None, None],
+                        }
+                        .into_iter()
+                        .flatten()
+                        .collect::<Vec<_>>()
+                        .join(" ");
+
+                        if !formatted.is_empty() {
+                            self.spinner.set_message(&formatted)?;
+                        }
+                    }
+                }
                 self.spinner.pause()?;
             }
             ChatResponse::ToolCallEnd(toolcall_result) => {
@@ -2669,40 +2709,6 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     self.writeln_title(
                         TitleFormat::debug("Finished").sub_title(conversation_id.into_string()),
                     )?;
-                }
-            }
-            ChatResponse::Usage { usage } => {
-                let accumulated = self
-                    .state
-                    .conversation_id
-                    .as_ref()
-                    .map(|id| self.api.conversation(id))
-                    .map(|fut| async { fut.await.ok().flatten() });
-
-                let accumulated = match accumulated {
-                    Some(fut) => fut
-                        .await
-                        .and_then(|conv| conv.accumulated_usage())
-                        .unwrap_or_default()
-                        .accumulate(&usage),
-                    None => usage,
-                };
-
-                let formatted = [
-                    accumulated.cost.map(|c| format!("${:.3}", c)),
-                    Some(format!(
-                        "{}/{}",
-                        *usage.prompt_tokens, *usage.completion_tokens
-                    )),
-                    accumulated.cache_hit_rate().map(|p| format!("{:.2}%", p)),
-                ]
-                .into_iter()
-                .flatten()
-                .collect::<Vec<_>>()
-                .join(" ");
-
-                if !formatted.is_empty() {
-                    self.spinner.set_message(&formatted)?;
                 }
             }
         }

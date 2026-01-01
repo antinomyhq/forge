@@ -82,7 +82,6 @@ impl<S: Services> AgentExecutor<S> {
                 ChatResponse::ToolCallEnd(_) => ctx.send(message).await?,
                 ChatResponse::RetryAttempt { .. } => ctx.send(message).await?,
                 ChatResponse::Interrupt { .. } => ctx.send(message).await?,
-                ChatResponse::Usage { .. } => ctx.send(message).await?,
             }
         }
 
