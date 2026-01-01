@@ -286,19 +286,20 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             return self.handle_dispatch(dispatch_json).await;
         }
 
-        // Handle direct prompt if provided (raw text messages)
-        let prompt = self.cli.prompt.clone();
-        if let Some(prompt) = prompt {
+        // Handle direct prompt or piped input if provided (raw text messages)
+        let input = self.cli.prompt.clone().or(self.cli.piped_input.clone());
+        if let Some(input) = input {
             self.spinner.start(None)?;
-            self.on_message(Some(prompt)).await?;
-            return Ok(());
-        }
-
-        // Handle piped input if provided (treat it like --prompt)
-        let piped_input = self.cli.piped_input.clone();
-        if let Some(piped) = piped_input {
-            self.spinner.start(None)?;
-            self.on_message(Some(piped)).await?;
+            tokio::select! {
+                _ = tokio::signal::ctrl_c() => {
+                    tracing::info!("User interrupted operation with Ctrl+C");
+                    self.spinner.stop(None)?;
+                    return Ok(());
+                }
+                result = self.on_message(Some(input)) => {
+                    result?;
+                }
+            }
             return Ok(());
         }
 
