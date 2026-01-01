@@ -1,8 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use forge_domain::{CodebaseQueryResult, FSMultiPatch, ToolCallContext, ToolCatalog,
-    ToolOutput};
+use forge_domain::{CodebaseQueryResult, FSMultiPatch, ToolCallContext, ToolCatalog, ToolOutput};
 
 use crate::fmt::content::FormatContent;
 use crate::operation::{TempContentFiles, ToolOperation};
@@ -10,8 +9,7 @@ use crate::services::ShellService;
 use crate::{
     ConversationService, EnvironmentService, FollowUpService, FsCreateService, FsMultiPatchService,
     FsPatchService, FsReadService, FsRemoveService, FsSearchService, FsUndoService,
-    ImageReadService, NetFetchService, PlanCreateService, SkillFetchService,
-    WorkspaceService,
+    ImageReadService, NetFetchService, PlanCreateService, SkillFetchService, WorkspaceService,
 };
 
 pub struct ToolExecutor<S> {
