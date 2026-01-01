@@ -7,6 +7,7 @@ use forge_domain::{
     Agent, AgentId, AgentInput, ChatResponse, ChatResponseContent, ToolCallContext, ToolCallFull,
     ToolCatalog, ToolDefinition, ToolName, ToolOutput, ToolResult,
 };
+use forge_template::Element;
 use futures::future::join_all;
 use strum::IntoEnumIterator;
 use tokio::time::timeout;
@@ -14,9 +15,12 @@ use tokio::time::timeout;
 use crate::agent_executor::AgentExecutor;
 use crate::dto::ToolsOverview;
 use crate::error::Error;
+use crate::fmt::content::FormatContent;
 use crate::mcp_executor::McpExecutor;
 use crate::tool_executor::ToolExecutor;
-use crate::{EnvironmentService, McpService, Services, ToolResolver, WorkspaceService};
+use crate::{
+    EnvironmentService, McpService, PolicyService, Services, ToolResolver, WorkspaceService,
+};
 
 pub struct ToolRegistry<S> {
     tool_executor: ToolExecutor<S>,
@@ -54,6 +58,35 @@ impl<S: Services> ToolRegistry<S> {
             })?
     }
 
+    /// Check if a tool operation is allowed based on the workflow policies
+    async fn check_tool_permission(
+        &self,
+        tool_input: &ToolCatalog,
+        context: &ToolCallContext,
+    ) -> anyhow::Result<bool> {
+        let cwd = self.services.get_environment().cwd;
+        let operation = tool_input.to_policy_operation(cwd.clone());
+        if let Some(operation) = operation {
+            let decision = self.services.check_operation_permission(&operation).await?;
+
+            // Send custom policy message to the user when a policy file was created
+            if let Some(policy_path) = decision.path {
+                use crate::utils::format_display_path;
+                use forge_domain::TitleFormat;
+                context
+                    .send_title(
+                        TitleFormat::debug("Permissions Update")
+                            .sub_title(format_display_path(policy_path.as_path(), &cwd)),
+                    )
+                    .await?;
+            }
+            if !decision.allowed {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
     async fn call_inner(
         &self,
         agent: &Agent,
@@ -67,8 +100,32 @@ impl<S: Services> ToolRegistry<S> {
 
         // First, try to call a Forge tool
         if ToolCatalog::contains(&input.name) {
-            self.call_with_timeout(&tool_name, || self.tool_executor.execute(input, context))
-                .await
+            let tool_input: ToolCatalog = ToolCatalog::try_from(input)?;
+            let env = self.services.get_environment();
+            if let Some(content) = tool_input.to_content(&env) {
+                context.send(content).await?;
+            }
+
+            // Check permissions before executing the tool (only in restricted mode)
+            // This is done BEFORE the timeout to ensure permissions are never timed out
+            if self.services.is_restricted()
+                && self.check_tool_permission(&tool_input, context).await?
+            {
+                // Send formatted output message for policy denial
+                context
+                    .send(forge_domain::TitleFormat::error("Permission Denied"))
+                    .await?;
+
+                return Ok(ToolOutput::text(
+                    Element::new("permission_denied")
+                        .cdata("User has denied the permission to execute this tool"),
+                ));
+            }
+
+            self.call_with_timeout(&tool_name, || {
+                self.tool_executor.execute(tool_input, context)
+            })
+            .await
         } else if self.agent_executor.contains_tool(&input.name).await? {
             // Handle agent delegation tool calls
             let agent_input = AgentInput::try_from(&input)?;
