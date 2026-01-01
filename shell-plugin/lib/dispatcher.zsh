@@ -177,6 +177,10 @@ function forge-accept-line() {
         ;;
         commit)
             _forge_action_commit "$input_text"
+            return
+        ;;
+        commit-preview)
+            _forge_action_commit_preview "$input_text"
             # Note: commit action intentionally modifies BUFFER and handles its own prompt reset
             return
         ;;
