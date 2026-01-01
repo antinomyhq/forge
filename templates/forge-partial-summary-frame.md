@@ -32,6 +32,8 @@ Use the following summary frames as the authoritative reference for all coding s
 ```
 {{tool_call.tool.shell.command}}
 ```
+{{else if tool_call.tool.mcp}}
+**MCP:** `{{tool_call.tool.mcp.name}}`
 {{/if~}}
 {{/if~}}
 
