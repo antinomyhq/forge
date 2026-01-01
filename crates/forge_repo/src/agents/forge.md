@@ -7,7 +7,7 @@ reasoning:
 tools:
   - sem_search
   - sage
-  - search
+  - fs_search
   - read
   - read_image
   - write

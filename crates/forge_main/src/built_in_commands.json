@@ -49,7 +49,11 @@
   },
   {
     "command": "commit",
-    "description": "Generate AI commit message and commit changes."
+    "description": "Directly commits AI generated commit message"
+  },
+  {
+    "command": "commit-preview",
+    "description": "Previews AI generated commit message"
   },
   {
     "command": "suggest",
