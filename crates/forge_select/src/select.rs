@@ -4,7 +4,7 @@ use crossterm::cursor;
 use dialoguer::theme::ColorfulTheme;
 use dialoguer::{Confirm, FuzzySelect, Input, MultiSelect};
 
-use crate::{ApplicationCursorKeysGuard, BracketedPasteGuard};
+use crate::{ApplicationCursorKeysGuard, BracketedPasteGuard, CursorRestoreGuard};
 
 /// Check if a dialoguer error is an interrupted error (CTRL+C)
 fn is_interrupted_error(err: &dialoguer::Error) -> bool {
@@ -135,6 +135,9 @@ impl<T: 'static> SelectBuilder<T> {
     where
         T: std::fmt::Display + Clone,
     {
+        // Ensure cursor is visible when prompt completes
+        let _cursor_restore_guard = CursorRestoreGuard::new();
+
         // Handle confirm case (bool options)
         if std::any::TypeId::of::<T>() == std::any::TypeId::of::<bool>() {
             let theme = ForgeSelect::default_theme();
@@ -162,7 +165,7 @@ impl<T: 'static> SelectBuilder<T> {
         // fuzzy search input
         let _paste_guard = BracketedPasteGuard::new()?;
         // Disable application cursor keys to ensure arrow keys work correctly
-        let _cursor_guard = ApplicationCursorKeysGuard::new()?;
+        let _cursor_keys_guard = ApplicationCursorKeysGuard::new()?;
 
         let theme = ForgeSelect::default_theme();
 
@@ -232,8 +235,9 @@ impl<T> SelectBuilderOwned<T> {
         // fuzzy search input
         let _paste_guard = BracketedPasteGuard::new()?;
         // Disable application cursor keys to ensure arrow keys work correctly
-        let _cursor_guard = ApplicationCursorKeysGuard::new()?;
-
+        let _cursor_keys_guard = ApplicationCursorKeysGuard::new()?;
+        // Ensure cursor is visible when prompt completes
+        let _cursor_restore_guard = CursorRestoreGuard::new();
         let theme = ForgeSelect::default_theme();
 
         // Strip ANSI codes from display strings for better fuzzy search experience
@@ -322,7 +326,9 @@ impl InputBuilder {
         // Disable bracketed paste mode to prevent ~0 and ~1 markers during input
         let _paste_guard = BracketedPasteGuard::new()?;
         // Disable application cursor keys to ensure arrow keys work correctly
-        let _cursor_guard = ApplicationCursorKeysGuard::new()?;
+        let _cursor_keys_guard = ApplicationCursorKeysGuard::new()?;
+        // Ensure cursor is visible when prompt completes
+        let _cursor_restore_guard = CursorRestoreGuard::new();
 
         let theme = ForgeSelect::default_theme();
 
@@ -398,7 +404,9 @@ impl<T> MultiSelectBuilder<T> {
         // Disable bracketed paste mode to prevent ~0 and ~1 markers
         let _paste_guard = BracketedPasteGuard::new()?;
         // Disable application cursor keys to ensure arrow keys work correctly
-        let _cursor_guard = ApplicationCursorKeysGuard::new()?;
+        let _cursor_keys_guard = ApplicationCursorKeysGuard::new()?;
+        // Ensure cursor is visible when prompt completes
+        let _cursor_restore_guard = CursorRestoreGuard::new();
 
         let theme = ForgeSelect::default_theme();
         let multi_select = MultiSelect::with_theme(&theme)

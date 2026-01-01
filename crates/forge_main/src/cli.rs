@@ -137,6 +137,7 @@ pub enum TopLevelCommand {
     Provider(ProviderCommandGroup),
 
     /// Run or list custom commands.
+    #[command(aliases = ["command", "commands"])]
     Cmd(CmdCommandGroup),
 
     /// Manage workspaces for semantic search.
@@ -164,11 +165,17 @@ pub struct CmdCommandGroup {
 #[derive(Subcommand, Debug, Clone)]
 pub enum CmdCommand {
     /// List all available custom commands.
-    List,
+    List {
+        /// Shows only custom commands
+        #[arg(long)]
+        custom: bool,
+    },
 
     /// Execute a custom command.
-    #[command(external_subcommand)]
-    Execute(Vec<String>),
+    Execute {
+        /// Name of the custom command to execute, followed by any arguments.
+        commands: Vec<String>,
+    },
 }
 
 /// Command group for agent management.
@@ -305,7 +312,11 @@ pub enum ListCommand {
 
     /// List available commands.
     #[command(hide = true, alias = "commands")]
-    Command,
+    Command {
+        /// Shows only custom commands
+        #[arg(long)]
+        custom: bool,
+    },
 
     /// List configuration values.
     #[command(alias = "configs")]
@@ -348,6 +359,9 @@ pub enum ZshCommandGroup {
     /// Get rprompt information (model and conversation stats) for shell
     /// integration.
     Rprompt,
+
+    /// Setup zsh integration by updating .zshrc with plugin and theme
+    Setup,
 }
 
 /// Command group for MCP server management.
@@ -1000,6 +1014,62 @@ mod tests {
     }
 
     #[test]
+    fn test_list_command_without_custom_flag() {
+        let fixture = Cli::parse_from(["forge", "list", "command"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::List(list)) => match list.command {
+                ListCommand::Command { custom } => custom,
+                _ => true,
+            },
+            _ => true,
+        };
+        let expected = false;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_list_command_with_custom_flag() {
+        let fixture = Cli::parse_from(["forge", "list", "command", "--custom"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::List(list)) => match list.command {
+                ListCommand::Command { custom } => custom,
+                _ => false,
+            },
+            _ => false,
+        };
+        let expected = true;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cmd_list_with_custom_flag() {
+        let fixture = Cli::parse_from(["forge", "cmd", "list", "--custom"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Cmd(cmd_group)) => match cmd_group.command {
+                CmdCommand::List { custom } => custom,
+                _ => false,
+            },
+            _ => false,
+        };
+        let expected = true;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_command_list_with_custom_flag() {
+        let fixture = Cli::parse_from(["forge", "command", "list", "--custom"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Cmd(cmd_group)) => match cmd_group.command {
+                CmdCommand::List { custom } => custom,
+                _ => false,
+            },
+            _ => false,
+        };
+        let expected = true;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
     fn test_info_command_without_porcelain() {
         let fixture = Cli::parse_from(["forge", "info"]);
         let actual = match fixture.subcommands {
@@ -1313,10 +1383,11 @@ mod tests {
 
     #[test]
     fn test_cmd_command_with_args() {
-        let fixture = Cli::parse_from(["forge", "cmd", "custom-command", "arg1", "arg2"]);
+        let fixture =
+            Cli::parse_from(["forge", "cmd", "execute", "custom-command", "arg1", "arg2"]);
         let actual = match fixture.subcommands {
             Some(TopLevelCommand::Cmd(run_group)) => match run_group.command {
-                CmdCommand::Execute(args) => args.join(" "),
+                CmdCommand::Execute { commands } => commands.join(" "),
                 _ => panic!("Expected Execute command"),
             },
             _ => panic!("Expected Cmd command"),
@@ -1482,6 +1553,18 @@ mod tests {
         let actual = match fixture.subcommands {
             Some(TopLevelCommand::Zsh(terminal)) => {
                 matches!(terminal, ZshCommandGroup::Doctor)
+            }
+            _ => false,
+        };
+        assert_eq!(actual, true);
+    }
+
+    #[test]
+    fn test_zsh_setup() {
+        let fixture = Cli::parse_from(["forge", "zsh", "setup"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Zsh(terminal)) => {
+                matches!(terminal, ZshCommandGroup::Setup)
             }
             _ => false,
         };

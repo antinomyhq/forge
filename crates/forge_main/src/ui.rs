@@ -286,19 +286,20 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             return self.handle_dispatch(dispatch_json).await;
         }
 
-        // Handle direct prompt if provided (raw text messages)
-        let prompt = self.cli.prompt.clone();
-        if let Some(prompt) = prompt {
+        // Handle direct prompt or piped input if provided (raw text messages)
+        let input = self.cli.prompt.clone().or(self.cli.piped_input.clone());
+        if let Some(input) = input {
             self.spinner.start(None)?;
-            self.on_message(Some(prompt)).await?;
-            return Ok(());
-        }
-
-        // Handle piped input if provided (treat it like --prompt)
-        let piped_input = self.cli.piped_input.clone();
-        if let Some(piped) = piped_input {
-            self.spinner.start(None)?;
-            self.on_message(Some(piped)).await?;
+            tokio::select! {
+                _ = tokio::signal::ctrl_c() => {
+                    tracing::info!("User interrupted operation with Ctrl+C");
+                    self.spinner.stop(None)?;
+                    return Ok(());
+                }
+                result = self.on_message(Some(input)) => {
+                    result?;
+                }
+            }
             return Ok(());
         }
 
@@ -387,8 +388,12 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     ListCommand::Model => {
                         self.on_show_models(porcelain).await?;
                     }
-                    ListCommand::Command => {
-                        self.on_show_commands(porcelain).await?;
+                    ListCommand::Command { custom } => {
+                        if custom {
+                            self.on_show_custom_commands(porcelain).await?;
+                        } else {
+                            self.on_show_commands(porcelain).await?;
+                        }
                     }
                     ListCommand::Config => {
                         self.on_show_config(porcelain).await?;
@@ -427,6 +432,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                             print!("{}", text)
                         }
                         return Ok(());
+                    }
+                    crate::cli::ZshCommandGroup::Setup => {
+                        self.on_zsh_setup().await?;
                     }
                 }
                 return Ok(());
@@ -542,11 +550,14 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             TopLevelCommand::Cmd(run_group) => {
                 let porcelain = run_group.porcelain;
                 match run_group.command {
-                    crate::cli::CmdCommand::List => {
-                        // List all custom commands
-                        self.on_show_custom_commands(porcelain).await?;
+                    crate::cli::CmdCommand::List { custom } => {
+                        if custom {
+                            self.on_show_custom_commands(porcelain).await?;
+                        } else {
+                            self.on_show_commands(porcelain).await?;
+                        }
                     }
-                    crate::cli::CmdCommand::Execute(args) => {
+                    crate::cli::CmdCommand::Execute { commands: args } => {
                         // Execute the custom command
                         self.init_state(false).await?;
 
@@ -1441,11 +1452,108 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Run ZSH environment diagnostics
     async fn on_zsh_doctor(&mut self) -> anyhow::Result<()> {
-        self.spinner.start(Some("Running diagnostics"))?;
-        let report = crate::zsh::run_zsh_doctor()?;
+        // Stop spinner before streaming output to avoid interference
         self.spinner.stop(None)?;
-        println!("{report}");
+
+        // Stream the diagnostic output in real-time
+        crate::zsh::run_zsh_doctor()?;
+
         Ok(())
+    }
+
+    /// Setup ZSH integration by updating .zshrc
+    async fn on_zsh_setup(&mut self) -> anyhow::Result<()> {
+        // Check nerd font support
+        println!();
+        println!(
+            "{} {} {}",
+            "󱙺".bold(),
+            "FORGE 33.0k".bold(),
+            " tonic-1.0".cyan()
+        );
+
+        let can_see_nerd_fonts =
+            ForgeSelect::confirm("Can you see all the icons clearly without any overlap?")
+                .with_default(true)
+                .prompt()?;
+
+        let disable_nerd_font = match can_see_nerd_fonts {
+            Some(true) => {
+                println!();
+                false
+            }
+            Some(false) => {
+                println!();
+                println!("   {} Nerd Fonts will be disabled", "⚠".yellow());
+                println!();
+                println!("   You can enable them later by:");
+                println!(
+                    "   1. Installing a Nerd Font from: {}",
+                    "https://www.nerdfonts.com/".dimmed()
+                );
+                println!("   2. Configuring your terminal to use a Nerd Font");
+                println!(
+                    "   3. Removing {} from your ~/.zshrc",
+                    "NERD_FONT=0".dimmed()
+                );
+                println!();
+                true
+            }
+            None => {
+                // User interrupted, default to not disabling
+                println!();
+                false
+            }
+        };
+
+        // Ask about editor preference
+        let editor_options = vec![
+            "Use system default ($EDITOR)",
+            "VS Code (code --wait)",
+            "Vim",
+            "Neovim (nvim)",
+            "Nano",
+            "Emacs",
+            "Sublime Text (subl --wait)",
+            "Skip - I'll configure it later",
+        ];
+
+        let selected_editor = ForgeSelect::select(
+            "Which editor would you like to use for editing prompts?",
+            editor_options,
+        )
+        .prompt()?;
+
+        let forge_editor = match selected_editor {
+            Some("Use system default ($EDITOR)") => None,
+            Some("VS Code (code --wait)") => Some("code --wait"),
+            Some("Vim") => Some("vim"),
+            Some("Neovim (nvim)") => Some("nvim"),
+            Some("Nano") => Some("nano"),
+            Some("Emacs") => Some("emacs"),
+            Some("Sublime Text (subl --wait)") => Some("subl --wait"),
+            Some("Skip - I'll configure it later") => None,
+            _ => None,
+        };
+
+        // Setup ZSH integration with nerd font and editor configuration
+        self.spinner.start(Some("Configuring ZSH"))?;
+        let result = crate::zsh::setup_zsh_integration(disable_nerd_font, forge_editor)?;
+        self.spinner.stop(None)?;
+
+        // Log backup creation if one was made
+        if let Some(backup_path) = result.backup_path {
+            self.writeln_title(TitleFormat::debug(format!(
+                "backup created at {}",
+                backup_path.display()
+            )))?;
+        }
+
+        self.writeln_title(TitleFormat::info(result.message))?;
+
+        self.writeln_title(TitleFormat::debug("running forge zsh doctor"))?;
+        println!();
+        self.on_zsh_doctor().await
     }
 
     /// Handle the cmd command - generates shell command from natural language

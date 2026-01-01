@@ -46,10 +46,7 @@ mod tests {
     use super::*;
 
     #[derive(schemars::JsonSchema)]
-    #[allow(dead_code)]
-    struct TestToolInput {
-        param: String,
-    }
+    struct TestToolInput;
 
     #[test]
     fn test_apply_sets_parameters() {
