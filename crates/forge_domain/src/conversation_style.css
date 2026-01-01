@@ -210,3 +210,27 @@ img {
   color: #28a745;
   font-weight: 600;
 }
+
+/* Tool Call Error Styles */
+.tool-call-error {
+  background-color: #fff5f5;
+  border-left: 4px solid #ef4444;
+  padding: 16px;
+  margin: 12px 0;
+  border-radius: 4px;
+}
+
+.tool-call-error .error-cause {
+  color: #dc2626;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.tool-call-error .error-reflection {
+  background-color: #fee2e2;
+  padding: 12px;
+  border-radius: 4px;
+  margin-top: 8px;
+  font-size: 0.9em;
+  color: #7f1d1d;
+}
