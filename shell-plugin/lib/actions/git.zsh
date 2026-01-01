@@ -23,13 +23,15 @@ function _forge_action_commit() {
     # Proceed only if command succeeded
     if [[ -n "$commit_message" ]]; then
         # Check if there are staged changes to determine commit strategy
+        local commit_flags=""
         if git diff --staged --quiet; then
             # No staged changes: commit all tracked changes with -a flag
-            BUFFER="git commit -a -m '$commit_message'"
-        else
-            # Staged changes exist: commit only what's staged
-            BUFFER="git commit -m '$commit_message'"
+            commit_flags="-a"
         fi
+        
+        # Set ForgeCode as the committer while keeping the user as the author
+        BUFFER="GIT_COMMITTER_NAME='ForgeCode' GIT_COMMITTER_EMAIL='noreply@forgecode.dev' git commit ${commit_flags} -m '$commit_message'"
+        
         # Move cursor to end of buffer for immediate execution
         CURSOR=${#BUFFER}
         # Refresh display to show the new command
