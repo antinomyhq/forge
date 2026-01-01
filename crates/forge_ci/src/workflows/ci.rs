@@ -2,18 +2,15 @@ use gh_workflow::generate::Generate;
 use gh_workflow::*;
 
 use crate::jobs::{self, ReleaseBuilderJob};
+use crate::steps::setup_protoc;
 
 /// Generate the main CI workflow
 pub fn generate_ci_workflow() {
     // Create a basic build job for CI with coverage
     let build_job = Job::new("Build and Test")
         .permissions(Permissions::default().contents(Level::Read))
-        .add_step(Step::checkout())
-        .add_step(
-            Step::new("Setup Protobuf Compiler")
-                .uses("arduino", "setup-protoc", "v3")
-                .with(("repo-token", "${{ secrets.GITHUB_TOKEN }}")),
-        )
+        .add_step(Step::new("Checkout Code").uses("actions", "checkout", "v6"))
+        .add_step(setup_protoc())
         .add_step(Step::toolchain().add_stable())
         .add_step(Step::new("Install cargo-llvm-cov").run("cargo install cargo-llvm-cov"))
         .add_step(
@@ -24,6 +21,18 @@ pub fn generate_ci_workflow() {
             Step::new("Upload coverage to Coveralls")
                 .uses("coverallsapp", "github-action", "v2")
                 .with(("path-to-lcov", "lcov.info")),
+        );
+
+    // Create a performance test job to ensure zsh rprompt stays fast
+    let perf_test_job = Job::new("zsh-rprompt-performance")
+        .name("Performance: zsh rprompt")
+        .permissions(Permissions::default().contents(Level::Read))
+        .add_step(Step::new("Checkout Code").uses("actions", "checkout", "v6"))
+        .add_step(setup_protoc())
+        .add_step(Step::toolchain().add_stable())
+        .add_step(
+            Step::new("Run performance benchmark")
+                .run("./scripts/benchmark.sh --threshold 60 zsh rprompt"),
         );
 
     let draft_release_job = jobs::create_draft_release_job("build");
@@ -68,6 +77,7 @@ pub fn generate_ci_workflow() {
         .concurrency(Concurrency::default().group("${{ github.workflow }}-${{ github.ref }}"))
         .add_env(("OPENROUTER_API_KEY", "${{secrets.OPENROUTER_API_KEY}}"))
         .add_job("build", build_job)
+        .add_job("zsh_rprompt_perf", perf_test_job)
         .add_job("draft_release", draft_release_job)
         .add_job("draft_release_pr", draft_release_pr_job)
         .add_job("build_release", build_release_job)

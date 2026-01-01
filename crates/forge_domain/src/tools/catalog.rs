@@ -217,7 +217,7 @@ impl SearchQuery {
 /// Understands queries like "authentication flow" (finds login), "retry logic"
 /// (finds backoff), "validation" (finds checking/sanitization).
 ///
-/// Returns file:line locations with code context, ranked by relevance. Use
+/// Returns the topK most relevant file:line locations with code context. Use
 /// multiple varied queries (2-3) for best coverage. For exact string matching
 /// (TODO comments, specific function names), use regex search instead.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
@@ -300,14 +300,18 @@ impl JsonSchema for PatchOperation {
 
 /// Modifies files with targeted line operations on matched patterns. Supports
 /// prepend, append, replace, replace_all, swap operations. Ideal for precise
-/// changes to configs, code, or docs while preserving context. Not suitable for
-/// complex refactoring or modifying all pattern occurrences - use `write`
-/// instead for complete rewrites and `undo` for undoing the last operation.
-/// Fails if search pattern isn't found.\n\nUsage Guidelines:\n-When editing
-/// text from Read tool output, preserve the EXACT text character-by-character
-/// (indentation, spaces, punctuation, special characters) as it appears AFTER
-/// the line number prefix. Format: 'line_number:'. Never include the prefix.
-/// CRITICAL: Even tiny differences like 'allows to' vs 'allows the' will fail
+/// changes to configs, code, or docs while preserving context. Use this tool
+/// for refactoring tasks (e.g., renaming variables, updating function
+/// signatures). For maximum efficiency, invoke multiple `patch` operations
+/// simultaneously rather than sequentially. Fails if search pattern isn't
+/// found.
+///
+/// Usage Guidelines:
+/// - When editing text from Read tool output, preserve the EXACT text
+///   character-by-character (indentation, spaces, punctuation, special
+///   characters) as it appears AFTER the line number prefix. Format:
+///   'line_number:'. Never include the prefix.
+/// - CRITICAL: Even tiny differences like 'allows to' vs 'allows the' will fail
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct FSPatch {
     /// The path to the file to modify

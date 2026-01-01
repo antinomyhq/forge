@@ -108,7 +108,7 @@ expression: tools
 }
 {
   "title": "SemanticSearch",
-  "description": "AI-powered semantic code search. YOUR DEFAULT TOOL for code discovery tasks. Use this when you need to find code locations, understand implementations, or explore functionality - it works with natural language about behavior and concepts, not just keyword matching.\n\nStart with sem_search when: locating code to modify, understanding how features work, finding patterns/examples, or exploring unfamiliar areas. Understands queries like \"authentication flow\" (finds login), \"retry logic\" (finds backoff), \"validation\" (finds checking/sanitization).\n\nReturns file:line locations with code context, ranked by relevance. Use multiple varied queries (2-3) for best coverage. For exact string matching (TODO comments, specific function names), use regex search instead.",
+  "description": "AI-powered semantic code search. YOUR DEFAULT TOOL for code discovery tasks. Use this when you need to find code locations, understand implementations, or explore functionality - it works with natural language about behavior and concepts, not just keyword matching.\n\nStart with sem_search when: locating code to modify, understanding how features work, finding patterns/examples, or exploring unfamiliar areas. Understands queries like \"authentication flow\" (finds login), \"retry logic\" (finds backoff), \"validation\" (finds checking/sanitization).\n\nReturns the topK most relevant file:line locations with code context. Use multiple varied queries (2-3) for best coverage. For exact string matching (TODO comments, specific function names), use regex search instead.",
   "type": "object",
   "required": [
     "queries"
@@ -159,7 +159,7 @@ expression: tools
 }
 {
   "title": "FSPatch",
-  "description": "Modifies files with targeted line operations on matched patterns. Supports prepend, append, replace, replace_all, swap operations. Ideal for precise changes to configs, code, or docs while preserving context. Not suitable for complex refactoring or modifying all pattern occurrences - use `write` instead for complete rewrites and `undo` for undoing the last operation. Fails if search pattern isn't found.\\n\\nUsage Guidelines:\\n-When editing text from Read tool output, preserve the EXACT text character-by-character (indentation, spaces, punctuation, special characters) as it appears AFTER the line number prefix. Format: 'line_number:'. Never include the prefix. CRITICAL: Even tiny differences like 'allows to' vs 'allows the' will fail",
+  "description": "Modifies files with targeted line operations on matched patterns. Supports prepend, append, replace, replace_all, swap operations. Ideal for precise changes to configs, code, or docs while preserving context. Use this tool for refactoring tasks (e.g., renaming variables, updating function signatures). For maximum efficiency, invoke multiple `patch` operations simultaneously rather than sequentially. Fails if search pattern isn't found.\n\nUsage Guidelines: - When editing text from Read tool output, preserve the EXACT text character-by-character (indentation, spaces, punctuation, special characters) as it appears AFTER the line number prefix. Format: 'line_number:'. Never include the prefix. - CRITICAL: Even tiny differences like 'allows to' vs 'allows the' will fail",
   "type": "object",
   "required": [
     "content",

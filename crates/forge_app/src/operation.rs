@@ -79,8 +79,6 @@ pub enum ToolOperation {
         output: PlanCreateOutput,
     },
     Skill {
-        #[allow(dead_code)]
-        input: forge_domain::SkillFetch,
         output: forge_domain::Skill,
     },
 }
@@ -597,7 +595,7 @@ impl ToolOperation {
 
                 forge_domain::ToolOutput::text(elm)
             }
-            ToolOperation::Skill { input: _, output } => {
+            ToolOperation::Skill { output } => {
                 let mut elm = Element::new("skill_details");
 
                 elm = elm.append({
@@ -1960,7 +1958,6 @@ mod tests {
     #[test]
     fn test_skill_operation() {
         let fixture = ToolOperation::Skill {
-            input: forge_domain::SkillFetch { name: "test-skill".to_string() },
             output: forge_domain::Skill::new(
                 "test-skill",
                 "This is a test skill command with instructions",

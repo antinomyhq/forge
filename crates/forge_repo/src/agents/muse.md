@@ -5,12 +5,13 @@ description: "Strategic planning agent that analyzes codebases and creates compr
 reasoning:
   enabled: true
 tools:
-  - read
-  - fetch
-  - search
-  - plan
+  - sem_search
   - sage
+  - search
+  - read
   - read_image
+  - fetch
+  - plan
   - mcp_*
 user_prompt: |-
   <{{event.name}}>{{event.value}}</{{event.name}}>

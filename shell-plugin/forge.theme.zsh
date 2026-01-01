@@ -14,5 +14,7 @@ function _forge_prompt_info() {
 }
 
 # Right prompt: agent and model with token count (uses single forge prompt command)
-# Prepend to existing RPROMPT if present
-RPROMPT='$(_forge_prompt_info)'" ${RPROMPT}"
+# Prepend to existing RPROMPT if present, only if not already set by forge theme
+if [[ -z "$_FORGE_THEME_LOADED" ]]; then
+    RPROMPT='$(_forge_prompt_info)'" ${RPROMPT}"
+fi

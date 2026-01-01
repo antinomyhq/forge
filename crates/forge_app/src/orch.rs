@@ -151,7 +151,7 @@ impl<S: AgentService> Orchestrator<S> {
     ) -> anyhow::Result<ChatCompletionMessageFull> {
         let tool_supported = self.is_tool_supported()?;
         let mut transformers = DefaultTransformation::default()
-            .pipe(SortTools::new())
+            .pipe(SortTools::new(self.agent.tool_order()))
             .pipe(TransformToolCalls::new().when(|_| !tool_supported))
             .pipe(ImageHandling::new())
             .pipe(DropReasoningDetails.when(|_| !reasoning_supported))
