@@ -1,4 +1,5 @@
 use schemars::schema::{InstanceType, RootSchema, Schema, SchemaObject, SingleOrVec};
+use serde::de::Error as _;
 use serde_json::Value;
 
 /// Coerces a JSON value to match the expected types defined in a JSON schema.
@@ -191,11 +192,42 @@ fn try_coerce_string(s: &str, target_type: &InstanceType) -> Option<Value> {
                 None
             }
         }
-        InstanceType::String | InstanceType::Object | InstanceType::Array => {
-            // Don't coerce to these types from strings
+        InstanceType::String => {
+            // Keep as string
+            None
+        }
+        InstanceType::Object => {
+            // Try to parse the string as a JSON object
+            if let Ok(parsed) = try_parse_json_string(s) {
+                if parsed.is_object() {
+                    return Some(parsed);
+                }
+            }
+            None
+        }
+        InstanceType::Array => {
+            // Try to parse the string as a JSON array
+            if let Ok(parsed) = try_parse_json_string(s) {
+                if parsed.is_array() {
+                    return Some(parsed);
+                }
+            }
             None
         }
     }
+}
+
+/// Attempts to parse a string as JSON, handling both valid JSON and JSON5 (Python-style) syntax
+fn try_parse_json_string(s: &str) -> Result<Value, serde_json::Error> {
+    // First try parsing as-is (valid JSON)
+    if let Ok(parsed) = serde_json::from_str::<Value>(s) {
+        return Ok(parsed);
+    }
+    
+    // If that fails, try parsing as JSON5 (handles single quotes, comments, etc.)
+    // Convert serde_json5::Error to serde_json::Error
+    serde_json5::from_str::<Value>(s)
+        .map_err(|e| serde_json::Error::custom(e.to_string()))
 }
 
 #[cfg(test)]
@@ -946,6 +978,254 @@ mod tests {
         let actual = coerce_to_schema(fixture, &schema);
         let expected = json!({"value": 18446744073709551615u64});
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_coerce_string_to_array() {
+        // Test coercing a JSON array string to an actual array
+        let mut properties = std::collections::BTreeMap::new();
+        properties.insert(
+            "items".to_string(),
+            Schema::Object(SchemaObject {
+                instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Array))),
+                array: Some(Box::new(schemars::schema::ArrayValidation {
+                    items: Some(SingleOrVec::Single(Box::new(Schema::Object(
+                        SchemaObject {
+                            instance_type: Some(SingleOrVec::Single(Box::new(
+                                InstanceType::Integer,
+                            ))),
+                            ..Default::default()
+                        },
+                    )))),
+                    ..Default::default()
+                })),
+                ..Default::default()
+            }),
+        );
+
+        let schema = RootSchema {
+            schema: SchemaObject {
+                instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Object))),
+                object: Some(Box::new(ObjectValidation {
+                    properties,
+                    ..Default::default()
+                })),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Test coercing a JSON array string
+        let fixture = json!({"items": "[1, 2, 3]"});
+        let actual = coerce_to_schema(fixture, &schema);
+        let expected = json!({"items": [1, 2, 3]});
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_coerce_python_style_string_to_array() {
+        // Test coercing a Python-style array string to an actual array
+        let mut properties = std::collections::BTreeMap::new();
+        properties.insert(
+            "edits".to_string(),
+            Schema::Object(SchemaObject {
+                instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Array))),
+                ..Default::default()
+            }),
+        );
+
+        let schema = RootSchema {
+            schema: SchemaObject {
+                instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Object))),
+                object: Some(Box::new(ObjectValidation {
+                    properties,
+                    ..Default::default()
+                })),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Test coercing a Python-style array string (single quotes)
+        let fixture = json!({"edits": "[{'content': 'test', 'operation': 'replace'}]"});
+        let actual = coerce_to_schema(fixture, &schema);
+        let expected = json!({"edits": [{"content": "test", "operation": "replace"}]});
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_coerce_python_style_string_to_object() {
+        // Test coercing a Python-style object string to an actual object
+        let mut properties = std::collections::BTreeMap::new();
+        properties.insert(
+            "config".to_string(),
+            Schema::Object(SchemaObject {
+                instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Object))),
+                ..Default::default()
+            }),
+        );
+
+        let schema = RootSchema {
+            schema: SchemaObject {
+                instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Object))),
+                object: Some(Box::new(ObjectValidation {
+                    properties,
+                    ..Default::default()
+                })),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Test coercing a Python-style object string (single quotes)
+        let fixture = json!({"config": "{'key': 'value', 'number': 42}"});
+        let actual = coerce_to_schema(fixture, &schema);
+        let expected = json!({"config": {"key": "value", "number": 42}});
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_preserve_invalid_json_string() {
+        // Test that invalid JSON strings are preserved
+        let mut properties = std::collections::BTreeMap::new();
+        properties.insert(
+            "data".to_string(),
+            Schema::Object(SchemaObject {
+                instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Array))),
+                ..Default::default()
+            }),
+        );
+
+        let schema = RootSchema {
+            schema: SchemaObject {
+                instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Object))),
+                object: Some(Box::new(ObjectValidation {
+                    properties,
+                    ..Default::default()
+                })),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Test that invalid JSON is preserved
+        let fixture = json!({"data": "[invalid json"});
+        let actual = coerce_to_schema(fixture, &schema);
+        let expected = json!({"data": "[invalid json"});
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_coerce_json5_with_comments() {
+        // Test coercing JSON5 with comments
+        let mut properties = std::collections::BTreeMap::new();
+        properties.insert(
+            "config".to_string(),
+            Schema::Object(SchemaObject {
+                instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Object))),
+                ..Default::default()
+            }),
+        );
+
+        let schema = RootSchema {
+            schema: SchemaObject {
+                instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Object))),
+                object: Some(Box::new(ObjectValidation {
+                    properties,
+                    ..Default::default()
+                })),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Test coercing JSON5 with comments and trailing commas
+        let fixture = json!({"config": r#"{
+            // This is a comment
+            "key": "value",
+            "number": 42,
+        }"#});
+        let actual = coerce_to_schema(fixture, &schema);
+        let expected = json!({"config": {"key": "value", "number": 42}});
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_coerce_json5_with_trailing_commas() {
+        // Test coercing JSON5 with trailing commas
+        let mut properties = std::collections::BTreeMap::new();
+        properties.insert(
+            "items".to_string(),
+            Schema::Object(SchemaObject {
+                instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Array))),
+                ..Default::default()
+            }),
+        );
+
+        let schema = RootSchema {
+            schema: SchemaObject {
+                instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Object))),
+                object: Some(Box::new(ObjectValidation {
+                    properties,
+                    ..Default::default()
+                })),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Test coercing JSON5 with trailing commas in arrays
+        let fixture = json!({"items": "[1, 2, 3,]"});
+        let actual = coerce_to_schema(fixture, &schema);
+        let expected = json!({"items": [1, 2, 3]});
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_coerce_multi_patch_python_style() {
+        // Test coercing exact Python-style input from error
+        // This matches multi_patch tool call format with nested objects
+        let mut properties = std::collections::BTreeMap::new();
+        properties.insert(
+            "edits".to_string(),
+            Schema::Object(SchemaObject {
+                instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Array))),
+                ..Default::default()
+            }),
+        );
+
+        let schema = RootSchema {
+            schema: SchemaObject {
+                instance_type: Some(SingleOrVec::Single(Box::new(InstanceType::Object))),
+                object: Some(Box::new(ObjectValidation {
+                    properties,
+                    ..Default::default()
+                })),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+
+        // Python-style array of objects with single quotes (from error)
+        let python_style = r#"[{'content': 'use schemars::schema::{InstanceType, RootSchema, Schema, SchemaObject, SingleOrVec};', 'operation': 'replace', 'path': 'crates/forge_json_repair/src/schema_coercion.rs'}, {'content': 'fn coerce_value_with_schema(value: Value, schema: &Schema) -> Value {', 'operation': 'replace', 'path': 'crates/forge_json_repair/src/schema_coercion.rs'}]"#;
+
+        let fixture = json!({"edits": python_style});
+        let actual = coerce_to_schema(fixture, &schema);
+        
+        // Should coerce string to an array of objects
+        assert!(actual["edits"].is_array());
+        let edits = actual["edits"].as_array().unwrap();
+        assert_eq!(edits.len(), 2);
+        
+        // Verify first edit object
+        assert_eq!(edits[0]["content"], "use schemars::schema::{InstanceType, RootSchema, Schema, SchemaObject, SingleOrVec};");
+        assert_eq!(edits[0]["operation"], "replace");
+        assert_eq!(edits[0]["path"], "crates/forge_json_repair/src/schema_coercion.rs");
+        
+        // Verify second edit object
+        assert_eq!(edits[1]["content"], "fn coerce_value_with_schema(value: Value, schema: &Schema) -> Value {");
+        assert_eq!(edits[1]["operation"], "replace");
+        assert_eq!(edits[1]["path"], "crates/forge_json_repair/src/schema_coercion.rs");
     }
 
     // Helper functions to create test schemas
