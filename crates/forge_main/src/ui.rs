@@ -2618,33 +2618,26 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             },
             ChatResponse::ToolCallStart(_) => {
                 // Pull usage from conversation and update spinner before pausing
-                if let Some(conversation_id) = &self.state.conversation_id {
-                    if let Ok(Some(conv)) = self.api.conversation(conversation_id).await {
+                if let Some(conversation_id) = &self.state.conversation_id
+                    && let Ok(Some(conv)) = self.api.conversation(conversation_id).await {
                         let accumulated = conv.accumulated_usage();
                         let last_request = conv.usage();
 
                         // Use accumulated for cost and cache rate, last request for token counts
                         let formatted = match (accumulated.as_ref(), last_request.as_ref()) {
-                            (Some(acc), Some(last)) => {
-                                [
-                                    acc.cost.map(|c| format!("${:.3}", c)),
-                                    Some(format!(
-                                        "{}/{}",
-                                        *last.prompt_tokens, *last.completion_tokens
-                                    )),
-                                    acc.cache_hit_rate().map(|p| format!("{:.2}%", p)),
-                                ]
-                            }
-                            (Some(acc), None) | (None, Some(acc)) => {
-                                [
-                                    acc.cost.map(|c| format!("${:.3}", c)),
-                                    Some(format!(
-                                        "{}/{}",
-                                        *acc.prompt_tokens, *acc.completion_tokens
-                                    )),
-                                    acc.cache_hit_rate().map(|p| format!("{:.2}%", p)),
-                                ]
-                            }
+                            (Some(acc), Some(last)) => [
+                                acc.cost.map(|c| format!("${:.3}", c)),
+                                Some(format!(
+                                    "{}/{}",
+                                    *last.prompt_tokens, *last.completion_tokens
+                                )),
+                                acc.cache_hit_rate().map(|p| format!("{:.2}%", p)),
+                            ],
+                            (Some(acc), None) | (None, Some(acc)) => [
+                                acc.cost.map(|c| format!("${:.3}", c)),
+                                Some(format!("{}/{}", *acc.prompt_tokens, *acc.completion_tokens)),
+                                acc.cache_hit_rate().map(|p| format!("{:.2}%", p)),
+                            ],
                             (None, None) => [None, None, None],
                         }
                         .into_iter()
@@ -2656,7 +2649,6 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                             self.spinner.set_message(&formatted)?;
                         }
                     }
-                }
                 self.spinner.pause()?;
             }
             ChatResponse::ToolCallEnd(toolcall_result) => {
