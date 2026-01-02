@@ -30,6 +30,7 @@ derive_more.workspace = true
 regex.workspace = true
 humantime.workspace = true
 thiserror.workspace = true
+strsim.workspace = true
 html2md.workspace = true
 glob.workspace = true
 grep-searcher.workspace = true

@@ -1,8 +1,8 @@
 pub mod call;
 pub mod definition;
 
-mod catalog;
-mod result;
+pub mod catalog;
+pub mod result;
 
 pub use call::*;
 pub use catalog::*;

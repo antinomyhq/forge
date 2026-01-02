@@ -96,6 +96,7 @@ pub use system_context::*;
 pub use temperature::*;
 pub use template::*;
 pub use tool_order::*;
+pub use tools::catalog::MultiPatchEdit;
 pub use tools::*;
 pub use top_k::*;
 pub use top_p::*;

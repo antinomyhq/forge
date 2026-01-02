@@ -45,6 +45,7 @@ pub enum ToolCatalog {
     SemSearch(SemanticSearch),
     Remove(FSRemove),
     Patch(FSPatch),
+    MultiPatch(FSMultiPatch),
     Undo(FSUndo),
     Shell(Shell),
     Fetch(NetFetch),
@@ -248,26 +249,27 @@ pub struct FSRemove {
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, AsRefStr, EnumIter)]
 #[serde(rename_all = "snake_case")]
 pub enum PatchOperation {
-    /// Prepend content before the matched text
+    /// Add content BEFORE the matched text. Without search parameter, ⚠️ adds
+    /// to START of ENTIRE FILE.
     #[default]
     Prepend,
 
-    /// Append content after the matched text
+    /// Add content AFTER the matched text. Without search parameter, ⚠️ adds
+    /// to END of ENTIRE FILE.
     Append,
 
-    /// Should be used only when you want to replace the first occurrence.
-    /// Use only for specific, targeted replacements where you need to modify
-    /// just the first match.
+    /// Replace the matched text with new content (first occurrence only).
+    /// Use only for specific, targeted replacements. Without search parameter,
+    /// ⚠️ OVERWRITES the ENTIRE FILE.
     Replace,
 
-    /// Should be used for renaming variables, functions, types, or any
-    /// widespread replacements across the file. This is the recommended
-    /// choice for consistent refactoring operations as it ensures all
-    /// occurrences are updated.
+    /// Replace ALL occurrences of matched text. Recommended for renaming
+    /// variables, functions, types, or widespread refactoring. Without search
+    /// parameter, ⚠️ OVERWRITES the ENTIRE FILE.
     ReplaceAll,
 
-    /// Swap the matched text with another text (search for the second text and
-    /// swap them)
+    /// Swap two text blocks (searches for both and swaps them). Requires
+    /// search parameter - ⚠️ does nothing without it.
     Swap,
 }
 
@@ -311,27 +313,76 @@ impl JsonSchema for PatchOperation {
 ///   characters) as it appears AFTER the line number prefix. Format:
 ///   'line_number:'. Never include the prefix.
 /// - CRITICAL: Even tiny differences like 'allows to' vs 'allows the' will fail
+///
+/// ⚠️ OPERATION BEHAVIOR CRITICAL WARNINGS:
+///
+/// **WITH search parameter:**
+/// - `prepend`: Adds content BEFORE the matched text
+/// - `append`: Adds content AFTER the matched text
+/// - `replace`: Replaces the matched text with new content (first occurrence
+///   only)
+/// - `replace_all`: Replaces ALL occurrences of matched text
+/// - `swap`: Swaps two text blocks (searches for both)
+///
+/// **WITHOUT search parameter:**
+/// - `prepend`: ⚠️ Adds content to the START of the ENTIRE FILE
+/// - `append`: ⚠️ Adds content to the END of the ENTIRE FILE
+/// - `replace`: ⚠️ OVERWRITES the ENTIRE FILE with new content
+/// - `replace_all`: Same as replace (entire file)
+/// - `swap`: ⚠️ Does nothing (requires search)
+///
+/// **For modifying existing code sections, ALWAYS provide `search` and use
+/// `replace`!** Only use operations without search when intentionally adding to
+/// file ends.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct FSPatch {
     /// The path to the file to modify
     pub path: String,
 
-    /// The text to replace. When skipped the patch operation applies to the
-    /// entire content. `Append` adds the new content to the end, `Prepend` adds
-    /// it to the beginning, and `Replace` fully overwrites the original
-    /// content. `Swap` requires a search target, so without one, it makes no
-    /// changes.
+    /// The text to search for and match. When provided, the operation applies
+    /// only to the matched text. When omitted, the operation applies to the
+    /// ENTIRE FILE - use with caution! For modifying existing code, ALWAYS
+    /// provide search text.
     pub search: Option<String>,
 
-    /// The operation to perform on the matched text. Possible options are: -
-    /// 'prepend': Add content before the matched text - 'append': Add content
-    /// after the matched text - 'replace': Use only for specific, targeted
-    /// replacements where you need to modify just the first match. -
-    /// 'replace_all': Should be used for renaming variables, functions, types,
-    /// or any widespread replacements across the file. This is the recommended
-    /// choice for consistent refactoring operations as it ensures all
-    /// occurrences are updated. - 'swap': Replace the matched text with another
-    /// text (search for the second text and swap them)
+    /// The operation to perform. See tool-level documentation for critical
+    /// warnings about behavior with and without search parameter.
+    pub operation: PatchOperation,
+
+    /// The text to replace it with (must be different from search)
+    pub content: String,
+}
+
+/// Applies multiple patch operations in sequence to the same file. Each patch
+/// operation is applied to the result of the previous operation. This is useful
+/// for making multiple related edits to a single file without having to read
+/// and patch multiple times. Each edit in the sequence supports the same
+/// operations as the patch tool: prepend, append, replace, replace_all, and
+/// swap.
+///
+/// ⚠️ CRITICAL: See FSPatch documentation for operation behavior warnings.
+/// Operations without search parameter affect the ENTIRE FILE.
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+pub struct FSMultiPatch {
+    /// The path to the file to modify
+    pub path: String,
+
+    /// A list of patch operations to apply sequentially. Each operation is
+    /// applied to the result of the previous operation.
+    pub edits: Vec<MultiPatchEdit>,
+}
+
+/// A single patch operation within a multi-patch sequence
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct MultiPatchEdit {
+    /// The text to search for and match. When provided, the operation applies
+    /// only to the matched text. When omitted, the operation applies to the
+    /// ENTIRE FILE - use with caution! For modifying existing code, ALWAYS
+    /// provide search text.
+    pub search: Option<String>,
+
+    /// The operation to perform. See FSPatch tool-level documentation for
+    /// critical warnings about behavior with and without search parameter.
     pub operation: PatchOperation,
 
     /// The text to replace it with (must be different from search)
@@ -544,6 +595,7 @@ impl ToolDescription for ToolCatalog {
     fn description(&self) -> String {
         match self {
             ToolCatalog::Patch(v) => v.description(),
+            ToolCatalog::MultiPatch(v) => v.description(),
             ToolCatalog::Shell(v) => v.description(),
             ToolCatalog::Followup(v) => v.description(),
             ToolCatalog::Fetch(v) => v.description(),
@@ -581,6 +633,7 @@ impl ToolCatalog {
             .into_generator();
         match self {
             ToolCatalog::Patch(_) => r#gen.into_root_schema_for::<FSPatch>(),
+            ToolCatalog::MultiPatch(_) => r#gen.into_root_schema_for::<FSMultiPatch>(),
             ToolCatalog::Shell(_) => r#gen.into_root_schema_for::<Shell>(),
             ToolCatalog::Followup(_) => r#gen.into_root_schema_for::<Followup>(),
             ToolCatalog::Fetch(_) => r#gen.into_root_schema_for::<NetFetch>(),
@@ -675,6 +728,14 @@ impl ToolCatalog {
                 path: std::path::PathBuf::from(&input.path),
                 cwd,
                 message: format!("Modify file: {}", display_path_for(&input.path)),
+            }),
+            ToolCatalog::MultiPatch(input) => Some(crate::policies::PermissionOperation::Write {
+                path: std::path::PathBuf::from(&input.path),
+                cwd,
+                message: format!(
+                    "Modify file (multiple patches): {}",
+                    display_path_for(&input.path)
+                ),
             }),
             ToolCatalog::Shell(input) => Some(crate::policies::PermissionOperation::Execute {
                 command: input.command.clone(),
@@ -834,7 +895,20 @@ impl TryFrom<ToolCallFull> for ToolCatalog {
     fn try_from(value: ToolCallFull) -> Result<Self, Self::Error> {
         let mut map = Map::new();
         map.insert("name".into(), value.name.as_str().into());
-        map.insert("arguments".into(), value.arguments.parse()?);
+
+        // Parse the arguments
+        let parsed_args = value.arguments.parse()?;
+
+        // Try to find the tool definition and coerce types based on schema
+        let coerced_args = ToolCatalog::iter()
+            .find(|tool| tool.definition().name == value.name)
+            .map(|tool| {
+                let schema = tool.definition().input_schema;
+                forge_json_repair::coerce_to_schema(parsed_args.clone(), &schema)
+            })
+            .unwrap_or(parsed_args);
+
+        map.insert("arguments".into(), coerced_args);
 
         serde_json::from_value(serde_json::Value::Object(map))
             .map_err(|error| crate::Error::AgentCallArgument { error })
@@ -906,6 +980,65 @@ mod tests {
             .join("\n");
 
         insta::assert_snapshot!(tools);
+    }
+
+    #[test]
+    fn test_coerce_string_integers_to_i32() {
+        use crate::{ToolCallArguments, ToolCallFull};
+
+        // Simulate the exact error case: read tool with string integers instead of i32
+        let tool_call = ToolCallFull {
+            name: ToolName::new("read"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(
+                r#"{"path": "/test/path.rs", "start_line": "10", "end_line": "20"}"#,
+            ),
+        };
+
+        // This should not panic - it should coerce strings to integers
+        let actual = ToolCatalog::try_from(tool_call);
+
+        assert!(
+            actual.is_ok(),
+            "Should successfully parse with coerced types"
+        );
+
+        if let Ok(ToolCatalog::Read(fs_read)) = actual {
+            assert_eq!(fs_read.path, "/test/path.rs");
+            assert_eq!(fs_read.start_line, Some(10));
+            assert_eq!(fs_read.end_line, Some(20));
+        } else {
+            panic!("Expected FSRead variant");
+        }
+    }
+
+    #[test]
+    fn test_coerce_preserves_correct_types() {
+        use crate::{ToolCallArguments, ToolCallFull};
+
+        // Verify that already-correct types are preserved
+        let tool_call = ToolCallFull {
+            name: ToolName::new("read"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(
+                r#"{"path": "/test/path.rs", "start_line": 10, "end_line": 20}"#,
+            ),
+        };
+
+        let actual = ToolCatalog::try_from(tool_call);
+
+        assert!(
+            actual.is_ok(),
+            "Should successfully parse with correct types"
+        );
+
+        if let Ok(ToolCatalog::Read(fs_read)) = actual {
+            assert_eq!(fs_read.path, "/test/path.rs");
+            assert_eq!(fs_read.start_line, Some(10));
+            assert_eq!(fs_read.end_line, Some(20));
+        } else {
+            panic!("Expected FSRead variant");
+        }
     }
 
     #[test]

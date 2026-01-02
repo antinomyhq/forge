@@ -84,6 +84,14 @@ impl FormatContent for ToolCatalog {
                         .into(),
                 )
             }
+            ToolCatalog::MultiPatch(input) => {
+                let display_path = display_path_for(&input.path);
+                Some(
+                    TitleFormat::debug(format!("MultiPatch ({} edits)", input.edits.len()))
+                        .sub_title(display_path)
+                        .into(),
+                )
+            }
             ToolCatalog::Undo(input) => {
                 let display_path = display_path_for(&input.path);
                 Some(TitleFormat::debug("Undo").sub_title(display_path).into())

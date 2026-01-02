@@ -1,6 +1,7 @@
 mod fetch;
 mod followup;
 mod fs_create;
+mod fs_multi_patch;
 mod fs_patch;
 mod fs_read;
 mod fs_remove;
@@ -14,6 +15,7 @@ mod skill;
 pub use fetch::*;
 pub use followup::*;
 pub use fs_create::*;
+pub use fs_multi_patch::*;
 pub use fs_patch::*;
 pub use fs_read::*;
 pub use fs_remove::*;

@@ -1,15 +1,15 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use forge_domain::{CodebaseQueryResult, ToolCallContext, ToolCatalog, ToolOutput};
+use forge_domain::{CodebaseQueryResult, FSMultiPatch, ToolCallContext, ToolCatalog, ToolOutput};
 
 use crate::fmt::content::FormatContent;
 use crate::operation::{TempContentFiles, ToolOperation};
 use crate::services::ShellService;
 use crate::{
-    ConversationService, EnvironmentService, FollowUpService, FsCreateService, FsPatchService,
-    FsReadService, FsRemoveService, FsSearchService, FsUndoService, ImageReadService,
-    NetFetchService, PlanCreateService, SkillFetchService, WorkspaceService,
+    ConversationService, EnvironmentService, FollowUpService, FsCreateService, FsMultiPatchService,
+    FsPatchService, FsReadService, FsRemoveService, FsSearchService, FsUndoService,
+    ImageReadService, NetFetchService, PlanCreateService, SkillFetchService, WorkspaceService,
 };
 
 pub struct ToolExecutor<S> {
@@ -25,6 +25,7 @@ impl<
         + NetFetchService
         + FsRemoveService
         + FsPatchService
+        + FsMultiPatchService
         + FsUndoService
         + ShellService
         + FollowUpService
@@ -225,6 +226,12 @@ impl<
                         input.content.clone(),
                     )
                     .await?;
+                (input, output).into()
+            }
+            ToolCatalog::MultiPatch(input) => {
+                let normalized_path = self.normalize_path(input.path.clone());
+                let patches = FSMultiPatch { path: normalized_path, edits: input.edits.clone() };
+                let output = self.services.multi_patch(patches).await?;
                 (input, output).into()
             }
             ToolCatalog::Undo(input) => {
