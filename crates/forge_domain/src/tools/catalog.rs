@@ -319,7 +319,8 @@ impl JsonSchema for PatchOperation {
 /// **WITH search parameter:**
 /// - `prepend`: Adds content BEFORE the matched text
 /// - `append`: Adds content AFTER the matched text
-/// - `replace`: Replaces the matched text with new content (first occurrence only)
+/// - `replace`: Replaces the matched text with new content (first occurrence
+///   only)
 /// - `replace_all`: Replaces ALL occurrences of matched text
 /// - `swap`: Swaps two text blocks (searches for both)
 ///
@@ -330,8 +331,9 @@ impl JsonSchema for PatchOperation {
 /// - `replace_all`: Same as replace (entire file)
 /// - `swap`: ⚠️ Does nothing (requires search)
 ///
-/// **For modifying existing code sections, ALWAYS provide `search` and use `replace`!**
-/// Only use operations without search when intentionally adding to file ends.
+/// **For modifying existing code sections, ALWAYS provide `search` and use
+/// `replace`!** Only use operations without search when intentionally adding to
+/// file ends.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct FSPatch {
     /// The path to the file to modify

@@ -395,10 +395,14 @@ fn normalize_whitespace(s: &str) -> String {
 /// 1. Extract non-whitespace tokens from search text
 /// 2. Find these tokens in sequence within the source text
 /// 3. Return the original text span from first to last token (inclusive)
-pub(crate) fn find_original_match(source: &str, search: &str, _approximate_pos: usize) -> Option<String> {
+pub(crate) fn find_original_match(
+    source: &str,
+    search: &str,
+    _approximate_pos: usize,
+) -> Option<String> {
     // Extract non-whitespace tokens from search
     let search_tokens: Vec<&str> = search.split_whitespace().collect();
-    
+
     if search_tokens.is_empty() {
         return None;
     }
@@ -406,17 +410,17 @@ pub(crate) fn find_original_match(source: &str, search: &str, _approximate_pos: 
     // Find first token
     let first_token = search_tokens[0];
     let first_token_start = source.find(first_token)?;
-    
+
     // For single token, find it and return
     if search_tokens.len() == 1 {
         return Some(source[first_token_start..first_token_start + first_token.len()].to_string());
     }
-    
+
     // For multiple tokens, we need to find them in sequence
     // allowing arbitrary whitespace between them
     let mut current_pos = first_token_start;
     let mut last_token_end = first_token_start + first_token.len();
-    
+
     // Search for remaining tokens after the first one
     for token in &search_tokens[1..] {
         // Find this token after the current position
@@ -430,7 +434,7 @@ pub(crate) fn find_original_match(source: &str, search: &str, _approximate_pos: 
             return find_original_match_comprehensive(source, &search_tokens);
         }
     }
-    
+
     // Return the span from first token start to last token end
     Some(source[first_token_start..last_token_end].to_string())
 }
@@ -446,28 +450,28 @@ fn find_original_match_comprehensive(source: &str, search_tokens: &[&str]) -> Op
             return Some(source[start_offset..match_end].to_string());
         }
     }
-    
+
     None
 }
 
 /// Try to match all tokens starting from a given offset
 fn try_match_tokens_from(source: &str, tokens: &[&str], start: usize) -> Option<usize> {
     let mut current_pos = start;
-    
+
     for (i, token) in tokens.iter().enumerate() {
         // Skip whitespace
         while current_pos < source.len() && source[current_pos..].chars().next()?.is_whitespace() {
             current_pos += 1;
         }
-        
+
         // Check if token matches at current position
         if current_pos + token.len() > source.len() {
             return None;
         }
-        
+
         if &source[current_pos..current_pos + token.len()] == *token {
             current_pos += token.len();
-            
+
             // If this is the last token, return the end position
             if i == tokens.len() - 1 {
                 return Some(current_pos);
@@ -476,7 +480,7 @@ fn try_match_tokens_from(source: &str, tokens: &[&str], start: usize) -> Option<
             return None;
         }
     }
-    
+
     Some(current_pos)
 }
 
@@ -506,7 +510,10 @@ impl Matcher {
             if matches.len() == 1 {
                 let matched_text = matches.first()?;
                 let pos = content.find(matched_text)?;
-                println!("DEBUG: Match found using strategy: {:?}", std::any::type_name::<S>());
+                println!(
+                    "DEBUG: Match found using strategy: {:?}",
+                    std::any::type_name::<S>()
+                );
                 Some(MatchResult::new(
                     Range::new(pos, matched_text.len()),
                     matched_text.clone(),
@@ -1068,8 +1075,8 @@ mod tests {
     #[test]
     fn test_whitespace_normalized_extra_blank_lines() {
         // Test with extra blank lines in search
-        // Note: When search has MORE lines than content, line-based strategies fail first
-        // WhitespaceNormalizedStrategy still works
+        // Note: When search has MORE lines than content, line-based strategies fail
+        // first WhitespaceNormalizedStrategy still works
         let source = "line1\n\n\nline2\n\n\nline3"; // Source with blank lines
         let search = Some("line1 line2 line3".to_string()); // Normalized search
         let operation = PatchOperation::Replace;
@@ -1101,11 +1108,14 @@ mod tests {
 
         let result = WhitespaceNormalizedStrategy.find_matches(content, search);
         assert!(result.is_some(), "Should find match");
-        
+
         let matches = result.unwrap();
         assert_eq!(matches.len(), 1);
         // The matched text should preserve the original formatting with blank lines
-        assert!(matches[0].contains("\n\n\n"), "Should preserve blank lines in original");
+        assert!(
+            matches[0].contains("\n\n\n"),
+            "Should preserve blank lines in original"
+        );
     }
 
     #[test]
@@ -1127,7 +1137,7 @@ mod tests {
         let source = "hello world test";
         let search = "world";
         let result = find_original_match(source, search, 0);
-        
+
         assert_eq!(result, Some("world".to_string()));
     }
 
@@ -1137,7 +1147,7 @@ mod tests {
         let source = "line1\n\n\nline2";
         let search = "line1 line2"; // Normalized
         let result = find_original_match(source, search, 0);
-        
+
         assert!(result.is_some());
         assert_eq!(result.unwrap(), "line1\n\n\nline2");
     }
@@ -1147,10 +1157,10 @@ mod tests {
         // Test helper function - note it matches from first token to last token
         let source = "    fn foo() {\n        bar();\n    }";
         let search = "fn foo() { bar(); }"; // Normalized
-        
+
         let actual = find_original_match(source, search, 0);
         let expected = Some("fn foo() {\n        bar();\n    }".to_string());
-        
+
         assert_eq!(actual, expected);
     }
 }

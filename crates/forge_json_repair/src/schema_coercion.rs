@@ -18,35 +18,52 @@ use serde_json::Value;
 /// Returns the original value if coercion is not possible or the schema doesn't
 /// specify type constraints.
 pub fn coerce_to_schema(value: Value, schema: &RootSchema) -> Value {
-    let coerced_value = coerce_value_with_schema(value.clone(), &Schema::Object(schema.schema.clone()), schema);
-    
+    let coerced_value = coerce_value_with_schema(
+        value.clone(),
+        &Schema::Object(schema.schema.clone()),
+        schema,
+    );
+
     // Print when tool schema coercion happens
     if coerced_value != value {
         println!("DEBUG: Tool schema coercion applied");
-        println!("  Received: {}", serde_json::to_string_pretty(&value).unwrap_or_else(|_| "Failed to serialize".to_string()));
-        println!("  Repaired: {}", serde_json::to_string_pretty(&coerced_value).unwrap_or_else(|_| "Failed to serialize".to_string()));
+        println!(
+            "  Received: {}",
+            serde_json::to_string_pretty(&value)
+                .unwrap_or_else(|_| "Failed to serialize".to_string())
+        );
+        println!(
+            "  Repaired: {}",
+            serde_json::to_string_pretty(&coerced_value)
+                .unwrap_or_else(|_| "Failed to serialize".to_string())
+        );
     }
-    
+
     coerced_value
 }
 
 fn coerce_value_with_schema(value: Value, schema: &Schema, root_schema: &RootSchema) -> Value {
     match schema {
-        Schema::Object(schema_obj) => coerce_value_with_schema_object(value, schema_obj, root_schema),
+        Schema::Object(schema_obj) => {
+            coerce_value_with_schema_object(value, schema_obj, root_schema)
+        }
         Schema::Bool(_) => value, // Boolean schemas don't provide type info for coercion
     }
 }
 
-fn coerce_value_with_schema_object(value: Value, schema: &SchemaObject, root_schema: &RootSchema) -> Value {
+fn coerce_value_with_schema_object(
+    value: Value,
+    schema: &SchemaObject,
+    root_schema: &RootSchema,
+) -> Value {
     // Handle $ref schemas by resolving references
     if let Some(reference) = &schema.reference {
         // Resolve $ref against root schema definitions
         // schemars uses format: "#/definitions/TypeName"
-        if let Some(def_name) = reference.strip_prefix("#/definitions/") {
-            if let Some(def_schema) = root_schema.definitions.get(def_name) {
+        if let Some(def_name) = reference.strip_prefix("#/definitions/")
+            && let Some(def_schema) = root_schema.definitions.get(def_name) {
                 return coerce_value_with_schema(value, def_schema, root_schema);
             }
-        }
     }
     // Handle anyOf/oneOf schemas by trying each sub-schema
     if let Some(subschemas) = &schema.subschemas {
@@ -111,7 +128,9 @@ fn coerce_value_with_schema_object(value: Value, schema: &SchemaObject, root_sch
                             .map(|(i, item)| {
                                 item_schemas
                                     .get(i)
-                                    .map(|schema| coerce_value_with_schema(item.clone(), schema, root_schema))
+                                    .map(|schema| {
+                                        coerce_value_with_schema(item.clone(), schema, root_schema)
+                                    })
                                     .unwrap_or(item)
                             })
                             .collect(),
@@ -244,8 +263,7 @@ fn try_parse_json_string(s: &str) -> Result<Value, serde_json::Error> {
 #[cfg(test)]
 mod tests {
     #![allow(dead_code)]
-    use schemars::JsonSchema;
-    use schemars::schema_for;
+    use schemars::{JsonSchema, schema_for};
     use serde::{Deserialize, Serialize};
     use serde_json::json;
 
