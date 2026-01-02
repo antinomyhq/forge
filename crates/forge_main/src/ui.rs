@@ -1484,7 +1484,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             Ok(false) => {
                 self.spinner.stop(None)?;
                 self.writeln_title(TitleFormat::error(
-                    "Failed to install Forge VS Code extension. Make sure VS Code CLI (code) is in your PATH.",
+                    "Failed to install Forge VS Code extension.",
                 ))?;
             }
             Err(e) => {
