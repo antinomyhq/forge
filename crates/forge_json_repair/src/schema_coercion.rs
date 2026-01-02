@@ -18,11 +18,7 @@ use serde_json::Value;
 /// Returns the original value if coercion is not possible or the schema doesn't
 /// specify type constraints.
 pub fn coerce_to_schema(value: Value, schema: &RootSchema) -> Value {
-    coerce_value_with_schema(
-        value.clone(),
-        &Schema::Object(schema.schema.clone()),
-        schema,
-    )
+    coerce_value_with_schema(value, &Schema::Object(schema.schema.clone()), schema)
 }
 
 fn coerce_value_with_schema(value: Value, schema: &Schema, root_schema: &RootSchema) -> Value {
