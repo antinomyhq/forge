@@ -1,4 +1,5 @@
 use std::io::{self, Write};
+use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
 use colored::Colorize;
@@ -13,12 +14,12 @@ pub use progress_bar::*;
 use stopwatch::Stopwatch;
 
 /// Manages spinner functionality for the UI
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct SpinnerManager {
     spinner: Option<ProgressBar>,
     stopwatch: Stopwatch,
     message: Option<String>,
-    tracker: Option<JoinHandle<()>>,
+    tracker: Arc<Mutex<Option<JoinHandle<()>>>>,
     word_index: Option<usize>,
     #[cfg(test)]
     tick_counter: Option<std::sync::Arc<std::sync::atomic::AtomicU64>>,
@@ -37,7 +38,7 @@ impl SpinnerManager {
             spinner: None,
             stopwatch: Stopwatch::default(),
             message: None,
-            tracker: None,
+            tracker: Arc::new(Mutex::new(None)),
             word_index: None,
             tick_counter: Some(tick_counter),
         }
@@ -107,7 +108,7 @@ impl SpinnerManager {
         let tick_counter_clone = self.tick_counter.clone();
 
         // Spawn tracker to keep track of time in seconds
-        self.tracker = Some(tokio::spawn(async move {
+        let handle = tokio::spawn(async move {
             let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(500));
             loop {
                 interval.tick().await;
@@ -125,7 +126,8 @@ impl SpinnerManager {
                     spinner.set_message(updated_message);
                 }
             }
-        }));
+        });
+        *self.tracker.lock().unwrap() = Some(handle);
 
         Ok(())
     }
@@ -157,7 +159,7 @@ impl SpinnerManager {
             writer(&message);
         }
 
-        if let Some(handle) = self.tracker.take() {
+        if let Some(handle) = self.tracker.lock().unwrap().take() {
             handle.abort();
         }
         self.message = None;
@@ -180,6 +182,10 @@ impl SpinnerManager {
 
     pub fn write_ln(&mut self, message: impl ToString) -> Result<()> {
         self.write_with_restart(message, |msg| println!("{msg}"))
+    }
+
+    pub fn write(&mut self, message: impl ToString) -> Result<()> {
+        self.write_with_restart(message, |msg| print!("{msg}"))
     }
 
     pub fn ewrite_ln(&mut self, message: impl ToString) -> Result<()> {

@@ -47,6 +47,8 @@ use crate::utils::humanize_time;
 use crate::zsh::ZshRPrompt;
 use crate::{TRACKER, banner, tracker};
 
+use crate::stream_renderer::ChatStreamRenderer;
+
 // File-specific constants
 const MISSING_AGENT_TITLE: &str = "<missing agent.title>";
 
@@ -2546,10 +2548,16 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     async fn on_chat(&mut self, chat: ChatRequest) -> Result<()> {
         let mut stream = self.api.chat(chat).await?;
 
+        // Create streaming renderer for content and reasoning
+        // Using Option to allow dropping and recreating when we need to access self
+        let mut renderer = ChatStreamRenderer::from_terminal(self.spinner.clone());
+
         while let Some(message) = stream.next().await {
             match message {
-                Ok(message) => self.handle_chat_response(message).await?,
+                Ok(message) => self.handle_chat_response(message, &mut renderer).await?,
                 Err(err) => {
+                    // Finish any active renderer before returning error
+                    let _ = renderer.finish();
                     self.spinner.stop(None)?;
                     self.spinner.reset();
                     return Err(err);
@@ -2557,6 +2565,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
         }
 
+        // Finish streaming renderer
+        renderer.finish()?;
         self.spinner.stop(None)?;
         self.spinner.reset();
 
@@ -2609,7 +2619,11 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(())
     }
 
-    async fn handle_chat_response(&mut self, message: ChatResponse) -> Result<()> {
+    async fn handle_chat_response(
+        &mut self,
+        message: ChatResponse,
+        renderer: &mut ChatStreamRenderer,
+    ) -> Result<()> {
         debug!(chat_response = ?message, "Chat Response");
         if message.is_empty() {
             return Ok(());
@@ -2617,14 +2631,21 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         match message {
             ChatResponse::TaskMessage { content } => match content {
-                ChatResponseContent::Title(title) => self.writeln(title.display())?,
-                ChatResponseContent::PlainText(text) => self.writeln(text)?,
+                ChatResponseContent::Title(title) => {
+                    renderer.flush()?;
+                    self.writeln(title.display())?;
+                }
+                ChatResponseContent::PlainText(text) => {
+                    renderer.flush()?;
+                    self.writeln(text)?;
+                }
                 ChatResponseContent::Markdown(text) => {
                     tracing::info!(message = %text, "Agent Response");
-                    self.writeln(self.markdown.render(&text))?;
+                    renderer.push_content(&text)?;
                 }
             },
             ChatResponse::ToolCallStart(_) => {
+                renderer.flush()?;
                 self.spinner.stop(None)?;
             }
             ChatResponse::ToolCallEnd(toolcall_result) => {
@@ -2647,11 +2668,13 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
             ChatResponse::RetryAttempt { cause, duration: _ } => {
                 if !self.api.environment().retry_config.suppress_retry_errors {
+                    renderer.flush()?;
                     self.spinner.start(Some("Retrying"))?;
                     self.writeln_title(TitleFormat::error(cause.as_str()))?;
                 }
             }
             ChatResponse::Interrupt { reason } => {
+                renderer.flush()?;
                 self.spinner.stop(None)?;
 
                 let title = match reason {
@@ -2668,11 +2691,11 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
             ChatResponse::TaskReasoning { content } => {
                 if !content.trim().is_empty() {
-                    let rendered_content = self.markdown.render(&content);
-                    self.writeln(rendered_content.dimmed())?;
+                    renderer.push_reasoning(&content)?;
                 }
             }
             ChatResponse::TaskComplete => {
+                renderer.flush()?;
                 if let Some(conversation_id) = self.state.conversation_id {
                     self.writeln_title(
                         TitleFormat::debug("Finished").sub_title(conversation_id.into_string()),

@@ -1830,10 +1830,12 @@ dependencies = [
  "serde",
  "serde_json",
  "serial_test",
+ "streamdown",
  "strip-ansi-escapes",
  "strum 0.27.2",
  "strum_macros 0.27.2",
  "tempfile",
+ "terminal_size",
  "thiserror 2.0.17",
  "tokio",
  "tokio-stream",
@@ -3135,6 +3137,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "linked-hash-map"
+version = "0.5.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0717cef1bc8b636c6e1c1bbdefc09e6322da8a9321966e8928ef80d20f7f770f"
+
+[[package]]
 name = "linux-raw-sys"
 version = "0.4.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3905,6 +3913,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7edddbd0b52d732b21ad9a5fab5c704c14cd949e5e9a1ec5929a24fded1b904c"
 
 [[package]]
+name = "plist"
+version = "1.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "740ebea15c5d1428f910cd1a5f52cebf8d25006245ed8ade92702f4943d91e07"
+dependencies = [
+ "base64 0.22.1",
+ "indexmap",
+ "quick-xml",
+ "serde",
+ "time",
+]
+
+[[package]]
 name = "png"
 version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4121,6 +4142,15 @@ name = "quick-error"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a993555f31e5a609f617c12db6250dedcac1b0a85076912c436e6fc9b2c8e6a3"
+
+[[package]]
+name = "quick-xml"
+version = "0.38.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b66c2058c55a409d601666cffe35f04333cf1013010882cec174a7467cd4e21c"
+dependencies = [
+ "memchr",
+]
 
 [[package]]
 name = "quinn"
@@ -5185,6 +5215,50 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
 
 [[package]]
+name = "streamdown"
+version = "0.1.0"
+dependencies = [
+ "colored",
+ "streamdown-parser",
+ "syntect",
+ "terminal_size",
+]
+
+[[package]]
+name = "streamdown-ansi"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "38601319ce67101a252a65685a894bb25ce298bf7ce35e35e5be48af65fc2bab"
+dependencies = [
+ "crossterm 0.28.1",
+ "regex",
+ "unicode-width 0.2.2",
+]
+
+[[package]]
+name = "streamdown-core"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b5722240f4081c5ea38c92c739d91712095a49357ada4bc6c98b11667a970355"
+dependencies = [
+ "regex",
+ "serde",
+ "thiserror 2.0.17",
+]
+
+[[package]]
+name = "streamdown-parser"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e083cce85cf61f92a51053b2807bb8d690d2cdbf1af9dff5e00407cdde1f8b3"
+dependencies = [
+ "regex",
+ "streamdown-ansi",
+ "streamdown-core",
+ "unicode-width 0.2.2",
+]
+
+[[package]]
 name = "strict"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5332,11 +5406,14 @@ dependencies = [
  "fnv",
  "once_cell",
  "onig",
+ "plist",
  "regex-syntax",
  "serde",
  "serde_derive",
+ "serde_json",
  "thiserror 2.0.17",
  "walkdir",
+ "yaml-rust",
 ]
 
 [[package]]
@@ -5433,6 +5510,16 @@ dependencies = [
  "serde",
  "thiserror 2.0.17",
  "unicode-width 0.1.14",
+]
+
+[[package]]
+name = "terminal_size"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "60b8cb979cb11c32ce1603f8137b22262a9d131aaa5c37b5678025f22b8becd0"
+dependencies = [
+ "rustix 1.1.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -6804,6 +6891,15 @@ name = "xxhash-rust"
 version = "0.8.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fdd20c5420375476fbd4394763288da7eb0cc0b8c11deed431a91562af7335d3"
+
+[[package]]
+name = "yaml-rust"
+version = "0.4.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "56c1936c4cc7a1c9ab21a1ebb602eb942ba868cbd44a99cb7cdc5892335e1c85"
+dependencies = [
+ "linked-hash-map",
+]
 
 [[package]]
 name = "yaml-rust2"
