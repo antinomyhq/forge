@@ -159,7 +159,7 @@ expression: tools
 }
 {
   "title": "FSPatch",
-  "description": "Modifies files with targeted line operations on matched patterns. Supports prepend, append, replace, replace_all, swap operations. Ideal for precise changes to configs, code, or docs while preserving context. Use this tool for refactoring tasks (e.g., renaming variables, updating function signatures). For maximum efficiency, invoke multiple `patch` operations simultaneously rather than sequentially. Fails if search pattern isn't found.\n\nUsage Guidelines: - When editing text from Read tool output, preserve the EXACT text character-by-character (indentation, spaces, punctuation, special characters) as it appears AFTER the line number prefix. Format: 'line_number:'. Never include the prefix. - CRITICAL: Even tiny differences like 'allows to' vs 'allows the' will fail",
+  "description": "Modifies files with targeted line operations on matched patterns. Supports prepend, append, replace, replace_all, swap operations. Ideal for precise changes to configs, code, or docs while preserving context. Use this tool for refactoring tasks (e.g., renaming variables, updating function signatures). For maximum efficiency, invoke multiple `patch` operations simultaneously rather than sequentially. Fails if search pattern isn't found.\n\nUsage Guidelines: - When editing text from Read tool output, preserve the EXACT text character-by-character (indentation, spaces, punctuation, special characters) as it appears AFTER the line number prefix. Format: 'line_number:'. Never include the prefix. - CRITICAL: Even tiny differences like 'allows to' vs 'allows the' will fail\n\n⚠️ OPERATION BEHAVIOR CRITICAL WARNINGS:\n\n**WITH search parameter:** - `prepend`: Adds content BEFORE the matched text - `append`: Adds content AFTER the matched text - `replace`: Replaces the matched text with new content (first occurrence only) - `replace_all`: Replaces ALL occurrences of matched text - `swap`: Swaps two text blocks (searches for both)\n\n**WITHOUT search parameter:** - `prepend`: ⚠️ Adds content to the START of the ENTIRE FILE - `append`: ⚠️ Adds content to the END of the ENTIRE FILE - `replace`: ⚠️ OVERWRITES the ENTIRE FILE with new content - `replace_all`: Same as replace (entire file) - `swap`: ⚠️ Does nothing (requires search)\n\n**For modifying existing code sections, ALWAYS provide `search` and use `replace`!** Only use operations without search when intentionally adding to file ends.",
   "type": "object",
   "required": [
     "content",
@@ -172,7 +172,7 @@ expression: tools
       "type": "string"
     },
     "operation": {
-      "description": "The operation to perform on the matched text. Possible options are: - 'prepend': Add content before the matched text - 'append': Add content after the matched text - 'replace': Use only for specific, targeted replacements where you need to modify just the first match. - 'replace_all': Should be used for renaming variables, functions, types, or any widespread replacements across the file. This is the recommended choice for consistent refactoring operations as it ensures all occurrences are updated. - 'swap': Replace the matched text with another text (search for the second text and swap them)",
+      "description": "The operation to perform. See tool-level documentation for critical warnings about behavior with and without search parameter.",
       "type": "string",
       "enum": [
         "prepend",
@@ -187,7 +187,7 @@ expression: tools
       "type": "string"
     },
     "search": {
-      "description": "The text to replace. When skipped the patch operation applies to the entire content. `Append` adds the new content to the end, `Prepend` adds it to the beginning, and `Replace` fully overwrites the original content. `Swap` requires a search target, so without one, it makes no changes.",
+      "description": "The text to search for and match. When provided, the operation applies only to the matched text. When omitted, the operation applies to the ENTIRE FILE - use with caution! For modifying existing code, ALWAYS provide search text.",
       "type": "string",
       "nullable": true
     }
@@ -195,7 +195,7 @@ expression: tools
 }
 {
   "title": "FSMultiPatch",
-  "description": "Applies multiple patch operations in sequence to the same file. Each patch operation is applied to the result of the previous operation. This is useful for making multiple related edits to a single file without having to read and patch multiple times. Each edit in the sequence supports the same operations as the patch tool: prepend, append, replace, replace_all, and swap.",
+  "description": "Applies multiple patch operations in sequence to the same file. Each patch operation is applied to the result of the previous operation. This is useful for making multiple related edits to a single file without having to read and patch multiple times. Each edit in the sequence supports the same operations as the patch tool: prepend, append, replace, replace_all, and swap.\n\n⚠️ CRITICAL: See FSPatch documentation for operation behavior warnings. Operations without search parameter affect the ENTIRE FILE.",
   "type": "object",
   "required": [
     "edits",
@@ -218,7 +218,7 @@ expression: tools
             "type": "string"
           },
           "operation": {
-            "description": "The operation to perform on the matched text. Possible options are: - 'prepend': Add content before the matched text - 'append': Add content after the matched text - 'replace': Use only for specific, targeted replacements where you need to modify just the first match. - 'replace_all': Should be used for renaming variables, functions, types, or any widespread replacements across the file. This is the recommended choice for consistent refactoring operations as it ensures all occurrences are updated. - 'swap': Replace the matched text with another text (search for the second text and swap them)",
+            "description": "The operation to perform. See FSPatch tool-level documentation for critical warnings about behavior with and without search parameter.",
             "type": "string",
             "enum": [
               "prepend",
@@ -229,7 +229,7 @@ expression: tools
             ]
           },
           "search": {
-            "description": "The text to replace. When skipped the patch operation applies to the entire content. `Append` adds the new content to the end, `Prepend` adds it to the beginning, and `Replace` fully overwrites the original content. `Swap` requires a search target, so without one, it makes no changes.",
+            "description": "The text to search for and match. When provided, the operation applies only to the matched text. When omitted, the operation applies to the ENTIRE FILE - use with caution! For modifying existing code, ALWAYS provide search text.",
             "type": "string",
             "nullable": true
           }

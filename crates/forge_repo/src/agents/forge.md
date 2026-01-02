@@ -14,7 +14,6 @@ tools:
   - undo
   - remove
   - patch
-  - multi_patch
   - shell
   - fetch
   - skill

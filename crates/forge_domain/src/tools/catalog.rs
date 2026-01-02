@@ -249,26 +249,27 @@ pub struct FSRemove {
 #[derive(Default, Debug, Clone, Serialize, Deserialize, PartialEq, AsRefStr, EnumIter)]
 #[serde(rename_all = "snake_case")]
 pub enum PatchOperation {
-    /// Prepend content before the matched text
+    /// Add content BEFORE the matched text. Without search parameter, ⚠️ adds
+    /// to START of ENTIRE FILE.
     #[default]
     Prepend,
 
-    /// Append content after the matched text
+    /// Add content AFTER the matched text. Without search parameter, ⚠️ adds
+    /// to END of ENTIRE FILE.
     Append,
 
-    /// Should be used only when you want to replace the first occurrence.
-    /// Use only for specific, targeted replacements where you need to modify
-    /// just the first match.
+    /// Replace the matched text with new content (first occurrence only).
+    /// Use only for specific, targeted replacements. Without search parameter,
+    /// ⚠️ OVERWRITES the ENTIRE FILE.
     Replace,
 
-    /// Should be used for renaming variables, functions, types, or any
-    /// widespread replacements across the file. This is the recommended
-    /// choice for consistent refactoring operations as it ensures all
-    /// occurrences are updated.
+    /// Replace ALL occurrences of matched text. Recommended for renaming
+    /// variables, functions, types, or widespread refactoring. Without search
+    /// parameter, ⚠️ OVERWRITES the ENTIRE FILE.
     ReplaceAll,
 
-    /// Swap the matched text with another text (search for the second text and
-    /// swap them)
+    /// Swap two text blocks (searches for both and swaps them). Requires
+    /// search parameter - ⚠️ does nothing without it.
     Swap,
 }
 
@@ -312,27 +313,38 @@ impl JsonSchema for PatchOperation {
 ///   characters) as it appears AFTER the line number prefix. Format:
 ///   'line_number:'. Never include the prefix.
 /// - CRITICAL: Even tiny differences like 'allows to' vs 'allows the' will fail
+///
+/// ⚠️ OPERATION BEHAVIOR CRITICAL WARNINGS:
+///
+/// **WITH search parameter:**
+/// - `prepend`: Adds content BEFORE the matched text
+/// - `append`: Adds content AFTER the matched text
+/// - `replace`: Replaces the matched text with new content (first occurrence only)
+/// - `replace_all`: Replaces ALL occurrences of matched text
+/// - `swap`: Swaps two text blocks (searches for both)
+///
+/// **WITHOUT search parameter:**
+/// - `prepend`: ⚠️ Adds content to the START of the ENTIRE FILE
+/// - `append`: ⚠️ Adds content to the END of the ENTIRE FILE
+/// - `replace`: ⚠️ OVERWRITES the ENTIRE FILE with new content
+/// - `replace_all`: Same as replace (entire file)
+/// - `swap`: ⚠️ Does nothing (requires search)
+///
+/// **For modifying existing code sections, ALWAYS provide `search` and use `replace`!**
+/// Only use operations without search when intentionally adding to file ends.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct FSPatch {
     /// The path to the file to modify
     pub path: String,
 
-    /// The text to replace. When skipped the patch operation applies to the
-    /// entire content. `Append` adds the new content to the end, `Prepend` adds
-    /// it to the beginning, and `Replace` fully overwrites the original
-    /// content. `Swap` requires a search target, so without one, it makes no
-    /// changes.
+    /// The text to search for and match. When provided, the operation applies
+    /// only to the matched text. When omitted, the operation applies to the
+    /// ENTIRE FILE - use with caution! For modifying existing code, ALWAYS
+    /// provide search text.
     pub search: Option<String>,
 
-    /// The operation to perform on the matched text. Possible options are: -
-    /// 'prepend': Add content before the matched text - 'append': Add content
-    /// after the matched text - 'replace': Use only for specific, targeted
-    /// replacements where you need to modify just the first match. -
-    /// 'replace_all': Should be used for renaming variables, functions, types,
-    /// or any widespread replacements across the file. This is the recommended
-    /// choice for consistent refactoring operations as it ensures all
-    /// occurrences are updated. - 'swap': Replace the matched text with another
-    /// text (search for the second text and swap them)
+    /// The operation to perform. See tool-level documentation for critical
+    /// warnings about behavior with and without search parameter.
     pub operation: PatchOperation,
 
     /// The text to replace it with (must be different from search)
@@ -345,6 +357,9 @@ pub struct FSPatch {
 /// and patch multiple times. Each edit in the sequence supports the same
 /// operations as the patch tool: prepend, append, replace, replace_all, and
 /// swap.
+///
+/// ⚠️ CRITICAL: See FSPatch documentation for operation behavior warnings.
+/// Operations without search parameter affect the ENTIRE FILE.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 pub struct FSMultiPatch {
     /// The path to the file to modify
@@ -358,22 +373,14 @@ pub struct FSMultiPatch {
 /// A single patch operation within a multi-patch sequence
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct MultiPatchEdit {
-    /// The text to replace. When skipped the patch operation applies to the
-    /// entire content. `Append` adds the new content to the end, `Prepend` adds
-    /// it to the beginning, and `Replace` fully overwrites the original
-    /// content. `Swap` requires a search target, so without one, it makes no
-    /// changes.
+    /// The text to search for and match. When provided, the operation applies
+    /// only to the matched text. When omitted, the operation applies to the
+    /// ENTIRE FILE - use with caution! For modifying existing code, ALWAYS
+    /// provide search text.
     pub search: Option<String>,
 
-    /// The operation to perform on the matched text. Possible options are: -
-    /// 'prepend': Add content before the matched text - 'append': Add content
-    /// after the matched text - 'replace': Use only for specific, targeted
-    /// replacements where you need to modify just the first match. -
-    /// 'replace_all': Should be used for renaming variables, functions, types,
-    /// or any widespread replacements across the file. This is the recommended
-    /// choice for consistent refactoring operations as it ensures all
-    /// occurrences are updated. - 'swap': Replace the matched text with another
-    /// text (search for the second text and swap them)
+    /// The operation to perform. See FSPatch tool-level documentation for
+    /// critical warnings about behavior with and without search parameter.
     pub operation: PatchOperation,
 
     /// The text to replace it with (must be different from search)
