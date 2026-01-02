@@ -61,9 +61,10 @@ fn coerce_value_with_schema_object(
         // Resolve $ref against root schema definitions
         // schemars uses format: "#/definitions/TypeName"
         if let Some(def_name) = reference.strip_prefix("#/definitions/")
-            && let Some(def_schema) = root_schema.definitions.get(def_name) {
-                return coerce_value_with_schema(value, def_schema, root_schema);
-            }
+            && let Some(def_schema) = root_schema.definitions.get(def_name)
+        {
+            return coerce_value_with_schema(value, def_schema, root_schema);
+        }
     }
     // Handle anyOf/oneOf schemas by trying each sub-schema
     if let Some(subschemas) = &schema.subschemas {
