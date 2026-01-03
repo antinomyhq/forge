@@ -197,6 +197,13 @@ pub trait WorkspaceIndexRepository: Send + Sync {
         workspace_id: &WorkspaceId,
         auth_token: &crate::ApiKey,
     ) -> anyhow::Result<()>;
+
+    /// Select relevant skills based on user prompt
+    async fn select_skill(
+        &self,
+        request: crate::SkillSelectionParams,
+        auth_token: &crate::ApiKey,
+    ) -> anyhow::Result<Vec<crate::SelectedSkill>>;
 }
 
 /// Repository for managing skills
