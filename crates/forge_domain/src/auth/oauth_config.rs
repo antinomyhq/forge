@@ -14,7 +14,9 @@ pub struct ClientId(String);
 pub struct OAuthConfig {
     pub auth_url: Url,
     pub token_url: Url,
-    pub client_id: ClientId,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_id: Option<ClientId>,
+    #[serde(default)]
     pub scopes: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub redirect_uri: Option<String>,
