@@ -6,7 +6,7 @@ use url::Url;
 use crate::{
     AnyProvider, AppConfig, AuthCredential, ChatCompletionMessage, Context, Conversation,
     ConversationId, MigrationResult, Model, ModelId, Provider, ProviderId, ProviderTemplate,
-    ResultStream, Skill, Snapshot, UserId, Workspace, WorkspaceAuth, WorkspaceId,
+    ResultStream, SearchMatch, Skill, Snapshot, UserId, Workspace, WorkspaceAuth, WorkspaceId,
 };
 
 /// Repository for managing file snapshots
@@ -234,4 +234,28 @@ pub trait ValidationRepository: Send + Sync {
         path: impl AsRef<std::path::Path> + Send,
         content: &str,
     ) -> Result<Vec<crate::SyntaxError>>;
+}
+
+/// Repository for fuzzy searching text
+///
+/// This repository provides fuzzy search functionality for searching
+/// needle in haystack with optional search_all flag.
+#[async_trait::async_trait]
+pub trait FuzzySearchRepository: Send + Sync {
+    /// Performs a fuzzy search for a needle in a haystack
+    ///
+    /// # Arguments
+    /// * `needle` - The string to search for
+    /// * `haystack` - The text to search in
+    /// * `search_all` - Whether to search all matches or just the first
+    ///
+    /// # Returns
+    /// * `Ok(Vec<SearchMatch>)` - List of matches with line ranges
+    /// * `Err(_)` - Communication error with search service
+    async fn fuzzy_search(
+        &self,
+        needle: &str,
+        haystack: &str,
+        search_all: bool,
+    ) -> Result<Vec<SearchMatch>>;
 }

@@ -6,9 +6,9 @@ use forge_app::{
     McpServerInfra, Services, StrategyFactory, UserInfra, WalkerInfra,
 };
 use forge_domain::{
-    AppConfigRepository, ChatRepository, ConversationRepository, ProviderRepository,
-    SkillRepository, SnapshotRepository, ValidationRepository, WorkspaceIndexRepository,
-    WorkspaceRepository,
+    AppConfigRepository, ChatRepository, ConversationRepository, FuzzySearchRepository,
+    ProviderRepository, SkillRepository, SnapshotRepository, ValidationRepository,
+    WorkspaceIndexRepository, WorkspaceRepository,
 };
 
 use crate::ForgeProviderAuthService;
@@ -208,6 +208,7 @@ impl<
         + WorkspaceRepository
         + WorkspaceIndexRepository
         + ValidationRepository
+        + FuzzySearchRepository
         + Clone
         + 'static,
 > Services for ForgeServices<F>
