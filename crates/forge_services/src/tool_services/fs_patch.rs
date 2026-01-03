@@ -4,7 +4,7 @@ use std::sync::Arc;
 use bytes::Bytes;
 use forge_app::domain::PatchOperation;
 use forge_app::{FileWriterInfra, FsPatchService, PatchOutput, compute_hash};
-use forge_domain::{SnapshotRepository, ValidationRepository};
+use forge_domain::{FuzzySearchRepository, SearchMatch, SnapshotRepository, ValidationRepository};
 use thiserror::Error;
 use tokio::fs;
 
@@ -39,6 +39,42 @@ impl Range {
             .map(|start| Self::new(start, search.len()))
     }
 
+    /// Create a range from a fuzzy search match
+    fn from_search_match(source: &str, search_match: &SearchMatch) -> Self {
+        let lines: Vec<&str> = source.lines().collect();
+        
+        // Handle empty source
+        if lines.is_empty() {
+            return Self::new(0, 0);
+        }
+        
+        // Convert 1-based line numbers to 0-based indices
+        // start_line is 1-based inclusive, convert to 0-based
+        let start_idx = (search_match.start_line.saturating_sub(1) as usize).min(lines.len());
+        // end_line is 1-based inclusive, convert to 0-based exclusive
+        // Since it's 1-based inclusive, we don't add 1 - we just convert to 0-based
+        let end_idx = (search_match.end_line as usize).min(lines.len());
+        
+        // Find the character position of the start line
+        // Sum the lengths of all lines before start_idx, adding 1 for each newline
+        let start_pos = lines[..start_idx].iter().map(|l| l.len() + 1).sum::<usize>();
+        
+        // Calculate the length
+        let length = if start_idx == end_idx {
+            // Single line match: just the line content, no trailing newline
+            lines[start_idx].len()
+        } else {
+            // Multi-line match: include newlines between lines but NOT after the last line
+            // Sum lengths of lines from start_idx to end_idx (exclusive)
+            // Add 1 for each newline between lines (end_idx - start_idx - 1 newlines)
+            let content_len: usize = lines[start_idx..end_idx].iter().map(|l| l.len()).sum();
+            let newlines_between = end_idx - start_idx - 1;
+            content_len + newlines_between
+        };
+        
+        Self::new(start_pos, length)
+    }
+
     // Fuzzy matching removed - we only use exact matching
 }
 
@@ -66,23 +102,57 @@ enum Error {
     MultipleMatches(String),
 }
 
+/// Compute a range from search text, with operation-aware error handling
+///
+/// Returns Some(range) if a match is found, None if no search or operation
+/// doesn't require a match, or an error if a search was provided but no match
+/// was found for operations that require it.
+fn compute_range(
+    source: &str,
+    search: Option<&str>,
+    operation: &PatchOperation,
+) -> Result<Option<Range>, Error> {
+    match search {
+        Some(s) if !s.is_empty() => {
+            let match_result =
+                Range::find_exact(source, s).ok_or_else(|| Error::NoMatch(s.to_string()));
+            match match_result {
+                Ok(r) => Ok(Some(r)),
+                Err(e) => {
+                    // Handle no match based on operation type
+                    match operation {
+                        PatchOperation::Replace
+                        | PatchOperation::ReplaceAll
+                        | PatchOperation::Swap => Err(e),
+                        _ => Ok(None),
+                    }
+                }
+            }
+        }
+        _ => Ok(None),
+    }
+}
+
+/// A match found in the source text. Represents a range in the source text that
+///
+/// # Arguments
+/// * `haystack` - The original content to patch
+/// * `range` - Optional range indicating the location to apply the patch
+/// * `operation` - The patch operation to perform
+/// * `content` - The content to use for the patch operation
+///
+/// # Returns
+/// The patched content, or an error if the operation fails
 fn apply_replacement(
     haystack: String,
-    search: Option<String>,
+    range: Option<Range>,
     operation: &PatchOperation,
     content: &str,
 ) -> Result<String, Error> {
-    // Handle empty search string - only certain operations make sense here
-    if let Some(needle) = search.and_then(|needle| {
-        if needle.is_empty() {
-            None // Empty search is not valid for matching
-        } else {
-            Some(needle)
-        }
-    }) {
-        // Find the exact match to operate on
-        let patch: Range = Range::find_exact(&haystack, needle.as_str())
-            .ok_or_else(|| Error::NoMatch(needle.to_string()))?;
+    // Handle case where range is provided (match found)
+    if let Some(patch) = range {
+        // Extract the matched text from haystack
+        let needle = &haystack[patch.start..patch.end()];
 
         // Apply the operation based on its type
         match operation {
@@ -95,7 +165,7 @@ fn apply_replacement(
             )),
 
             // Replace all occurrences of the matched text with new content
-            PatchOperation::ReplaceAll => Ok(haystack.replace(needle.as_str(), content)),
+            PatchOperation::ReplaceAll => Ok(haystack.replace(needle, content)),
 
             // Append content after the matched text
             PatchOperation::Append => Ok(format!(
@@ -110,7 +180,7 @@ fn apply_replacement(
                 // Check if there are multiple matches
                 let mut match_count = 0;
                 let mut search_start = 0;
-                while let Some(pos) = haystack[search_start..].find(needle.as_str()) {
+                while let Some(pos) = haystack[search_start..].find(needle) {
                     match_count += 1;
                     if match_count > 1 {
                         return Err(Error::MultipleMatches(needle.to_string()));
@@ -170,6 +240,7 @@ fn apply_replacement(
             }
         }
     } else {
+        // No match (range is None) - treat as empty search (full file operation)
         match operation {
             // Append to the end of the file
             PatchOperation::Append => Ok(format!("{haystack}\n{content}")),
@@ -202,8 +273,8 @@ impl<F> ForgeFsPatch<F> {
 }
 
 #[async_trait::async_trait]
-impl<F: FileWriterInfra + SnapshotRepository + ValidationRepository> FsPatchService
-    for ForgeFsPatch<F>
+impl<F: FileWriterInfra + SnapshotRepository + ValidationRepository + FuzzySearchRepository>
+    FsPatchService for ForgeFsPatch<F>
 {
     async fn patch(
         &self,
@@ -222,8 +293,25 @@ impl<F: FileWriterInfra + SnapshotRepository + ValidationRepository> FsPatchServ
             .map_err(Error::FileOperation)?;
         // Save the old content before modification for diff generation
         let old_content = current_content.clone();
+
+        // Compute range from search if provided
+        let range = match compute_range(&current_content, search.as_deref(), &operation) {
+            Ok(r) => r,
+            Err(Error::NoMatch(search_text)) if matches!(operation, PatchOperation::Replace | PatchOperation::ReplaceAll | PatchOperation::Swap) => {
+                // Try fuzzy search as fallback
+                match self.infra.fuzzy_search(&search_text, &current_content, false).await {
+                    Ok(matches) if !matches.is_empty() => {
+                        // Use the first fuzzy match
+                        Some(Range::from_search_match(&current_content, &matches[0]))
+                    }
+                    _ => return Err(Error::NoMatch(search_text).into()),
+                }
+            }
+            Err(e) => return Err(e.into()),
+        };
+
         // Apply the replacement
-        current_content = apply_replacement(current_content, search, &operation, &content)?;
+        current_content = apply_replacement(current_content, range, &operation, &content)?;
 
         // SNAPSHOT COORDINATION: Always capture snapshot before modifying
         self.infra.insert_snapshot(path).await?;
@@ -255,7 +343,128 @@ impl<F: FileWriterInfra + SnapshotRepository + ValidationRepository> FsPatchServ
 #[cfg(test)]
 mod tests {
     use forge_app::domain::PatchOperation;
+    use forge_domain::SearchMatch;
     use pretty_assertions::assert_eq;
+
+    #[test]
+    fn test_range_from_search_match_single_line() {
+        let source = "line1\nline2\nline3";
+        let search_match = SearchMatch {
+            start_line: 2,
+            end_line: 2,
+        };
+
+        let range = super::Range::from_search_match(source, &search_match);
+        let actual = &source[range.start..range.end()];
+        let expected = "line2";
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_range_from_search_match_multi_line() {
+        let source = "line1\nline2\nline3\nline4";
+        let search_match = SearchMatch {
+            start_line: 2,
+            end_line: 3,
+        };
+
+        let range = super::Range::from_search_match(source, &search_match);
+        let actual = &source[range.start..range.end()];
+        let expected = "line2\nline3";
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_range_from_search_match_first_line() {
+        let source = "line1\nline2\nline3";
+        let search_match = SearchMatch {
+            start_line: 1,
+            end_line: 1,
+        };
+
+        let range = super::Range::from_search_match(source, &search_match);
+        let actual = &source[range.start..range.end()];
+        let expected = "line1";
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_range_from_search_match_last_line() {
+        let source = "line1\nline2\nline3";
+        let search_match = SearchMatch {
+            start_line: 3,
+            end_line: 3,
+        };
+
+        let range = super::Range::from_search_match(source, &search_match);
+        let actual = &source[range.start..range.end()];
+        let expected = "line3";
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_range_from_search_match_last_line_without_newline() {
+        let source = "line1\nline2\nline3"; // No trailing newline
+        let search_match = SearchMatch {
+            start_line: 3,
+            end_line: 3,
+        };
+
+        let range = super::Range::from_search_match(source, &search_match);
+        let actual = &source[range.start..range.end()];
+        let expected = "line3";
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_range_from_search_match_all_lines() {
+        let source = "line1\nline2\nline3";
+        let search_match = SearchMatch {
+            start_line: 1,
+            end_line: 3,
+        };
+
+        let range = super::Range::from_search_match(source, &search_match);
+        let actual = &source[range.start..range.end()];
+        let expected = "line1\nline2\nline3";
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_range_from_search_match_empty_source() {
+        let source = "";
+        let search_match = SearchMatch {
+            start_line: 1,
+            end_line: 1,
+        };
+
+        let range = super::Range::from_search_match(source, &search_match);
+        let actual = &source[range.start..range.end()];
+        let expected = "";
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_range_from_search_match_single_line_source() {
+        let source = "single line";
+        let search_match = SearchMatch {
+            start_line: 1,
+            end_line: 1,
+        };
+
+        let range = super::Range::from_search_match(source, &search_match);
+        let actual = &source[range.start..range.end()];
+        let expected = "single line";
+
+        assert_eq!(actual, expected);
+    }
 
     #[test]
     fn test_apply_replacement_replace_multiple_matches_error() {
@@ -264,7 +473,10 @@ mod tests {
         let operation = PatchOperation::Replace;
         let content = "replaced";
 
-        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        // Multiple matches error is detected inside apply_replacement, not in
+        // compute_range
+        let range = super::compute_range(source, search.as_deref(), &operation).unwrap();
+        let result = super::apply_replacement(source.to_string(), range, &operation, content);
         assert!(result.is_err());
         assert!(result
             .unwrap_err()
@@ -279,7 +491,12 @@ mod tests {
         let operation = PatchOperation::Replace;
         let content = "universe";
 
-        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        let result = super::apply_replacement(
+            source.to_string(),
+            super::compute_range(source, search.as_deref(), &operation).unwrap(),
+            &operation,
+            content,
+        );
         assert_eq!(result.unwrap(), "hello universe test");
     }
 
@@ -290,7 +507,12 @@ mod tests {
         let operation = PatchOperation::Prepend;
         let content = "a\n".to_string();
 
-        let result = super::apply_replacement(source.to_string(), search, &operation, &content);
+        let result = super::apply_replacement(
+            source.to_string(),
+            super::compute_range(source, search.as_deref(), &operation).unwrap(),
+            &operation,
+            &content,
+        );
         assert_eq!(result.unwrap(), "a\nb\nc\nd");
     }
 
@@ -301,18 +523,28 @@ mod tests {
         let operation = PatchOperation::Prepend;
         let content = "a\n".to_string();
 
-        let result = super::apply_replacement(source.to_string(), search, &operation, &content);
+        let result = super::apply_replacement(
+            source.to_string(),
+            super::compute_range(source, search.as_deref(), &operation).unwrap(),
+            &operation,
+            &content,
+        );
         assert_eq!(result.unwrap(), "a\nb\nc\nd");
     }
 
     #[test]
     fn test_apply_replacement_prepend_no_search() {
         let source = "hello world";
-        let search = None;
+        let search: Option<String> = None;
         let operation = PatchOperation::Prepend;
         let content = "prefix ";
 
-        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        let result = super::apply_replacement(
+            source.to_string(),
+            super::compute_range(source, search.as_deref(), &operation).unwrap(),
+            &operation,
+            content,
+        );
         assert_eq!(result.unwrap(), "prefix hello world");
     }
 
@@ -323,18 +555,28 @@ mod tests {
         let operation = PatchOperation::Append;
         let content = " there";
 
-        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        let result = super::apply_replacement(
+            source.to_string(),
+            super::compute_range(source, search.as_deref(), &operation).unwrap(),
+            &operation,
+            content,
+        );
         assert_eq!(result.unwrap(), "hello\n there world");
     }
 
     #[test]
     fn test_apply_replacement_append_no_search() {
         let source = "hello world";
-        let search = None;
+        let search: Option<String> = None;
         let operation = PatchOperation::Append;
         let content = " suffix";
 
-        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        let result = super::apply_replacement(
+            source.to_string(),
+            super::compute_range(source, search.as_deref(), &operation).unwrap(),
+            &operation,
+            content,
+        );
         assert_eq!(result.unwrap(), "hello world\n suffix");
     }
 
@@ -345,18 +587,28 @@ mod tests {
         let operation = PatchOperation::Replace;
         let content = "universe";
 
-        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        let result = super::apply_replacement(
+            source.to_string(),
+            super::compute_range(source, search.as_deref(), &operation).unwrap(),
+            &operation,
+            content,
+        );
         assert_eq!(result.unwrap(), "hello universe");
     }
 
     #[test]
     fn test_apply_replacement_replace_no_search() {
         let source = "hello world";
-        let search = None;
+        let search: Option<String> = None;
         let operation = PatchOperation::Replace;
         let content = "new content";
 
-        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        let result = super::apply_replacement(
+            source.to_string(),
+            super::compute_range(source, search.as_deref(), &operation).unwrap(),
+            &operation,
+            content,
+        );
         assert_eq!(result.unwrap(), "new content");
     }
 
@@ -367,7 +619,12 @@ mod tests {
         let operation = PatchOperation::Swap;
         let content = "banana";
 
-        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        let result = super::apply_replacement(
+            source.to_string(),
+            super::compute_range(source, search.as_deref(), &operation).unwrap(),
+            &operation,
+            content,
+        );
         assert_eq!(result.unwrap(), "banana apple cherry");
     }
 
@@ -378,7 +635,12 @@ mod tests {
         let operation = PatchOperation::Swap;
         let content = "apple";
 
-        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        let result = super::apply_replacement(
+            source.to_string(),
+            super::compute_range(source, search.as_deref(), &operation).unwrap(),
+            &operation,
+            content,
+        );
         assert_eq!(result.unwrap(), "banana apple cherry");
     }
 
@@ -389,18 +651,28 @@ mod tests {
         let operation = PatchOperation::Swap;
         let content = "cde";
 
-        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        let result = super::apply_replacement(
+            source.to_string(),
+            super::compute_range(source, search.as_deref(), &operation).unwrap(),
+            &operation,
+            content,
+        );
         assert_eq!(result.unwrap(), "cdedef");
     }
 
     #[test]
     fn test_apply_replacement_swap_no_search() {
         let source = "hello world";
-        let search = None;
+        let search: Option<String> = None;
         let operation = PatchOperation::Swap;
         let content = "anything";
 
-        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        let result = super::apply_replacement(
+            source.to_string(),
+            super::compute_range(source, search.as_deref(), &operation).unwrap(),
+            &operation,
+            content,
+        );
         assert_eq!(result.unwrap(), "hello world");
     }
 
@@ -411,7 +683,12 @@ mod tests {
         let operation = PatchOperation::Replace;
         let content = "replaced_line";
 
-        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        let result = super::apply_replacement(
+            source.to_string(),
+            super::compute_range(source, search.as_deref(), &operation).unwrap(),
+            &operation,
+            content,
+        );
         assert_eq!(result.unwrap(), "line1\nreplaced_line\nline3");
     }
 
@@ -422,7 +699,12 @@ mod tests {
         let operation = PatchOperation::Replace;
         let content = "$universe";
 
-        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        let result = super::apply_replacement(
+            source.to_string(),
+            super::compute_range(source, search.as_deref(), &operation).unwrap(),
+            &operation,
+            content,
+        );
         assert_eq!(result.unwrap(), "hello $universe @test");
     }
 
@@ -433,7 +715,12 @@ mod tests {
         let operation = PatchOperation::Replace;
         let content = "";
 
-        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        let result = super::apply_replacement(
+            source.to_string(),
+            super::compute_range(source, search.as_deref(), &operation).unwrap(),
+            &operation,
+            content,
+        );
         assert_eq!(result.unwrap(), "hello test");
     }
 
@@ -444,7 +731,12 @@ mod tests {
         let operation = PatchOperation::Replace;
         let content = "replaced";
 
-        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        let result = super::apply_replacement(
+            source.to_string(),
+            super::compute_range(source, search.as_deref(), &operation).unwrap(),
+            &operation,
+            content,
+        );
         assert!(result.is_err());
         assert!(
             result
@@ -460,12 +752,12 @@ mod tests {
         let source = "hello world";
         let search = Some("missing".to_string());
         let operation = PatchOperation::Replace;
-        let content = "replacement";
+        let _content = "replacement";
 
-        let result = super::apply_replacement(source.to_string(), search, &operation, content);
-        assert!(result.is_err());
+        let range = super::compute_range(source, search.as_deref(), &operation);
+        assert!(range.is_err());
         assert!(
-            result
+            range
                 .unwrap_err()
                 .to_string()
                 .contains("Could not find match for search text: 'missing'")
@@ -479,7 +771,12 @@ mod tests {
         let operation = PatchOperation::Swap;
         let content = "missing";
 
-        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        let result = super::apply_replacement(
+            source.to_string(),
+            super::compute_range(source, search.as_deref(), &operation).unwrap(),
+            &operation,
+            content,
+        );
         assert!(result.is_err());
         assert!(
             result
@@ -496,7 +793,12 @@ mod tests {
         let operation = PatchOperation::Swap;
         let content = "hello";
 
-        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        let result = super::apply_replacement(
+            source.to_string(),
+            super::compute_range(source, search.as_deref(), &operation).unwrap(),
+            &operation,
+            content,
+        );
         assert_eq!(result.unwrap(), "hello hello");
     }
 
@@ -507,7 +809,12 @@ mod tests {
         let operation = PatchOperation::Replace;
         let content = "test";
 
-        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        let result = super::apply_replacement(
+            source.to_string(),
+            super::compute_range(source, search.as_deref(), &operation).unwrap(),
+            &operation,
+            content,
+        );
         assert_eq!(result.unwrap(), "  test  ");
     }
 
@@ -518,7 +825,12 @@ mod tests {
         let operation = PatchOperation::Replace;
         let content = "univérse";
 
-        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        let result = super::apply_replacement(
+            source.to_string(),
+            super::compute_range(source, search.as_deref(), &operation).unwrap(),
+            &operation,
+            content,
+        );
         assert_eq!(result.unwrap(), "héllo univérse 🌍");
     }
 
@@ -529,18 +841,28 @@ mod tests {
         let operation = PatchOperation::ReplaceAll;
         let content = "replaced";
 
-        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        let result = super::apply_replacement(
+            source.to_string(),
+            super::compute_range(source, search.as_deref(), &operation).unwrap(),
+            &operation,
+            content,
+        );
         assert_eq!(result.unwrap(), "replaced replaced replaced");
     }
 
     #[test]
     fn test_apply_replacement_replace_all_no_search() {
         let source = "hello world";
-        let search = None;
+        let search: Option<String> = None;
         let operation = PatchOperation::ReplaceAll;
         let content = "new content";
 
-        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        let result = super::apply_replacement(
+            source.to_string(),
+            super::compute_range(source, search.as_deref(), &operation).unwrap(),
+            &operation,
+            content,
+        );
         assert_eq!(result.unwrap(), "new content");
     }
 
@@ -551,7 +873,12 @@ mod tests {
         let operation = PatchOperation::ReplaceAll;
         let content = "new content";
 
-        let result = super::apply_replacement(source.to_string(), search, &operation, content);
+        let result = super::apply_replacement(
+            source.to_string(),
+            super::compute_range(source, search.as_deref(), &operation).unwrap(),
+            &operation,
+            content,
+        );
         assert_eq!(result.unwrap(), "new content");
     }
 
@@ -560,12 +887,12 @@ mod tests {
         let source = "hello world";
         let search = Some("missing".to_string());
         let operation = PatchOperation::ReplaceAll;
-        let content = "replacement";
+        let _content = "replacement";
 
-        let result = super::apply_replacement(source.to_string(), search, &operation, content);
-        assert!(result.is_err());
+        let range = super::compute_range(source, search.as_deref(), &operation);
+        assert!(range.is_err());
         assert!(
-            result
+            range
                 .unwrap_err()
                 .to_string()
                 .contains("Could not find match for search text: 'missing'")
