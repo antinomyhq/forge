@@ -138,6 +138,31 @@ impl io::Write for ChannelWriter {
     }
 }
 
+/// Executes an async function while the spinner is suspended.
+///
+/// Stops the spinner before executing the async function, then conditionally restarts it based on the predicate.
+async fn with_suspended_spinner<F, Fut, P>(spinner: &SharedSpinner, f: F, should_restart: P) -> Fut::Output
+where
+    F: FnOnce() -> Fut,
+    Fut: std::future::Future,
+    P: FnOnce() -> bool,
+{
+    if let Ok(mut sp) = spinner.lock() {
+        let _ = sp.stop(None);
+    }
+
+    let result = f().await;
+
+    if should_restart() {
+        if let Ok(mut sp) = spinner.lock() {
+            let _ = sp.start(None);
+        }
+    }
+
+    result
+}
+
+
 /// Async writer task that handles terminal output and spinner coordination.
 async fn writer_task<W: io::Write>(
     mut rx: mpsc::UnboundedReceiver<Command>,
@@ -150,39 +175,36 @@ async fn writer_task<W: io::Write>(
     while let Some(cmd) = rx.recv().await {
         match cmd {
             Command::Write { content, style } => {
-                // Stop spinner on first write
-                if let Ok(mut sp) = spinner.lock() {
-                    let _ = sp.stop(None);
-                }
-
-                // Write styled content char-by-char with typewriter effect
-                let output = style.apply(content);
-                for ch in output.chars() {
-                    let mut buf = [0u8; 4];
-                    let s = ch.encode_utf8(&mut buf);
-                    let _ = writer.write_all(s.as_bytes());
-                    let _ = writer.flush();
-                    if !delay.is_zero() {
-                        tokio::time::sleep(delay).await;
-                    }
-                }
-
-                // Restart spinner when queue is empty
-                if rx.is_empty() {
-                    if let Ok(mut sp) = spinner.lock() {
-                        let _ = sp.start(None);
-                    }
-                }
+                with_suspended_spinner(
+                    &spinner,
+                    || async {
+                        // Write styled content char-by-char with typewriter effect
+                        let output = style.apply(content);
+                        for ch in output.chars() {
+                            let mut buf = [0u8; 4];
+                            let s = ch.encode_utf8(&mut buf);
+                            let _ = writer.write_all(s.as_bytes());
+                            let _ = writer.flush();
+                            if !delay.is_zero() {
+                                tokio::time::sleep(delay).await;
+                            }
+                        }
+                    },
+                    || rx.is_empty(), // Restart spinner when queue is empty
+                )
+                .await;
             }
             Command::Flush(done) => {
                 // Drain pending writes before acknowledging
-                // Stop spinner on first write
-                if let Ok(mut sp) = spinner.lock() {
-                    let _ = sp.stop(None);
-                }
-
-                drain_writes(&mut rx, &mut writer);
-                let _ = done.send(());
+                with_suspended_spinner(
+                    &spinner,
+                    || async {
+                        drain_writes(&mut rx, &mut writer);
+                        let _ = done.send(());
+                    },
+                    || true, // Always restart spinner after flush
+                )
+                .await;
             }
         }
     }
