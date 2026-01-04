@@ -86,10 +86,7 @@ impl StreamWriter {
     }
 
     fn ensure_renderer(&mut self, new_style: Style) {
-        let needs_switch = self
-            .active
-            .as_ref()
-            .map_or(false, |a| a.style != new_style);
+        let needs_switch = self.active.as_ref().map_or(false, |a| a.style != new_style);
 
         if needs_switch {
             if let Some(old) = self.active.take() {
@@ -148,18 +145,14 @@ async fn writer_task<W: io::Write>(
     char_delay_ms: u64,
     mut writer: W,
 ) {
-    let mut is_writing = false;
     let delay = std::time::Duration::from_millis(char_delay_ms);
 
     while let Some(cmd) = rx.recv().await {
         match cmd {
             Command::Write { content, style } => {
                 // Stop spinner on first write
-                if !is_writing {
-                    if let Ok(mut sp) = spinner.lock() {
-                        let _ = sp.stop(None);
-                    }
-                    is_writing = true;
+                if let Ok(mut sp) = spinner.lock() {
+                    let _ = sp.stop(None);
                 }
 
                 // Write styled content char-by-char with typewriter effect
@@ -179,11 +172,15 @@ async fn writer_task<W: io::Write>(
                     if let Ok(mut sp) = spinner.lock() {
                         let _ = sp.start(None);
                     }
-                    is_writing = false;
                 }
             }
             Command::Flush(done) => {
                 // Drain pending writes before acknowledging
+                // Stop spinner on first write
+                if let Ok(mut sp) = spinner.lock() {
+                    let _ = sp.stop(None);
+                }
+
                 drain_writes(&mut rx, &mut writer);
                 let _ = done.send(());
             }
