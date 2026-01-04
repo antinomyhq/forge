@@ -74,7 +74,11 @@ impl Range {
             // Multi-line match: include newlines between lines but NOT after the last line
             // Sum lengths of lines from start_idx to end_idx (exclusive)
             // Add 1 for each newline between lines (end_idx - start_idx - 1 newlines)
-            let content_len: usize = lines[start_idx..end_idx].iter().map(|l| l.len()).sum();
+            let content_len: usize = if start_idx >= lines.len() || end_idx > lines.len() {
+                0  // Out of bounds match
+            } else {
+                lines[start_idx..end_idx].iter().map(|l| l.len()).sum()
+            };
             let newlines_between = end_idx - start_idx - 1;
             content_len + newlines_between
         };
