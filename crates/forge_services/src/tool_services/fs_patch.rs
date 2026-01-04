@@ -75,7 +75,7 @@ impl Range {
             // Sum lengths of lines from start_idx to end_idx (exclusive)
             // Add 1 for each newline between lines (end_idx - start_idx - 1 newlines)
             let content_len: usize = if start_idx >= lines.len() || end_idx > lines.len() {
-                0  // Out of bounds match
+                0 // Out of bounds match
             } else {
                 lines[start_idx..end_idx].iter().map(|l| l.len()).sum()
             };
