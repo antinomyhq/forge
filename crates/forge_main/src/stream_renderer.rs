@@ -1,4 +1,4 @@
-use std::io::{self, Write as _};
+use std::io;
 use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
@@ -6,10 +6,6 @@ use colored::Colorize;
 use forge_spinner::SpinnerManager;
 use streamdown::StreamdownRenderer;
 use tokio::sync::{mpsc, oneshot};
-
-// ============================================================================
-// Public API
-// ============================================================================
 
 /// Shared spinner handle for coordination between UI and writer.
 pub type SharedSpinner = Arc<Mutex<SpinnerManager>>;
@@ -44,14 +40,14 @@ pub struct StreamWriter {
 }
 
 impl StreamWriter {
-    /// Creates a new stream writer with the given shared spinner.
-    pub fn new(spinner: SharedSpinner) -> Self {
+    /// Creates a new stream writer with the given shared spinner and character delay.
+    pub fn new(spinner: SharedSpinner, char_delay_ms: u64) -> Self {
         let width = terminal_size::terminal_size()
             .map(|(w, _)| w.0 as usize)
             .unwrap_or(80);
 
         let (tx, rx) = mpsc::unbounded_channel();
-        tokio::spawn(writer_task(rx, spinner));
+        tokio::spawn(writer_task(rx, spinner, char_delay_ms, io::stdout()));
 
         Self { active: None, tx, width }
     }
@@ -109,10 +105,6 @@ impl StreamWriter {
     }
 }
 
-// ============================================================================
-// Internal Implementation
-// ============================================================================
-
 /// Active renderer with its style.
 struct ActiveRenderer {
     renderer: StreamdownRenderer<ChannelWriter>,
@@ -150,9 +142,14 @@ impl io::Write for ChannelWriter {
 }
 
 /// Async writer task that handles terminal output and spinner coordination.
-async fn writer_task(mut rx: mpsc::UnboundedReceiver<Command>, spinner: SharedSpinner) {
-    let mut stdout = io::stdout();
+async fn writer_task<W: io::Write>(
+    mut rx: mpsc::UnboundedReceiver<Command>,
+    spinner: SharedSpinner,
+    char_delay_ms: u64,
+    mut writer: W,
+) {
     let mut is_writing = false;
+    let delay = std::time::Duration::from_millis(char_delay_ms);
 
     while let Some(cmd) = rx.recv().await {
         match cmd {
@@ -165,10 +162,17 @@ async fn writer_task(mut rx: mpsc::UnboundedReceiver<Command>, spinner: SharedSp
                     is_writing = true;
                 }
 
-                // Write styled content
+                // Write styled content char-by-char with typewriter effect
                 let output = style.apply(content);
-                let _ = stdout.write_all(output.as_bytes());
-                let _ = stdout.flush();
+                for ch in output.chars() {
+                    let mut buf = [0u8; 4];
+                    let s = ch.encode_utf8(&mut buf);
+                    let _ = writer.write_all(s.as_bytes());
+                    let _ = writer.flush();
+                    if !delay.is_zero() {
+                        tokio::time::sleep(delay).await;
+                    }
+                }
 
                 // Restart spinner when queue is empty
                 if rx.is_empty() {
@@ -180,7 +184,7 @@ async fn writer_task(mut rx: mpsc::UnboundedReceiver<Command>, spinner: SharedSp
             }
             Command::Flush(done) => {
                 // Drain pending writes before acknowledging
-                drain_writes(&mut rx, &mut stdout);
+                drain_writes(&mut rx, &mut writer);
                 let _ = done.send(());
             }
         }
@@ -188,12 +192,12 @@ async fn writer_task(mut rx: mpsc::UnboundedReceiver<Command>, spinner: SharedSp
 }
 
 /// Drains all pending write commands from the channel.
-fn drain_writes(rx: &mut mpsc::UnboundedReceiver<Command>, stdout: &mut io::Stdout) {
+fn drain_writes<W: io::Write>(rx: &mut mpsc::UnboundedReceiver<Command>, writer: &mut W) {
     while let Ok(cmd) = rx.try_recv() {
         if let Command::Write { content, style } = cmd {
             let output = style.apply(content);
-            let _ = stdout.write_all(output.as_bytes());
-            let _ = stdout.flush();
+            let _ = writer.write_all(output.as_bytes());
+            let _ = writer.flush();
         }
     }
 }

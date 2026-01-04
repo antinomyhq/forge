@@ -2549,7 +2549,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let mut stream = self.api.chat(chat).await?;
 
         // Create streaming writer with shared spinner
-        let mut writer = StreamWriter::new(Arc::clone(&self.spinner));
+        let mut writer = StreamWriter::new(Arc::clone(&self.spinner), 1);
         while let Some(message) = stream.next().await {
             match message {
                 Ok(message) => self.handle_chat_response(message, &mut writer).await?,
