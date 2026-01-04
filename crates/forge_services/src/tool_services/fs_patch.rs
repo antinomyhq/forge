@@ -65,7 +65,11 @@ impl Range {
         // Calculate the length
         let length = if start_idx == end_idx {
             // Single line match: just the line content, no trailing newline
-            lines[start_idx].len()
+            if start_idx >= lines.len() {
+                0  // Out of bounds match
+            } else {
+                lines[start_idx].len()
+            }
         } else {
             // Multi-line match: include newlines between lines but NOT after the last line
             // Sum lengths of lines from start_idx to end_idx (exclusive)
