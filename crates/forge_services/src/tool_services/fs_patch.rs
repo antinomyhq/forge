@@ -66,7 +66,7 @@ impl Range {
         let length = if start_idx == end_idx {
             // Single line match: just the line content, no trailing newline
             if start_idx >= lines.len() {
-                0  // Out of bounds match
+                0 // Out of bounds match
             } else {
                 lines[start_idx].len()
             }
