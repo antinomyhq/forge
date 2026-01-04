@@ -149,7 +149,7 @@ async fn test_tool_call_start_end_responses_for_non_agent_tools() {
     // Should have ToolCallStart response (1: one for fs_read)
     let tool_call_start_count = chat_responses
         .iter()
-        .filter(|response| matches!(response, ChatResponse::ToolCallStart(_)))
+        .filter(|response| matches!(response, ChatResponse::ToolCallStart { .. }))
         .count();
     assert_eq!(
         tool_call_start_count, 1,
@@ -168,7 +168,7 @@ async fn test_tool_call_start_end_responses_for_non_agent_tools() {
 
     // Verify the content of the responses
     let tool_call_start = chat_responses.iter().find_map(|response| match response {
-        ChatResponse::ToolCallStart(call) => Some(call),
+        ChatResponse::ToolCallStart { tool_call, .. } => Some(tool_call),
         _ => None,
     });
     assert_eq!(
@@ -219,7 +219,7 @@ async fn test_no_tool_call_start_end_responses_for_agent_tools() {
     // Should have no ToolCallStart response for agent tools
     let tool_call_start_count = chat_responses
         .iter()
-        .filter(|response| matches!(response, ChatResponse::ToolCallStart(_)))
+        .filter(|response| matches!(response, ChatResponse::ToolCallStart { .. }))
         .count();
     assert_eq!(
         tool_call_start_count, 0,
@@ -272,7 +272,7 @@ async fn test_mixed_agent_and_non_agent_tool_calls() {
     // Should have exactly 1 ToolCallStart (for fs_read not for agent "must")
     let tool_call_start_count = chat_responses
         .iter()
-        .filter(|response| matches!(response, ChatResponse::ToolCallStart(_)))
+        .filter(|response| matches!(response, ChatResponse::ToolCallStart { .. }))
         .count();
     assert_eq!(
         tool_call_start_count, 1,
@@ -293,7 +293,7 @@ async fn test_mixed_agent_and_non_agent_tool_calls() {
     let tool_call_start_names: Vec<&str> = chat_responses
         .iter()
         .filter_map(|response| match response {
-            ChatResponse::ToolCallStart(call) => Some(call.name.as_str()),
+            ChatResponse::ToolCallStart { tool_call, .. } => Some(tool_call.name.as_str()),
             _ => None,
         })
         .collect();

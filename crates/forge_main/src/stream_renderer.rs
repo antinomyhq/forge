@@ -213,6 +213,18 @@ async fn writer_task(
                 }
             }
             Command::Shutdown(done) => {
+                // Drain all pending writes before acknowledging shutdown
+                while let Ok(cmd) = rx.try_recv() {
+                    if let Command::Write { content, style } = cmd {
+                        let output = match style {
+                            Style::Normal => content,
+                            Style::Dimmed => content.dimmed().to_string(),
+                        };
+                        // Flush immediately without delay during shutdown
+                        let _ = stdout.write_all(output.as_bytes());
+                        let _ = stdout.flush();
+                    }
+                }
                 let _ = done.send(());
                 break;
             }

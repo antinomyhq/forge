@@ -2642,9 +2642,11 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     writer.write(&text)?;
                 }
             },
-            ChatResponse::ToolCallStart(_) => {
+            ChatResponse::ToolCallStart { tool_call: _, ack } => {
                 writer.flush().await?;
                 self.spinner.lock().unwrap().stop(None)?;
+                // Signal orchestrator that flush is complete, safe to execute tool
+                ack.ack();
             }
             ChatResponse::ToolCallEnd(toolcall_result) => {
                 // Only track toolcall name in case of success else track the error.
