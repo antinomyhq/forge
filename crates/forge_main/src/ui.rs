@@ -633,9 +633,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 if preview {
                     self.writeln(&result.message)?;
                 } else if !result.git_output.is_empty() {
-                    self.writeln_to_stderr(result.git_output)?;
+                    self.writeln_to_stderr(result.git_output.trim_end().to_string())?;
                 } else {
-                    self.writeln_to_stderr(result.message)?;
+                    self.writeln_to_stderr(result.message.trim_end().to_string())?;
                 }
                 return Ok(());
             }
