@@ -3,7 +3,7 @@
 //! Provides a unified interface for rendering content and reasoning streams.
 //! Only one stream can be active at a time.
 
-use std::io::{self, Write};
+use std::{io::{self, Write}, sync::{Arc, Mutex}};
 
 use colored::Colorize;
 use forge_spinner::SpinnerManager;
@@ -11,16 +11,16 @@ use streamdown::StreamdownRenderer;
 
 /// A writer that suspends the spinner before writing.
 struct SpinnerWriter {
-    spinner: SpinnerManager,
+    spinner: Arc<Mutex<SpinnerManager>>,
     dimmed: bool,
 }
 
 impl SpinnerWriter {
-    fn new(spinner: SpinnerManager) -> Self {
+    fn new(spinner: Arc<Mutex<SpinnerManager>>) -> Self {
         Self { spinner, dimmed: false }
     }
 
-    fn dimmed(spinner: SpinnerManager) -> Self {
+    fn dimmed(spinner: Arc<Mutex<SpinnerManager>>) -> Self {
         Self { spinner, dimmed: true }
     }
 }
@@ -29,9 +29,9 @@ impl Write for SpinnerWriter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let s = String::from_utf8_lossy(buf);
         let output = if self.dimmed { s.dimmed().to_string() } else { s.to_string() };
-        self.spinner
-            .write(output)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e))?;
+        let _ = self.spinner.lock().unwrap().stop(None);
+        print!("{}", output);
+        let _ = self.spinner.lock().unwrap().start(None);
         Ok(buf.len())
     }
 
@@ -47,11 +47,11 @@ enum Renderer {
 }
 
 impl Renderer {
-    fn content(spinner: SpinnerManager, width: usize) -> Self {
+    fn content(spinner: Arc<Mutex<SpinnerManager>>, width: usize) -> Self {
         Self::Content(StreamdownRenderer::new(SpinnerWriter::new(spinner), width))
     }
 
-    fn reasoning(spinner: SpinnerManager, width: usize) -> Self {
+    fn reasoning(spinner: Arc<Mutex<SpinnerManager>>, width: usize) -> Self {
         Self::Reasoning(StreamdownRenderer::new(SpinnerWriter::dimmed(spinner), width))
     }
 
@@ -70,9 +70,10 @@ impl Renderer {
     }
 
     fn finish(self) -> io::Result<()> {
-        match self {
+        let _  = match self {
             Self::Content(r) | Self::Reasoning(r) => r.finish(),
-        }
+        }?;
+        Ok(())
     }
 }
 
@@ -82,18 +83,18 @@ impl Renderer {
 /// the previous stream is automatically finished.
 pub struct ChatStreamRenderer {
     renderer: Option<Renderer>,
-    spinner: SpinnerManager,
+    spinner: Arc<Mutex<SpinnerManager>>,
     width: usize,
 }
 
 impl ChatStreamRenderer {
     /// Creates a new renderer with the given spinner and terminal width.
-    pub fn new(spinner: SpinnerManager, width: usize) -> Self {
+    pub fn new(spinner: Arc<Mutex<SpinnerManager>>, width: usize) -> Self {
         Self { renderer: None, spinner, width }
     }
 
     /// Creates a new renderer using the current terminal width.
-    pub fn from_terminal(spinner: SpinnerManager) -> Self {
+    pub fn from_terminal(spinner: Arc<Mutex<SpinnerManager>>) -> Self {
         let width = terminal_size::terminal_size()
             .map(|(w, _)| w.0 as usize)
             .unwrap_or(80);

@@ -5219,6 +5219,7 @@ name = "streamdown"
 version = "0.1.0"
 dependencies = [
  "colored",
+ "indicatif",
  "streamdown-parser",
  "syntect",
  "terminal_size",

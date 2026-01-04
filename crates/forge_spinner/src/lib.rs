@@ -14,7 +14,7 @@ pub use progress_bar::*;
 use stopwatch::Stopwatch;
 
 /// Manages spinner functionality for the UI
-#[derive(Default, Clone)]
+#[derive(Default)]
 pub struct SpinnerManager {
     spinner: Option<ProgressBar>,
     stopwatch: Stopwatch,
