@@ -1,37 +1,162 @@
-//! Streaming markdown renderer wrapper for LLM output.
-//!
-//! Provides a unified interface for rendering content and reasoning streams.
-//! Only one stream can be active at a time.
+use std::io::{self, Write as _};
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
-use std::{io::{self, Write}, sync::{Arc, Mutex}};
-
+use anyhow::Result;
 use colored::Colorize;
 use forge_spinner::SpinnerManager;
 use streamdown::StreamdownRenderer;
+use tokio::sync::{mpsc, oneshot};
 
-/// A writer that suspends the spinner before writing.
-struct SpinnerWriter {
-    spinner: Arc<Mutex<SpinnerManager>>,
-    dimmed: bool,
+// ============================================================================
+// Public API
+// ============================================================================
+
+/// Shared spinner handle for coordination between UI and writer.
+pub type SharedSpinner = Arc<Mutex<SpinnerManager>>;
+
+/// Content styling for output.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Style {
+    #[default]
+    Normal,
+    Dimmed,
 }
 
-impl SpinnerWriter {
-    fn new(spinner: Arc<Mutex<SpinnerManager>>) -> Self {
-        Self { spinner, dimmed: false }
+/// Streaming markdown writer with automatic spinner management.
+///
+/// Coordinates between markdown rendering and spinner visibility:
+/// - Stops spinner when content is being written
+/// - Restarts spinner when the write queue becomes empty
+pub struct StreamWriter {
+    active: Option<ActiveRenderer>,
+    tx: mpsc::UnboundedSender<Command>,
+    task: tokio::task::JoinHandle<()>,
+    spinner: SharedSpinner,
+    width: usize,
+    char_delay: Duration,
+}
+
+impl StreamWriter {
+    /// Creates a new stream writer with the given shared spinner.
+    pub fn new(spinner: SharedSpinner) -> Self {
+        let width = terminal_size::terminal_size()
+            .map(|(w, _)| w.0 as usize)
+            .unwrap_or(80);
+        let char_delay = Duration::from_millis(1);
+
+        let (tx, rx) = mpsc::unbounded_channel();
+        let task = tokio::spawn(writer_task(rx, Arc::clone(&spinner), char_delay));
+
+        Self {
+            active: None,
+            tx,
+            task,
+            spinner,
+            width,
+            char_delay,
+        }
     }
 
-    fn dimmed(spinner: Arc<Mutex<SpinnerManager>>) -> Self {
-        Self { spinner, dimmed: true }
+    /// Writes markdown content with normal styling.
+    pub fn write(&mut self, text: &str) -> Result<()> {
+        self.ensure_renderer(Style::Normal)?;
+        if let Some(ref mut active) = self.active {
+            active.renderer.push(text)?;
+        }
+        Ok(())
+    }
+
+    /// Writes markdown content with dimmed styling (for reasoning blocks).
+    pub fn write_dimmed(&mut self, text: &str) -> Result<()> {
+        self.ensure_renderer(Style::Dimmed)?;
+        if let Some(ref mut active) = self.active {
+            active.renderer.push(text)?;
+        }
+        Ok(())
+    }
+
+    /// Flushes all pending content and waits for completion.
+    pub async fn flush(&mut self) -> Result<()> {
+        // Finish renderer and add newline
+        if let Some(old) = self.active.take() {
+            let _ = old.renderer.finish();
+        }
+
+        // Shutdown current task and wait
+        let (done_tx, done_rx) = oneshot::channel();
+        let _ = self.tx.send(Command::Shutdown(done_tx));
+        let _ = done_rx.await;
+
+        // Spawn new task for future writes
+        let (tx, rx) = mpsc::unbounded_channel();
+        let task = tokio::spawn(writer_task(rx, Arc::clone(&self.spinner), self.char_delay));
+        
+        // Replace old task with new one
+        let old_task = std::mem::replace(&mut self.task, task);
+        let _ = old_task.await;
+        self.tx = tx;
+
+        Ok(())
+    }
+
+    fn ensure_renderer(&mut self, new_style: Style) -> Result<()> {
+        let needs_switch = self.active.as_ref().map_or(false, |a| a.style != new_style);
+
+        if needs_switch {
+            // Finish current renderer and add newline
+            if let Some(old) = self.active.take() {
+                let _ = old.renderer.finish();
+            }
+        }
+
+        if self.active.is_none() {
+            let writer = ChannelWriter {
+                tx: self.tx.clone(),
+                style: new_style,
+            };
+            let renderer = StreamdownRenderer::new(writer, self.width);
+            self.active = Some(ActiveRenderer {
+                renderer,
+                style: new_style,
+            });
+        }
+
+        Ok(())
     }
 }
 
-impl Write for SpinnerWriter {
+// ============================================================================
+// Internal Implementation
+// ============================================================================
+
+/// Active renderer with its style.
+struct ActiveRenderer {
+    renderer: StreamdownRenderer<ChannelWriter>,
+    style: Style,
+}
+
+/// Commands sent to the writer task.
+enum Command {
+    Write { content: String, style: Style },
+    Shutdown(oneshot::Sender<()>),
+}
+
+/// Bridge between sync `std::io::Write` and async channel.
+struct ChannelWriter {
+    tx: mpsc::UnboundedSender<Command>,
+    style: Style,
+}
+
+impl io::Write for ChannelWriter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        let s = String::from_utf8_lossy(buf);
-        let output = if self.dimmed { s.dimmed().to_string() } else { s.to_string() };
-        let _ = self.spinner.lock().unwrap().stop(None);
-        print!("{}", output);
-        let _ = self.spinner.lock().unwrap().start(None);
+        let content = String::from_utf8_lossy(buf).to_string();
+        self.tx
+            .send(Command::Write {
+                content,
+                style: self.style,
+            })
+            .map_err(|_| io::Error::new(io::ErrorKind::BrokenPipe, "writer task closed"))?;
         Ok(buf.len())
     }
 
@@ -40,121 +165,57 @@ impl Write for SpinnerWriter {
     }
 }
 
-/// The active renderer type.
-enum Renderer {
-    Content(StreamdownRenderer<SpinnerWriter>),
-    Reasoning(StreamdownRenderer<SpinnerWriter>),
-}
+/// Async writer task that handles terminal output and spinner coordination.
+async fn writer_task(
+    mut rx: mpsc::UnboundedReceiver<Command>,
+    spinner: SharedSpinner,
+    char_delay: Duration,
+) {
+    let mut stdout = io::stdout();
+    let mut is_writing = false;
 
-impl Renderer {
-    fn content(spinner: Arc<Mutex<SpinnerManager>>, width: usize) -> Self {
-        Self::Content(StreamdownRenderer::new(SpinnerWriter::new(spinner), width))
-    }
+    while let Some(cmd) = rx.recv().await {
+        match cmd {
+            Command::Write { content, style } => {
+                // Stop spinner on first write
+                if !is_writing {
+                    if let Ok(mut sp) = spinner.lock() {
+                        let _ = sp.stop(None);
+                    }
+                    is_writing = true;
+                }
 
-    fn reasoning(spinner: Arc<Mutex<SpinnerManager>>, width: usize) -> Self {
-        Self::Reasoning(StreamdownRenderer::new(SpinnerWriter::dimmed(spinner), width))
-    }
+                // Apply styling
+                let output = match style {
+                    Style::Normal => content,
+                    Style::Dimmed => content.dimmed().to_string(),
+                };
 
-    fn is_content(&self) -> bool {
-        matches!(self, Self::Content(_))
-    }
+                // Write with optional char-by-char delay
+                if char_delay.is_zero() {
+                    let _ = stdout.write_all(output.as_bytes());
+                    let _ = stdout.flush();
+                } else {
+                    for ch in output.chars() {
+                        let mut buf = [0u8; 4];
+                        let _ = stdout.write_all(ch.encode_utf8(&mut buf).as_bytes());
+                        let _ = stdout.flush();
+                        tokio::time::sleep(char_delay).await;
+                    }
+                }
 
-    fn is_reasoning(&self) -> bool {
-        matches!(self, Self::Reasoning(_))
-    }
-
-    fn push(&mut self, text: &str) -> io::Result<()> {
-        match self {
-            Self::Content(r) | Self::Reasoning(r) => r.push(text),
+                // Restart spinner when queue is empty
+                if rx.is_empty() {
+                    if let Ok(mut sp) = spinner.lock() {
+                        let _ = sp.start(None);
+                    }
+                    is_writing = false;
+                }
+            }
+            Command::Shutdown(done) => {
+                let _ = done.send(());
+                break;
+            }
         }
-    }
-
-    fn finish(self) -> io::Result<()> {
-        let _  = match self {
-            Self::Content(r) | Self::Reasoning(r) => r.finish(),
-        }?;
-        Ok(())
-    }
-}
-
-/// Wrapper around StreamdownRenderer that manages content and reasoning streams.
-///
-/// Only one stream can be active at a time. When switching between stream types,
-/// the previous stream is automatically finished.
-pub struct ChatStreamRenderer {
-    renderer: Option<Renderer>,
-    spinner: Arc<Mutex<SpinnerManager>>,
-    width: usize,
-}
-
-impl ChatStreamRenderer {
-    /// Creates a new renderer with the given spinner and terminal width.
-    pub fn new(spinner: Arc<Mutex<SpinnerManager>>, width: usize) -> Self {
-        Self { renderer: None, spinner, width }
-    }
-
-    /// Creates a new renderer using the current terminal width.
-    pub fn from_terminal(spinner: Arc<Mutex<SpinnerManager>>) -> Self {
-        let width = terminal_size::terminal_size()
-            .map(|(w, _)| w.0 as usize)
-            .unwrap_or(80);
-        Self::new(spinner, width)
-    }
-
-    /// Flush and finish the current renderer if active.
-    ///
-    /// Call this before outputting non-streamed content (titles, tool calls, etc.)
-    pub fn flush(&mut self) -> io::Result<()> {
-        if let Some(renderer) = self.renderer.take() {
-            renderer.finish()?;
-        }
-        Ok(())
-    }
-
-    /// Push content to the content stream.
-    ///
-    /// If reasoning stream is active, it will be finished first.
-    pub fn push_content(&mut self, text: &str) -> io::Result<()> {
-        // If reasoning is active, finish it first
-        if self.renderer.as_ref().is_some_and(|r| r.is_reasoning()) {
-            self.flush()?;
-        }
-
-        // Initialize content renderer if needed
-        if self.renderer.is_none() {
-            self.renderer = Some(Renderer::content(self.spinner.clone(), self.width));
-        }
-
-        if let Some(ref mut renderer) = self.renderer {
-            renderer.push(text)?;
-        }
-
-        Ok(())
-    }
-
-    /// Push content to the reasoning stream.
-    ///
-    /// If content stream is active, it will be finished first.
-    pub fn push_reasoning(&mut self, text: &str) -> io::Result<()> {
-        // If content is active, finish it first
-        if self.renderer.as_ref().is_some_and(|r| r.is_content()) {
-            self.flush()?;
-        }
-
-        // Initialize reasoning renderer if needed
-        if self.renderer.is_none() {
-            self.renderer = Some(Renderer::reasoning(self.spinner.clone(), self.width));
-        }
-
-        if let Some(ref mut renderer) = self.renderer {
-            renderer.push(text)?;
-        }
-
-        Ok(())
-    }
-
-    /// Finish all streams and consume the renderer.
-    pub fn finish(mut self) -> io::Result<()> {
-        self.flush()
     }
 }
