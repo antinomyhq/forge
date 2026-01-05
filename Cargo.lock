@@ -1785,8 +1785,10 @@ version = "0.1.0"
 dependencies = [
  "pretty_assertions",
  "regex",
+ "schemars 0.8.22",
  "serde",
  "serde_json",
+ "serde_json5",
  "thiserror 2.0.17",
 ]
 
@@ -4948,6 +4950,17 @@ dependencies = [
  "ryu",
  "serde",
  "serde_core",
+]
+
+[[package]]
+name = "serde_json5"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5d34d03f54462862f2a42918391c9526337f53171eaa4d8894562be7f252edd3"
+dependencies = [
+ "pest",
+ "pest_derive",
+ "serde",
 ]
 
 [[package]]

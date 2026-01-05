@@ -9,7 +9,7 @@ pub fn generate_ci_workflow() {
     // Create a basic build job for CI with coverage
     let build_job = Job::new("Build and Test")
         .permissions(Permissions::default().contents(Level::Read))
-        .add_step(Step::checkout())
+        .add_step(Step::new("Checkout Code").uses("actions", "checkout", "v6"))
         .add_step(setup_protoc())
         .add_step(Step::toolchain().add_stable())
         .add_step(Step::new("Install cargo-llvm-cov").run("cargo install cargo-llvm-cov"))
@@ -27,7 +27,7 @@ pub fn generate_ci_workflow() {
     let perf_test_job = Job::new("zsh-rprompt-performance")
         .name("Performance: zsh rprompt")
         .permissions(Permissions::default().contents(Level::Read))
-        .add_step(Step::checkout())
+        .add_step(Step::new("Checkout Code").uses("actions", "checkout", "v6"))
         .add_step(setup_protoc())
         .add_step(Step::toolchain().add_stable())
         .add_step(

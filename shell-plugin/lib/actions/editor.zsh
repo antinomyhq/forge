@@ -62,7 +62,6 @@ function _forge_action_editor() {
     BUFFER=": $content"
     CURSOR=${#BUFFER}
     
-    _forge_log info "Command ready - press Enter to execute"
     zle reset-prompt
 }
 
