@@ -155,6 +155,10 @@ fn create_tools_section(conversation: &Conversation) -> Element {
                         )
                         .append(
                             Element::new("div.main-content")
+                                .append(
+                                    Element::new("p")
+                                        .append(Element::new("strong").text(format!("{}", tool.description)))
+                                )
                                 .append(Element::new("pre").text(
                                     to_string_pretty(&tool.input_schema).unwrap_or_default(),
                                 )),
