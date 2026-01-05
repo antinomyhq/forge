@@ -126,7 +126,7 @@ struct ActiveRenderer {
 
 /// Commands sent to the writer task.
 enum Command {
-    Write { content: String, style: Style },
+    Write(String),
     Flush(oneshot::Sender<()>),
 }
 
@@ -142,8 +142,9 @@ impl io::Write for ChannelWriter {
             Ok(s) => s.to_string(),
             Err(_) => String::from_utf8_lossy(buf).into_owned(),
         };
+        let styled = self.style.apply(content);
         self.tx
-            .send(Command::Write { content, style: self.style })
+            .send(Command::Write(styled))
             .map_err(|_| io::Error::new(io::ErrorKind::BrokenPipe, "writer task closed"))?;
         Ok(buf.len())
     }
@@ -191,12 +192,11 @@ async fn writer_task<P: OutputPrinter>(
     printer: Arc<P>,
 ) {
     let mut spinner = SpinnerCoordinator::new(spinner, printer.clone());
-
     while let Some(cmd) = rx.recv().await {
         match cmd {
-            Command::Write { content, style } => {
+            Command::Write(content) => {
                 spinner.pause();
-                let _ = printer.write(style.apply(content).as_bytes());
+                let _ = printer.write(content.as_bytes());
                 let _ = printer.flush();
                 if rx.is_empty() {
                     spinner.resume();
@@ -214,8 +214,8 @@ async fn writer_task<P: OutputPrinter>(
 /// Drains all pending write commands from the channel.
 fn drain_writes<P: OutputPrinter>(rx: &mut mpsc::UnboundedReceiver<Command>, printer: Arc<P>) {
     while let Ok(cmd) = rx.try_recv() {
-        if let Command::Write { content, style } = cmd {
-            let _ = printer.write(style.apply(content).as_bytes());
+        if let Command::Write(content) = cmd {
+            let _ = printer.write(content.as_bytes());
             let _ = printer.flush();
         }
     }
