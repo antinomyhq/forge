@@ -24,9 +24,10 @@ pub fn derive_description(input: TokenStream) -> TokenStream {
     for attr in &input.attrs {
         if attr.path().is_ident("tool_description_file")
             && let syn::Meta::NameValue(name_value) = &attr.meta
-                && let Expr::Lit(ExprLit { lit: Lit::Str(lit_str), .. }) = &name_value.value {
-                    description_file = Some(lit_str.value());
-                }
+            && let Expr::Lit(ExprLit { lit: Lit::Str(lit_str), .. }) = &name_value.value
+        {
+            description_file = Some(lit_str.value());
+        }
     }
 
     // If we have a description file, read it at compile time
