@@ -147,9 +147,11 @@ impl io::Write for ChannelWriter {
         Ok(())
     }
 }
-/// RAII guard that suspends the spinner and manages cursor visibility.
+
+
+
+/// RAII guard that suspends the spinner.
 ///
-/// Hides the cursor when created and shows it when dropped.
 /// The spinner is stopped when the guard is created and restarted when dropped,
 /// based on the restart condition provided at construction.
 struct SuspendedSpinner {
@@ -158,37 +160,40 @@ struct SuspendedSpinner {
 }
 
 impl SuspendedSpinner {
-    /// Creates a new guard that suspends the spinner and hides the cursor.
+    /// Creates a new guard that suspends the spinner.
     ///
     /// # Arguments
     ///
     /// * `spinner` - Shared spinner to suspend
     /// * `should_restart` - Whether the spinner should restart on drop
     fn new(spinner: SharedSpinner, should_restart: bool) -> Self {
-        // Stop the spinner
         if let Ok(mut sp) = spinner.lock() {
             let _ = sp.stop(None);
         }
-
-        // Hide cursor
-        let _ = io::stdout().execute(cursor::Hide);
-
         Self { spinner, should_restart }
     }
 }
 
 impl Drop for SuspendedSpinner {
     fn drop(&mut self) {
-        // Show cursor
-        let _ = io::stdout().execute(cursor::Show);
-
-        // Restart spinner if requested
         if self.should_restart {
             if let Ok(mut sp) = self.spinner.lock() {
                 let _ = sp.start(None);
             }
         }
     }
+}
+
+/// Hides the cursor on the given writer.
+fn hide_cursor<W: io::Write>(writer: &mut W) {
+    let _ = writer.execute(cursor::Hide);
+    let _ = writer.flush();
+}
+
+/// Shows the cursor on the given writer.
+fn show_cursor<W: io::Write>(writer: &mut W) {
+    let _ = writer.execute(cursor::Show);
+    let _ = writer.flush();
 }
 
 /// Async writer task that handles terminal output and spinner coordination.
@@ -204,16 +209,19 @@ async fn writer_task<W: io::Write>(
         match cmd {
             Command::Write { content, style } => {
                 // Suspend spinner while writing, restart when queue is empty
-                let should_restart = rx.is_empty();
-                let _guard = SuspendedSpinner::new(spinner.clone(), should_restart);
+                let _guard = SuspendedSpinner::new(spinner.clone(), rx.is_empty());
+                hide_cursor(&mut writer);
                 let output = style.apply(content);
                 let _ = writer.write_all(output.as_bytes());
                 let _ = writer.flush();
+                show_cursor(&mut writer);
             }
             Command::Flush(done) => {
                 // Suspend spinner while flushing, don't restart after
                 let _guard = SuspendedSpinner::new(spinner.clone(), false);
+                hide_cursor(&mut writer);
                 drain_writes(&mut rx, &mut writer);
+                show_cursor(&mut writer);
                 let _ = done.send(());
             }
         }

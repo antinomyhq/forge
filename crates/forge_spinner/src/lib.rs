@@ -163,6 +163,9 @@ impl SpinnerManager {
             handle.abort();
         }
         self.message = None;
+
+        let _ = io::stdout().flush();
+        let _ = io::stderr().flush();
         Ok(())
     }
 
