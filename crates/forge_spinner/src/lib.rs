@@ -1,8 +1,8 @@
-use std::io::{self, Write};
 use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
 use colored::Colorize;
+use forge_domain::OutputPrinter;
 use indicatif::{ProgressBar, ProgressStyle};
 use rand::Rng;
 use tokio::task::JoinHandle;
@@ -13,34 +13,30 @@ mod stopwatch;
 pub use progress_bar::*;
 use stopwatch::Stopwatch;
 
-/// Manages spinner functionality for the UI
-#[derive(Default)]
-pub struct SpinnerManager {
+/// Manages spinner functionality for the UI.
+pub struct SpinnerManager<P: OutputPrinter> {
     spinner: Option<ProgressBar>,
     stopwatch: Stopwatch,
     message: Option<String>,
     tracker: Arc<Mutex<Option<JoinHandle<()>>>>,
     word_index: Option<usize>,
+    printer: Arc<P>,
     #[cfg(test)]
     tick_counter: Option<std::sync::Arc<std::sync::atomic::AtomicU64>>,
 }
 
-impl SpinnerManager {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    #[cfg(test)]
-    pub fn test_with_tick_counter(
-        tick_counter: std::sync::Arc<std::sync::atomic::AtomicU64>,
-    ) -> Self {
+impl<P: OutputPrinter> SpinnerManager<P> {
+    /// Creates a new SpinnerManager with the given output printer.
+    pub fn new(printer: Arc<P>) -> Self {
         Self {
             spinner: None,
             stopwatch: Stopwatch::default(),
             message: None,
             tracker: Arc::new(Mutex::new(None)),
             word_index: None,
-            tick_counter: Some(tick_counter),
+            printer,
+            #[cfg(test)]
+            tick_counter: None,
         }
     }
 
@@ -134,7 +130,22 @@ impl SpinnerManager {
 
     /// Stop the active spinner if any
     pub fn stop(&mut self, message: Option<String>) -> Result<()> {
-        self.stop_inner(message, |s| println!("{s}"))
+        self.stopwatch.stop();
+
+        if let Some(spinner) = self.spinner.take() {
+            spinner.finish_and_clear();
+            if let Some(msg) = message {
+                self.println(&msg);
+            }
+        } else if let Some(message) = message {
+            self.println(&message);
+        }
+
+        if let Some(handle) = self.tracker.lock().unwrap().take() {
+            handle.abort();
+        }
+        self.message = None;
+        Ok(())
     }
 
     /// Resets the stopwatch to zero.
@@ -144,80 +155,139 @@ impl SpinnerManager {
         self.word_index = None;
     }
 
-    fn stop_inner<F>(&mut self, message: Option<String>, writer: F) -> Result<()>
-    where
-        F: FnOnce(&str),
-    {
-        self.stopwatch.stop();
-
-        if let Some(spinner) = self.spinner.take() {
-            spinner.finish_and_clear();
-            if let Some(msg) = message {
-                writer(&msg);
-            }
-        } else if let Some(message) = message {
-            writer(&message);
-        }
-
-        if let Some(handle) = self.tracker.lock().unwrap().take() {
-            handle.abort();
-        }
-        self.message = None;
-
-        let _ = io::stdout().flush();
-        let _ = io::stderr().flush();
-        Ok(())
-    }
-
-    fn write_with_restart<F>(&mut self, message: impl ToString, writer: F) -> Result<()>
-    where
-        F: FnOnce(&str),
-    {
-        let msg = message.to_string();
-
-        if let Some(spinner) = &self.spinner {
-            spinner.suspend(|| writer(&msg));
-        } else {
-            writer(&msg);
-        }
-        Ok(())
-    }
-
+    /// Writes a line to stdout, suspending the spinner if active.
     pub fn write_ln(&mut self, message: impl ToString) -> Result<()> {
-        self.write_with_restart(message, |msg| println!("{msg}"))
+        let msg = message.to_string();
+        if let Some(spinner) = &self.spinner {
+            let printer = self.printer.clone();
+            spinner.suspend(|| {
+                let line = format!("{msg}\n");
+                let _ = printer.write(line.as_bytes());
+                let _ = printer.flush();
+            });
+        } else {
+            self.println(&msg);
+        }
+        Ok(())
     }
 
+    /// Writes to stdout without newline, suspending the spinner if active.
     pub fn write(&mut self, message: impl ToString) -> Result<()> {
-        self.write_with_restart(message, |msg| print!("{msg}"))
+        let msg = message.to_string();
+        if let Some(spinner) = &self.spinner {
+            let printer = self.printer.clone();
+            spinner.suspend(|| {
+                let _ = printer.write(msg.as_bytes());
+                let _ = printer.flush();
+            });
+        } else {
+            self.print(&msg);
+        }
+        Ok(())
     }
 
+    /// Writes a line to stderr, suspending the spinner if active.
     pub fn ewrite_ln(&mut self, message: impl ToString) -> Result<()> {
-        self.write_with_restart(message, |msg| eprintln!("{msg}"))
+        let msg = message.to_string();
+        if let Some(spinner) = &self.spinner {
+            let printer = self.printer.clone();
+            spinner.suspend(|| {
+                let line = format!("{msg}\n");
+                let _ = printer.write_err(line.as_bytes());
+                let _ = printer.flush_err();
+            });
+        } else {
+            self.eprintln(&msg);
+        }
+        Ok(())
+    }
+
+    /// Prints a line to stdout through the printer.
+    fn println(&self, msg: &str) {
+        let line = format!("{msg}\n");
+        let _ = self.printer.write(line.as_bytes());
+        let _ = self.printer.flush();
+    }
+
+    /// Prints to stdout through the printer (no newline).
+    fn print(&self, msg: &str) {
+        let _ = self.printer.write(msg.as_bytes());
+        let _ = self.printer.flush();
+    }
+
+    /// Prints a line to stderr through the printer.
+    fn eprintln(&self, msg: &str) {
+        let line = format!("{msg}\n");
+        let _ = self.printer.write_err(line.as_bytes());
+        let _ = self.printer.flush_err();
     }
 }
 
-impl Drop for SpinnerManager {
+impl<P: OutputPrinter> Drop for SpinnerManager<P> {
     fn drop(&mut self) {
         // Flush both stdout and stderr to ensure all output is visible
         // This prevents race conditions with shell prompt resets
-        let _ = io::stdout().flush();
-        let _ = io::stderr().flush();
+        let _ = self.printer.flush();
+        let _ = self.printer.flush_err();
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::io::Write;
     use std::sync::Arc;
     use std::sync::atomic::{AtomicU64, Ordering};
 
+    use forge_domain::OutputPrinter;
     use pretty_assertions::assert_eq;
 
     use super::SpinnerManager;
 
+    /// A simple printer that writes directly to stdout/stderr.
+    /// Used for testing when synchronized output is not needed.
+    #[derive(Clone, Copy)]
+    struct DirectPrinter;
+
+    impl OutputPrinter for DirectPrinter {
+        fn write(&self, buf: &[u8]) -> std::io::Result<usize> {
+            std::io::stdout().write(buf)
+        }
+
+        fn write_err(&self, buf: &[u8]) -> std::io::Result<usize> {
+            std::io::stderr().write(buf)
+        }
+
+        fn flush(&self) -> std::io::Result<()> {
+            std::io::stdout().flush()
+        }
+
+        fn flush_err(&self) -> std::io::Result<()> {
+            std::io::stderr().flush()
+        }
+    }
+
+    fn fixture_spinner() -> SpinnerManager<DirectPrinter> {
+        SpinnerManager::new(Arc::new(DirectPrinter))
+    }
+
+    fn fixture_spinner_with_counter(
+        counter: Arc<AtomicU64>,
+    ) -> SpinnerManager<DirectPrinter> {
+        SpinnerManager {
+            spinner: None,
+            stopwatch: Default::default(),
+            message: None,
+            tracker: Arc::new(std::sync::Mutex::new(None)),
+            word_index: None,
+            printer: Arc::new(DirectPrinter),
+            tick_counter: Some(counter),
+        }
+    }
+
     #[tokio::test(start_paused = true)]
     async fn test_spinner_tracker_task_is_stopped_on_stop() {
         let fixture_counter = Arc::new(AtomicU64::new(0));
-        let mut fixture_spinner = SpinnerManager::test_with_tick_counter(fixture_counter.clone());
+        let mut fixture_spinner = fixture_spinner_with_counter(fixture_counter.clone());
 
         fixture_spinner.start(Some("Test")).unwrap();
         tokio::time::advance(std::time::Duration::from_millis(100)).await;
@@ -237,7 +307,7 @@ mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn test_spinner_time_accumulates_and_resets() {
-        let mut fixture_spinner = SpinnerManager::new();
+        let mut fixture_spinner = fixture_spinner();
 
         // First session
         fixture_spinner.start(Some("Test")).unwrap();
@@ -262,7 +332,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_word_index_caching_behavior() {
-        let mut fixture_spinner = SpinnerManager::new();
+        let mut fixture_spinner = fixture_spinner();
 
         // Start spinner without message multiple times
         fixture_spinner.start(None).unwrap();

@@ -1989,6 +1989,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "colored",
+ "forge_domain",
  "indicatif",
  "pretty_assertions",
  "rand 0.9.2",

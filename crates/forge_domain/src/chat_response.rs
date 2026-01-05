@@ -1,43 +1,9 @@
 use std::collections::HashMap;
-use std::sync::Arc;
 use std::time::Duration;
 
 use chrono::Local;
-use tokio::sync::Notify;
 
 use crate::{ToolCallFull, ToolName, ToolResult};
-
-/// Acknowledgment handle for synchronization between sender and receiver.
-///
-/// When the receiver finishes processing an event that requires acknowledgment,
-/// it should call `ack()` to notify the sender.
-#[derive(Clone, Debug, Default)]
-pub struct Ack(Option<Arc<Notify>>);
-
-impl Ack {
-    /// Creates a new acknowledgment handle.
-    pub fn new() -> (Self, AckWaiter) {
-        let notify = Arc::new(Notify::new());
-        (Self(Some(notify.clone())), AckWaiter(notify))
-    }
-
-    /// Acknowledges that processing is complete.
-    pub fn ack(&self) {
-        if let Some(notify) = &self.0 {
-            notify.notify_one();
-        }
-    }
-}
-
-/// Waiter for acknowledgment from the receiver.
-pub struct AckWaiter(Arc<Notify>);
-
-impl AckWaiter {
-    /// Waits for acknowledgment from the receiver.
-    pub async fn wait(self) {
-        self.0.notified().await;
-    }
-}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ChatResponseContent {
@@ -84,10 +50,7 @@ pub enum ChatResponse {
     TaskReasoning { content: String },
     TaskComplete,
     /// Signals the start of a tool call.
-    ///
-    /// The receiver should call `ack.ack()` after flushing any pending output
-    /// to synchronize with the sender before tool execution begins.
-    ToolCallStart { tool_call: ToolCallFull, ack: Ack },
+    ToolCallStart { tool_call: ToolCallFull },
     ToolCallEnd(ToolResult),
     RetryAttempt { cause: Cause, duration: Duration },
     Interrupt { reason: InterruptionReason },

@@ -76,15 +76,8 @@ impl<S: AgentService> Orchestrator<S> {
             // Send the start notification for system tools and not agent as a tool
             let is_system_tool = system_tools.contains(&tool_call.name);
             if is_system_tool {
-                // Create acknowledgment channel and wait for UI to flush before executing
-                let (ack, waiter) = Ack::new();
-                self.send(ChatResponse::ToolCallStart {
-                    tool_call: tool_call.clone(),
-                    ack,
-                })
-                .await?;
-                // Wait for UI to acknowledge (flush completed) before executing tool
-                waiter.wait().await;
+                self.send(ChatResponse::ToolCallStart { tool_call: tool_call.clone() })
+                    .await?;
             }
 
             // Execute the tool

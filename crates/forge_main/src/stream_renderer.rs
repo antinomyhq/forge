@@ -5,13 +5,14 @@ use anyhow::Result;
 use colored::Colorize;
 use crossterm::ExecutableCommand;
 use crossterm::cursor;
+use forge_domain::OutputPrinter;
 use forge_spinner::SpinnerManager;
 use streamdown::StreamdownRenderer;
 use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinHandle;
 
 /// Shared spinner handle for coordination between UI and writer.
-pub type SharedSpinner = Arc<Mutex<SpinnerManager>>;
+pub type SharedSpinner<P> = Arc<Mutex<SpinnerManager<P>>>;
 
 /// Content styling for output.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -37,30 +38,23 @@ impl Style {
 /// - Stops spinner when content is being written
 /// - Restarts spinner when the write queue becomes empty
 ///
-/// Generic over the output writer type `W`.
-pub struct StreamWriter<W> {
+/// Generic over the output printer type `P`.
+pub struct StreamWriter<P> {
     active: Option<ActiveRenderer>,
     tx: mpsc::UnboundedSender<Command>,
     width: usize,
     handler: JoinHandle<()>,
-    _marker: std::marker::PhantomData<W>,
+    _marker: std::marker::PhantomData<P>,
 }
 
-impl StreamWriter<io::Stdout> {
-    /// Creates a new stream writer that writes to stdout.
-    pub fn stdout(spinner: SharedSpinner) -> Self {
-        Self::new(spinner, io::stdout())
-    }
-}
-
-impl<W: io::Write + Send + 'static> StreamWriter<W> {
-    /// Creates a new stream writer with the given shared spinner, character delay, and writer.
-    pub fn new(spinner: SharedSpinner, writer: W) -> Self {
+impl<P: OutputPrinter + 'static> StreamWriter<P> {
+    /// Creates a new stream writer with the given shared spinner and output printer.
+    pub fn new(spinner: SharedSpinner<P>, printer: Arc<P>) -> Self {
         let width = terminal_size::terminal_size()
             .map(|(w, _)| w.0 as usize)
             .unwrap_or(80);
         let (tx, rx) = mpsc::unbounded_channel();
-        let handler = tokio::spawn(writer_task(rx, spinner, writer));
+        let handler = tokio::spawn(writer_task(rx, spinner, printer));
         Self {
             active: None,
             tx,
@@ -120,7 +114,7 @@ impl<W: io::Write + Send + 'static> StreamWriter<W> {
     }
 }
 
-impl<W> Drop for StreamWriter<W> {
+impl<P> Drop for StreamWriter<P> {
     fn drop(&mut self) {
         self.handler.abort();
     }
@@ -166,14 +160,14 @@ impl io::Write for ChannelWriter {
 ///
 /// The spinner is stopped when the guard is created and restarted when dropped,
 /// based on the restart condition provided at construction.
-struct SuspendedSpinner {
-    spinner: SharedSpinner,
+struct SuspendedSpinner<P: OutputPrinter> {
+    spinner: SharedSpinner<P>,
     should_restart: bool,
 }
 
-impl SuspendedSpinner {
+impl<P: OutputPrinter> SuspendedSpinner<P> {
     /// Creates a new guard that suspends the spinner.
-    fn new(spinner: SharedSpinner, should_restart: bool) -> Self {
+    fn new(spinner: SharedSpinner<P>, should_restart: bool) -> Self {
         if let Ok(mut sp) = spinner.lock() {
             let _ = sp.stop(None);
         }
@@ -181,7 +175,7 @@ impl SuspendedSpinner {
     }
 }
 
-impl Drop for SuspendedSpinner {
+impl<P: OutputPrinter> Drop for SuspendedSpinner<P> {
     fn drop(&mut self) {
         if self.should_restart {
             if let Ok(mut sp) = self.spinner.lock() {
@@ -191,42 +185,57 @@ impl Drop for SuspendedSpinner {
     }
 }
 
-/// Wrapper that ensures cursor is shown on drop.
-struct CursorGuard<W: io::Write> {
-    writer: W,
+/// Wrapper that ensures cursor is shown on drop and uses OutputPrinter.
+struct PrinterGuard<P: OutputPrinter> {
+    printer: Arc<P>,
+    cursor_hidden: bool,
 }
 
-impl<W: io::Write> CursorGuard<W> {
-    fn new(writer: W) -> Self {
-        Self { writer }
+impl<P: OutputPrinter> PrinterGuard<P> {
+    fn new(printer: Arc<P>) -> Self {
+        Self { printer, cursor_hidden: false }
     }
 
     /// Hides the cursor.
     fn hide_cursor(&mut self) {
-        let _ = self.writer.execute(cursor::Hide);
-        let _ = self.writer.flush();
+        let mut buf = Vec::new();
+        let _ = buf.execute(cursor::Hide);
+        let _ = self.printer.write(&buf);
+        let _ = self.printer.flush();
+        self.cursor_hidden = true;
     }
 
     /// Shows the cursor.
     fn show_cursor(&mut self) {
-        let _ = self.writer.execute(cursor::Show);
-        let _ = self.writer.flush();
+        let mut buf = Vec::new();
+        let _ = buf.execute(cursor::Show);
+        let _ = self.printer.write(&buf);
+        let _ = self.printer.flush();
+        self.cursor_hidden = false;
+    }
+
+    /// Writes content to primary output.
+    fn write(&self, content: &str) {
+        let _ = self.printer.write(content.as_bytes());
+        let _ = self.printer.flush();
     }
 }
 
-impl<W: io::Write> Drop for CursorGuard<W> {
+impl<P: OutputPrinter> Drop for PrinterGuard<P> {
     fn drop(&mut self) {
-        self.show_cursor();
+        if self.cursor_hidden {
+            self.show_cursor();
+        }
     }
 }
 
 /// Async writer task that handles terminal output and spinner coordination.
-async fn writer_task<W: io::Write>(
+async fn writer_task<P: OutputPrinter>(
     mut rx: mpsc::UnboundedReceiver<Command>,
-    spinner: SharedSpinner,
-    writer: W,
+    spinner: SharedSpinner<P>,
+    printer: Arc<P>,
 ) {
-    let mut guard = CursorGuard::new(writer);
+    let mut guard = PrinterGuard::new(printer);
 
     while let Some(cmd) = rx.recv().await {
         match cmd {
@@ -235,15 +244,14 @@ async fn writer_task<W: io::Write>(
                 let _guard = SuspendedSpinner::new(spinner.clone(), rx.is_empty());
                 guard.hide_cursor();
                 let output = style.apply(content);
-                let _ = guard.writer.write_all(output.as_bytes());
-                let _ = guard.writer.flush();
+                guard.write(&output);
                 guard.show_cursor();
             }
             Command::Flush(done) => {
                 // Suspend spinner while flushing, don't restart after
                 let _guard = SuspendedSpinner::new(spinner.clone(), false);
                 guard.hide_cursor();
-                drain_writes(&mut rx, &mut guard.writer);
+                drain_writes(&mut rx, &mut guard);
                 guard.show_cursor();
                 let _ = done.send(());
             }
@@ -252,12 +260,14 @@ async fn writer_task<W: io::Write>(
 }
 
 /// Drains all pending write commands from the channel.
-fn drain_writes<W: io::Write>(rx: &mut mpsc::UnboundedReceiver<Command>, writer: &mut W) {
+fn drain_writes<P: OutputPrinter>(
+    rx: &mut mpsc::UnboundedReceiver<Command>,
+    guard: &mut PrinterGuard<P>,
+) {
     while let Ok(cmd) = rx.try_recv() {
         if let Command::Write { content, style } = cmd {
             let output = style.apply(content);
-            let _ = writer.write_all(output.as_bytes());
-            let _ = writer.flush();
+            guard.write(&output);
         }
     }
 }

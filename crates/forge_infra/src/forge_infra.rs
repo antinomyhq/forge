@@ -7,7 +7,7 @@ use bytes::Bytes;
 use forge_app::{
     CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra,
     FileReaderInfra, FileRemoverInfra, FileWriterInfra, GrpcInfra, HttpInfra, McpServerInfra,
-    StrategyFactory, UserInfra, WalkerInfra,
+    OutputPrinterInfra, StrategyFactory, UserInfra, WalkerInfra,
 };
 use forge_domain::{
     AuthMethod, CommandOutput, Environment, FileInfo as FileInfoData, McpServerConfig, ProviderId,
@@ -31,6 +31,7 @@ use crate::http::ForgeHttpInfra;
 use crate::inquire::ForgeInquire;
 use crate::mcp_client::ForgeMcpClient;
 use crate::mcp_server::ForgeMcpServer;
+use crate::output_printer::OutputPrinter;
 use crate::walker::ForgeWalkerService;
 
 #[derive(Clone)]
@@ -51,6 +52,7 @@ pub struct ForgeInfra {
     http_service: Arc<ForgeHttpInfra<ForgeFileWriteService>>,
     strategy_factory: Arc<ForgeAuthStrategyFactory>,
     grpc_client: Arc<ForgeGrpcClient>,
+    output_printer: Arc<OutputPrinter>,
 }
 
 impl ForgeInfra {
@@ -64,6 +66,7 @@ impl ForgeInfra {
         let file_meta_service = Arc::new(ForgeFileMetaService);
         let directory_reader_service = Arc::new(ForgeDirectoryReaderService);
         let grpc_client = Arc::new(ForgeGrpcClient::new(env.workspace_server_url.clone()));
+        let output_printer = Arc::new(OutputPrinter::default());
 
         Self {
             file_read_service,
@@ -76,6 +79,7 @@ impl ForgeInfra {
             command_executor_service: Arc::new(ForgeCommandExecutorService::new(
                 restricted,
                 env.clone(),
+                output_printer.clone(),
             )),
             inquire_service: Arc::new(ForgeInquire::new()),
             mcp_server: ForgeMcpServer,
@@ -83,6 +87,7 @@ impl ForgeInfra {
             strategy_factory: Arc::new(ForgeAuthStrategyFactory::new()),
             http_service,
             grpc_client,
+            output_printer,
         }
     }
 }
@@ -305,5 +310,23 @@ impl GrpcInfra for ForgeInfra {
 
     fn hydrate(&self) {
         self.grpc_client.hydrate();
+    }
+}
+
+impl OutputPrinterInfra for ForgeInfra {
+    fn write_stdout(&self, buf: &[u8]) -> std::io::Result<usize> {
+        self.output_printer.write_stdout(buf)
+    }
+
+    fn write_stderr(&self, buf: &[u8]) -> std::io::Result<usize> {
+        self.output_printer.write_stderr(buf)
+    }
+
+    fn flush_stdout(&self) -> std::io::Result<()> {
+        self.output_printer.flush_stdout()
+    }
+
+    fn flush_stderr(&self) -> std::io::Result<()> {
+        self.output_printer.flush_stderr()
     }
 }

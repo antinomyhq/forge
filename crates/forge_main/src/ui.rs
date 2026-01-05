@@ -13,6 +13,7 @@ use forge_api::{
     ChatResponse, CodeRequest, Conversation, ConversationId, DeviceCodeRequest, Event,
     InterruptionReason, Model, ModelId, Provider, ProviderId, TextMessage, UserPrompt, Workflow,
 };
+use forge_domain::OutputPrinter;
 use forge_app::utils::{format_display_path, truncate_key};
 use forge_app::{CommitResult, ToolResolver};
 use forge_display::MarkdownFormat;
@@ -91,7 +92,7 @@ fn format_mcp_headers(server: &forge_domain::McpServerConfig) -> Option<String> 
     }
 }
 
-pub struct UI<A, F: Fn() -> A> {
+pub struct UI<A: OutputPrinter, F: Fn() -> A> {
     markdown: MarkdownFormat,
     state: UIState,
     api: Arc<F::Output>,
@@ -99,12 +100,12 @@ pub struct UI<A, F: Fn() -> A> {
     console: Console,
     command: Arc<ForgeCommandManager>,
     cli: Cli,
-    spinner: SharedSpinner,
+    spinner: SharedSpinner<A>,
     #[allow(dead_code)] // The guard is kept alive by being held in the struct
     _guard: forge_tracker::Guard,
 }
 
-impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
+impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     /// Writes a line to the console output
     /// Takes anything that implements ToString trait
     fn writeln<T: ToString>(&mut self, content: T) -> anyhow::Result<()> {
@@ -215,6 +216,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let api = Arc::new(f());
         let env = api.environment();
         let command = Arc::new(ForgeCommandManager::default());
+        let spinner = Arc::new(Mutex::new(SpinnerManager::new(api.clone())));
         Ok(Self {
             state: Default::default(),
             api,
@@ -222,7 +224,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             console: Console::new(env.clone(), command.clone()),
             cli,
             command,
-            spinner:  Arc::new(Mutex::new(SpinnerManager::default())),
+            spinner,
             markdown: MarkdownFormat::new(),
             _guard: forge_tracker::init_tracing(env.log_path(), TRACKER.clone())?,
         })
@@ -2548,8 +2550,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     async fn on_chat(&mut self, chat: ChatRequest) -> Result<()> {
         let mut stream = self.api.chat(chat).await?;
 
-        // Create streaming writer with shared spinner
-        let mut writer = StreamWriter::stdout(self.spinner.clone());
+        // Create streaming writer with shared spinner and output printer
+        let mut writer = StreamWriter::new(self.spinner.clone(), self.api.clone());
         while let Some(message) = stream.next().await {
             match message {
                 Ok(message) => self.handle_chat_response(message, &mut writer).await?,
@@ -2620,7 +2622,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     async fn handle_chat_response(
         &mut self,
         message: ChatResponse,
-        writer: &mut StreamWriter<std::io::Stdout>,
+        writer: &mut StreamWriter<A>,
     ) -> Result<()> {
         debug!(chat_response = ?message, "Chat Response");
         if message.is_empty() {
@@ -2642,11 +2644,9 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     writer.write(&text)?;
                 }
             },
-            ChatResponse::ToolCallStart { tool_call: _, ack } => {
+            ChatResponse::ToolCallStart { tool_call: _ } => {
                 writer.flush().await?;
                 self.spinner.lock().unwrap().stop(None)?;
-                // Signal orchestrator that flush is complete, safe to execute tool
-                ack.ack();
             }
             ChatResponse::ToolCallEnd(toolcall_result) => {
                 // Only track toolcall name in case of success else track the error.

@@ -6,7 +6,8 @@ use bytes::Bytes;
 use forge_app::{
     AgentRepository, CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra,
     FileInfoInfra, FileReaderInfra, FileRemoverInfra, FileWriterInfra, GrpcInfra, HttpInfra,
-    KVStore, McpServerInfra, StrategyFactory, UserInfra, WalkedFile, Walker, WalkerInfra,
+    KVStore, McpServerInfra, OutputPrinterInfra, StrategyFactory, UserInfra, WalkedFile, Walker,
+    WalkerInfra,
 };
 use forge_domain::{
     AnyProvider, AppConfig, AppConfigRepository, AuthCredential, ChatCompletionMessage,
@@ -614,5 +615,24 @@ impl<F: GrpcInfra> GrpcInfra for ForgeRepo<F> {
 
     fn hydrate(&self) {
         self.infra.hydrate();
+    }
+}
+
+
+impl<F: OutputPrinterInfra> OutputPrinterInfra for ForgeRepo<F> {
+    fn write_stdout(&self, buf: &[u8]) -> std::io::Result<usize> {
+        self.infra.write_stdout(buf)
+    }
+
+    fn write_stderr(&self, buf: &[u8]) -> std::io::Result<usize> {
+        self.infra.write_stderr(buf)
+    }
+
+    fn flush_stdout(&self) -> std::io::Result<()> {
+        self.infra.flush_stdout()
+    }
+
+    fn flush_stderr(&self) -> std::io::Result<()> {
+        self.infra.flush_stderr()
     }
 }

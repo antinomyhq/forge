@@ -1,4 +1,5 @@
 pub mod executor;
+mod output_printer;
 
 mod auth;
 mod env;
@@ -21,3 +22,4 @@ mod walker;
 pub use executor::ForgeCommandExecutorService;
 pub use forge_infra::*;
 pub use kv_storage::CacacheStorage;
+pub use output_printer::OutputPrinter;

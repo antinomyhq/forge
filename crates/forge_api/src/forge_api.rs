@@ -8,10 +8,10 @@ use forge_app::{
     AgentProviderResolver, AgentRegistry, AppConfigService, AuthService, CommandInfra,
     CommandLoaderService, ConversationService, DataGenerationApp, EnvironmentInfra,
     EnvironmentService, FileDiscoveryService, ForgeApp, GitApp, GrpcInfra, McpConfigManager,
-    McpService, ProviderAuthService, ProviderService, Services, User, UserUsage, Walker,
-    WorkspaceService,
+    McpService, OutputPrinterInfra, ProviderAuthService, ProviderService, Services, User,
+    UserUsage, Walker, WorkspaceService,
 };
-use forge_domain::{Agent, InitAuth, LoginInfo, *};
+use forge_domain::{Agent, InitAuth, LoginInfo, OutputPrinter, *};
 use forge_infra::ForgeInfra;
 use forge_repo::ForgeRepo;
 use forge_services::ForgeServices;
@@ -390,5 +390,23 @@ impl<
     fn hydrate_channel(&self) -> Result<()> {
         self.infra.hydrate();
         Ok(())
+    }
+}
+
+impl<A: Send + Sync, F: OutputPrinterInfra> OutputPrinter for ForgeAPI<A, F> {
+    fn write(&self, buf: &[u8]) -> std::io::Result<usize> {
+        self.infra.write_stdout(buf)
+    }
+
+    fn write_err(&self, buf: &[u8]) -> std::io::Result<usize> {
+        self.infra.write_stderr(buf)
+    }
+
+    fn flush(&self) -> std::io::Result<()> {
+        self.infra.flush_stdout()
+    }
+
+    fn flush_err(&self) -> std::io::Result<()> {
+        self.infra.flush_stderr()
     }
 }

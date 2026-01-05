@@ -364,3 +364,23 @@ pub trait GrpcInfra: Send + Sync {
     /// connection
     fn hydrate(&self);
 }
+
+
+/// Infrastructure trait for synchronized output writing.
+///
+/// Provides thread-safe access to stdout/stderr to prevent output interleaving
+/// when multiple components (e.g., streaming markdown and shell commands) write
+/// concurrently.
+pub trait OutputPrinterInfra: Send + Sync {
+    /// Writes bytes to stdout.
+    fn write_stdout(&self, buf: &[u8]) -> std::io::Result<usize>;
+
+    /// Writes bytes to stderr.
+    fn write_stderr(&self, buf: &[u8]) -> std::io::Result<usize>;
+
+    /// Flushes stdout.
+    fn flush_stdout(&self) -> std::io::Result<()>;
+
+    /// Flushes stderr.
+    fn flush_stderr(&self) -> std::io::Result<()>;
+}
