@@ -3,8 +3,8 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
 use colored::Colorize;
-use crossterm::cursor;
 use crossterm::ExecutableCommand;
+use crossterm::cursor;
 use forge_spinner::SpinnerManager;
 use streamdown::StreamdownRenderer;
 use tokio::sync::{mpsc, oneshot};
@@ -36,24 +36,38 @@ impl Style {
 /// Coordinates between markdown rendering and spinner visibility:
 /// - Stops spinner when content is being written
 /// - Restarts spinner when the write queue becomes empty
-pub struct StreamWriter {
+///
+/// Generic over the output writer type `W`.
+pub struct StreamWriter<W> {
     active: Option<ActiveRenderer>,
     tx: mpsc::UnboundedSender<Command>,
     width: usize,
     handler: JoinHandle<()>,
+    _marker: std::marker::PhantomData<W>,
 }
 
-impl StreamWriter {
-    /// Creates a new stream writer with the given shared spinner and character delay.
-    pub fn new(spinner: SharedSpinner, char_delay_ms: u64) -> Self {
+impl StreamWriter<io::Stdout> {
+    /// Creates a new stream writer that writes to stdout.
+    pub fn stdout(spinner: SharedSpinner) -> Self {
+        Self::new(spinner, io::stdout())
+    }
+}
+
+impl<W: io::Write + Send + 'static> StreamWriter<W> {
+    /// Creates a new stream writer with the given shared spinner, character delay, and writer.
+    pub fn new(spinner: SharedSpinner, writer: W) -> Self {
         let width = terminal_size::terminal_size()
             .map(|(w, _)| w.0 as usize)
             .unwrap_or(80);
-
         let (tx, rx) = mpsc::unbounded_channel();
-        let handler = tokio::spawn(writer_task(rx, spinner, char_delay_ms, io::stdout()));
-
-        Self { active: None, tx, width, handler }
+        let handler = tokio::spawn(writer_task(rx, spinner, writer));
+        Self {
+            active: None,
+            tx,
+            width,
+            handler,
+            _marker: std::marker::PhantomData,
+        }
     }
 
     /// Writes markdown content with normal styling.
@@ -106,7 +120,7 @@ impl StreamWriter {
     }
 }
 
-impl Drop for StreamWriter {
+impl<W> Drop for StreamWriter<W> {
     fn drop(&mut self) {
         self.handler.abort();
     }
@@ -148,8 +162,6 @@ impl io::Write for ChannelWriter {
     }
 }
 
-
-
 /// RAII guard that suspends the spinner.
 ///
 /// The spinner is stopped when the guard is created and restarted when dropped,
@@ -161,11 +173,6 @@ struct SuspendedSpinner {
 
 impl SuspendedSpinner {
     /// Creates a new guard that suspends the spinner.
-    ///
-    /// # Arguments
-    ///
-    /// * `spinner` - Shared spinner to suspend
-    /// * `should_restart` - Whether the spinner should restart on drop
     fn new(spinner: SharedSpinner, should_restart: bool) -> Self {
         if let Ok(mut sp) = spinner.lock() {
             let _ = sp.stop(None);
@@ -184,44 +191,60 @@ impl Drop for SuspendedSpinner {
     }
 }
 
-/// Hides the cursor on the given writer.
-fn hide_cursor<W: io::Write>(writer: &mut W) {
-    let _ = writer.execute(cursor::Hide);
-    let _ = writer.flush();
+/// Wrapper that ensures cursor is shown on drop.
+struct CursorGuard<W: io::Write> {
+    writer: W,
 }
 
-/// Shows the cursor on the given writer.
-fn show_cursor<W: io::Write>(writer: &mut W) {
-    let _ = writer.execute(cursor::Show);
-    let _ = writer.flush();
+impl<W: io::Write> CursorGuard<W> {
+    fn new(writer: W) -> Self {
+        Self { writer }
+    }
+
+    /// Hides the cursor.
+    fn hide_cursor(&mut self) {
+        let _ = self.writer.execute(cursor::Hide);
+        let _ = self.writer.flush();
+    }
+
+    /// Shows the cursor.
+    fn show_cursor(&mut self) {
+        let _ = self.writer.execute(cursor::Show);
+        let _ = self.writer.flush();
+    }
+}
+
+impl<W: io::Write> Drop for CursorGuard<W> {
+    fn drop(&mut self) {
+        self.show_cursor();
+    }
 }
 
 /// Async writer task that handles terminal output and spinner coordination.
 async fn writer_task<W: io::Write>(
     mut rx: mpsc::UnboundedReceiver<Command>,
     spinner: SharedSpinner,
-    _char_delay_ms: u64,
-    mut writer: W,
+    writer: W,
 ) {
-    // let delay = std::time::Duration::from_millis(char_delay_ms);
+    let mut guard = CursorGuard::new(writer);
 
     while let Some(cmd) = rx.recv().await {
         match cmd {
             Command::Write { content, style } => {
                 // Suspend spinner while writing, restart when queue is empty
                 let _guard = SuspendedSpinner::new(spinner.clone(), rx.is_empty());
-                hide_cursor(&mut writer);
+                guard.hide_cursor();
                 let output = style.apply(content);
-                let _ = writer.write_all(output.as_bytes());
-                let _ = writer.flush();
-                show_cursor(&mut writer);
+                let _ = guard.writer.write_all(output.as_bytes());
+                let _ = guard.writer.flush();
+                guard.show_cursor();
             }
             Command::Flush(done) => {
                 // Suspend spinner while flushing, don't restart after
                 let _guard = SuspendedSpinner::new(spinner.clone(), false);
-                hide_cursor(&mut writer);
-                drain_writes(&mut rx, &mut writer);
-                show_cursor(&mut writer);
+                guard.hide_cursor();
+                drain_writes(&mut rx, &mut guard.writer);
+                guard.show_cursor();
                 let _ = done.send(());
             }
         }

@@ -2549,7 +2549,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let mut stream = self.api.chat(chat).await?;
 
         // Create streaming writer with shared spinner
-        let mut writer = StreamWriter::new(Arc::clone(&self.spinner), 1);
+        let mut writer = StreamWriter::stdout(self.spinner.clone());
         while let Some(message) = stream.next().await {
             match message {
                 Ok(message) => self.handle_chat_response(message, &mut writer).await?,
@@ -2620,7 +2620,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     async fn handle_chat_response(
         &mut self,
         message: ChatResponse,
-        writer: &mut StreamWriter,
+        writer: &mut StreamWriter<std::io::Stdout>,
     ) -> Result<()> {
         debug!(chat_response = ?message, "Chat Response");
         if message.is_empty() {
