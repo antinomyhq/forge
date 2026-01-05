@@ -4,7 +4,8 @@ use std::time::Duration;
 use anyhow::Context;
 use console::style;
 use forge_domain::{
-    Agent, AgentId, AgentInput, ChatResponse, ChatResponseContent, Environment, SystemContext, ToolCallContext, ToolCallFull, ToolCatalog, ToolDefinition, ToolName, ToolOutput, ToolResult
+    Agent, AgentId, AgentInput, ChatResponse, ChatResponseContent, Environment, SystemContext,
+    ToolCallContext, ToolCallFull, ToolCatalog, ToolDefinition, ToolName, ToolOutput, ToolResult,
 };
 use forge_template::Element;
 use futures::future::join_all;
@@ -191,10 +192,12 @@ impl<S: Services> ToolRegistry<S> {
         let cwd = environment.cwd.clone();
         let is_indexed = self.services.is_indexed(&cwd).await.unwrap_or(false);
         let is_authenticated = self.services.is_authenticated().await.unwrap_or(false);
-        
 
         Ok(ToolsOverview::new()
-            .system(Self::get_system_tools(is_indexed && is_authenticated, &environment))
+            .system(Self::get_system_tools(
+                is_indexed && is_authenticated,
+                &environment,
+            ))
             .agents(agent_tools)
             .mcp(mcp_tools))
     }
@@ -207,11 +210,7 @@ impl<S> ToolRegistry<S> {
         let handlebars = TemplateEngine::handlebar_instance();
 
         // Create template data with environment nested under "env"
-        let ctx = SystemContext {
-            env: Some(env.clone()),
-            ..Default::default()
-        };
-
+        let ctx = SystemContext { env: Some(env.clone()), ..Default::default() };
 
         ToolCatalog::iter()
             .filter(|tool| {
@@ -226,7 +225,7 @@ impl<S> ToolRegistry<S> {
                 let mut def = tool.definition();
                 // Render template variables in description
                 if let Ok(rendered) = handlebars.render_template(&def.description, &ctx) {
-                    def.description = rendered;                    
+                    def.description = rendered;
                 }
                 def
             })
@@ -499,22 +498,29 @@ mod tests {
     }
 }
 
-    
-    #[test]
-    fn test_template_rendering_in_tool_descriptions() {
-        use fake::{Fake, Faker};
-        
-        let mut env: Environment = Faker.fake();
-        env.max_search_lines = 1000;
-        
-        let actual = ToolRegistry::<()>::get_system_tools(true, &env);
-        let fs_search_tool = actual.iter().find(|t| t.name.as_str() == "fs_search").unwrap();
-        
-        // The description should have the template variable rendered
-        assert!(fs_search_tool.description.contains("1000"), 
-            "Description should contain the rendered max_search_lines value: {}", 
-            fs_search_tool.description);
-        assert!(!fs_search_tool.description.contains("{{env.maxSearchLines}}"), 
-            "Description should not contain unrendered template variable");
-    }
+#[test]
+fn test_template_rendering_in_tool_descriptions() {
+    use fake::{Fake, Faker};
 
+    let mut env: Environment = Faker.fake();
+    env.max_search_lines = 1000;
+
+    let actual = ToolRegistry::<()>::get_system_tools(true, &env);
+    let fs_search_tool = actual
+        .iter()
+        .find(|t| t.name.as_str() == "fs_search")
+        .unwrap();
+
+    // The description should have the template variable rendered
+    assert!(
+        fs_search_tool.description.contains("1000"),
+        "Description should contain the rendered max_search_lines value: {}",
+        fs_search_tool.description
+    );
+    assert!(
+        !fs_search_tool
+            .description
+            .contains("{{env.maxSearchLines}}"),
+        "Description should not contain unrendered template variable"
+    );
+}
