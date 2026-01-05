@@ -3,8 +3,6 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
 use colored::Colorize;
-use crossterm::ExecutableCommand;
-use crossterm::cursor;
 use forge_domain::OutputPrinter;
 use forge_spinner::SpinnerManager;
 use streamdown::StreamdownRenderer;
@@ -155,98 +153,31 @@ impl io::Write for ChannelWriter {
     }
 }
 
-/// Manages terminal output state (cursor visibility, writing).
-struct TerminalOutput<P: OutputPrinter> {
-    printer: Arc<P>,
-    cursor_hidden: bool,
-}
-
-impl<P: OutputPrinter> TerminalOutput<P> {
-    fn new(printer: Arc<P>) -> Self {
-        Self { printer, cursor_hidden: false }
-    }
-
-    fn hide_cursor(&mut self) {
-        if !self.cursor_hidden {
-            let mut buf = Vec::new();
-            let _ = buf.execute(cursor::Hide);
-            let _ = self.printer.write(&buf);
-            let _ = self.printer.flush();
-            self.cursor_hidden = true;
-        }
-    }
-
-    fn show_cursor(&mut self) {
-        if self.cursor_hidden {
-            let mut buf = Vec::new();
-            let _ = buf.execute(cursor::Show);
-            let _ = self.printer.write(&buf);
-            let _ = self.printer.flush();
-            self.cursor_hidden = false;
-        }
-    }
-
-    fn write(&self, content: &str) {
-        let _ = self.printer.write(content.as_bytes());
-        let _ = self.printer.flush();
-    }
-
-    fn flush(&self) {
-        let _ = self.printer.flush();
-    }
-}
-
-impl<P: OutputPrinter> Drop for TerminalOutput<P> {
-    fn drop(&mut self) {
-        self.show_cursor();
-    }
-}
-
 /// Coordinates spinner state during streaming output.
 ///
 /// Ensures spinner is stopped while writing and restarted when idle.
 struct SpinnerCoordinator<P: OutputPrinter> {
     spinner: SharedSpinner<P>,
-    is_suspended: bool,
+    writer: Arc<P>,
 }
 
 impl<P: OutputPrinter> SpinnerCoordinator<P> {
-    fn new(spinner: SharedSpinner<P>) -> Self {
-        Self { spinner, is_suspended: false }
+    fn new(spinner: SharedSpinner<P>, writer: Arc<P>) -> Self {
+        Self { spinner, writer }
     }
 
-    /// Suspends the spinner if not already suspended.
-    /// Returns true if the spinner was actually suspended (state changed).
-    fn suspend(&mut self) -> bool {
-        if !self.is_suspended {
-            if let Ok(mut sp) = self.spinner.lock() {
-                let _ = sp.stop(None);
-            }
-            self.is_suspended = true;
-            true
-        } else {
-            false
+    fn pause(&mut self) {
+        if let Ok(mut sp) = self.spinner.lock() {
+            let _ = sp.stop(None);
+            let _ = self.writer.flush();
         }
     }
 
-    /// Resumes the spinner if currently suspended.
-    /// Returns true if the spinner was actually resumed (state changed).
-    fn resume(&mut self) -> bool {
-        if self.is_suspended {
-            if let Ok(mut sp) = self.spinner.lock() {
-                let _ = sp.start(None);
-            }
-            self.is_suspended = false;
-            true
-        } else {
-            false
+    fn resume(&mut self) {
+        if let Ok(mut sp) = self.spinner.lock() {
+            let _ = sp.start(None);
+            let _ = self.writer.flush();
         }
-    }
-
-    /// Marks spinner as not suspended without actually starting it.
-    /// Used after flush when caller controls the spinner.
-    fn reset(&mut self) {
-        self.is_suspended = false;
     }
 }
 
@@ -259,33 +190,21 @@ async fn writer_task<P: OutputPrinter>(
     spinner: SharedSpinner<P>,
     printer: Arc<P>,
 ) {
-    let mut output = TerminalOutput::new(printer);
-    let mut spinner = SpinnerCoordinator::new(spinner);
+    let mut spinner = SpinnerCoordinator::new(spinner, printer.clone());
 
     while let Some(cmd) = rx.recv().await {
         match cmd {
             Command::Write { content, style } => {
-                if spinner.suspend() {
-                    output.flush();
-                    output.hide_cursor();
-                }
-                output.write(&style.apply(content));
-
+                spinner.pause();
+                let _ = printer.write(style.apply(content).as_bytes());
+                let _ = printer.flush();
                 if rx.is_empty() {
-                    output.show_cursor();
-                    if spinner.resume() {
-                        output.flush();
-                    }
+                    spinner.resume();
                 }
             }
             Command::Flush(done) => {
-                if spinner.suspend() {
-                    output.flush();
-                    output.hide_cursor();
-                }
-                drain_writes(&mut rx, &mut output);
-                output.show_cursor();
-                spinner.reset();
+                spinner.pause();
+                drain_writes(&mut rx, printer.clone());
                 let _ = done.send(());
             }
         }
@@ -293,13 +212,11 @@ async fn writer_task<P: OutputPrinter>(
 }
 
 /// Drains all pending write commands from the channel.
-fn drain_writes<P: OutputPrinter>(
-    rx: &mut mpsc::UnboundedReceiver<Command>,
-    output: &mut TerminalOutput<P>,
-) {
+fn drain_writes<P: OutputPrinter>(rx: &mut mpsc::UnboundedReceiver<Command>, printer: Arc<P>) {
     while let Ok(cmd) = rx.try_recv() {
         if let Command::Write { content, style } = cmd {
-            output.write(&style.apply(content));
+            let _ = printer.write(style.apply(content).as_bytes());
+            let _ = printer.flush();
         }
     }
 }

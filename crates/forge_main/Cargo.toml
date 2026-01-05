@@ -14,7 +14,6 @@ thiserror = { workspace = true }
 clap.workspace = true
 clap_complete.workspace = true
 console.workspace = true
-crossterm.workspace = true
 forge_app.workspace = true
 forge_api.workspace = true
 forge_domain.workspace = true
