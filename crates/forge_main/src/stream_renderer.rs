@@ -149,7 +149,11 @@ impl io::Write for ChannelWriter {
 /// Executes an async function while the spinner is suspended.
 ///
 /// Stops the spinner before executing the async function, then conditionally restarts it based on the predicate.
-async fn with_suspended_spinner<F, Fut, P>(spinner: &SharedSpinner, f: F, should_restart: P) -> Fut::Output
+async fn with_suspended_spinner<F, Fut, P>(
+    spinner: &SharedSpinner,
+    f: F,
+    should_restart: P,
+) -> Fut::Output
 where
     F: FnOnce() -> Fut,
     Fut: std::future::Future,
@@ -170,15 +174,14 @@ where
     result
 }
 
-
 /// Async writer task that handles terminal output and spinner coordination.
 async fn writer_task<W: io::Write>(
     mut rx: mpsc::UnboundedReceiver<Command>,
     spinner: SharedSpinner,
-    char_delay_ms: u64,
+    _char_delay_ms: u64,
     mut writer: W,
 ) {
-    let delay = std::time::Duration::from_millis(char_delay_ms);
+    // let delay = std::time::Duration::from_millis(char_delay_ms);
 
     while let Some(cmd) = rx.recv().await {
         match cmd {
@@ -186,17 +189,9 @@ async fn writer_task<W: io::Write>(
                 with_suspended_spinner(
                     &spinner,
                     || async {
-                        // Write styled content char-by-char with typewriter effect
                         let output = style.apply(content);
-                        for ch in output.chars() {
-                            let mut buf = [0u8; 4];
-                            let s = ch.encode_utf8(&mut buf);
-                            let _ = writer.write_all(s.as_bytes());
-                            let _ = writer.flush();
-                            if !delay.is_zero() {
-                                tokio::time::sleep(delay).await;
-                            }
-                        }
+                        let _ = writer.write_all(output.as_bytes());
+                        let _ = writer.flush();
                     },
                     || rx.is_empty(), // Restart spinner when queue is empty
                 )
@@ -210,7 +205,7 @@ async fn writer_task<W: io::Write>(
                         drain_writes(&mut rx, &mut writer);
                         let _ = done.send(());
                     },
-                    || true, // Always restart spinner after flush
+                    || false,
                 )
                 .await;
             }
