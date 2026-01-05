@@ -3,6 +3,8 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
 use colored::Colorize;
+use crossterm::cursor;
+use crossterm::ExecutableCommand;
 use forge_spinner::SpinnerManager;
 use streamdown::StreamdownRenderer;
 use tokio::sync::{mpsc, oneshot};
@@ -145,33 +147,48 @@ impl io::Write for ChannelWriter {
         Ok(())
     }
 }
-
-/// Executes an async function while the spinner is suspended.
+/// RAII guard that suspends the spinner and manages cursor visibility.
 ///
-/// Stops the spinner before executing the async function, then conditionally restarts it based on the predicate.
-async fn with_suspended_spinner<F, Fut, P>(
-    spinner: &SharedSpinner,
-    f: F,
-    should_restart: P,
-) -> Fut::Output
-where
-    F: FnOnce() -> Fut,
-    Fut: std::future::Future,
-    P: FnOnce() -> bool,
-{
-    if let Ok(mut sp) = spinner.lock() {
-        let _ = sp.stop(None);
-    }
+/// Hides the cursor when created and shows it when dropped.
+/// The spinner is stopped when the guard is created and restarted when dropped,
+/// based on the restart condition provided at construction.
+struct SuspendedSpinner {
+    spinner: SharedSpinner,
+    should_restart: bool,
+}
 
-    let result = f().await;
-
-    if should_restart() {
+impl SuspendedSpinner {
+    /// Creates a new guard that suspends the spinner and hides the cursor.
+    ///
+    /// # Arguments
+    ///
+    /// * `spinner` - Shared spinner to suspend
+    /// * `should_restart` - Whether the spinner should restart on drop
+    fn new(spinner: SharedSpinner, should_restart: bool) -> Self {
+        // Stop the spinner
         if let Ok(mut sp) = spinner.lock() {
-            let _ = sp.start(None);
+            let _ = sp.stop(None);
+        }
+
+        // Hide cursor
+        let _ = io::stdout().execute(cursor::Hide);
+
+        Self { spinner, should_restart }
+    }
+}
+
+impl Drop for SuspendedSpinner {
+    fn drop(&mut self) {
+        // Show cursor
+        let _ = io::stdout().execute(cursor::Show);
+
+        // Restart spinner if requested
+        if self.should_restart {
+            if let Ok(mut sp) = self.spinner.lock() {
+                let _ = sp.start(None);
+            }
         }
     }
-
-    result
 }
 
 /// Async writer task that handles terminal output and spinner coordination.
@@ -186,28 +203,18 @@ async fn writer_task<W: io::Write>(
     while let Some(cmd) = rx.recv().await {
         match cmd {
             Command::Write { content, style } => {
-                with_suspended_spinner(
-                    &spinner,
-                    || async {
-                        let output = style.apply(content);
-                        let _ = writer.write_all(output.as_bytes());
-                        let _ = writer.flush();
-                    },
-                    || rx.is_empty(), // Restart spinner when queue is empty
-                )
-                .await;
+                // Suspend spinner while writing, restart when queue is empty
+                let should_restart = rx.is_empty();
+                let _guard = SuspendedSpinner::new(spinner.clone(), should_restart);
+                let output = style.apply(content);
+                let _ = writer.write_all(output.as_bytes());
+                let _ = writer.flush();
             }
             Command::Flush(done) => {
-                // Drain pending writes before acknowledging
-                with_suspended_spinner(
-                    &spinner,
-                    || async {
-                        drain_writes(&mut rx, &mut writer);
-                        let _ = done.send(());
-                    },
-                    || false,
-                )
-                .await;
+                // Suspend spinner while flushing, don't restart after
+                let _guard = SuspendedSpinner::new(spinner.clone(), false);
+                drain_writes(&mut rx, &mut writer);
+                let _ = done.send(());
             }
         }
     }
