@@ -140,7 +140,6 @@ struct ChannelWriter {
 
 impl io::Write for ChannelWriter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        // Avoid double allocation when UTF-8 is valid
         let content = match std::str::from_utf8(buf) {
             Ok(s) => s.to_string(),
             Err(_) => String::from_utf8_lossy(buf).into_owned(),
@@ -156,103 +155,137 @@ impl io::Write for ChannelWriter {
     }
 }
 
-/// RAII guard that suspends the spinner.
-///
-/// The spinner is stopped when the guard is created and restarted when dropped,
-/// based on the restart condition provided at construction.
-struct SuspendedSpinner<P: OutputPrinter> {
-    spinner: SharedSpinner<P>,
-    should_restart: bool,
-}
-
-impl<P: OutputPrinter> SuspendedSpinner<P> {
-    /// Creates a new guard that suspends the spinner.
-    fn new(spinner: SharedSpinner<P>, should_restart: bool) -> Self {
-        if let Ok(mut sp) = spinner.lock() {
-            let _ = sp.stop(None);
-        }
-        Self { spinner, should_restart }
-    }
-}
-
-impl<P: OutputPrinter> Drop for SuspendedSpinner<P> {
-    fn drop(&mut self) {
-        if self.should_restart {
-            if let Ok(mut sp) = self.spinner.lock() {
-                let _ = sp.start(None);
-            }
-        }
-    }
-}
-
-/// Wrapper that ensures cursor is shown on drop and uses OutputPrinter.
-struct PrinterGuard<P: OutputPrinter> {
+/// Manages terminal output state (cursor visibility, writing).
+struct TerminalOutput<P: OutputPrinter> {
     printer: Arc<P>,
     cursor_hidden: bool,
 }
 
-impl<P: OutputPrinter> PrinterGuard<P> {
+impl<P: OutputPrinter> TerminalOutput<P> {
     fn new(printer: Arc<P>) -> Self {
         Self { printer, cursor_hidden: false }
     }
 
-    /// Hides the cursor.
     fn hide_cursor(&mut self) {
-        let mut buf = Vec::new();
-        let _ = buf.execute(cursor::Hide);
-        let _ = self.printer.write(&buf);
-        let _ = self.printer.flush();
-        self.cursor_hidden = true;
+        if !self.cursor_hidden {
+            let mut buf = Vec::new();
+            let _ = buf.execute(cursor::Hide);
+            let _ = self.printer.write(&buf);
+            let _ = self.printer.flush();
+            self.cursor_hidden = true;
+        }
     }
 
-    /// Shows the cursor.
     fn show_cursor(&mut self) {
-        let mut buf = Vec::new();
-        let _ = buf.execute(cursor::Show);
-        let _ = self.printer.write(&buf);
-        let _ = self.printer.flush();
-        self.cursor_hidden = false;
+        if self.cursor_hidden {
+            let mut buf = Vec::new();
+            let _ = buf.execute(cursor::Show);
+            let _ = self.printer.write(&buf);
+            let _ = self.printer.flush();
+            self.cursor_hidden = false;
+        }
     }
 
-    /// Writes content to primary output.
     fn write(&self, content: &str) {
         let _ = self.printer.write(content.as_bytes());
         let _ = self.printer.flush();
     }
+
+    fn flush(&self) {
+        let _ = self.printer.flush();
+    }
 }
 
-impl<P: OutputPrinter> Drop for PrinterGuard<P> {
+impl<P: OutputPrinter> Drop for TerminalOutput<P> {
     fn drop(&mut self) {
-        if self.cursor_hidden {
-            self.show_cursor();
+        self.show_cursor();
+    }
+}
+
+/// Coordinates spinner state during streaming output.
+///
+/// Ensures spinner is stopped while writing and restarted when idle.
+struct SpinnerCoordinator<P: OutputPrinter> {
+    spinner: SharedSpinner<P>,
+    is_suspended: bool,
+}
+
+impl<P: OutputPrinter> SpinnerCoordinator<P> {
+    fn new(spinner: SharedSpinner<P>) -> Self {
+        Self { spinner, is_suspended: false }
+    }
+
+    /// Suspends the spinner if not already suspended.
+    /// Returns true if the spinner was actually suspended (state changed).
+    fn suspend(&mut self) -> bool {
+        if !self.is_suspended {
+            if let Ok(mut sp) = self.spinner.lock() {
+                let _ = sp.stop(None);
+            }
+            self.is_suspended = true;
+            true
+        } else {
+            false
         }
+    }
+
+    /// Resumes the spinner if currently suspended.
+    /// Returns true if the spinner was actually resumed (state changed).
+    fn resume(&mut self) -> bool {
+        if self.is_suspended {
+            if let Ok(mut sp) = self.spinner.lock() {
+                let _ = sp.start(None);
+            }
+            self.is_suspended = false;
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Marks spinner as not suspended without actually starting it.
+    /// Used after flush when caller controls the spinner.
+    fn reset(&mut self) {
+        self.is_suspended = false;
     }
 }
 
 /// Async writer task that handles terminal output and spinner coordination.
+///
+/// The spinner is suspended when the first write arrives and only resumed
+/// when the queue becomes empty (no more pending writes).
 async fn writer_task<P: OutputPrinter>(
     mut rx: mpsc::UnboundedReceiver<Command>,
     spinner: SharedSpinner<P>,
     printer: Arc<P>,
 ) {
-    let mut guard = PrinterGuard::new(printer);
+    let mut output = TerminalOutput::new(printer);
+    let mut spinner = SpinnerCoordinator::new(spinner);
 
     while let Some(cmd) = rx.recv().await {
         match cmd {
             Command::Write { content, style } => {
-                // Suspend spinner while writing, restart when queue is empty
-                let _guard = SuspendedSpinner::new(spinner.clone(), rx.is_empty());
-                guard.hide_cursor();
-                let output = style.apply(content);
-                guard.write(&output);
-                guard.show_cursor();
+                if spinner.suspend() {
+                    output.flush();
+                    output.hide_cursor();
+                }
+                output.write(&style.apply(content));
+
+                if rx.is_empty() {
+                    output.show_cursor();
+                    if spinner.resume() {
+                        output.flush();
+                    }
+                }
             }
             Command::Flush(done) => {
-                // Suspend spinner while flushing, don't restart after
-                let _guard = SuspendedSpinner::new(spinner.clone(), false);
-                guard.hide_cursor();
-                drain_writes(&mut rx, &mut guard);
-                guard.show_cursor();
+                if spinner.suspend() {
+                    output.flush();
+                    output.hide_cursor();
+                }
+                drain_writes(&mut rx, &mut output);
+                output.show_cursor();
+                spinner.reset();
                 let _ = done.send(());
             }
         }
@@ -262,12 +295,11 @@ async fn writer_task<P: OutputPrinter>(
 /// Drains all pending write commands from the channel.
 fn drain_writes<P: OutputPrinter>(
     rx: &mut mpsc::UnboundedReceiver<Command>,
-    guard: &mut PrinterGuard<P>,
+    output: &mut TerminalOutput<P>,
 ) {
     while let Ok(cmd) = rx.try_recv() {
         if let Command::Write { content, style } = cmd {
-            let output = style.apply(content);
-            guard.write(&output);
+            output.write(&style.apply(content));
         }
     }
 }
