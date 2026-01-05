@@ -1,5 +1,7 @@
 ---
 source: crates/forge_domain/src/conversation_html.rs
+assertion_line: 415
 expression: html_bytes
+extension: html
+snapshot_kind: binary
 ---
-
