@@ -69,6 +69,10 @@ impl Runner {
             let mut responses = Vec::new();
 
             while let Some(item) = rx.recv().await {
+                // Acknowledge ToolCallStart events immediately
+                if let Ok(ChatResponse::ToolCallStart { ack, .. }) = &item {
+                    ack.ack();
+                }
                 responses.push(item);
             }
 
