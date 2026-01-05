@@ -6,6 +6,7 @@ use colored::Colorize;
 use forge_spinner::SpinnerManager;
 use streamdown::StreamdownRenderer;
 use tokio::sync::{mpsc, oneshot};
+use tokio::task::JoinHandle;
 
 /// Shared spinner handle for coordination between UI and writer.
 pub type SharedSpinner = Arc<Mutex<SpinnerManager>>;
@@ -37,6 +38,7 @@ pub struct StreamWriter {
     active: Option<ActiveRenderer>,
     tx: mpsc::UnboundedSender<Command>,
     width: usize,
+    handler: JoinHandle<()>,
 }
 
 impl StreamWriter {
@@ -47,9 +49,9 @@ impl StreamWriter {
             .unwrap_or(80);
 
         let (tx, rx) = mpsc::unbounded_channel();
-        tokio::spawn(writer_task(rx, spinner, char_delay_ms, io::stdout()));
+        let handler = tokio::spawn(writer_task(rx, spinner, char_delay_ms, io::stdout()));
 
-        Self { active: None, tx, width }
+        Self { active: None, tx, width, handler }
     }
 
     /// Writes markdown content with normal styling.
@@ -99,6 +101,12 @@ impl StreamWriter {
             let renderer = StreamdownRenderer::new(writer, self.width);
             self.active = Some(ActiveRenderer { renderer, style: new_style });
         }
+    }
+}
+
+impl Drop for StreamWriter {
+    fn drop(&mut self) {
+        self.handler.abort();
     }
 }
 
