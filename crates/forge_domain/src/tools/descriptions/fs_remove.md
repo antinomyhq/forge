@@ -1,0 +1,3 @@
+Request to remove a file at the specified path. Use this when you need to
+delete an existing file. The path must be absolute. This operation cannot
+be undone, so use it carefully.
