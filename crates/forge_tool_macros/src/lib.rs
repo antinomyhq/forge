@@ -1,13 +1,14 @@
 use proc_macro::TokenStream;
 use quote::{ToTokens, quote};
-use syn::{DeriveInput, parse_macro_input, Expr, ExprLit, Lit};
+use syn::{DeriveInput, Expr, ExprLit, Lit, parse_macro_input};
 
 /// Custom attribute for specifying tool description file path
 extern crate proc_macro;
 
 #[proc_macro_attribute]
 pub fn tool_description_file(_attr: TokenStream, _item: TokenStream) -> TokenStream {
-    // This is just a marker attribute, the actual processing happens in ToolDescription
+    // This is just a marker attribute, the actual processing happens in
+    // ToolDescription
     _item
 }
 
@@ -21,19 +22,22 @@ pub fn derive_description(input: TokenStream) -> TokenStream {
     // Check for tool_description_file attribute first
     let mut description_file = None;
     for attr in &input.attrs {
-        if attr.path().is_ident("tool_description_file") {
-            if let syn::Meta::NameValue(name_value) = &attr.meta {
-                if let Expr::Lit(ExprLit { lit: Lit::Str(lit_str), .. }) = &name_value.value {
+        if attr.path().is_ident("tool_description_file")
+            && let syn::Meta::NameValue(name_value) = &attr.meta
+                && let Expr::Lit(ExprLit { lit: Lit::Str(lit_str), .. }) = &name_value.value {
                     description_file = Some(lit_str.value());
                 }
-            }
-        }
     }
 
     // If we have a description file, read it at compile time
     let doc_string = if let Some(file_path) = description_file {
         std::fs::read_to_string(&file_path)
-            .unwrap_or_else(|e| panic!("Failed to read tool description file '{}': {}", file_path, e))
+            .unwrap_or_else(|e| {
+                panic!(
+                    "Failed to read tool description file '{}': {}",
+                    file_path, e
+                )
+            })
             .trim()
             .to_string()
     } else {
