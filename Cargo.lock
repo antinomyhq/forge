@@ -5234,6 +5234,7 @@ version = "0.1.0"
 dependencies = [
  "colored",
  "indicatif",
+ "streamdown-core",
  "streamdown-parser",
  "syntect",
  "terminal_size",
