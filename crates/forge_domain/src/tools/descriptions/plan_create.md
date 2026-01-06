@@ -1,4 +1,1 @@
-Creates a new plan file with the specified name, version, and content. Use
-this tool to create structured project plans, task breakdowns, or
-implementation strategies that can be tracked and referenced throughout
-development sessions.
+Creates a new plan file with the specified name, version, and content. Use this tool to create structured project plans, task breakdowns, or implementation strategies that can be tracked and referenced throughout development sessions.
