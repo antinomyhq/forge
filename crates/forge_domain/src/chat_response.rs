@@ -50,7 +50,7 @@ pub enum ChatResponse {
     TaskReasoning { content: String },
     TaskComplete,
     /// Signals the start of a tool call.
-    ToolCallStart { tool_call: ToolCallFull },
+    ToolCallStart(ToolCallFull),
     ToolCallEnd(ToolResult),
     RetryAttempt { cause: Cause, duration: Duration },
     Interrupt { reason: InterruptionReason },

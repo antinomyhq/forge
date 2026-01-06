@@ -76,7 +76,7 @@ impl<S: AgentService> Orchestrator<S> {
             // Send the start notification for system tools and not agent as a tool
             let is_system_tool = system_tools.contains(&tool_call.name);
             if is_system_tool {
-                self.send(ChatResponse::ToolCallStart { tool_call: tool_call.clone() })
+                self.send(ChatResponse::ToolCallStart(tool_call.clone()))
                     .await?;
             }
 

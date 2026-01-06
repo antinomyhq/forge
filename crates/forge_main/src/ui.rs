@@ -2670,7 +2670,7 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     writer.write(&text)?;
                 }
             },
-            ChatResponse::ToolCallStart { tool_call: _ } => {
+            ChatResponse::ToolCallStart(_) => {
                 let _ = writer.finish()?;
                 self.spinner.lock().unwrap().stop(None)?;
             }
