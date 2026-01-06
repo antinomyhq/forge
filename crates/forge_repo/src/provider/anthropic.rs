@@ -402,25 +402,61 @@ impl<F> AnthropicResponseRepository<F> {
 impl<F: HttpInfra> AnthropicResponseRepository<F> {
     /// Creates an Anthropic client from a provider configuration
     fn create_client(&self, provider: &Provider<Url>) -> anyhow::Result<Anthropic<F>> {
-        let api_key = provider
-            .api_key()
-            .context("Anthropic requires an API key")?
-            .as_str()
-            .to_string();
         let chat_url = provider.url.clone();
-        let models = provider
-            .models
-            .clone()
-            .context("Anthropic requires models configuration")?;
+                let models = provider
+                    .models
+                    .clone()
+                    .ok_or_else(|| anyhow::anyhow!("Provider models configuration is required"))?;
+                let creds = provider
+                    .credential
+                    .as_ref()
+                    .context("Anthropic provider requires credentials")?
+                    .auth_details.clone();
+                match creds {
+                    forge_domain::AuthDetails::ApiKey(api_key) => {
+                        Ok(Anthropic::new(
+                            self.infra.clone(),
+                            api_key.as_str().to_string(),
+                            chat_url,
+                            models.clone(),
+                            "2023-06-01".to_string(),
+                            false,
+                        ))
+                    }
+                    forge_domain::AuthDetails::OAuth { tokens, .. } => {
+                        Ok(Anthropic::new(
+                            self.infra.clone(),
+                            tokens.access_token.as_str().to_string(),
+                            chat_url,
+                            models,
+                            "2023-06-01".to_string(),
+                            true,
+                        ))
+                    }
+                    _ => {
+                        anyhow::bail!("Unsupported authentication method for Anthropic provider",);
+                    }
+                }
+            
+        // let api_key = provider
+        //     .api_key()
+        //     .context("Anthropic requires an API key")?
+        //     .as_str()
+        //     .to_string();
+        // let chat_url = provider.url.clone();
+        // let models = provider
+        //     .models
+        //     .clone()
+        //     .context("Anthropic requires models configuration")?;
 
-        Ok(Anthropic::new(
-            self.infra.clone(),
-            api_key,
-            chat_url,
-            models,
-            "2023-06-01".to_string(),
-            false,
-        ))
+        // Ok(Anthropic::new(
+        //     self.infra.clone(),
+        //     api_key,
+        //     chat_url,
+        //     models,
+        //     "2023-06-01".to_string(),
+        //     false,
+        // ))
     }
 }
 
