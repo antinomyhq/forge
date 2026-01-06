@@ -64,7 +64,7 @@ impl<P: OutputPrinter + 'static> StreamWriter<P> {
     }
 
     pub fn finish(&mut self) -> Result<()> {
-         if let Some(active) = self.active.take() {
+        if let Some(active) = self.active.take() {
             active.finish()?;
         }
         Ok(())
@@ -136,6 +136,13 @@ impl<P: OutputPrinter> DirectWriter<P> {
         if let Ok(mut sp) = self.spinner.lock() {
             let _ = sp.start(None);
         }
+    }
+}
+
+impl<P: OutputPrinter> Drop for DirectWriter<P> {
+    fn drop(&mut self) {
+        let _ = self.printer.flush();
+        let _ = self.printer.flush_err();
     }
 }
 
