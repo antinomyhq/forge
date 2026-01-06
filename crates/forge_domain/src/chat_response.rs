@@ -66,10 +66,10 @@ impl ChatResponse {
         match self {
             ChatResponse::TaskMessage { content } => match content {
                 ChatResponseContent::Title(_) => false,
-                ChatResponseContent::PlainText(content) => content.trim().is_empty(),
-                ChatResponseContent::Markdown(content) => content.trim().is_empty(),
+                ChatResponseContent::PlainText(content) => content.is_empty(),
+                ChatResponseContent::Markdown(content) => content.is_empty(),
             },
-            ChatResponse::TaskReasoning { content } => content.trim().is_empty(),
+            ChatResponse::TaskReasoning { content } => content.is_empty(),
             _ => false,
         }
     }

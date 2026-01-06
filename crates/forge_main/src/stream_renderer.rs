@@ -63,18 +63,10 @@ impl<P: OutputPrinter + 'static> StreamWriter<P> {
         self.write_styled(text, Style::Dimmed)
     }
 
-    /// Flushes all pending content and waits for completion.
-    pub async fn flush(&mut self) -> Result<()> {
-        if let Some(active) = self.active.take() {
-            let _ = active.renderer.finish();
-        }
-        Ok(())
-    }
-
     fn write_styled(&mut self, text: &str, style: Style) -> Result<()> {
         self.ensure_renderer(style);
         if let Some(ref mut active) = self.active {
-            active.renderer.push(text)?;
+            active.push(text)?;
         }
         Ok(())
     }
@@ -83,8 +75,9 @@ impl<P: OutputPrinter + 'static> StreamWriter<P> {
         let needs_switch = self.active.as_ref().map_or(false, |a| a.style != new_style);
 
         if needs_switch {
-            if let Some(old) = self.active.take() {
-                let _ = old.renderer.finish();
+            if let Some(mut old) = self.active.take() {
+                // Change of renderer always add a new line.
+                let _ = old.push("\n");
             }
         }
 
@@ -104,6 +97,13 @@ impl<P: OutputPrinter + 'static> StreamWriter<P> {
 struct ActiveRenderer<P: OutputPrinter> {
     renderer: StreamdownRenderer<DirectWriter<P>>,
     style: Style,
+}
+
+impl<P: OutputPrinter> ActiveRenderer<P> {
+    pub fn push(&mut self, text: &str) -> Result<()> {
+        self.renderer.push(text)?;
+        Ok(())
+    }
 }
 
 /// Direct writer that writes to printer and manages spinner.

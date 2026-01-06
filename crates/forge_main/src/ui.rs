@@ -2561,7 +2561,6 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 Ok(message) => self.handle_chat_response(message, &mut writer).await?,
                 Err(err) => {
                     // Finish any active writer before returning error
-                    let _ = writer.flush().await;
                     self.spinner.lock().unwrap().stop(None)?;
                     self.spinner.lock().unwrap().reset();
                     return Err(err);
@@ -2570,7 +2569,6 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         // Finish streaming writer
-        writer.flush().await?;
         self.spinner.lock().unwrap().stop(None)?;
         self.spinner.lock().unwrap().reset();
 
@@ -2636,11 +2634,9 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         match message {
             ChatResponse::TaskMessage { content } => match content {
                 ChatResponseContent::Title(title) => {
-                    writer.flush().await?;
                     self.writeln(title.display())?;
                 }
                 ChatResponseContent::PlainText(text) => {
-                    writer.flush().await?;
                     self.writeln(text)?;
                 }
                 ChatResponseContent::Markdown(text) => {
@@ -2649,7 +2645,6 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
             },
             ChatResponse::ToolCallStart { tool_call: _ } => {
-                writer.flush().await?;
                 self.spinner.lock().unwrap().stop(None)?;
             }
             ChatResponse::ToolCallEnd(toolcall_result) => {
@@ -2672,13 +2667,11 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
             ChatResponse::RetryAttempt { cause, duration: _ } => {
                 if !self.api.environment().retry_config.suppress_retry_errors {
-                    writer.flush().await?;
                     self.spinner.lock().unwrap().start(Some("Retrying"))?;
                     self.writeln_title(TitleFormat::error(cause.as_str()))?;
                 }
             }
             ChatResponse::Interrupt { reason } => {
-                writer.flush().await?;
                 self.spinner.lock().unwrap().stop(None)?;
 
                 let title = match reason {
@@ -2699,7 +2692,6 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
             }
             ChatResponse::TaskComplete => {
-                writer.flush().await?;
                 if let Some(conversation_id) = self.state.conversation_id {
                     self.writeln_title(
                         TitleFormat::debug("Finished").sub_title(conversation_id.into_string()),
