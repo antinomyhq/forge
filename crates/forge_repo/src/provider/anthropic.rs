@@ -406,7 +406,7 @@ impl<F: HttpInfra> AnthropicResponseRepository<F> {
         let models = provider
             .models
             .clone()
-            .ok_or_else(|| anyhow::anyhow!("Provider models configuration is required"))?;
+            .context("Anthropic requires models configuration")?;
         let creds = provider
             .credential
             .as_ref()
@@ -414,7 +414,7 @@ impl<F: HttpInfra> AnthropicResponseRepository<F> {
             .auth_details
             .clone();
 
-        let (token, is_oauth) = match creds {
+        let (key, is_oauth) = match creds {
             forge_domain::AuthDetails::ApiKey(api_key) => (api_key.as_str().to_string(), false),
             forge_domain::AuthDetails::OAuth { tokens, .. } => {
                 (tokens.access_token.as_str().to_string(), true)
@@ -424,7 +424,7 @@ impl<F: HttpInfra> AnthropicResponseRepository<F> {
 
         Ok(Anthropic::new(
             self.infra.clone(),
-            token,
+            key,
             chat_url,
             models,
             "2023-06-01".to_string(),
