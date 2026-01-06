@@ -2576,15 +2576,21 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     async fn on_chat(&mut self, chat: ChatRequest) -> Result<()> {
         let mut stream = self.api.chat(chat).await?;
+        let streaming_enabled = self.api.environment().streaming_output;
 
-        // Create streaming writer with shared spinner and output printer
+        // Create streaming writer with shared spinner and output printer (used only when streaming enabled)
         let mut writer = StreamWriter::new(self.spinner.clone(), self.api.clone());
         while let Some(message) = stream.next().await {
             match message {
-                Ok(message) => self.handle_chat_response(message, &mut writer).await?,
+                Ok(message) => {
+                    self.handle_chat_response(message, &mut writer, streaming_enabled)
+                        .await?
+                }
                 Err(err) => {
                     // Finish any active writer before returning error
-                    let _ = writer.finish()?;
+                    if streaming_enabled {
+                        let _ = writer.finish()?;
+                    }
                     self.spinner.lock().unwrap().stop(None)?;
                     self.spinner.lock().unwrap().reset();
                     return Err(err);
@@ -2593,7 +2599,9 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         // Finish streaming writer
-        let _ = writer.finish()?;
+        if streaming_enabled {
+            let _ = writer.finish()?;
+        }
         self.spinner.lock().unwrap().stop(None)?;
         self.spinner.lock().unwrap().reset();
 
@@ -2650,6 +2658,7 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         &mut self,
         message: ChatResponse,
         writer: &mut StreamWriter<A>,
+        streaming_enabled: bool,
     ) -> Result<()> {
         debug!(chat_response = ?message, "Chat Response");
         if message.is_empty() {
@@ -2658,20 +2667,30 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         match message {
             ChatResponse::TaskMessage { content } => match content {
                 ChatResponseContent::Title(title) => {
-                    let _ = writer.finish()?;
+                    if streaming_enabled {
+                        let _ = writer.finish()?;
+                    }
                     self.writeln(title.display())?;
                 }
                 ChatResponseContent::PlainText(text) => {
-                    let _ = writer.finish()?;
+                    if streaming_enabled {
+                        let _ = writer.finish()?;
+                    }
                     self.writeln(text)?;
                 }
                 ChatResponseContent::Markdown(text) => {
                     tracing::info!(message = %text, "Agent Response");
-                    writer.write(&text)?;
+                    if streaming_enabled {
+                        writer.write(&text)?;
+                    } else {
+                        self.writeln(self.markdown.render(&text))?;
+                    }
                 }
             },
             ChatResponse::ToolCallStart(_) => {
-                let _ = writer.finish()?;
+                if streaming_enabled {
+                    let _ = writer.finish()?;
+                }
                 self.spinner.lock().unwrap().stop(None)?;
             }
             ChatResponse::ToolCallEnd(toolcall_result) => {
@@ -2694,13 +2713,17 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
             ChatResponse::RetryAttempt { cause, duration: _ } => {
                 if !self.api.environment().retry_config.suppress_retry_errors {
-                    let _ = writer.finish()?;
+                    if streaming_enabled {
+                        let _ = writer.finish()?;
+                    }
                     self.spinner.lock().unwrap().start(Some("Retrying"))?;
                     self.writeln_title(TitleFormat::error(cause.as_str()))?;
                 }
             }
             ChatResponse::Interrupt { reason } => {
-                let _ = writer.finish()?;
+                if streaming_enabled {
+                    let _ = writer.finish()?;
+                }
                 self.spinner.lock().unwrap().stop(None)?;
 
                 let title = match reason {
@@ -2716,10 +2739,17 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.should_continue().await?;
             }
             ChatResponse::TaskReasoning { content } => {
-                writer.write_dimmed(&content)?;
+                if streaming_enabled {
+                    writer.write_dimmed(&content)?;
+                } else if !content.trim().is_empty() {
+                    let rendered_content = self.markdown.render(&content);
+                    self.writeln(rendered_content.dimmed())?;
+                }
             }
             ChatResponse::TaskComplete => {
-                let _ = writer.finish()?;
+                if streaming_enabled {
+                    let _ = writer.finish()?;
+                }
                 if let Some(conversation_id) = self.state.conversation_id {
                     self.writeln_title(
                         TitleFormat::debug("Finished").sub_title(conversation_id.into_string()),
