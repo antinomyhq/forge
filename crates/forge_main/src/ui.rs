@@ -13,10 +13,10 @@ use forge_api::{
     ChatResponse, CodeRequest, Conversation, ConversationId, DeviceCodeRequest, Event,
     InterruptionReason, Model, ModelId, Provider, ProviderId, TextMessage, UserPrompt, Workflow,
 };
-use forge_domain::OutputPrinter;
 use forge_app::utils::{format_display_path, truncate_key};
 use forge_app::{CommitResult, ToolResolver};
 use forge_display::MarkdownFormat;
+use forge_domain::OutputPrinter;
 use forge_domain::{
     AuthMethod, ChatResponseContent, ContextMessage, Role, TitleFormat, UserCommand,
 };
@@ -752,7 +752,10 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         &mut self,
         conversation_id: ConversationId,
     ) -> anyhow::Result<()> {
-        self.spinner.lock().unwrap().start(Some("Deleting conversation"))?;
+        self.spinner
+            .lock()
+            .unwrap()
+            .start(Some("Deleting conversation"))?;
         self.api.delete_conversation(&conversation_id).await?;
         self.spinner.lock().unwrap().stop(None)?;
         self.writeln_title(TitleFormat::debug(format!(
@@ -890,7 +893,10 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         &mut self,
         commit_group: CommitCommandGroup,
     ) -> anyhow::Result<CommitResult> {
-        self.spinner.lock().unwrap().start(Some("Creating commit"))?;
+        self.spinner
+            .lock()
+            .unwrap()
+            .start(Some("Creating commit"))?;
 
         // Convert Vec<String> to Option<String> by joining with spaces
         let additional_context = if commit_group.text.is_empty() {
@@ -1293,7 +1299,10 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Displays all MCP servers with their available tools
     async fn on_show_mcp_servers(&mut self, porcelain: bool) -> anyhow::Result<()> {
-        self.spinner.lock().unwrap().start(Some("Loading MCP servers"))?;
+        self.spinner
+            .lock()
+            .unwrap()
+            .start(Some("Loading MCP servers"))?;
         let mcp_servers = self.api.read_mcp_config(None).await?;
         let all_tools = self.api.get_tools().await?;
 
@@ -1545,7 +1554,10 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         };
 
         // Setup ZSH integration with nerd font and editor configuration
-        self.spinner.lock().unwrap().start(Some("Configuring ZSH"))?;
+        self.spinner
+            .lock()
+            .unwrap()
+            .start(Some("Configuring ZSH"))?;
         let result = crate::zsh::setup_zsh_integration(disable_nerd_font, forge_editor)?;
         self.spinner.lock().unwrap().stop(None)?;
 
@@ -1582,7 +1594,10 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     }
 
     async fn list_conversations(&mut self) -> anyhow::Result<()> {
-        self.spinner.lock().unwrap().start(Some("Loading Conversations"))?;
+        self.spinner
+            .lock()
+            .unwrap()
+            .start(Some("Loading Conversations"))?;
         let max_conversations = self.api.environment().max_conversations;
         let conversations = self.api.get_conversations(Some(max_conversations)).await?;
         self.spinner.lock().unwrap().stop(None)?;
@@ -2030,7 +2045,10 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         )?;
 
         // Step 2: Complete authentication (polls if needed for OAuth flows)
-        self.spinner.lock().unwrap().start(Some("Completing authentication..."))?;
+        self.spinner
+            .lock()
+            .unwrap()
+            .start(Some("Completing authentication..."))?;
 
         let response = AuthContextResponse::device_code(request.clone());
 
@@ -2098,7 +2116,9 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             anyhow::bail!("Authorization code cannot be empty");
         }
 
-        self.spinner.lock().unwrap()
+        self.spinner
+            .lock()
+            .unwrap()
             .start(Some("Exchanging authorization code..."))?;
 
         let response = AuthContextResponse::code(request.clone(), &code);
@@ -2187,7 +2207,10 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             None => return Ok(None), // User cancelled
         };
 
-        self.spinner.lock().unwrap().start(Some("Initiating authentication..."))?;
+        self.spinner
+            .lock()
+            .unwrap()
+            .start(Some("Initiating authentication..."))?;
 
         // Initiate the authentication flow
         let auth_request = self
@@ -2632,7 +2655,6 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         if message.is_empty() {
             return Ok(());
         }
-
         match message {
             ChatResponse::TaskMessage { content } => match content {
                 ChatResponseContent::Title(title) => {
@@ -2694,9 +2716,7 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.should_continue().await?;
             }
             ChatResponse::TaskReasoning { content } => {
-                if !content.trim().is_empty() {
-                    writer.write_dimmed(&content)?;
-                }
+                writer.write_dimmed(&content)?;
             }
             ChatResponse::TaskComplete => {
                 let _ = writer.finish()?;
@@ -2724,7 +2744,10 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     }
 
     async fn on_show_conv_info(&mut self, conversation: Conversation) -> anyhow::Result<()> {
-        self.spinner.lock().unwrap().start(Some("Loading Summary"))?;
+        self.spinner
+            .lock()
+            .unwrap()
+            .start(Some("Loading Summary"))?;
 
         let info = Info::default().extend(&conversation);
         self.writeln(info)?;
@@ -3110,7 +3133,10 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         path: PathBuf,
         params: forge_domain::SearchParams<'_>,
     ) -> anyhow::Result<()> {
-        self.spinner.lock().unwrap().start(Some("Searching workspace..."))?;
+        self.spinner
+            .lock()
+            .unwrap()
+            .start(Some("Searching workspace..."))?;
 
         let results = match self.api.query_workspace(path.clone(), params).await {
             Ok(results) => results,
@@ -3179,7 +3205,10 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     async fn on_list_workspaces(&mut self, porcelain: bool) -> anyhow::Result<()> {
         if !porcelain {
-            self.spinner.lock().unwrap().start(Some("Fetching workspaces..."))?;
+            self.spinner
+                .lock()
+                .unwrap()
+                .start(Some("Fetching workspaces..."))?;
         }
 
         // Fetch workspaces and current workspace info in parallel
@@ -3226,7 +3255,10 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Displays workspace information for a given path.
     async fn on_workspace_info(&mut self, path: std::path::PathBuf) -> anyhow::Result<()> {
-        self.spinner.lock().unwrap().start(Some("Fetching workspace info..."))?;
+        self.spinner
+            .lock()
+            .unwrap()
+            .start(Some("Fetching workspace info..."))?;
 
         // Fetch workspace info and status in parallel
         let (workspace, statuses) = tokio::try_join!(
@@ -3293,7 +3325,10 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let workspace_id = forge_domain::WorkspaceId::from_string(&workspace_id)
             .context("Invalid workspace ID format")?;
 
-        self.spinner.lock().unwrap().start(Some("Deleting workspace..."))?;
+        self.spinner
+            .lock()
+            .unwrap()
+            .start(Some("Deleting workspace..."))?;
 
         match self.api.delete_workspace(workspace_id.clone()).await {
             Ok(()) => {
@@ -3320,7 +3355,10 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         use forge_domain::SyncStatus;
 
         if !porcelain {
-            self.spinner.lock().unwrap().start(Some("Checking file status..."))?;
+            self.spinner
+                .lock()
+                .unwrap()
+                .start(Some("Checking file status..."))?;
         }
 
         let mut statuses = self.api.get_workspace_status(path.clone()).await?;
@@ -3394,7 +3432,10 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     /// Handle credential migration
     async fn handle_migrate_credentials(&mut self) -> Result<()> {
         // Perform the migration
-        self.spinner.lock().unwrap().start(Some("Migrating credentials"))?;
+        self.spinner
+            .lock()
+            .unwrap()
+            .start(Some("Migrating credentials"))?;
         let result = self.api.migrate_env_credentials().await?;
         self.spinner.lock().unwrap().stop(None)?;
 
