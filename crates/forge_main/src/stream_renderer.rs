@@ -82,9 +82,7 @@ impl<P: OutputPrinter + 'static> StreamWriter<P> {
         let needs_switch = self.active.as_ref().map_or(false, |a| a.style != new_style);
 
         if needs_switch {
-            if let Some(mut old) = self.active.take() {
-                // Change of renderer always add a new line.
-                let _ = old.push("\n");
+            if let Some(old) = self.active.take() {
                 let _ = old.finish()?;
             }
         }
