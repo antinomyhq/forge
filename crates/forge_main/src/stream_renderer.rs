@@ -63,6 +63,13 @@ impl<P: OutputPrinter + 'static> StreamWriter<P> {
         self.write_styled(text, Style::Dimmed)
     }
 
+    pub fn finish(&mut self) -> Result<()> {
+         if let Some(active) = self.active.take() {
+            active.finish()?;
+        }
+        Ok(())
+    }
+
     fn write_styled(&mut self, text: &str, style: Style) -> Result<()> {
         self.ensure_renderer(style);
         if let Some(ref mut active) = self.active {
@@ -102,6 +109,11 @@ struct ActiveRenderer<P: OutputPrinter> {
 impl<P: OutputPrinter> ActiveRenderer<P> {
     pub fn push(&mut self, text: &str) -> Result<()> {
         self.renderer.push(text)?;
+        Ok(())
+    }
+
+    pub fn finish(self) -> Result<()> {
+        self.renderer.finish()?;
         Ok(())
     }
 }
