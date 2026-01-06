@@ -71,20 +71,21 @@ impl<P: OutputPrinter + 'static> StreamWriter<P> {
     }
 
     fn write_styled(&mut self, text: &str, style: Style) -> Result<()> {
-        self.ensure_renderer(style);
+        self.ensure_renderer(style)?;
         if let Some(ref mut active) = self.active {
             active.push(text)?;
         }
         Ok(())
     }
 
-    fn ensure_renderer(&mut self, new_style: Style) {
+    fn ensure_renderer(&mut self, new_style: Style) -> Result<()> {
         let needs_switch = self.active.as_ref().map_or(false, |a| a.style != new_style);
 
         if needs_switch {
             if let Some(mut old) = self.active.take() {
                 // Change of renderer always add a new line.
                 let _ = old.push("\n");
+                let _ = old.finish()?;
             }
         }
 
@@ -97,6 +98,7 @@ impl<P: OutputPrinter + 'static> StreamWriter<P> {
             let renderer = StreamdownRenderer::new(writer, term_width());
             self.active = Some(ActiveRenderer { renderer, style: new_style });
         }
+        Ok(())
     }
 }
 
