@@ -223,6 +223,25 @@ impl ToolOperation {
         let tool_name = tool_kind.name();
         match self {
             ToolOperation::FsRead { input, output } => {
+                // Check if content is an image (visual content)
+                if let Some(image) = output.content.as_image() {
+                    // Track read operations for visual content
+                    tracing::info!(
+                        path = %input.path,
+                        tool = %tool_name,
+                        mime_type = ?output.mime_type,
+                        "Visual content read (image/PDF)"
+                    );
+                    *metrics = metrics.clone().insert(
+                        input.path.clone(),
+                        FileOperation::new(tool_kind)
+                            .content_hash(Some(output.content_hash.clone())),
+                    );
+
+                    return forge_domain::ToolOutput::image(image.clone());
+                }
+
+                // Handle text content
                 let content = output.content.file_content();
                 let content = if input.show_line_numbers {
                     content.to_numbered_from(output.start_line as usize)
@@ -239,7 +258,12 @@ impl ToolOperation {
                     .cdata(content);
 
                 // Track read operations
-                tracing::info!(path = %input.path, tool = %tool_name, "File read");
+                tracing::info!(
+                    path = %input.path,
+                    tool = %tool_name,
+                    mime_type = ?output.mime_type,
+                    "File read"
+                );
                 *metrics = metrics.clone().insert(
                     input.path.clone(),
                     FileOperation::new(tool_kind).content_hash(Some(output.content_hash.clone())),
@@ -720,6 +744,7 @@ mod tests {
                 end_line: 2,
                 total_lines: 2,
                 content_hash: hash,
+                mime_type: Some("text/plain".to_string()),
             },
         };
 
@@ -752,6 +777,7 @@ mod tests {
                 end_line: 1,
                 total_lines: 1,
                 content_hash: hash,
+                mime_type: Some("text/plain".to_string()),
             },
         };
 
@@ -783,6 +809,7 @@ mod tests {
                 end_line: 3,
                 total_lines: 5,
                 content_hash: hash,
+                mime_type: Some("text/plain".to_string()),
             },
         };
 
@@ -815,6 +842,7 @@ mod tests {
                 end_line: 100,
                 total_lines: 200,
                 content_hash: hash,
+                mime_type: Some("text/plain".to_string()),
             },
         };
 

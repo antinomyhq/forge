@@ -114,6 +114,7 @@ mod tests {
                         end_line: 1,
                         total_lines: 1,
                         content_hash: hash,
+                        mime_type: Some("text/plain".to_string()),
                     }
                 })
                 .ok_or_else(|| anyhow::anyhow!(std::io::Error::from(std::io::ErrorKind::NotFound)))

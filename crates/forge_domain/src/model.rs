@@ -2,6 +2,29 @@ use derive_more::derive::Display;
 use derive_setters::Setters;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
+use strum_macros::EnumString;
+
+/// Represents input modalities that a model can accept
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash, EnumString)]
+#[serde(rename_all = "lowercase")]
+#[strum(serialize_all = "lowercase", ascii_case_insensitive)]
+pub enum InputModality {
+    /// Text input (all models support this)
+    Text,
+    /// Image input (vision-capable models)
+    Image,
+    /// Audio input
+    Audio,
+    /// Video input
+    Video,
+    /// File/document input
+    File,
+}
+
+/// Default input modalities when not specified (text-only)
+fn default_input_modalities() -> Vec<InputModality> {
+    vec![InputModality::Text]
+}
 
 #[derive(Clone, Debug, PartialEq, Deserialize, Serialize, Setters)]
 pub struct Model {
@@ -15,6 +38,9 @@ pub struct Model {
     pub supports_parallel_tool_calls: Option<bool>,
     /// Whether the model supports reasoning
     pub supports_reasoning: Option<bool>,
+    /// Input modalities supported by the model (defaults to text-only)
+    #[serde(default = "default_input_modalities")]
+    pub input_modalities: Vec<InputModality>,
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]

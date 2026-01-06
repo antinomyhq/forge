@@ -1,7 +1,9 @@
 use std::sync::Arc;
 
 use forge_app::AppConfigService;
-use forge_domain::{AppConfig, AppConfigRepository, ModelId, ProviderId, ProviderRepository};
+use forge_domain::{
+    AppConfig, AppConfigRepository, InputModality, ModelId, ProviderId, ProviderRepository,
+};
 
 /// Service for managing user preferences for default providers and models.
 pub struct ForgeAppConfigService<F> {
@@ -129,6 +131,7 @@ mod tests {
                             tools_supported: Some(true),
                             supports_parallel_tool_calls: Some(true),
                             supports_reasoning: Some(false),
+                            input_modalities: vec![InputModality::Text, InputModality::Image],
                         }])),
                     },
                     Provider {
@@ -153,6 +156,7 @@ mod tests {
                             tools_supported: Some(true),
                             supports_parallel_tool_calls: Some(true),
                             supports_reasoning: Some(true),
+                            input_modalities: vec![InputModality::Text, InputModality::Image],
                         }])),
                     },
                 ],

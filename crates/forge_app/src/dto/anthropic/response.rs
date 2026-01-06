@@ -21,6 +21,22 @@ pub struct Model {
 impl From<Model> for forge_domain::Model {
     fn from(value: Model) -> Self {
         let context_length = get_context_length(&value.id);
+
+        // Anthropic models support vision (image input)
+        // Claude 3+ models support multimodal input
+        let input_modalities = if value.id.contains("claude-3")
+            || value.id.contains("claude-4")
+            || value.id.contains("claude-sonnet")
+            || value.id.contains("claude-opus")
+        {
+            vec![
+                forge_domain::InputModality::Text,
+                forge_domain::InputModality::Image,
+            ]
+        } else {
+            vec![forge_domain::InputModality::Text]
+        };
+
         Self {
             id: ModelId::new(value.id),
             name: Some(value.display_name),
@@ -29,6 +45,7 @@ impl From<Model> for forge_domain::Model {
             tools_supported: Some(true),
             supports_parallel_tool_calls: None,
             supports_reasoning: None,
+            input_modalities,
         }
     }
 }

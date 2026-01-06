@@ -47,6 +47,8 @@ pub struct Architecture {
     pub modality: String,
     pub tokenizer: String,
     pub instruct_type: Option<String>,
+    pub input_modalities: Option<Vec<String>>,
+    pub output_modalities: Option<Vec<String>>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
@@ -101,6 +103,19 @@ impl From<Model> for forge_domain::Model {
         let supports_parallel_tool_calls = has_param("supports_parallel_tool_calls");
         let supports_reasoning = has_param("reasoning");
 
+        // Parse input modalities from OpenRouter's input_modalities field
+        let input_modalities = value
+            .architecture
+            .as_ref()
+            .and_then(|arch| arch.input_modalities.as_ref())
+            .map(|modalities| {
+                modalities
+                    .iter()
+                    .filter_map(|s| s.parse::<forge_domain::InputModality>().ok())
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_else(|| vec![forge_domain::InputModality::Text]);
+
         forge_domain::Model {
             id: value.id,
             name: value.name,
@@ -109,6 +124,7 @@ impl From<Model> for forge_domain::Model {
             tools_supported,
             supports_parallel_tool_calls,
             supports_reasoning,
+            input_modalities,
         }
     }
 }

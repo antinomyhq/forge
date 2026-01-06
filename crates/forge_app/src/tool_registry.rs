@@ -4,8 +4,9 @@ use std::time::Duration;
 use anyhow::Context;
 use console::style;
 use forge_domain::{
-    Agent, AgentId, AgentInput, ChatResponse, ChatResponseContent, Environment, SystemContext,
-    ToolCallContext, ToolCallFull, ToolCatalog, ToolDefinition, ToolName, ToolOutput, ToolResult,
+    Agent, AgentId, AgentInput, ChatResponse, ChatResponseContent, Environment, Model,
+    SystemContext, ToolCallContext, ToolCallFull, ToolCatalog, ToolDefinition, ToolName,
+    ToolOutput, ToolResult,
 };
 use forge_template::Element;
 use futures::future::join_all;
@@ -183,7 +184,19 @@ impl<S: Services> ToolRegistry<S> {
     pub async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
         Ok(self.tools_overview().await?.into())
     }
+    
     pub async fn tools_overview(&self) -> anyhow::Result<ToolsOverview> {
+        self.tools_overview_inner(None).await
+    }
+    
+    pub async fn tools_overview_with_model(
+        &self,
+        model: Option<Model>,
+    ) -> anyhow::Result<ToolsOverview> {
+        self.tools_overview_inner(model).await
+    }
+    
+    async fn tools_overview_inner(&self, model: Option<Model>) -> anyhow::Result<ToolsOverview> {
         let mcp_tools = self.services.get_mcp_servers().await?;
         let agent_tools = self.agent_executor.agent_definitions().await?;
 
@@ -197,6 +210,7 @@ impl<S: Services> ToolRegistry<S> {
             .system(Self::get_system_tools(
                 is_indexed && is_authenticated,
                 &environment,
+                model,
             ))
             .agents(agent_tools)
             .mcp(mcp_tools))
@@ -204,13 +218,21 @@ impl<S: Services> ToolRegistry<S> {
 }
 
 impl<S> ToolRegistry<S> {
-    fn get_system_tools(sem_search_supported: bool, env: &Environment) -> Vec<ToolDefinition> {
+    fn get_system_tools(
+        sem_search_supported: bool,
+        env: &Environment,
+        model: Option<Model>,
+    ) -> Vec<ToolDefinition> {
         use crate::TemplateEngine;
 
         let handlebars = TemplateEngine::handlebar_instance();
 
         // Create template data with environment nested under "env"
-        let ctx = SystemContext { env: Some(env.clone()), ..Default::default() };
+        let ctx = SystemContext {
+            env: Some(env.clone()),
+            model,
+            ..Default::default()
+        };
 
         ToolCatalog::iter()
             .filter(|tool| {
@@ -485,7 +507,7 @@ mod tests {
     fn test_sem_search_included_when_supported() {
         use fake::{Fake, Faker};
         let env: Environment = Faker.fake();
-        let actual = ToolRegistry::<()>::get_system_tools(true, &env);
+        let actual = ToolRegistry::<()>::get_system_tools(true, &env, None);
         assert!(actual.iter().any(|t| t.name.as_str() == "sem_search"));
     }
 
@@ -493,7 +515,7 @@ mod tests {
     fn test_sem_search_filtered_when_not_supported() {
         use fake::{Fake, Faker};
         let env: Environment = Faker.fake();
-        let actual = ToolRegistry::<()>::get_system_tools(false, &env);
+        let actual = ToolRegistry::<()>::get_system_tools(false, &env, None);
         assert!(actual.iter().all(|t| t.name.as_str() != "sem_search"));
     }
 }
@@ -505,7 +527,7 @@ fn test_template_rendering_in_tool_descriptions() {
     let mut env: Environment = Faker.fake();
     env.max_search_lines = 1000;
 
-    let actual = ToolRegistry::<()>::get_system_tools(true, &env);
+    let actual = ToolRegistry::<()>::get_system_tools(true, &env, None);
     let fs_search_tool = actual
         .iter()
         .find(|t| t.name.as_str() == "fs_search")
@@ -522,5 +544,102 @@ fn test_template_rendering_in_tool_descriptions() {
             .description
             .contains("{{env.maxSearchLines}}"),
         "Description should not contain unrendered template variable"
+    );
+}
+
+#[test]
+fn test_dynamic_tool_description_with_vision_model() {
+    use fake::{Fake, Faker};
+    use forge_domain::{InputModality, Model, ModelId};
+
+    let env: Environment = Faker.fake();
+    
+    // Create a vision-capable model (like GPT-4o or Claude 3.5 Sonnet)
+    let vision_model = Model {
+        id: ModelId::new("gpt-4o"),
+        name: Some("GPT-4o".to_string()),
+        description: None,
+        context_length: Some(128000),
+        tools_supported: Some(true),
+        supports_parallel_tool_calls: Some(true),
+        supports_reasoning: Some(false),
+        input_modalities: vec![InputModality::Text, InputModality::Image],
+    };
+
+    let tools_with_vision = ToolRegistry::<()>::get_system_tools(true, &env, Some(vision_model));
+    let read_tool = tools_with_vision
+        .iter()
+        .find(|t| t.name.as_str() == "read")
+        .unwrap();
+
+    // Vision-capable model should see image and PDF support
+    assert!(
+        read_tool.description.contains("**Images**"),
+        "Vision model should see image support in description"
+    );
+    assert!(
+        read_tool.description.contains("**PDFs**"),
+        "Vision model should see PDF support in description"
+    );
+}
+
+#[test]
+fn test_dynamic_tool_description_with_text_only_model() {
+    use fake::{Fake, Faker};
+    use forge_domain::{InputModality, Model, ModelId};
+
+    let env: Environment = Faker.fake();
+    
+    // Create a text-only model (like GPT-3.5)
+    let text_only_model = Model {
+        id: ModelId::new("gpt-3.5-turbo"),
+        name: Some("GPT-3.5 Turbo".to_string()),
+        description: None,
+        context_length: Some(16385),
+        tools_supported: Some(true),
+        supports_parallel_tool_calls: Some(true),
+        supports_reasoning: Some(false),
+        input_modalities: vec![InputModality::Text],
+    };
+
+    let tools_text_only = ToolRegistry::<()>::get_system_tools(true, &env, Some(text_only_model));
+    let read_tool = tools_text_only
+        .iter()
+        .find(|t| t.name.as_str() == "read")
+        .unwrap();
+
+    // Text-only model should NOT see image and PDF support
+    assert!(
+        !read_tool.description.contains("**Images**"),
+        "Text-only model should not see image support in description"
+    );
+    assert!(
+        !read_tool.description.contains("**PDFs**"),
+        "Text-only model should not see PDF support in description"
+    );
+    // Should still see text file support
+    assert!(
+        read_tool.description.contains("**Text files**"),
+        "Text-only model should see text file support"
+    );
+}
+
+#[test]
+fn test_dynamic_tool_description_without_model() {
+    use fake::{Fake, Faker};
+
+    let env: Environment = Faker.fake();
+    
+    // When no model is provided, should default to showing minimal capabilities
+    let tools_no_model = ToolRegistry::<()>::get_system_tools(true, &env, None);
+    let read_tool = tools_no_model
+        .iter()
+        .find(|t| t.name.as_str() == "read")
+        .unwrap();
+
+    // Without model info, should show basic text file support
+    assert!(
+        read_tool.description.contains("**Text files**"),
+        "Should show text file support even without model"
     );
 }

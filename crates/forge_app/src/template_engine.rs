@@ -62,6 +62,41 @@ fn create_handlebar() -> Handlebars<'static> {
         ),
     );
 
+    // Register the 'contains' helper to check if array contains a value
+    // This is used with #if blocks: {{#if (contains array "value")}}
+    hb.register_helper(
+        "contains",
+        Box::new(
+            |h: &handlebars::Helper,
+             _r: &handlebars::Handlebars,
+             _ctx: &handlebars::Context,
+             _rc: &mut handlebars::RenderContext,
+             out: &mut dyn handlebars::Output|
+             -> handlebars::HelperResult {
+                let array = h.param(0).ok_or_else(|| {
+                    handlebars::RenderErrorReason::ParamNotFoundForIndex("contains", 0)
+                })?;
+                let search_value = h.param(1).ok_or_else(|| {
+                    handlebars::RenderErrorReason::ParamNotFoundForIndex("contains", 1)
+                })?;
+                
+                // Check if the array contains the value
+                let contains = if let Some(arr) = array.value().as_array() {
+                    arr.iter().any(|v| v == search_value.value())
+                } else {
+                    false
+                };
+                
+                // Write "true" or empty string for handlebars to interpret as boolean
+                if contains {
+                    out.write("true")?;
+                }
+                
+                Ok(())
+            },
+        ),
+    );
+
     // Register all partial templates
     hb.register_embed_templates::<TemplateSource>().unwrap();
 

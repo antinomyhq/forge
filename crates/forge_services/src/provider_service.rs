@@ -7,7 +7,7 @@ use forge_app::domain::{
     AnyProvider, ChatCompletionMessage, Model, ModelId, ProviderId, ResultStream,
 };
 use forge_domain::{
-    AuthCredential, ChatRepository, Context, MigrationResult, ModelSource, Provider,
+    AuthCredential, ChatRepository, Context, InputModality, MigrationResult, ModelSource, Provider,
     ProviderRepository, ProviderTemplate,
 };
 use tokio::sync::Mutex;
@@ -290,6 +290,7 @@ mod tests {
             tools_supported: Some(true),
             supports_parallel_tool_calls: Some(true),
             supports_reasoning: Some(false),
+            input_modalities: vec![InputModality::Text],
         }
     }
 

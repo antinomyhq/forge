@@ -1249,6 +1249,10 @@ mod tests {
                 tools_supported: None,
                 supports_parallel_tool_calls: None,
                 supports_reasoning: None,
+                input_modalities: vec![
+                    forge_domain::InputModality::Text,
+                    forge_domain::InputModality::Image,
+                ],
             },
             Model {
                 id: ModelId::from("claude-3-sonnet".to_string()),
@@ -1258,6 +1262,10 @@ mod tests {
                 tools_supported: None,
                 supports_parallel_tool_calls: None,
                 supports_reasoning: None,
+                input_modalities: vec![
+                    forge_domain::InputModality::Text,
+                    forge_domain::InputModality::Image,
+                ],
             },
         ];
         fixture_provider.models = Some(ModelSource::Hardcoded(fixture_models.clone()));
