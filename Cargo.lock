@@ -1849,6 +1849,7 @@ dependencies = [
 [[package]]
 name = "forge_markdown_stream"
 version = "0.1.0"
+source = "git+https://github.com/laststylebender14/forge_markdown_stream#46bdabd52cbd73d022b65a9474c9ac6c4301e7ca"
 dependencies = [
  "colored",
  "streamdown-core",
