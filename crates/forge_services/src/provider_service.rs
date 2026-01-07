@@ -7,7 +7,7 @@ use forge_app::domain::{
     AnyProvider, ChatCompletionMessage, Model, ModelId, ProviderId, ResultStream,
 };
 use forge_domain::{
-    AuthCredential, ChatRepository, Context, InputModality, MigrationResult, ModelSource, Provider,
+    AuthCredential, ChatRepository, Context, MigrationResult, ModelSource, Provider,
     ProviderRepository, ProviderTemplate,
 };
 use tokio::sync::Mutex;
@@ -161,7 +161,9 @@ impl<R: ChatRepository + ProviderRepository> ProviderService for ForgeProviderSe
 #[cfg(test)]
 mod tests {
     use forge_app::domain::ProviderId;
-    use forge_domain::{AuthDetails, AuthMethod, ModelSource, ProviderType, Template};
+    use forge_domain::{
+        AuthDetails, AuthMethod, InputModality, ModelSource, ProviderType, Template,
+    };
     use pretty_assertions::assert_eq;
 
     use super::*;

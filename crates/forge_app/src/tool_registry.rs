@@ -184,18 +184,18 @@ impl<S: Services> ToolRegistry<S> {
     pub async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
         Ok(self.tools_overview().await?.into())
     }
-    
+
     pub async fn tools_overview(&self) -> anyhow::Result<ToolsOverview> {
         self.tools_overview_inner(None).await
     }
-    
+
     pub async fn tools_overview_with_model(
         &self,
         model: Option<Model>,
     ) -> anyhow::Result<ToolsOverview> {
         self.tools_overview_inner(model).await
     }
-    
+
     async fn tools_overview_inner(&self, model: Option<Model>) -> anyhow::Result<ToolsOverview> {
         let mcp_tools = self.services.get_mcp_servers().await?;
         let agent_tools = self.agent_executor.agent_definitions().await?;
@@ -228,11 +228,7 @@ impl<S> ToolRegistry<S> {
         let handlebars = TemplateEngine::handlebar_instance();
 
         // Create template data with environment nested under "env"
-        let ctx = SystemContext {
-            env: Some(env.clone()),
-            model,
-            ..Default::default()
-        };
+        let ctx = SystemContext { env: Some(env.clone()), model, ..Default::default() };
 
         ToolCatalog::iter()
             .filter(|tool| {
@@ -553,7 +549,7 @@ fn test_dynamic_tool_description_with_vision_model() {
     use forge_domain::{InputModality, Model, ModelId};
 
     let env: Environment = Faker.fake();
-    
+
     // Create a vision-capable model (like GPT-4o or Claude 3.5 Sonnet)
     let vision_model = Model {
         id: ModelId::new("gpt-4o"),
@@ -589,7 +585,7 @@ fn test_dynamic_tool_description_with_text_only_model() {
     use forge_domain::{InputModality, Model, ModelId};
 
     let env: Environment = Faker.fake();
-    
+
     // Create a text-only model (like GPT-3.5)
     let text_only_model = Model {
         id: ModelId::new("gpt-3.5-turbo"),
@@ -629,7 +625,7 @@ fn test_dynamic_tool_description_without_model() {
     use fake::{Fake, Faker};
 
     let env: Environment = Faker.fake();
-    
+
     // When no model is provided, should default to showing minimal capabilities
     let tools_no_model = ToolRegistry::<()>::get_system_tools(true, &env, None);
     let read_tool = tools_no_model

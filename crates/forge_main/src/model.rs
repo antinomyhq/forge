@@ -562,7 +562,7 @@ impl SlashCommand {
 #[cfg(test)]
 mod tests {
     use console::strip_ansi_codes;
-    use forge_api::{ModelId, ModelSource, ProviderId, ProviderResponse};
+    use forge_api::{InputModality, ModelId, ModelSource, ProviderId, ProviderResponse};
     use forge_domain::{AnyProvider, Provider};
     use pretty_assertions::assert_eq;
     use url::Url;
@@ -926,6 +926,7 @@ mod tests {
             tools_supported,
             supports_parallel_tool_calls: None,
             supports_reasoning: None,
+            input_modalities: vec![InputModality::Text, InputModality::Image],
         }
     }
 

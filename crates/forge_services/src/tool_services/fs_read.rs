@@ -21,17 +21,17 @@ fn detect_mime_type(path: &Path, content: &[u8]) -> String {
     // Fallback to extension-based detection
     path.extension()
         .and_then(|ext| ext.to_str())
-        .and_then(|ext| match ext.to_lowercase().as_str() {
+        .map(|ext| match ext.to_lowercase().as_str() {
             "txt" | "md" | "rs" | "toml" | "yaml" | "yml" | "json" | "js" | "ts" | "py" | "sh" => {
-                Some("text/plain")
+                "text/plain"
             }
-            "ipynb" => Some("application/json"),
-            "pdf" => Some("application/pdf"),
-            "jpg" | "jpeg" => Some("image/jpeg"),
-            "png" => Some("image/png"),
-            "gif" => Some("image/gif"),
-            "webp" => Some("image/webp"),
-            _ => Some("text/plain"), // Default to text
+            "ipynb" => "application/json",
+            "pdf" => "application/pdf",
+            "jpg" | "jpeg" => "image/jpeg",
+            "png" => "image/png",
+            "gif" => "image/gif",
+            "webp" => "image/webp",
+            _ => "text/plain", // Default to text
         })
         .unwrap_or("text/plain")
         .to_string()

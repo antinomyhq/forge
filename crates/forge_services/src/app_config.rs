@@ -1,9 +1,7 @@
 use std::sync::Arc;
 
 use forge_app::AppConfigService;
-use forge_domain::{
-    AppConfig, AppConfigRepository, InputModality, ModelId, ProviderId, ProviderRepository,
-};
+use forge_domain::{AppConfig, AppConfigRepository, ModelId, ProviderId, ProviderRepository};
 
 /// Service for managing user preferences for default providers and models.
 pub struct ForgeAppConfigService<F> {
@@ -90,8 +88,8 @@ mod tests {
     use std::sync::Mutex;
 
     use forge_domain::{
-        AnyProvider, AppConfig, ChatRepository, MigrationResult, Model, ModelSource, Provider,
-        ProviderId, ProviderResponse, ProviderTemplate,
+        AnyProvider, AppConfig, ChatRepository, InputModality, MigrationResult, Model, ModelSource,
+        Provider, ProviderId, ProviderResponse, ProviderTemplate,
     };
     use pretty_assertions::assert_eq;
     use url::Url;
