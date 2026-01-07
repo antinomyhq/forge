@@ -2,10 +2,11 @@ use std::ops::Deref;
 use std::sync::Arc;
 
 use forge_domain::{Agent, *};
+use forge_template::Element;
 use serde_json::json;
-use tracing::debug;
+use tracing::{debug, warn};
 
-use crate::{AttachmentService, TemplateEngine};
+use crate::{AttachmentService, TemplateEngine, WorkspaceService};
 
 /// Service responsible for setting user prompts in the conversation context
 #[derive(Clone)]
@@ -16,7 +17,7 @@ pub struct UserPromptGenerator<S> {
     current_time: chrono::DateTime<chrono::Local>,
 }
 
-impl<S: AttachmentService> UserPromptGenerator<S> {
+impl<S: AttachmentService + WorkspaceService> UserPromptGenerator<S> {
     /// Creates a new UserPromptService
     pub fn new(
         service: Arc<S>,
@@ -35,12 +36,70 @@ impl<S: AttachmentService> UserPromptGenerator<S> {
     ) -> anyhow::Result<Conversation> {
         let (conversation, content) = self.add_rendered_message(conversation).await?;
         let conversation = self.add_additional_context(conversation).await?;
+
+        // Extract original user input for skill recommendation
+        let user_input = self
+            .event
+            .value
+            .as_ref()
+            .and_then(|v| v.as_user_prompt().map(|u| u.as_str()));
+
+        let conversation = self
+            .add_recommended_skills(conversation, user_input)
+            .await?;
         let conversation = if let Some(content) = content {
             self.add_attachments(conversation, &content).await?
         } else {
             conversation
         };
         Ok(conversation)
+    }
+
+    /// Adds recommended skills as a droppable user message
+    async fn add_recommended_skills(
+        &self,
+        mut conversation: Conversation,
+        user_prompt: Option<&str>,
+    ) -> anyhow::Result<Conversation> {
+        let Some(user_prompt) = user_prompt else {
+            return Ok(conversation);
+        };
+
+        // Call skill recommendation service
+        let selected_skills = match self
+            .services
+            .recommend_skills(user_prompt.to_string())
+            .await
+        {
+            Ok(skills) => skills,
+            Err(e) => {
+                warn!(error = %e, "Failed to recommend skills, continuing without recommendations");
+                return Ok(conversation);
+            }
+        };
+
+        if selected_skills.is_empty() {
+            return Ok(conversation);
+        }
+
+        // Format the selected skills as a message
+        let skills_content = format!(
+            "Here are the recommended skills for the user task. Use them only if relevant to the user's query. Do not mention these recommendations to the user.\n{}",
+            Element::new("recommended_skills").append(selected_skills.iter().map(Element::from))
+        );
+
+        let ctx =
+            conversation
+                .context
+                .take()
+                .unwrap_or_default()
+                .add_message(ContextMessage::Text(
+                    TextMessage::new(Role::User, skills_content)
+                        .model(self.agent.model.clone())
+                        .droppable(true),
+                ));
+
+        Ok(conversation.context(ctx))
     }
 
     /// Adds additional context (piped input) as a droppable user message
@@ -165,12 +224,75 @@ mod tests {
 
     use super::*;
 
-    struct MockService;
+    #[derive(Default)]
+    struct MockService {
+        recommended_skills: Vec<SelectedSkill>,
+    }
 
     #[async_trait::async_trait]
     impl AttachmentService for MockService {
         async fn attachments(&self, _url: &str) -> anyhow::Result<Vec<Attachment>> {
             Ok(Vec::new())
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl WorkspaceService for MockService {
+        async fn sync_workspace(
+            &self,
+            _path: std::path::PathBuf,
+            _batch_size: usize,
+        ) -> anyhow::Result<forge_stream::MpscStream<anyhow::Result<SyncProgress>>> {
+            unimplemented!()
+        }
+
+        async fn query_workspace(
+            &self,
+            _path: std::path::PathBuf,
+            _params: SearchParams<'_>,
+        ) -> anyhow::Result<Vec<Node>> {
+            unimplemented!()
+        }
+
+        async fn list_workspaces(&self) -> anyhow::Result<Vec<WorkspaceInfo>> {
+            unimplemented!()
+        }
+
+        async fn get_workspace_info(
+            &self,
+            _path: std::path::PathBuf,
+        ) -> anyhow::Result<Option<WorkspaceInfo>> {
+            unimplemented!()
+        }
+
+        async fn delete_workspace(&self, _workspace_id: &WorkspaceId) -> anyhow::Result<()> {
+            unimplemented!()
+        }
+
+        async fn is_indexed(&self, _path: &std::path::Path) -> anyhow::Result<bool> {
+            unimplemented!()
+        }
+
+        async fn get_workspace_status(
+            &self,
+            _path: std::path::PathBuf,
+        ) -> anyhow::Result<Vec<forge_domain::FileStatus>> {
+            unimplemented!()
+        }
+
+        async fn is_authenticated(&self) -> anyhow::Result<bool> {
+            unimplemented!()
+        }
+
+        async fn init_auth_credentials(&self) -> anyhow::Result<WorkspaceAuth> {
+            unimplemented!()
+        }
+
+        async fn recommend_skills(
+            &self,
+            _use_case: String,
+        ) -> anyhow::Result<Vec<forge_domain::SelectedSkill>> {
+            Ok(self.recommended_skills.clone())
         }
     }
 
@@ -187,7 +309,12 @@ mod tests {
     }
 
     fn fixture_generator(agent: Agent, event: Event) -> UserPromptGenerator<MockService> {
-        UserPromptGenerator::new(Arc::new(MockService), agent, event, chrono::Local::now())
+        UserPromptGenerator::new(
+            Arc::new(MockService::default()),
+            agent,
+            event,
+            chrono::Local::now(),
+        )
     }
 
     #[tokio::test]
@@ -293,5 +420,34 @@ mod tests {
         } else {
             panic!("Expected TextMessage");
         }
+    }
+
+    #[tokio::test]
+    async fn test_recommended_skills_added_as_droppable_message() {
+        // Fixture
+        let mock_service = MockService {
+            recommended_skills: vec![SelectedSkill::new("pdf-handler", 0.95, 1)],
+        };
+        let generator = UserPromptGenerator::new(
+            Arc::new(mock_service),
+            fixture_agent_without_user_prompt(),
+            Event::new("Help me with PDF files"),
+            chrono::Local::now(),
+        );
+
+        // Act
+        let actual = generator
+            .add_user_prompt(fixture_conversation())
+            .await
+            .unwrap();
+
+        // Assert
+        let messages = actual.context.unwrap().messages;
+        assert_eq!(messages.len(), 2);
+        assert!(!messages[0].is_droppable());
+        assert!(messages[1].is_droppable());
+        let content = messages[1].content().unwrap();
+        assert!(content.contains("recommended_skills"));
+        assert!(content.contains("pdf-handler"));
     }
 }
