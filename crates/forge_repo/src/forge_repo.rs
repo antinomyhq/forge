@@ -512,6 +512,16 @@ impl<F: Send + Sync> forge_domain::WorkspaceRepository for ForgeRepo<F> {
         self.indexing_repository.find_by_path(path).await
     }
 
+    async fn find_ancestor_workspace(
+        &self,
+        path: &std::path::Path,
+        user_id: &forge_domain::UserId,
+    ) -> anyhow::Result<Option<forge_domain::Workspace>> {
+        self.indexing_repository
+            .find_ancestor_workspace(path, user_id)
+            .await
+    }
+
     async fn get_user_id(&self) -> anyhow::Result<Option<forge_domain::UserId>> {
         self.indexing_repository.get_user_id().await
     }

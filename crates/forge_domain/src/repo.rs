@@ -130,6 +130,26 @@ pub trait WorkspaceRepository: Send + Sync {
     /// Find workspace by path
     async fn find_by_path(&self, path: &std::path::Path) -> anyhow::Result<Option<Workspace>>;
 
+    /// Find workspace by searching for ancestor paths
+    ///
+    /// Searches for workspaces where the given path is a subdirectory of a workspace path.
+    /// Returns the closest ancestor workspace (longest matching path prefix).
+    ///
+    /// # Arguments
+    /// * `path` - The path to search for (should be canonicalized)
+    /// * `user_id` - Only return workspaces belonging to this user
+    ///
+    /// # Returns
+    /// The closest ancestor workspace, or None if no ancestor workspace exists
+    ///
+    /// # Errors
+    /// Returns an error if there's a database error
+    async fn find_ancestor_workspace(
+        &self,
+        path: &std::path::Path,
+        user_id: &UserId,
+    ) -> anyhow::Result<Option<Workspace>>;
+
     /// Get user ID from any workspace, or None if no workspaces exist
     async fn get_user_id(&self) -> anyhow::Result<Option<UserId>>;
 
