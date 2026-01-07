@@ -154,9 +154,10 @@ impl ForgeWorkspaceRepository {
 
                 // Keep the longest matching path (closest ancestor)
                 if best_match.as_ref().is_none_or(|(_, len)| path_len > *len)
-                    && let Ok(workspace) = Workspace::try_from(record) {
-                        best_match = Some((workspace, path_len));
-                    }
+                    && let Ok(workspace) = Workspace::try_from(record)
+                {
+                    best_match = Some((workspace, path_len));
+                }
             }
         }
 
