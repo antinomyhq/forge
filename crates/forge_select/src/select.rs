@@ -136,7 +136,7 @@ impl<T: 'static> SelectBuilder<T> {
         T: std::fmt::Display + Clone,
     {
         // Ensure cursor is visible when prompt completes
-        let _cursor_restore_guard = CursorRestoreGuard::new();
+        let _cursor_restore_guard = CursorRestoreGuard::default();
 
         // Handle confirm case (bool options)
         if std::any::TypeId::of::<T>() == std::any::TypeId::of::<bool>() {
@@ -237,7 +237,7 @@ impl<T> SelectBuilderOwned<T> {
         // Disable application cursor keys to ensure arrow keys work correctly
         let _cursor_keys_guard = ApplicationCursorKeysGuard::new()?;
         // Ensure cursor is visible when prompt completes
-        let _cursor_restore_guard = CursorRestoreGuard::new();
+        let _cursor_restore_guard = CursorRestoreGuard::default();
         let theme = ForgeSelect::default_theme();
 
         // Strip ANSI codes from display strings for better fuzzy search experience
@@ -328,7 +328,7 @@ impl InputBuilder {
         // Disable application cursor keys to ensure arrow keys work correctly
         let _cursor_keys_guard = ApplicationCursorKeysGuard::new()?;
         // Ensure cursor is visible when prompt completes
-        let _cursor_restore_guard = CursorRestoreGuard::new();
+        let _cursor_restore_guard = CursorRestoreGuard::default();
 
         let theme = ForgeSelect::default_theme();
 
@@ -406,7 +406,7 @@ impl<T> MultiSelectBuilder<T> {
         // Disable application cursor keys to ensure arrow keys work correctly
         let _cursor_keys_guard = ApplicationCursorKeysGuard::new()?;
         // Ensure cursor is visible when prompt completes
-        let _cursor_restore_guard = CursorRestoreGuard::new();
+        let _cursor_restore_guard = CursorRestoreGuard::default();
 
         let theme = ForgeSelect::default_theme();
         let multi_select = MultiSelect::with_theme(&theme)
