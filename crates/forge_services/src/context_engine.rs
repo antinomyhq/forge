@@ -137,36 +137,34 @@ impl<F> ForgeWorkspaceService<F> {
         let path = path
             .canonicalize()
             .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
-        let workspace = self.find_workspace_by_path(path.clone()).await?;
+
+        // Find workspace by exact match or ancestor
+        let workspace = self.find_workspace_by_path(path.clone(), &user_id).await?;
 
         let (workspace_id, workspace_path, is_new_workspace) = match workspace {
             Some(workspace) if workspace.user_id == user_id => {
+                // Found exact match or ancestor with matching user
+                let is_ancestor = workspace.path != path;
+                if is_ancestor {
+                    info!(
+                        workspace_id = %workspace.workspace_id,
+                        ancestor_path = %workspace.path.display(),
+                        current_path = %path.display(),
+                        "Reusing ancestor workspace"
+                    );
+                }
                 (workspace.workspace_id, workspace.path, false)
             }
             Some(workspace) => {
+                // Found workspace but different user - delete and create new
                 if let Err(e) = self.infra.delete(&workspace.workspace_id).await {
                     warn!(error = %e, "Failed to delete old workspace entry from local database");
                 }
                 (WorkspaceId::generate(), path.clone(), true)
             }
             None => {
-                // No exact match, check for ancestor workspace
-                match self.find_workspace_by_ancestor(path.clone(), &user_id).await? {
-                    Some(ancestor_workspace) => {
-                        info!(
-                            workspace_id = %ancestor_workspace.workspace_id,
-                            ancestor_path = %ancestor_workspace.path.display(),
-                            current_path = %path.display(),
-                            "Reusing ancestor workspace"
-                        );
-                        (
-                            ancestor_workspace.workspace_id,
-                            ancestor_workspace.path,
-                            false,
-                        )
-                    }
-                    None => (WorkspaceId::generate(), path.clone(), true),
-                }
+                // No workspace found - create new
+                (WorkspaceId::generate(), path.clone(), true)
             }
         };
 
@@ -312,30 +310,15 @@ impl<F> ForgeWorkspaceService<F> {
     }
 
     /// Canonicalizes a path and finds the associated workspace
+    /// Finds a workspace by exact path match, or falls back to ancestor lookup
+    ///
+    /// First tries to find an exact match for the given path. If not found,
+    /// searches for ancestor workspaces and returns the closest one.
     ///
     /// # Errors
     /// Returns an error if the path cannot be canonicalized or if there's a
-    /// database error. Returns Ok(None) if the workspace is not found.
-    async fn find_workspace_by_path(&self, path: PathBuf) -> Result<Option<forge_domain::Workspace>>
-    where
-        F: WorkspaceRepository,
-    {
-        let canonical_path = path
-            .canonicalize()
-            .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
-
-        self.infra.find_by_path(&canonical_path).await
-    }
-
-    /// Finds an ancestor workspace for the given path
-    ///
-    /// Searches only upward in the directory tree (ancestors), not downward (descendants).
-    /// Returns the closest ancestor workspace (longest matching path prefix).
-    ///
-    /// # Errors
-    /// Returns an error if the path cannot be canonicalized or if there's a
-    /// database error. Returns Ok(None) if no ancestor workspace is found.
-    async fn find_workspace_by_ancestor(
+    /// database error. Returns Ok(None) if no workspace is found.
+    async fn find_workspace_by_path(
         &self,
         path: PathBuf,
         user_id: &forge_domain::UserId,
@@ -347,31 +330,8 @@ impl<F> ForgeWorkspaceService<F> {
             .canonicalize()
             .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
 
-        self.infra.find_ancestor_workspace(&canonical_path, user_id).await
+        self.infra.find_by_path(&canonical_path, user_id).await
     }
-
-    /// Finds a workspace by exact path match, or falls back to ancestor lookup
-    ///
-    /// First tries to find an exact match for the given path. If not found,
-    /// searches for ancestor workspaces and returns the closest one.
-    ///
-    /// # Errors
-    /// Returns an error if the path cannot be canonicalized or if there's a
-    /// database error. Returns Ok(None) if no workspace is found.
-    async fn find_workspace_or_ancestor(&self, path: PathBuf) -> Result<Option<forge_domain::Workspace>>
-    where
-        F: WorkspaceRepository + ProviderRepository,
-    {
-        // First try exact match
-        if let Some(workspace) = self.find_workspace_by_path(path.clone()).await? {
-            return Ok(Some(workspace));
-        }
-
-        // Fall back to ancestor lookup
-        let (_, user_id) = self.get_workspace_credentials().await?;
-        self.find_workspace_by_ancestor(path, &user_id).await
-    }
-
     /// Walks the directory, reads all files, and computes their hashes.
     /// Only includes files with allowed extensions.
     async fn read_files(&self, dir_path: &Path) -> Result<Vec<FileNode>>
@@ -491,10 +451,10 @@ impl<
         path: PathBuf,
         params: forge_domain::SearchParams<'_>,
     ) -> Result<Vec<forge_domain::Node>> {
-        let (token, _) = self.get_workspace_credentials().await?;
+        let (token, user_id) = self.get_workspace_credentials().await?;
 
         let workspace = self
-            .find_workspace_or_ancestor(path)
+            .find_workspace_by_path(path, &user_id)
             .await?
             .ok_or(forge_domain::Error::WorkspaceNotFound)?;
 
@@ -529,8 +489,8 @@ impl<
     where
         F: WorkspaceRepository + WorkspaceIndexRepository + ProviderRepository,
     {
-        let (token, _) = self.get_workspace_credentials().await?;
-        let workspace = self.find_workspace_or_ancestor(path).await?;
+        let (token, user_id) = self.get_workspace_credentials().await?;
+        let workspace = self.find_workspace_by_path(path, &user_id).await?;
 
         if let Some(workspace) = workspace {
             self.infra
@@ -563,7 +523,11 @@ impl<
     }
 
     async fn is_indexed(&self, path: &std::path::Path) -> Result<bool> {
-        match self.find_workspace_or_ancestor(path.to_path_buf()).await {
+        let (_, user_id) = self.get_workspace_credentials().await?;
+        match self
+            .find_workspace_by_path(path.to_path_buf(), &user_id)
+            .await
+        {
             Ok(workspace) => Ok(workspace.is_some()),
             Err(_) => Ok(false), // Path doesn't exist or other error, so it can't be indexed
         }
@@ -573,7 +537,7 @@ impl<
         let (token, user_id) = self.get_workspace_credentials().await?;
 
         let workspace = self
-            .find_workspace_or_ancestor(path)
+            .find_workspace_by_path(path, &user_id)
             .await?
             .context("Workspace not indexed. Please run `workspace sync` first.")?;
 
@@ -778,6 +742,7 @@ mod tests {
                 let user_id = self
                     .workspace
                     .as_ref()
+                    .or(self.ancestor_workspace.as_ref())
                     .map(|w| w.user_id.clone())
                     .unwrap_or_else(UserId::generate);
 
@@ -810,15 +775,14 @@ mod tests {
         async fn upsert(&self, _: &WorkspaceId, _: &UserId, _: &Path) -> Result<()> {
             Ok(())
         }
-        async fn find_by_path(&self, _: &Path) -> Result<Option<Workspace>> {
-            Ok(self.workspace.clone())
-        }
-        async fn find_ancestor_workspace(
-            &self,
-            _path: &Path,
-            _user_id: &UserId,
-        ) -> Result<Option<Workspace>> {
-            Ok(self.ancestor_workspace.clone())
+        async fn find_by_path(&self, _: &Path, _: &UserId) -> Result<Option<Workspace>> {
+            // First try exact match (workspace)
+            if self.workspace.is_some() {
+                Ok(self.workspace.clone())
+            } else {
+                // Fall back to ancestor
+                Ok(self.ancestor_workspace.clone())
+            }
         }
         async fn get_user_id(&self) -> Result<Option<UserId>> {
             Ok(self.workspace.as_ref().map(|w| w.user_id.clone()))
@@ -831,11 +795,15 @@ mod tests {
     #[async_trait]
     impl WorkspaceIndexRepository for MockInfra {
         async fn authenticate(&self) -> Result<WorkspaceAuth> {
-            // Mock authentication - return fake user_id and token
-            Ok(WorkspaceAuth::new(
-                UserId::generate(),
-                "test_token".to_string().into(),
-            ))
+            // Mock authentication - return user_id from workspace or ancestor_workspace
+            let user_id = self
+                .workspace
+                .as_ref()
+                .or(self.ancestor_workspace.as_ref())
+                .map(|w| w.user_id.clone())
+                .unwrap_or_else(UserId::generate);
+
+            Ok(WorkspaceAuth::new(user_id, "test_token".to_string().into()))
         }
 
         async fn create_workspace(&self, _: &Path, _: &ApiKey) -> Result<WorkspaceId> {
@@ -1287,10 +1255,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_sync_reuses_ancestor_workspace_for_subdirectory() {
+        // Use current directory as parent workspace
+        let current_dir = std::env::current_dir().unwrap();
+
         let parent_workspace = Workspace {
             workspace_id: WorkspaceId::generate(),
             user_id: UserId::generate(),
-            path: PathBuf::from("/test/project"),
+            path: current_dir.clone(),
             created_at: chrono::Utc::now(),
             updated_at: None,
         };
@@ -1300,7 +1271,7 @@ mod tests {
                 .iter()
                 .map(|(p, c)| (p.to_string(), c.to_string()))
                 .collect(),
-            workspace: None, // No exact match for subdirectory
+            workspace: None, // No exact match for current directory
             ancestor_workspace: Some(parent_workspace.clone()), // Parent is indexed
             authenticated: true,
             ..Default::default()
@@ -1308,10 +1279,8 @@ mod tests {
 
         let service = ForgeWorkspaceService::new(Arc::new(mock.clone()));
 
-        let mut stream = service
-            .sync_workspace(PathBuf::from("."), 20)
-            .await
-            .unwrap();
+        // Sync from current directory (which should match the parent workspace)
+        let mut stream = service.sync_workspace(current_dir, 20).await.unwrap();
 
         // Collect all events
         let mut events = Vec::new();
@@ -1323,7 +1292,10 @@ mod tests {
         let has_workspace_created = events
             .iter()
             .any(|e| matches!(e, forge_domain::SyncProgress::WorkspaceCreated { .. }));
-        assert!(!has_workspace_created, "Expected no WorkspaceCreated event when reusing ancestor");
+        assert!(
+            !has_workspace_created,
+            "Expected no WorkspaceCreated event when reusing ancestor"
+        );
 
         // Verify completion event exists
         let completion_event = events
@@ -1339,8 +1311,8 @@ mod tests {
                 .iter()
                 .map(|(p, c)| (p.to_string(), c.to_string()))
                 .collect(),
-            workspace: None,           // No exact match
-            ancestor_workspace: None,  // No ancestor either
+            workspace: None,          // No exact match
+            ancestor_workspace: None, // No ancestor either
             authenticated: true,
             ..Default::default()
         };
@@ -1362,7 +1334,10 @@ mod tests {
         let has_workspace_created = events
             .iter()
             .any(|e| matches!(e, forge_domain::SyncProgress::WorkspaceCreated { .. }));
-        assert!(has_workspace_created, "Expected WorkspaceCreated event when no ancestor exists");
+        assert!(
+            has_workspace_created,
+            "Expected WorkspaceCreated event when no ancestor exists"
+        );
     }
 
     #[tokio::test]
@@ -1412,7 +1387,10 @@ mod tests {
         let has_workspace_created = events
             .iter()
             .any(|e| matches!(e, forge_domain::SyncProgress::WorkspaceCreated { .. }));
-        assert!(!has_workspace_created, "Expected no WorkspaceCreated event when exact match exists");
+        assert!(
+            !has_workspace_created,
+            "Expected no WorkspaceCreated event when exact match exists"
+        );
     }
 
     #[tokio::test]
@@ -1426,20 +1404,20 @@ mod tests {
         };
 
         let mock = MockInfra {
-            workspace: None,                               // No exact match
-            ancestor_workspace: Some(parent_workspace),    // Parent is indexed
+            workspace: None,                            // No exact match
+            ancestor_workspace: Some(parent_workspace), // Parent is indexed
             authenticated: true,
             ..Default::default()
         };
 
         let service = ForgeWorkspaceService::new(Arc::new(mock));
 
-        let actual = service
-            .is_indexed(Path::new("."))
-            .await
-            .unwrap();
+        let actual = service.is_indexed(Path::new(".")).await.unwrap();
 
-        assert!(actual, "Expected subdirectory to be considered indexed when parent is indexed");
+        assert!(
+            actual,
+            "Expected subdirectory to be considered indexed when parent is indexed"
+        );
     }
 
     #[tokio::test]
@@ -1462,8 +1440,8 @@ mod tests {
         };
 
         let mock = MockInfra {
-            workspace: None,                               // No exact match
-            ancestor_workspace: Some(parent_workspace),    // Parent is indexed
+            workspace: None,                            // No exact match
+            ancestor_workspace: Some(parent_workspace), // Parent is indexed
             workspaces: Arc::new(tokio::sync::Mutex::new(vec![workspace_info.clone()])),
             authenticated: true,
             ..Default::default()
@@ -1476,7 +1454,10 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(actual.is_some(), "Expected to find workspace info for subdirectory via ancestor");
+        assert!(
+            actual.is_some(),
+            "Expected to find workspace info for subdirectory via ancestor"
+        );
         assert_eq!(actual.unwrap().workspace_id, workspace_info.workspace_id);
     }
 
@@ -1495,8 +1476,8 @@ mod tests {
                 .iter()
                 .map(|(p, c)| (p.to_string(), c.to_string()))
                 .collect(),
-            workspace: None,                               // No exact match
-            ancestor_workspace: Some(parent_workspace),    // Parent is indexed
+            workspace: None,                            // No exact match
+            ancestor_workspace: Some(parent_workspace), // Parent is indexed
             authenticated: true,
             server_files: vec![],
             ..Default::default()
@@ -1504,10 +1485,11 @@ mod tests {
 
         let service = ForgeWorkspaceService::new(Arc::new(mock));
 
-        let actual = service
-            .get_workspace_status(PathBuf::from("."))
-            .await;
+        let actual = service.get_workspace_status(PathBuf::from(".")).await;
 
-        assert!(actual.is_ok(), "Expected workspace status to work with ancestor workspace");
+        assert!(
+            actual.is_ok(),
+            "Expected workspace status to work with ancestor workspace"
+        );
     }
 }

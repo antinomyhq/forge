@@ -80,14 +80,28 @@ impl WorkspaceRepository for ForgeWorkspaceRepository {
         Ok(())
     }
 
-    async fn find_by_path(&self, path: &std::path::Path) -> anyhow::Result<Option<Workspace>> {
-        let mut connection = self.pool.get_connection()?;
-        let path_str = path.to_string_lossy().into_owned();
-        let record = workspace::table
-            .filter(workspace::path.eq(path_str))
-            .first::<IndexingRecord>(&mut connection)
-            .optional()?;
-        record.as_ref().map(Workspace::try_from).transpose()
+    async fn find_by_path(
+        &self,
+        path: &std::path::Path,
+        user_id: &UserId,
+    ) -> anyhow::Result<Option<Workspace>> {
+        // First try exact match
+        let exact_match = {
+            let mut connection = self.pool.get_connection()?;
+            let path_str = path.to_string_lossy().into_owned();
+            workspace::table
+                .filter(workspace::path.eq(&path_str))
+                .filter(workspace::user_id.eq(user_id.to_string()))
+                .first::<IndexingRecord>(&mut connection)
+                .optional()?
+        };
+
+        if let Some(record) = exact_match {
+            return Workspace::try_from(&record).map(Some);
+        }
+
+        // No exact match, try ancestor lookup
+        self.find_ancestor_workspace_internal(path, user_id).await
     }
 
     async fn get_user_id(&self) -> anyhow::Result<Option<UserId>> {
@@ -108,14 +122,21 @@ impl WorkspaceRepository for ForgeWorkspaceRepository {
         .execute(&mut connection)?;
         Ok(())
     }
+}
 
-    async fn find_ancestor_workspace(
+impl ForgeWorkspaceRepository {
+    /// Internal helper to find ancestor workspace
+    ///
+    /// Searches for workspaces where the given path is a subdirectory of a
+    /// workspace path. Returns the closest ancestor workspace (longest
+    /// matching path prefix).
+    async fn find_ancestor_workspace_internal(
         &self,
         path: &std::path::Path,
         user_id: &UserId,
     ) -> anyhow::Result<Option<Workspace>> {
         let mut connection = self.pool.get_connection()?;
-        
+
         // Get all workspaces for this user
         let records: Vec<IndexingRecord> = workspace::table
             .filter(workspace::user_id.eq(user_id.to_string()))
@@ -126,17 +147,16 @@ impl WorkspaceRepository for ForgeWorkspaceRepository {
 
         for record in &records {
             let workspace_path = PathBuf::from(&record.path);
-            
+
             // Check if the target path starts with this workspace path
             if path.starts_with(&workspace_path) && path != workspace_path {
                 let path_len = workspace_path.as_os_str().len();
-                
+
                 // Keep the longest matching path (closest ancestor)
-                if best_match.as_ref().map_or(true, |(_, len)| path_len > *len) {
-                    if let Ok(workspace) = Workspace::try_from(record) {
+                if best_match.as_ref().is_none_or(|(_, len)| path_len > *len)
+                    && let Ok(workspace) = Workspace::try_from(record) {
                         best_match = Some((workspace, path_len));
                     }
-                }
             }
         }
 
@@ -171,7 +191,11 @@ mod tests {
             .await
             .unwrap();
 
-        let actual = fixture.find_by_path(&path).await.unwrap().unwrap();
+        let actual = fixture
+            .find_by_path(&path, &user_id)
+            .await
+            .unwrap()
+            .unwrap();
 
         assert_eq!(actual.workspace_id, workspace_id);
         assert_eq!(actual.user_id, user_id);
@@ -195,7 +219,11 @@ mod tests {
             .await
             .unwrap();
 
-        let actual = fixture.find_by_path(&path).await.unwrap().unwrap();
+        let actual = fixture
+            .find_by_path(&path, &user_id)
+            .await
+            .unwrap()
+            .unwrap();
 
         assert!(actual.updated_at.is_some());
     }
@@ -214,7 +242,7 @@ mod tests {
             .unwrap();
 
         let actual = fixture
-            .find_ancestor_workspace(&child_path, &user_id)
+            .find_by_path(&child_path, &user_id)
             .await
             .unwrap()
             .unwrap();
@@ -237,7 +265,7 @@ mod tests {
             .unwrap();
 
         let actual = fixture
-            .find_ancestor_workspace(&deep_child_path, &user_id)
+            .find_by_path(&deep_child_path, &user_id)
             .await
             .unwrap()
             .unwrap();
@@ -266,7 +294,7 @@ mod tests {
             .unwrap();
 
         let actual = fixture
-            .find_ancestor_workspace(&child_path, &user_id)
+            .find_by_path(&child_path, &user_id)
             .await
             .unwrap()
             .unwrap();
@@ -288,10 +316,7 @@ mod tests {
             .await
             .unwrap();
 
-        let actual = fixture
-            .find_ancestor_workspace(&sibling_path, &user_id)
-            .await
-            .unwrap();
+        let actual = fixture.find_by_path(&sibling_path, &user_id).await.unwrap();
 
         assert!(actual.is_none());
     }
@@ -310,16 +335,13 @@ mod tests {
             .await
             .unwrap();
 
-        let actual = fixture
-            .find_ancestor_workspace(&child_path, &user_id_2)
-            .await
-            .unwrap();
+        let actual = fixture.find_by_path(&child_path, &user_id_2).await.unwrap();
 
         assert!(actual.is_none());
     }
 
     #[tokio::test]
-    async fn test_find_ancestor_workspace_exact_match_excluded() {
+    async fn test_find_by_path_returns_exact_match() {
         let fixture = repo_fixture();
         let workspace_id = WorkspaceId::generate();
         let user_id = UserId::generate();
@@ -331,11 +353,13 @@ mod tests {
             .unwrap();
 
         let actual = fixture
-            .find_ancestor_workspace(&path, &user_id)
+            .find_by_path(&path, &user_id)
             .await
+            .unwrap()
             .unwrap();
 
-        assert!(actual.is_none());
+        assert_eq!(actual.workspace_id, workspace_id);
+        assert_eq!(actual.path, path);
     }
 
     #[tokio::test]
@@ -352,7 +376,7 @@ mod tests {
             .unwrap();
 
         let actual = fixture
-            .find_ancestor_workspace(&non_child_path, &user_id)
+            .find_by_path(&non_child_path, &user_id)
             .await
             .unwrap();
 
