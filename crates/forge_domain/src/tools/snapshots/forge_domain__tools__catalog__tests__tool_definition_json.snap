@@ -106,11 +106,11 @@ expression: tools
   "title": "SemanticSearch",
   "type": "object",
   "required": [
-    "file_extensions",
+    "extensions",
     "queries"
   ],
   "properties": {
-    "file_extensions": {
+    "extensions": {
       "description": "File extension filters (e.g., [\".rs\", \".ts\", \".py\"]). Only files with these extensions will be included in the search results. At least one extension must be provided.",
       "type": "array",
       "items": {
