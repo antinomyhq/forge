@@ -171,13 +171,10 @@ impl<
                     .queries
                     .iter()
                     .map(|search_query| {
-                        forge_domain::SearchParams::new(
-                            &search_query.query,
-                            &search_query.use_case,
-                        )
-                        .limit(limit)
-                        .top_k(top_k)
-                        .ends_with(input.extensions.clone())
+                        forge_domain::SearchParams::new(&search_query.query, &search_query.use_case)
+                            .limit(limit)
+                            .top_k(top_k)
+                            .ends_with(input.extensions.clone())
                     })
                     .collect();
 

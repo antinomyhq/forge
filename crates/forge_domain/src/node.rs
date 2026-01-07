@@ -462,7 +462,11 @@ mod tests {
         let actual = SearchParams::new("retry mechanism", "find retry logic")
             .limit(10usize)
             .top_k(20u32)
-            .ends_with(vec![".rs".to_string(), ".ts".to_string(), ".py".to_string()]);
+            .ends_with(vec![
+                ".rs".to_string(),
+                ".ts".to_string(),
+                ".py".to_string(),
+            ]);
 
         let expected = SearchParams {
             query: "retry mechanism",
@@ -470,7 +474,11 @@ mod tests {
             top_k: Some(20),
             use_case: "find retry logic".to_string(),
             starts_with: None,
-            ends_with: Some(vec![".rs".to_string(), ".ts".to_string(), ".py".to_string()]),
+            ends_with: Some(vec![
+                ".rs".to_string(),
+                ".ts".to_string(),
+                ".py".to_string(),
+            ]),
         };
 
         assert_eq!(actual, expected);
