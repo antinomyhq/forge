@@ -188,10 +188,9 @@ impl<P: OutputPrinter + 'static> StreamingWriter<P> {
     fn ensure_renderer(&mut self, new_style: Style) -> Result<()> {
         let needs_switch = self.active.as_ref().is_some_and(|a| a.style != new_style);
 
-        if needs_switch
-            && let Some(old) = self.active.take() {
-                old.finish()?;
-            }
+        if needs_switch && let Some(old) = self.active.take() {
+            old.finish()?;
+        }
 
         if self.active.is_none() {
             let writer = StreamDirectWriter {
