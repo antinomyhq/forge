@@ -171,21 +171,6 @@ impl<P: OutputPrinter> SpinnerManager<P> {
         Ok(())
     }
 
-    /// Writes to stdout without newline, suspending the spinner if active.
-    pub fn write(&mut self, message: impl ToString) -> Result<()> {
-        let msg = message.to_string();
-        if let Some(spinner) = &self.spinner {
-            let printer = self.printer.clone();
-            spinner.suspend(|| {
-                let _ = printer.write(msg.as_bytes());
-                let _ = printer.flush();
-            });
-        } else {
-            self.print(&msg);
-        }
-        Ok(())
-    }
-
     /// Writes a line to stderr, suspending the spinner if active.
     pub fn ewrite_ln(&mut self, message: impl ToString) -> Result<()> {
         let msg = message.to_string();
@@ -206,12 +191,6 @@ impl<P: OutputPrinter> SpinnerManager<P> {
     fn println(&self, msg: &str) {
         let line = format!("{msg}\n");
         let _ = self.printer.write(line.as_bytes());
-        let _ = self.printer.flush();
-    }
-
-    /// Prints to stdout through the printer (no newline).
-    fn print(&self, msg: &str) {
-        let _ = self.printer.write(msg.as_bytes());
         let _ = self.printer.flush();
     }
 
