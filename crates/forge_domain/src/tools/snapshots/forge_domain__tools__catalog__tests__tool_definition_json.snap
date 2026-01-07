@@ -106,13 +106,16 @@ expression: tools
   "title": "SemanticSearch",
   "type": "object",
   "required": [
+    "file_extensions",
     "queries"
   ],
   "properties": {
-    "file_extension": {
-      "description": "Optional file extension filter (e.g., \".rs\", \".ts\", \".py\"). If provided, only files with this extension will be included in the search results.",
-      "type": "string",
-      "nullable": true
+    "file_extensions": {
+      "description": "File extension filters (e.g., [\".rs\", \".ts\", \".py\"]). Only files with these extensions will be included in the search results. At least one extension must be provided.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
     },
     "queries": {
       "description": "List of search queries to execute in parallel. Using multiple queries (2-3) with varied phrasings significantly improves results - each query captures different aspects of what you're looking for. Each query pairs a search term with a use_case for reranking. Example: for authentication, try \"user login verification\", \"token generation\", \"OAuth flow\".",

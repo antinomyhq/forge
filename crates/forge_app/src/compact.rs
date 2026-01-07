@@ -377,7 +377,7 @@ mod tests {
                             "authentication logic",
                             "Find authentication implementation",
                         )],
-                        Some(".rs".to_string()),
+                        vec![".rs".to_string()],
                     )
                     .id("call_4")
                     .is_success(false)

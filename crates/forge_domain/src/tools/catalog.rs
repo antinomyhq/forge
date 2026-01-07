@@ -188,10 +188,10 @@ pub struct SemanticSearch {
     /// "OAuth flow".
     pub queries: Vec<SearchQuery>,
 
-    /// Optional file extension filter (e.g., ".rs", ".ts", ".py"). If provided,
-    /// only files with this extension will be included in the search results.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub file_extension: Option<String>,
+    /// File extension filters (e.g., [".rs", ".ts", ".py"]). Only files with
+    /// these extensions will be included in the search results. At least one
+    /// extension must be provided.
+    pub extensions: Vec<String>,
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
@@ -684,11 +684,11 @@ impl ToolCatalog {
     /// Creates a Semantic Search tool call with the specified queries
     pub fn tool_call_semantic_search(
         queries: Vec<SearchQuery>,
-        file_ext: Option<String>,
+        extensions: Vec<String>,
     ) -> ToolCallFull {
         ToolCallFull::from(ToolCatalog::SemSearch(SemanticSearch {
             queries,
-            file_extension: file_ext,
+            extensions,
         }))
     }
 
