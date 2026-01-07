@@ -2567,16 +2567,16 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 Ok(message) => self.handle_chat_response(message, &mut writer).await?,
                 Err(err) => {
                     writer.finish()?;
-                    self.spinner.lock().unwrap().stop(None)?;
-                    self.spinner.lock().unwrap().reset();
+                    self.spinner.stop(None)?;
+                    self.spinner.reset();
                     return Err(err);
                 }
             }
         }
 
         writer.finish()?;
-        self.spinner.lock().unwrap().stop(None)?;
-        self.spinner.lock().unwrap().reset();
+        self.spinner.stop(None)?;
+        self.spinner.reset();
 
         Ok(())
     }
@@ -2653,7 +2653,7 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             },
             ChatResponse::ToolCallStart(_) => {
                 writer.finish()?;
-                self.spinner.lock().unwrap().stop(None)?;
+                self.spinner.stop(None)?;
             }
             ChatResponse::ToolCallEnd(toolcall_result) => {
                 // Only track toolcall name in case of success else track the error.
@@ -2676,13 +2676,13 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             ChatResponse::RetryAttempt { cause, duration: _ } => {
                 if !self.api.environment().retry_config.suppress_retry_errors {
                     writer.finish()?;
-                    self.spinner.lock().unwrap().start(Some("Retrying"))?;
+                    self.spinner.start(Some("Retrying"))?;
                     self.writeln_title(TitleFormat::error(cause.as_str()))?;
                 }
             }
             ChatResponse::Interrupt { reason } => {
                 writer.finish()?;
-                self.spinner.lock().unwrap().stop(None)?;
+                self.spinner.stop(None)?;
 
                 let title = match reason {
                     InterruptionReason::MaxRequestPerTurnLimitReached { limit } => {
