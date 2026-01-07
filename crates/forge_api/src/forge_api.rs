@@ -8,8 +8,8 @@ use forge_app::{
     AgentProviderResolver, AgentRegistry, AppConfigService, AuthService, CommandInfra,
     CommandLoaderService, ConversationService, DataGenerationApp, EnvironmentInfra,
     EnvironmentService, FileDiscoveryService, ForgeApp, GitApp, GrpcInfra, McpConfigManager,
-    McpService, OutputPrinterInfra, ProviderAuthService, ProviderService, Services, User,
-    UserUsage, Walker, WorkspaceService,
+    McpService, ProviderAuthService, ProviderService, Services, User, UserUsage, Walker,
+    WorkspaceService,
 };
 use forge_domain::{Agent, InitAuth, LoginInfo, OutputPrinter, *};
 use forge_infra::ForgeInfra;
@@ -393,20 +393,20 @@ impl<
     }
 }
 
-impl<A: Send + Sync, F: OutputPrinterInfra> OutputPrinter for ForgeAPI<A, F> {
+impl<A: Send + Sync, F: OutputPrinter> OutputPrinter for ForgeAPI<A, F> {
     fn write(&self, buf: &[u8]) -> std::io::Result<usize> {
-        self.infra.write_stdout(buf)
+        self.infra.write(buf)
     }
 
     fn write_err(&self, buf: &[u8]) -> std::io::Result<usize> {
-        self.infra.write_stderr(buf)
+        self.infra.write_err(buf)
     }
 
     fn flush(&self) -> std::io::Result<()> {
-        self.infra.flush_stdout()
+        self.infra.flush()
     }
 
     fn flush_err(&self) -> std::io::Result<()> {
-        self.infra.flush_stderr()
+        self.infra.flush_err()
     }
 }

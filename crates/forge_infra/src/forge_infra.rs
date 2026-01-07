@@ -7,7 +7,7 @@ use bytes::Bytes;
 use forge_app::{
     CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra, FileInfoInfra,
     FileReaderInfra, FileRemoverInfra, FileWriterInfra, GrpcInfra, HttpInfra, McpServerInfra,
-    OutputPrinterInfra, StrategyFactory, UserInfra, WalkerInfra,
+    StrategyFactory, UserInfra, WalkerInfra,
 };
 use forge_domain::{
     AuthMethod, CommandOutput, Environment, FileInfo as FileInfoData, McpServerConfig, ProviderId,
@@ -313,20 +313,20 @@ impl GrpcInfra for ForgeInfra {
     }
 }
 
-impl OutputPrinterInfra for ForgeInfra {
-    fn write_stdout(&self, buf: &[u8]) -> std::io::Result<usize> {
-        self.output_printer.write_stdout(buf)
+impl forge_domain::OutputPrinter for ForgeInfra {
+    fn write(&self, buf: &[u8]) -> std::io::Result<usize> {
+        self.output_printer.write(buf)
     }
 
-    fn write_stderr(&self, buf: &[u8]) -> std::io::Result<usize> {
-        self.output_printer.write_stderr(buf)
+    fn write_err(&self, buf: &[u8]) -> std::io::Result<usize> {
+        self.output_printer.write_err(buf)
     }
 
-    fn flush_stdout(&self) -> std::io::Result<()> {
-        self.output_printer.flush_stdout()
+    fn flush(&self) -> std::io::Result<()> {
+        self.output_printer.flush()
     }
 
-    fn flush_stderr(&self) -> std::io::Result<()> {
-        self.output_printer.flush_stderr()
+    fn flush_err(&self) -> std::io::Result<()> {
+        self.output_printer.flush_err()
     }
 }

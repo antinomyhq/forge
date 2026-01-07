@@ -2,8 +2,8 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use forge_app::{CommandInfra, OutputPrinterInfra};
-use forge_domain::{CommandOutput, Environment};
+use forge_app::CommandInfra;
+use forge_domain::{CommandOutput, Environment, OutputPrinter as OutputPrinterTrait};
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tokio::sync::Mutex;
@@ -167,17 +167,17 @@ impl OutputPrinterWriter {
 impl Write for OutputPrinterWriter {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         if self.is_stdout {
-            self.printer.write_stdout(buf)
+            self.printer.write(buf)
         } else {
-            self.printer.write_stderr(buf)
+            self.printer.write_err(buf)
         }
     }
 
     fn flush(&mut self) -> io::Result<()> {
         if self.is_stdout {
-            self.printer.flush_stdout()
+            self.printer.flush()
         } else {
-            self.printer.flush_stderr()
+            self.printer.flush_err()
         }
     }
 }

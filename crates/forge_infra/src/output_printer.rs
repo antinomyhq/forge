@@ -5,7 +5,7 @@
 use std::io::{self, Stderr, Stdout, Write};
 use std::sync::{Arc, Mutex};
 
-use forge_app::OutputPrinterInfra;
+use forge_domain::OutputPrinter as OutputPrinterTrait;
 
 /// Thread-safe output printer that synchronizes writes to stdout/stderr.
 ///
@@ -45,8 +45,8 @@ impl<O, E> OutputPrinter<O, E> {
     }
 }
 
-impl<O: Write + Send, E: Write + Send> OutputPrinterInfra for OutputPrinter<O, E> {
-    fn write_stdout(&self, buf: &[u8]) -> io::Result<usize> {
+impl<O: Write + Send, E: Write + Send> OutputPrinterTrait for OutputPrinter<O, E> {
+    fn write(&self, buf: &[u8]) -> io::Result<usize> {
         let mut guard = self
             .stdout
             .lock()
@@ -54,7 +54,7 @@ impl<O: Write + Send, E: Write + Send> OutputPrinterInfra for OutputPrinter<O, E
         guard.write(buf)
     }
 
-    fn write_stderr(&self, buf: &[u8]) -> io::Result<usize> {
+    fn write_err(&self, buf: &[u8]) -> io::Result<usize> {
         let mut guard = self
             .stderr
             .lock()
@@ -62,7 +62,7 @@ impl<O: Write + Send, E: Write + Send> OutputPrinterInfra for OutputPrinter<O, E
         guard.write(buf)
     }
 
-    fn flush_stdout(&self) -> io::Result<()> {
+    fn flush(&self) -> io::Result<()> {
         let mut guard = self
             .stdout
             .lock()
@@ -70,7 +70,7 @@ impl<O: Write + Send, E: Write + Send> OutputPrinterInfra for OutputPrinter<O, E
         guard.flush()
     }
 
-    fn flush_stderr(&self) -> io::Result<()> {
+    fn flush_err(&self) -> io::Result<()> {
         let mut guard = self
             .stderr
             .lock()
@@ -95,15 +95,15 @@ mod tests {
         let p2 = printer.clone();
 
         let h1 = thread::spawn(move || {
-            p1.write_stdout(b"AAAA").unwrap();
-            p1.write_stdout(b"BBBB").unwrap();
-            p1.flush_stdout().unwrap();
+            p1.write(b"AAAA").unwrap();
+            p1.write(b"BBBB").unwrap();
+            p1.flush().unwrap();
         });
 
         let h2 = thread::spawn(move || {
-            p2.write_stdout(b"XXXX").unwrap();
-            p2.write_stdout(b"ZZZZ").unwrap();
-            p2.flush_stdout().unwrap();
+            p2.write(b"XXXX").unwrap();
+            p2.write(b"ZZZZ").unwrap();
+            p2.flush().unwrap();
         });
 
         h1.join().unwrap();
@@ -125,8 +125,8 @@ mod tests {
         let stderr = Cursor::new(Vec::new());
         let printer = OutputPrinter::with_writers(stdout, stderr);
 
-        printer.write_stdout(b"hello").unwrap();
-        printer.write_stderr(b"error").unwrap();
+        printer.write(b"hello").unwrap();
+        printer.write_err(b"error").unwrap();
 
         let stdout_content = printer.stdout.lock().unwrap().get_ref().clone();
         let stderr_content = printer.stderr.lock().unwrap().get_ref().clone();
