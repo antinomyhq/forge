@@ -1,0 +1,1 @@
+Reverts the most recent file operation (create/modify/delete) on a specific file. Use this tool when you need to recover from incorrect file changes or if a revert is requested by the user.

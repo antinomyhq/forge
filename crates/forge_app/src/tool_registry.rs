@@ -4,8 +4,8 @@ use std::time::Duration;
 use anyhow::Context;
 use console::style;
 use forge_domain::{
-    Agent, AgentId, AgentInput, ChatResponse, ChatResponseContent, ToolCallContext, ToolCallFull,
-    ToolCatalog, ToolDefinition, ToolName, ToolOutput, ToolResult,
+    Agent, AgentId, AgentInput, ChatResponse, ChatResponseContent, Environment, SystemContext,
+    ToolCallContext, ToolCallFull, ToolCatalog, ToolDefinition, ToolName, ToolOutput, ToolResult,
 };
 use forge_template::Element;
 use futures::future::join_all;
@@ -188,19 +188,30 @@ impl<S: Services> ToolRegistry<S> {
         let agent_tools = self.agent_executor.agent_definitions().await?;
 
         // Check if current working directory is indexed
-        let cwd = self.services.get_environment().cwd.clone();
+        let environment = self.services.get_environment();
+        let cwd = environment.cwd.clone();
         let is_indexed = self.services.is_indexed(&cwd).await.unwrap_or(false);
         let is_authenticated = self.services.is_authenticated().await.unwrap_or(false);
 
         Ok(ToolsOverview::new()
-            .system(Self::get_system_tools(is_indexed && is_authenticated))
+            .system(Self::get_system_tools(
+                is_indexed && is_authenticated,
+                &environment,
+            ))
             .agents(agent_tools)
             .mcp(mcp_tools))
     }
 }
 
 impl<S> ToolRegistry<S> {
-    fn get_system_tools(sem_search_supported: bool) -> Vec<ToolDefinition> {
+    fn get_system_tools(sem_search_supported: bool, env: &Environment) -> Vec<ToolDefinition> {
+        use crate::TemplateEngine;
+
+        let handlebars = TemplateEngine::handlebar_instance();
+
+        // Create template data with environment nested under "env"
+        let ctx = SystemContext { env: Some(env.clone()), ..Default::default() };
+
         ToolCatalog::iter()
             .filter(|tool| {
                 // Filter out sem_search if cwd is not indexed
@@ -210,7 +221,14 @@ impl<S> ToolRegistry<S> {
                     true
                 }
             })
-            .map(|tool| tool.definition())
+            .map(|tool| {
+                let mut def = tool.definition();
+                // Render template variables in description
+                if let Ok(rendered) = handlebars.render_template(&def.description, &ctx) {
+                    def.description = rendered;
+                }
+                def
+            })
             .collect::<Vec<_>>()
     }
 
@@ -238,7 +256,7 @@ impl<S> ToolRegistry<S> {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{Agent, AgentId, ModelId, ProviderId, ToolCatalog, ToolName};
+    use forge_domain::{Agent, AgentId, Environment, ModelId, ProviderId, ToolCatalog, ToolName};
     use pretty_assertions::assert_eq;
 
     use crate::error::Error;
@@ -465,13 +483,44 @@ mod tests {
 
     #[test]
     fn test_sem_search_included_when_supported() {
-        let actual = ToolRegistry::<()>::get_system_tools(true);
+        use fake::{Fake, Faker};
+        let env: Environment = Faker.fake();
+        let actual = ToolRegistry::<()>::get_system_tools(true, &env);
         assert!(actual.iter().any(|t| t.name.as_str() == "sem_search"));
     }
 
     #[test]
     fn test_sem_search_filtered_when_not_supported() {
-        let actual = ToolRegistry::<()>::get_system_tools(false);
+        use fake::{Fake, Faker};
+        let env: Environment = Faker.fake();
+        let actual = ToolRegistry::<()>::get_system_tools(false, &env);
         assert!(actual.iter().all(|t| t.name.as_str() != "sem_search"));
     }
+}
+
+#[test]
+fn test_template_rendering_in_tool_descriptions() {
+    use fake::{Fake, Faker};
+
+    let mut env: Environment = Faker.fake();
+    env.max_search_lines = 1000;
+
+    let actual = ToolRegistry::<()>::get_system_tools(true, &env);
+    let fs_search_tool = actual
+        .iter()
+        .find(|t| t.name.as_str() == "fs_search")
+        .unwrap();
+
+    // The description should have the template variable rendered
+    assert!(
+        fs_search_tool.description.contains("1000"),
+        "Description should contain the rendered max_search_lines value: {}",
+        fs_search_tool.description
+    );
+    assert!(
+        !fs_search_tool
+            .description
+            .contains("{{env.maxSearchLines}}"),
+        "Description should not contain unrendered template variable"
+    );
 }

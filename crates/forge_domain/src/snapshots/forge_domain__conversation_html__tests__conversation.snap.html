@@ -925,6 +925,9 @@ What would you like to work on today?</pre>
 <div
   class="main-content"
 >
+<p>
+<strong>Input type for the net fetch tool</strong>
+</p>
 <pre>{
   "title": "NetFetch",
   "description": "Input type for the net fetch tool",
@@ -955,6 +958,19 @@ What would you like to work on today?</pre>
 <div
   class="main-content"
 >
+<p>
+<strong>Modifies files with targeted line operations on matched patterns. Supports
+ prepend, append, replace, replace_all, swap operations. Ideal for precise
+ changes to configs, code, or docs while preserving context. Not suitable for
+ complex refactoring or modifying all pattern occurrences - use `write`
+ instead for complete rewrites and `undo` for undoing the last operation.
+ Fails if search pattern isn\'t found.\\n\\nUsage Guidelines:\\n-When editing
+ text from Read tool output, ensure you preserve new lines and the exact
+ indentation (tabs/spaces) as it appears AFTER the line number prefix. The
+ line number prefix format is: line number + \':\'. Everything
+ after that is the actual file content to match. Never include any part
+ of the line number prefix in the search or content</strong>
+</p>
 <pre>{
   "title": "FSPatch",
   "description": "Modifies files with targeted line operations on matched patterns. Supports prepend, append, replace, replace_all, swap operations. Ideal for precise changes to configs, code, or docs while preserving context. Not suitable for complex refactoring or modifying all pattern occurrences - use `write` instead for complete rewrites and `undo` for undoing the last operation. Fails if search pattern isn't found.\\n\\nUsage Guidelines:\\n-When editing text from Read tool output, ensure you preserve new lines and the exact indentation (tabs/spaces) as it appears AFTER the line number prefix. The line number prefix format is: line number + ':'. Everything after that is the actual file content to match. Never include any part of the line number prefix in the search or content",
@@ -1002,6 +1018,17 @@ What would you like to work on today?</pre>
 <div
   class="main-content"
 >
+<p>
+<strong>Reads file contents from the specified absolute path. Ideal for analyzing
+ code, configuration files, documentation, or textual data. Returns the
+ content as a string with line number prefixes by default. For files larger
+ than 2,000 lines, the tool automatically returns only the first 2,000 lines.
+ You should always rely on this default behavior and avoid specifying custom
+ ranges unless absolutely necessary. If needed, specify a range with the
+ start_line and end_line parameters, ensuring the total range does not exceed
+ 2,000 lines. Specifying a range exceeding this limit will result in an
+ error. Binary files are automatically detected and rejected.</strong>
+</p>
 <pre>{
   "title": "FSRead",
   "description": "Reads file contents from the specified absolute path. Ideal for analyzing code, configuration files, documentation, or textual data. Returns the content as a string with line number prefixes by default. For files larger than 2,000 lines, the tool automatically returns only the first 2,000 lines. You should always rely on this default behavior and avoid specifying custom ranges unless absolutely necessary. If needed, specify a range with the start_line and end_line parameters, ensuring the total range does not exceed 2,000 lines. Specifying a range exceeding this limit will result in an error. Binary files are automatically detected and rejected.",
@@ -1044,6 +1071,16 @@ What would you like to work on today?</pre>
 <div
   class="main-content"
 >
+<p>
+<strong>Reads image files from the file system and returns them in base64-encoded
+ format for vision-capable models. Supports common image formats: JPEG, PNG,
+ WebP, and GIF. The path must be absolute and point to an existing file. Use
+ this tool when you need to process, analyze, or display images with vision
+ models. Do NOT use this for text files - use the `read` tool instead. Do NOT
+ use for other binary files like PDFs, videos, or archives. The tool will
+ fail if the file doesn\'t exist or if the format is unsupported. Returns the
+ image content encoded in base64 format ready for vision model consumption.</strong>
+</p>
 <pre>{
   "title": "ReadImage",
   "description": "Reads image files from the file system and returns them in base64-encoded format for vision-capable models. Supports common image formats: JPEG, PNG, WebP, and GIF. The path must be absolute and point to an existing file. Use this tool when you need to process, analyze, or display images with vision models. Do NOT use this for text files - use the `read` tool instead. Do NOT use for other binary files like PDFs, videos, or archives. The tool will fail if the file doesn't exist or if the format is unsupported. Returns the image content encoded in base64 format ready for vision model consumption.",
@@ -1069,6 +1106,11 @@ What would you like to work on today?</pre>
 <div
   class="main-content"
 >
+<p>
+<strong>Request to remove a file at the specified path. Use this when you need to
+ delete an existing file. The path must be absolute. This operation cannot
+ be undone, so use it carefully.</strong>
+</p>
 <pre>{
   "title": "FSRemove",
   "description": "Request to remove a file at the specified path. Use this when you need to delete an existing file. The path must be absolute. This operation cannot be undone, so use it carefully.",
@@ -1094,6 +1136,9 @@ What would you like to work on today?</pre>
 <div
   class="main-content"
 >
+<p>
+<strong>Research-only tool for systematic codebase exploration and analysis. Performs comprehensive, read-only investigation: maps project architecture and module relationships, traces data/logic flow across files, analyzes API usage patterns, examines test coverage and build configurations, identifies design patterns and technical debt. Accepts detailed research questions or investigation tasks as input parameters. IMPORTANT: Always specify the target directory or file path in your task description to narrow down the scope and improve efficiency. Use when you need to understand how systems work, why architectural decisions were made, or to investigate bugs, dependencies, complex behavior patterns, or code quality issues. Do NOT use for code modifications, running commands, or file operations—choose implementation or planning agents instead. Returns structured reports with research summaries, key findings, technical details, contextual insights, and actionable follow-up suggestions. Strictly read-only with no side effects or system modifications.</strong>
+</p>
 <pre>{
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "AgentInput",
@@ -1123,6 +1168,17 @@ What would you like to work on today?</pre>
 <div
   class="main-content"
 >
+<p>
+<strong>Recursively searches directories for files by content (regex) and/or name
+ (glob pattern). Provides context-rich results with line numbers for content
+ matches. Two modes: content search (when regex provided) or file finder
+ (when regex omitted). Uses case-insensitive Rust regex syntax. Requires
+ absolute paths. Avoids binary files and excluded directories. Best for code
+ exploration, API usage discovery, configuration settings, or finding
+ patterns across projects. For large pages, returns the first 200
+ lines and stores the complete content in a temporary file for
+ subsequent access.</strong>
+</p>
 <pre>{
   "title": "FSSearch",
   "description": "Recursively searches directories for files by content (regex) and/or name (glob pattern). Provides context-rich results with line numbers for content matches. Two modes: content search (when regex provided) or file finder (when regex omitted). Uses case-insensitive Rust regex syntax. Requires absolute paths. Avoids binary files and excluded directories. Best for code exploration, API usage discovery, configuration settings, or finding patterns across projects. For large pages, returns the first 200 lines and stores the complete content in a temporary file for subsequent access.",
@@ -1170,6 +1226,19 @@ What would you like to work on today?</pre>
 <div
   class="main-content"
 >
+<p>
+<strong>AI-powered semantic code search. YOUR DEFAULT TOOL for code discovery
+ tasks. Use this when you need to find code locations, understand
+ implementations, or explore functionality - it works with natural language
+ about behavior and concepts, not just keyword matching.
+ Start with sem_search when: locating code to modify, understanding how
+ features work, finding patterns/examples, or exploring unfamiliar areas.
+ Understands queries like \"authentication flow\" (finds login), \"retry logic\
+ (finds backoff), \"validation\" (finds checking/sanitization).
+ Returns file:line locations with code context, ranked by relevance. Use
+ multiple varied queries (2-3) for best coverage. For exact string matching
+ (TODO comments, specific function names), use regex search instead.</strong>
+</p>
 <pre>{
   "title": "SemanticSearch",
   "description": "AI-powered semantic code search. YOUR DEFAULT TOOL for code discovery tasks. Use this when you need to find code locations, understand implementations, or explore functionality - it works with natural language about behavior and concepts, not just keyword matching.\n\nStart with sem_search when: locating code to modify, understanding how features work, finding patterns/examples, or exploring unfamiliar areas. Understands queries like \"authentication flow\" (finds login), \"retry logic\" (finds backoff), \"validation\" (finds checking/sanitization).\n\nReturns file:line locations with code context, ranked by relevance. Use multiple varied queries (2-3) for best coverage. For exact string matching (TODO comments, specific function names), use regex search instead.",
@@ -1218,6 +1287,15 @@ What would you like to work on today?</pre>
 <div
   class="main-content"
 >
+<p>
+<strong>Executes shell commands with safety measures using restricted bash (rbash).
+ Prevents potentially harmful operations like absolute path execution and
+ directory changes. Use for file system interaction, running utilities,
+ installing packages, or executing build commands. For operations requiring
+ unrestricted access, advise users to run forge CLI with \'-u\' flag. Returns
+ complete output including stdout, stderr, and exit code for diagnostic
+ purposes.</strong>
+</p>
 <pre>{
   "title": "Shell",
   "description": "Executes shell commands with safety measures using restricted bash (rbash). Prevents potentially harmful operations like absolute path execution and directory changes. Use for file system interaction, running utilities, installing packages, or executing build commands. For operations requiring unrestricted access, advise users to run forge CLI with '-u' flag. Returns complete output including stdout, stderr, and exit code for diagnostic purposes.",
@@ -1260,6 +1338,13 @@ What would you like to work on today?</pre>
 <div
   class="main-content"
 >
+<p>
+<strong>Fetches detailed information about a specific skill. Use this tool to load
+ skill content and instructions when you need to understand how to perform a
+ specialized task. Skills provide domain-specific knowledge, workflows, and
+ best practices. Only invoke skills that are listed in the available skills
+ section. Do not invoke a skill that is already active.</strong>
+</p>
 <pre>{
   "title": "SkillFetch",
   "description": "Fetches detailed information about a specific skill. Use this tool to load skill content and instructions when you need to understand how to perform a specialized task. Skills provide domain-specific knowledge, workflows, and best practices. Only invoke skills that are listed in the available skills section. Do not invoke a skill that is already active.",
@@ -1285,6 +1370,11 @@ What would you like to work on today?</pre>
 <div
   class="main-content"
 >
+<p>
+<strong>Reverts the most recent file operation (create/modify/delete) on a specific
+ file. Use this tool when you need to recover from incorrect file changes or
+ if a revert is requested by the user.</strong>
+</p>
 <pre>{
   "title": "FSUndo",
   "description": "Reverts the most recent file operation (create/modify/delete) on a specific file. Use this tool when you need to recover from incorrect file changes or if a revert is requested by the user.",
@@ -1310,6 +1400,14 @@ What would you like to work on today?</pre>
 <div
   class="main-content"
 >
+<p>
+<strong>Use it to create a new file at a specified path with the provided content.
+ Always provide absolute paths for file locations. The tool
+ automatically handles the creation of any missing intermediary directories
+ in the specified path.
+ IMPORTANT: DO NOT attempt to use this tool to move or rename files, use the
+ shell tool instead.</strong>
+</p>
 <pre>{
   "title": "FSWrite",
   "description": "Use it to create a new file at a specified path with the provided content.\n\nAlways provide absolute paths for file locations. The tool automatically handles the creation of any missing intermediary directories in the specified path. IMPORTANT: DO NOT attempt to use this tool to move or rename files, use the shell tool instead.",
