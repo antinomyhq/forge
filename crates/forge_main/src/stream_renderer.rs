@@ -8,10 +8,11 @@ use forge_domain::OutputPrinter;
 use forge_markdown_stream::StreamdownRenderer;
 use forge_spinner::SpinnerManager;
 
-/// Shared spinner wrapper that encapsulates locking for thread-safe spinner operations.
-/// 
-/// Provides the same API as `SpinnerManager` but handles mutex locking internally,
-/// releasing the lock immediately after each operation completes.
+/// Shared spinner wrapper that encapsulates locking for thread-safe spinner
+/// operations.
+///
+/// Provides the same API as `SpinnerManager` but handles mutex locking
+/// internally, releasing the lock immediately after each operation completes.
 pub struct SharedSpinner<P: OutputPrinter>(Arc<Mutex<SpinnerManager<P>>>);
 
 impl<P: OutputPrinter> Clone for SharedSpinner<P> {

@@ -2096,7 +2096,8 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             anyhow::bail!("Authorization code cannot be empty");
         }
 
-        self.spinner.start(Some("Exchanging authorization code..."))?;
+        self.spinner
+            .start(Some("Exchanging authorization code..."))?;
 
         let response = AuthContextResponse::code(request.clone(), &code);
 
