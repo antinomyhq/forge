@@ -2,7 +2,7 @@
 //!
 //! Prevents interleaving when multiple threads write to terminal output.
 
-use std::io::{self, Stdout, Write};
+use std::io::{self, Stderr, Stdout, Write};
 use std::sync::{Arc, Mutex};
 
 use forge_app::OutputPrinterInfra;
@@ -12,31 +12,32 @@ use forge_app::OutputPrinterInfra;
 /// Wraps writers in mutexes to prevent output interleaving when multiple
 /// threads (e.g., streaming markdown and shell commands) write concurrently.
 ///
-/// Generic over writer type `W` to support testing with mock writers.
+/// Generic over writer types `O` (stdout) and `E` (stderr) to support testing
+/// with mock writers.
 #[derive(Debug)]
-pub struct OutputPrinter<W = Stdout> {
-    stdout: Arc<Mutex<W>>,
-    stderr: Arc<Mutex<W>>,
+pub struct OutputPrinter<O = Stdout, E = Stderr> {
+    stdout: Arc<Mutex<O>>,
+    stderr: Arc<Mutex<E>>,
 }
 
-impl<W> Clone for OutputPrinter<W> {
+impl<O, E> Clone for OutputPrinter<O, E> {
     fn clone(&self) -> Self {
         Self { stdout: self.stdout.clone(), stderr: self.stderr.clone() }
     }
 }
 
-impl Default for OutputPrinter<Stdout> {
+impl Default for OutputPrinter<Stdout, Stderr> {
     fn default() -> Self {
         Self {
             stdout: Arc::new(Mutex::new(io::stdout())),
-            stderr: Arc::new(Mutex::new(io::stdout())),
+            stderr: Arc::new(Mutex::new(io::stderr())),
         }
     }
 }
 
-impl<W> OutputPrinter<W> {
+impl<O, E> OutputPrinter<O, E> {
     /// Creates a new OutputPrinter with custom writers.
-    pub fn with_writers(stdout: W, stderr: W) -> Self {
+    pub fn with_writers(stdout: O, stderr: E) -> Self {
         Self {
             stdout: Arc::new(Mutex::new(stdout)),
             stderr: Arc::new(Mutex::new(stderr)),
@@ -44,7 +45,7 @@ impl<W> OutputPrinter<W> {
     }
 }
 
-impl<W: Write + Send> OutputPrinterInfra for OutputPrinter<W> {
+impl<O: Write + Send, E: Write + Send> OutputPrinterInfra for OutputPrinter<O, E> {
     fn write_stdout(&self, buf: &[u8]) -> io::Result<usize> {
         let mut guard = self
             .stdout

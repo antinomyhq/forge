@@ -8,8 +8,49 @@ use forge_domain::OutputPrinter;
 use forge_markdown_stream::StreamdownRenderer;
 use forge_spinner::SpinnerManager;
 
-/// Shared spinner handle for coordination between UI and writer.
-pub type SharedSpinner<P> = Arc<Mutex<SpinnerManager<P>>>;
+/// Shared spinner wrapper that encapsulates locking for thread-safe spinner operations.
+/// 
+/// Provides the same API as `SpinnerManager` but handles mutex locking internally,
+/// releasing the lock immediately after each operation completes.
+pub struct SharedSpinner<P: OutputPrinter>(Arc<Mutex<SpinnerManager<P>>>);
+
+impl<P: OutputPrinter> Clone for SharedSpinner<P> {
+    fn clone(&self) -> Self {
+        Self(Arc::clone(&self.0))
+    }
+}
+
+impl<P: OutputPrinter> SharedSpinner<P> {
+    /// Creates a new shared spinner from a SpinnerManager.
+    pub fn new(spinner: SpinnerManager<P>) -> Self {
+        Self(Arc::new(Mutex::new(spinner)))
+    }
+
+    /// Start the spinner with a message.
+    pub fn start(&self, message: Option<&str>) -> Result<()> {
+        self.0.lock().unwrap().start(message)
+    }
+
+    /// Stop the active spinner if any.
+    pub fn stop(&self, message: Option<String>) -> Result<()> {
+        self.0.lock().unwrap().stop(message)
+    }
+
+    /// Resets the stopwatch to zero.
+    pub fn reset(&self) {
+        self.0.lock().unwrap().reset()
+    }
+
+    /// Writes a line to stdout, suspending the spinner if active.
+    pub fn write_ln(&self, message: impl ToString) -> Result<()> {
+        self.0.lock().unwrap().write_ln(message)
+    }
+
+    /// Writes a line to stderr, suspending the spinner if active.
+    pub fn ewrite_ln(&self, message: impl ToString) -> Result<()> {
+        self.0.lock().unwrap().ewrite_ln(message)
+    }
+}
 
 /// Content styling for output.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -123,15 +164,11 @@ impl<P: OutputPrinter> DirectContentWriter<P> {
     }
 
     fn pause_spinner(&self) {
-        if let Ok(mut sp) = self.spinner.lock() {
-            let _ = sp.stop(None);
-        }
+        let _ = self.spinner.stop(None);
     }
 
     fn resume_spinner(&self) {
-        if let Ok(mut sp) = self.spinner.lock() {
-            let _ = sp.start(None);
-        }
+        let _ = self.spinner.start(None);
     }
 }
 
@@ -232,15 +269,11 @@ struct StreamDirectWriter<P: OutputPrinter> {
 
 impl<P: OutputPrinter> StreamDirectWriter<P> {
     fn pause_spinner(&self) {
-        if let Ok(mut sp) = self.spinner.lock() {
-            let _ = sp.stop(None);
-        }
+        let _ = self.spinner.stop(None);
     }
 
     fn resume_spinner(&self) {
-        if let Ok(mut sp) = self.spinner.lock() {
-            let _ = sp.start(None);
-        }
+        let _ = self.spinner.start(None);
     }
 }
 

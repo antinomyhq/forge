@@ -151,4 +151,4 @@ forge_json_repair = { path = "crates/forge_json_repair" }
 forge_select = { path = "crates/forge_select" }
 forge_test_kit = { path = "crates/forge_test_kit" }
 
-forge_markdown_stream = { git = "https://github.com/laststylebender14/forge_markdown_stream" }
+forge_markdown_stream = { git = "https://github.com/laststylebender14/forge_markdown_stream", branch = "master" }
