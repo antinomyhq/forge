@@ -20,7 +20,7 @@ impl ForgeWorkspaceRepository {
 }
 
 /// Database model for workspace table
-#[derive(Debug, Queryable, Selectable, Insertable, AsChangeset)]
+#[derive(Debug, Queryable, Selectable, Insertable, AsChangeset, diesel::QueryableByName)]
 #[diesel(table_name = workspace)]
 #[diesel(check_for_backend(diesel::sqlite::Sqlite))]
 struct IndexingRecord {
@@ -80,28 +80,17 @@ impl WorkspaceRepository for ForgeWorkspaceRepository {
         Ok(())
     }
 
-    async fn find_by_path(
-        &self,
-        path: &std::path::Path,
-        user_id: &UserId,
-    ) -> anyhow::Result<Option<Workspace>> {
-        // First try exact match
-        let exact_match = {
-            let mut connection = self.pool.get_connection()?;
-            let path_str = path.to_string_lossy().into_owned();
-            workspace::table
-                .filter(workspace::path.eq(&path_str))
-                .filter(workspace::user_id.eq(user_id.to_string()))
-                .first::<IndexingRecord>(&mut connection)
-                .optional()?
-        };
+    async fn find_all_by_user_id(&self, user_id: &UserId) -> anyhow::Result<Vec<Workspace>> {
+        let mut connection = self.pool.get_connection()?;
 
-        if let Some(record) = exact_match {
-            return Workspace::try_from(&record).map(Some);
-        }
+        let records: Vec<IndexingRecord> = workspace::table
+            .filter(workspace::user_id.eq(user_id.to_string()))
+            .load(&mut connection)?;
 
-        // No exact match, try ancestor lookup
-        self.find_ancestor_workspace_internal(path, user_id).await
+        Ok(records
+            .into_iter()
+            .filter_map(|record| Workspace::try_from(&record).ok())
+            .collect())
     }
 
     async fn get_user_id(&self) -> anyhow::Result<Option<UserId>> {
@@ -124,52 +113,12 @@ impl WorkspaceRepository for ForgeWorkspaceRepository {
     }
 }
 
-impl ForgeWorkspaceRepository {
-    /// Internal helper to find ancestor workspace
-    ///
-    /// Searches for workspaces where the given path is a subdirectory of a
-    /// workspace path. Returns the closest ancestor workspace (longest
-    /// matching path prefix).
-    async fn find_ancestor_workspace_internal(
-        &self,
-        path: &std::path::Path,
-        user_id: &UserId,
-    ) -> anyhow::Result<Option<Workspace>> {
-        let mut connection = self.pool.get_connection()?;
-
-        // Get all workspaces for this user
-        let records: Vec<IndexingRecord> = workspace::table
-            .filter(workspace::user_id.eq(user_id.to_string()))
-            .load(&mut connection)?;
-
-        // Find the closest ancestor by checking if path starts with workspace path
-        let mut best_match: Option<(Workspace, usize)> = None;
-
-        for record in &records {
-            let workspace_path = PathBuf::from(&record.path);
-
-            // Check if the target path starts with this workspace path
-            if path.starts_with(&workspace_path) && path != workspace_path {
-                let path_len = workspace_path.as_os_str().len();
-
-                // Keep the longest matching path (closest ancestor)
-                if best_match.as_ref().is_none_or(|(_, len)| path_len > *len)
-                    && let Ok(workspace) = Workspace::try_from(record)
-                {
-                    best_match = Some((workspace, path_len));
-                }
-            }
-        }
-
-        Ok(best_match.map(|(workspace, _)| workspace))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
+    use std::sync::Arc;
 
-    use forge_domain::UserId;
+    use forge_domain::{UserId, WorkspaceId};
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -181,7 +130,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_upsert_and_find_by_path() {
+    async fn test_upsert_and_find_all_by_user_id() {
         let fixture = repo_fixture();
         let workspace_id = WorkspaceId::generate();
         let user_id = UserId::generate();
@@ -192,16 +141,13 @@ mod tests {
             .await
             .unwrap();
 
-        let actual = fixture
-            .find_by_path(&path, &user_id)
-            .await
-            .unwrap()
-            .unwrap();
+        let actual = fixture.find_all_by_user_id(&user_id).await.unwrap();
 
-        assert_eq!(actual.workspace_id, workspace_id);
-        assert_eq!(actual.user_id, user_id);
-        assert_eq!(actual.path, path);
-        assert!(actual.updated_at.is_none());
+        assert_eq!(actual.len(), 1);
+        assert_eq!(actual[0].workspace_id, workspace_id);
+        assert_eq!(actual[0].user_id, user_id);
+        assert_eq!(actual[0].path, path);
+        assert!(actual[0].updated_at.is_none());
     }
 
     #[tokio::test]
@@ -220,167 +166,69 @@ mod tests {
             .await
             .unwrap();
 
-        let actual = fixture
-            .find_by_path(&path, &user_id)
-            .await
-            .unwrap()
-            .unwrap();
+        let actual = fixture.find_all_by_user_id(&user_id).await.unwrap();
 
-        assert!(actual.updated_at.is_some());
+        assert_eq!(actual.len(), 1);
+        assert!(actual[0].updated_at.is_some());
     }
 
     #[tokio::test]
-    async fn test_find_ancestor_workspace_direct_child() {
+    async fn test_find_all_by_user_id_returns_all_workspaces() {
         let fixture = repo_fixture();
-        let workspace_id = WorkspaceId::generate();
         let user_id = UserId::generate();
-        let parent_path = PathBuf::from("/test/project");
-        let child_path = PathBuf::from("/test/project/src");
-
-        fixture
-            .upsert(&workspace_id, &user_id, &parent_path)
-            .await
-            .unwrap();
-
-        let actual = fixture
-            .find_by_path(&child_path, &user_id)
-            .await
-            .unwrap()
-            .unwrap();
-
-        assert_eq!(actual.workspace_id, workspace_id);
-        assert_eq!(actual.path, parent_path);
-    }
-
-    #[tokio::test]
-    async fn test_find_ancestor_workspace_deep_nesting() {
-        let fixture = repo_fixture();
-        let workspace_id = WorkspaceId::generate();
-        let user_id = UserId::generate();
-        let parent_path = PathBuf::from("/test/project");
-        let deep_child_path = PathBuf::from("/test/project/src/components/ui/button");
-
-        fixture
-            .upsert(&workspace_id, &user_id, &parent_path)
-            .await
-            .unwrap();
-
-        let actual = fixture
-            .find_by_path(&deep_child_path, &user_id)
-            .await
-            .unwrap()
-            .unwrap();
-
-        assert_eq!(actual.workspace_id, workspace_id);
-        assert_eq!(actual.path, parent_path);
-    }
-
-    #[tokio::test]
-    async fn test_find_ancestor_workspace_returns_closest_ancestor() {
-        let fixture = repo_fixture();
         let workspace_id_1 = WorkspaceId::generate();
         let workspace_id_2 = WorkspaceId::generate();
-        let user_id = UserId::generate();
-        let ancestor_path = PathBuf::from("/test/project");
-        let closer_ancestor_path = PathBuf::from("/test/project/src");
-        let child_path = PathBuf::from("/test/project/src/components");
+        let path_1 = PathBuf::from("/test/project1");
+        let path_2 = PathBuf::from("/test/project2");
 
         fixture
-            .upsert(&workspace_id_1, &user_id, &ancestor_path)
+            .upsert(&workspace_id_1, &user_id, &path_1)
             .await
             .unwrap();
         fixture
-            .upsert(&workspace_id_2, &user_id, &closer_ancestor_path)
+            .upsert(&workspace_id_2, &user_id, &path_2)
             .await
             .unwrap();
 
-        let actual = fixture
-            .find_by_path(&child_path, &user_id)
-            .await
-            .unwrap()
-            .unwrap();
+        let actual = fixture.find_all_by_user_id(&user_id).await.unwrap();
 
-        assert_eq!(actual.workspace_id, workspace_id_2);
-        assert_eq!(actual.path, closer_ancestor_path);
+        assert_eq!(actual.len(), 2);
+        assert!(actual.iter().any(|w| w.workspace_id == workspace_id_1));
+        assert!(actual.iter().any(|w| w.workspace_id == workspace_id_2));
     }
 
     #[tokio::test]
-    async fn test_find_ancestor_workspace_no_match() {
+    async fn test_find_all_by_user_id_filters_by_user() {
         let fixture = repo_fixture();
-        let workspace_id = WorkspaceId::generate();
-        let user_id = UserId::generate();
-        let workspace_path = PathBuf::from("/test/project");
-        let sibling_path = PathBuf::from("/test/other");
-
-        fixture
-            .upsert(&workspace_id, &user_id, &workspace_path)
-            .await
-            .unwrap();
-
-        let actual = fixture.find_by_path(&sibling_path, &user_id).await.unwrap();
-
-        assert!(actual.is_none());
-    }
-
-    #[tokio::test]
-    async fn test_find_ancestor_workspace_different_user() {
-        let fixture = repo_fixture();
-        let workspace_id = WorkspaceId::generate();
         let user_id_1 = UserId::generate();
         let user_id_2 = UserId::generate();
-        let parent_path = PathBuf::from("/test/project");
-        let child_path = PathBuf::from("/test/project/src");
+        let workspace_id_1 = WorkspaceId::generate();
+        let workspace_id_2 = WorkspaceId::generate();
+        let path_1 = PathBuf::from("/test/project1");
+        let path_2 = PathBuf::from("/test/project2");
 
         fixture
-            .upsert(&workspace_id, &user_id_1, &parent_path)
+            .upsert(&workspace_id_1, &user_id_1, &path_1)
+            .await
+            .unwrap();
+        fixture
+            .upsert(&workspace_id_2, &user_id_2, &path_2)
             .await
             .unwrap();
 
-        let actual = fixture.find_by_path(&child_path, &user_id_2).await.unwrap();
+        let actual = fixture.find_all_by_user_id(&user_id_1).await.unwrap();
 
-        assert!(actual.is_none());
+        assert_eq!(actual.len(), 1);
+        assert_eq!(actual[0].workspace_id, workspace_id_1);
     }
 
     #[tokio::test]
-    async fn test_find_by_path_returns_exact_match() {
+    async fn test_find_all_by_user_id_returns_empty_when_no_workspaces() {
         let fixture = repo_fixture();
-        let workspace_id = WorkspaceId::generate();
         let user_id = UserId::generate();
-        let path = PathBuf::from("/test/project");
 
-        fixture
-            .upsert(&workspace_id, &user_id, &path)
-            .await
-            .unwrap();
+        let actual = fixture.find_all_by_user_id(&user_id).await.unwrap();
 
-        let actual = fixture
-            .find_by_path(&path, &user_id)
-            .await
-            .unwrap()
-            .unwrap();
-
-        assert_eq!(actual.workspace_id, workspace_id);
-        assert_eq!(actual.path, path);
-    }
-
-    #[tokio::test]
-    async fn test_find_ancestor_workspace_similar_prefix() {
-        let fixture = repo_fixture();
-        let workspace_id = WorkspaceId::generate();
-        let user_id = UserId::generate();
-        let workspace_path = PathBuf::from("/test/pro");
-        let non_child_path = PathBuf::from("/test/project");
-
-        fixture
-            .upsert(&workspace_id, &user_id, &workspace_path)
-            .await
-            .unwrap();
-
-        let actual = fixture
-            .find_by_path(&non_child_path, &user_id)
-            .await
-            .unwrap();
-
-        assert!(actual.is_none());
+        assert_eq!(actual.len(), 0);
     }
 }

@@ -309,11 +309,12 @@ impl<F> ForgeWorkspaceService<F> {
         }
     }
 
-    /// Canonicalizes a path and finds the associated workspace
     /// Finds a workspace by exact path match, or falls back to ancestor lookup
     ///
-    /// First tries to find an exact match for the given path. If not found,
-    /// searches for ancestor workspaces and returns the closest one.
+    /// Business logic:
+    /// 1. First tries to find an exact match for the given path
+    /// 2. If not found, searches for ancestor workspaces
+    /// 3. Returns the closest ancestor (longest matching path prefix)
     ///
     /// # Errors
     /// Returns an error if the path cannot be canonicalized or if there's a
@@ -330,7 +331,28 @@ impl<F> ForgeWorkspaceService<F> {
             .canonicalize()
             .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
 
-        self.infra.find_by_path(&canonical_path, user_id).await
+        // Get all workspaces for the user - let the service handle filtering
+        let workspaces = self.infra.find_all_by_user_id(user_id).await?;
+
+        // Business logic: choose which workspace to use
+        // 1. First check for exact match
+        if let Some(exact_match) = workspaces.iter().find(|w| w.path == canonical_path) {
+            return Ok(Some(exact_match.clone()));
+        }
+
+        // 2. Find closest ancestor (longest matching path prefix)
+        let mut best_match: Option<(&forge_domain::Workspace, usize)> = None;
+
+        for workspace in &workspaces {
+            if canonical_path.starts_with(&workspace.path) {
+                let path_len = workspace.path.as_os_str().len();
+                if best_match.is_none_or(|(_, len)| path_len > len) {
+                    best_match = Some((workspace, path_len));
+                }
+            }
+        }
+
+        Ok(best_match.map(|(w, _)| w.clone()))
     }
     /// Walks the directory, reads all files, and computes their hashes.
     /// Only includes files with allowed extensions.
@@ -680,10 +702,12 @@ mod tests {
     }
 
     fn workspace() -> Workspace {
+        // Use canonicalized current directory for tests
+        let current_dir = std::env::current_dir().unwrap();
         Workspace {
             workspace_id: WorkspaceId::generate(),
             user_id: UserId::generate(),
-            path: PathBuf::from("."),
+            path: current_dir,
             created_at: chrono::Utc::now(),
             updated_at: None,
         }
@@ -775,17 +799,27 @@ mod tests {
         async fn upsert(&self, _: &WorkspaceId, _: &UserId, _: &Path) -> Result<()> {
             Ok(())
         }
-        async fn find_by_path(&self, _: &Path, _: &UserId) -> Result<Option<Workspace>> {
-            // First try exact match (workspace)
-            if self.workspace.is_some() {
-                Ok(self.workspace.clone())
-            } else {
-                // Fall back to ancestor
-                Ok(self.ancestor_workspace.clone())
+        async fn find_all_by_user_id(&self, _: &UserId) -> Result<Vec<Workspace>> {
+            let mut workspaces = Vec::new();
+
+            // Return all workspaces for the user (repository doesn't filter by path)
+            if let Some(workspace) = &self.workspace {
+                workspaces.push(workspace.clone());
             }
+
+            if let Some(ancestor) = &self.ancestor_workspace {
+                workspaces.push(ancestor.clone());
+            }
+
+            Ok(workspaces)
         }
         async fn get_user_id(&self) -> Result<Option<UserId>> {
-            Ok(self.workspace.as_ref().map(|w| w.user_id.clone()))
+            // Return user_id from either workspace or ancestor_workspace
+            Ok(self
+                .workspace
+                .as_ref()
+                .or(self.ancestor_workspace.as_ref())
+                .map(|w| w.user_id.clone()))
         }
         async fn delete(&self, _: &WorkspaceId) -> Result<()> {
             Ok(())
@@ -1255,8 +1289,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_sync_reuses_ancestor_workspace_for_subdirectory() {
-        // Use current directory as parent workspace
-        let current_dir = std::env::current_dir().unwrap();
+        // Use current directory as parent workspace - must be canonicalized
+        let current_dir = std::env::current_dir().unwrap().canonicalize().unwrap();
 
         let parent_workspace = Workspace {
             workspace_id: WorkspaceId::generate(),
@@ -1271,15 +1305,15 @@ mod tests {
                 .iter()
                 .map(|(p, c)| (p.to_string(), c.to_string()))
                 .collect(),
-            workspace: None, // No exact match for current directory
-            ancestor_workspace: Some(parent_workspace.clone()), // Parent is indexed
+            workspace: Some(parent_workspace.clone()), // Exact match for current directory
+            ancestor_workspace: None,
             authenticated: true,
             ..Default::default()
         };
 
         let service = ForgeWorkspaceService::new(Arc::new(mock.clone()));
 
-        // Sync from current directory (which should match the parent workspace)
+        // Sync from current directory (which should match the parent workspace exactly)
         let mut stream = service.sync_workspace(current_dir, 20).await.unwrap();
 
         // Collect all events
@@ -1342,18 +1376,22 @@ mod tests {
 
     #[tokio::test]
     async fn test_sync_prefers_exact_match_over_ancestor() {
+        // Use current directory as exact match
+        let current_dir = std::env::current_dir().unwrap();
+        let user_id = UserId::generate();
+
         let exact_workspace = Workspace {
             workspace_id: WorkspaceId::generate(),
-            user_id: UserId::generate(),
-            path: PathBuf::from("/test/project/src"),
+            user_id: user_id.clone(),
+            path: current_dir.clone(),
             created_at: chrono::Utc::now(),
             updated_at: None,
         };
 
         let ancestor_workspace = Workspace {
             workspace_id: WorkspaceId::generate(),
-            user_id: UserId::generate(),
-            path: PathBuf::from("/test/project"),
+            user_id: user_id.clone(),
+            path: current_dir.parent().unwrap().to_path_buf(),
             created_at: chrono::Utc::now(),
             updated_at: None,
         };
@@ -1372,10 +1410,7 @@ mod tests {
 
         let service = ForgeWorkspaceService::new(Arc::new(mock.clone()));
 
-        let mut stream = service
-            .sync_workspace(PathBuf::from("."), 20)
-            .await
-            .unwrap();
+        let mut stream = service.sync_workspace(current_dir, 20).await.unwrap();
 
         // Collect all events
         let mut events = Vec::new();
@@ -1395,10 +1430,26 @@ mod tests {
 
     #[tokio::test]
     async fn test_is_indexed_returns_true_for_ancestor_workspace() {
+        // Create temporary directories for testing
+        let temp_dir = std::env::temp_dir().join(format!(
+            "forge_test_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+        let subdirectory = temp_dir.join("subdirectory");
+        std::fs::create_dir_all(&subdirectory).unwrap();
+
+        // Canonicalize paths for consistency
+        let temp_dir_canonical = temp_dir.canonicalize().unwrap();
+        let subdirectory_canonical = subdirectory.canonicalize().unwrap();
+
         let parent_workspace = Workspace {
             workspace_id: WorkspaceId::generate(),
             user_id: UserId::generate(),
-            path: PathBuf::from("."),
+            path: temp_dir_canonical.clone(),
             created_at: chrono::Utc::now(),
             updated_at: None,
         };
@@ -1412,20 +1463,40 @@ mod tests {
 
         let service = ForgeWorkspaceService::new(Arc::new(mock));
 
-        let actual = service.is_indexed(Path::new(".")).await.unwrap();
+        // Check the subdirectory - should find ancestor
+        let actual = service.is_indexed(&subdirectory_canonical).await.unwrap();
 
         assert!(
             actual,
             "Expected subdirectory to be considered indexed when parent is indexed"
         );
+
+        // Cleanup
+        std::fs::remove_dir_all(&temp_dir).ok();
     }
 
     #[tokio::test]
     async fn test_get_workspace_info_finds_ancestor() {
+        // Create temporary directories for testing
+        let temp_dir = std::env::temp_dir().join(format!(
+            "forge_test_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+        let subdirectory = temp_dir.join("subdirectory");
+        std::fs::create_dir_all(&subdirectory).unwrap();
+
+        // Canonicalize paths for consistency
+        let temp_dir_canonical = temp_dir.canonicalize().unwrap();
+        let subdirectory_canonical = subdirectory.canonicalize().unwrap();
+
         let parent_workspace = Workspace {
             workspace_id: WorkspaceId::generate(),
             user_id: UserId::generate(),
-            path: PathBuf::from("."),
+            path: temp_dir_canonical.clone(),
             created_at: chrono::Utc::now(),
             updated_at: None,
         };
@@ -1449,8 +1520,9 @@ mod tests {
 
         let service = ForgeWorkspaceService::new(Arc::new(mock));
 
+        // Check a subdirectory - should find ancestor
         let actual = service
-            .get_workspace_info(PathBuf::from("."))
+            .get_workspace_info(subdirectory_canonical)
             .await
             .unwrap();
 
@@ -1459,14 +1531,33 @@ mod tests {
             "Expected to find workspace info for subdirectory via ancestor"
         );
         assert_eq!(actual.unwrap().workspace_id, workspace_info.workspace_id);
+
+        // Cleanup
+        std::fs::remove_dir_all(&temp_dir).ok();
     }
 
     #[tokio::test]
     async fn test_get_workspace_status_uses_ancestor() {
+        // Create temporary directories for testing
+        let temp_dir = std::env::temp_dir().join(format!(
+            "forge_test_{}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+        let subdirectory = temp_dir.join("subdirectory");
+        std::fs::create_dir_all(&subdirectory).unwrap();
+
+        // Canonicalize paths for consistency
+        let temp_dir_canonical = temp_dir.canonicalize().unwrap();
+        let subdirectory_canonical = subdirectory.canonicalize().unwrap();
+
         let parent_workspace = Workspace {
             workspace_id: WorkspaceId::generate(),
             user_id: UserId::generate(),
-            path: PathBuf::from("."),
+            path: temp_dir_canonical.clone(),
             created_at: chrono::Utc::now(),
             updated_at: None,
         };
@@ -1485,11 +1576,294 @@ mod tests {
 
         let service = ForgeWorkspaceService::new(Arc::new(mock));
 
-        let actual = service.get_workspace_status(PathBuf::from(".")).await;
+        // Check a subdirectory - should find ancestor
+        let actual = service.get_workspace_status(subdirectory_canonical).await;
 
         assert!(
             actual.is_ok(),
             "Expected workspace status to work with ancestor workspace"
         );
+
+        // Cleanup
+        std::fs::remove_dir_all(&temp_dir).ok();
+    }
+
+    // Tests for find_workspace_by_path business logic (moved from repository layer)
+
+    #[tokio::test]
+    async fn test_find_workspace_by_path_returns_exact_match() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let workspace_path = temp_dir.path().canonicalize().unwrap();
+        let user_id = UserId::generate();
+
+        let workspace = Workspace {
+            workspace_id: WorkspaceId::generate(),
+            user_id: user_id.clone(),
+            path: workspace_path.clone(),
+            created_at: chrono::Utc::now(),
+            updated_at: None,
+        };
+
+        let mock = MockInfra {
+            workspace: Some(workspace.clone()),
+            authenticated: true,
+            ..Default::default()
+        };
+
+        let service = ForgeWorkspaceService::new(Arc::new(mock));
+
+        let actual = service
+            .find_workspace_by_path(workspace_path.clone(), &user_id)
+            .await
+            .unwrap();
+
+        assert!(actual.is_some());
+        assert_eq!(actual.unwrap().workspace_id, workspace.workspace_id);
+    }
+
+    #[tokio::test]
+    async fn test_find_workspace_by_path_returns_ancestor_for_subdirectory() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let parent_path = temp_dir.path().canonicalize().unwrap();
+        let user_id = UserId::generate();
+
+        // Create actual subdirectory
+        let child_dir = parent_path.join("src");
+        std::fs::create_dir(&child_dir).unwrap();
+        let child_path = child_dir.canonicalize().unwrap();
+
+        let parent_workspace = Workspace {
+            workspace_id: WorkspaceId::generate(),
+            user_id: user_id.clone(),
+            path: parent_path.clone(),
+            created_at: chrono::Utc::now(),
+            updated_at: None,
+        };
+
+        let mock = MockInfra {
+            workspace: Some(parent_workspace.clone()),
+            authenticated: true,
+            ..Default::default()
+        };
+
+        let service = ForgeWorkspaceService::new(Arc::new(mock));
+
+        // Query from child directory - should find parent
+        let actual = service
+            .find_workspace_by_path(child_path, &user_id)
+            .await
+            .unwrap();
+
+        assert!(actual.is_some());
+        assert_eq!(actual.unwrap().workspace_id, parent_workspace.workspace_id);
+    }
+
+    #[tokio::test]
+    async fn test_find_workspace_by_path_deep_nesting_finds_ancestor() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let root_path = temp_dir.path().canonicalize().unwrap();
+        let user_id = UserId::generate();
+
+        // Create deep nested directory
+        let deep_child = root_path.join("src").join("components").join("ui");
+        std::fs::create_dir_all(&deep_child).unwrap();
+        let deep_child_path = deep_child.canonicalize().unwrap();
+
+        let root_workspace = Workspace {
+            workspace_id: WorkspaceId::generate(),
+            user_id: user_id.clone(),
+            path: root_path.clone(),
+            created_at: chrono::Utc::now(),
+            updated_at: None,
+        };
+
+        let mock = MockInfra {
+            workspace: Some(root_workspace.clone()),
+            authenticated: true,
+            ..Default::default()
+        };
+
+        let service = ForgeWorkspaceService::new(Arc::new(mock));
+
+        // Query from deeply nested directory - should find root ancestor
+        let actual = service
+            .find_workspace_by_path(deep_child_path, &user_id)
+            .await
+            .unwrap();
+
+        assert!(actual.is_some());
+        assert_eq!(actual.unwrap().workspace_id, root_workspace.workspace_id);
+    }
+
+    #[tokio::test]
+    async fn test_find_workspace_by_path_prefers_exact_match_over_ancestor() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let parent_path = temp_dir.path().canonicalize().unwrap();
+        let user_id = UserId::generate();
+
+        // Create subdirectory
+        let child_dir = parent_path.join("src");
+        std::fs::create_dir(&child_dir).unwrap();
+        let child_path = child_dir.canonicalize().unwrap();
+
+        let parent_workspace = Workspace {
+            workspace_id: WorkspaceId::generate(),
+            user_id: user_id.clone(),
+            path: parent_path.clone(),
+            created_at: chrono::Utc::now(),
+            updated_at: None,
+        };
+
+        let child_workspace = Workspace {
+            workspace_id: WorkspaceId::generate(),
+            user_id: user_id.clone(),
+            path: child_path.clone(),
+            created_at: chrono::Utc::now(),
+            updated_at: None,
+        };
+
+        let mock = MockInfra {
+            workspace: Some(child_workspace.clone()),
+            ancestor_workspace: Some(parent_workspace.clone()),
+            authenticated: true,
+            ..Default::default()
+        };
+
+        let service = ForgeWorkspaceService::new(Arc::new(mock));
+
+        // Query from child - should prefer exact match over ancestor
+        let actual = service
+            .find_workspace_by_path(child_path, &user_id)
+            .await
+            .unwrap();
+
+        assert!(actual.is_some());
+        assert_eq!(actual.unwrap().workspace_id, child_workspace.workspace_id);
+    }
+
+    #[tokio::test]
+    async fn test_find_workspace_by_path_returns_closest_ancestor() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let grandparent_path = temp_dir.path().canonicalize().unwrap();
+        let user_id = UserId::generate();
+
+        // Create nested directories
+        let parent_dir = grandparent_path.join("src");
+        let child_dir = parent_dir.join("components");
+        std::fs::create_dir_all(&child_dir).unwrap();
+        let parent_path = parent_dir.canonicalize().unwrap();
+        let child_path = child_dir.canonicalize().unwrap();
+
+        let grandparent_workspace = Workspace {
+            workspace_id: WorkspaceId::generate(),
+            user_id: user_id.clone(),
+            path: grandparent_path.clone(),
+            created_at: chrono::Utc::now(),
+            updated_at: None,
+        };
+
+        let parent_workspace = Workspace {
+            workspace_id: WorkspaceId::generate(),
+            user_id: user_id.clone(),
+            path: parent_path.clone(),
+            created_at: chrono::Utc::now(),
+            updated_at: None,
+        };
+
+        let mock = MockInfra {
+            workspace: Some(parent_workspace.clone()), // Closest ancestor
+            ancestor_workspace: Some(grandparent_workspace.clone()),
+            authenticated: true,
+            ..Default::default()
+        };
+
+        let service = ForgeWorkspaceService::new(Arc::new(mock));
+
+        // Query from child - should find closest ancestor (parent, not grandparent)
+        let actual = service
+            .find_workspace_by_path(child_path, &user_id)
+            .await
+            .unwrap();
+
+        assert!(actual.is_some());
+        assert_eq!(actual.unwrap().workspace_id, parent_workspace.workspace_id);
+    }
+
+    #[tokio::test]
+    async fn test_find_workspace_by_path_no_match_for_sibling() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let root_path = temp_dir.path().canonicalize().unwrap();
+        let user_id = UserId::generate();
+
+        // Create sibling directories
+        let workspace_dir = root_path.join("project1");
+        let sibling_dir = root_path.join("project2");
+        std::fs::create_dir_all(&workspace_dir).unwrap();
+        std::fs::create_dir_all(&sibling_dir).unwrap();
+        let workspace_path = workspace_dir.canonicalize().unwrap();
+        let sibling_path = sibling_dir.canonicalize().unwrap();
+
+        let workspace = Workspace {
+            workspace_id: WorkspaceId::generate(),
+            user_id: user_id.clone(),
+            path: workspace_path,
+            created_at: chrono::Utc::now(),
+            updated_at: None,
+        };
+
+        let mock = MockInfra {
+            workspace: Some(workspace.clone()),
+            authenticated: true,
+            ..Default::default()
+        };
+
+        let service = ForgeWorkspaceService::new(Arc::new(mock));
+
+        // Query sibling directory - should not match
+        let actual = service
+            .find_workspace_by_path(sibling_path, &user_id)
+            .await
+            .unwrap();
+
+        assert!(actual.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_find_workspace_by_path_similar_prefix_no_match() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let root_path = temp_dir.path().canonicalize().unwrap();
+        let user_id = UserId::generate();
+
+        // Create directories with similar prefixes
+        let short_dir = root_path.join("pro");
+        let long_dir = root_path.join("project");
+        std::fs::create_dir_all(&short_dir).unwrap();
+        std::fs::create_dir_all(&long_dir).unwrap();
+        let short_path = short_dir.canonicalize().unwrap();
+        let long_path = long_dir.canonicalize().unwrap();
+
+        let workspace = Workspace {
+            workspace_id: WorkspaceId::generate(),
+            user_id: user_id.clone(),
+            path: short_path,
+            created_at: chrono::Utc::now(),
+            updated_at: None,
+        };
+
+        let mock = MockInfra {
+            workspace: Some(workspace.clone()),
+            authenticated: true,
+            ..Default::default()
+        };
+
+        let service = ForgeWorkspaceService::new(Arc::new(mock));
+
+        // Query directory with similar prefix - should not match (pro vs project)
+        let actual = service
+            .find_workspace_by_path(long_path, &user_id)
+            .await
+            .unwrap();
+
+        assert!(actual.is_none());
     }
 }

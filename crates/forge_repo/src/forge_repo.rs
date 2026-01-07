@@ -505,12 +505,11 @@ impl<F: Send + Sync> forge_domain::WorkspaceRepository for ForgeRepo<F> {
             .await
     }
 
-    async fn find_by_path(
+    async fn find_all_by_user_id(
         &self,
-        path: &std::path::Path,
         user_id: &forge_domain::UserId,
-    ) -> anyhow::Result<Option<forge_domain::Workspace>> {
-        self.indexing_repository.find_by_path(path, user_id).await
+    ) -> anyhow::Result<Vec<forge_domain::Workspace>> {
+        self.indexing_repository.find_all_by_user_id(user_id).await
     }
 
     async fn get_user_id(&self) -> anyhow::Result<Option<forge_domain::UserId>> {
