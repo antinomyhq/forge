@@ -365,7 +365,6 @@ pub trait GrpcInfra: Send + Sync {
     fn hydrate(&self);
 }
 
-
 /// Infrastructure trait for synchronized output writing.
 ///
 /// Provides thread-safe access to stdout/stderr to prevent output interleaving

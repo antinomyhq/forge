@@ -16,9 +16,8 @@ use forge_api::{
 use forge_app::utils::{format_display_path, truncate_key};
 use forge_app::{CommitResult, ToolResolver};
 use forge_display::MarkdownFormat;
-use forge_domain::OutputPrinter;
 use forge_domain::{
-    AuthMethod, ChatResponseContent, ContextMessage, Role, TitleFormat, UserCommand,
+    AuthMethod, ChatResponseContent, ContextMessage, OutputPrinter, Role, TitleFormat, UserCommand,
 };
 use forge_fs::ForgeFS;
 use forge_select::ForgeSelect;
@@ -40,6 +39,7 @@ use crate::model::{CliModel, CliProvider, ForgeCommandManager, SlashCommand};
 use crate::porcelain::Porcelain;
 use crate::prompt::ForgePrompt;
 use crate::state::UIState;
+use crate::stream_renderer::{ContentWriter, SharedSpinner};
 use crate::sync_display::SyncProgressDisplay;
 use crate::title_display::TitleDisplayExt;
 use crate::tools_display::format_tools;
@@ -47,8 +47,6 @@ use crate::update::on_update;
 use crate::utils::humanize_time;
 use crate::zsh::ZshRPrompt;
 use crate::{TRACKER, banner, tracker};
-
-use crate::stream_renderer::{ContentWriter, SharedSpinner};
 
 // File-specific constants
 const MISSING_AGENT_TITLE: &str = "<missing agent.title>";
@@ -2590,11 +2588,9 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         while let Some(message) = stream.next().await {
             match message {
-                Ok(message) => {
-                    self.handle_chat_response(message, &mut writer).await?
-                }
+                Ok(message) => self.handle_chat_response(message, &mut writer).await?,
                 Err(err) => {
-                    let _ = writer.finish()?;
+                    writer.finish()?;
                     self.spinner.lock().unwrap().stop(None)?;
                     self.spinner.lock().unwrap().reset();
                     return Err(err);
@@ -2602,7 +2598,7 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
         }
 
-        let _ = writer.finish()?;
+        writer.finish()?;
         self.spinner.lock().unwrap().stop(None)?;
         self.spinner.lock().unwrap().reset();
 
@@ -2667,11 +2663,11 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         match message {
             ChatResponse::TaskMessage { content } => match content {
                 ChatResponseContent::Title(title) => {
-                    let _ = writer.finish()?;
+                    writer.finish()?;
                     self.writeln(title.display())?;
                 }
                 ChatResponseContent::PlainText(text) => {
-                    let _ = writer.finish()?;
+                    writer.finish()?;
                     self.writeln(text)?;
                 }
                 ChatResponseContent::Markdown(text) => {
@@ -2680,7 +2676,7 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
             },
             ChatResponse::ToolCallStart(_) => {
-                let _ = writer.finish()?;
+                writer.finish()?;
                 self.spinner.lock().unwrap().stop(None)?;
             }
             ChatResponse::ToolCallEnd(toolcall_result) => {
@@ -2703,13 +2699,13 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
             ChatResponse::RetryAttempt { cause, duration: _ } => {
                 if !self.api.environment().retry_config.suppress_retry_errors {
-                    let _ = writer.finish()?;
+                    writer.finish()?;
                     self.spinner.lock().unwrap().start(Some("Retrying"))?;
                     self.writeln_title(TitleFormat::error(cause.as_str()))?;
                 }
             }
             ChatResponse::Interrupt { reason } => {
-                let _ = writer.finish()?;
+                writer.finish()?;
                 self.spinner.lock().unwrap().stop(None)?;
 
                 let title = match reason {
@@ -2728,7 +2724,7 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 writer.write_dimmed(&content)?;
             }
             ChatResponse::TaskComplete => {
-                let _ = writer.finish()?;
+                writer.finish()?;
                 if let Some(conversation_id) = self.state.conversation_id {
                     self.writeln_title(
                         TitleFormat::debug("Finished").sub_title(conversation_id.into_string()),

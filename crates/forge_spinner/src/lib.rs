@@ -270,9 +270,7 @@ mod tests {
         SpinnerManager::new(Arc::new(DirectPrinter))
     }
 
-    fn fixture_spinner_with_counter(
-        counter: Arc<AtomicU64>,
-    ) -> SpinnerManager<DirectPrinter> {
+    fn fixture_spinner_with_counter(counter: Arc<AtomicU64>) -> SpinnerManager<DirectPrinter> {
         SpinnerManager {
             spinner: None,
             stopwatch: Default::default(),

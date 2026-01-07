@@ -21,16 +21,13 @@ pub struct OutputPrinter<W = Stdout> {
 
 impl<W> Clone for OutputPrinter<W> {
     fn clone(&self) -> Self {
-        Self {
-            stdout: self.stdout.clone(),
-            stderr: self.stderr.clone(),
-        }
+        Self { stdout: self.stdout.clone(), stderr: self.stderr.clone() }
     }
 }
 
 impl Default for OutputPrinter<Stdout> {
     fn default() -> Self {
-          Self {
+        Self {
             stdout: Arc::new(Mutex::new(io::stdout())),
             stderr: Arc::new(Mutex::new(io::stdout())),
         }
@@ -52,7 +49,7 @@ impl<W: Write + Send> OutputPrinterInfra for OutputPrinter<W> {
         let mut guard = self
             .stdout
             .lock()
-            .map_err(|_| io::Error::new(io::ErrorKind::Other, "mutex poisoned"))?;
+            .map_err(|_| io::Error::other("mutex poisoned"))?;
         guard.write(buf)
     }
 
@@ -60,7 +57,7 @@ impl<W: Write + Send> OutputPrinterInfra for OutputPrinter<W> {
         let mut guard = self
             .stderr
             .lock()
-            .map_err(|_| io::Error::new(io::ErrorKind::Other, "mutex poisoned"))?;
+            .map_err(|_| io::Error::other("mutex poisoned"))?;
         guard.write(buf)
     }
 
@@ -68,7 +65,7 @@ impl<W: Write + Send> OutputPrinterInfra for OutputPrinter<W> {
         let mut guard = self
             .stdout
             .lock()
-            .map_err(|_| io::Error::new(io::ErrorKind::Other, "mutex poisoned"))?;
+            .map_err(|_| io::Error::other("mutex poisoned"))?;
         guard.flush()
     }
 
@@ -76,7 +73,7 @@ impl<W: Write + Send> OutputPrinterInfra for OutputPrinter<W> {
         let mut guard = self
             .stderr
             .lock()
-            .map_err(|_| io::Error::new(io::ErrorKind::Other, "mutex poisoned"))?;
+            .map_err(|_| io::Error::other("mutex poisoned"))?;
         guard.flush()
     }
 }
@@ -113,10 +110,7 @@ mod tests {
 
         // Verify output is one of the valid non-interleaved orderings
         let actual = printer.stdout.lock().unwrap().get_ref().clone();
-        let valid_orderings = [
-            b"AAAABBBBXXXXZZZZ".to_vec(),
-            b"XXXXZZZZAAAABBBB".to_vec(),
-        ];
+        let valid_orderings = [b"AAAABBBBXXXXZZZZ".to_vec(), b"XXXXZZZZAAAABBBB".to_vec()];
         assert!(
             valid_orderings.contains(&actual),
             "Output was interleaved: {:?}",

@@ -5,8 +5,8 @@ use anyhow::Result;
 use colored::Colorize;
 use forge_display::MarkdownFormat;
 use forge_domain::OutputPrinter;
-use forge_spinner::SpinnerManager;
 use forge_markdown_stream::StreamdownRenderer;
+use forge_spinner::SpinnerManager;
 
 /// Shared spinner handle for coordination between UI and writer.
 pub type SharedSpinner<P> = Arc<Mutex<SpinnerManager<P>>>;
@@ -30,7 +30,8 @@ impl Style {
 }
 
 /// Unified content writer that handles both streaming and direct output modes.
-/// - `Streaming`: Renders markdown incrementally as chunks arrive (uses streamdown)
+/// - `Streaming`: Renders markdown incrementally as chunks arrive (uses
+///   streamdown)
 /// - `Direct`: Renders markdown immediately in full (uses MarkdownFormat)
 pub enum ContentWriter<P: OutputPrinter> {
     Streaming(StreamingWriter<P>),
@@ -73,8 +74,8 @@ impl<P: OutputPrinter + 'static> ContentWriter<P> {
     }
 }
 
-
-/// Direct content writer that renders markdown immediately using MarkdownFormat.
+/// Direct content writer that renders markdown immediately using
+/// MarkdownFormat.
 pub struct DirectContentWriter<P: OutputPrinter> {
     spinner: SharedSpinner<P>,
     printer: Arc<P>,
@@ -152,7 +153,8 @@ pub struct StreamingWriter<P: OutputPrinter> {
 }
 
 impl<P: OutputPrinter + 'static> StreamingWriter<P> {
-    /// Creates a new stream writer with the given shared spinner and output printer.
+    /// Creates a new stream writer with the given shared spinner and output
+    /// printer.
     pub fn new(spinner: SharedSpinner<P>, printer: Arc<P>) -> Self {
         Self { active: None, spinner, printer }
     }
@@ -184,13 +186,12 @@ impl<P: OutputPrinter + 'static> StreamingWriter<P> {
     }
 
     fn ensure_renderer(&mut self, new_style: Style) -> Result<()> {
-        let needs_switch = self.active.as_ref().map_or(false, |a| a.style != new_style);
+        let needs_switch = self.active.as_ref().is_some_and(|a| a.style != new_style);
 
-        if needs_switch {
-            if let Some(old) = self.active.take() {
-                let _ = old.finish()?;
+        if needs_switch
+            && let Some(old) = self.active.take() {
+                old.finish()?;
             }
-        }
 
         if self.active.is_none() {
             let writer = StreamDirectWriter {

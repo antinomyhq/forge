@@ -637,7 +637,6 @@ impl<F: GrpcInfra> GrpcInfra for ForgeRepo<F> {
     }
 }
 
-
 impl<F: OutputPrinterInfra> OutputPrinterInfra for ForgeRepo<F> {
     fn write_stdout(&self, buf: &[u8]) -> std::io::Result<usize> {
         self.infra.write_stdout(buf)

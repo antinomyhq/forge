@@ -3,8 +3,8 @@ use tokio_stream::StreamExt;
 
 use crate::reasoning::{Reasoning, ReasoningFull};
 use crate::{
-    ArcSender, ChatCompletionMessage, ChatCompletionMessageFull, ChatResponse,
-    ChatResponseContent, ToolCallFull, ToolCallPart, Usage,
+    ArcSender, ChatCompletionMessage, ChatCompletionMessageFull, ChatResponse, ChatResponseContent,
+    ToolCallFull, ToolCallPart, Usage,
 };
 
 /// Extension trait for ResultStream to provide additional functionality
@@ -367,7 +367,10 @@ mod tests {
 
         // Expected: Full content and reasoning are correct
         assert_eq!(actual.content, "Answer: 42");
-        assert_eq!(actual.reasoning, Some("Let me think... about this.".to_string()));
+        assert_eq!(
+            actual.reasoning,
+            Some("Let me think... about this.".to_string())
+        );
     }
 
     #[tokio::test]
