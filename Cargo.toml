@@ -152,4 +152,4 @@ forge_select = { path = "crates/forge_select" }
 forge_test_kit = { path = "crates/forge_test_kit" }
 mdstream = { path = "../block-streamer" }
 
-streamdown = { path = "../testing/stream" }
+forge_markdown_stream = { path = "../testing/stream" }

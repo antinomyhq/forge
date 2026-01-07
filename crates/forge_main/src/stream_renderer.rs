@@ -6,7 +6,7 @@ use colored::Colorize;
 use forge_display::MarkdownFormat;
 use forge_domain::OutputPrinter;
 use forge_spinner::SpinnerManager;
-use streamdown::StreamdownRenderer;
+use forge_markdown_stream::StreamdownRenderer;
 
 /// Shared spinner handle for coordination between UI and writer.
 pub type SharedSpinner<P> = Arc<Mutex<SpinnerManager<P>>>;

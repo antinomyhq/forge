@@ -1813,6 +1813,7 @@ dependencies = [
  "forge_display",
  "forge_domain",
  "forge_fs",
+ "forge_markdown_stream",
  "forge_select",
  "forge_spinner",
  "forge_tracker",
@@ -1832,7 +1833,6 @@ dependencies = [
  "serde",
  "serde_json",
  "serial_test",
- "streamdown",
  "strip-ansi-escapes",
  "strum 0.27.2",
  "strum_macros 0.27.2",
@@ -1844,6 +1844,17 @@ dependencies = [
  "tracing",
  "update-informer",
  "url",
+]
+
+[[package]]
+name = "forge_markdown_stream"
+version = "0.1.0"
+dependencies = [
+ "colored",
+ "streamdown-core",
+ "streamdown-parser",
+ "syntect",
+ "unicode-width 0.2.2",
 ]
 
 [[package]]
@@ -5227,17 +5238,6 @@ name = "stable_deref_trait"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
-
-[[package]]
-name = "streamdown"
-version = "0.1.0"
-dependencies = [
- "colored",
- "streamdown-core",
- "streamdown-parser",
- "syntect",
- "unicode-width 0.2.2",
-]
 
 [[package]]
 name = "streamdown-ansi"
