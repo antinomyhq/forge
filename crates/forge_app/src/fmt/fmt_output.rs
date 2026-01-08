@@ -31,7 +31,6 @@ impl FormatContent for ToolOperation {
                 title.into()
             }),
             ToolOperation::FsRead { input: _, output: _ }
-            | ToolOperation::ImageRead { output: _ }
             | ToolOperation::FsRemove { input: _, output: _ }
             | ToolOperation::FsSearch { input: _, output: _ }
             | ToolOperation::CodebaseSearch { output: _ }

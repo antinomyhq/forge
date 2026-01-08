@@ -136,11 +136,6 @@ impl<
 
                 (input, output).into()
             }
-            ToolCatalog::ReadImage(input) => {
-                let normalized_path = self.normalize_path(input.path.clone());
-                let output = self.services.read_image(normalized_path).await?;
-                output.into()
-            }
             ToolCatalog::Write(input) => {
                 let normalized_path = self.normalize_path(input.path.clone());
                 let output = self
@@ -311,7 +306,7 @@ impl<
         let truncation_path = self.dump_operation(&operation).await?;
 
         context.with_metrics(|metrics| {
-            operation.into_tool_output(tool_kind, truncation_path, &env, metrics)
+            operation.into_tool_output(tool_kind, truncation_path, &env, metrics, context.model.as_ref())
         })
     }
 }
