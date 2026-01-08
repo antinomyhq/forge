@@ -228,7 +228,8 @@ impl<F> ForgeWorkspaceService<F> {
                 let workspace_id = workspace_id.clone();
                 let token = token.clone();
                 async move {
-                    self.delete(&user_id, &workspace_id, &token, vec![path]).await?;
+                    self.delete(&user_id, &workspace_id, &token, vec![path])
+                        .await?;
                     Ok::<_, anyhow::Error>(1)
                 }
             })
@@ -248,7 +249,8 @@ impl<F> ForgeWorkspaceService<F> {
                 let workspace_id = workspace_id.clone();
                 let token = token.clone();
                 async move {
-                    self.upload(&user_id, &workspace_id, &token, vec![file]).await?;
+                    self.upload(&user_id, &workspace_id, &token, vec![file])
+                        .await?;
                     Ok::<_, anyhow::Error>(1)
                 }
             })
