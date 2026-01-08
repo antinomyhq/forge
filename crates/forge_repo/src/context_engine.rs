@@ -85,8 +85,8 @@ impl TryFrom<FileRefNode> for forge_domain::FileHash {
 
 /// gRPC implementation of WorkspaceIndexRepository
 ///
-/// This repository provides gRPC-based workspace operations with automatic retry
-/// logic for transient failures.
+/// This repository provides gRPC-based workspace operations with automatic
+/// retry logic for transient failures.
 #[derive(Setters)]
 #[setters(strip_option, into)]
 pub struct ForgeContextEngineRepository<I> {
@@ -292,7 +292,9 @@ impl<I: GrpcInfra> WorkspaceIndexRepository for ForgeContextEngineRepository<I> 
                             })
                         }
                         node_data::Kind::Note(note) => {
-                            forge_domain::NodeData::Note(forge_domain::Note { content: note.content })
+                            forge_domain::NodeData::Note(forge_domain::Note {
+                                content: note.content,
+                            })
                         }
                         node_data::Kind::Task(task) => {
                             forge_domain::NodeData::Task(forge_domain::Task { task: task.task })

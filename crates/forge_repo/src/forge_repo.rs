@@ -79,7 +79,10 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpI
         let indexing_repository = Arc::new(ForgeWorkspaceRepository::new(db_pool.clone()));
 
         let retry_config = Arc::new(env.retry_config.clone());
-        let codebase_repo = Arc::new(ForgeContextEngineRepository::new(infra.clone(), retry_config));
+        let codebase_repo = Arc::new(ForgeContextEngineRepository::new(
+            infra.clone(),
+            retry_config,
+        ));
         let agent_repository = Arc::new(ForgeAgentRepository::new(infra.clone()));
         let skill_repository = Arc::new(ForgeSkillRepository::new(infra.clone()));
         let validation_repository = Arc::new(ForgeValidationRepository::new(infra.clone()));
