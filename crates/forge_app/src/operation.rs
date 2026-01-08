@@ -238,13 +238,13 @@ impl ToolOperation {
                             "Cannot display visual content from '{}': The current model does not support image input.",
                             input.path
                         );
-                        
+
                         tracing::warn!(
                             path = %input.path,
                             model = ?model.map(|m| &m.id),
                             "Attempted to read visual content with non-vision model"
                         );
-                        
+
                         return forge_domain::ToolOutput::text(error_msg).is_error(true);
                     }
 
