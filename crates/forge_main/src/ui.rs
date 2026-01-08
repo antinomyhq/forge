@@ -1084,10 +1084,16 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
 
             // Add image modality support indicator
-            let supports_image = model.input_modalities.contains(&forge_domain::InputModality::Image);
+            let supports_image = model
+                .input_modalities
+                .contains(&forge_domain::InputModality::Image);
             info = info.add_key_value(
                 "Image",
-                if supports_image { status::YES } else { status::NO },
+                if supports_image {
+                    status::YES
+                } else {
+                    status::NO
+                },
             );
         }
 
