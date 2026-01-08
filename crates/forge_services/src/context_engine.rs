@@ -143,16 +143,6 @@ impl<F> ForgeWorkspaceService<F> {
 
         let (workspace_id, workspace_path, is_new_workspace) = match workspace {
             Some(workspace) if workspace.user_id == user_id => {
-                // Found exact match or ancestor with matching user
-                let is_ancestor = workspace.path != path;
-                if is_ancestor {
-                    info!(
-                        workspace_id = %workspace.workspace_id,
-                        ancestor_path = %workspace.path.display(),
-                        current_path = %path.display(),
-                        "Reusing ancestor workspace"
-                    );
-                }
                 (workspace.workspace_id, workspace.path, false)
             }
             Some(workspace) => {
@@ -332,11 +322,14 @@ impl<F> ForgeWorkspaceService<F> {
             .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
 
         // Get all workspaces for the user - let the service handle filtering
-        let workspaces = self.infra.find_all_by_user_id(user_id).await?;
+        let workspaces = self.infra.list().await?;
 
         // Business logic: choose which workspace to use
         // 1. First check for exact match
-        if let Some(exact_match) = workspaces.iter().find(|w| w.path == canonical_path) {
+        if let Some(exact_match) = workspaces
+            .iter()
+            .find(|w| w.path == canonical_path && w.user_id == *user_id)
+        {
             return Ok(Some(exact_match.clone()));
         }
 
@@ -799,7 +792,7 @@ mod tests {
         async fn upsert(&self, _: &WorkspaceId, _: &UserId, _: &Path) -> Result<()> {
             Ok(())
         }
-        async fn find_all_by_user_id(&self, _: &UserId) -> Result<Vec<Workspace>> {
+        async fn list(&self) -> Result<Vec<Workspace>> {
             let mut workspaces = Vec::new();
 
             // Return all workspaces for the user (repository doesn't filter by path)

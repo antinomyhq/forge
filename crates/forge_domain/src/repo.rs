@@ -141,7 +141,7 @@ pub trait WorkspaceRepository: Send + Sync {
     ///
     /// # Errors
     /// Returns an error if there's a database error
-    async fn find_all_by_user_id(&self, user_id: &UserId) -> anyhow::Result<Vec<Workspace>>;
+    async fn list(&self) -> anyhow::Result<Vec<Workspace>>;
 
     /// Get user ID from any workspace, or None if no workspaces exist
     async fn get_user_id(&self) -> anyhow::Result<Option<UserId>>;

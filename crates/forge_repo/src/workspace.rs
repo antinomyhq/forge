@@ -80,12 +80,10 @@ impl WorkspaceRepository for ForgeWorkspaceRepository {
         Ok(())
     }
 
-    async fn find_all_by_user_id(&self, user_id: &UserId) -> anyhow::Result<Vec<Workspace>> {
+    async fn list(&self) -> anyhow::Result<Vec<Workspace>> {
         let mut connection = self.pool.get_connection()?;
 
-        let records: Vec<IndexingRecord> = workspace::table
-            .filter(workspace::user_id.eq(user_id.to_string()))
-            .load(&mut connection)?;
+        let records: Vec<IndexingRecord> = workspace::table.load(&mut connection)?;
 
         Ok(records
             .into_iter()
@@ -141,7 +139,7 @@ mod tests {
             .await
             .unwrap();
 
-        let actual = fixture.find_all_by_user_id(&user_id).await.unwrap();
+        let actual = fixture.list().await.unwrap();
 
         assert_eq!(actual.len(), 1);
         assert_eq!(actual[0].workspace_id, workspace_id);
@@ -166,7 +164,7 @@ mod tests {
             .await
             .unwrap();
 
-        let actual = fixture.find_all_by_user_id(&user_id).await.unwrap();
+        let actual = fixture.list().await.unwrap();
 
         assert_eq!(actual.len(), 1);
         assert!(actual[0].updated_at.is_some());
@@ -190,7 +188,7 @@ mod tests {
             .await
             .unwrap();
 
-        let actual = fixture.find_all_by_user_id(&user_id).await.unwrap();
+        let actual = fixture.list().await.unwrap();
 
         assert_eq!(actual.len(), 2);
         assert!(actual.iter().any(|w| w.workspace_id == workspace_id_1));
@@ -198,36 +196,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_find_all_by_user_id_filters_by_user() {
-        let fixture = repo_fixture();
-        let user_id_1 = UserId::generate();
-        let user_id_2 = UserId::generate();
-        let workspace_id_1 = WorkspaceId::generate();
-        let workspace_id_2 = WorkspaceId::generate();
-        let path_1 = PathBuf::from("/test/project1");
-        let path_2 = PathBuf::from("/test/project2");
-
-        fixture
-            .upsert(&workspace_id_1, &user_id_1, &path_1)
-            .await
-            .unwrap();
-        fixture
-            .upsert(&workspace_id_2, &user_id_2, &path_2)
-            .await
-            .unwrap();
-
-        let actual = fixture.find_all_by_user_id(&user_id_1).await.unwrap();
-
-        assert_eq!(actual.len(), 1);
-        assert_eq!(actual[0].workspace_id, workspace_id_1);
-    }
-
-    #[tokio::test]
     async fn test_find_all_by_user_id_returns_empty_when_no_workspaces() {
         let fixture = repo_fixture();
-        let user_id = UserId::generate();
-
-        let actual = fixture.find_all_by_user_id(&user_id).await.unwrap();
+        let actual = fixture.list().await.unwrap();
 
         assert_eq!(actual.len(), 0);
     }
