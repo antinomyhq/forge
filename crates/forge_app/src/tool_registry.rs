@@ -552,7 +552,9 @@ fn test_dynamic_tool_description_with_vision_model() {
     use fake::{Fake, Faker};
     use forge_domain::InputModality;
 
-    let env: Environment = Faker.fake();
+    let mut env: Environment = Faker.fake();
+    env.max_read_size = 2000;
+    env.max_image_size = 5000; // Set fixed value for deterministic test
     let vision_model = create_test_model("gpt-4o", vec![InputModality::Text, InputModality::Image]);
 
     let tools_with_vision = ToolRegistry::<()>::get_system_tools(true, &env, Some(vision_model));
@@ -560,16 +562,9 @@ fn test_dynamic_tool_description_with_vision_model() {
         .iter()
         .find(|t| t.name.as_str() == "read")
         .unwrap();
+    insta::assert_snapshot!(read_tool.description);
 
-    // Vision-capable model should see image and PDF support
-    assert!(
-        read_tool.description.contains("**Images**"),
-        "Vision model should see image support in description"
-    );
-    assert!(
-        read_tool.description.contains("**PDFs**"),
-        "Vision model should see PDF support in description"
-    );
+    
 }
 
 #[test]
@@ -577,7 +572,9 @@ fn test_dynamic_tool_description_with_text_only_model() {
     use fake::{Fake, Faker};
     use forge_domain::InputModality;
 
-    let env: Environment = Faker.fake();
+    let mut env: Environment = Faker.fake();
+    env.max_read_size = 2000;
+    env.max_image_size= 5000; // Set fixed value for deterministic test
     let text_only_model = create_test_model("gpt-3.5-turbo", vec![InputModality::Text]);
 
     let tools_text_only = ToolRegistry::<()>::get_system_tools(true, &env, Some(text_only_model));
@@ -587,26 +584,16 @@ fn test_dynamic_tool_description_with_text_only_model() {
         .unwrap();
 
     // Text-only model should NOT see image and PDF support
-    assert!(
-        !read_tool.description.contains("**Images**"),
-        "Text-only model should not see image support in description"
-    );
-    assert!(
-        !read_tool.description.contains("**PDFs**"),
-        "Text-only model should not see PDF support in description"
-    );
-    // Should still see text file support
-    assert!(
-        read_tool.description.contains("**Text files**"),
-        "Text-only model should see text file support"
-    );
+    insta::assert_snapshot!(read_tool.description);
 }
 
 #[test]
 fn test_dynamic_tool_description_without_model() {
     use fake::{Fake, Faker};
 
-    let env: Environment = Faker.fake();
+    let mut env: Environment = Faker.fake();
+    env.max_read_size = 2000; 
+    env.max_image_size = 5000;
 
     // When no model is provided, should default to showing minimal capabilities
     let tools_no_model = ToolRegistry::<()>::get_system_tools(true, &env, None);
@@ -616,8 +603,5 @@ fn test_dynamic_tool_description_without_model() {
         .unwrap();
 
     // Without model info, should show basic text file support
-    assert!(
-        read_tool.description.contains("**Text files**"),
-        "Should show text file support even without model"
-    );
+    insta::assert_snapshot!(read_tool.description);
 }
