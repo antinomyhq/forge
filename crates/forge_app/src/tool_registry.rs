@@ -563,8 +563,6 @@ fn test_dynamic_tool_description_with_vision_model() {
         .find(|t| t.name.as_str() == "read")
         .unwrap();
     insta::assert_snapshot!(read_tool.description);
-
-    
 }
 
 #[test]
@@ -574,7 +572,7 @@ fn test_dynamic_tool_description_with_text_only_model() {
 
     let mut env: Environment = Faker.fake();
     env.max_read_size = 2000;
-    env.max_image_size= 5000; // Set fixed value for deterministic test
+    env.max_image_size = 5000; // Set fixed value for deterministic test
     let text_only_model = create_test_model("gpt-3.5-turbo", vec![InputModality::Text]);
 
     let tools_text_only = ToolRegistry::<()>::get_system_tools(true, &env, Some(text_only_model));
@@ -592,7 +590,7 @@ fn test_dynamic_tool_description_without_model() {
     use fake::{Fake, Faker};
 
     let mut env: Environment = Faker.fake();
-    env.max_read_size = 2000; 
+    env.max_read_size = 2000;
     env.max_image_size = 5000;
 
     // When no model is provided, should default to showing minimal capabilities
