@@ -237,9 +237,16 @@ impl<F> ForgeWorkspaceService<F> {
 
         // Process deletions as they complete, updating progress incrementally
         while let Some(result) = delete_stream.next().await {
-            let count = result?;
-            counter.complete(count);
-            emit(counter.sync_progress()).await;
+            match result {
+                Ok(count) => {
+                    counter.complete(count);
+                    emit(counter.sync_progress()).await;
+                }
+                Err(e) => {
+                    warn!("Failed to delete file during sync: {:#}", e);
+                    // Continue processing remaining deletions
+                }
+            }
         }
 
         // Upload new/changed files with concurrency limit
@@ -258,9 +265,16 @@ impl<F> ForgeWorkspaceService<F> {
 
         // Process uploads as they complete, updating progress incrementally
         while let Some(result) = upload_stream.next().await {
-            let count = result?;
-            counter.complete(count);
-            emit(counter.sync_progress()).await;
+            match result {
+                Ok(count) => {
+                    counter.complete(count);
+                    emit(counter.sync_progress()).await;
+                }
+                Err(e) => {
+                    warn!("Failed to upload file during sync: {:#}", e);
+                    // Continue processing remaining uploads
+                }
+            }
         }
 
         // Save workspace metadata
