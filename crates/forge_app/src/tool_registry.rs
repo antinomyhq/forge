@@ -181,11 +181,10 @@ impl<S: Services> ToolRegistry<S> {
         ToolResult::new(tool_name).call_id(call_id).output(output)
     }
 
-    pub async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
-        Ok(self.tools_overview(None).await?.into())
-    }
-
-    pub async fn tools_overview(&self, model: Option<Model>) -> anyhow::Result<ToolsOverview> {
+    pub async fn tools_overview(
+        &self,
+        model: Option<Model>,
+    ) -> anyhow::Result<ToolsOverview> {
         let mcp_tools = self.services.get_mcp_servers().await?;
         let agent_tools = self.agent_executor.agent_definitions().await?;
 
