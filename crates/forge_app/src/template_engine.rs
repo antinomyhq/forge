@@ -163,9 +163,10 @@ impl<'a> TemplateEngine<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde::Serialize;
     use serde_json::json;
+
+    use super::*;
 
     #[derive(Serialize)]
     struct TestData {
@@ -179,7 +180,11 @@ mod tests {
         let template = r#"{{#if (contains items "apple")}}found{{else}}not found{{/if}}"#;
 
         let fixture = TestData {
-            items: vec!["apple".to_string(), "banana".to_string(), "cherry".to_string()],
+            items: vec![
+                "apple".to_string(),
+                "banana".to_string(),
+                "cherry".to_string(),
+            ],
             numbers: vec![],
         };
 
@@ -195,7 +200,11 @@ mod tests {
         let template = r#"{{#if (contains items "orange")}}found{{else}}not found{{/if}}"#;
 
         let fixture = TestData {
-            items: vec!["apple".to_string(), "banana".to_string(), "cherry".to_string()],
+            items: vec![
+                "apple".to_string(),
+                "banana".to_string(),
+                "cherry".to_string(),
+            ],
             numbers: vec![],
         };
 
@@ -210,10 +219,7 @@ mod tests {
         let hb = create_handlebar();
         let template = r#"{{#if (contains numbers 42)}}found{{else}}not found{{/if}}"#;
 
-        let fixture = TestData {
-            items: vec![],
-            numbers: vec![10, 20, 42, 50],
-        };
+        let fixture = TestData { items: vec![], numbers: vec![10, 20, 42, 50] };
 
         let actual = hb.render_template(template, &fixture).unwrap();
         let expected = "found";
@@ -226,10 +232,7 @@ mod tests {
         let hb = create_handlebar();
         let template = r#"{{#if (contains numbers 99)}}found{{else}}not found{{/if}}"#;
 
-        let fixture = TestData {
-            items: vec![],
-            numbers: vec![10, 20, 42, 50],
-        };
+        let fixture = TestData { items: vec![], numbers: vec![10, 20, 42, 50] };
 
         let actual = hb.render_template(template, &fixture).unwrap();
         let expected = "not found";
