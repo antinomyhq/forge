@@ -89,8 +89,8 @@ impl WorkspaceRepository for ForgeWorkspaceRepository {
 
         Ok(records
             .into_iter()
-            .filter_map(|record| Workspace::try_from(&record).ok())
-            .collect())
+            .map(|record| Workspace::try_from(&record))
+            .collect::<Result<Vec<_>, _>>()?)
     }
 
     async fn get_user_id(&self) -> anyhow::Result<Option<UserId>> {
