@@ -14,6 +14,7 @@ use forge_domain::{
 };
 use forge_stream::MpscStream;
 use futures::future::join_all;
+use futures::stream::StreamExt;
 use tracing::{info, warn};
 
 /// Loads allowed file extensions from allowed_extensions.txt into a HashSet
@@ -221,19 +222,45 @@ impl<F> ForgeWorkspaceService<F> {
 
         emit(counter.sync_progress()).await;
 
-        // Delete outdated/orphaned files in batches
+        // Delete outdated/orphaned files in parallel batches
+        let mut delete_tasks = futures::stream::FuturesUnordered::new();
         for batch in files_to_delete.chunks(batch_size) {
-            self.delete(&user_id, &workspace_id, &token, batch.to_vec())
-                .await?;
-            counter.complete(batch.len());
+            let user_id = user_id.clone();
+            let workspace_id = workspace_id.clone();
+            let token = token.clone();
+            let batch = batch.to_vec();
+            let batch_len = batch.len();
+            delete_tasks.push(async move {
+                self.delete(&user_id, &workspace_id, &token, batch).await?;
+                Ok::<_, anyhow::Error>(batch_len)
+            });
+        }
+
+        // Process deletions as they complete, updating progress incrementally
+        while let Some(result) = delete_tasks.next().await {
+            let batch_len = result?;
+            counter.complete(batch_len);
             emit(counter.sync_progress()).await;
         }
 
-        // Upload new/changed files in batches
+        // Upload new/changed files in parallel batches
+        let mut upload_tasks = futures::stream::FuturesUnordered::new();
         for batch in files_to_upload.chunks(batch_size) {
-            self.upload(&user_id, &workspace_id, &token, batch.to_vec())
-                .await?;
-            counter.complete(batch.len());
+            let user_id = user_id.clone();
+            let workspace_id = workspace_id.clone();
+            let token = token.clone();
+            let batch = batch.to_vec();
+            let batch_len = batch.len();
+            upload_tasks.push(async move {
+                self.upload(&user_id, &workspace_id, &token, batch).await?;
+                Ok::<_, anyhow::Error>(batch_len)
+            });
+        }
+
+        // Process uploads as they complete, updating progress incrementally
+        while let Some(result) = upload_tasks.next().await {
+            let batch_len = result?;
+            counter.complete(batch_len);
             emit(counter.sync_progress()).await;
         }
 
