@@ -509,11 +509,8 @@ impl<F: Send + Sync> forge_domain::WorkspaceRepository for ForgeRepo<F> {
             .await
     }
 
-    async fn find_by_path(
-        &self,
-        path: &std::path::Path,
-    ) -> anyhow::Result<Option<forge_domain::Workspace>> {
-        self.indexing_repository.find_by_path(path).await
+    async fn list(&self) -> anyhow::Result<Vec<forge_domain::Workspace>> {
+        self.indexing_repository.list().await
     }
 
     async fn get_user_id(&self) -> anyhow::Result<Option<forge_domain::UserId>> {

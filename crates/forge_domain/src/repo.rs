@@ -127,8 +127,21 @@ pub trait WorkspaceRepository: Send + Sync {
         path: &std::path::Path,
     ) -> anyhow::Result<()>;
 
-    /// Find workspace by path
-    async fn find_by_path(&self, path: &std::path::Path) -> anyhow::Result<Option<Workspace>>;
+    /// Find all workspaces for a user
+    ///
+    /// Returns all workspaces belonging to the specified user.
+    /// Path matching and selection logic should be handled in the service
+    /// layer.
+    ///
+    /// # Arguments
+    /// * `user_id` - Only return workspaces belonging to this user
+    ///
+    /// # Returns
+    /// A vector of all workspaces for the user (may be empty)
+    ///
+    /// # Errors
+    /// Returns an error if there's a database error
+    async fn list(&self) -> anyhow::Result<Vec<Workspace>>;
 
     /// Get user ID from any workspace, or None if no workspaces exist
     async fn get_user_id(&self) -> anyhow::Result<Option<UserId>>;
