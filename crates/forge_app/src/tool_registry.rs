@@ -185,10 +185,7 @@ impl<S: Services> ToolRegistry<S> {
         Ok(self.tools_overview(None).await?.into())
     }
 
-    pub async fn tools_overview(
-        &self,
-        model: Option<Model>,
-    ) -> anyhow::Result<ToolsOverview> {
+    pub async fn tools_overview(&self, model: Option<Model>) -> anyhow::Result<ToolsOverview> {
         let mcp_tools = self.services.get_mcp_servers().await?;
         let agent_tools = self.agent_executor.agent_definitions().await?;
 
@@ -509,9 +506,12 @@ mod tests {
 }
 
 #[cfg(test)]
-fn create_test_model(id: &str, modalities: Vec<forge_domain::InputModality>) -> forge_domain::Model {
+fn create_test_model(
+    id: &str,
+    modalities: Vec<forge_domain::InputModality>,
+) -> forge_domain::Model {
     use forge_domain::{Model, ModelId};
-    
+
     Model {
         id: ModelId::new(id),
         name: Some(format!("Test {}", id)),
