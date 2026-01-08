@@ -610,7 +610,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                             params = params.starts_with(prefix);
                         }
                         if let Some(suffix) = ends_with {
-                            params = params.ends_with(suffix);
+                            params = params.ends_with(vec![suffix]);
                         }
                         self.on_query(path, params).await?;
                     }
