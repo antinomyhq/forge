@@ -7,7 +7,11 @@
     "tools_supported": true,
     "supports_parallel_tool_calls": true,
     "supports_reasoning": true,
-    "anthropic_version": "vertex-2023-10-16"
+    "anthropic_version": "vertex-2023-10-16",
+    "input_modalities": [
+      "text",
+      "image"
+    ]
   },
   {
     "id": "anthropic/claude-opus-4-1@20250805",
@@ -17,7 +21,11 @@
     "tools_supported": true,
     "supports_parallel_tool_calls": true,
     "supports_reasoning": true,
-    "anthropic_version": "vertex-2023-10-16"
+    "anthropic_version": "vertex-2023-10-16",
+    "input_modalities": [
+      "text",
+      "image"
+    ]
   },
   {
     "id": "anthropic/claude-opus-4@20250514",
@@ -27,7 +35,11 @@
     "tools_supported": true,
     "supports_parallel_tool_calls": true,
     "supports_reasoning": true,
-    "anthropic_version": "vertex-2023-10-16"
+    "anthropic_version": "vertex-2023-10-16",
+    "input_modalities": [
+      "text",
+      "image"
+    ]
   },
   {
     "id": "anthropic/claude-3-7-sonnet@20250219",
@@ -37,7 +49,11 @@
     "tools_supported": true,
     "supports_parallel_tool_calls": true,
     "supports_reasoning": true,
-    "anthropic_version": "vertex-2023-10-16"
+    "anthropic_version": "vertex-2023-10-16",
+    "input_modalities": [
+      "text",
+      "image"
+    ]
   },
   {
     "id": "anthropic/claude-3-5-sonnet-v2@20241022",
@@ -47,7 +63,11 @@
     "tools_supported": true,
     "supports_parallel_tool_calls": true,
     "supports_reasoning": true,
-    "anthropic_version": "vertex-2023-10-16"
+    "anthropic_version": "vertex-2023-10-16",
+    "input_modalities": [
+      "text",
+      "image"
+    ]
   },
   {
     "id": "anthropic/claude-3-5-sonnet@20240620",
@@ -57,7 +77,11 @@
     "tools_supported": true,
     "supports_parallel_tool_calls": true,
     "supports_reasoning": true,
-    "anthropic_version": "vertex-2023-10-16"
+    "anthropic_version": "vertex-2023-10-16",
+    "input_modalities": [
+      "text",
+      "image"
+    ]
   },
   {
     "id": "anthropic/claude-3-5-haiku@20241022",
@@ -67,7 +91,11 @@
     "tools_supported": true,
     "supports_parallel_tool_calls": true,
     "supports_reasoning": true,
-    "anthropic_version": "vertex-2023-10-16"
+    "anthropic_version": "vertex-2023-10-16",
+    "input_modalities": [
+      "text",
+      "image"
+    ]
   },
   {
     "id": "anthropic/claude-3-opus@20240229",
@@ -77,7 +105,11 @@
     "tools_supported": true,
     "supports_parallel_tool_calls": true,
     "supports_reasoning": true,
-    "anthropic_version": "vertex-2023-10-16"
+    "anthropic_version": "vertex-2023-10-16",
+    "input_modalities": [
+      "text",
+      "image"
+    ]
   },
   {
     "id": "anthropic/claude-3-haiku@20240307",
@@ -87,7 +119,11 @@
     "tools_supported": true,
     "supports_parallel_tool_calls": true,
     "supports_reasoning": true,
-    "anthropic_version": "vertex-2023-10-16"
+    "anthropic_version": "vertex-2023-10-16",
+    "input_modalities": [
+      "text",
+      "image"
+    ]
   },
   {
     "id": "mistral/mistral-large-2411",
@@ -96,7 +132,10 @@
     "context_length": 128000,
     "tools_supported": true,
     "supports_parallel_tool_calls": true,
-    "supports_reasoning": false
+    "supports_reasoning": false,
+    "input_modalities": [
+      "text"
+    ]
   },
   {
     "id": "mistral/mistral-small-2503",
@@ -105,7 +144,10 @@
     "context_length": 128000,
     "tools_supported": true,
     "supports_parallel_tool_calls": true,
-    "supports_reasoning": false
+    "supports_reasoning": false,
+    "input_modalities": [
+      "text"
+    ]
   },
   {
     "id": "mistral/codestral-2501",
@@ -114,7 +156,10 @@
     "context_length": 256000,
     "tools_supported": true,
     "supports_parallel_tool_calls": true,
-    "supports_reasoning": false
+    "supports_reasoning": false,
+    "input_modalities": [
+      "text"
+    ]
   },
   {
     "id": "meta/llama-4-maverick-17b-128e-instruct-maas",
@@ -123,7 +168,10 @@
     "context_length": 1048576,
     "tools_supported": true,
     "supports_parallel_tool_calls": true,
-    "supports_reasoning": false
+    "supports_reasoning": false,
+    "input_modalities": [
+      "text"
+    ]
   },
   {
     "id": "meta/llama-4-scout-17b-16e-instruct-maas",
@@ -132,7 +180,10 @@
     "context_length": 10485760,
     "tools_supported": true,
     "supports_parallel_tool_calls": true,
-    "supports_reasoning": false
+    "supports_reasoning": false,
+    "input_modalities": [
+      "text"
+    ]
   },
   {
     "id": "google/gemini-2.0-flash-001",
@@ -141,7 +192,11 @@
     "context_length": 1048576,
     "tools_supported": true,
     "supports_parallel_tool_calls": true,
-    "supports_reasoning": true
+    "supports_reasoning": true,
+    "input_modalities": [
+      "text",
+      "image"
+    ]
   },
   {
     "id": "google/gemini-2.5-pro",
@@ -150,7 +205,11 @@
     "context_length": 1048576,
     "tools_supported": true,
     "supports_parallel_tool_calls": true,
-    "supports_reasoning": true
+    "supports_reasoning": true,
+    "input_modalities": [
+      "text",
+      "image"
+    ]
   },
   {
     "id": "google/gemini-2.5-flash",
@@ -159,6 +218,10 @@
     "context_length": 1048576,
     "tools_supported": true,
     "supports_parallel_tool_calls": true,
-    "supports_reasoning": true
+    "supports_reasoning": true,
+    "input_modalities": [
+      "text",
+      "image"
+    ]
   }
 ]

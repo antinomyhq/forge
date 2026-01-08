@@ -954,6 +954,7 @@ impl ChatRepository for BedrockResponseRepository {
 
 #[cfg(test)]
 mod tests {
+    use forge_domain::InputModality;
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -1249,6 +1250,7 @@ mod tests {
                 tools_supported: None,
                 supports_parallel_tool_calls: None,
                 supports_reasoning: None,
+                input_modalities: vec![InputModality::Text],
             },
             Model {
                 id: ModelId::from("claude-3-sonnet".to_string()),
@@ -1258,6 +1260,7 @@ mod tests {
                 tools_supported: None,
                 supports_parallel_tool_calls: None,
                 supports_reasoning: None,
+                input_modalities: vec![InputModality::Text],
             },
         ];
         fixture_provider.models = Some(ModelSource::Hardcoded(fixture_models.clone()));
