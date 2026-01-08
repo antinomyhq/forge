@@ -109,7 +109,7 @@ impl<S: Services> ForgeApp<S> {
         // Pass the model to enable dynamic tool descriptions based on capabilities
         let all_tool_definitions = self
             .tool_registry
-            .tools_overview_with_model(agent_model)
+            .tools_overview(agent_model)
             .await?
             .into();
         let tool_resolver = ToolResolver::new(all_tool_definitions);
@@ -259,7 +259,7 @@ impl<S: Services> ForgeApp<S> {
     }
 
     pub async fn list_tools(&self) -> Result<ToolsOverview> {
-        self.tool_registry.tools_overview().await
+        self.tool_registry.tools_overview(None).await
     }
 
     /// Gets available models for the default provider with automatic credential

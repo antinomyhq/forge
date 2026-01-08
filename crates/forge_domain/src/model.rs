@@ -13,12 +13,6 @@ pub enum InputModality {
     Text,
     /// Image input (vision-capable models)
     Image,
-    /// Audio input
-    Audio,
-    /// Video input
-    Video,
-    /// File/document input
-    File,
 }
 
 /// Default input modalities when not specified (text-only)
