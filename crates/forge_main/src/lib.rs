@@ -11,6 +11,7 @@ mod porcelain;
 mod prompt;
 mod sandbox;
 mod state;
+mod stream_renderer;
 mod sync_display;
 mod title_display;
 mod tools_display;

@@ -168,7 +168,7 @@ async fn test_tool_call_start_end_responses_for_non_agent_tools() {
 
     // Verify the content of the responses
     let tool_call_start = chat_responses.iter().find_map(|response| match response {
-        ChatResponse::ToolCallStart(call) => Some(call),
+        ChatResponse::ToolCallStart(tool_call) => Some(tool_call),
         _ => None,
     });
     assert_eq!(
@@ -293,7 +293,7 @@ async fn test_mixed_agent_and_non_agent_tool_calls() {
     let tool_call_start_names: Vec<&str> = chat_responses
         .iter()
         .filter_map(|response| match response {
-            ChatResponse::ToolCallStart(call) => Some(call.name.as_str()),
+            ChatResponse::ToolCallStart(tool_call) => Some(tool_call.name.as_str()),
             _ => None,
         })
         .collect();
