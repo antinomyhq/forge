@@ -6,7 +6,7 @@ Usage:
 - You can optionally specify a line start_line and end_line (especially handy for long files), but it's recommended to read the whole file by not providing these parameters
 - Results are returned using rg "" -n format, with line numbers starting at 1
 {{#if (contains model.input_modalities "image")}}
-- This tool allows Forge Code to read images (eg PNG, JPG, etc). When reading an image file the contents are presented visually`
+- This tool allows Forge Code to read images (eg PNG, JPG, etc). When reading an image file the contents are presented visually.
 - PDFs, Automatically encoded as base64 and sent as visual content for LLM to analyze pages. Any PDFs larger than {{env.maxImageSize}} bytes will return error
 {{/if}}
 - Jupyter notebooks (.ipynb files) are read as plain JSON text - you can parse the cell structure, outputs, and embedded content directly from the JSON
