@@ -9,10 +9,11 @@ use strum_macros::EnumString;
 #[serde(rename_all = "lowercase")]
 #[strum(serialize_all = "lowercase", ascii_case_insensitive)]
 pub enum InputModality {
-    /// Text input (all models support this)
     Text,
-    /// Image input (vision-capable models)
     Image,
+    Audio,
+    Video,
+    Pdf
 }
 
 /// Default input modalities when not specified (text-only)

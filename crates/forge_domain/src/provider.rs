@@ -64,6 +64,7 @@ impl ProviderId {
     pub const FORGE_SERVICES: ProviderId = ProviderId(Cow::Borrowed("forge_services"));
     pub const IO_INTELLIGENCE: ProviderId = ProviderId(Cow::Borrowed("io_intelligence"));
     pub const BEDROCK: ProviderId = ProviderId(Cow::Borrowed("bedrock"));
+    pub const DEEPSEEK: ProviderId = ProviderId(Cow::Borrowed("deepseek"));
 
     /// Returns all built-in provider IDs
     ///

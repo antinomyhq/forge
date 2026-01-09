@@ -12,8 +12,8 @@ use forge_domain::{
     AnyProvider, AppConfig, AppConfigRepository, AuthCredential, ChatCompletionMessage,
     ChatRepository, CommandOutput, Context, Conversation, ConversationId, ConversationRepository,
     Environment, FileInfo, FuzzySearchRepository, McpServerConfig, MigrationResult, Model, ModelId,
-    Provider, ProviderId, ProviderRepository, ResultStream, SearchMatch, Skill, SkillRepository,
-    Snapshot, SnapshotRepository,
+    ModelRepository, Provider, ProviderId, ProviderRepository, ResultStream, SearchMatch, Skill,
+    SkillRepository, Snapshot, SnapshotRepository,
 };
 // Re-export CacacheStorage from forge_infra
 pub use forge_infra::CacacheStorage;
@@ -29,6 +29,7 @@ use crate::conversation::ConversationRepositoryImpl;
 use crate::database::{DatabasePool, PoolConfig};
 use crate::fs_snap::ForgeFileSnapshotService;
 use crate::fuzzy_search::ForgeFuzzySearchRepository;
+use crate::model::ForgeModelRepository;
 use crate::provider::{ForgeChatRepository, ForgeProviderRepository};
 use crate::skill::ForgeSkillRepository;
 use crate::validation::ForgeValidationRepository;
@@ -53,6 +54,7 @@ pub struct ForgeRepo<F> {
     skill_repository: Arc<ForgeSkillRepository<F>>,
     validation_repository: Arc<ForgeValidationRepository<F>>,
     fuzzy_search_repository: Arc<ForgeFuzzySearchRepository<F>>,
+    model_repository: Arc<ForgeModelRepository<F>>,
 }
 
 impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpInfra> ForgeRepo<F> {
@@ -83,6 +85,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpI
         let skill_repository = Arc::new(ForgeSkillRepository::new(infra.clone()));
         let validation_repository = Arc::new(ForgeValidationRepository::new(infra.clone()));
         let fuzzy_search_repository = Arc::new(ForgeFuzzySearchRepository::new(infra.clone()));
+        let model_repository = Arc::new(ForgeModelRepository::new(infra.clone()));
         Self {
             infra,
             file_snapshot_service,
@@ -97,6 +100,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpI
             skill_repository,
             validation_repository,
             fuzzy_search_repository,
+            model_repository,
         }
     }
 }
@@ -620,6 +624,23 @@ impl<F: GrpcInfra + Send + Sync> FuzzySearchRepository for ForgeRepo<F> {
         self.fuzzy_search_repository
             .fuzzy_search(needle, haystack, search_all)
             .await
+    }
+}
+
+#[async_trait::async_trait]
+impl<F: HttpInfra + EnvironmentInfra + Send + Sync> ModelRepository for ForgeRepo<F> {
+    async fn get_model(
+        &self,
+        provider_id: &ProviderId,
+        model_id: &ModelId,
+    ) -> anyhow::Result<Option<Model>> {
+        self.model_repository
+            .get_model(provider_id, model_id)
+            .await
+    }
+
+    async fn list_models(&self, provider_id: &ProviderId) -> anyhow::Result<Vec<Model>> {
+        self.model_repository.list_models(provider_id).await
     }
 }
 

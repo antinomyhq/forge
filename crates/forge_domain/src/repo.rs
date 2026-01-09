@@ -272,3 +272,42 @@ pub trait FuzzySearchRepository: Send + Sync {
         search_all: bool,
     ) -> Result<Vec<SearchMatch>>;
 }
+
+/// Repository for managing model metadata
+///
+/// This repository provides operations for retrieving model information from
+/// various providers. Model data is cached locally and refreshed periodically.
+#[async_trait::async_trait]
+pub trait ModelRepository: Send + Sync {
+    /// Retrieves a specific model by provider and model ID
+    ///
+    /// # Arguments
+    /// * `provider_id` - The provider identifier
+    /// * `model_id` - The model identifier
+    ///
+    /// # Returns
+    /// * `Ok(Some(Model))` - Model found and returned
+    /// * `Ok(None)` - Model or provider not found
+    /// * `Err(_)` - Error fetching or parsing model data
+    ///
+    /// # Errors
+    /// Returns an error if model data cannot be fetched or parsed
+    async fn get_model(
+        &self,
+        provider_id: &ProviderId,
+        model_id: &ModelId,
+    ) -> Result<Option<Model>>;
+
+    /// Lists all models for a specific provider
+    ///
+    /// # Arguments
+    /// * `provider_id` - The provider identifier
+    ///
+    /// # Returns
+    /// * `Ok(Vec<Model>)` - List of models for the provider (may be empty)
+    /// * `Err(_)` - Error fetching or parsing model data
+    ///
+    /// # Errors
+    /// Returns an error if model data cannot be fetched or parsed
+    async fn list_models(&self, provider_id: &ProviderId) -> Result<Vec<Model>>;
+}

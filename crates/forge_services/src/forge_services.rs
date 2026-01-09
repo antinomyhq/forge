@@ -7,8 +7,8 @@ use forge_app::{
 };
 use forge_domain::{
     AppConfigRepository, ChatRepository, ConversationRepository, FuzzySearchRepository,
-    ProviderRepository, SkillRepository, SnapshotRepository, ValidationRepository,
-    WorkspaceIndexRepository, WorkspaceRepository,
+    ModelRepository, ProviderRepository, SkillRepository, SnapshotRepository,
+    ValidationRepository, WorkspaceIndexRepository, WorkspaceRepository,
 };
 
 use crate::ForgeProviderAuthService;
@@ -57,7 +57,8 @@ pub struct ForgeServices<
         + WorkspaceIndexRepository
         + AgentRepository
         + SkillRepository
-        + ValidationRepository,
+        + ValidationRepository
+        + ModelRepository,
 > {
     chat_service: Arc<ForgeProviderService<F>>,
     config_service: Arc<ForgeAppConfigService<F>>,
@@ -111,7 +112,8 @@ impl<
         + WorkspaceIndexRepository
         + AgentRepository
         + SkillRepository
-        + ValidationRepository,
+        + ValidationRepository
+        + ModelRepository,
 > ForgeServices<F>
 {
     pub fn new(infra: Arc<F>) -> Self {
@@ -209,6 +211,7 @@ impl<
         + WorkspaceIndexRepository
         + ValidationRepository
         + FuzzySearchRepository
+        + ModelRepository
         + Clone
         + 'static,
 > Services for ForgeServices<F>

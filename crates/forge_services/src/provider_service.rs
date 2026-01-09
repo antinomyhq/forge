@@ -7,8 +7,7 @@ use forge_app::domain::{
     AnyProvider, ChatCompletionMessage, Model, ModelId, ProviderId, ResultStream,
 };
 use forge_domain::{
-    AuthCredential, ChatRepository, Context, MigrationResult, ModelSource, Provider,
-    ProviderRepository, ProviderTemplate,
+    AuthCredential, ChatRepository, Context, MigrationResult, ModelRepository, ModelSource, Provider, ProviderRepository, ProviderTemplate
 };
 use tokio::sync::Mutex;
 use url::Url;
@@ -82,7 +81,7 @@ impl<R> ForgeProviderService<R> {
 }
 
 #[async_trait::async_trait]
-impl<R: ChatRepository + ProviderRepository> ProviderService for ForgeProviderService<R> {
+impl<R: ChatRepository + ProviderRepository + ModelRepository> ProviderService for ForgeProviderService<R> {
     async fn chat(
         &self,
         model_id: &ModelId,
@@ -105,7 +104,7 @@ impl<R: ChatRepository + ProviderRepository> ProviderService for ForgeProviderSe
         }
 
         // Models not in cache, fetch from repository
-        let models = self.repository.models(provider).await?;
+        let models = self.repository.list_models(&provider.id).await?;
 
         // Cache the models for this provider
         {
@@ -160,6 +159,7 @@ impl<R: ChatRepository + ProviderRepository> ProviderService for ForgeProviderSe
 
 #[cfg(test)]
 mod tests {
+    use forge_app::ProviderService;
     use forge_app::domain::ProviderId;
     use forge_domain::{
         AuthDetails, AuthMethod, InputModality, ModelSource, ProviderType, Template,
@@ -236,6 +236,23 @@ mod tests {
 
         async fn migrate_env_credentials(&self) -> Result<Option<MigrationResult>> {
             Ok(None)
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl ModelRepository for MockProviderRepository {
+        async fn get_model(
+            &self,
+            _provider_id: &ProviderId,
+            _model_id: &ModelId,
+        ) -> Result<Option<Model>> {
+            Ok(self.models.first().cloned())
+        }
+
+        async fn list_models(&self, _provider_id: &ProviderId) -> Result<Vec<Model>> {
+            let mut count = self.call_count.lock().await;
+            *count += 1;
+            Ok(self.models.clone())
         }
     }
 
