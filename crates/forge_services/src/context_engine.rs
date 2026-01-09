@@ -1,12 +1,14 @@
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
+use std::time::Duration;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
+use backon::{ExponentialBuilder, Retryable};
 use forge_app::{
-    FileReaderInfra, SyncProgressCounter, Walker, WalkerInfra, WorkspaceService, WorkspaceStatus,
-    compute_hash,
+    EnvironmentInfra, FileReaderInfra, SyncProgressCounter, Walker, WalkerInfra, WorkspaceService,
+    WorkspaceStatus, compute_hash,
 };
 use forge_domain::{
     AuthCredential, AuthDetails, FileHash, FileNode, ProviderId, ProviderRepository, SyncProgress,
@@ -14,6 +16,7 @@ use forge_domain::{
 };
 use forge_stream::MpscStream;
 use futures::future::join_all;
+use futures::stream::StreamExt;
 use tracing::{info, warn};
 
 /// Loads allowed file extensions from allowed_extensions.txt into a HashSet
@@ -57,6 +60,28 @@ impl<F> ForgeWorkspaceService<F> {
         Self { infra }
     }
 
+    /// Execute an operation with retry logic based on the retry configuration
+    async fn with_retry<Fut, T>(&self, operation: impl Fn() -> Fut) -> Result<T>
+    where
+        F: EnvironmentInfra,
+        Fut: std::future::Future<Output = Result<T>>,
+    {
+        let env = self.infra.get_environment();
+        let retry_config = &env.retry_config;
+
+        let mut builder = ExponentialBuilder::default()
+            .with_min_delay(Duration::from_millis(retry_config.min_delay_ms))
+            .with_factor(retry_config.backoff_factor as f32)
+            .with_max_times(retry_config.max_retry_attempts)
+            .with_jitter();
+
+        if let Some(max_delay) = retry_config.max_delay {
+            builder = builder.with_max_delay(Duration::from_secs(max_delay));
+        }
+
+        operation.retry(builder).await
+    }
+
     /// Fetches remote file hashes from the server.
     async fn fetch_remote_hashes(
         &self,
@@ -65,15 +90,18 @@ impl<F> ForgeWorkspaceService<F> {
         auth_token: &forge_domain::ApiKey,
     ) -> Vec<FileHash>
     where
-        F: WorkspaceIndexRepository,
+        F: WorkspaceIndexRepository + EnvironmentInfra,
     {
         info!("Fetching existing file hashes from server to detect changes...");
         let workspace_files =
             forge_domain::CodeBase::new(user_id.clone(), workspace_id.clone(), ());
-        self.infra
-            .list_workspace_files(&workspace_files, auth_token)
-            .await
-            .unwrap_or_default()
+
+        self.with_retry(|| {
+            self.infra
+                .list_workspace_files(&workspace_files, auth_token)
+        })
+        .await
+        .unwrap_or_default()
     }
 
     /// Deletes a batch of files from the server.
@@ -85,11 +113,11 @@ impl<F> ForgeWorkspaceService<F> {
         paths: Vec<String>,
     ) -> Result<()>
     where
-        F: WorkspaceIndexRepository,
+        F: WorkspaceIndexRepository + EnvironmentInfra,
     {
         let deletion = forge_domain::CodeBase::new(user_id.clone(), workspace_id.clone(), paths);
-        self.infra
-            .delete_files(&deletion, token)
+
+        self.with_retry(|| self.infra.delete_files(&deletion, token))
             .await
             .context("Failed to delete files")
     }
@@ -103,11 +131,11 @@ impl<F> ForgeWorkspaceService<F> {
         files: Vec<forge_domain::FileRead>,
     ) -> Result<()>
     where
-        F: WorkspaceIndexRepository,
+        F: WorkspaceIndexRepository + EnvironmentInfra,
     {
         let upload = forge_domain::CodeBase::new(user_id.clone(), workspace_id.clone(), files);
-        self.infra
-            .upload_files(&upload, token)
+
+        self.with_retry(|| self.infra.upload_files(&upload, token))
             .await
             .context("Failed to upload files")?;
         Ok(())
@@ -125,7 +153,8 @@ impl<F> ForgeWorkspaceService<F> {
             + ProviderRepository
             + WorkspaceIndexRepository
             + WalkerInfra
-            + FileReaderInfra,
+            + FileReaderInfra
+            + EnvironmentInfra,
         E: Fn(SyncProgress) -> Fut + Send + Sync,
         Fut: std::future::Future<Output = ()> + Send,
     {
@@ -161,8 +190,7 @@ impl<F> ForgeWorkspaceService<F> {
         let workspace_id = if is_new_workspace {
             // Create an workspace.
             let id = self
-                .infra
-                .create_workspace(&workspace_path, &token)
+                .with_retry(|| self.infra.create_workspace(&workspace_path, &token))
                 .await
                 .context("Failed to create workspace on server")?;
 
@@ -229,20 +257,59 @@ impl<F> ForgeWorkspaceService<F> {
 
         emit(counter.sync_progress()).await;
 
-        // Delete outdated/orphaned files in batches
-        for batch in files_to_delete.chunks(batch_size) {
-            self.delete(&user_id, &workspace_id, &token, batch.to_vec())
-                .await?;
-            counter.complete(batch.len());
-            emit(counter.sync_progress()).await;
+        let mut delete_stream = futures::stream::iter(files_to_delete)
+            .map(|path| {
+                let user_id = user_id.clone();
+                let workspace_id = workspace_id.clone();
+                let token = token.clone();
+                async move {
+                    self.delete(&user_id, &workspace_id, &token, vec![path])
+                        .await?;
+                    Ok::<_, anyhow::Error>(1)
+                }
+            })
+            .buffer_unordered(batch_size);
+
+        // Process deletions as they complete, updating progress incrementally
+        while let Some(result) = delete_stream.next().await {
+            match result {
+                Ok(count) => {
+                    counter.complete(count);
+                    emit(counter.sync_progress()).await;
+                }
+                Err(e) => {
+                    warn!("Failed to delete file during sync: {:#}", e);
+                    // Continue processing remaining deletions
+                }
+            }
         }
 
-        // Upload new/changed files in batches
-        for batch in files_to_upload.chunks(batch_size) {
-            self.upload(&user_id, &workspace_id, &token, batch.to_vec())
-                .await?;
-            counter.complete(batch.len());
-            emit(counter.sync_progress()).await;
+        // Upload new/changed files with concurrency limit
+        let mut upload_stream = futures::stream::iter(files_to_upload)
+            .map(|file| {
+                let user_id = user_id.clone();
+                let workspace_id = workspace_id.clone();
+                let token = token.clone();
+                async move {
+                    self.upload(&user_id, &workspace_id, &token, vec![file])
+                        .await?;
+                    Ok::<_, anyhow::Error>(1)
+                }
+            })
+            .buffer_unordered(batch_size);
+
+        // Process uploads as they complete, updating progress incrementally
+        while let Some(result) = upload_stream.next().await {
+            match result {
+                Ok(count) => {
+                    counter.complete(count);
+                    emit(counter.sync_progress()).await;
+                }
+                Err(e) => {
+                    warn!("Failed to upload file during sync: {:#}", e);
+                    // Continue processing remaining uploads
+                }
+            }
         }
 
         // Save workspace metadata
@@ -429,6 +496,7 @@ impl<
         + WorkspaceIndexRepository
         + WalkerInfra
         + FileReaderInfra
+        + EnvironmentInfra
         + 'static,
 > WorkspaceService for ForgeWorkspaceService<F>
 {
@@ -480,8 +548,7 @@ impl<
         );
 
         let results = self
-            .infra
-            .search(&search_query, &token)
+            .with_retry(|| self.infra.search(&search_query, &token))
             .await
             .context("Failed to search")?;
 
@@ -492,9 +559,7 @@ impl<
     async fn list_workspaces(&self) -> Result<Vec<forge_domain::WorkspaceInfo>> {
         let (token, _) = self.get_workspace_credentials().await?;
 
-        self.infra
-            .as_ref()
-            .list_workspaces(&token)
+        self.with_retry(|| self.infra.as_ref().list_workspaces(&token))
             .await
             .context("Failed to list workspaces")
     }
@@ -508,11 +573,13 @@ impl<
         let workspace = self.find_workspace_by_path(path, &user_id).await?;
 
         if let Some(workspace) = workspace {
-            self.infra
-                .as_ref()
-                .get_workspace(&workspace.workspace_id, &token)
-                .await
-                .context("Failed to get workspace info")
+            self.with_retry(|| {
+                self.infra
+                    .as_ref()
+                    .get_workspace(&workspace.workspace_id, &token)
+            })
+            .await
+            .context("Failed to get workspace info")
         } else {
             Ok(None)
         }
@@ -522,9 +589,7 @@ impl<
     async fn delete_workspace(&self, workspace_id: &forge_domain::WorkspaceId) -> Result<()> {
         let (token, _) = self.get_workspace_credentials().await?;
 
-        self.infra
-            .as_ref()
-            .delete_workspace(workspace_id, &token)
+        self.with_retry(|| self.infra.as_ref().delete_workspace(workspace_id, &token))
             .await
             .context("Failed to delete workspace from server")?;
 
@@ -577,8 +642,7 @@ impl<
     async fn init_auth_credentials(&self) -> Result<forge_domain::WorkspaceAuth> {
         // Authenticate with the indexing service
         let auth = self
-            .infra
-            .authenticate()
+            .with_retry(|| self.infra.authenticate())
             .await
             .context("Failed to authenticate with indexing service")?;
 
@@ -893,6 +957,25 @@ mod tests {
                 .keys()
                 .map(|p| WalkedFile { path: p.clone(), file_name: Some(p.clone()), size: 100 })
                 .collect())
+        }
+    }
+
+    impl forge_app::EnvironmentInfra for MockInfra {
+        fn get_environment(&self) -> forge_domain::Environment {
+            use fake::{Fake, Faker};
+            Faker.fake()
+        }
+
+        fn get_env_var(&self, _: &str) -> Option<String> {
+            None
+        }
+
+        fn get_env_vars(&self) -> std::collections::BTreeMap<String, String> {
+            std::collections::BTreeMap::new()
+        }
+
+        fn is_restricted(&self) -> bool {
+            false
         }
     }
 

@@ -1813,8 +1813,8 @@ impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
             SlashCommand::Index => {
                 let working_dir = self.state.cwd.clone();
-                // Use default batch size of 10 for slash command
-                self.on_index(working_dir, 10).await?;
+                // Use default batch size of 100 for slash command
+                self.on_index(working_dir, 100).await?;
             }
             SlashCommand::AgentSwitch(agent_id) => {
                 // Validate that the agent exists by checking against loaded agents
