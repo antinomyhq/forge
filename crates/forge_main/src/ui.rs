@@ -177,6 +177,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         self.cli.conversation = None;
         self.cli.conversation_id = None;
 
+        self.spinner.reset();
         self.display_banner()?;
         self.trace_user();
         self.hydrate_caches();
@@ -295,6 +296,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             tokio::select! {
                 _ = tokio::signal::ctrl_c() => {
                     tracing::info!("User interrupted operation with Ctrl+C");
+                    self.spinner.reset();
                     self.spinner.stop(None)?;
                     return Ok(());
                 }
@@ -313,6 +315,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 Ok(command) => {
                     tokio::select! {
                         _ = tokio::signal::ctrl_c() => {
+                            self.spinner.reset();
                             tracing::info!("User interrupted operation with Ctrl+C");
                         }
                         result = self.on_command(command) => {
