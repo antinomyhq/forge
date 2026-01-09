@@ -992,9 +992,7 @@ mod tests {
         let tool_call = ToolCallFull {
             name: ToolName::new("read"),
             call_id: None,
-            arguments: ToolCallArguments::from_json(
-                r#"{"path": "/test/path.rs"}"#,
-            ),
+            arguments: ToolCallArguments::from_json(r#"{"path": "/test/path.rs"}"#),
         };
 
         let actual = ToolCatalog::try_from(tool_call);

@@ -2,7 +2,8 @@ use forge_domain::Transformer;
 
 use crate::dto::anthropic::Request;
 
-/// Transformer that capitalizes specific tool names for Anthropic compatibility.
+/// Transformer that capitalizes specific tool names for Anthropic
+/// compatibility.
 ///
 /// This transformer modifies tool names to use PascalCase for certain tools:
 /// - `read` -> `Read`
@@ -37,7 +38,10 @@ mod tests {
     fn test_capitalizes_read_tool() {
         let fixture = Context::default()
             .add_tool(ToolDefinition::new("read").description("Read a file"))
-            .add_message(ContextMessage::user("test", Some(ModelId::new("claude-3-5-sonnet-20241022"))));
+            .add_message(ContextMessage::user(
+                "test",
+                Some(ModelId::new("claude-3-5-sonnet-20241022")),
+            ));
 
         let mut request = Request::try_from(fixture).unwrap();
         request = CapitalizeToolNames.transform(request);
@@ -49,7 +53,10 @@ mod tests {
     fn test_capitalizes_write_tool() {
         let fixture = Context::default()
             .add_tool(ToolDefinition::new("write").description("Write a file"))
-            .add_message(ContextMessage::user("test", Some(ModelId::new("claude-3-5-sonnet-20241022"))));
+            .add_message(ContextMessage::user(
+                "test",
+                Some(ModelId::new("claude-3-5-sonnet-20241022")),
+            ));
 
         let mut request = Request::try_from(fixture).unwrap();
         request = CapitalizeToolNames.transform(request);
@@ -62,7 +69,10 @@ mod tests {
         let fixture = Context::default()
             .add_tool(ToolDefinition::new("shell").description("Execute shell command"))
             .add_tool(ToolDefinition::new("fs_search").description("Search files"))
-            .add_message(ContextMessage::user("test", Some(ModelId::new("claude-3-5-sonnet-20241022"))));
+            .add_message(ContextMessage::user(
+                "test",
+                Some(ModelId::new("claude-3-5-sonnet-20241022")),
+            ));
 
         let mut request = Request::try_from(fixture).unwrap();
         request = CapitalizeToolNames.transform(request);
@@ -77,7 +87,10 @@ mod tests {
             .add_tool(ToolDefinition::new("read").description("Read a file"))
             .add_tool(ToolDefinition::new("write").description("Write a file"))
             .add_tool(ToolDefinition::new("shell").description("Execute shell command"))
-            .add_message(ContextMessage::user("test", Some(ModelId::new("claude-3-5-sonnet-20241022"))));
+            .add_message(ContextMessage::user(
+                "test",
+                Some(ModelId::new("claude-3-5-sonnet-20241022")),
+            ));
 
         let mut request = Request::try_from(fixture).unwrap();
         request = CapitalizeToolNames.transform(request);
@@ -89,8 +102,10 @@ mod tests {
 
     #[test]
     fn test_handles_empty_tools_list() {
-        let fixture = Context::default()
-            .add_message(ContextMessage::user("test", Some(ModelId::new("claude-3-5-sonnet-20241022"))));
+        let fixture = Context::default().add_message(ContextMessage::user(
+            "test",
+            Some(ModelId::new("claude-3-5-sonnet-20241022")),
+        ));
 
         let mut request = Request::try_from(fixture).unwrap();
         request = CapitalizeToolNames.transform(request);
