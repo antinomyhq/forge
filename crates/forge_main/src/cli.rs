@@ -212,9 +212,8 @@ pub enum WorkspaceCommand {
         #[arg(default_value = ".")]
         path: PathBuf,
 
-        /// Number of files to upload per batch. Reduce this if you encounter
-        /// token limit errors.
-        #[arg(long, default_value = "1")]
+        /// Number of files to process concurrently
+        #[arg(long, default_value = "100")]
         batch_size: usize,
     },
     /// List all workspaces.

@@ -166,16 +166,10 @@ impl<
                     .queries
                     .iter()
                     .map(|search_query| {
-                        let mut params = forge_domain::SearchParams::new(
-                            &search_query.query,
-                            &search_query.use_case,
-                        )
-                        .limit(limit)
-                        .top_k(top_k);
-                        if let Some(ext) = &input.file_extension {
-                            params = params.ends_with(ext);
-                        }
-                        params
+                        forge_domain::SearchParams::new(&search_query.query, &search_query.use_case)
+                            .limit(limit)
+                            .top_k(top_k)
+                            .ends_with(input.extensions.clone())
                     })
                     .collect();
 

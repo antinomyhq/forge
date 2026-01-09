@@ -15,19 +15,17 @@ pub struct ListModelResponse {
 #[derive(Deserialize)]
 pub struct Model {
     pub id: String,
-    pub display_name: String,
+    pub display_name: Option<String>,
 }
 
 impl From<Model> for forge_domain::Model {
     fn from(value: Model) -> Self {
         let context_length = get_context_length(&value.id);
-
-        // Anthropic models support vision (image input)
-        // Claude 3+ models support multimodal input
         let input_modalities = if value.id.contains("claude-3")
             || value.id.contains("claude-4")
             || value.id.contains("claude-sonnet")
             || value.id.contains("claude-opus")
+            || value.id.contains("claude-haiku")
         {
             vec![
                 forge_domain::InputModality::Text,
@@ -39,7 +37,7 @@ impl From<Model> for forge_domain::Model {
 
         Self {
             id: ModelId::new(value.id),
-            name: Some(value.display_name),
+            name: value.display_name,
             description: None,
             context_length,
             tools_supported: Some(true),
@@ -675,7 +673,7 @@ mod tests {
     fn test_model_conversion_includes_context_length() {
         let fixture = Model {
             id: "claude-sonnet-4-5-20250929".to_string(),
-            display_name: "Claude 3.5 Sonnet (New)".to_string(),
+            display_name: Some("Claude 3.5 Sonnet (New)".to_string()),
         };
 
         let actual: forge_domain::Model = fixture.into();
@@ -689,7 +687,7 @@ mod tests {
     fn test_model_conversion_unknown_model_no_context() {
         let fixture = Model {
             id: "unknown-claude-model".to_string(),
-            display_name: "Unknown Model".to_string(),
+            display_name: Some("Unknown Model".to_string()),
         };
 
         let actual: forge_domain::Model = fixture.into();

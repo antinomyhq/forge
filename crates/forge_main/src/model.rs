@@ -926,7 +926,7 @@ mod tests {
             tools_supported,
             supports_parallel_tool_calls: None,
             supports_reasoning: None,
-            input_modalities: vec![InputModality::Text, InputModality::Image],
+            input_modalities: vec![InputModality::Text],
         }
     }
 

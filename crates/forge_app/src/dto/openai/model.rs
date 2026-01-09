@@ -98,7 +98,6 @@ impl From<Model> for forge_domain::Model {
                 .as_ref()
                 .map(|params| params.iter().any(|p| p == name))
         };
-
         let tools_supported = has_param("tools");
         let supports_parallel_tool_calls = has_param("supports_parallel_tool_calls");
         let supports_reasoning = has_param("reasoning");

@@ -129,7 +129,7 @@ mod tests {
                             tools_supported: Some(true),
                             supports_parallel_tool_calls: Some(true),
                             supports_reasoning: Some(false),
-                            input_modalities: vec![InputModality::Text, InputModality::Image],
+                            input_modalities: vec![InputModality::Text],
                         }])),
                     },
                     Provider {
@@ -154,7 +154,7 @@ mod tests {
                             tools_supported: Some(true),
                             supports_parallel_tool_calls: Some(true),
                             supports_reasoning: Some(true),
-                            input_modalities: vec![InputModality::Text, InputModality::Image],
+                            input_modalities: vec![InputModality::Text],
                         }])),
                     },
                 ],

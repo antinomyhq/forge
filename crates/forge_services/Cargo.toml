@@ -5,14 +5,11 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-
 chrono.workspace = true
 tokio.workspace = true
-
 tracing.workspace = true
 async-trait.workspace = true
 async-recursion.workspace = true
-
 forge_snaps.workspace = true
 forge_stream.workspace = true
 serde.workspace = true
@@ -22,12 +19,12 @@ tokio-stream.workspace = true
 handlebars.workspace = true
 forge_fs.workspace = true
 dashmap.workspace = true
-
 anyhow.workspace = true
 futures.workspace = true
 reqwest.workspace = true
 derive_more.workspace = true
 regex.workspace = true
+backon.workspace = true
 humantime.workspace = true
 thiserror.workspace = true
 html2md.workspace = true

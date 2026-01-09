@@ -38,7 +38,9 @@ use crate::{ToolCallArguments, ToolCallFull, ToolDefinition, ToolDescription, To
 #[strum_discriminants(name(ToolKind))]
 #[strum(serialize_all = "snake_case")]
 pub enum ToolCatalog {
+    #[serde(alias = "Read")]
     Read(FSRead),
+    #[serde(alias = "Write")]
     Write(FSWrite),
     FsSearch(FSSearch),
     SemSearch(SemanticSearch),
@@ -187,10 +189,10 @@ pub struct SemanticSearch {
     /// "OAuth flow".
     pub queries: Vec<SearchQuery>,
 
-    /// Optional file extension filter (e.g., ".rs", ".ts", ".py"). If provided,
-    /// only files with this extension will be included in the search results.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub file_extension: Option<String>,
+    /// File extension filters (e.g., [".rs", ".ts", ".py"]). Only files with
+    /// these extensions will be included in the search results. At least one
+    /// extension must be provided.
+    pub extensions: Vec<String>,
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
@@ -534,6 +536,13 @@ impl ToolCatalog {
             .any(|v| v.to_string().to_case(Case::Snake).eq(tool_name.as_str()))
     }
 
+    pub fn requires_stdout(tool_name: &ToolName) -> bool {
+        // Tools that require direct stdout/stderr access
+        [ToolKind::Shell]
+            .iter()
+            .any(|v| v.to_string().to_case(Case::Snake).eq(tool_name.as_str()))
+    }
+
     /// Convert a tool input to its corresponding domain operation for policy
     /// checking. Returns None for tools that don't require permission
     /// checks.
@@ -670,11 +679,11 @@ impl ToolCatalog {
     /// Creates a Semantic Search tool call with the specified queries
     pub fn tool_call_semantic_search(
         queries: Vec<SearchQuery>,
-        file_ext: Option<String>,
+        extensions: Vec<String>,
     ) -> ToolCallFull {
         ToolCallFull::from(ToolCatalog::SemSearch(SemanticSearch {
             queries,
-            file_extension: file_ext,
+            extensions,
         }))
     }
 
@@ -820,6 +829,18 @@ mod tests {
     }
 
     #[test]
+    fn test_requires_stdout_for_shell() {
+        let fixture = ToolName::new("shell");
+        assert!(ToolCatalog::requires_stdout(&fixture));
+    }
+
+    #[test]
+    fn test_requires_stdout_for_non_shell() {
+        let fixture = ToolName::new("read");
+        assert!(!ToolCatalog::requires_stdout(&fixture));
+    }
+
+    #[test]
     fn test_tool_definition_json() {
         let tools = ToolCatalog::iter()
             .map(|tool| {
@@ -890,6 +911,107 @@ mod tests {
         } else {
             panic!("Expected FSRead variant");
         }
+    }
+
+    #[test]
+    fn test_capitalized_read_alias() {
+        use crate::{ToolCallArguments, ToolCallFull};
+
+        // Test that "Read" (capitalized) is normalized to "read"
+        let tool_call = ToolCallFull {
+            name: ToolName::new("Read"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(
+                r#"{"path": "/test/path.rs", "start_line": 10, "end_line": 20}"#,
+            ),
+        };
+
+        let actual = ToolCatalog::try_from(tool_call);
+
+        assert!(
+            actual.is_ok(),
+            "Should successfully parse capitalized 'Read' tool name"
+        );
+
+        if let Ok(ToolCatalog::Read(fs_read)) = actual {
+            assert_eq!(fs_read.path, "/test/path.rs");
+            assert_eq!(fs_read.start_line, Some(10));
+            assert_eq!(fs_read.end_line, Some(20));
+        } else {
+            panic!("Expected FSRead variant");
+        }
+    }
+
+    #[test]
+    fn test_capitalized_write_alias() {
+        use crate::{ToolCallArguments, ToolCallFull};
+
+        // Test that "Write" (capitalized) is normalized to "write"
+        let tool_call = ToolCallFull {
+            name: ToolName::new("Write"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(
+                r#"{"path": "/test/path.rs", "content": "test content"}"#,
+            ),
+        };
+
+        let actual = ToolCatalog::try_from(tool_call);
+
+        assert!(
+            actual.is_ok(),
+            "Should successfully parse capitalized 'Write' tool name"
+        );
+
+        if let Ok(ToolCatalog::Write(fs_write)) = actual {
+            assert_eq!(fs_write.path, "/test/path.rs");
+            assert_eq!(fs_write.content, "test content");
+        } else {
+            panic!("Expected FSWrite variant");
+        }
+    }
+
+    #[test]
+    fn test_lowercase_read_still_works() {
+        use crate::{ToolCallArguments, ToolCallFull};
+
+        // Ensure lowercase still works (backward compatibility)
+        let tool_call = ToolCallFull {
+            name: ToolName::new("read"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(r#"{"path": "/test/path.rs"}"#),
+        };
+
+        let actual = ToolCatalog::try_from(tool_call);
+
+        assert!(
+            actual.is_ok(),
+            "Should successfully parse lowercase 'read' tool name"
+        );
+
+        matches!(actual.unwrap(), ToolCatalog::Read(_));
+    }
+
+    #[test]
+    fn test_lowercase_write_still_works() {
+        use crate::{ToolCallArguments, ToolCallFull};
+
+        // Ensure lowercase still works (backward compatibility)
+        let tool_call = ToolCallFull {
+            name: ToolName::new("write"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(
+                r#"{"path": "/test/path.rs", "content": "test"}"#,
+            ),
+        };
+
+        let actual = ToolCatalog::try_from(tool_call);
+
+        assert!(
+            actual.is_ok(),
+            "Should successfully parse lowercase 'write' tool name"
+        );
+
+        matches!(actual.unwrap(), ToolCatalog::Write(_));
     }
 
     #[test]

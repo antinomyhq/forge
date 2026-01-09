@@ -11,6 +11,8 @@ struct TemplateSource;
 ///
 /// This function configures a Handlebars instance with:
 /// - The 'inc' helper for incrementing values (useful for 1-based indexing)
+/// - The 'json' helper for serializing values to JSON strings
+/// - The 'contains' helper for checking if an array contains a value
 /// - Strict mode enabled
 /// - No HTML escaping
 /// - All embedded templates registered
@@ -109,6 +111,7 @@ lazy_static! {
     /// This static instance is lazily initialized on first access and provides:
     /// - The 'inc' helper for incrementing values (useful for 1-based indexing)
     /// - The 'json' helper for serializing values to JSON strings
+    /// - The 'contains' helper for checking if an array contains a value
     /// - Strict mode enabled
     /// - No HTML escaping
     /// - All embedded templates registered
@@ -155,5 +158,144 @@ impl<'a> TemplateEngine<'a> {
 
     pub fn handlebar_instance() -> Handlebars<'static> {
         create_handlebar()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serde::Serialize;
+    use serde_json::json;
+
+    use super::*;
+
+    #[derive(Serialize)]
+    struct TestData {
+        items: Vec<String>,
+        numbers: Vec<i32>,
+    }
+
+    #[test]
+    fn test_contains_helper_with_string_array() {
+        let hb = create_handlebar();
+        let template = r#"{{#if (contains items "apple")}}found{{else}}not found{{/if}}"#;
+
+        let fixture = TestData {
+            items: vec![
+                "apple".to_string(),
+                "banana".to_string(),
+                "cherry".to_string(),
+            ],
+            numbers: vec![],
+        };
+
+        let actual = hb.render_template(template, &fixture).unwrap();
+        let expected = "found";
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_contains_helper_with_string_array_not_found() {
+        let hb = create_handlebar();
+        let template = r#"{{#if (contains items "orange")}}found{{else}}not found{{/if}}"#;
+
+        let fixture = TestData {
+            items: vec![
+                "apple".to_string(),
+                "banana".to_string(),
+                "cherry".to_string(),
+            ],
+            numbers: vec![],
+        };
+
+        let actual = hb.render_template(template, &fixture).unwrap();
+        let expected = "not found";
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_contains_helper_with_number_array() {
+        let hb = create_handlebar();
+        let template = r#"{{#if (contains numbers 42)}}found{{else}}not found{{/if}}"#;
+
+        let fixture = TestData { items: vec![], numbers: vec![10, 20, 42, 50] };
+
+        let actual = hb.render_template(template, &fixture).unwrap();
+        let expected = "found";
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_contains_helper_with_number_array_not_found() {
+        let hb = create_handlebar();
+        let template = r#"{{#if (contains numbers 99)}}found{{else}}not found{{/if}}"#;
+
+        let fixture = TestData { items: vec![], numbers: vec![10, 20, 42, 50] };
+
+        let actual = hb.render_template(template, &fixture).unwrap();
+        let expected = "not found";
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_contains_helper_with_empty_array() {
+        let hb = create_handlebar();
+        let template = r#"{{#if (contains items "apple")}}found{{else}}not found{{/if}}"#;
+
+        let fixture = TestData { items: vec![], numbers: vec![] };
+
+        let actual = hb.render_template(template, &fixture).unwrap();
+        let expected = "not found";
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_contains_helper_with_json_value() {
+        let hb = create_handlebar();
+        let template = r#"{{#if (contains tags "rust")}}yes{{else}}no{{/if}}"#;
+
+        let fixture = json!({
+            "tags": ["rust", "python", "javascript"]
+        });
+
+        let actual = hb.render_template(template, &fixture).unwrap();
+        let expected = "yes";
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_contains_helper_multiple_conditions() {
+        let hb = create_handlebar();
+        let template = r#"{{#if (contains items "apple")}}A{{/if}}{{#if (contains items "banana")}}B{{/if}}{{#if (contains items "cherry")}}C{{/if}}"#;
+
+        let fixture = TestData {
+            items: vec!["apple".to_string(), "cherry".to_string()],
+            numbers: vec![],
+        };
+
+        let actual = hb.render_template(template, &fixture).unwrap();
+        let expected = "AC";
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_contains_helper_with_non_array_value() {
+        let hb = create_handlebar();
+        let template = r#"{{#if (contains name "test")}}found{{else}}not found{{/if}}"#;
+
+        let fixture = json!({
+            "name": "test-value"
+        });
+
+        let actual = hb.render_template(template, &fixture).unwrap();
+        let expected = "not found";
+
+        assert_eq!(actual, expected);
     }
 }

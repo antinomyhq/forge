@@ -118,10 +118,10 @@ impl SummaryToolCall {
 
     /// Creates a CodebaseSearch tool call with default values (id: None,
     /// is_success: true)
-    pub fn codebase_search(queries: Vec<SearchQuery>, file_extension: Option<String>) -> Self {
+    pub fn codebase_search(queries: Vec<SearchQuery>, file_extensions: Vec<String>) -> Self {
         Self {
             id: None,
-            tool: SummaryTool::SemSearch { queries, file_extension },
+            tool: SummaryTool::SemSearch { queries, file_extensions },
             is_success: true,
         }
     }
@@ -197,7 +197,7 @@ pub enum SummaryTool {
     },
     SemSearch {
         queries: Vec<SearchQuery>,
-        file_extension: Option<String>,
+        file_extensions: Vec<String>,
     },
     Undo {
         path: String,
@@ -321,7 +321,7 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
                 .map(|pattern| SummaryTool::Search { pattern }),
             ToolCatalog::SemSearch(input) => Some(SummaryTool::SemSearch {
                 queries: input.queries,
-                file_extension: input.file_extension,
+                file_extensions: input.extensions,
             }),
             ToolCatalog::Undo(input) => Some(SummaryTool::Undo { path: input.path }),
             ToolCatalog::Fetch(input) => Some(SummaryTool::Fetch { url: input.url }),
@@ -981,7 +981,7 @@ mod tests {
             vec![
                 ToolCatalog::tool_call_semantic_search(
                     vec![SearchQuery::new("retry mechanism", "find retry logic")],
-                    None,
+                    vec![".rs".to_string()],
                 )
                 .call_id("call_1"),
             ],
@@ -995,7 +995,7 @@ mod tests {
                 Block::content("Searching codebase"),
                 SummaryToolCall::codebase_search(
                     vec![SearchQuery::new("retry mechanism", "find retry logic")],
-                    None,
+                    vec![".rs".to_string()],
                 )
                 .id("call_1")
                 .is_success(false)
