@@ -2628,8 +2628,11 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     self.writeln(self.markdown.render(&text))?;
                 }
             },
-            ChatResponse::ToolCallStart(_) => {
-                self.spinner.stop(None)?;
+            ChatResponse::ToolCallStart(tool_call) => {
+                // Stop spinner only for tools that require stdout/stderr access
+                if tool_call.requires_stdout() {
+                    self.spinner.stop(None)?;
+                }
             }
             ChatResponse::ToolCallEnd(toolcall_result) => {
                 // Only track toolcall name in case of success else track the error.

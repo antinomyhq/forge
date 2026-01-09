@@ -537,6 +537,13 @@ impl ToolCatalog {
             .any(|v| v.to_string().to_case(Case::Snake).eq(tool_name.as_str()))
     }
 
+    pub fn requires_stdout(tool_name: &ToolName) -> bool {
+        // Tools that require direct stdout/stderr access
+        [ToolKind::Shell]
+            .iter()
+            .any(|v| v.to_string().to_case(Case::Snake).eq(tool_name.as_str()))
+    }
+
     /// Convert a tool input to its corresponding domain operation for policy
     /// checking. Returns None for tools that don't require permission
     /// checks.
@@ -831,6 +838,18 @@ mod tests {
         let actual = ToolKind::Remove.name();
         let expected = ToolName::new("remove");
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_requires_stdout_for_shell() {
+        let fixture = ToolName::new("shell");
+        assert!(ToolCatalog::requires_stdout(&fixture));
+    }
+
+    #[test]
+    fn test_requires_stdout_for_non_shell() {
+        let fixture = ToolName::new("read");
+        assert!(!ToolCatalog::requires_stdout(&fixture));
     }
 
     #[test]
