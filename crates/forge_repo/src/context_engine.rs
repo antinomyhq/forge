@@ -255,9 +255,7 @@ impl<I: GrpcInfra> WorkspaceIndexRepository for ForgeContextEngineRepository<I> 
                         })
                     }
                     node_data::Kind::Note(note) => {
-                        forge_domain::NodeData::Note(forge_domain::Note {
-                            content: note.content,
-                        })
+                        forge_domain::NodeData::Note(forge_domain::Note { content: note.content })
                     }
                     node_data::Kind::Task(task) => {
                         forge_domain::NodeData::Task(forge_domain::Task { task: task.task })

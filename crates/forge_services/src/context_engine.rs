@@ -95,9 +95,10 @@ impl<F> ForgeWorkspaceService<F> {
         info!("Fetching existing file hashes from server to detect changes...");
         let workspace_files =
             forge_domain::CodeBase::new(user_id.clone(), workspace_id.clone(), ());
-        
+
         self.with_retry(|| {
-            self.infra.list_workspace_files(&workspace_files, auth_token)
+            self.infra
+                .list_workspace_files(&workspace_files, auth_token)
         })
         .await
         .unwrap_or_default()
@@ -115,7 +116,7 @@ impl<F> ForgeWorkspaceService<F> {
         F: WorkspaceIndexRepository + EnvironmentInfra,
     {
         let deletion = forge_domain::CodeBase::new(user_id.clone(), workspace_id.clone(), paths);
-        
+
         self.with_retry(|| self.infra.delete_files(&deletion, token))
             .await
             .context("Failed to delete files")
@@ -133,7 +134,7 @@ impl<F> ForgeWorkspaceService<F> {
         F: WorkspaceIndexRepository + EnvironmentInfra,
     {
         let upload = forge_domain::CodeBase::new(user_id.clone(), workspace_id.clone(), files);
-        
+
         self.with_retry(|| self.infra.upload_files(&upload, token))
             .await
             .context("Failed to upload files")?;
