@@ -17,7 +17,7 @@ use forge_app::utils::{format_display_path, truncate_key};
 use forge_app::{CommitResult, ToolResolver};
 use forge_display::MarkdownFormat;
 use forge_domain::{
-    AuthMethod, ChatResponseContent, ContextMessage, OutputPrinter, Role, TitleFormat, UserCommand,
+    AuthMethod, ChatResponseContent, ContextMessage, ConsoleWriter, Role, TitleFormat, UserCommand,
 };
 use forge_fs::ForgeFS;
 use forge_select::ForgeSelect;
@@ -90,7 +90,7 @@ fn format_mcp_headers(server: &forge_domain::McpServerConfig) -> Option<String> 
     }
 }
 
-pub struct UI<A: OutputPrinter, F: Fn() -> A> {
+pub struct UI<A: ConsoleWriter, F: Fn() -> A> {
     markdown: MarkdownFormat,
     state: UIState,
     api: Arc<F::Output>,
@@ -103,7 +103,7 @@ pub struct UI<A: OutputPrinter, F: Fn() -> A> {
     _guard: forge_tracker::Guard,
 }
 
-impl<A: API + OutputPrinter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
+impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     /// Writes a line to the console output
     /// Takes anything that implements ToString trait
     fn writeln<T: ToString>(&mut self, content: T) -> anyhow::Result<()> {

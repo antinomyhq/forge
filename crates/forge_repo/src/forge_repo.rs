@@ -633,7 +633,7 @@ impl<F: GrpcInfra> GrpcInfra for ForgeRepo<F> {
     }
 }
 
-impl<F: forge_domain::OutputPrinter> forge_domain::OutputPrinter for ForgeRepo<F> {
+impl<F: forge_domain::ConsoleWriter> forge_domain::ConsoleWriter for ForgeRepo<F> {
     fn write(&self, buf: &[u8]) -> std::io::Result<usize> {
         self.infra.write(buf)
     }

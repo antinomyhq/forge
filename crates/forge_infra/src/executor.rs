@@ -3,26 +3,26 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use forge_app::CommandInfra;
-use forge_domain::{CommandOutput, Environment, OutputPrinter as OutputPrinterTrait};
+use forge_domain::{CommandOutput, Environment, ConsoleWriter as OutputPrinterTrait};
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tokio::sync::Mutex;
 
-use crate::output_printer::OutputPrinter;
+use crate::console::StdConsoleWriter;
 
 /// Service for executing shell commands
 #[derive(Clone, Debug)]
 pub struct ForgeCommandExecutorService {
     restricted: bool,
     env: Environment,
-    output_printer: Arc<OutputPrinter>,
+    output_printer: Arc<StdConsoleWriter>,
 
     // Mutex to ensure that only one command is executed at a time
     ready: Arc<Mutex<()>>,
 }
 
 impl ForgeCommandExecutorService {
-    pub fn new(restricted: bool, env: Environment, output_printer: Arc<OutputPrinter>) -> Self {
+    pub fn new(restricted: bool, env: Environment, output_printer: Arc<StdConsoleWriter>) -> Self {
         Self {
             restricted,
             env,
@@ -150,16 +150,16 @@ impl ForgeCommandExecutorService {
 
 /// Writer that delegates to OutputPrinter for synchronized writes.
 struct OutputPrinterWriter {
-    printer: Arc<OutputPrinter>,
+    printer: Arc<StdConsoleWriter>,
     is_stdout: bool,
 }
 
 impl OutputPrinterWriter {
-    fn stdout(printer: Arc<OutputPrinter>) -> Self {
+    fn stdout(printer: Arc<StdConsoleWriter>) -> Self {
         Self { printer, is_stdout: true }
     }
 
-    fn stderr(printer: Arc<OutputPrinter>) -> Self {
+    fn stderr(printer: Arc<StdConsoleWriter>) -> Self {
         Self { printer, is_stdout: false }
     }
 }
@@ -259,8 +259,8 @@ mod tests {
             )
     }
 
-    fn test_printer() -> Arc<OutputPrinter> {
-        Arc::new(OutputPrinter::default())
+    fn test_printer() -> Arc<StdConsoleWriter> {
+        Arc::new(StdConsoleWriter::default())
     }
 
     #[tokio::test]

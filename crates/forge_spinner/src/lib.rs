@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
 use colored::Colorize;
-use forge_domain::OutputPrinter;
+use forge_domain::ConsoleWriter;
 use indicatif::{ProgressBar, ProgressStyle};
 use rand::Rng;
 use tokio::task::JoinHandle;
@@ -14,7 +14,7 @@ pub use progress_bar::*;
 use stopwatch::Stopwatch;
 
 /// Manages spinner functionality for the UI.
-pub struct SpinnerManager<P: OutputPrinter> {
+pub struct SpinnerManager<P: ConsoleWriter> {
     spinner: Option<ProgressBar>,
     stopwatch: Stopwatch,
     message: Option<String>,
@@ -25,7 +25,7 @@ pub struct SpinnerManager<P: OutputPrinter> {
     tick_counter: Option<std::sync::Arc<std::sync::atomic::AtomicU64>>,
 }
 
-impl<P: OutputPrinter> SpinnerManager<P> {
+impl<P: ConsoleWriter> SpinnerManager<P> {
     /// Creates a new SpinnerManager with the given output printer.
     pub fn new(printer: Arc<P>) -> Self {
         Self {
@@ -202,7 +202,7 @@ impl<P: OutputPrinter> SpinnerManager<P> {
     }
 }
 
-impl<P: OutputPrinter> Drop for SpinnerManager<P> {
+impl<P: ConsoleWriter> Drop for SpinnerManager<P> {
     fn drop(&mut self) {
         // Flush both stdout and stderr to ensure all output is visible
         // This prevents race conditions with shell prompt resets
@@ -217,7 +217,7 @@ mod tests {
     use std::sync::Arc;
     use std::sync::atomic::{AtomicU64, Ordering};
 
-    use forge_domain::OutputPrinter;
+    use forge_domain::ConsoleWriter;
     use pretty_assertions::assert_eq;
 
     use super::SpinnerManager;
@@ -227,7 +227,7 @@ mod tests {
     #[derive(Clone, Copy)]
     struct DirectPrinter;
 
-    impl OutputPrinter for DirectPrinter {
+    impl ConsoleWriter for DirectPrinter {
         fn write(&self, buf: &[u8]) -> std::io::Result<usize> {
             std::io::stdout().write(buf)
         }

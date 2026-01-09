@@ -31,7 +31,7 @@ use crate::http::ForgeHttpInfra;
 use crate::inquire::ForgeInquire;
 use crate::mcp_client::ForgeMcpClient;
 use crate::mcp_server::ForgeMcpServer;
-use crate::output_printer::OutputPrinter;
+use crate::console::StdConsoleWriter;
 use crate::walker::ForgeWalkerService;
 
 #[derive(Clone)]
@@ -52,7 +52,7 @@ pub struct ForgeInfra {
     http_service: Arc<ForgeHttpInfra<ForgeFileWriteService>>,
     strategy_factory: Arc<ForgeAuthStrategyFactory>,
     grpc_client: Arc<ForgeGrpcClient>,
-    output_printer: Arc<OutputPrinter>,
+    output_printer: Arc<StdConsoleWriter>,
 }
 
 impl ForgeInfra {
@@ -66,7 +66,7 @@ impl ForgeInfra {
         let file_meta_service = Arc::new(ForgeFileMetaService);
         let directory_reader_service = Arc::new(ForgeDirectoryReaderService);
         let grpc_client = Arc::new(ForgeGrpcClient::new(env.workspace_server_url.clone()));
-        let output_printer = Arc::new(OutputPrinter::default());
+        let output_printer = Arc::new(StdConsoleWriter::default());
 
         Self {
             file_read_service,
@@ -313,7 +313,7 @@ impl GrpcInfra for ForgeInfra {
     }
 }
 
-impl forge_domain::OutputPrinter for ForgeInfra {
+impl forge_domain::ConsoleWriter for ForgeInfra {
     fn write(&self, buf: &[u8]) -> std::io::Result<usize> {
         self.output_printer.write(buf)
     }

@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use anyhow::Result;
 use colored::Colorize;
 use forge_display::MarkdownFormat;
-use forge_domain::OutputPrinter;
+use forge_domain::ConsoleWriter;
 use forge_markdown_stream::StreamdownRenderer;
 use forge_spinner::SpinnerManager;
 
@@ -13,15 +13,15 @@ use forge_spinner::SpinnerManager;
 ///
 /// Provides the same API as `SpinnerManager` but handles mutex locking
 /// internally, releasing the lock immediately after each operation completes.
-pub struct SharedSpinner<P: OutputPrinter>(Arc<Mutex<SpinnerManager<P>>>);
+pub struct SharedSpinner<P: ConsoleWriter>(Arc<Mutex<SpinnerManager<P>>>);
 
-impl<P: OutputPrinter> Clone for SharedSpinner<P> {
+impl<P: ConsoleWriter> Clone for SharedSpinner<P> {
     fn clone(&self) -> Self {
         Self(Arc::clone(&self.0))
     }
 }
 
-impl<P: OutputPrinter> SharedSpinner<P> {
+impl<P: ConsoleWriter> SharedSpinner<P> {
     /// Creates a new shared spinner from a SpinnerManager.
     pub fn new(spinner: SpinnerManager<P>) -> Self {
         Self(Arc::new(Mutex::new(spinner)))
@@ -75,12 +75,12 @@ impl Style {
 /// - `Streaming`: Renders markdown incrementally as chunks arrive (uses
 ///   streamdown)
 /// - `Direct`: Renders markdown immediately in full (uses MarkdownFormat)
-pub enum ContentWriter<P: OutputPrinter> {
+pub enum ContentWriter<P: ConsoleWriter> {
     Streaming(StreamingWriter<P>),
     Direct(DirectContentWriter<P>),
 }
 
-impl<P: OutputPrinter + 'static> ContentWriter<P> {
+impl<P: ConsoleWriter + 'static> ContentWriter<P> {
     /// Creates a new streaming content writer.
     pub fn streaming(spinner: SharedSpinner<P>, printer: Arc<P>) -> Self {
         Self::Streaming(StreamingWriter::new(spinner, printer))
@@ -118,13 +118,13 @@ impl<P: OutputPrinter + 'static> ContentWriter<P> {
 
 /// Direct content writer that renders markdown immediately using
 /// MarkdownFormat.
-pub struct DirectContentWriter<P: OutputPrinter> {
+pub struct DirectContentWriter<P: ConsoleWriter> {
     spinner: SharedSpinner<P>,
     printer: Arc<P>,
     markdown: MarkdownFormat,
 }
 
-impl<P: OutputPrinter> DirectContentWriter<P> {
+impl<P: ConsoleWriter> DirectContentWriter<P> {
     /// Creates a new direct content writer.
     pub fn new(spinner: SharedSpinner<P>, printer: Arc<P>, markdown: MarkdownFormat) -> Self {
         Self { spinner, printer, markdown }
@@ -184,13 +184,13 @@ fn term_width() -> usize {
 /// Coordinates between markdown rendering and spinner visibility:
 /// - Stops spinner when content is being written
 /// - Restarts spinner when idle
-pub struct StreamingWriter<P: OutputPrinter> {
+pub struct StreamingWriter<P: ConsoleWriter> {
     active: Option<ActiveRenderer<P>>,
     spinner: SharedSpinner<P>,
     printer: Arc<P>,
 }
 
-impl<P: OutputPrinter + 'static> StreamingWriter<P> {
+impl<P: ConsoleWriter + 'static> StreamingWriter<P> {
     /// Creates a new stream writer with the given shared spinner and output
     /// printer.
     pub fn new(spinner: SharedSpinner<P>, printer: Arc<P>) -> Self {
@@ -244,12 +244,12 @@ impl<P: OutputPrinter + 'static> StreamingWriter<P> {
 }
 
 /// Active renderer with its style.
-struct ActiveRenderer<P: OutputPrinter> {
+struct ActiveRenderer<P: ConsoleWriter> {
     renderer: StreamdownRenderer<StreamDirectWriter<P>>,
     style: Style,
 }
 
-impl<P: OutputPrinter> ActiveRenderer<P> {
+impl<P: ConsoleWriter> ActiveRenderer<P> {
     pub fn push(&mut self, text: &str) -> Result<()> {
         self.renderer.push(text)?;
         Ok(())
@@ -262,13 +262,13 @@ impl<P: OutputPrinter> ActiveRenderer<P> {
 }
 
 /// Writer for streamdown that outputs to printer and manages spinner.
-struct StreamDirectWriter<P: OutputPrinter> {
+struct StreamDirectWriter<P: ConsoleWriter> {
     spinner: SharedSpinner<P>,
     printer: Arc<P>,
     style: Style,
 }
 
-impl<P: OutputPrinter> StreamDirectWriter<P> {
+impl<P: ConsoleWriter> StreamDirectWriter<P> {
     fn pause_spinner(&self) {
         let _ = self.spinner.stop(None);
     }
@@ -278,14 +278,14 @@ impl<P: OutputPrinter> StreamDirectWriter<P> {
     }
 }
 
-impl<P: OutputPrinter> Drop for StreamDirectWriter<P> {
+impl<P: ConsoleWriter> Drop for StreamDirectWriter<P> {
     fn drop(&mut self) {
         let _ = self.printer.flush();
         let _ = self.printer.flush_err();
     }
 }
 
-impl<P: OutputPrinter> io::Write for StreamDirectWriter<P> {
+impl<P: ConsoleWriter> io::Write for StreamDirectWriter<P> {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.pause_spinner();
 

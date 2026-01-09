@@ -11,7 +11,7 @@ use forge_app::{
     McpService, ProviderAuthService, ProviderService, Services, User, UserUsage, Walker,
     WorkspaceService,
 };
-use forge_domain::{Agent, InitAuth, LoginInfo, OutputPrinter, *};
+use forge_domain::{Agent, InitAuth, LoginInfo, ConsoleWriter, *};
 use forge_infra::ForgeInfra;
 use forge_repo::ForgeRepo;
 use forge_services::ForgeServices;
@@ -393,7 +393,7 @@ impl<
     }
 }
 
-impl<A: Send + Sync, F: OutputPrinter> OutputPrinter for ForgeAPI<A, F> {
+impl<A: Send + Sync, F: ConsoleWriter> ConsoleWriter for ForgeAPI<A, F> {
     fn write(&self, buf: &[u8]) -> std::io::Result<usize> {
         self.infra.write(buf)
     }

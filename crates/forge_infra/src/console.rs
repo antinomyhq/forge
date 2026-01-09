@@ -5,7 +5,7 @@
 use std::io::{self, Stderr, Stdout, Write};
 use std::sync::{Arc, Mutex};
 
-use forge_domain::OutputPrinter as OutputPrinterTrait;
+use forge_domain::ConsoleWriter;
 
 /// Thread-safe output printer that synchronizes writes to stdout/stderr.
 ///
@@ -15,18 +15,18 @@ use forge_domain::OutputPrinter as OutputPrinterTrait;
 /// Generic over writer types `O` (stdout) and `E` (stderr) to support testing
 /// with mock writers.
 #[derive(Debug)]
-pub struct OutputPrinter<O = Stdout, E = Stderr> {
+pub struct StdConsoleWriter<O = Stdout, E = Stderr> {
     stdout: Arc<Mutex<O>>,
     stderr: Arc<Mutex<E>>,
 }
 
-impl<O, E> Clone for OutputPrinter<O, E> {
+impl<O, E> Clone for StdConsoleWriter<O, E> {
     fn clone(&self) -> Self {
         Self { stdout: self.stdout.clone(), stderr: self.stderr.clone() }
     }
 }
 
-impl Default for OutputPrinter<Stdout, Stderr> {
+impl Default for StdConsoleWriter<Stdout, Stderr> {
     fn default() -> Self {
         Self {
             stdout: Arc::new(Mutex::new(io::stdout())),
@@ -35,7 +35,7 @@ impl Default for OutputPrinter<Stdout, Stderr> {
     }
 }
 
-impl<O, E> OutputPrinter<O, E> {
+impl<O, E> StdConsoleWriter<O, E> {
     /// Creates a new OutputPrinter with custom writers.
     pub fn with_writers(stdout: O, stderr: E) -> Self {
         Self {
@@ -45,7 +45,7 @@ impl<O, E> OutputPrinter<O, E> {
     }
 }
 
-impl<O: Write + Send, E: Write + Send> OutputPrinterTrait for OutputPrinter<O, E> {
+impl<O: Write + Send, E: Write + Send> ConsoleWriter for StdConsoleWriter<O, E> {
     fn write(&self, buf: &[u8]) -> io::Result<usize> {
         let mut guard = self
             .stdout
@@ -90,7 +90,7 @@ mod tests {
     fn test_concurrent_writes_dont_interleave() {
         let stdout = Cursor::new(Vec::new());
         let stderr = Cursor::new(Vec::new());
-        let printer = OutputPrinter::with_writers(stdout, stderr);
+        let printer = StdConsoleWriter::with_writers(stdout, stderr);
         let p1 = printer.clone();
         let p2 = printer.clone();
 
@@ -123,7 +123,7 @@ mod tests {
     fn test_with_mock_writer() {
         let stdout = Cursor::new(Vec::new());
         let stderr = Cursor::new(Vec::new());
-        let printer = OutputPrinter::with_writers(stdout, stderr);
+        let printer = StdConsoleWriter::with_writers(stdout, stderr);
 
         printer.write(b"hello").unwrap();
         printer.write_err(b"error").unwrap();
