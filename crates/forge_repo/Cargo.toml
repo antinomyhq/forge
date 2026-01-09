@@ -12,7 +12,6 @@ forge_snaps.workspace = true
 forge_fs.workspace = true
 forge_template.workspace = true
 forge_json_repair.workspace = true
-
 anyhow.workspace = true
 futures.workspace = true
 async-trait.workspace = true
