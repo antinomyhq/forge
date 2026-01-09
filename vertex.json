@@ -8,10 +8,7 @@
     "supports_parallel_tool_calls": true,
     "supports_reasoning": true,
     "anthropic_version": "vertex-2023-10-16",
-    "input_modalities": [
-      "text",
-      "image"
-    ]
+    "input_modalities": ["text", "image"]
   },
   {
     "id": "anthropic/claude-opus-4-1@20250805",
@@ -22,10 +19,7 @@
     "supports_parallel_tool_calls": true,
     "supports_reasoning": true,
     "anthropic_version": "vertex-2023-10-16",
-    "input_modalities": [
-      "text",
-      "image"
-    ]
+    "input_modalities": ["text", "image"]
   },
   {
     "id": "anthropic/claude-opus-4@20250514",
@@ -36,10 +30,7 @@
     "supports_parallel_tool_calls": true,
     "supports_reasoning": true,
     "anthropic_version": "vertex-2023-10-16",
-    "input_modalities": [
-      "text",
-      "image"
-    ]
+    "input_modalities": ["text", "image"]
   },
   {
     "id": "anthropic/claude-3-7-sonnet@20250219",
@@ -50,10 +41,7 @@
     "supports_parallel_tool_calls": true,
     "supports_reasoning": true,
     "anthropic_version": "vertex-2023-10-16",
-    "input_modalities": [
-      "text",
-      "image"
-    ]
+    "input_modalities": ["text", "image"]
   },
   {
     "id": "anthropic/claude-3-5-sonnet-v2@20241022",
@@ -64,10 +52,7 @@
     "supports_parallel_tool_calls": true,
     "supports_reasoning": true,
     "anthropic_version": "vertex-2023-10-16",
-    "input_modalities": [
-      "text",
-      "image"
-    ]
+    "input_modalities": ["text", "image"]
   },
   {
     "id": "anthropic/claude-3-5-sonnet@20240620",
@@ -78,10 +63,7 @@
     "supports_parallel_tool_calls": true,
     "supports_reasoning": true,
     "anthropic_version": "vertex-2023-10-16",
-    "input_modalities": [
-      "text",
-      "image"
-    ]
+    "input_modalities": ["text", "image"]
   },
   {
     "id": "anthropic/claude-3-5-haiku@20241022",
@@ -92,10 +74,7 @@
     "supports_parallel_tool_calls": true,
     "supports_reasoning": true,
     "anthropic_version": "vertex-2023-10-16",
-    "input_modalities": [
-      "text",
-      "image"
-    ]
+    "input_modalities": ["text", "image"]
   },
   {
     "id": "anthropic/claude-3-opus@20240229",
@@ -106,10 +85,7 @@
     "supports_parallel_tool_calls": true,
     "supports_reasoning": true,
     "anthropic_version": "vertex-2023-10-16",
-    "input_modalities": [
-      "text",
-      "image"
-    ]
+    "input_modalities": ["text", "image"]
   },
   {
     "id": "anthropic/claude-3-haiku@20240307",
@@ -120,10 +96,7 @@
     "supports_parallel_tool_calls": true,
     "supports_reasoning": true,
     "anthropic_version": "vertex-2023-10-16",
-    "input_modalities": [
-      "text",
-      "image"
-    ]
+    "input_modalities": ["text", "image"]
   },
   {
     "id": "mistral/mistral-large-2411",
@@ -133,9 +106,7 @@
     "tools_supported": true,
     "supports_parallel_tool_calls": true,
     "supports_reasoning": false,
-    "input_modalities": [
-      "text"
-    ]
+    "input_modalities": ["text"]
   },
   {
     "id": "mistral/mistral-small-2503",
@@ -145,9 +116,7 @@
     "tools_supported": true,
     "supports_parallel_tool_calls": true,
     "supports_reasoning": false,
-    "input_modalities": [
-      "text"
-    ]
+    "input_modalities": ["text"]
   },
   {
     "id": "mistral/codestral-2501",
@@ -157,9 +126,7 @@
     "tools_supported": true,
     "supports_parallel_tool_calls": true,
     "supports_reasoning": false,
-    "input_modalities": [
-      "text"
-    ]
+    "input_modalities": ["text"]
   },
   {
     "id": "meta/llama-4-maverick-17b-128e-instruct-maas",
@@ -169,9 +136,7 @@
     "tools_supported": true,
     "supports_parallel_tool_calls": true,
     "supports_reasoning": false,
-    "input_modalities": [
-      "text"
-    ]
+    "input_modalities": ["text"]
   },
   {
     "id": "meta/llama-4-scout-17b-16e-instruct-maas",
@@ -181,9 +146,7 @@
     "tools_supported": true,
     "supports_parallel_tool_calls": true,
     "supports_reasoning": false,
-    "input_modalities": [
-      "text"
-    ]
+    "input_modalities": ["text"]
   },
   {
     "id": "google/gemini-2.0-flash-001",
@@ -193,10 +156,7 @@
     "tools_supported": true,
     "supports_parallel_tool_calls": true,
     "supports_reasoning": true,
-    "input_modalities": [
-      "text",
-      "image"
-    ]
+    "input_modalities": ["text", "image"]
   },
   {
     "id": "google/gemini-2.5-pro",
@@ -206,10 +166,7 @@
     "tools_supported": true,
     "supports_parallel_tool_calls": true,
     "supports_reasoning": true,
-    "input_modalities": [
-      "text",
-      "image"
-    ]
+    "input_modalities": ["text", "image"]
   },
   {
     "id": "google/gemini-2.5-flash",
@@ -219,9 +176,6 @@
     "tools_supported": true,
     "supports_parallel_tool_calls": true,
     "supports_reasoning": true,
-    "input_modalities": [
-      "text",
-      "image"
-    ]
+    "input_modalities": ["text", "image"]
   }
 ]
