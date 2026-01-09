@@ -32,6 +32,14 @@ impl Usage {
         };
         self
     }
+
+    /// Returns the cache hit rate as a percentage if both input and cached
+    /// tokens exist.
+    pub fn cache_hit_rate(&self) -> Option<f64> {
+        let input = *self.prompt_tokens;
+        let cached = *self.cached_tokens;
+        (input > 0 && cached > 0).then(|| (cached as f64 / input as f64) * 100.0)
+    }
 }
 
 /// Represents a message that was received from the LLM provider
@@ -351,5 +359,47 @@ mod tests {
             FinishReason::from_str("end_turn").unwrap(),
             FinishReason::Stop
         );
+    }
+
+    #[test]
+    fn test_cache_hit_rate() {
+        let fixture = Usage {
+            prompt_tokens: TokenCount::Actual(1000),
+            completion_tokens: TokenCount::Actual(500),
+            total_tokens: TokenCount::Actual(1500),
+            cached_tokens: TokenCount::Actual(400),
+            cost: None,
+        };
+
+        let actual = fixture.cache_hit_rate();
+        let expected = Some(40.0);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cache_hit_rate_no_cache() {
+        let fixture = Usage {
+            prompt_tokens: TokenCount::Actual(1000),
+            completion_tokens: TokenCount::Actual(500),
+            total_tokens: TokenCount::Actual(1500),
+            cached_tokens: TokenCount::Actual(0),
+            cost: None,
+        };
+
+        let actual = fixture.cache_hit_rate();
+        let expected = None;
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_cache_hit_rate_no_input() {
+        let fixture = Usage::default();
+
+        let actual = fixture.cache_hit_rate();
+        let expected = None;
+
+        assert_eq!(actual, expected);
     }
 }

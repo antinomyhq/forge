@@ -21,7 +21,7 @@ use forge_domain::{
 };
 use forge_fs::ForgeFS;
 use forge_select::ForgeSelect;
-use forge_spinner::SpinnerManager;
+use forge_spinner::Spinner;
 use forge_tracker::ToolCallPayload;
 use merge::Merge;
 use tokio_stream::StreamExt;
@@ -97,7 +97,7 @@ pub struct UI<A, F: Fn() -> A> {
     console: Console,
     command: Arc<ForgeCommandManager>,
     cli: Cli,
-    spinner: SpinnerManager,
+    spinner: Spinner,
     #[allow(dead_code)] // The guard is kept alive by being held in the struct
     _guard: forge_tracker::Guard,
 }
@@ -220,7 +220,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             console: Console::new(env.clone(), command.clone()),
             cli,
             command,
-            spinner: SpinnerManager::new(),
+            spinner: Spinner::default(),
             markdown: MarkdownFormat::new(),
             _guard: forge_tracker::init_tracing(env.log_path(), TRACKER.clone())?,
         })
@@ -2629,7 +2629,40 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
             },
             ChatResponse::ToolCallStart(_) => {
-                self.spinner.stop(None)?;
+                // Pull usage from conversation and update spinner before pausing
+                if let Some(conversation_id) = &self.state.conversation_id
+                    && let Ok(Some(conv)) = self.api.conversation(conversation_id).await
+                {
+                    let accumulated = conv.accumulated_usage();
+                    let last_request = conv.usage();
+
+                    // Use accumulated for cost and cache rate, last request for token counts
+                    let formatted = match (accumulated.as_ref(), last_request.as_ref()) {
+                        (Some(acc), Some(last)) => [
+                            acc.cost.map(|c| format!("${:.3}", c)),
+                            Some(format!(
+                                "{}/{}",
+                                *last.prompt_tokens, *last.completion_tokens
+                            )),
+                            acc.cache_hit_rate().map(|p| format!("{:.2}%", p)),
+                        ],
+                        (Some(acc), None) | (None, Some(acc)) => [
+                            acc.cost.map(|c| format!("${:.3}", c)),
+                            Some(format!("{}/{}", *acc.prompt_tokens, *acc.completion_tokens)),
+                            acc.cache_hit_rate().map(|p| format!("{:.2}%", p)),
+                        ],
+                        (None, None) => [None, None, None],
+                    }
+                    .into_iter()
+                    .flatten()
+                    .collect::<Vec<_>>()
+                    .join(" ");
+
+                    if !formatted.is_empty() {
+                        self.spinner.set_message(&formatted)?;
+                    }
+                }
+                self.spinner.pause()?;
             }
             ChatResponse::ToolCallEnd(toolcall_result) => {
                 // Only track toolcall name in case of success else track the error.
@@ -2644,7 +2677,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 };
                 tracker::tool_call(payload);
 
-                self.spinner.start(None)?;
+                self.spinner.resume()?;
                 if !self.cli.verbose {
                     return Ok(());
                 }
@@ -2656,7 +2689,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
             }
             ChatResponse::Interrupt { reason } => {
-                self.spinner.stop(None)?;
+                self.spinner.pause()?;
 
                 let title = match reason {
                     InterruptionReason::MaxRequestPerTurnLimitReached { limit } => {
