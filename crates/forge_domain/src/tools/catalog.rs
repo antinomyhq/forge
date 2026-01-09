@@ -38,8 +38,10 @@ use crate::{ToolCallArguments, ToolCallFull, ToolDefinition, ToolDescription, To
 #[strum_discriminants(name(ToolKind))]
 #[strum(serialize_all = "snake_case")]
 pub enum ToolCatalog {
+    #[serde(alias = "Read")]
     Read(FSRead),
     ReadImage(ReadImage),
+    #[serde(alias = "Write")]
     Write(FSWrite),
     FsSearch(FSSearch),
     SemSearch(SemanticSearch),
@@ -904,6 +906,109 @@ mod tests {
         } else {
             panic!("Expected FSRead variant");
         }
+    }
+
+    #[test]
+    fn test_capitalized_read_alias() {
+        use crate::{ToolCallArguments, ToolCallFull};
+
+        // Test that "Read" (capitalized) is normalized to "read"
+        let tool_call = ToolCallFull {
+            name: ToolName::new("Read"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(
+                r#"{"path": "/test/path.rs", "start_line": 10, "end_line": 20}"#,
+            ),
+        };
+
+        let actual = ToolCatalog::try_from(tool_call);
+
+        assert!(
+            actual.is_ok(),
+            "Should successfully parse capitalized 'Read' tool name"
+        );
+
+        if let Ok(ToolCatalog::Read(fs_read)) = actual {
+            assert_eq!(fs_read.path, "/test/path.rs");
+            assert_eq!(fs_read.start_line, Some(10));
+            assert_eq!(fs_read.end_line, Some(20));
+        } else {
+            panic!("Expected FSRead variant");
+        }
+    }
+
+    #[test]
+    fn test_capitalized_write_alias() {
+        use crate::{ToolCallArguments, ToolCallFull};
+
+        // Test that "Write" (capitalized) is normalized to "write"
+        let tool_call = ToolCallFull {
+            name: ToolName::new("Write"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(
+                r#"{"path": "/test/path.rs", "content": "test content"}"#,
+            ),
+        };
+
+        let actual = ToolCatalog::try_from(tool_call);
+
+        assert!(
+            actual.is_ok(),
+            "Should successfully parse capitalized 'Write' tool name"
+        );
+
+        if let Ok(ToolCatalog::Write(fs_write)) = actual {
+            assert_eq!(fs_write.path, "/test/path.rs");
+            assert_eq!(fs_write.content, "test content");
+        } else {
+            panic!("Expected FSWrite variant");
+        }
+    }
+
+    #[test]
+    fn test_lowercase_read_still_works() {
+        use crate::{ToolCallArguments, ToolCallFull};
+
+        // Ensure lowercase still works (backward compatibility)
+        let tool_call = ToolCallFull {
+            name: ToolName::new("read"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(
+                r#"{"path": "/test/path.rs"}"#,
+            ),
+        };
+
+        let actual = ToolCatalog::try_from(tool_call);
+
+        assert!(
+            actual.is_ok(),
+            "Should successfully parse lowercase 'read' tool name"
+        );
+
+        matches!(actual.unwrap(), ToolCatalog::Read(_));
+    }
+
+    #[test]
+    fn test_lowercase_write_still_works() {
+        use crate::{ToolCallArguments, ToolCallFull};
+
+        // Ensure lowercase still works (backward compatibility)
+        let tool_call = ToolCallFull {
+            name: ToolName::new("write"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(
+                r#"{"path": "/test/path.rs", "content": "test"}"#,
+            ),
+        };
+
+        let actual = ToolCatalog::try_from(tool_call);
+
+        assert!(
+            actual.is_ok(),
+            "Should successfully parse lowercase 'write' tool name"
+        );
+
+        matches!(actual.unwrap(), ToolCatalog::Write(_));
     }
 
     #[test]
