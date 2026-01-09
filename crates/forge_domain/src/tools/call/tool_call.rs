@@ -277,7 +277,6 @@ mod tests {
 
     use super::*;
 
-
     #[test]
     fn test_requires_stdout_for_shell_tool() {
         let fixture = ToolCallFull::new("shell");
@@ -289,7 +288,6 @@ mod tests {
         let fixture = ToolCallFull::new("read");
         assert!(!fixture.requires_stdout());
     }
-
 
     #[test]
     fn test_multiple_calls() {
