@@ -1,15 +1,12 @@
 use std::sync::Arc;
-use std::time::Duration;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use backon::{ExponentialBuilder, Retryable};
 use chrono::Utc;
-use derive_setters::Setters;
 use forge_app::GrpcInfra;
 use forge_domain::{
-    ApiKey, FileUploadInfo, Node, RetryConfig, UserId, WorkspaceAuth, WorkspaceId,
-    WorkspaceIndexRepository, WorkspaceInfo,
+    ApiKey, FileUploadInfo, Node, UserId, WorkspaceAuth, WorkspaceId, WorkspaceIndexRepository,
+    WorkspaceInfo,
 };
 
 use crate::proto_generated::forge_service_client::ForgeServiceClient;
@@ -85,13 +82,9 @@ impl TryFrom<FileRefNode> for forge_domain::FileHash {
 
 /// gRPC implementation of WorkspaceIndexRepository
 ///
-/// This repository provides gRPC-based workspace operations with automatic
-/// retry logic for transient failures.
-#[derive(Setters)]
-#[setters(strip_option, into)]
+/// This repository provides gRPC-based workspace operations.
 pub struct ForgeContextEngineRepository<I> {
     infra: Arc<I>,
-    retry_config: Arc<RetryConfig>,
 }
 
 impl<I> ForgeContextEngineRepository<I> {
@@ -99,9 +92,8 @@ impl<I> ForgeContextEngineRepository<I> {
     ///
     /// # Arguments
     /// * `infra` - Infrastructure that provides gRPC connection
-    /// * `retry_config` - Configuration for retry behavior
-    pub fn new(infra: Arc<I>, retry_config: Arc<RetryConfig>) -> Self {
-        Self { infra, retry_config }
+    pub fn new(infra: Arc<I>) -> Self {
+        Self { infra }
     }
 
     /// Add authorization header to a gRPC request
@@ -119,44 +111,22 @@ impl<I> ForgeContextEngineRepository<I> {
         );
         Ok(request)
     }
-
-    /// Execute an operation with retry logic based on the retry configuration
-    async fn with_retry<F, Fut, T>(&self, operation: F) -> Result<T>
-    where
-        F: Fn() -> Fut,
-        Fut: std::future::Future<Output = Result<T>>,
-    {
-        let mut builder = ExponentialBuilder::default()
-            .with_min_delay(Duration::from_millis(self.retry_config.min_delay_ms))
-            .with_factor(self.retry_config.backoff_factor as f32)
-            .with_max_times(self.retry_config.max_retry_attempts)
-            .with_jitter();
-
-        if let Some(max_delay) = self.retry_config.max_delay {
-            builder = builder.with_max_delay(Duration::from_secs(max_delay));
-        }
-
-        operation.retry(builder).await
-    }
 }
 
 #[async_trait]
 impl<I: GrpcInfra> WorkspaceIndexRepository for ForgeContextEngineRepository<I> {
     async fn authenticate(&self) -> Result<WorkspaceAuth> {
-        self.with_retry(|| async {
-            let channel = self.infra.channel();
-            let mut client = ForgeServiceClient::new(channel);
-            let request = tonic::Request::new(CreateApiKeyRequest { user_id: None });
+        let channel = self.infra.channel();
+        let mut client = ForgeServiceClient::new(channel);
+        let request = tonic::Request::new(CreateApiKeyRequest { user_id: None });
 
-            let response = client
-                .create_api_key(request)
-                .await
-                .context("Failed to call CreateApiKey gRPC")?
-                .into_inner();
+        let response = client
+            .create_api_key(request)
+            .await
+            .context("Failed to call CreateApiKey gRPC")?
+            .into_inner();
 
-            response.try_into()
-        })
-        .await
+        response.try_into()
     }
 
     async fn create_workspace(
@@ -164,23 +134,20 @@ impl<I: GrpcInfra> WorkspaceIndexRepository for ForgeContextEngineRepository<I> 
         working_dir: &std::path::Path,
         auth_token: &forge_domain::ApiKey,
     ) -> Result<WorkspaceId> {
-        self.with_retry(|| async {
-            let request = tonic::Request::new(CreateWorkspaceRequest {
-                workspace: Some(WorkspaceDefinition {
-                    working_dir: working_dir.to_string_lossy().to_string(),
-                    ..Default::default()
-                }),
-            });
+        let request = tonic::Request::new(CreateWorkspaceRequest {
+            workspace: Some(WorkspaceDefinition {
+                working_dir: working_dir.to_string_lossy().to_string(),
+                ..Default::default()
+            }),
+        });
 
-            let request = self.with_auth(request, auth_token)?;
+        let request = self.with_auth(request, auth_token)?;
 
-            let channel = self.infra.channel();
-            let mut client = ForgeServiceClient::new(channel);
-            let response = client.create_workspace(request).await?.into_inner();
+        let channel = self.infra.channel();
+        let mut client = ForgeServiceClient::new(channel);
+        let response = client.create_workspace(request).await?.into_inner();
 
-            response.try_into()
-        })
-        .await
+        response.try_into()
     }
 
     async fn upload_files(
@@ -188,40 +155,37 @@ impl<I: GrpcInfra> WorkspaceIndexRepository for ForgeContextEngineRepository<I> 
         upload: &forge_domain::FileUpload,
         auth_token: &forge_domain::ApiKey,
     ) -> Result<FileUploadInfo> {
-        self.with_retry(|| async {
-            let files: Vec<File> = upload
-                .data
-                .iter()
-                .map(|file_read| File {
-                    path: file_read.path.clone(),
-                    content: file_read.content.clone(),
-                })
-                .collect();
+        let files: Vec<File> = upload
+            .data
+            .iter()
+            .map(|file_read| File {
+                path: file_read.path.clone(),
+                content: file_read.content.clone(),
+            })
+            .collect();
 
-            let request = tonic::Request::new(UploadFilesRequest {
-                workspace_id: Some(proto_generated::WorkspaceId {
-                    id: upload.workspace_id.to_string(),
-                }),
-                content: Some(FileUploadContent { files, git: None }),
-            });
+        let request = tonic::Request::new(UploadFilesRequest {
+            workspace_id: Some(proto_generated::WorkspaceId {
+                id: upload.workspace_id.to_string(),
+            }),
+            content: Some(FileUploadContent { files, git: None }),
+        });
 
-            let request = self.with_auth(request, auth_token)?;
+        let request = self.with_auth(request, auth_token)?;
 
-            let channel = self.infra.channel();
-            let mut client = ForgeServiceClient::new(channel);
-            let response = client.upload_files(request).await?;
+        let channel = self.infra.channel();
+        let mut client = ForgeServiceClient::new(channel);
+        let response = client.upload_files(request).await?;
 
-            let result = response
-                .into_inner()
-                .result
-                .context("Server did not return upload result in UploadFiles response")?;
+        let result = response
+            .into_inner()
+            .result
+            .context("Server did not return upload result in UploadFiles response")?;
 
-            Ok(FileUploadInfo::new(
-                result.node_ids.len(),
-                result.relations.len(),
-            ))
-        })
-        .await
+        Ok(FileUploadInfo::new(
+            result.node_ids.len(),
+            result.relations.len(),
+        ))
     }
 
     /// Search for code using semantic search
@@ -230,90 +194,87 @@ impl<I: GrpcInfra> WorkspaceIndexRepository for ForgeContextEngineRepository<I> 
         search_query: &forge_domain::CodeSearchQuery<'_>,
         auth_token: &forge_domain::ApiKey,
     ) -> Result<Vec<Node>> {
-        self.with_retry(|| async {
-            let request = tonic::Request::new(SearchRequest {
-                workspace_id: Some(proto_generated::WorkspaceId {
-                    id: search_query.workspace_id.to_string(),
-                }),
-                query: Some(Query {
-                    prompt: Some(search_query.data.query.to_string()),
-                    limit: search_query.data.limit.map(|l| l as u32),
-                    top_k: search_query.data.top_k,
-                    relevance_query: Some(search_query.data.use_case.to_string()),
-                    starts_with: search_query.data.starts_with.clone().into_iter().collect(),
-                    ends_with: search_query.data.ends_with.clone().unwrap_or_default(),
-                    max_distance: None,
-                    kinds: vec![NodeKind::FileChunk.into()],
-                }),
-            });
+        let request = tonic::Request::new(SearchRequest {
+            workspace_id: Some(proto_generated::WorkspaceId {
+                id: search_query.workspace_id.to_string(),
+            }),
+            query: Some(Query {
+                prompt: Some(search_query.data.query.to_string()),
+                limit: search_query.data.limit.map(|l| l as u32),
+                top_k: search_query.data.top_k,
+                relevance_query: Some(search_query.data.use_case.to_string()),
+                starts_with: search_query.data.starts_with.clone().into_iter().collect(),
+                ends_with: search_query.data.ends_with.clone().unwrap_or_default(),
+                max_distance: None,
+                kinds: vec![NodeKind::FileChunk.into()],
+            }),
+        });
 
-            let request = self.with_auth(request, auth_token)?;
+        let request = self.with_auth(request, auth_token)?;
 
-            let channel = self.infra.channel();
-            let mut client = ForgeServiceClient::new(channel);
-            let response = client.search(request).await?;
+        let channel = self.infra.channel();
+        let mut client = ForgeServiceClient::new(channel);
+        let response = client.search(request).await?;
 
-            let result = response.into_inner().result.unwrap_or_default();
+        let result = response.into_inner().result.unwrap_or_default();
 
-            // Convert QueryItems to CodeSearchResults
-            let results = result
-                .data
-                .into_iter()
-                .filter_map(|query_item| {
-                    let node = query_item.node?;
-                    let node_data = node.data?;
-                    let node_id = node.node_id.map(|n| n.id).unwrap_or_default();
+        // Convert QueryItems to CodeSearchResults
+        let results = result
+            .data
+            .into_iter()
+            .filter_map(|query_item| {
+                let node = query_item.node?;
+                let node_data = node.data?;
+                let node_id = node.node_id.map(|n| n.id).unwrap_or_default();
 
-                    // Extract relevance and distance from proto (all optional)
-                    let relevance = query_item.relevance;
-                    let distance = query_item.distance;
+                // Extract relevance and distance from proto (all optional)
+                let relevance = query_item.relevance;
+                let distance = query_item.distance;
 
-                    // Convert proto node to domain CodeNode based on type
-                    let code_node = match node_data.kind? {
-                        node_data::Kind::FileChunk(chunk) => {
-                            forge_domain::NodeData::FileChunk(forge_domain::FileChunk {
-                                file_path: chunk.path,
-                                content: chunk.content,
-                                start_line: chunk.start_line,
-                                end_line: chunk.end_line,
-                            })
-                        }
-                        node_data::Kind::File(file) => {
-                            forge_domain::NodeData::File(forge_domain::FileNode {
-                                file_path: file.path,
-                                content: file.content,
-                                hash: node.hash,
-                            })
-                        }
-                        node_data::Kind::FileRef(file_ref) => {
-                            forge_domain::NodeData::FileRef(forge_domain::FileRef {
-                                file_path: file_ref.path,
-                                file_hash: file_ref.file_hash,
-                            })
-                        }
-                        node_data::Kind::Note(note) => {
-                            forge_domain::NodeData::Note(forge_domain::Note {
-                                content: note.content,
-                            })
-                        }
-                        node_data::Kind::Task(task) => {
-                            forge_domain::NodeData::Task(forge_domain::Task { task: task.task })
-                        }
-                    };
+                // Convert proto node to domain CodeNode based on type
+                let code_node = match node_data.kind? {
+                    node_data::Kind::FileChunk(chunk) => {
+                        forge_domain::NodeData::FileChunk(forge_domain::FileChunk {
+                            file_path: chunk.path,
+                            content: chunk.content,
+                            start_line: chunk.start_line,
+                            end_line: chunk.end_line,
+                        })
+                    }
+                    node_data::Kind::File(file) => {
+                        forge_domain::NodeData::File(forge_domain::FileNode {
+                            file_path: file.path,
+                            content: file.content,
+                            hash: node.hash,
+                        })
+                    }
+                    node_data::Kind::FileRef(file_ref) => {
+                        forge_domain::NodeData::FileRef(forge_domain::FileRef {
+                            file_path: file_ref.path,
+                            file_hash: file_ref.file_hash,
+                        })
+                    }
+                    node_data::Kind::Note(note) => {
+                        forge_domain::NodeData::Note(forge_domain::Note {
+                            content: note.content,
+                        })
+                    }
+                    node_data::Kind::Task(task) => {
+                        forge_domain::NodeData::Task(forge_domain::Task { task: task.task })
+                    }
+                };
 
-                    // Wrap the node with its relevance and distance scores
-                    Some(Node {
-                        node_id: node_id.into(),
-                        node: code_node,
-                        relevance,
-                        distance,
-                    })
+                // Wrap the node with its relevance and distance scores
+                Some(Node {
+                    node_id: node_id.into(),
+                    node: code_node,
+                    relevance,
+                    distance,
                 })
-                .collect();
+            })
+            .collect();
 
-            Ok(results)
-        })
-        .await
+        Ok(results)
     }
 
     /// List all workspaces for a user
@@ -321,22 +282,19 @@ impl<I: GrpcInfra> WorkspaceIndexRepository for ForgeContextEngineRepository<I> 
         &self,
         auth_token: &forge_domain::ApiKey,
     ) -> Result<Vec<WorkspaceInfo>> {
-        self.with_retry(|| async {
-            let request = tonic::Request::new(ListWorkspacesRequest {});
-            let request = self.with_auth(request, auth_token)?;
+        let request = tonic::Request::new(ListWorkspacesRequest {});
+        let request = self.with_auth(request, auth_token)?;
 
-            let channel = self.infra.channel();
-            let mut client = ForgeServiceClient::new(channel);
-            let response = client.list_workspaces(request).await?;
+        let channel = self.infra.channel();
+        let mut client = ForgeServiceClient::new(channel);
+        let response = client.list_workspaces(request).await?;
 
-            response
-                .into_inner()
-                .workspaces
-                .into_iter()
-                .map(|workspace| workspace.try_into())
-                .collect()
-        })
-        .await
+        response
+            .into_inner()
+            .workspaces
+            .into_iter()
+            .map(|workspace| workspace.try_into())
+            .collect()
     }
 
     /// Get workspace information by workspace ID
@@ -345,20 +303,17 @@ impl<I: GrpcInfra> WorkspaceIndexRepository for ForgeContextEngineRepository<I> 
         workspace_id: &WorkspaceId,
         auth_token: &forge_domain::ApiKey,
     ) -> Result<Option<WorkspaceInfo>> {
-        self.with_retry(|| async {
-            let request = tonic::Request::new(GetWorkspaceInfoRequest {
-                workspace_id: Some(proto_generated::WorkspaceId { id: workspace_id.to_string() }),
-            });
-            let request = self.with_auth(request, auth_token)?;
+        let request = tonic::Request::new(GetWorkspaceInfoRequest {
+            workspace_id: Some(proto_generated::WorkspaceId { id: workspace_id.to_string() }),
+        });
+        let request = self.with_auth(request, auth_token)?;
 
-            let channel = self.infra.channel();
-            let mut client = ForgeServiceClient::new(channel);
-            let response = client.get_workspace_info(request).await?;
+        let channel = self.infra.channel();
+        let mut client = ForgeServiceClient::new(channel);
+        let response = client.get_workspace_info(request).await?;
 
-            let workspace = response.into_inner().workspace;
-            workspace.map(|w| w.try_into()).transpose()
-        })
-        .await
+        let workspace = response.into_inner().workspace;
+        workspace.map(|w| w.try_into()).transpose()
     }
 
     /// List all files in a workspace with their hashes
@@ -367,27 +322,24 @@ impl<I: GrpcInfra> WorkspaceIndexRepository for ForgeContextEngineRepository<I> 
         workspace: &forge_domain::WorkspaceFiles,
         auth_token: &forge_domain::ApiKey,
     ) -> Result<Vec<forge_domain::FileHash>> {
-        self.with_retry(|| async {
-            let request = tonic::Request::new(ListFilesRequest {
-                workspace_id: Some(proto_generated::WorkspaceId {
-                    id: workspace.workspace_id.to_string(),
-                }),
-            });
+        let request = tonic::Request::new(ListFilesRequest {
+            workspace_id: Some(proto_generated::WorkspaceId {
+                id: workspace.workspace_id.to_string(),
+            }),
+        });
 
-            let request = self.with_auth(request, auth_token)?;
+        let request = self.with_auth(request, auth_token)?;
 
-            let channel = self.infra.channel();
-            let mut client = ForgeServiceClient::new(channel);
-            let response = client.list_files(request).await?;
+        let channel = self.infra.channel();
+        let mut client = ForgeServiceClient::new(channel);
+        let response = client.list_files(request).await?;
 
-            response
-                .into_inner()
-                .files
-                .into_iter()
-                .map(|file_ref_node| file_ref_node.try_into())
-                .collect()
-        })
-        .await
+        response
+            .into_inner()
+            .files
+            .into_iter()
+            .map(|file_ref_node| file_ref_node.try_into())
+            .collect()
     }
 
     /// Delete files from a workspace
@@ -400,23 +352,20 @@ impl<I: GrpcInfra> WorkspaceIndexRepository for ForgeContextEngineRepository<I> 
             return Ok(());
         }
 
-        self.with_retry(|| async {
-            let request = tonic::Request::new(DeleteFilesRequest {
-                workspace_id: Some(proto_generated::WorkspaceId {
-                    id: deletion.workspace_id.to_string(),
-                }),
-                file_paths: deletion.data.clone(),
-            });
+        let request = tonic::Request::new(DeleteFilesRequest {
+            workspace_id: Some(proto_generated::WorkspaceId {
+                id: deletion.workspace_id.to_string(),
+            }),
+            file_paths: deletion.data.clone(),
+        });
 
-            let request = self.with_auth(request, auth_token)?;
+        let request = self.with_auth(request, auth_token)?;
 
-            let channel = self.infra.channel();
-            let mut client = ForgeServiceClient::new(channel);
-            client.delete_files(request).await?;
+        let channel = self.infra.channel();
+        let mut client = ForgeServiceClient::new(channel);
+        client.delete_files(request).await?;
 
-            Ok(())
-        })
-        .await
+        Ok(())
     }
 
     async fn delete_workspace(
@@ -424,19 +373,16 @@ impl<I: GrpcInfra> WorkspaceIndexRepository for ForgeContextEngineRepository<I> 
         workspace_id: &forge_domain::WorkspaceId,
         auth_token: &forge_domain::ApiKey,
     ) -> Result<()> {
-        self.with_retry(|| async {
-            let request = tonic::Request::new(DeleteWorkspaceRequest {
-                workspace_id: Some(proto_generated::WorkspaceId { id: workspace_id.to_string() }),
-            });
+        let request = tonic::Request::new(DeleteWorkspaceRequest {
+            workspace_id: Some(proto_generated::WorkspaceId { id: workspace_id.to_string() }),
+        });
 
-            let request = self.with_auth(request, auth_token)?;
+        let request = self.with_auth(request, auth_token)?;
 
-            let channel = self.infra.channel();
-            let mut client = ForgeServiceClient::new(channel);
-            client.delete_workspace(request).await?;
+        let channel = self.infra.channel();
+        let mut client = ForgeServiceClient::new(channel);
+        client.delete_workspace(request).await?;
 
-            Ok(())
-        })
-        .await
+        Ok(())
     }
 }
