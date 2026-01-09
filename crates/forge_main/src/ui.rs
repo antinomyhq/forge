@@ -17,7 +17,7 @@ use forge_app::utils::{format_display_path, truncate_key};
 use forge_app::{CommitResult, ToolResolver};
 use forge_display::MarkdownFormat;
 use forge_domain::{
-    AuthMethod, ChatResponseContent, ContextMessage, ConsoleWriter, Role, TitleFormat, UserCommand,
+    AuthMethod, ChatResponseContent, ConsoleWriter, ContextMessage, Role, TitleFormat, UserCommand,
 };
 use forge_fs::ForgeFS;
 use forge_select::ForgeSelect;

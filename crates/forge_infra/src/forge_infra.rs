@@ -18,6 +18,7 @@ use reqwest::{Response, Url};
 use reqwest_eventsource::EventSource;
 
 use crate::auth::{AnyAuthStrategy, ForgeAuthStrategyFactory};
+use crate::console::StdConsoleWriter;
 use crate::env::ForgeEnvironmentInfra;
 use crate::executor::ForgeCommandExecutorService;
 use crate::fs_create_dirs::ForgeCreateDirsService;
@@ -31,7 +32,6 @@ use crate::http::ForgeHttpInfra;
 use crate::inquire::ForgeInquire;
 use crate::mcp_client::ForgeMcpClient;
 use crate::mcp_server::ForgeMcpServer;
-use crate::console::StdConsoleWriter;
 use crate::walker::ForgeWalkerService;
 
 #[derive(Clone)]

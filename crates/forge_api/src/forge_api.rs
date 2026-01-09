@@ -11,7 +11,7 @@ use forge_app::{
     McpService, ProviderAuthService, ProviderService, Services, User, UserUsage, Walker,
     WorkspaceService,
 };
-use forge_domain::{Agent, InitAuth, LoginInfo, ConsoleWriter, *};
+use forge_domain::{Agent, ConsoleWriter, InitAuth, LoginInfo, *};
 use forge_infra::ForgeInfra;
 use forge_repo::ForgeRepo;
 use forge_services::ForgeServices;
