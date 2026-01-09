@@ -2655,9 +2655,13 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     writer.write(&text)?;
                 }
             },
-            ChatResponse::ToolCallStart(_) => {
+            ChatResponse::ToolCallStart(tool_call) => {
                 writer.finish()?;
-                self.spinner.stop(None)?;
+
+                // Stop spinner only for tools that require stdout/stderr access
+                if tool_call.requires_stdout() {
+                    self.spinner.stop(None)?;
+                }
             }
             ChatResponse::ToolCallEnd(toolcall_result) => {
                 // Only track toolcall name in case of success else track the error.
