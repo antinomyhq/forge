@@ -80,7 +80,9 @@ impl TryFrom<FileRefNode> for forge_domain::FileHash {
     }
 }
 
-/// gRPC implementation of CodebaseRepository
+/// gRPC implementation of WorkspaceIndexRepository
+///
+/// This repository provides gRPC-based workspace operations.
 pub struct ForgeContextEngineRepository<I> {
     infra: Arc<I>,
 }
