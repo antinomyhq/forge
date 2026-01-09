@@ -15,7 +15,7 @@ pub struct ListModelResponse {
 #[derive(Deserialize)]
 pub struct Model {
     pub id: String,
-    pub display_name: String,
+    pub display_name: Option<String>,
 }
 
 impl From<Model> for forge_domain::Model {
@@ -37,7 +37,7 @@ impl From<Model> for forge_domain::Model {
 
         Self {
             id: ModelId::new(value.id),
-            name: Some(value.display_name),
+            name: value.display_name,
             description: None,
             context_length,
             tools_supported: Some(true),
@@ -673,7 +673,7 @@ mod tests {
     fn test_model_conversion_includes_context_length() {
         let fixture = Model {
             id: "claude-sonnet-4-5-20250929".to_string(),
-            display_name: "Claude 3.5 Sonnet (New)".to_string(),
+            display_name: Some("Claude 3.5 Sonnet (New)".to_string()),
         };
 
         let actual: forge_domain::Model = fixture.into();
@@ -687,7 +687,7 @@ mod tests {
     fn test_model_conversion_unknown_model_no_context() {
         let fixture = Model {
             id: "unknown-claude-model".to_string(),
-            display_name: "Unknown Model".to_string(),
+            display_name: Some("Unknown Model".to_string()),
         };
 
         let actual: forge_domain::Model = fixture.into();

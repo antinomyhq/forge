@@ -176,6 +176,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         self.cli.conversation = None;
         self.cli.conversation_id = None;
 
+        self.spinner.reset();
         self.display_banner()?;
         self.trace_user();
         self.hydrate_caches();
@@ -293,6 +294,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             tokio::select! {
                 _ = tokio::signal::ctrl_c() => {
                     tracing::info!("User interrupted operation with Ctrl+C");
+                    self.spinner.reset();
                     self.spinner.stop(None)?;
                     return Ok(());
                 }
@@ -311,6 +313,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 Ok(command) => {
                     tokio::select! {
                         _ = tokio::signal::ctrl_c() => {
+                            self.spinner.reset();
                             tracing::info!("User interrupted operation with Ctrl+C");
                         }
                         result = self.on_command(command) => {
@@ -1824,8 +1827,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
             SlashCommand::Index => {
                 let working_dir = self.state.cwd.clone();
-                // Use default batch size of 10 for slash command
-                self.on_index(working_dir, 10).await?;
+                // Use default batch size of 100 for slash command
+                self.on_index(working_dir, 100).await?;
             }
             SlashCommand::AgentSwitch(agent_id) => {
                 // Validate that the agent exists by checking against loaded agents
@@ -2641,8 +2644,11 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     self.writeln(self.markdown.render(&text))?;
                 }
             },
-            ChatResponse::ToolCallStart(_) => {
-                self.spinner.stop(None)?;
+            ChatResponse::ToolCallStart(tool_call) => {
+                // Stop spinner only for tools that require stdout/stderr access
+                if tool_call.requires_stdout() {
+                    self.spinner.stop(None)?;
+                }
             }
             ChatResponse::ToolCallEnd(toolcall_result) => {
                 // Only track toolcall name in case of success else track the error.

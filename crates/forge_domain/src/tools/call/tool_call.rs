@@ -91,6 +91,11 @@ impl ToolCallFull {
         }
     }
 
+    /// Returns true if this tool requires direct stdout/stderr access
+    pub fn requires_stdout(&self) -> bool {
+        crate::ToolCatalog::requires_stdout(&self.name)
+    }
+
     pub fn try_from_parts(parts: &[ToolCallPart]) -> Result<Vec<Self>> {
         if parts.is_empty() {
             return Ok(vec![]);
@@ -271,6 +276,18 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
+
+    #[test]
+    fn test_requires_stdout_for_shell_tool() {
+        let fixture = ToolCallFull::new("shell");
+        assert!(fixture.requires_stdout());
+    }
+
+    #[test]
+    fn test_requires_stdout_for_non_shell_tool() {
+        let fixture = ToolCallFull::new("read");
+        assert!(!fixture.requires_stdout());
+    }
 
     #[test]
     fn test_multiple_calls() {
