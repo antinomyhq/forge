@@ -93,14 +93,6 @@ pub struct FSRead {
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
-#[tool_description_file = "crates/forge_domain/src/tools/descriptions/read_image.md"]
-pub struct ReadImage {
-    /// The absolute path to the image file (e.g., /home/user/image.png).
-    /// Relative paths are not supported. The file must exist and be readable.
-    pub path: String,
-}
-
-#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 #[tool_description_file = "crates/forge_domain/src/tools/descriptions/fs_write.md"]
 pub struct FSWrite {
     /// The path of the file to write to (absolute path required)

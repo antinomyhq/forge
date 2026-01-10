@@ -4,6 +4,7 @@ Usage:
 - The path parameter must be an absolute path, not a relative path
 - By default, it reads up to {{env.maxReadSize}} lines starting from the beginning of the file
 - You can optionally specify a line start_line and end_line (especially handy for long files), but it's recommended to read the whole file by not providing these parameters
+- Any lines longer than {{env.maxLineLength}} characters will be truncated
 - Results are returned using rg "" -n format, with line numbers starting at 1
 {{#if (contains model.input_modalities "image")}}
 - This tool allows Forge Code to read images (eg PNG, JPG, etc). When reading an image file the contents are presented visually.

@@ -11,6 +11,15 @@ use forge_domain::{FileInfo, Image};
 use crate::range::resolve_range;
 use crate::utils::assert_absolute_path;
 
+/// Truncates a line to the maximum length if it exceeds the limit
+fn truncate_line(line: &str, max_length: usize) -> String {
+    if line.len() > max_length {
+        format!("{}... [truncated, line exceeds {} chars]", &line[..max_length], max_length)
+    } else {
+        line.to_string()
+    }
+}
+
 /// Detects the MIME type of a file based on extension and content
 fn detect_mime_type(path: &Path, content: &[u8]) -> String {
     // Try infer crate first (checks magic numbers)
@@ -159,11 +168,21 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for
 
         // Extract requested lines
         let content = if start_pos == 0 && end_pos >= total_lines.saturating_sub(1) {
-            full_content.clone() // Return full content if requesting entire file
+            // Return full content with line truncation
+            lines
+                .iter()
+                .map(|line| truncate_line(line, env.max_line_length))
+                .collect::<Vec<_>>()
+                .join("\n")
         } else if total_lines == 0 {
             String::new()
         } else {
-            lines[start_pos as usize..=end_pos as usize].join("\n")
+            // Return range with line truncation
+            lines[start_pos as usize..=end_pos as usize]
+                .iter()
+                .map(|line| truncate_line(line, env.max_line_length))
+                .collect::<Vec<_>>()
+                .join("\n")
         };
 
         let file_info = FileInfo { start_line, end_line, total_lines };
@@ -352,5 +371,47 @@ mod tests {
         assert!(!is_visual_content("text/plain"));
         assert!(!is_visual_content("application/json"));
         assert!(!is_visual_content("text/html"));
+    }
+
+    #[test]
+    fn test_truncate_line_short_line() {
+        let line = "short line";
+        let actual = truncate_line(line, 100);
+        assert_eq!(actual, "short line");
+    }
+
+    #[test]
+    fn test_truncate_line_exact_length() {
+        let line = "exactly 17 chars!";
+        assert_eq!(line.len(), 17);
+        let actual = truncate_line(line, 17);
+        assert_eq!(actual, "exactly 17 chars!");
+    }
+
+    #[test]
+    fn test_truncate_line_long_line() {
+        let line = "this is a very long line that exceeds the maximum length";
+        let actual = truncate_line(line, 20);
+        assert_eq!(actual.len(), 58); // 20 chars + "... [truncated, line exceeds 20 chars]"
+        assert!(actual.starts_with("this is a very long"));
+        assert!(actual.contains("[truncated"));
+        assert!(!actual.contains("exceeds the maximum length"));
+    }
+
+    #[test]
+    fn test_truncate_line_empty() {
+        let line = "";
+        let actual = truncate_line(line, 100);
+        assert_eq!(actual, "");
+    }
+
+    #[test]
+    fn test_truncate_line_unicode() {
+        let line = "🚀🚀🚀🚀🚀"; // Each emoji is 4 chars, total 20
+        let actual = truncate_line(line, 12);
+        // Should truncate at byte boundary, not character boundary
+        println!("{}", actual);
+        assert_eq!(actual.len(), 50); // 12 bytes + truncation message
+        assert!(actual.contains("truncated"));
     }
 }
