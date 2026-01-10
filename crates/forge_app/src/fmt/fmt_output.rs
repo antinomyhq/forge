@@ -93,7 +93,6 @@ mod tests {
                 end_line: 1,
                 total_lines: 5,
                 content_hash: crate::compute_hash(content),
-                mime_type: Some("text/plain".to_string()),
             },
         };
         let env = fixture_environment();
@@ -120,7 +119,6 @@ mod tests {
                 end_line: 4,
                 total_lines: 10,
                 content_hash: crate::compute_hash(content),
-                mime_type: Some("text/plain".to_string()),
             },
         };
         let env = fixture_environment();

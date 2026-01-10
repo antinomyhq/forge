@@ -148,7 +148,6 @@ mod tests {
                     end_line: 1,
                     total_lines: 1,
                     content_hash: compute_hash(content),
-                    mime_type: Some("text/plain".to_string()),
                 })
             } else {
                 Err(anyhow::anyhow!(std::io::Error::from(

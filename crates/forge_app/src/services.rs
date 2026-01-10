@@ -42,7 +42,6 @@ pub struct ReadOutput {
     pub end_line: u64,
     pub total_lines: u64,
     pub content_hash: String,
-    pub mime_type: Option<String>,
 }
 
 #[derive(Debug)]

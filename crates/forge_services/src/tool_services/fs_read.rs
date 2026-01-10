@@ -131,7 +131,6 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for
                 end_line: 0,
                 total_lines: 0,
                 content_hash: hash,
-                mime_type: Some(mime_type),
             });
         }
 
@@ -175,7 +174,6 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for
             end_line: file_info.end_line,
             total_lines: file_info.total_lines,
             content_hash: hash,
-            mime_type: Some(mime_type),
         })
     }
 }

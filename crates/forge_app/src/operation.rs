@@ -226,7 +226,6 @@ impl ToolOperation {
                     tracing::info!(
                         path = %input.path,
                         tool = %tool_name,
-                        mime_type = ?output.mime_type,
                         "Visual content read (image/PDF)"
                     );
                     *metrics = metrics.clone().insert(
@@ -258,7 +257,6 @@ impl ToolOperation {
                 tracing::info!(
                     path = %input.path,
                     tool = %tool_name,
-                    mime_type = ?output.mime_type,
                     "File read"
                 );
                 *metrics = metrics.clone().insert(
@@ -740,7 +738,6 @@ mod tests {
                 end_line: 2,
                 total_lines: 2,
                 content_hash: hash,
-                mime_type: Some("text/plain".to_string()),
             },
         };
 
@@ -773,7 +770,6 @@ mod tests {
                 end_line: 1,
                 total_lines: 1,
                 content_hash: hash,
-                mime_type: Some("text/plain".to_string()),
             },
         };
 
@@ -805,7 +801,6 @@ mod tests {
                 end_line: 3,
                 total_lines: 5,
                 content_hash: hash,
-                mime_type: Some("text/plain".to_string()),
             },
         };
 
@@ -838,7 +833,6 @@ mod tests {
                 end_line: 100,
                 total_lines: 200,
                 content_hash: hash,
-                mime_type: Some("text/plain".to_string()),
             },
         };
 
@@ -1998,7 +1992,6 @@ mod tests {
                 end_line: 1,
                 total_lines: 1,
                 content_hash: "hash123".to_string(),
-                mime_type: Some("image/png".to_string()),
             },
         };
 
