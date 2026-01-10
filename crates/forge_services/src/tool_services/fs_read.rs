@@ -12,17 +12,25 @@ use crate::range::resolve_range;
 use crate::utils::assert_absolute_path;
 
 /// Truncates a line to the maximum length if it exceeds the limit
+
 fn truncate_line(line: &str, max_length: usize) -> String {
     if line.len() > max_length {
+        // Use char indices to avoid panicking on unicode boundaries
+        let truncated = line
+            .char_indices()
+            .take_while(|(idx, _)| *idx < max_length)
+            .map(|(_, ch)| ch)
+            .collect::<String>();
         format!(
             "{}... [truncated, line exceeds {} chars]",
-            &line[..max_length],
+            truncated,
             max_length
         )
     } else {
         line.to_string()
     }
 }
+
 
 /// Detects the MIME type of a file based on extension and content
 fn detect_mime_type(path: &Path, content: &[u8]) -> String {
