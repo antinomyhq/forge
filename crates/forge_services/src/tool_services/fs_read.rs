@@ -95,9 +95,9 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for
         assert_absolute_path(path)?;
         let env = self.0.get_environment();
 
-        // Validate file size first before reading content
-        // Use max_file_size as initial limit (will refine after MIME detection)
-        assert_file_size(&*self.0, path, env.max_file_size).await?;
+        // Validate with the larger limit initially since we don't know file type yet
+        let initial_size_limit = env.max_file_size.max(env.max_image_size);
+        assert_file_size(&*self.0, path, initial_size_limit).await?;
 
         // Read file content to detect MIME type
         let raw_content = self
