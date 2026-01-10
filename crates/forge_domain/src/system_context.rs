@@ -1,7 +1,7 @@
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 
-use crate::{Environment, File, Skill};
+use crate::{Environment, File, Model, Skill};
 
 #[derive(Debug, Setters, Clone, Serialize, Deserialize)]
 #[setters(strip_option)]
@@ -34,4 +34,8 @@ pub struct SystemContext {
     /// List of available skills
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub skills: Vec<Skill>,
+
+    /// Currently selected model with capabilities
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<Model>,
 }

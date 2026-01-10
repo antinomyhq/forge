@@ -15,4 +15,8 @@ impl<F: EnvironmentInfra> EnvironmentService for ForgeEnvironmentService<F> {
     fn get_environment(&self) -> Environment {
         self.0.get_environment()
     }
+
+    fn is_restricted(&self) -> bool {
+        self.0.is_restricted()
+    }
 }

@@ -47,6 +47,7 @@ pub struct ReadOutput {
 #[derive(Debug)]
 pub enum Content {
     File(String),
+    Image(Image),
 }
 
 impl Content {
@@ -54,9 +55,21 @@ impl Content {
         Self::File(content.into())
     }
 
+    pub fn image(image: Image) -> Self {
+        Self::Image(image)
+    }
+
     pub fn file_content(&self) -> &str {
         match self {
             Self::File(content) => content,
+            Self::Image(_) => "",
+        }
+    }
+
+    pub fn as_image(&self) -> Option<&Image> {
+        match self {
+            Self::Image(img) => Some(img),
+            _ => None,
         }
     }
 }
@@ -244,6 +257,8 @@ pub trait AttachmentService {
 
 pub trait EnvironmentService: Send + Sync {
     fn get_environment(&self) -> Environment;
+    /// Returns whether the application is running in restricted mode.
+    fn is_restricted(&self) -> bool;
 }
 #[async_trait::async_trait]
 pub trait CustomInstructionsService: Send + Sync {
@@ -866,6 +881,10 @@ impl<I: Services> ShellService for I {
 impl<I: Services> EnvironmentService for I {
     fn get_environment(&self) -> Environment {
         self.environment_service().get_environment()
+    }
+
+    fn is_restricted(&self) -> bool {
+        self.environment_service().is_restricted()
     }
 }
 

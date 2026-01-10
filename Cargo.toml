@@ -51,6 +51,7 @@ http = "1.2.0"
 ignore = "0.4.23"
 is_ci = "1.2.0"
 indexmap = "2.11.0"
+infer = "0.19.0"
 insta = { version = "1.42.0", features = ["json", "yaml"] }
 lazy_static = "1.4.0"
 machineid-rs = "1.2.4"
@@ -126,6 +127,7 @@ gray_matter = "0.3.2"
 num-format = "0.4"
 humantime = "2.1.0"
 dashmap = "7.0.0-rc2"
+async-openai = { version = "0.31.1", default-features = false, features = ["response-types"] } # Using only types, not the API client - reduces dependencies
 
 # Internal crates
 forge_api = { path = "crates/forge_api" }

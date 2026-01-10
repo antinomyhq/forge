@@ -24,7 +24,7 @@ enum Operation<'a> {
     /// Codebase search operation with queries
     CodebaseSearch {
         queries: &'a [forge_domain::SearchQuery],
-        file_extension: Option<&'a str>,
+        file_extensions: &'a [String],
     },
     /// Fetch operation for a specific URL
     Fetch(&'a str),
@@ -34,6 +34,8 @@ enum Operation<'a> {
     Plan(&'a str),
     /// Skill loading by name
     Skill(&'a str),
+    /// MCP tool call by name
+    Mcp(&'a str),
 }
 
 /// Converts the tool call to its operation type for comparison.
@@ -48,13 +50,14 @@ fn to_op(tool: &SummaryTool) -> Operation<'_> {
         SummaryTool::Undo { path } => Operation::File(path),
         SummaryTool::Shell { command } => Operation::Shell(command),
         SummaryTool::Search { pattern } => Operation::Search(pattern),
-        SummaryTool::SemSearch { queries, file_extension } => {
-            Operation::CodebaseSearch { queries, file_extension: file_extension.as_deref() }
+        SummaryTool::SemSearch { queries, file_extensions } => {
+            Operation::CodebaseSearch { queries, file_extensions }
         }
         SummaryTool::Fetch { url } => Operation::Fetch(url),
         SummaryTool::Followup { question } => Operation::Followup(question),
         SummaryTool::Plan { plan_name } => Operation::Plan(plan_name),
         SummaryTool::Skill { name } => Operation::Skill(name),
+        SummaryTool::Mcp { name } => Operation::Mcp(name),
     }
 }
 

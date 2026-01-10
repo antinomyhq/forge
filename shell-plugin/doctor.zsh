@@ -104,6 +104,25 @@ else
     print_result info "Terminal: unknown"
 fi
 
+
+# Check if Oh My Zsh is installed
+if [[ -n "$ZSH" ]] && [[ -d "$ZSH" ]]; then
+    local omz_version=""
+    # Try to get OMZ version from version file if it exists
+    if [[ -f "$ZSH/.git/refs/heads/master" ]]; then
+        omz_version=$(cd "$ZSH" && git describe --tags 2>/dev/null || echo "custom")
+    fi
+    
+    if [[ -n "$omz_version" ]]; then
+        print_result pass "Oh My Zsh: ${omz_version}"
+    else
+        print_result pass "Oh My Zsh: installed"
+    fi
+    print_result info "${ZSH}"
+else
+    print_result fail "Oh My Zsh not found" "Install: sh -c \"\$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)\""
+fi
+
 # 2. Check if forge is installed and in PATH
 print_section "Forge Installation"
 
@@ -314,7 +333,7 @@ fi
 
 if [[ "$nerd_font_disabled" == "false" ]]; then
     echo ""
-    echo "$(bold "Visual Check [Manual Verification Required]")"
+    echo "$(yellow "Visual Check [Manual Verification Required]")"
 echo "   $(bold "󱙺 FORGE 33.0k") $(cyan " tonic-1.0")"
     echo ""
     echo "   Forge uses Nerd Fonts to enrich cli experience, can you see all the icons clearly without any overlap?"

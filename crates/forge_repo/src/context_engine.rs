@@ -9,15 +9,8 @@ use forge_domain::{
     WorkspaceInfo,
 };
 
-// Include the generated proto code at module level
-// Allow dead code since protobuf generates code that may not be fully used
-#[allow(dead_code)]
-mod proto_generated {
-    tonic::include_proto!("forge.v1");
-}
-
-use forge_service_client::ForgeServiceClient;
-use proto_generated::*;
+use crate::proto_generated::forge_service_client::ForgeServiceClient;
+use crate::proto_generated::{self, *};
 
 // TryFrom implementations for converting proto types to domain types
 
@@ -87,7 +80,9 @@ impl TryFrom<FileRefNode> for forge_domain::FileHash {
     }
 }
 
-/// gRPC implementation of CodebaseRepository
+/// gRPC implementation of WorkspaceIndexRepository
+///
+/// This repository provides gRPC-based workspace operations.
 pub struct ForgeContextEngineRepository<I> {
     infra: Arc<I>,
 }
@@ -209,7 +204,7 @@ impl<I: GrpcInfra> WorkspaceIndexRepository for ForgeContextEngineRepository<I> 
                 top_k: search_query.data.top_k,
                 relevance_query: Some(search_query.data.use_case.to_string()),
                 starts_with: search_query.data.starts_with.clone().into_iter().collect(),
-                ends_with: search_query.data.ends_with.clone().into_iter().collect(),
+                ends_with: search_query.data.ends_with.clone().unwrap_or_default(),
                 max_distance: None,
                 kinds: vec![NodeKind::FileChunk.into()],
             }),

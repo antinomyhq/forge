@@ -6,7 +6,7 @@ use url::Url;
 use crate::{
     AnyProvider, AppConfig, AuthCredential, ChatCompletionMessage, Context, Conversation,
     ConversationId, MigrationResult, Model, ModelId, Provider, ProviderId, ProviderTemplate,
-    ResultStream, Skill, Snapshot, UserId, Workspace, WorkspaceAuth, WorkspaceId,
+    ResultStream, SearchMatch, Skill, Snapshot, UserId, Workspace, WorkspaceAuth, WorkspaceId,
 };
 
 /// Repository for managing file snapshots
@@ -127,8 +127,21 @@ pub trait WorkspaceRepository: Send + Sync {
         path: &std::path::Path,
     ) -> anyhow::Result<()>;
 
-    /// Find workspace by path
-    async fn find_by_path(&self, path: &std::path::Path) -> anyhow::Result<Option<Workspace>>;
+    /// Find all workspaces for a user
+    ///
+    /// Returns all workspaces belonging to the specified user.
+    /// Path matching and selection logic should be handled in the service
+    /// layer.
+    ///
+    /// # Arguments
+    /// * `user_id` - Only return workspaces belonging to this user
+    ///
+    /// # Returns
+    /// A vector of all workspaces for the user (may be empty)
+    ///
+    /// # Errors
+    /// Returns an error if there's a database error
+    async fn list(&self) -> anyhow::Result<Vec<Workspace>>;
 
     /// Get user ID from any workspace, or None if no workspaces exist
     async fn get_user_id(&self) -> anyhow::Result<Option<UserId>>;
@@ -234,4 +247,28 @@ pub trait ValidationRepository: Send + Sync {
         path: impl AsRef<std::path::Path> + Send,
         content: &str,
     ) -> Result<Vec<crate::SyntaxError>>;
+}
+
+/// Repository for fuzzy searching text
+///
+/// This repository provides fuzzy search functionality for searching
+/// needle in haystack with optional search_all flag.
+#[async_trait::async_trait]
+pub trait FuzzySearchRepository: Send + Sync {
+    /// Performs a fuzzy search for a needle in a haystack
+    ///
+    /// # Arguments
+    /// * `needle` - The string to search for
+    /// * `haystack` - The text to search in
+    /// * `search_all` - Whether to search all matches or just the first
+    ///
+    /// # Returns
+    /// * `Ok(Vec<SearchMatch>)` - List of matches with line ranges
+    /// * `Err(_)` - Communication error with search service
+    async fn fuzzy_search(
+        &self,
+        needle: &str,
+        haystack: &str,
+        search_all: bool,
+    ) -> Result<Vec<SearchMatch>>;
 }

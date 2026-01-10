@@ -1,19 +1,16 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use forge_domain::{
-    CodebaseQueryResult, TitleFormat, ToolCallContext, ToolCallFull, ToolCatalog, ToolOutput,
-};
-use forge_template::Element;
+use forge_domain::{CodebaseQueryResult, ToolCallContext, ToolCatalog, ToolOutput};
 
 use crate::fmt::content::FormatContent;
 use crate::operation::{TempContentFiles, ToolOperation};
 use crate::services::ShellService;
-use crate::utils::format_display_path;
 use crate::{
-    ConversationService, EnvironmentService, FollowUpService, FsCreateService, FsPatchService,
-    FsReadService, FsRemoveService, FsSearchService, FsUndoService, ImageReadService,
-    NetFetchService, PlanCreateService, PolicyService, SkillFetchService, WorkspaceService,
+    AgentRegistry, ConversationService, EnvironmentService, FollowUpService, FsCreateService,
+    FsPatchService, FsReadService, FsRemoveService, FsSearchService, FsUndoService,
+    ImageReadService, NetFetchService, PlanCreateService, ProviderService, SkillFetchService,
+    WorkspaceService,
 };
 
 pub struct ToolExecutor<S> {
@@ -35,39 +32,13 @@ impl<
         + ConversationService
         + EnvironmentService
         + PlanCreateService
-        + PolicyService
-        + SkillFetchService,
+        + SkillFetchService
+        + AgentRegistry
+        + ProviderService,
 > ToolExecutor<S>
 {
     pub fn new(services: Arc<S>) -> Self {
         Self { services }
-    }
-
-    /// Check if a tool operation is allowed based on the workflow policies
-    async fn check_tool_permission(
-        &self,
-        tool_input: &ToolCatalog,
-        context: &ToolCallContext,
-    ) -> anyhow::Result<bool> {
-        let cwd = self.services.get_environment().cwd;
-        let operation = tool_input.to_policy_operation(cwd.clone());
-        if let Some(operation) = operation {
-            let decision = self.services.check_operation_permission(&operation).await?;
-
-            // Send custom policy message to the user when a policy file was created
-            if let Some(policy_path) = decision.path {
-                context
-                    .send_title(
-                        TitleFormat::debug("Permissions Update")
-                            .sub_title(format_display_path(policy_path.as_path(), &cwd)),
-                    )
-                    .await?;
-            }
-            if !decision.allowed {
-                return Ok(true);
-            }
-        }
-        Ok(false)
     }
 
     async fn dump_operation(&self, operation: &ToolOperation) -> anyhow::Result<TempContentFiles> {
@@ -168,11 +139,6 @@ impl<
 
                 (input, output).into()
             }
-            ToolCatalog::ReadImage(input) => {
-                let normalized_path = self.normalize_path(input.path.clone());
-                let output = self.services.read_image(normalized_path).await?;
-                output.into()
-            }
             ToolCatalog::Write(input) => {
                 let normalized_path = self.normalize_path(input.path.clone());
                 let output = self
@@ -203,16 +169,10 @@ impl<
                     .queries
                     .iter()
                     .map(|search_query| {
-                        let mut params = forge_domain::SearchParams::new(
-                            &search_query.query,
-                            &search_query.use_case,
-                        )
-                        .limit(limit)
-                        .top_k(top_k);
-                        if let Some(ext) = &input.file_extension {
-                            params = params.ends_with(ext);
-                        }
-                        params
+                        forge_domain::SearchParams::new(&search_query.query, &search_query.use_case)
+                            .limit(limit)
+                            .top_k(top_k)
+                            .ends_with(input.extensions.clone())
                     })
                     .collect();
 
@@ -314,35 +274,18 @@ impl<
             }
             ToolCatalog::Skill(input) => {
                 let skill = self.services.fetch_skill(input.name.clone()).await?;
-                (input, skill).into()
+                ToolOperation::Skill { output: skill }
             }
         })
     }
 
     pub async fn execute(
         &self,
-        input: ToolCallFull,
+        tool_input: ToolCatalog,
         context: &ToolCallContext,
     ) -> anyhow::Result<ToolOutput> {
-        let tool_input: ToolCatalog = ToolCatalog::try_from(input)?;
         let tool_kind = tool_input.kind();
         let env = self.services.get_environment();
-        if let Some(content) = tool_input.to_content(&env) {
-            context.send(content).await?;
-        }
-
-        // Check permissions before executing the tool (if enabled)
-        if env.enable_permissions && self.check_tool_permission(&tool_input, context).await? {
-            // Send formatted output message for policy denial
-            context
-                .send(TitleFormat::error("Permission Denied"))
-                .await?;
-
-            return Ok(ToolOutput::text(
-                Element::new("permission_denied")
-                    .cdata("User has denied the permission to execute this tool"),
-            ));
-        }
 
         let execution_result = self.call_internal(tool_input.clone()).await;
 

@@ -6,6 +6,7 @@ mod event;
 #[cfg(test)]
 mod mock_server;
 mod openai;
+mod openai_responses;
 mod provider_repo;
 mod retry;
 mod utils;
@@ -14,7 +15,7 @@ pub use chat::*;
 pub use provider_repo::*;
 
 /// Trait for converting types into domain types
-trait IntoDomain {
+pub(crate) trait IntoDomain {
     type Domain;
     fn into_domain(self) -> Self::Domain;
 }

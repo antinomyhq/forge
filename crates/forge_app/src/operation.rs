@@ -34,9 +34,6 @@ pub enum ToolOperation {
         input: FSRead,
         output: ReadOutput,
     },
-    ImageRead {
-        output: forge_domain::Image,
-    },
     FsCreate {
         input: FSWrite,
         output: FsCreateOutput,
@@ -75,8 +72,6 @@ pub enum ToolOperation {
         output: PlanCreateOutput,
     },
     Skill {
-        #[allow(dead_code)]
-        input: forge_domain::SkillFetch,
         output: forge_domain::Skill,
     },
 }
@@ -225,6 +220,24 @@ impl ToolOperation {
         let tool_name = tool_kind.name();
         match self {
             ToolOperation::FsRead { input, output } => {
+                // Check if content is an image (visual content)
+                if let Some(image) = output.content.as_image() {
+                    // Track read operations for visual content
+                    tracing::info!(
+                        path = %input.path,
+                        tool = %tool_name,
+                        "Visual content read (image/PDF)"
+                    );
+                    *metrics = metrics.clone().insert(
+                        input.path.clone(),
+                        FileOperation::new(tool_kind)
+                            .content_hash(Some(output.content_hash.clone())),
+                    );
+
+                    return forge_domain::ToolOutput::image(image.clone());
+                }
+
+                // Handle text content
                 let content = output.content.file_content();
                 let content = if input.show_line_numbers {
                     content.to_numbered_from(output.start_line as usize)
@@ -241,7 +254,11 @@ impl ToolOperation {
                     .cdata(content);
 
                 // Track read operations
-                tracing::info!(path = %input.path, tool = %tool_name, "File read");
+                tracing::info!(
+                    path = %input.path,
+                    tool = %tool_name,
+                    "File read"
+                );
                 *metrics = metrics.clone().insert(
                     input.path.clone(),
                     FileOperation::new(tool_kind).content_hash(Some(output.content_hash.clone())),
@@ -249,7 +266,6 @@ impl ToolOperation {
 
                 forge_domain::ToolOutput::text(elm)
             }
-            ToolOperation::ImageRead { output } => forge_domain::ToolOutput::image(output),
             ToolOperation::FsCreate { input, output } => {
                 let diff_result = DiffFormat::format(
                     output.before.as_ref().unwrap_or(&"".to_string()),
@@ -569,7 +585,7 @@ impl ToolOperation {
 
                 forge_domain::ToolOutput::text(elm)
             }
-            ToolOperation::Skill { input: _, output } => {
+            ToolOperation::Skill { output } => {
                 let mut elm = Element::new("skill_details");
 
                 elm = elm.append({
@@ -616,6 +632,7 @@ mod tests {
             .max_read_size(10)
             .stdout_max_prefix_length(10)
             .stdout_max_suffix_length(10)
+            .max_line_length(100)
             .max_file_size(256 << 10) // 256 KiB
     }
 
@@ -1932,7 +1949,6 @@ mod tests {
     #[test]
     fn test_skill_operation() {
         let fixture = ToolOperation::Skill {
-            input: forge_domain::SkillFetch { name: "test-skill".to_string() },
             output: forge_domain::Skill::new(
                 "test-skill",
                 "This is a test skill command with instructions",
@@ -1955,5 +1971,44 @@ mod tests {
         );
 
         insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_fs_read_image_with_vision_model() {
+        use forge_domain::Image;
+
+        let fixture = ToolOperation::FsRead {
+            input: FSRead {
+                path: "/home/user/test.png".to_string(),
+                start_line: None,
+                end_line: None,
+                show_line_numbers: true,
+            },
+            output: ReadOutput {
+                content: Content::image(Image::new_base64(
+                    "base64_image_data".to_string(),
+                    "image/png",
+                )),
+                start_line: 1,
+                end_line: 1,
+                total_lines: 1,
+                content_hash: "hash123".to_string(),
+            },
+        };
+
+        let env = fixture_environment();
+        let actual = fixture.into_tool_output(
+            ToolKind::Read,
+            TempContentFiles::default(),
+            &env,
+            &mut Metrics::default(),
+        );
+
+        // Should return image content
+        assert!(!actual.values.is_empty(), "Expected non-empty output");
+        match &actual.values[0] {
+            forge_domain::ToolValue::Image(_) => (), // Expected
+            _ => panic!("Expected image output for vision model"),
+        }
     }
 }

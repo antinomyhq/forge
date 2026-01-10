@@ -11,7 +11,11 @@ pub struct ToolResolver {
 
 /// Maps deprecated tool names to their current names for backward compatibility
 fn deprecated_tool_aliases() -> HashMap<&'static str, ToolName> {
-    HashMap::from([("search", ToolName::new("fs_search"))])
+    HashMap::from([
+        ("search", ToolName::new("fs_search")),
+        ("Read", ToolName::new("read")),
+        ("Write", ToolName::new("write")),
+    ])
 }
 
 impl ToolResolver {
@@ -26,13 +30,14 @@ impl ToolResolver {
     /// Filters and deduplicates tool definitions based on agent's tools
     /// configuration. Returns only the tool definitions that are specified
     /// in the agent's tools list. Maintains deduplication to avoid
-    /// duplicate tool definitions. Returns tools sorted alphabetically by name.
+    /// duplicate tool definitions. Returns tools sorted according to the
+    /// agent's tool order (derived from the tools list).
     /// Returns references to avoid unnecessary cloning.
     pub fn resolve<'a>(&'a self, agent: &Agent) -> Vec<&'a ToolDefinition> {
         let patterns = Self::build_patterns(agent);
         let mut resolved = self.match_tools(&patterns);
         self.dedupe_tools(&mut resolved);
-        self.sort_tools(&mut resolved);
+        agent.tool_order().sort_refs(&mut resolved);
         resolved
     }
 
@@ -43,7 +48,10 @@ impl ToolResolver {
     }
 
     pub fn is_allowed(agent: &Agent, tool_name: &ToolName) -> bool {
-        Self::is_allowed_pattern(&Self::build_patterns(agent), tool_name)
+        let aliases = deprecated_tool_aliases();
+        // Normalize the incoming tool name using aliases
+        let normalized_tool_name = aliases.get(tool_name.as_str()).unwrap_or(tool_name);
+        Self::is_allowed_pattern(&Self::build_patterns(agent), normalized_tool_name)
     }
 
     /// Builds glob patterns from the agent's tool patterns, deduplicating
@@ -80,11 +88,6 @@ impl ToolResolver {
         let mut seen = HashSet::new();
         resolved.retain(|tool| seen.insert(&tool.name));
     }
-
-    /// Sorts tool definitions alphabetically by name
-    fn sort_tools(&self, resolved: &mut [&ToolDefinition]) {
-        resolved.sort_by(|a, b| a.name.as_str().cmp(b.name.as_str()));
-    }
 }
 
 #[cfg(test)]
@@ -112,9 +115,10 @@ mod tests {
         .tools(vec![ToolName::new("read"), ToolName::new("fs_search")]);
 
         let actual = tool_resolver.resolve(&fixture);
+        // Tools are ordered based on the tools list order: read, then fs_search
         let expected = vec![
-            &tool_resolver.all_tool_definitions[2], // fs_search (alphabetically first)
             &tool_resolver.all_tool_definitions[0], // read
+            &tool_resolver.all_tool_definitions[2], // fs_search
         ];
 
         assert_eq!(actual, expected);
@@ -320,9 +324,12 @@ mod tests {
         ]);
 
         let actual = tool_resolver.resolve(&fixture);
+        // fs_write matches fs_* at pos 0
+        // fs_read has exact match at pos 1 (takes precedence over pattern matches)
+        // So order is: fs_write (pos 0), fs_read (pos 1)
         let expected = vec![
-            &tool_resolver.all_tool_definitions[0], // fs_read
             &tool_resolver.all_tool_definitions[1], // fs_write
+            &tool_resolver.all_tool_definitions[0], // fs_read
         ];
 
         assert_eq!(actual, expected);
@@ -347,11 +354,60 @@ mod tests {
         .tools(vec![ToolName::new("read"), ToolName::new("search")]);
 
         let actual = tool_resolver.resolve(&fixture);
+        // Tools are ordered as specified in the tools list: read, then search (->
+        // fs_search)
         let expected = vec![
-            &tool_resolver.all_tool_definitions[1], // fs_search (alphabetically first)
             &tool_resolver.all_tool_definitions[0], // read
+            &tool_resolver.all_tool_definitions[1], // fs_search (from "search" alias)
         ];
 
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_capitalized_read_alias() {
+        // Test that capitalized "Read" resolves to "read"
+        let all_tool_definitions = vec![
+            ToolDefinition::new("read").description("Read Tool"),
+            ToolDefinition::new("write").description("Write Tool"),
+        ];
+
+        let _tool_resolver = ToolResolver::new(all_tool_definitions);
+
+        // Agent configuration with lowercase
+        let fixture = Agent::new(
+            AgentId::new("test-agent"),
+            ProviderId::ANTHROPIC,
+            ModelId::new("claude-3-5-sonnet-20241022"),
+        )
+        .tools(vec![ToolName::new("read"), ToolName::new("write")]);
+
+        // Validation should accept both capitalized and lowercase
+        assert!(ToolResolver::is_allowed(&fixture, &ToolName::new("read")));
+        assert!(ToolResolver::is_allowed(&fixture, &ToolName::new("Read")));
+        assert!(ToolResolver::is_allowed(&fixture, &ToolName::new("write")));
+        assert!(ToolResolver::is_allowed(&fixture, &ToolName::new("Write")));
+    }
+
+    #[test]
+    fn test_capitalized_write_alias() {
+        // Test that capitalized "Write" resolves to "write"
+        let all_tool_definitions = vec![
+            ToolDefinition::new("read").description("Read Tool"),
+            ToolDefinition::new("write").description("Write Tool"),
+        ];
+
+        let _tool_resolver = ToolResolver::new(all_tool_definitions);
+
+        let fixture = Agent::new(
+            AgentId::new("test-agent"),
+            ProviderId::ANTHROPIC,
+            ModelId::new("claude-3-5-sonnet-20241022"),
+        )
+        .tools(vec![ToolName::new("write")]);
+
+        // Both lowercase and capitalized should be allowed
+        assert!(ToolResolver::is_allowed(&fixture, &ToolName::new("write")));
+        assert!(ToolResolver::is_allowed(&fixture, &ToolName::new("Write")));
     }
 }

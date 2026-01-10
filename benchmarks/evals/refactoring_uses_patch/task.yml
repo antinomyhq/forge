@@ -1,0 +1,46 @@
+run:
+  - mkdir -p test_files
+  - |
+    cat > test_files/api.rs << 'RUSTEOF'
+    pub struct ApiClient {
+        base_url: String,
+    }
+
+    impl ApiClient {
+        pub fn get_user(&self, id: u64) -> String {
+            format!("{}/users/{}", self.base_url, id)
+        }
+
+        pub fn get_post(&self, id: u64) -> String {
+            format!("{}/posts/{}", self.base_url, id)
+        }
+
+        pub fn get_comment(&self, id: u64) -> String {
+            format!("{}/comments/{}", self.base_url, id)
+        }
+    }
+    RUSTEOF
+  - FORGE_OVERRIDE_PROVIDER=zai_coding FORGE_OVERRIDE_MODEL={{model}} FORGE_DEBUG_REQUESTS='{{dir}}/context.json' forgee -p '{{task}}'
+
+parallelism: 5
+timeout: 120
+early_exit: true
+
+validations:
+  # Primary validation: Should NOT use write with overwrite=true for refactoring
+  - name: "Should NOT use write with overwrite=true"
+    type: shell
+    command: "! jq -e '[.messages[]?.tool_calls[]? | select(.function.name == \"write\") | .function.arguments | fromjson | select(.overwrite == true)] | length > 0' {{dir}}/context.json"
+
+  # Secondary validation: Should use patch tool for refactoring
+  - name: "Should use patch tool"
+    type: shell
+    command: "jq -e '[.messages[]?.tool_calls[]? | select(.function.name == \"patch\")] | length > 0' {{dir}}/context.json"
+
+sources:
+  - value:
+      - model: "glm-4.7"
+  - value:
+      - task: "Refactor all methods in test_files/api.rs to add error handling by changing return type from String to Result<String, Error>"
+      - task: "Update test_files/api.rs methods to return Result<String, Error> instead of String"
+      - task: "Change the return types of all get_* methods in test_files/api.rs from String to Result<String, Error>"

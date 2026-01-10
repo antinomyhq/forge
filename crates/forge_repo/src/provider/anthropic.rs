@@ -7,8 +7,8 @@ use forge_app::domain::{
     ChatCompletionMessage, Context, Model, ModelId, ResultStream, RetryConfig, Transformer,
 };
 use forge_app::dto::anthropic::{
-    AuthSystemMessage, DropInvalidToolUse, EventData, ListModelResponse, ReasoningTransform,
-    Request, SetCache,
+    AuthSystemMessage, CapitalizeToolNames, DropInvalidToolUse, EventData, ListModelResponse,
+    ReasoningTransform, Request, SetCache,
 };
 use forge_domain::{ChatRepository, Provider};
 use reqwest::Url;
@@ -63,7 +63,7 @@ impl<H: HttpInfra> Anthropic<H> {
             // OAuth requires multiple beta flags
             headers.push((
                 "anthropic-beta".to_string(),
-                "oauth-2025-04-20,claude-code-20250219,interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14".to_string(),
+                "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14".to_string(),
             ));
         } else {
             headers.push(("x-api-key".to_string(), self.api_key.clone()));
@@ -89,6 +89,7 @@ impl<T: HttpInfra> Anthropic<T> {
 
         let request = AuthSystemMessage::default()
             .when(|_| self.use_oauth)
+            .pipe(CapitalizeToolNames)
             .pipe(DropInvalidToolUse)
             .pipe(SetCache)
             .transform(request);
@@ -402,24 +403,33 @@ impl<F> AnthropicResponseRepository<F> {
 impl<F: HttpInfra> AnthropicResponseRepository<F> {
     /// Creates an Anthropic client from a provider configuration
     fn create_client(&self, provider: &Provider<Url>) -> anyhow::Result<Anthropic<F>> {
-        let api_key = provider
-            .api_key()
-            .context("Anthropic requires an API key")?
-            .as_str()
-            .to_string();
         let chat_url = provider.url.clone();
         let models = provider
             .models
             .clone()
             .context("Anthropic requires models configuration")?;
+        let creds = provider
+            .credential
+            .as_ref()
+            .context("Anthropic provider requires credentials")?
+            .auth_details
+            .clone();
+
+        let (key, is_oauth) = match creds {
+            forge_domain::AuthDetails::ApiKey(api_key) => (api_key.as_str().to_string(), false),
+            forge_domain::AuthDetails::OAuth { tokens, .. } => {
+                (tokens.access_token.as_str().to_string(), true)
+            }
+            _ => anyhow::bail!("Unsupported authentication method for Anthropic provider"),
+        };
 
         Ok(Anthropic::new(
             self.infra.clone(),
-            api_key,
+            key,
             chat_url,
             models,
             "2023-06-01".to_string(),
-            false,
+            is_oauth,
         ))
     }
 }

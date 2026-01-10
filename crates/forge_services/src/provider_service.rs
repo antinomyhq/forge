@@ -161,7 +161,9 @@ impl<R: ChatRepository + ProviderRepository> ProviderService for ForgeProviderSe
 #[cfg(test)]
 mod tests {
     use forge_app::domain::ProviderId;
-    use forge_domain::{AuthDetails, AuthMethod, ModelSource, ProviderType, Template};
+    use forge_domain::{
+        AuthDetails, AuthMethod, InputModality, ModelSource, ProviderType, Template,
+    };
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -290,6 +292,7 @@ mod tests {
             tools_supported: Some(true),
             supports_parallel_tool_calls: Some(true),
             supports_reasoning: Some(false),
+            input_modalities: vec![InputModality::Text],
         }
     }
 

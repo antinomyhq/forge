@@ -13,6 +13,7 @@ use crate::conversation::Conversation;
 /// - Usage statistics (token counts and costs)
 /// - Context messages with tool calls and reasoning details
 /// - Available tools
+/// - Error styling for tool call failures
 ///
 /// # Arguments
 ///
@@ -36,7 +37,7 @@ pub fn render_conversation_html(conversation: &Conversation) -> String {
                         .attr("content", "width=device-width, initial-scale=1.0"),
                 )
                 .append(Element::new("title").text(&c_title))
-                .append(Element::new("style").text(include_str!("conversation_style.css"))),
+                .append(Element::new("style").text(include_str!("conversation_style.css"))), // Includes tool-call-error styles
         )
         .append(
             Element::new("body")
@@ -154,6 +155,9 @@ fn create_tools_section(conversation: &Conversation) -> Element {
                         )
                         .append(
                             Element::new("div.main-content")
+                                .append(Element::new("p").append(
+                                    Element::new("strong").text(tool.description.to_string()),
+                                ))
                                 .append(Element::new("pre").text(
                                     to_string_pretty(&tool.input_schema).unwrap_or_default(),
                                 )),
@@ -317,31 +321,40 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
                         }
                     }
                     ContextMessage::Tool(tool_result) => {
-                        // Tool Message
-                        Element::new("details.message-card.message-tool")
+                        // Tool Message - apply error styling if the tool result is an error
+                        let message_class = if tool_result.output.is_error {
+                            "details.message-card.message-tool.tool-call-error"
+                        } else {
+                            "details.message-card.message-tool"
+                        };
+
+                        Element::new(message_class)
                             .append(
                                 Element::new("summary")
                                     .append(Element::new("strong").text("Tool Result: "))
                                     .append(Element::span(tool_result.name.as_str())),
                             )
-                            .append(tool_result.output.values.iter().filter_map(|value| {
-                                match value {
-                                    crate::ToolValue::Text(text) => {
-                                        Some(Element::new("pre").text(text))
+                            .append(Element::new("div.main-content").append(
+                                tool_result.output.values.iter().filter_map(|value| {
+                                    match value {
+                                        crate::ToolValue::Text(text) => Some(
+                                            Element::new("div")
+                                                .append(Element::new("pre").text(text)),
+                                        ),
+                                        crate::ToolValue::Image(image) => {
+                                            Some(Element::new("img").attr("src", image.url()))
+                                        }
+                                        crate::ToolValue::Empty => None,
+                                        crate::ToolValue::AI { value, conversation_id } => Some(
+                                            Element::new("div")
+                                                .append(Element::new("b").text(format!(
+                                                    "Conversation ID: {conversation_id}"
+                                                )))
+                                                .append(Element::new("pre").text(value)),
+                                        ),
                                     }
-                                    crate::ToolValue::Image(image) => {
-                                        Some(Element::new("img").attr("src", image.url()))
-                                    }
-                                    crate::ToolValue::Empty => None,
-                                    crate::ToolValue::AI { value, conversation_id } => Some(
-                                        Element::new("div")
-                                            .append(Element::new("b").text(format!(
-                                                "Conversation ID: {conversation_id}"
-                                            )))
-                                            .append(Element::new("pre").text(value)),
-                                    ),
-                                }
-                            }))
+                                }),
+                            ))
                     }
                     ContextMessage::Image(image) => {
                         // Image message

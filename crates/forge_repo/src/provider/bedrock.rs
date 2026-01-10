@@ -40,10 +40,10 @@ impl BedrockProvider {
             .context("Bedrock requires credentials")?;
 
         // Validate API key (bearer token)
-        let bearer_token = match &credential.auth_details {
-            AuthDetails::ApiKey(key) if !key.is_empty() => key.as_ref().to_string(),
+        match &credential.auth_details {
+            AuthDetails::ApiKey(key) if !key.is_empty() => {}
             _ => anyhow::bail!("Bearer token is required in API key field"),
-        };
+        }
 
         // Extract region from URL params
         let region_param: forge_domain::URLParam = "AWS_REGION".to_string().into();
@@ -53,18 +53,46 @@ impl BedrockProvider {
             .map(|v| v.to_string())
             .unwrap_or_else(|| "us-east-1".to_string());
 
-        // Configure AWS SDK client with Bearer token authentication
-        let config = aws_sdk_bedrockruntime::Config::builder()
-            .region(aws_sdk_bedrockruntime::config::Region::new(region.clone()))
-            .bearer_token(Token::new(bearer_token, None))
-            .build();
+        Ok(Self { provider, region, client: OnceCell::new() })
+    }
 
-        let client = aws_sdk_bedrockruntime::Client::from_conf(config);
+    /// Initializes and returns the AWS Bedrock client
+    ///
+    /// The client is lazily initialized on first call and reused for subsequent
+    /// calls. This avoids creating the client during tests that only validate
+    /// configuration. Uses async locking to ensure thread-safe initialization.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the bearer token cannot be retrieved from
+    /// credentials
+    async fn init(&self) -> Result<&Client> {
+        self.client
+            .get_or_try_init(|| async {
+                // Get the bearer token from provider credentials
+                let bearer_token = self
+                    .provider
+                    .credential
+                    .as_ref()
+                    .and_then(|c| match &c.auth_details {
+                        AuthDetails::ApiKey(key) if !key.is_empty() => {
+                            Some(key.as_ref().to_string())
+                        }
+                        _ => None,
+                    })
+                    .context("Bearer token is required in API key field")?;
 
-        let client_cell = OnceCell::new();
-        client_cell.set(client).ok();
+                // Configure AWS SDK client with Bearer token authentication
+                let config = aws_sdk_bedrockruntime::Config::builder()
+                    .region(aws_sdk_bedrockruntime::config::Region::new(
+                        self.region.clone(),
+                    ))
+                    .bearer_token(Token::new(bearer_token, None))
+                    .build();
 
-        Ok(Self { provider, region, client: client_cell })
+                Ok(aws_sdk_bedrockruntime::Client::from_conf(config))
+            })
+            .await
     }
 
     /// Check if the model supports prompt caching
@@ -176,9 +204,8 @@ impl BedrockProvider {
 
         // Build and send the converse_stream request
         let output = self
-            .client
-            .get()
-            .expect("Client should be initialized in constructor")
+            .init()
+            .await?
             .converse_stream()
             .model_id(model_id)
             .set_system(bedrock_input.system.clone())
@@ -927,6 +954,7 @@ impl ChatRepository for BedrockResponseRepository {
 
 #[cfg(test)]
 mod tests {
+    use forge_domain::InputModality;
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -1222,6 +1250,7 @@ mod tests {
                 tools_supported: None,
                 supports_parallel_tool_calls: None,
                 supports_reasoning: None,
+                input_modalities: vec![InputModality::Text],
             },
             Model {
                 id: ModelId::from("claude-3-sonnet".to_string()),
@@ -1231,6 +1260,7 @@ mod tests {
                 tools_supported: None,
                 supports_parallel_tool_calls: None,
                 supports_reasoning: None,
+                input_modalities: vec![InputModality::Text],
             },
         ];
         fixture_provider.models = Some(ModelSource::Hardcoded(fixture_models.clone()));

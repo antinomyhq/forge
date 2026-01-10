@@ -38,8 +38,9 @@ use crate::{ToolCallArguments, ToolCallFull, ToolDefinition, ToolDescription, To
 #[strum_discriminants(name(ToolKind))]
 #[strum(serialize_all = "snake_case")]
 pub enum ToolCatalog {
+    #[serde(alias = "Read")]
     Read(FSRead),
-    ReadImage(ReadImage),
+    #[serde(alias = "Write")]
     Write(FSWrite),
     FsSearch(FSSearch),
     SemSearch(SemanticSearch),
@@ -69,16 +70,8 @@ fn default_true() -> bool {
     true
 }
 
-/// Reads file contents from the specified absolute path. Ideal for analyzing
-/// code, configuration files, documentation, or textual data. Returns the
-/// content as a string with line number prefixes by default. For files larger
-/// than 2,000 lines, the tool automatically returns only the first 2,000 lines.
-/// You should always rely on this default behavior and avoid specifying custom
-/// ranges unless absolutely necessary. If needed, specify a range with the
-/// start_line and end_line parameters, ensuring the total range does not exceed
-/// 2,000 lines. Specifying a range exceeding this limit will result in an
-/// error. Binary files are automatically detected and rejected.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+#[tool_description_file = "crates/forge_domain/src/tools/descriptions/fs_read.md"]
 pub struct FSRead {
     /// The path of the file to read, always provide absolute paths.
     pub path: String,
@@ -99,29 +92,8 @@ pub struct FSRead {
     pub end_line: Option<i32>,
 }
 
-/// Reads image files from the file system and returns them in base64-encoded
-/// format for vision-capable models. Supports common image formats: JPEG, PNG,
-/// WebP, and GIF. The path must be absolute and point to an existing file. Use
-/// this tool when you need to process, analyze, or display images with vision
-/// models. Do NOT use this for text files - use the `read` tool instead. Do NOT
-/// use for other binary files like PDFs, videos, or archives. The tool will
-/// fail if the file doesn't exist or if the format is unsupported. Returns the
-/// image content encoded in base64 format ready for vision model consumption.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
-pub struct ReadImage {
-    /// The absolute path to the image file (e.g., /home/user/image.png).
-    /// Relative paths are not supported. The file must exist and be readable.
-    pub path: String,
-}
-
-/// Use it to create a new file at a specified path with the provided content.
-///
-/// Always provide absolute paths for file locations. The tool
-/// automatically handles the creation of any missing intermediary directories
-/// in the specified path.
-/// IMPORTANT: DO NOT attempt to use this tool to move or rename files, use the
-/// shell tool instead.
-#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+#[tool_description_file = "crates/forge_domain/src/tools/descriptions/fs_write.md"]
 pub struct FSWrite {
     /// The path of the file to write to (absolute path required)
     pub path: String,
@@ -139,16 +111,8 @@ pub struct FSWrite {
     pub overwrite: bool,
 }
 
-/// Recursively searches directories for files by content (regex) and/or name
-/// (glob pattern). Provides context-rich results with line numbers for content
-/// matches. Two modes: content search (when regex provided) or file finder
-/// (when regex omitted). Uses case-insensitive Rust regex syntax. Requires
-/// absolute paths. Avoids binary files and excluded directories. Best for code
-/// exploration, API usage discovery, configuration settings, or finding
-/// patterns across projects. For large pages, returns the first 200
-/// lines and stores the complete content in a temporary file for
-/// subsequent access.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+#[tool_description_file = "crates/forge_domain/src/tools/descriptions/fs_search.md"]
 pub struct FSSearch {
     /// The absolute path of the directory or file to search in. If it's a
     /// directory, it will be searched recursively. If it's a file path,
@@ -206,20 +170,8 @@ impl SearchQuery {
     }
 }
 
-/// AI-powered semantic code search. YOUR DEFAULT TOOL for code discovery
-/// tasks. Use this when you need to find code locations, understand
-/// implementations, or explore functionality - it works with natural language
-/// about behavior and concepts, not just keyword matching.
-///
-/// Start with sem_search when: locating code to modify, understanding how
-/// features work, finding patterns/examples, or exploring unfamiliar areas.
-/// Understands queries like "authentication flow" (finds login), "retry logic"
-/// (finds backoff), "validation" (finds checking/sanitization).
-///
-/// Returns file:line locations with code context, ranked by relevance. Use
-/// multiple varied queries (2-3) for best coverage. For exact string matching
-/// (TODO comments, specific function names), use regex search instead.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+#[tool_description_file = "crates/forge_domain/src/tools/descriptions/semantic_search.md"]
 pub struct SemanticSearch {
     /// List of search queries to execute in parallel. Using multiple queries
     /// (2-3) with varied phrasings significantly improves results - each query
@@ -229,16 +181,14 @@ pub struct SemanticSearch {
     /// "OAuth flow".
     pub queries: Vec<SearchQuery>,
 
-    /// Optional file extension filter (e.g., ".rs", ".ts", ".py"). If provided,
-    /// only files with this extension will be included in the search results.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub file_extension: Option<String>,
+    /// File extension filters (e.g., [".rs", ".ts", ".py"]). Only files with
+    /// these extensions will be included in the search results. At least one
+    /// extension must be provided.
+    pub extensions: Vec<String>,
 }
 
-/// Request to remove a file at the specified path. Use this when you need to
-/// delete an existing file. The path must be absolute. This operation cannot
-/// be undone, so use it carefully.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+#[tool_description_file = "crates/forge_domain/src/tools/descriptions/fs_remove.md"]
 pub struct FSRemove {
     /// The path of the file to remove (absolute path required)
     pub path: String,
@@ -297,17 +247,8 @@ impl JsonSchema for PatchOperation {
     }
 }
 
-/// Modifies files with targeted line operations on matched patterns. Supports
-/// prepend, append, replace, replace_all, swap operations. Ideal for precise
-/// changes to configs, code, or docs while preserving context. Not suitable for
-/// complex refactoring or modifying all pattern occurrences - use `write`
-/// instead for complete rewrites and `undo` for undoing the last operation.
-/// Fails if search pattern isn't found.\n\nUsage Guidelines:\n-When editing
-/// text from Read tool output, preserve the EXACT text character-by-character
-/// (indentation, spaces, punctuation, special characters) as it appears AFTER
-/// the line number prefix. Format: 'line_number:'. Never include the prefix.
-/// CRITICAL: Even tiny differences like 'allows to' vs 'allows the' will fail
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+#[tool_description_file = "crates/forge_domain/src/tools/descriptions/fs_patch.md"]
 pub struct FSPatch {
     /// The path to the file to modify
     pub path: String,
@@ -334,24 +275,15 @@ pub struct FSPatch {
     pub content: String,
 }
 
-/// Reverts the most recent file operation (create/modify/delete) on a specific
-/// file. Use this tool when you need to recover from incorrect file changes or
-/// if a revert is requested by the user.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+#[tool_description_file = "crates/forge_domain/src/tools/descriptions/fs_undo.md"]
 pub struct FSUndo {
     /// The absolute path of the file to revert to its previous state.
     pub path: String,
 }
 
-/// Executes shell commands.
-/// The `cwd` parameter sets the working directory for command execution.
-/// CRITICAL: Do NOT use `cd` commands in the command string. This is FORBIDDEN.
-/// Always use the `cwd` parameter to set the working directory instead. Any use
-/// of `cd` in the command is redundant, incorrect, and violates the tool
-/// contract. Use for running utilities, installing packages, or executing
-/// build commands. Returns complete output including
-/// stdout, stderr, and exit code for diagnostic purposes.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+#[tool_description_file = "crates/forge_domain/src/tools/descriptions/shell.md"]
 pub struct Shell {
     /// The shell command to execute.
     pub command: String,
@@ -375,6 +307,7 @@ pub struct Shell {
 
 /// Input type for the net fetch tool
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+#[tool_description_file = "crates/forge_domain/src/tools/descriptions/net_fetch.md"]
 pub struct NetFetch {
     /// URL to fetch
     pub url: String,
@@ -385,11 +318,8 @@ pub struct NetFetch {
     pub raw: Option<bool>,
 }
 
-/// Use this tool when you encounter ambiguities, need clarification, or require
-/// more details to proceed effectively. Use this tool judiciously to maintain a
-/// balance between gathering necessary information and avoiding excessive
-/// back-and-forth.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+#[tool_description_file = "crates/forge_domain/src/tools/descriptions/followup.md"]
 pub struct Followup {
     /// Question to ask the user
     pub question: String,
@@ -420,11 +350,8 @@ pub struct Followup {
     pub option5: Option<String>,
 }
 
-/// Creates a new plan file with the specified name, version, and content. Use
-/// this tool to create structured project plans, task breakdowns, or
-/// implementation strategies that can be tracked and referenced throughout
-/// development sessions.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+#[tool_description_file = "crates/forge_domain/src/tools/descriptions/plan_create.md"]
 pub struct PlanCreate {
     /// The name of the plan (will be used in the filename)
     pub plan_name: String,
@@ -437,12 +364,8 @@ pub struct PlanCreate {
     pub content: String,
 }
 
-/// Fetches detailed information about a specific skill. Use this tool to load
-/// skill content and instructions when you need to understand how to perform a
-/// specialized task. Skills provide domain-specific knowledge, workflows, and
-/// best practices. Only invoke skills that are listed in the available skills
-/// section. Do not invoke a skill that is already active.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+#[tool_description_file = "crates/forge_domain/src/tools/descriptions/skill_fetch.md"]
 pub struct SkillFetch {
     /// The name of the skill to fetch (e.g., "pdf", "code_review")
     pub name: String,
@@ -546,7 +469,6 @@ impl ToolDescription for ToolCatalog {
             ToolCatalog::FsSearch(v) => v.description(),
             ToolCatalog::SemSearch(v) => v.description(),
             ToolCatalog::Read(v) => v.description(),
-            ToolCatalog::ReadImage(v) => v.description(),
             ToolCatalog::Remove(v) => v.description(),
             ToolCatalog::Undo(v) => v.description(),
             ToolCatalog::Write(v) => v.description(),
@@ -560,6 +482,16 @@ lazy_static::lazy_static! {
     static ref FORGE_TOOLS: HashSet<ToolName> = ToolCatalog::iter()
         .map(ToolName::new)
         .collect();
+}
+
+/// Normalizes tool names for backward compatibility
+/// Maps capitalized aliases to their lowercase canonical forms
+fn normalize_tool_name(name: &ToolName) -> ToolName {
+    match name.as_str() {
+        "Read" => ToolName::new("read"),
+        "Write" => ToolName::new("write"),
+        _ => name.clone(),
+    }
 }
 
 impl ToolCatalog {
@@ -583,7 +515,6 @@ impl ToolCatalog {
             ToolCatalog::FsSearch(_) => r#gen.into_root_schema_for::<FSSearch>(),
             ToolCatalog::SemSearch(_) => r#gen.into_root_schema_for::<SemanticSearch>(),
             ToolCatalog::Read(_) => r#gen.into_root_schema_for::<FSRead>(),
-            ToolCatalog::ReadImage(_) => r#gen.into_root_schema_for::<ReadImage>(),
             ToolCatalog::Remove(_) => r#gen.into_root_schema_for::<FSRemove>(),
             ToolCatalog::Undo(_) => r#gen.into_root_schema_for::<FSUndo>(),
             ToolCatalog::Write(_) => r#gen.into_root_schema_for::<FSWrite>(),
@@ -598,13 +529,23 @@ impl ToolCatalog {
             .input_schema(self.schema())
     }
     pub fn contains(tool_name: &ToolName) -> bool {
-        FORGE_TOOLS.contains(tool_name)
+        let normalized = normalize_tool_name(tool_name);
+        FORGE_TOOLS.contains(&normalized)
     }
     pub fn should_yield(tool_name: &ToolName) -> bool {
         // Tools that convey that the execution should yield
+        let normalized = normalize_tool_name(tool_name);
         [ToolKind::Followup]
             .iter()
-            .any(|v| v.to_string().to_case(Case::Snake).eq(tool_name.as_str()))
+            .any(|v| v.to_string().to_case(Case::Snake).eq(normalized.as_str()))
+    }
+
+    pub fn requires_stdout(tool_name: &ToolName) -> bool {
+        // Tools that require direct stdout/stderr access
+        let normalized = normalize_tool_name(tool_name);
+        [ToolKind::Shell]
+            .iter()
+            .any(|v| v.to_string().to_case(Case::Snake).eq(normalized.as_str()))
     }
 
     /// Convert a tool input to its corresponding domain operation for policy
@@ -628,12 +569,6 @@ impl ToolCatalog {
                 cwd,
                 message: format!("Read file: {}", display_path_for(&input.path)),
             }),
-            ToolCatalog::ReadImage(input) => Some(crate::policies::PermissionOperation::Read {
-                path: std::path::PathBuf::from(&input.path),
-                cwd,
-                message: format!("Image file: {}", display_path_for(&input.path)),
-            }),
-
             ToolCatalog::Write(input) => Some(crate::policies::PermissionOperation::Write {
                 path: std::path::PathBuf::from(&input.path),
                 cwd,
@@ -698,11 +633,6 @@ impl ToolCatalog {
         }))
     }
 
-    /// Creates a ReadImage tool call with the specified path
-    pub fn tool_call_read_image(path: &str) -> ToolCallFull {
-        ToolCallFull::from(ToolCatalog::ReadImage(ReadImage { path: path.to_string() }))
-    }
-
     /// Creates a Write tool call with the specified path and content
     pub fn tool_call_write(path: &str, content: &str) -> ToolCallFull {
         ToolCallFull::from(ToolCatalog::Write(FSWrite {
@@ -754,11 +684,11 @@ impl ToolCatalog {
     /// Creates a Semantic Search tool call with the specified queries
     pub fn tool_call_semantic_search(
         queries: Vec<SearchQuery>,
-        file_ext: Option<String>,
+        extensions: Vec<String>,
     ) -> ToolCallFull {
         ToolCallFull::from(ToolCatalog::SemSearch(SemanticSearch {
             queries,
-            file_extension: file_ext,
+            extensions,
         }))
     }
 
@@ -830,7 +760,22 @@ impl TryFrom<ToolCallFull> for ToolCatalog {
     fn try_from(value: ToolCallFull) -> Result<Self, Self::Error> {
         let mut map = Map::new();
         map.insert("name".into(), value.name.as_str().into());
-        map.insert("arguments".into(), value.arguments.parse()?);
+
+        // Parse the arguments
+        let parsed_args = value.arguments.parse()?;
+
+        // Try to find the tool definition and coerce types based on schema
+        // Normalize the tool name for comparison
+        let normalized_name = normalize_tool_name(&value.name);
+        let coerced_args = ToolCatalog::iter()
+            .find(|tool| tool.definition().name == normalized_name)
+            .map(|tool| {
+                let schema = tool.definition().input_schema;
+                forge_json_repair::coerce_to_schema(parsed_args.clone(), &schema)
+            })
+            .unwrap_or(parsed_args);
+
+        map.insert("arguments".into(), coerced_args);
 
         serde_json::from_value(serde_json::Value::Object(map))
             .map_err(|error| crate::Error::AgentCallArgument { error })
@@ -891,6 +836,18 @@ mod tests {
     }
 
     #[test]
+    fn test_requires_stdout_for_shell() {
+        let fixture = ToolName::new("shell");
+        assert!(ToolCatalog::requires_stdout(&fixture));
+    }
+
+    #[test]
+    fn test_requires_stdout_for_non_shell() {
+        let fixture = ToolName::new("read");
+        assert!(!ToolCatalog::requires_stdout(&fixture));
+    }
+
+    #[test]
     fn test_tool_definition_json() {
         let tools = ToolCatalog::iter()
             .map(|tool| {
@@ -902,6 +859,186 @@ mod tests {
             .join("\n");
 
         insta::assert_snapshot!(tools);
+    }
+
+    #[test]
+    fn test_coerce_string_integers_to_i32() {
+        use crate::{ToolCallArguments, ToolCallFull};
+
+        // Simulate the exact error case: read tool with string integers instead of i32
+        let tool_call = ToolCallFull {
+            name: ToolName::new("read"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(
+                r#"{"path": "/test/path.rs", "start_line": "10", "end_line": "20"}"#,
+            ),
+        };
+
+        // This should not panic - it should coerce strings to integers
+        let actual = ToolCatalog::try_from(tool_call);
+
+        assert!(
+            actual.is_ok(),
+            "Should successfully parse with coerced types"
+        );
+
+        if let Ok(ToolCatalog::Read(fs_read)) = actual {
+            assert_eq!(fs_read.path, "/test/path.rs");
+            assert_eq!(fs_read.start_line, Some(10));
+            assert_eq!(fs_read.end_line, Some(20));
+        } else {
+            panic!("Expected FSRead variant");
+        }
+    }
+
+    #[test]
+    fn test_coerce_preserves_correct_types() {
+        use crate::{ToolCallArguments, ToolCallFull};
+
+        // Verify that already-correct types are preserved
+        let tool_call = ToolCallFull {
+            name: ToolName::new("read"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(
+                r#"{"path": "/test/path.rs", "start_line": 10, "end_line": 20}"#,
+            ),
+        };
+
+        let actual = ToolCatalog::try_from(tool_call);
+
+        assert!(
+            actual.is_ok(),
+            "Should successfully parse with correct types"
+        );
+
+        if let Ok(ToolCatalog::Read(fs_read)) = actual {
+            assert_eq!(fs_read.path, "/test/path.rs");
+            assert_eq!(fs_read.start_line, Some(10));
+            assert_eq!(fs_read.end_line, Some(20));
+        } else {
+            panic!("Expected FSRead variant");
+        }
+    }
+
+    #[test]
+    fn test_capitalized_read_alias() {
+        use crate::{ToolCallArguments, ToolCallFull};
+
+        // Test that "Read" (capitalized) is normalized to "read"
+        let tool_call = ToolCallFull {
+            name: ToolName::new("Read"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(
+                r#"{"path": "/test/path.rs", "start_line": 10, "end_line": 20}"#,
+            ),
+        };
+
+        let actual = ToolCatalog::try_from(tool_call);
+
+        assert!(
+            actual.is_ok(),
+            "Should successfully parse capitalized 'Read' tool name"
+        );
+
+        if let Ok(ToolCatalog::Read(fs_read)) = actual {
+            assert_eq!(fs_read.path, "/test/path.rs");
+            assert_eq!(fs_read.start_line, Some(10));
+            assert_eq!(fs_read.end_line, Some(20));
+        } else {
+            panic!("Expected FSRead variant");
+        }
+    }
+
+    #[test]
+    fn test_capitalized_write_alias() {
+        use crate::{ToolCallArguments, ToolCallFull};
+
+        // Test that "Write" (capitalized) is normalized to "write"
+        let tool_call = ToolCallFull {
+            name: ToolName::new("Write"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(
+                r#"{"path": "/test/path.rs", "content": "test content"}"#,
+            ),
+        };
+
+        let actual = ToolCatalog::try_from(tool_call);
+
+        assert!(
+            actual.is_ok(),
+            "Should successfully parse capitalized 'Write' tool name"
+        );
+
+        if let Ok(ToolCatalog::Write(fs_write)) = actual {
+            assert_eq!(fs_write.path, "/test/path.rs");
+            assert_eq!(fs_write.content, "test content");
+        } else {
+            panic!("Expected FSWrite variant");
+        }
+    }
+
+    #[test]
+    fn test_lowercase_read_still_works() {
+        use crate::{ToolCallArguments, ToolCallFull};
+
+        // Ensure lowercase still works (backward compatibility)
+        let tool_call = ToolCallFull {
+            name: ToolName::new("read"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(r#"{"path": "/test/path.rs"}"#),
+        };
+
+        let actual = ToolCatalog::try_from(tool_call);
+
+        assert!(
+            actual.is_ok(),
+            "Should successfully parse lowercase 'read' tool name"
+        );
+
+        matches!(actual.unwrap(), ToolCatalog::Read(_));
+    }
+
+    #[test]
+    fn test_lowercase_write_still_works() {
+        use crate::{ToolCallArguments, ToolCallFull};
+
+        // Ensure lowercase still works (backward compatibility)
+        let tool_call = ToolCallFull {
+            name: ToolName::new("write"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(
+                r#"{"path": "/test/path.rs", "content": "test"}"#,
+            ),
+        };
+
+        let actual = ToolCatalog::try_from(tool_call);
+
+        assert!(
+            actual.is_ok(),
+            "Should successfully parse lowercase 'write' tool name"
+        );
+
+        matches!(actual.unwrap(), ToolCatalog::Write(_));
+    }
+
+    #[test]
+    fn test_contains_with_lowercase() {
+        assert!(ToolCatalog::contains(&ToolName::new("read")));
+        assert!(ToolCatalog::contains(&ToolName::new("write")));
+        assert!(!ToolCatalog::contains(&ToolName::new("nonexistent")));
+    }
+
+    #[test]
+    fn test_contains_with_capitalized() {
+        // Test that capitalized versions are also found
+        assert!(
+            ToolCatalog::contains(&ToolName::new("Read")),
+            "Should contain capitalized 'Read'"
+        );
+        assert!(
+            ToolCatalog::contains(&ToolName::new("Write")),
+            "Should contain capitalized 'Write'"
+        );
     }
 
     #[test]

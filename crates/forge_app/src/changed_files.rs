@@ -132,6 +132,10 @@ mod tests {
             }
             env
         }
+
+        fn is_restricted(&self) -> bool {
+            false
+        }
     }
 
     fn fixture(

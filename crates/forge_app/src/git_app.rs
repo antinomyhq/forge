@@ -31,6 +31,8 @@ pub struct CommitResult {
     pub committed: bool,
     /// Whether there are staged files (used internally)
     pub has_staged_files: bool,
+    /// Output from git commit command (stdout + stderr)
+    pub git_output: String,
 }
 
 /// Details about commit message generation
@@ -114,10 +116,19 @@ where
             .generate_commit_message(max_diff_size, diff, additional_context)
             .await?;
 
-        Ok(CommitResult { message, committed: false, has_staged_files })
+        Ok(CommitResult {
+            message,
+            committed: false,
+            has_staged_files,
+            git_output: String::new(),
+        })
     }
 
     /// Commits changes with the provided commit message
+    ///
+    /// Sets the user as the author (from git config) and ForgeCode as the
+    /// committer. This properly attributes the commit to both the user and
+    /// ForgeCode using Git's author/committer distinction.
     ///
     /// # Arguments
     ///
@@ -129,9 +140,13 @@ where
     /// Returns an error if git commit fails
     pub async fn commit(&self, message: String, has_staged_files: bool) -> Result<CommitResult> {
         let cwd = self.services.get_environment().cwd;
-
         let flags = if has_staged_files { "" } else { " -a" };
-        let commit_command = format!("git commit {flags} -m '{message}'");
+
+        // Set ForgeCode as the committer while keeping the user as the author
+        // by prefixing the command with environment variables
+        let commit_command = format!(
+            "GIT_COMMITTER_NAME='ForgeCode' GIT_COMMITTER_EMAIL='noreply@forgecode.dev' git commit {flags} -m '{message}'"
+        );
 
         let commit_result = self
             .services
@@ -143,7 +158,19 @@ where
             anyhow::bail!("Git commit failed: {}", commit_result.output.stderr);
         }
 
-        Ok(CommitResult { message, committed: true, has_staged_files })
+        // Combine stdout and stderr for logging
+        let git_output = if commit_result.output.stdout.is_empty() {
+            commit_result.output.stderr.clone()
+        } else if commit_result.output.stderr.is_empty() {
+            commit_result.output.stdout.clone()
+        } else {
+            format!(
+                "{}\n{}",
+                commit_result.output.stdout, commit_result.output.stderr
+            )
+        };
+
+        Ok(CommitResult { message, committed: true, has_staged_files, git_output })
     }
 
     /// Generates a commit message based on staged git changes and returns

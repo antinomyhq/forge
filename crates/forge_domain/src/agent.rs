@@ -212,6 +212,14 @@ impl Agent {
             path: def.path,
         }
     }
+
+    /// Gets the tool ordering for this agent, derived from the tools list
+    pub fn tool_order(&self) -> crate::ToolOrder {
+        self.tools
+            .as_ref()
+            .map(|tools| crate::ToolOrder::from_tool_list(tools))
+            .unwrap_or_default()
+    }
 }
 
 impl From<Agent> for ToolDefinition {

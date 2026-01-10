@@ -16,7 +16,6 @@ function _forge_action_agent() {
         local agent_exists=$($_FORGE_BIN list agents --porcelain 2>/dev/null | tail -n +2 | grep -q "^${agent_id}\b" && echo "true" || echo "false")
         if [[ "$agent_exists" == "false" ]]; then
             _forge_log error "Agent '\033[1m${agent_id}\033[0m' not found"
-            _forge_reset
             return 0
         fi
         
@@ -26,7 +25,6 @@ function _forge_action_agent() {
         # Print log about agent switching
         _forge_log success "Switched to agent \033[1m${agent_id}\033[0m"
         
-        _forge_reset
         return 0
     fi
     
@@ -72,8 +70,6 @@ function _forge_action_agent() {
     else
         _forge_log error "No agents found"
     fi
-    
-    _forge_reset
 }
 
 # Action handler: Select provider
@@ -90,20 +86,17 @@ function _forge_action_provider() {
         # Always use config set - it will handle authentication if needed
         _forge_exec config set provider "$provider_id"
     fi
-    _forge_reset
 }
 
 # Action handler: Select model
 function _forge_action_model() {
     _forge_select_and_set_config "list models" "model" "Model" "$($_FORGE_BIN config get model --porcelain)" "2,3.."
-    _forge_reset
 }
 
 # Action handler: Sync workspace for codebase search
 function _forge_action_sync() {
     echo
     _forge_exec workspace sync
-    _forge_reset
 }
 
 # Helper function to select and set config values with fzf
@@ -156,12 +149,10 @@ function _forge_action_tools() {
     # Ensure FORGE_ACTIVE_AGENT always has a value, default to "forge"
     local agent_id="${_FORGE_ACTIVE_AGENT:-forge}"
     _forge_exec list tools "$agent_id"
-    _forge_reset
 }
 
 # Action handler: Show skills
 function _forge_action_skill() {
     echo
     _forge_exec list skill
-    _forge_reset
 }

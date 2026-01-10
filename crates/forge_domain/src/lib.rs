@@ -43,6 +43,8 @@ mod system_context;
 mod temperature;
 mod template;
 mod tools;
+
+mod tool_order;
 mod top_k;
 mod top_p;
 mod transformer;
@@ -67,6 +69,7 @@ pub use error::*;
 pub use event::*;
 pub use file::*;
 pub use file_operation::*;
+pub use fuzzy_search::*;
 pub use group_by_key::*;
 pub use http_config::*;
 pub use image::*;
@@ -93,6 +96,7 @@ pub use suggestion::*;
 pub use system_context::*;
 pub use temperature::*;
 pub use template::*;
+pub use tool_order::*;
 pub use tools::*;
 pub use top_k::*;
 pub use top_p::*;
@@ -109,3 +113,5 @@ pub use line_numbers::*;
 
 /// Type alias for tokio mpsc Sender that sends ChatResponse results
 pub type ArcSender = tokio::sync::mpsc::Sender<anyhow::Result<ChatResponse>>;
+
+mod fuzzy_search;

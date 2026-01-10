@@ -1,5 +1,6 @@
 use std::io::{self, stdout};
 
+use crossterm::cursor::Show;
 use crossterm::event::{DisableBracketedPaste, EnableBracketedPaste};
 use crossterm::{Command, execute};
 
@@ -50,6 +51,17 @@ impl TerminalControl {
     /// Returns an error if the terminal command fails to execute
     pub fn enable_application_cursor_keys() -> io::Result<()> {
         execute!(stdout(), EnableApplicationCursorKeys)
+    }
+
+    /// Show the terminal cursor
+    ///
+    /// Makes the cursor visible in the terminal.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the terminal command fails to execute
+    pub fn show_cursor() -> io::Result<()> {
+        execute!(stdout(), Show)
     }
 }
 
@@ -105,6 +117,28 @@ impl Drop for ApplicationCursorKeysGuard {
     fn drop(&mut self) {
         // Best effort to re-enable - ignore errors during drop
         let _ = TerminalControl::enable_application_cursor_keys();
+    }
+}
+
+/// RAII guard that ensures the cursor is shown when dropped
+///
+/// This guard restores cursor visibility when it goes out of scope,
+/// ensuring the cursor is shown even if an error occurs during execution.
+pub struct CursorRestoreGuard {
+    _private: (),
+}
+
+impl CursorRestoreGuard {
+    /// Create a new cursor restore guard
+    pub fn new() -> Self {
+        Self { _private: () }
+    }
+}
+
+impl Drop for CursorRestoreGuard {
+    fn drop(&mut self) {
+        // Best effort to re-enable - ignore errors during drop
+        let _ = TerminalControl::show_cursor();
     }
 }
 
