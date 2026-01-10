@@ -1980,7 +1980,7 @@ mod tests {
 
     #[test]
     fn test_fs_read_image_with_vision_model() {
-        use forge_domain::{Image};
+        use forge_domain::Image;
 
         let fixture = ToolOperation::FsRead {
             input: FSRead {

@@ -280,17 +280,20 @@ impl<S> ToolRegistry<S> {
     /// Checks if a file path has an image extension.
     /// This is a lightweight check that doesn't require reading the file.
     fn has_image_extension(path: &str) -> bool {
-        const IMAGE_EXTENSIONS: &[&str] = &[".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg"];
-        
+        const IMAGE_EXTENSIONS: &[&str] =
+            &[".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg"];
+
         let path_lower = path.to_lowercase();
         IMAGE_EXTENSIONS.iter().any(|ext| path_lower.ends_with(ext))
     }
 
-    /// Validates if a tool's modality requirements are supported by the current model.
+    /// Validates if a tool's modality requirements are supported by the current
+    /// model.
     ///
     /// # Validation Process
-    /// Checks if the tool requires image input support and if the model supports it.
-    /// Currently, only the `read` tool can potentially require image modality.
+    /// Checks if the tool requires image input support and if the model
+    /// supports it. Currently, only the `read` tool can potentially require
+    /// image modality.
     fn validate_tool_modality(
         tool_input: &ToolCatalog,
         model: Option<&Model>,
@@ -719,7 +722,10 @@ fn test_validate_tool_modality_with_image_file_and_text_only_model() {
     });
 
     let result = ToolRegistry::<()>::validate_tool_modality(&tool_input, Some(&text_only_model));
-    assert!(result.is_err(), "Text-only model should not support image files");
+    assert!(
+        result.is_err(),
+        "Text-only model should not support image files"
+    );
 
     let error = result.unwrap_err();
     assert!(error.to_string().contains("requires image modality"));
@@ -769,7 +775,10 @@ fn test_validate_tool_modality_with_non_read_tool() {
     });
 
     let result = ToolRegistry::<()>::validate_tool_modality(&tool_input, Some(&text_only_model));
-    assert!(result.is_ok(), "Non-read tools should pass modality validation");
+    assert!(
+        result.is_ok(),
+        "Non-read tools should pass modality validation"
+    );
 }
 
 #[test]
@@ -778,27 +787,41 @@ fn test_has_image_extension() {
     assert!(ToolRegistry::<()>::has_image_extension("/path/to/file.png"));
     assert!(ToolRegistry::<()>::has_image_extension("/path/to/file.PNG"));
     assert!(ToolRegistry::<()>::has_image_extension("/path/to/file.jpg"));
-    assert!(ToolRegistry::<()>::has_image_extension("/path/to/file.jpeg"));
-    assert!(ToolRegistry::<()>::has_image_extension("/path/to/file.JPEG"));
+    assert!(ToolRegistry::<()>::has_image_extension(
+        "/path/to/file.jpeg"
+    ));
+    assert!(ToolRegistry::<()>::has_image_extension(
+        "/path/to/file.JPEG"
+    ));
     assert!(ToolRegistry::<()>::has_image_extension("/path/to/file.gif"));
     assert!(ToolRegistry::<()>::has_image_extension("/path/to/file.bmp"));
-    assert!(ToolRegistry::<()>::has_image_extension("/path/to/file.webp"));
+    assert!(ToolRegistry::<()>::has_image_extension(
+        "/path/to/file.webp"
+    ));
     assert!(ToolRegistry::<()>::has_image_extension("/path/to/file.svg"));
-    
+
     // Test relative paths
     assert!(ToolRegistry::<()>::has_image_extension("image.png"));
-    assert!(ToolRegistry::<()>::has_image_extension("../images/photo.jpg"));
-    
+    assert!(ToolRegistry::<()>::has_image_extension(
+        "../images/photo.jpg"
+    ));
+
     // Test non-image files
-    assert!(!ToolRegistry::<()>::has_image_extension("/path/to/file.txt"));
+    assert!(!ToolRegistry::<()>::has_image_extension(
+        "/path/to/file.txt"
+    ));
     assert!(!ToolRegistry::<()>::has_image_extension("/path/to/file.rs"));
-    assert!(!ToolRegistry::<()>::has_image_extension("/path/to/file.pdf"));
+    assert!(!ToolRegistry::<()>::has_image_extension(
+        "/path/to/file.pdf"
+    ));
     assert!(!ToolRegistry::<()>::has_image_extension("/path/to/file"));
     assert!(!ToolRegistry::<()>::has_image_extension("README.md"));
-    
+
     // Test edge cases
     assert!(!ToolRegistry::<()>::has_image_extension(""));
-    assert!(ToolRegistry::<()>::has_image_extension("file.with.dots.png"));
+    assert!(ToolRegistry::<()>::has_image_extension(
+        "file.with.dots.png"
+    ));
     assert!(ToolRegistry::<()>::has_image_extension(".png")); // Hidden file with .png extension
 }
 
