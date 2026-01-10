@@ -14,7 +14,11 @@ use crate::utils::assert_absolute_path;
 /// Truncates a line to the maximum length if it exceeds the limit
 fn truncate_line(line: &str, max_length: usize) -> String {
     if line.len() > max_length {
-        format!("{}... [truncated, line exceeds {} chars]", &line[..max_length], max_length)
+        format!(
+            "{}... [truncated, line exceeds {} chars]",
+            &line[..max_length],
+            max_length
+        )
     } else {
         line.to_string()
     }
