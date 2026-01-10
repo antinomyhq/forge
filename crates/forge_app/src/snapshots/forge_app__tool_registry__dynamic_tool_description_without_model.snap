@@ -8,7 +8,7 @@ Usage:
 - The path parameter must be an absolute path, not a relative path
 - By default, it reads up to 2000 lines starting from the beginning of the file
 - You can optionally specify a line start_line and end_line (especially handy for long files), but it's recommended to read the whole file by not providing these parameters
-- Any lines longer than 11807749632849181786 characters will be truncated
+- Any lines longer than 2000 characters will be truncated
 - Results are returned using rg "" -n format, with line numbers starting at 1
 - Jupyter notebooks (.ipynb files) are read as plain JSON text - you can parse the cell structure, outputs, and embedded content directly from the JSON
 - This tool can only read files, not directories. To read a directory, use an ls command via the `shell` tool.

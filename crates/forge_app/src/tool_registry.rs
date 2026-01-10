@@ -644,6 +644,7 @@ fn test_template_rendering_in_tool_descriptions() {
 
     let mut env: Environment = Faker.fake();
     env.max_search_lines = 1000;
+    env.max_line_length = 2000;
 
     let actual = ToolRegistry::<()>::get_system_tools(true, &env, None);
     let fs_search_tool = actual
@@ -672,6 +673,7 @@ fn test_dynamic_tool_description_with_vision_model() {
 
     let mut env: Environment = Faker.fake();
     env.max_read_size = 2000;
+    env.max_line_length = 2000;
     env.max_image_size = 5000; // Set fixed value for deterministic test
     let vision_model = create_test_model("gpt-4o", vec![InputModality::Text, InputModality::Image]);
 
@@ -690,6 +692,7 @@ fn test_dynamic_tool_description_with_text_only_model() {
 
     let mut env: Environment = Faker.fake();
     env.max_read_size = 2000;
+    env.max_line_length = 2000;
     env.max_image_size = 5000; // Set fixed value for deterministic test
     let text_only_model = create_test_model("gpt-3.5-turbo", vec![InputModality::Text]);
 
@@ -811,15 +814,13 @@ fn test_has_image_extension() {
     assert!(ToolRegistry::<()>::has_image_extension(
         "../images/photo.jpg"
     ));
+    assert!(ToolRegistry::<()>::has_image_extension("/path/to/file.pdf"));
 
     // Test non-image files
     assert!(!ToolRegistry::<()>::has_image_extension(
         "/path/to/file.txt"
     ));
     assert!(!ToolRegistry::<()>::has_image_extension("/path/to/file.rs"));
-    assert!(!ToolRegistry::<()>::has_image_extension(
-        "/path/to/file.pdf"
-    ));
     assert!(!ToolRegistry::<()>::has_image_extension("/path/to/file"));
     assert!(!ToolRegistry::<()>::has_image_extension("README.md"));
 
@@ -838,6 +839,7 @@ fn test_dynamic_tool_description_without_model() {
     let mut env: Environment = Faker.fake();
     env.max_read_size = 2000;
     env.max_image_size = 5000;
+    env.max_line_length = 2000;
 
     // When no model is provided, should default to showing minimal capabilities
     let tools_no_model = ToolRegistry::<()>::get_system_tools(true, &env, None);
