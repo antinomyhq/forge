@@ -11,7 +11,11 @@ pub struct ToolResolver {
 
 /// Maps deprecated tool names to their current names for backward compatibility
 fn deprecated_tool_aliases() -> HashMap<&'static str, ToolName> {
-    HashMap::from([("search", ToolName::new("fs_search"))])
+    HashMap::from([
+        ("search", ToolName::new("fs_search")),
+        ("Read", ToolName::new("read")),
+        ("Write", ToolName::new("write")),
+    ])
 }
 
 impl ToolResolver {
@@ -44,7 +48,10 @@ impl ToolResolver {
     }
 
     pub fn is_allowed(agent: &Agent, tool_name: &ToolName) -> bool {
-        Self::is_allowed_pattern(&Self::build_patterns(agent), tool_name)
+        let aliases = deprecated_tool_aliases();
+        // Normalize the incoming tool name using aliases
+        let normalized_tool_name = aliases.get(tool_name.as_str()).unwrap_or(tool_name);
+        Self::is_allowed_pattern(&Self::build_patterns(agent), normalized_tool_name)
     }
 
     /// Builds glob patterns from the agent's tool patterns, deduplicating
@@ -356,4 +363,53 @@ mod tests {
 
         assert_eq!(actual, expected);
     }
+
+
+    #[test]
+    fn test_capitalized_read_alias() {
+        // Test that capitalized "Read" resolves to "read"
+        let all_tool_definitions = vec![
+            ToolDefinition::new("read").description("Read Tool"),
+            ToolDefinition::new("write").description("Write Tool"),
+        ];
+
+        let _tool_resolver = ToolResolver::new(all_tool_definitions);
+
+        // Agent configuration with lowercase
+        let fixture = Agent::new(
+            AgentId::new("test-agent"),
+            ProviderId::ANTHROPIC,
+            ModelId::new("claude-3-5-sonnet-20241022"),
+        )
+        .tools(vec![ToolName::new("read"), ToolName::new("write")]);
+
+        // Validation should accept both capitalized and lowercase
+        assert!(ToolResolver::is_allowed(&fixture, &ToolName::new("read")));
+        assert!(ToolResolver::is_allowed(&fixture, &ToolName::new("Read")));
+        assert!(ToolResolver::is_allowed(&fixture, &ToolName::new("write")));
+        assert!(ToolResolver::is_allowed(&fixture, &ToolName::new("Write")));
+    }
+
+    #[test]
+    fn test_capitalized_write_alias() {
+        // Test that capitalized "Write" resolves to "write"
+        let all_tool_definitions = vec![
+            ToolDefinition::new("read").description("Read Tool"),
+            ToolDefinition::new("write").description("Write Tool"),
+        ];
+
+        let _tool_resolver = ToolResolver::new(all_tool_definitions);
+
+        let fixture = Agent::new(
+            AgentId::new("test-agent"),
+            ProviderId::ANTHROPIC,
+            ModelId::new("claude-3-5-sonnet-20241022"),
+        )
+        .tools(vec![ToolName::new("write")]);
+
+        // Both lowercase and capitalized should be allowed
+        assert!(ToolResolver::is_allowed(&fixture, &ToolName::new("write")));
+        assert!(ToolResolver::is_allowed(&fixture, &ToolName::new("Write")));
+    }
+
 }
