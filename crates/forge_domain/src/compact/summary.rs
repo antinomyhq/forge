@@ -165,6 +165,16 @@ impl SummaryToolCall {
             is_success: true,
         }
     }
+
+    /// Creates an MCP tool call with default values (id: None, is_success:
+    /// true)
+    pub fn mcp(name: impl Into<String>) -> Self {
+        Self {
+            id: None,
+            tool: SummaryTool::Mcp { name: name.into() },
+            is_success: true,
+        }
+    }
 }
 
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
@@ -202,6 +212,9 @@ pub enum SummaryTool {
         plan_name: String,
     },
     Skill {
+        name: String,
+    },
+    Mcp {
         name: String,
     },
 }
@@ -294,30 +307,39 @@ impl From<&TextMessage> for Vec<SummaryMessage> {
 
 /// Extracts tool information from a tool call
 fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
-    // Try to parse as a Tools enum variant
-    let tool = ToolCatalog::try_from(call.clone()).ok()?;
-
-    match tool {
-        ToolCatalog::Read(input) => Some(SummaryTool::FileRead { path: input.path }),
-        ToolCatalog::ReadImage(input) => Some(SummaryTool::FileRead { path: input.path }),
-        ToolCatalog::Write(input) => Some(SummaryTool::FileUpdate { path: input.path }),
-        ToolCatalog::Patch(input) => Some(SummaryTool::FileUpdate { path: input.path }),
-        ToolCatalog::Remove(input) => Some(SummaryTool::FileRemove { path: input.path }),
-        ToolCatalog::Shell(input) => Some(SummaryTool::Shell { command: input.command }),
-        ToolCatalog::FsSearch(input) => input
-            .file_pattern
-            .or(input.regex)
-            .map(|pattern| SummaryTool::Search { pattern }),
-        ToolCatalog::SemSearch(input) => Some(SummaryTool::SemSearch {
-            queries: input.queries,
-            file_extension: input.file_extension,
-        }),
-        ToolCatalog::Undo(input) => Some(SummaryTool::Undo { path: input.path }),
-        ToolCatalog::Fetch(input) => Some(SummaryTool::Fetch { url: input.url }),
-        ToolCatalog::Followup(input) => Some(SummaryTool::Followup { question: input.question }),
-        ToolCatalog::Plan(input) => Some(SummaryTool::Plan { plan_name: input.plan_name }),
-        ToolCatalog::Skill(input) => Some(SummaryTool::Skill { name: input.name }),
+    // Try to parse as a ToolCatalog enum variant (built-in Forge tools)
+    if let Ok(tool) = ToolCatalog::try_from(call.clone()) {
+        return match tool {
+            ToolCatalog::Read(input) => Some(SummaryTool::FileRead { path: input.path }),
+            ToolCatalog::ReadImage(input) => Some(SummaryTool::FileRead { path: input.path }),
+            ToolCatalog::Write(input) => Some(SummaryTool::FileUpdate { path: input.path }),
+            ToolCatalog::Patch(input) => Some(SummaryTool::FileUpdate { path: input.path }),
+            ToolCatalog::Remove(input) => Some(SummaryTool::FileRemove { path: input.path }),
+            ToolCatalog::Shell(input) => Some(SummaryTool::Shell { command: input.command }),
+            ToolCatalog::FsSearch(input) => input
+                .file_pattern
+                .or(input.regex)
+                .map(|pattern| SummaryTool::Search { pattern }),
+            ToolCatalog::SemSearch(input) => Some(SummaryTool::SemSearch {
+                queries: input.queries,
+                file_extension: input.file_extension,
+            }),
+            ToolCatalog::Undo(input) => Some(SummaryTool::Undo { path: input.path }),
+            ToolCatalog::Fetch(input) => Some(SummaryTool::Fetch { url: input.url }),
+            ToolCatalog::Followup(input) => {
+                Some(SummaryTool::Followup { question: input.question })
+            }
+            ToolCatalog::Plan(input) => Some(SummaryTool::Plan { plan_name: input.plan_name }),
+            ToolCatalog::Skill(input) => Some(SummaryTool::Skill { name: input.name }),
+        };
     }
+
+    // If not a built-in tool, treat it as an MCP tool
+    if !ToolCatalog::contains(&call.name) {
+        return Some(SummaryTool::Mcp { name: call.name.to_string() });
+    }
+
+    None
 }
 
 #[cfg(test)]
@@ -808,16 +830,17 @@ mod tests {
     }
 
     #[test]
-    fn test_extract_tool_info_with_invalid_tool() {
+    fn test_extract_tool_info_with_unknown_tool_treated_as_mcp() {
         let fixture = ToolCallFull {
-            name: ToolName::new("invalid_tool"),
+            name: ToolName::new("custom_mcp_tool"),
             call_id: Some(ToolCallId::new("call_1")),
-            arguments: ToolCallArguments::from_json(r#"{"invalid": "args"}"#),
+            arguments: ToolCallArguments::from_json(r#"{"custom": "args"}"#),
         };
 
         let actual = extract_tool_info(&fixture);
 
-        assert_eq!(actual, None);
+        let expected = Some(SummaryTool::Mcp { name: "custom_mcp_tool".to_string() });
+        assert_eq!(actual, expected);
     }
 
     #[test]
@@ -1344,6 +1367,153 @@ mod tests {
                     .into(),
                 SummaryToolCall::plan("implementation")
                     .id("call_9")
+                    .is_success(false)
+                    .into(),
+            ],
+        )]);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_summary_message_block_mcp_helper() {
+        let actual: SummaryMessage = SummaryToolCall::mcp("github_list_repos").into();
+
+        let expected = Block::ToolCall(SummaryToolCall {
+            id: None,
+            tool: SummaryTool::Mcp { name: "github_list_repos".to_string() },
+            is_success: true,
+        });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_context_summary_extracts_mcp_tool_calls() {
+        let fixture = context(vec![assistant_with_tools(
+            "Listing repositories",
+            vec![ToolCallFull {
+                name: ToolName::new("github_list_repos"),
+                call_id: Some(ToolCallId::new("call_1")),
+                arguments: ToolCallArguments::from_json(r#"{"owner": "rust-lang"}"#),
+            }],
+        )]);
+
+        let actual = ContextSummary::from(&fixture);
+
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
+            Role::Assistant,
+            vec![
+                Block::content("Listing repositories"),
+                SummaryToolCall::mcp("github_list_repos")
+                    .id("call_1")
+                    .is_success(false)
+                    .into(),
+            ],
+        )]);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_context_summary_links_mcp_results_to_calls() {
+        let fixture = context(vec![
+            assistant_with_tools(
+                "Checking weather",
+                vec![ToolCallFull {
+                    name: ToolName::new("weather_get_forecast"),
+                    call_id: Some(ToolCallId::new("call_1")),
+                    arguments: ToolCallArguments::from_json(r#"{"location": "San Francisco"}"#),
+                }],
+            ),
+            tool_result("weather_get_forecast", "call_1", false),
+        ]);
+
+        let actual = ContextSummary::from(&fixture);
+
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
+            Role::Assistant,
+            vec![
+                Block::content("Checking weather"),
+                SummaryToolCall::mcp("weather_get_forecast")
+                    .id("call_1")
+                    .into(),
+            ],
+        )]);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_context_summary_mcp_tool_call_failure() {
+        let fixture = context(vec![
+            assistant_with_tools(
+                "Fetching data",
+                vec![ToolCallFull {
+                    name: ToolName::new("slack_send_message"),
+                    call_id: Some(ToolCallId::new("call_1")),
+                    arguments: ToolCallArguments::from_json(r#"{"channel": "general"}"#),
+                }],
+            ),
+            tool_result("slack_send_message", "call_1", true),
+        ]);
+
+        let actual = ContextSummary::from(&fixture);
+
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
+            Role::Assistant,
+            vec![
+                Block::content("Fetching data"),
+                SummaryToolCall::mcp("slack_send_message")
+                    .id("call_1")
+                    .is_success(false)
+                    .into(),
+            ],
+        )]);
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_context_summary_mixed_forge_and_mcp_tools() {
+        let fixture = context(vec![assistant_with_tools(
+            "Mixed operations",
+            vec![
+                ToolCatalog::tool_call_read("/test/file.rs").call_id("call_1"),
+                ToolCallFull {
+                    name: ToolName::new("github_create_issue"),
+                    call_id: Some(ToolCallId::new("call_2")),
+                    arguments: ToolCallArguments::from_json(r#"{"title": "Bug fix"}"#),
+                },
+                ToolCatalog::tool_call_shell("cargo test", "/test").call_id("call_3"),
+                ToolCallFull {
+                    name: ToolName::new("slack_notify"),
+                    call_id: Some(ToolCallId::new("call_4")),
+                    arguments: ToolCallArguments::from_json(r#"{"message": "Done"}"#),
+                },
+            ],
+        )]);
+
+        let actual = ContextSummary::from(&fixture);
+
+        let expected = ContextSummary::new(vec![SummaryBlock::new(
+            Role::Assistant,
+            vec![
+                Block::content("Mixed operations"),
+                SummaryToolCall::read("/test/file.rs")
+                    .id("call_1")
+                    .is_success(false)
+                    .into(),
+                SummaryToolCall::mcp("github_create_issue")
+                    .id("call_2")
+                    .is_success(false)
+                    .into(),
+                SummaryToolCall::shell("cargo test")
+                    .id("call_3")
+                    .is_success(false)
+                    .into(),
+                SummaryToolCall::mcp("slack_notify")
+                    .id("call_4")
                     .is_success(false)
                     .into(),
             ],
