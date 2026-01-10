@@ -125,6 +125,14 @@ Always verify changes by running tests and linting the codebase
 - Safely assume git is pre-installed
 - Safely assume github cli (gh) is pre-installed
 - Always use `Co-Authored-By: ForgeCode <noreply@forgecode.dev>` for git commits and Github comments
+- **NEVER push directly to main branch**
+- **ALWAYS create a Pull Request to merge changes to main:**
+  1. Create a feature branch: `git checkout -b <branch-name>`
+  2. Commit changes to the branch
+  3. Push branch: `git push origin <branch-name>`
+  4. Create PR: `gh pr create --title "..." --body "..."`
+- Only push to main if explicitly told "push to main" or "merge to main"
+- Pushing to feature branches directly is allowed (e.g., updating an existing PR)
 
 ## Service Implementation Guidelines
 
