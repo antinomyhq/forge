@@ -98,9 +98,6 @@ impl From<Model> for forge_domain::Model {
                 .as_ref()
                 .map(|params| params.iter().any(|p| p == name))
         };
-        let tools_supported = has_param("tools");
-        let supports_parallel_tool_calls = has_param("supports_parallel_tool_calls");
-        let supports_reasoning = has_param("reasoning");
 
         // Parse input modalities from OpenRouter's input_modalities field
         let input_modalities = value
@@ -114,6 +111,10 @@ impl From<Model> for forge_domain::Model {
                     .collect::<Vec<_>>()
             })
             .unwrap_or_else(|| vec![forge_domain::InputModality::Text]);
+
+        let tools_supported = has_param("tools");
+        let supports_parallel_tool_calls = has_param("supports_parallel_tool_calls");
+        let supports_reasoning = has_param("reasoning");
 
         forge_domain::Model {
             id: value.id,
