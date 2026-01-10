@@ -50,7 +50,21 @@
     "response_type": "OpenAI",
     "url": "https://openrouter.ai/api/v1/chat/completions",
     "models": "https://openrouter.ai/api/v1/models",
-    "auth_methods": ["api_key"]
+    "auth_methods": [
+      "api_key",
+      {
+        "oauth_code": {
+          "auth_url": "https://openrouter.ai/auth",
+          "token_url": "https://openrouter.ai/api/v1/auth/keys",
+          "redirect_uri": "http://localhost:3000",
+          "use_pkce": true,
+          "custom_headers": {
+            "HTTP-Referer": "https://forgecode.dev",
+            "X-Title": "forge"
+          }
+        }
+      }
+    ]
   },
   {
     "id": "requesty",

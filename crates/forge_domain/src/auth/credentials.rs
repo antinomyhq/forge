@@ -94,14 +94,15 @@ impl AuthDetails {
 pub struct OAuthTokens {
     pub access_token: AccessToken,
     pub refresh_token: Option<RefreshToken>,
-    pub expires_at: DateTime<Utc>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<DateTime<Utc>>,
 }
 
 impl OAuthTokens {
     pub fn new(
         access_token: impl ToString,
         refresh_token: Option<impl ToString>,
-        expires_at: DateTime<Utc>,
+        expires_at: Option<DateTime<Utc>>,
     ) -> Self {
         Self {
             access_token: access_token.to_string().into(),
@@ -111,14 +112,21 @@ impl OAuthTokens {
     }
 
     /// Checks if the token is expired or will expire within the given buffer
-    /// duration
+    /// duration. Returns false if no expiration is set (token doesn't expire).
     pub fn needs_refresh(&self, buffer: chrono::Duration) -> bool {
-        let now = Utc::now();
-        now + buffer >= self.expires_at
+        self.expires_at
+            .map(|expires_at| {
+                let now = Utc::now();
+                now + buffer >= expires_at
+            })
+            .unwrap_or(false) // No expiration = doesn't need refresh
     }
 
-    /// Checks if the token is currently expired
+    /// Checks if the token is currently expired.
+    /// Returns false if no expiration is set (token doesn't expire).
     pub fn is_expired(&self) -> bool {
-        Utc::now() >= self.expires_at
+        self.expires_at
+            .map(|expires_at| Utc::now() >= expires_at)
+            .unwrap_or(false) // No expiration = not expired
     }
 }

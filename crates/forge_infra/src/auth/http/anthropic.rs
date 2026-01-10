@@ -34,9 +34,14 @@ impl OAuthHttpProvider for AnthropicHttpProvider {
         // Anthropic quirk: state = verifier
         let (challenge, verifier) = PkceCodeChallenge::new_random_sha256();
 
+        let client_id = config
+            .client_id
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("client_id is required for Anthropic OAuth"))?;
+
         let mut url = config.auth_url.clone();
         url.query_pairs_mut()
-            .append_pair("client_id", &config.client_id)
+            .append_pair("client_id", client_id)
             .append_pair("response_type", "code")
             .append_pair("scope", &config.scopes.join(" "))
             .append_pair("code_challenge", challenge.as_str())
@@ -78,11 +83,17 @@ impl OAuthHttpProvider for AnthropicHttpProvider {
         let verifier = verifier
             .ok_or_else(|| anyhow::anyhow!("PKCE verifier required for Anthropic OAuth"))?;
 
+        let client_id = config
+            .client_id
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("client_id is required for Anthropic OAuth"))?
+            .to_string();
+
         let request_body = AnthropicTokenRequest {
             code,
             state: state.unwrap_or_else(|| verifier.to_string()),
             grant_type: "authorization_code".to_string(),
-            client_id: config.client_id.to_string(),
+            client_id,
             redirect_uri: config.redirect_uri.clone(),
             code_verifier: verifier.to_string(),
         };
@@ -119,7 +130,7 @@ mod tests {
 
     fn test_oauth_config() -> OAuthConfig {
         OAuthConfig {
-            client_id: "test_client".to_string().into(),
+            client_id: Some("test_client".to_string().into()),
             auth_url: Url::parse("https://example.com/auth").unwrap(),
             token_url: Url::parse("https://example.com/token").unwrap(),
             scopes: vec!["read".to_string(), "write".to_string()],
