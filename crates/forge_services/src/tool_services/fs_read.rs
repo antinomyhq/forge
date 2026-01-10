@@ -95,7 +95,11 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for
         assert_absolute_path(path)?;
         let env = self.0.get_environment();
 
-        // Read file content first to detect MIME type
+        // Validate file size first before reading content
+        // Use max_file_size as initial limit (will refine after MIME detection)
+        assert_file_size(&*self.0, path, env.max_file_size).await?;
+
+        // Read file content to detect MIME type
         let raw_content = self
             .0
             .read(path)
@@ -107,7 +111,7 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for
 
         // Handle visual content (PDFs and images)
         if is_visual_content(&mime_type) {
-            // Validate file size for visual content
+            // Validate against image-specific size limit (may be different from max_file_size)
             assert_file_size(&*self.0, path, env.max_image_size).await.with_context(|| {
                 if mime_type == "application/pdf" {
                     "PDF exceeds size limit. Use a smaller PDF or increase FORGE_MAX_IMAGE_SIZE."
@@ -131,16 +135,7 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for
         }
 
         // Handle text content (including Jupyter notebooks)
-        // Validate file size before reading content
-        if let Err(e) = assert_file_size(&*self.0, path, env.max_file_size).await {
-            tracing::error!(
-                path = %path.display(),
-                max_file_size = env.max_file_size,
-                error = %e,
-                "File size validation failed"
-            );
-            return Err(e);
-        }
+        // File size already validated above
 
         let (start_line, end_line) = resolve_range(start_line, end_line, env.max_read_size);
 
