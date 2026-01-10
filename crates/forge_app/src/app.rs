@@ -101,13 +101,8 @@ impl<S: Services> ForgeApp<S> {
 
         let models = services.models(agent_provider).await?;
 
-        // Find the model for this agent to get capabilities for dynamic tool
-        // descriptions
-        let agent_model = models.iter().find(|m| m.id == agent.model).cloned();
-
         // Get system and mcp tool definitions and resolve them for the agent
-        // Pass the model to enable dynamic tool descriptions based on capabilities
-        let all_tool_definitions = self.tool_registry.tools_overview(agent_model).await?.into();
+        let all_tool_definitions = self.tool_registry.tools_overview().await?.into();
         let tool_resolver = ToolResolver::new(all_tool_definitions);
         let tool_definitions: Vec<ToolDefinition> =
             tool_resolver.resolve(&agent).into_iter().cloned().collect();
@@ -255,7 +250,7 @@ impl<S: Services> ForgeApp<S> {
     }
 
     pub async fn list_tools(&self) -> Result<ToolsOverview> {
-        self.tool_registry.tools_overview(None).await
+        self.tool_registry.tools_overview().await
     }
 
     /// Gets available models for the default provider with automatic credential

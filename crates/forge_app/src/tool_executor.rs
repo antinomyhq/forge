@@ -1,15 +1,16 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use forge_domain::{CodebaseQueryResult, ToolCallContext, ToolCatalog, ToolOutput};
+use forge_domain::{CodebaseQueryResult, Model, ToolCallContext, ToolCatalog, ToolOutput};
 
 use crate::fmt::content::FormatContent;
 use crate::operation::{TempContentFiles, ToolOperation};
 use crate::services::ShellService;
 use crate::{
-    ConversationService, EnvironmentService, FollowUpService, FsCreateService, FsPatchService,
-    FsReadService, FsRemoveService, FsSearchService, FsUndoService, ImageReadService,
-    NetFetchService, PlanCreateService, SkillFetchService, WorkspaceService,
+    AgentRegistry, ConversationService, EnvironmentService, FollowUpService, FsCreateService,
+    FsPatchService, FsReadService, FsRemoveService, FsSearchService, FsUndoService,
+    ImageReadService, NetFetchService, PlanCreateService, ProviderService, SkillFetchService,
+    WorkspaceService,
 };
 
 pub struct ToolExecutor<S> {
@@ -31,7 +32,9 @@ impl<
         + ConversationService
         + EnvironmentService
         + PlanCreateService
-        + SkillFetchService,
+        + SkillFetchService
+        + AgentRegistry
+        + ProviderService,
 > ToolExecutor<S>
 {
     pub fn new(services: Arc<S>) -> Self {
@@ -276,6 +279,18 @@ impl<
         })
     }
 
+    /// Gets the model for the currently active agent by looking up the agent
+    /// and fetching its model from the provider's model list.
+    ///
+    /// Returns None if no active agent, agent not found, or model not in provider list.
+    async fn get_current_model(&self) -> Option<Model> {
+        let agent_id = self.services.get_active_agent_id().await.ok()??;
+        let agent = self.services.get_agent(&agent_id).await.ok()??;
+        let provider = self.services.get_provider(agent.provider).await.ok()?;
+        let models = self.services.models(provider).await.ok()?;
+        models.iter().find(|m| m.id == agent.model).cloned()
+    }
+
     pub async fn execute(
         &self,
         tool_input: ToolCatalog,
@@ -299,13 +314,16 @@ impl<
 
         let truncation_path = self.dump_operation(&operation).await?;
 
+        // Get current model for vision vs text-only differentiation
+        let model = self.get_current_model().await;
+
         context.with_metrics(|metrics| {
             operation.into_tool_output(
                 tool_kind,
                 truncation_path,
                 &env,
                 metrics,
-                context.model.as_ref(),
+                model.as_ref(),
             )
         })
     }

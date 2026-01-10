@@ -2,15 +2,13 @@ use std::sync::{Arc, Mutex};
 
 use derive_setters::Setters;
 
-use crate::{ArcSender, ChatResponse, ChatResponseContent, Metrics, Model, TitleFormat};
+use crate::{ArcSender, ChatResponse, ChatResponseContent, Metrics, TitleFormat};
 
 /// Provides additional context for tool calls.
 #[derive(Debug, Clone, Setters)]
 pub struct ToolCallContext {
     sender: Option<ArcSender>,
     metrics: Arc<Mutex<Metrics>>,
-    /// Currently active model with its capabilities
-    pub model: Option<Model>,
 }
 
 impl ToolCallContext {
@@ -19,7 +17,6 @@ impl ToolCallContext {
         Self {
             sender: None,
             metrics: Arc::new(Mutex::new(metrics)),
-            model: None,
         }
     }
 

@@ -20,7 +20,8 @@ use crate::fmt::content::FormatContent;
 use crate::mcp_executor::McpExecutor;
 use crate::tool_executor::ToolExecutor;
 use crate::{
-    EnvironmentService, McpService, PolicyService, Services, ToolResolver, WorkspaceService,
+    AgentRegistry, EnvironmentService, McpService, PolicyService, ProviderService, Services,
+    ToolResolver, WorkspaceService,
 };
 
 pub struct ToolRegistry<S> {
@@ -181,7 +182,19 @@ impl<S: Services> ToolRegistry<S> {
         ToolResult::new(tool_name).call_id(call_id).output(output)
     }
 
-    pub async fn tools_overview(&self, model: Option<Model>) -> anyhow::Result<ToolsOverview> {
+    /// Gets the model for the currently active agent by looking up the agent
+    /// and fetching its model from the provider's model list.
+    ///
+    /// Returns None if no active agent, agent not found, or model not in provider list.
+    async fn get_current_model(&self) -> Option<Model> {
+        let agent_id = self.services.get_active_agent_id().await.ok()??;
+        let agent = self.services.get_agent(&agent_id).await.ok()??;
+        let provider = self.services.get_provider(agent.provider).await.ok()?;
+        let models = self.services.models(provider).await.ok()?;
+        models.iter().find(|m| m.id == agent.model).cloned()
+    }
+
+    pub async fn tools_overview(&self) -> anyhow::Result<ToolsOverview> {
         let mcp_tools = self.services.get_mcp_servers().await?;
         let agent_tools = self.agent_executor.agent_definitions().await?;
 
@@ -190,6 +203,9 @@ impl<S: Services> ToolRegistry<S> {
         let cwd = environment.cwd.clone();
         let is_indexed = self.services.is_indexed(&cwd).await.unwrap_or(false);
         let is_authenticated = self.services.is_authenticated().await.unwrap_or(false);
+
+        // Get current model for dynamic tool descriptions
+        let model = self.get_current_model().await;
 
         Ok(ToolsOverview::new()
             .system(Self::get_system_tools(

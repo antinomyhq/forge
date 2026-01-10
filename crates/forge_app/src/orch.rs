@@ -218,16 +218,8 @@ impl<S: AgentService> Orchestrator<S> {
         // Retrieve the number of requests allowed per tick.
         let max_requests_per_turn = agent.max_requests_per_turn;
 
-        // Find the current model being used to pass its capabilities to tool context
-        let current_model = self
-            .models
-            .iter()
-            .find(|m| m.id == self.agent.model)
-            .cloned();
-
         let tool_context = ToolCallContext::new(self.conversation.metrics.clone())
-            .sender(self.sender.clone())
-            .model(current_model);
+            .sender(self.sender.clone());
 
         // Asynchronously generate a title for the provided task
         // TODO: Move into app.rs
