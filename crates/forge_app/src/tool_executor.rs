@@ -282,7 +282,8 @@ impl<
     /// Gets the model for the currently active agent by looking up the agent
     /// and fetching its model from the provider's model list.
     ///
-    /// Returns None if no active agent, agent not found, or model not in provider list.
+    /// Returns None if no active agent, agent not found, or model not in
+    /// provider list.
     async fn get_current_model(&self) -> Option<Model> {
         let agent_id = self.services.get_active_agent_id().await.ok()??;
         let agent = self.services.get_agent(&agent_id).await.ok()??;
@@ -318,13 +319,7 @@ impl<
         let model = self.get_current_model().await;
 
         context.with_metrics(|metrics| {
-            operation.into_tool_output(
-                tool_kind,
-                truncation_path,
-                &env,
-                metrics,
-                model.as_ref(),
-            )
+            operation.into_tool_output(tool_kind, truncation_path, &env, metrics, model.as_ref())
         })
     }
 }
