@@ -23,14 +23,12 @@ fn truncate_line(line: &str, max_length: usize) -> String {
             .collect::<String>();
         format!(
             "{}... [truncated, line exceeds {} chars]",
-            truncated,
-            max_length
+            truncated, max_length
         )
     } else {
         line.to_string()
     }
 }
-
 
 /// Detects the MIME type of a file based on extension and content
 fn detect_mime_type(path: &Path, content: &[u8]) -> String {
