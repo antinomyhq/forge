@@ -111,7 +111,8 @@ impl<F: FileInfoInfra + EnvironmentInfra + InfraFsReadService> FsReadService for
 
         // Handle visual content (PDFs and images)
         if is_visual_content(&mime_type) {
-            // Validate against image-specific size limit (may be different from max_file_size)
+            // Validate against image-specific size limit (may be different from
+            // max_file_size)
             assert_file_size(&*self.0, path, env.max_image_size).await.with_context(|| {
                 if mime_type == "application/pdf" {
                     "PDF exceeds size limit. Use a smaller PDF or increase FORGE_MAX_IMAGE_SIZE."
