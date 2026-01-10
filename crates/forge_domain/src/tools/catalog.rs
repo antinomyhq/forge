@@ -492,6 +492,16 @@ lazy_static::lazy_static! {
         .collect();
 }
 
+/// Normalizes tool names for backward compatibility
+/// Maps capitalized aliases to their lowercase canonical forms
+fn normalize_tool_name(name: &ToolName) -> ToolName {
+    match name.as_str() {
+        "Read" => ToolName::new("read"),
+        "Write" => ToolName::new("write"),
+        _ => name.clone(),
+    }
+}
+
 impl ToolCatalog {
     pub fn schema(&self) -> RootSchema {
         use schemars::r#gen::SchemaSettings;
@@ -527,20 +537,23 @@ impl ToolCatalog {
             .input_schema(self.schema())
     }
     pub fn contains(tool_name: &ToolName) -> bool {
-        FORGE_TOOLS.contains(tool_name)
+        let normalized = normalize_tool_name(tool_name);
+        FORGE_TOOLS.contains(&normalized)
     }
     pub fn should_yield(tool_name: &ToolName) -> bool {
         // Tools that convey that the execution should yield
+        let normalized = normalize_tool_name(tool_name);
         [ToolKind::Followup]
             .iter()
-            .any(|v| v.to_string().to_case(Case::Snake).eq(tool_name.as_str()))
+            .any(|v| v.to_string().to_case(Case::Snake).eq(normalized.as_str()))
     }
 
     pub fn requires_stdout(tool_name: &ToolName) -> bool {
         // Tools that require direct stdout/stderr access
+        let normalized = normalize_tool_name(tool_name);
         [ToolKind::Shell]
             .iter()
-            .any(|v| v.to_string().to_case(Case::Snake).eq(tool_name.as_str()))
+            .any(|v| v.to_string().to_case(Case::Snake).eq(normalized.as_str()))
     }
 
     /// Convert a tool input to its corresponding domain operation for policy
@@ -760,8 +773,10 @@ impl TryFrom<ToolCallFull> for ToolCatalog {
         let parsed_args = value.arguments.parse()?;
 
         // Try to find the tool definition and coerce types based on schema
+        // Normalize the tool name for comparison
+        let normalized_name = normalize_tool_name(&value.name);
         let coerced_args = ToolCatalog::iter()
-            .find(|tool| tool.definition().name == value.name)
+            .find(|tool| tool.definition().name == normalized_name)
             .map(|tool| {
                 let schema = tool.definition().input_schema;
                 forge_json_repair::coerce_to_schema(parsed_args.clone(), &schema)
@@ -1012,6 +1027,26 @@ mod tests {
         );
 
         matches!(actual.unwrap(), ToolCatalog::Write(_));
+    }
+
+    #[test]
+    fn test_contains_with_lowercase() {
+        assert!(ToolCatalog::contains(&ToolName::new("read")));
+        assert!(ToolCatalog::contains(&ToolName::new("write")));
+        assert!(!ToolCatalog::contains(&ToolName::new("nonexistent")));
+    }
+
+    #[test]
+    fn test_contains_with_capitalized() {
+        // Test that capitalized versions are also found
+        assert!(
+            ToolCatalog::contains(&ToolName::new("Read")),
+            "Should contain capitalized 'Read'"
+        );
+        assert!(
+            ToolCatalog::contains(&ToolName::new("Write")),
+            "Should contain capitalized 'Write'"
+        );
     }
 
     #[test]

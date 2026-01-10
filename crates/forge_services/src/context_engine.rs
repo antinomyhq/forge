@@ -254,6 +254,7 @@ impl<F> ForgeWorkspaceService<F> {
 
         let total_operations = files_to_delete.len() + files_to_upload.len();
         let mut counter = SyncProgressCounter::new(total_file_changes, total_operations);
+        let mut failed_files = 0;
 
         emit(counter.sync_progress()).await;
 
@@ -279,6 +280,7 @@ impl<F> ForgeWorkspaceService<F> {
                 }
                 Err(e) => {
                     warn!("Failed to delete file during sync: {:#}", e);
+                    failed_files += 1;
                     // Continue processing remaining deletions
                 }
             }
@@ -307,6 +309,7 @@ impl<F> ForgeWorkspaceService<F> {
                 }
                 Err(e) => {
                     warn!("Failed to upload file during sync: {:#}", e);
+                    failed_files += 1;
                     // Continue processing remaining uploads
                 }
             }
@@ -327,6 +330,7 @@ impl<F> ForgeWorkspaceService<F> {
         emit(SyncProgress::Completed {
             total_files: total_file_count,
             uploaded_files: total_file_changes,
+            failed_files,
         })
         .await;
 
