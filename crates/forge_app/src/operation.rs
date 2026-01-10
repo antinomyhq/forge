@@ -7,7 +7,7 @@ use derive_setters::Setters;
 use forge_display::DiffFormat;
 use forge_domain::{
     CodebaseSearchResults, Environment, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite,
-    FileOperation, InputModality, LineNumbers, Metrics, Model, NetFetch, PlanCreate, ToolKind,
+    FileOperation, LineNumbers, Metrics, NetFetch, PlanCreate, ToolKind,
 };
 use forge_template::Element;
 
@@ -216,38 +216,12 @@ impl ToolOperation {
         content_files: TempContentFiles,
         env: &Environment,
         metrics: &mut Metrics,
-        model: Option<&Model>,
     ) -> forge_domain::ToolOutput {
         let tool_name = tool_kind.name();
         match self {
             ToolOperation::FsRead { input, output } => {
                 // Check if content is an image (visual content)
                 if let Some(image) = output.content.as_image() {
-                    // Check if model supports image input
-                    let supports_image = model
-                        .and_then(|m| {
-                            m.input_modalities
-                                .iter()
-                                .find(|im| matches!(im, InputModality::Image))
-                        })
-                        .is_some();
-
-                    if !supports_image {
-                        // Model doesn't support images, return error in proper format
-                        let error_msg = format!(
-                            "Cannot display visual content from '{}': The current model does not support image input.",
-                            input.path
-                        );
-
-                        tracing::warn!(
-                            path = %input.path,
-                            model = ?model.map(|m| &m.id),
-                            "Attempted to read visual content with non-vision model"
-                        );
-
-                        return forge_domain::ToolOutput::text(error_msg).is_error(true);
-                    }
-
                     // Track read operations for visual content
                     tracing::info!(
                         path = %input.path,
@@ -777,7 +751,6 @@ mod tests {
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -810,7 +783,6 @@ mod tests {
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -844,7 +816,6 @@ mod tests {
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -880,7 +851,6 @@ mod tests {
             truncation_path,
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -910,7 +880,6 @@ mod tests {
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -939,7 +908,6 @@ mod tests {
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -965,7 +933,6 @@ mod tests {
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1000,7 +967,6 @@ mod tests {
             truncation_path,
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1035,7 +1001,6 @@ mod tests {
             truncation_path,
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1077,7 +1042,6 @@ mod tests {
             truncation_path,
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1110,7 +1074,6 @@ mod tests {
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1136,7 +1099,6 @@ mod tests {
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1162,7 +1124,6 @@ mod tests {
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1204,7 +1165,6 @@ mod tests {
             truncation_path,
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1243,7 +1203,6 @@ mod tests {
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1284,7 +1243,6 @@ mod tests {
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1327,7 +1285,6 @@ mod tests {
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1373,7 +1330,6 @@ mod tests {
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1399,7 +1355,6 @@ mod tests {
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1429,7 +1384,6 @@ mod tests {
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1462,7 +1416,6 @@ mod tests {
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1482,7 +1435,6 @@ mod tests {
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1525,7 +1477,6 @@ mod tests {
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1551,7 +1502,6 @@ mod tests {
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1582,7 +1532,6 @@ mod tests {
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1613,7 +1562,6 @@ mod tests {
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1652,7 +1600,6 @@ mod tests {
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1672,7 +1619,6 @@ mod tests {
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1695,7 +1641,6 @@ mod tests {
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1720,7 +1665,6 @@ mod tests {
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1743,7 +1687,6 @@ mod tests {
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1766,7 +1709,6 @@ mod tests {
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1794,7 +1736,6 @@ mod tests {
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1830,7 +1771,6 @@ mod tests {
             truncation_path,
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         // make sure that the content is truncated
@@ -1867,7 +1807,6 @@ mod tests {
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1886,7 +1825,6 @@ mod tests {
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1921,7 +1859,6 @@ mod tests {
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1949,7 +1886,6 @@ mod tests {
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -1966,7 +1902,6 @@ mod tests {
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -2011,7 +1946,6 @@ mod tests {
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -2039,7 +1973,6 @@ mod tests {
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
-            None,
         );
 
         insta::assert_snapshot!(to_value(actual));
@@ -2047,7 +1980,7 @@ mod tests {
 
     #[test]
     fn test_fs_read_image_with_vision_model() {
-        use forge_domain::{Image, InputModality, ModelId};
+        use forge_domain::{Image};
 
         let fixture = ToolOperation::FsRead {
             input: FSRead {
@@ -2069,24 +2002,12 @@ mod tests {
             },
         };
 
-        let vision_model = Model {
-            id: ModelId::from("gpt-4o"),
-            name: None,
-            description: None,
-            context_length: None,
-            tools_supported: None,
-            supports_parallel_tool_calls: None,
-            supports_reasoning: None,
-            input_modalities: vec![InputModality::Text, InputModality::Image],
-        };
-
         let env = fixture_environment();
         let actual = fixture.into_tool_output(
             ToolKind::Read,
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
-            Some(&vision_model),
         );
 
         // Should return image content
@@ -2094,104 +2015,6 @@ mod tests {
         match &actual.values[0] {
             forge_domain::ToolValue::Image(_) => (), // Expected
             _ => panic!("Expected image output for vision model"),
-        }
-    }
-
-    #[test]
-    fn test_fs_read_image_without_vision_model() {
-        use forge_domain::{Image, InputModality, ModelId};
-
-        let fixture = ToolOperation::FsRead {
-            input: FSRead {
-                path: "/home/user/test.png".to_string(),
-                start_line: None,
-                end_line: None,
-                show_line_numbers: true,
-            },
-            output: ReadOutput {
-                content: Content::image(Image::new_base64(
-                    "base64_image_data".to_string(),
-                    "image/png",
-                )),
-                start_line: 1,
-                end_line: 1,
-                total_lines: 1,
-                content_hash: "hash123".to_string(),
-                mime_type: Some("image/png".to_string()),
-            },
-        };
-
-        let text_only_model = Model {
-            id: ModelId::from("gpt-3.5-turbo"),
-            name: None,
-            description: None,
-            context_length: None,
-            tools_supported: None,
-            supports_parallel_tool_calls: None,
-            supports_reasoning: None,
-            input_modalities: vec![InputModality::Text],
-        };
-
-        let env = fixture_environment();
-        let actual = fixture.into_tool_output(
-            ToolKind::Read,
-            TempContentFiles::default(),
-            &env,
-            &mut Metrics::default(),
-            Some(&text_only_model),
-        );
-
-        // Should return error message as text
-        assert!(!actual.values.is_empty(), "Expected non-empty output");
-        match &actual.values[0] {
-            forge_domain::ToolValue::Text(content) => {
-                assert!(content.contains("does not support image input"));
-                assert!(content.contains("/home/user/test.png"));
-            }
-            _ => panic!("Expected text error output for non-vision model"),
-        }
-    }
-
-    #[test]
-    fn test_fs_read_image_with_no_model_info() {
-        use forge_domain::Image;
-
-        let fixture = ToolOperation::FsRead {
-            input: FSRead {
-                path: "/home/user/test.png".to_string(),
-                start_line: None,
-                end_line: None,
-                show_line_numbers: true,
-            },
-            output: ReadOutput {
-                content: Content::image(Image::new_base64(
-                    "base64_image_data".to_string(),
-                    "image/png",
-                )),
-                start_line: 1,
-                end_line: 1,
-                total_lines: 1,
-                content_hash: "hash123".to_string(),
-                mime_type: Some("image/png".to_string()),
-            },
-        };
-
-        let env = fixture_environment();
-        let actual = fixture.into_tool_output(
-            ToolKind::Read,
-            TempContentFiles::default(),
-            &env,
-            &mut Metrics::default(),
-            None, // No model info
-        );
-
-        // Should return error message as text when model info is missing
-        assert!(!actual.values.is_empty(), "Expected non-empty output");
-        match &actual.values[0] {
-            forge_domain::ToolValue::Text(content) => {
-                assert!(content.contains("does not support image input"));
-            }
-            _ => panic!("Expected text error output when model info is None"),
         }
     }
 }

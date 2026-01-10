@@ -4,9 +4,9 @@ use std::time::Duration;
 use anyhow::Context;
 use console::style;
 use forge_domain::{
-    Agent, AgentId, AgentInput, ChatResponse, ChatResponseContent, Environment, Model,
-    SystemContext, ToolCallContext, ToolCallFull, ToolCatalog, ToolDefinition, ToolName,
-    ToolOutput, ToolResult,
+    Agent, AgentId, AgentInput, ChatResponse, ChatResponseContent, Environment, InputModality,
+    Model, SystemContext, ToolCallContext, ToolCallFull, ToolCatalog, ToolDefinition, ToolKind,
+    ToolName, ToolOutput, ToolResult,
 };
 use forge_template::Element;
 use futures::future::join_all;
@@ -124,6 +124,10 @@ impl<S: Services> ToolRegistry<S> {
                         .cdata("User has denied the permission to execute this tool"),
                 ));
             }
+
+            // Validate tool modality support before execution
+            let model = self.get_current_model().await;
+            Self::validate_tool_modality(&tool_input, model.as_ref())?;
 
             self.call_with_timeout(&tool_name, || {
                 self.tool_executor.execute(tool_input, context)
@@ -270,6 +274,66 @@ impl<S> ToolRegistry<S> {
                 .join(", ");
             return Err(Error::NotAllowed { name: tool_name.clone(), supported_tools });
         }
+        Ok(())
+    }
+
+    /// Checks if a file path has an image extension.
+    /// This is a lightweight check that doesn't require reading the file.
+    fn has_image_extension(path: &str) -> bool {
+        const IMAGE_EXTENSIONS: &[&str] = &[".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg"];
+        
+        let path_lower = path.to_lowercase();
+        IMAGE_EXTENSIONS.iter().any(|ext| path_lower.ends_with(ext))
+    }
+
+    /// Validates if a tool's modality requirements are supported by the current model.
+    ///
+    /// # Validation Process
+    /// Checks if the tool requires image input support and if the model supports it.
+    /// Currently, only the `read` tool can potentially require image modality.
+    fn validate_tool_modality(
+        tool_input: &ToolCatalog,
+        model: Option<&Model>,
+    ) -> Result<(), Error> {
+        // Check if this tool might require image support
+        // Currently, only the read tool can return image content
+        if let ToolCatalog::Read(input) = tool_input {
+            // Check if the file extension suggests it's an image
+            if Self::has_image_extension(&input.path) {
+                // Check if the model supports image input
+                let supports_image = model
+                    .and_then(|m| {
+                        m.input_modalities
+                            .iter()
+                            .find(|im| matches!(im, InputModality::Image))
+                    })
+                    .is_some();
+
+                if !supports_image {
+                    let tool_name = ToolKind::Read.name();
+                    let required_modality = "image".to_string();
+                    let supported_modalities = model
+                        .map(|m| {
+                            m.input_modalities
+                                .iter()
+                                .map(|im| match im {
+                                    InputModality::Text => "text".to_string(),
+                                    InputModality::Image => "image".to_string(),
+                                })
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        })
+                        .unwrap_or_else(|| "unknown".to_string());
+
+                    return Err(Error::UnsupportedModality {
+                        tool_name,
+                        required_modality,
+                        supported_modalities,
+                    });
+                }
+            }
+        }
+
         Ok(())
     }
 }
@@ -628,6 +692,114 @@ fn test_dynamic_tool_description_with_text_only_model() {
 
     // Text-only model should NOT see image and PDF support
     insta::assert_snapshot!(read_tool.description);
+}
+
+#[test]
+fn test_validate_tool_modality_with_image_file_and_vision_model() {
+    use forge_domain::{InputModality, ToolCatalog};
+
+    let vision_model = create_test_model("gpt-4o", vec![InputModality::Text, InputModality::Image]);
+    let tool_input = ToolCatalog::Read(forge_domain::FSRead {
+        path: "/home/user/test.png".to_string(),
+        ..Default::default()
+    });
+
+    let result = ToolRegistry::<()>::validate_tool_modality(&tool_input, Some(&vision_model));
+    assert!(result.is_ok(), "Vision model should support image files");
+}
+
+#[test]
+fn test_validate_tool_modality_with_image_file_and_text_only_model() {
+    use forge_domain::{InputModality, ToolCatalog};
+
+    let text_only_model = create_test_model("gpt-3.5-turbo", vec![InputModality::Text]);
+    let tool_input = ToolCatalog::Read(forge_domain::FSRead {
+        path: "/home/user/test.png".to_string(),
+        ..Default::default()
+    });
+
+    let result = ToolRegistry::<()>::validate_tool_modality(&tool_input, Some(&text_only_model));
+    assert!(result.is_err(), "Text-only model should not support image files");
+
+    let error = result.unwrap_err();
+    assert!(error.to_string().contains("requires image modality"));
+    assert!(error.to_string().contains("read"));
+}
+
+#[test]
+fn test_validate_tool_modality_with_text_file_and_text_only_model() {
+    use forge_domain::{InputModality, ToolCatalog};
+
+    let text_only_model = create_test_model("gpt-3.5-turbo", vec![InputModality::Text]);
+    let tool_input = ToolCatalog::Read(forge_domain::FSRead {
+        path: "/home/user/test.txt".to_string(),
+        ..Default::default()
+    });
+
+    let result = ToolRegistry::<()>::validate_tool_modality(&tool_input, Some(&text_only_model));
+    assert!(result.is_ok(), "Text-only model should support text files");
+}
+
+#[test]
+fn test_validate_tool_modality_with_no_model() {
+    use forge_domain::ToolCatalog;
+
+    let tool_input = ToolCatalog::Read(forge_domain::FSRead {
+        path: "/home/user/test.png".to_string(),
+        ..Default::default()
+    });
+
+    let result = ToolRegistry::<()>::validate_tool_modality(&tool_input, None);
+    assert!(result.is_err(), "Should error when no model is available");
+
+    let error = result.unwrap_err();
+    assert!(error.to_string().contains("requires image modality"));
+    assert!(error.to_string().contains("unknown"));
+}
+
+#[test]
+fn test_validate_tool_modality_with_non_read_tool() {
+    use forge_domain::{InputModality, ToolCatalog};
+
+    let text_only_model = create_test_model("gpt-3.5-turbo", vec![InputModality::Text]);
+    let tool_input = ToolCatalog::Write(forge_domain::FSWrite {
+        path: "/home/user/test.png".to_string(),
+        content: "test".to_string(),
+        ..Default::default()
+    });
+
+    let result = ToolRegistry::<()>::validate_tool_modality(&tool_input, Some(&text_only_model));
+    assert!(result.is_ok(), "Non-read tools should pass modality validation");
+}
+
+#[test]
+fn test_has_image_extension() {
+    // Test various image extensions (case-insensitive)
+    assert!(ToolRegistry::<()>::has_image_extension("/path/to/file.png"));
+    assert!(ToolRegistry::<()>::has_image_extension("/path/to/file.PNG"));
+    assert!(ToolRegistry::<()>::has_image_extension("/path/to/file.jpg"));
+    assert!(ToolRegistry::<()>::has_image_extension("/path/to/file.jpeg"));
+    assert!(ToolRegistry::<()>::has_image_extension("/path/to/file.JPEG"));
+    assert!(ToolRegistry::<()>::has_image_extension("/path/to/file.gif"));
+    assert!(ToolRegistry::<()>::has_image_extension("/path/to/file.bmp"));
+    assert!(ToolRegistry::<()>::has_image_extension("/path/to/file.webp"));
+    assert!(ToolRegistry::<()>::has_image_extension("/path/to/file.svg"));
+    
+    // Test relative paths
+    assert!(ToolRegistry::<()>::has_image_extension("image.png"));
+    assert!(ToolRegistry::<()>::has_image_extension("../images/photo.jpg"));
+    
+    // Test non-image files
+    assert!(!ToolRegistry::<()>::has_image_extension("/path/to/file.txt"));
+    assert!(!ToolRegistry::<()>::has_image_extension("/path/to/file.rs"));
+    assert!(!ToolRegistry::<()>::has_image_extension("/path/to/file.pdf"));
+    assert!(!ToolRegistry::<()>::has_image_extension("/path/to/file"));
+    assert!(!ToolRegistry::<()>::has_image_extension("README.md"));
+    
+    // Test edge cases
+    assert!(!ToolRegistry::<()>::has_image_extension(""));
+    assert!(ToolRegistry::<()>::has_image_extension("file.with.dots.png"));
+    assert!(ToolRegistry::<()>::has_image_extension(".png")); // Hidden file with .png extension
 }
 
 #[test]
