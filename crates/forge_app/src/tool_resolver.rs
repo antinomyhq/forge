@@ -364,7 +364,6 @@ mod tests {
         assert_eq!(actual, expected);
     }
 
-
     #[test]
     fn test_capitalized_read_alias() {
         // Test that capitalized "Read" resolves to "read"
@@ -411,5 +410,4 @@ mod tests {
         assert!(ToolResolver::is_allowed(&fixture, &ToolName::new("write")));
         assert!(ToolResolver::is_allowed(&fixture, &ToolName::new("Write")));
     }
-
 }

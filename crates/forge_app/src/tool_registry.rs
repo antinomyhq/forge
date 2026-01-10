@@ -483,7 +483,8 @@ mod tests {
 
     #[test]
     fn test_validate_tool_call_capitalized_read_write() {
-        // Test that capitalized "Read" and "Write" are accepted when agent has lowercase versions
+        // Test that capitalized "Read" and "Write" are accepted when agent has
+        // lowercase versions
         let fixture = Agent::new(
             AgentId::new("test_agent"),
             ProviderId::ANTHROPIC,
@@ -498,7 +499,10 @@ mod tests {
             ToolRegistry::<()>::validate_tool_call(&fixture, &ToolName::new("read"));
 
         assert!(actual_read.is_ok(), "Capitalized 'Read' should be accepted");
-        assert!(actual_write.is_ok(), "Capitalized 'Write' should be accepted");
+        assert!(
+            actual_write.is_ok(),
+            "Capitalized 'Write' should be accepted"
+        );
         assert!(
             actual_lowercase_read.is_ok(),
             "Lowercase 'read' should still be accepted"
