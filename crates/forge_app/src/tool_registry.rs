@@ -283,13 +283,15 @@ impl<S> ToolRegistry<S> {
 
     /// Checks if a file path has an image extension.
     /// This is a lightweight check that doesn't require reading the file.
+
     fn has_image_extension(path: &str) -> bool {
         const IMAGE_EXTENSIONS: &[&str] =
-            &[".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg"];
+            &[".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg", ".pdf"];
 
         let path_lower = path.to_lowercase();
         IMAGE_EXTENSIONS.iter().any(|ext| path_lower.ends_with(ext))
     }
+
 
     /// Validates if a tool's modality requirements are supported by the current
     /// model.
