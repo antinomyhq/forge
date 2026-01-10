@@ -102,7 +102,7 @@ impl<S: Services> ForgeApp<S> {
         let models = services.models(agent_provider).await?;
 
         // Get system and mcp tool definitions and resolve them for the agent
-        let all_tool_definitions = self.tool_registry.tools_overview().await?.into();
+        let all_tool_definitions = self.tool_registry.list().await?;
         let tool_resolver = ToolResolver::new(all_tool_definitions);
         let tool_definitions: Vec<ToolDefinition> =
             tool_resolver.resolve(&agent).into_iter().cloned().collect();

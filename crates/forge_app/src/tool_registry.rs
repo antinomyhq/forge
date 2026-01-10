@@ -186,6 +186,10 @@ impl<S: Services> ToolRegistry<S> {
         ToolResult::new(tool_name).call_id(call_id).output(output)
     }
 
+     pub async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
+        Ok(self.tools_overview().await?.into())
+    }
+
     /// Gets the model for the currently active agent by looking up the agent
     /// and fetching its model from the provider's model list.
     ///
