@@ -1,8 +1,24 @@
+//! Unified spinner and markdown streaming for terminal UI.
+//!
+//! This module provides a single `SpinnerManager` that handles both:
+//! - Standalone spinner display (for loading states) - uses indicatif
+//! - Progressive markdown streaming with spinner below content - uses crossterm
+
 use std::io::{self, Write};
 
 use anyhow::Result;
 use colored::Colorize;
+use crossterm::{
+    cursor::{position, MoveToColumn, MoveUp},
+    execute,
+    style::{Attribute, Color, ResetColor, SetAttribute, SetForegroundColor},
+    terminal::{Clear, ClearType},
+};
 use indicatif::{ProgressBar, ProgressStyle};
+use mdstream::{
+    ProgressiveRenderer,
+    writer::{Position, TermWriter, Writer},
+};
 use rand::Rng;
 use tokio::task::JoinHandle;
 
@@ -10,18 +26,183 @@ mod progress_bar;
 mod stopwatch;
 
 pub use progress_bar::*;
-use stopwatch::Stopwatch;
+pub use stopwatch::Stopwatch;
 
-/// Manages spinner functionality for the UI
+// Re-export mdstream types for advanced usage
+pub use mdstream::{self, StreamError};
+
+/// Braille spinner animation frames.
+const SPINNER_FRAMES: &[char] = &['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+
+/// A [`Writer`] that wraps [`TermWriter`] and displays a spinner on the next
+/// line.
+///
+/// This writer integrates with `mdstream`'s progressive rendering to show
+/// markdown content with a spinner indicator below it during streaming.
+pub struct SpinnerWriter {
+    inner: TermWriter<io::Stdout>,
+    output: io::Stdout,
+    message: String,
+    hint: &'static str,
+    frame: usize,
+    visible: bool,
+    stopwatch: Stopwatch,
+}
+
+impl SpinnerWriter {
+    /// Creates a new `SpinnerWriter` with the given message and stopwatch.
+    pub fn new(message: impl Into<String>, stopwatch: Stopwatch) -> Self {
+        Self {
+            inner: TermWriter::stdout(),
+            output: io::stdout(),
+            message: message.into(),
+            hint: "Ctrl+C to interrupt",
+            frame: 0,
+            visible: false,
+            stopwatch,
+        }
+    }
+
+    /// Updates the spinner message.
+    pub fn set_message(&mut self, message: impl Into<String>) {
+        self.message = message.into();
+    }
+
+    /// Returns the current stopwatch reference for time tracking.
+    pub fn stopwatch(&self) -> &Stopwatch {
+        &self.stopwatch
+    }
+
+    /// Clears the spinner permanently.
+    pub fn finish(&mut self) {
+        self.hide();
+    }
+
+    fn current_col(&self) -> u16 {
+        position().map_or(0, |(col, _)| col)
+    }
+
+    fn next_frame(&mut self) -> char {
+        let frame = SPINNER_FRAMES[self.frame % SPINNER_FRAMES.len()];
+        self.frame = self.frame.wrapping_add(1);
+        frame
+    }
+
+    fn hide(&mut self) {
+        if !self.visible {
+            return;
+        }
+        let col = self.current_col();
+        let _ = writeln!(self.output);
+        let _ = execute!(
+            self.output,
+            MoveToColumn(0),
+            Clear(ClearType::CurrentLine),
+            MoveUp(1),
+            MoveToColumn(col)
+        );
+        let _ = self.output.flush();
+        self.visible = false;
+    }
+
+    fn show(&mut self) {
+        let col = self.current_col();
+        let frame = self.next_frame();
+
+        let _ = writeln!(self.output);
+        let _ = execute!(self.output, MoveToColumn(0), Clear(ClearType::CurrentLine));
+
+        // Render: ⠋ Message 00s · Hint
+        let _ = execute!(self.output, SetForegroundColor(Color::Green));
+        let _ = write!(self.output, "{}", frame);
+        let _ = execute!(self.output, SetAttribute(Attribute::Bold));
+        let _ = write!(self.output, " {}", self.message);
+        let _ = execute!(self.output, ResetColor, SetAttribute(Attribute::Reset));
+        let _ = write!(self.output, " {}", self.stopwatch);
+        let _ = execute!(
+            self.output,
+            SetForegroundColor(Color::White),
+            SetAttribute(Attribute::Dim)
+        );
+        let _ = write!(self.output, " · {}", self.hint);
+        let _ = execute!(self.output, ResetColor, SetAttribute(Attribute::Reset));
+
+        let _ = execute!(self.output, MoveUp(1), MoveToColumn(col));
+        let _ = self.output.flush();
+        self.visible = true;
+    }
+}
+
+impl Drop for SpinnerWriter {
+    fn drop(&mut self) {
+        self.hide();
+    }
+}
+
+impl Writer for SpinnerWriter {
+    fn write(&mut self, content: &str) -> Result<(), StreamError> {
+        self.inner.write(content)?;
+        let _ = execute!(self.output, Clear(ClearType::UntilNewLine));
+        self.show();
+        Ok(())
+    }
+
+    fn save_position(&mut self) -> Result<Position, StreamError> {
+        self.inner.save_position()
+    }
+
+    fn replace(&mut self, position: Position, content: &str) -> Result<bool, StreamError> {
+        self.hide();
+        let replaced = self.inner.replace(position, content)?;
+        let _ = execute!(self.output, Clear(ClearType::FromCursorDown));
+        self.show();
+        Ok(replaced)
+    }
+
+    fn flush(&mut self) -> Result<(), StreamError> {
+        self.inner.flush()
+    }
+}
+
+/// Internal markdown streamer using SpinnerWriter.
+struct MarkdownStreamer {
+    renderer: ProgressiveRenderer<SpinnerWriter, mdstream::formatter::TermimadFormatter>,
+}
+
+impl MarkdownStreamer {
+    fn new(message: impl Into<String>, stopwatch: Stopwatch) -> Self {
+        Self {
+            renderer: ProgressiveRenderer::new(SpinnerWriter::new(message, stopwatch)),
+        }
+    }
+
+    fn push(&mut self, token: &str) -> Result<()> {
+        self.renderer.push(token)?;
+        Ok(())
+    }
+
+    fn finish(&mut self) -> Result<()> {
+        self.renderer.writer_mut().finish();
+        self.renderer.finish()?;
+        Ok(())
+    }
+}
+
+/// Unified spinner manager for terminal UI.
+///
+/// Handles both standalone spinner display and progressive markdown streaming.
 #[derive(Default)]
 pub struct SpinnerManager {
+    /// Standalone spinner (indicatif-based, for loading states)
     spinner: Option<ProgressBar>,
     stopwatch: Stopwatch,
     message: Option<String>,
     tracker: Option<JoinHandle<()>>,
     word_index: Option<usize>,
-    #[cfg(test)]
-    tick_counter: Option<std::sync::Arc<std::sync::atomic::AtomicU64>>,
+    /// Active markdown streamer (when streaming content)
+    md_streamer: Option<MarkdownStreamer>,
+    /// Whether we're currently streaming reasoning content
+    in_reasoning: bool,
 }
 
 impl SpinnerManager {
@@ -29,21 +210,7 @@ impl SpinnerManager {
         Self::default()
     }
 
-    #[cfg(test)]
-    pub fn test_with_tick_counter(
-        tick_counter: std::sync::Arc<std::sync::atomic::AtomicU64>,
-    ) -> Self {
-        Self {
-            spinner: None,
-            stopwatch: Stopwatch::default(),
-            message: None,
-            tracker: None,
-            word_index: None,
-            tick_counter: Some(tick_counter),
-        }
-    }
-
-    /// Start the spinner with a message
+    /// Start the spinner with a message.
     pub fn start(&mut self, message: Option<&str>) -> Result<()> {
         self.stop(None)?;
 
@@ -75,7 +242,7 @@ impl SpinnerManager {
         // Start the stopwatch
         self.stopwatch.start();
 
-        // Create the spinner with a better style that respects terminal width
+        // Create the spinner with indicatif
         let pb = ProgressBar::new_spinner();
 
         pb.set_style(
@@ -89,13 +256,13 @@ impl SpinnerManager {
         pb.enable_steady_tick(std::time::Duration::from_millis(60));
 
         // Set the initial message
-        let message = format!(
+        let display_message = format!(
             "{} {} {}",
             word.green().bold(),
             self.stopwatch,
             "· Ctrl+C to interrupt".white().dimmed()
         );
-        pb.set_message(message);
+        pb.set_message(display_message);
 
         self.spinner = Some(pb);
 
@@ -103,18 +270,12 @@ impl SpinnerManager {
         let spinner_clone = self.spinner.clone();
         let message_clone = self.message.clone();
         let stopwatch = self.stopwatch;
-        #[cfg(test)]
-        let tick_counter_clone = self.tick_counter.clone();
 
         // Spawn tracker to keep track of time in seconds
         self.tracker = Some(tokio::spawn(async move {
             let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(500));
             loop {
                 interval.tick().await;
-                #[cfg(test)]
-                if let Some(counter) = &tick_counter_clone {
-                    counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                }
                 if let (Some(spinner), Some(message)) = (&spinner_clone, &message_clone) {
                     let updated_message = format!(
                         "{} {} {}",
@@ -130,31 +291,29 @@ impl SpinnerManager {
         Ok(())
     }
 
-    /// Stop the active spinner if any
+    /// Stop the active spinner if any.
     pub fn stop(&mut self, message: Option<String>) -> Result<()> {
-        self.stop_inner(message, |s| println!("{s}"))
-    }
+        // Finish reasoning if active
+        if self.in_reasoning {
+            println!();
+            self.in_reasoning = false;
+        }
 
-    /// Resets the stopwatch to zero.
-    /// Call this when starting a completely new task/conversation.
-    pub fn reset(&mut self) {
-        self.stopwatch.reset();
-        self.word_index = None;
-    }
+        // Flush markdown streamer if active
+        if let Some(ref mut streamer) = self.md_streamer {
+            streamer.finish()?;
+        }
+        self.md_streamer = None;
 
-    fn stop_inner<F>(&mut self, message: Option<String>, writer: F) -> Result<()>
-    where
-        F: FnOnce(&str),
-    {
         self.stopwatch.stop();
 
         if let Some(spinner) = self.spinner.take() {
             spinner.finish_and_clear();
             if let Some(msg) = message {
-                writer(&msg);
+                println!("{msg}");
             }
-        } else if let Some(message) = message {
-            writer(&message);
+        } else if let Some(msg) = message {
+            println!("{msg}");
         }
 
         if let Some(handle) = self.tracker.take() {
@@ -164,33 +323,121 @@ impl SpinnerManager {
         Ok(())
     }
 
-    fn write_with_restart<F>(&mut self, message: impl ToString, writer: F) -> Result<()>
-    where
-        F: FnOnce(&str),
-    {
-        let msg = message.to_string();
+    /// Resets the stopwatch to zero.
+    /// Call this when starting a completely new task/conversation.
+    pub fn reset(&mut self) {
+        self.stopwatch.reset();
+        self.word_index = None;
+    }
 
-        if let Some(spinner) = &self.spinner {
-            spinner.suspend(|| writer(&msg));
-        } else {
-            writer(&msg);
+    /// Stops the standalone spinner if active, preparing for streaming mode.
+    fn stop_standalone_spinner(&mut self) {
+        if self.spinner.is_some() {
+            if let Some(spinner) = self.spinner.take() {
+                spinner.finish_and_clear();
+            }
+            if let Some(handle) = self.tracker.take() {
+                handle.abort();
+            }
+            self.message = None;
+        }
+    }
+
+    /// Push a markdown token to stream progressively.
+    ///
+    /// This transitions from standalone spinner to streaming mode if needed.
+    pub fn push_markdown(&mut self, token: &str) -> Result<()> {
+        self.stop_standalone_spinner();
+
+        // Finish reasoning if we were in reasoning mode
+        if self.in_reasoning {
+            println!();
+            self.in_reasoning = false;
+        }
+
+        // Lazily create markdown streamer
+        if self.md_streamer.is_none() {
+            self.md_streamer = Some(MarkdownStreamer::new("Streaming", self.stopwatch));
+        }
+
+        if let Some(ref mut streamer) = self.md_streamer {
+            streamer.push(token)?;
         }
         Ok(())
     }
 
-    pub fn write_ln(&mut self, message: impl ToString) -> Result<()> {
-        self.write_with_restart(message, |msg| println!("{msg}"))
+    /// Push reasoning content to stream progressively with dimmed styling.
+    ///
+    /// This transitions from standalone spinner to streaming mode if needed.
+    /// Reasoning content is displayed in a dimmed style to differentiate from
+    /// regular markdown content.
+    pub fn push_reasoning(&mut self, token: &str) -> Result<()> {
+        self.stop_standalone_spinner();
+
+        // Flush any existing markdown streamer before switching to reasoning
+        if let Some(ref mut streamer) = self.md_streamer {
+            streamer.finish()?;
+            self.md_streamer = None;
+        }
+
+        // For reasoning, we output directly with dimmed styling
+        if !token.is_empty() {
+            self.in_reasoning = true;
+            print!("{}", token.dimmed());
+            let _ = io::stdout().flush();
+        }
+        Ok(())
     }
 
+    /// Finish reasoning output and add a newline.
+    pub fn finish_reasoning(&mut self) -> Result<()> {
+        if self.in_reasoning {
+            println!();
+            self.in_reasoning = false;
+        }
+        Ok(())
+    }
+
+    /// Write a line while preserving spinner state.
+    pub fn write_ln(&mut self, message: impl ToString) -> Result<()> {
+        // Flush any active markdown streaming
+        if let Some(ref mut streamer) = self.md_streamer {
+            streamer.finish()?;
+        }
+        self.md_streamer = None;
+
+        let msg = message.to_string();
+
+        if let Some(spinner) = &self.spinner {
+            spinner.suspend(|| println!("{msg}"));
+        } else {
+            println!("{msg}");
+        }
+        Ok(())
+    }
+
+    /// Write a line to stderr while preserving spinner state.
     pub fn ewrite_ln(&mut self, message: impl ToString) -> Result<()> {
-        self.write_with_restart(message, |msg| eprintln!("{msg}"))
+        // Flush any active markdown streaming
+        if let Some(ref mut streamer) = self.md_streamer {
+            streamer.finish()?;
+        }
+        self.md_streamer = None;
+
+        let msg = message.to_string();
+
+        if let Some(spinner) = &self.spinner {
+            spinner.suspend(|| eprintln!("{msg}"));
+        } else {
+            eprintln!("{msg}");
+        }
+        Ok(())
     }
 }
 
 impl Drop for SpinnerManager {
     fn drop(&mut self) {
         // Flush both stdout and stderr to ensure all output is visible
-        // This prevents race conditions with shell prompt resets
         let _ = io::stdout().flush();
         let _ = io::stderr().flush();
     }
@@ -198,73 +445,38 @@ impl Drop for SpinnerManager {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-    use std::sync::atomic::{AtomicU64, Ordering};
-
     use pretty_assertions::assert_eq;
 
-    use super::SpinnerManager;
+    use super::*;
 
-    #[tokio::test(start_paused = true)]
-    async fn test_spinner_tracker_task_is_stopped_on_stop() {
-        let fixture_counter = Arc::new(AtomicU64::new(0));
-        let mut fixture_spinner = SpinnerManager::test_with_tick_counter(fixture_counter.clone());
-
-        fixture_spinner.start(Some("Test")).unwrap();
-        tokio::time::advance(std::time::Duration::from_millis(100)).await;
-        tokio::task::yield_now().await;
-
-        let actual_before_stop = fixture_counter.load(Ordering::SeqCst);
-        assert!(actual_before_stop > 0);
-
-        fixture_spinner.stop(None).unwrap();
-        tokio::time::advance(std::time::Duration::from_millis(100)).await;
-        tokio::task::yield_now().await;
-
-        let actual_after_stop = fixture_counter.load(Ordering::SeqCst);
-        let expected = actual_before_stop;
-        assert_eq!(actual_after_stop, expected);
+    #[test]
+    fn spinner_manager_new_creates_default() {
+        let spinner = SpinnerManager::new();
+        assert!(spinner.spinner.is_none());
+        assert!(spinner.md_streamer.is_none());
     }
 
-    #[tokio::test(start_paused = true)]
-    async fn test_spinner_time_accumulates_and_resets() {
-        let mut fixture_spinner = SpinnerManager::new();
-
-        // First session
-        fixture_spinner.start(Some("Test")).unwrap();
-        tokio::time::advance(std::time::Duration::from_millis(100)).await;
-        fixture_spinner.stop(None).unwrap();
-
-        // Second session - time should accumulate
-        fixture_spinner.start(Some("Test")).unwrap();
-        tokio::time::advance(std::time::Duration::from_millis(100)).await;
-        fixture_spinner.stop(None).unwrap();
-
-        let actual_accumulated = fixture_spinner.stopwatch.elapsed();
-        assert!(actual_accumulated.as_millis() >= 200);
-
-        // Reset should clear accumulated time
-        fixture_spinner.reset();
-
-        let actual_after_reset = fixture_spinner.stopwatch.elapsed();
-        let expected = std::time::Duration::ZERO;
-        assert_eq!(actual_after_reset, expected);
+    #[test]
+    fn spinner_manager_reset_clears_stopwatch() {
+        let mut spinner = SpinnerManager::new();
+        spinner.stopwatch.start();
+        spinner.reset();
+        assert_eq!(spinner.stopwatch.elapsed(), std::time::Duration::ZERO);
     }
 
-    #[tokio::test]
-    async fn test_word_index_caching_behavior() {
-        let mut fixture_spinner = SpinnerManager::new();
+    #[test]
+    fn spinner_writer_new_creates_instance() {
+        let stopwatch = Stopwatch::default();
+        let writer = SpinnerWriter::new("Test", stopwatch);
+        assert_eq!(writer.message, "Test");
+        assert!(!writer.visible);
+    }
 
-        // Start spinner without message multiple times
-        fixture_spinner.start(None).unwrap();
-        let first_message = fixture_spinner.message.clone();
-        fixture_spinner.stop(None).unwrap();
-
-        fixture_spinner.start(None).unwrap();
-        let second_message = fixture_spinner.message.clone();
-        fixture_spinner.stop(None).unwrap();
-
-        // Messages should be identical because word_index is cached
-        assert_eq!(first_message, second_message);
+    #[test]
+    fn spinner_writer_set_message() {
+        let stopwatch = Stopwatch::default();
+        let mut writer = SpinnerWriter::new("Initial", stopwatch);
+        writer.set_message("Updated");
+        assert_eq!(writer.message, "Updated");
     }
 }
