@@ -9,7 +9,6 @@ tools:
   - sage
   - search
   - read
-  - read_image
   - fetch
   - plan
   - mcp_*
