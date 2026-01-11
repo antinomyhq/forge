@@ -19,6 +19,15 @@ pub enum Error {
         supported_tools: String,
     },
 
+    #[error(
+        "Tool '{tool_name}' requires {required_modality} modality, but model only supports: {supported_modalities}"
+    )]
+    UnsupportedModality {
+        tool_name: ToolName,
+        required_modality: String,
+        supported_modalities: String,
+    },
+
     #[error("Empty tool response")]
     EmptyToolResponse,
 

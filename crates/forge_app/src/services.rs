@@ -47,6 +47,7 @@ pub struct ReadOutput {
 #[derive(Debug)]
 pub enum Content {
     File(String),
+    Image(Image),
 }
 
 impl Content {
@@ -54,9 +55,21 @@ impl Content {
         Self::File(content.into())
     }
 
+    pub fn image(image: Image) -> Self {
+        Self::Image(image)
+    }
+
     pub fn file_content(&self) -> &str {
         match self {
             Self::File(content) => content,
+            Self::Image(_) => "",
+        }
+    }
+
+    pub fn as_image(&self) -> Option<&Image> {
+        match self {
+            Self::Image(img) => Some(img),
+            _ => None,
         }
     }
 }

@@ -124,6 +124,7 @@ impl Drop for ApplicationCursorKeysGuard {
 ///
 /// This guard restores cursor visibility when it goes out of scope,
 /// ensuring the cursor is shown even if an error occurs during execution.
+#[derive(Default)]
 pub struct CursorRestoreGuard {
     _private: (),
 }

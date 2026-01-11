@@ -148,6 +148,7 @@ pub mod tests {
                 .max_search_lines(25)
                 .max_search_result_bytes(max_bytes.ceil() as usize)
                 .max_read_size(2000)
+                .max_line_length(2000)
                 .max_file_size(256 << 10)
                 .cwd(PathBuf::from("/test")) // Set fixed CWD for predictable tests
         }

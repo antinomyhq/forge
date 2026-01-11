@@ -54,6 +54,8 @@ pub enum SyncProgress {
         total_files: usize,
         /// Number of files that were uploaded (changed or new)
         uploaded_files: usize,
+        /// Number of files that failed to sync
+        failed_files: usize,
     },
 }
 
