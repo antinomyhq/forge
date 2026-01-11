@@ -111,30 +111,91 @@ pub struct FSWrite {
     pub overwrite: bool,
 }
 
-#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 #[tool_description_file = "crates/forge_domain/src/tools/descriptions/fs_search.md"]
 pub struct FSSearch {
-    /// The absolute path of the directory or file to search in. If it's a
-    /// directory, it will be searched recursively. If it's a file path,
-    /// only that specific file will be searched.
-    pub path: String,
+    /// The regular expression pattern to search for in file contents.
+    pub pattern: String,
 
-    /// The regular expression pattern to search for in file contents. Uses Rust
-    /// regex syntax. If not provided, only file name matching will be
-    /// performed.
+    /// File or directory to search in. Defaults to current working directory.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub regex: Option<String>,
+    pub path: Option<String>,
 
-    /// Starting index for the search results (1-based).
-    pub start_index: Option<i32>,
-
-    /// Maximum number of lines to return in the search results.
-    pub max_search_lines: Option<i32>,
-
-    /// Glob pattern to filter files (e.g., '*.ts' for TypeScript files).
-    /// If not provided, it will search all files (*).
+    /// Glob pattern to filter files (e.g., "*.js", "*.{ts,tsx}")
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub file_pattern: Option<String>,
+    pub glob: Option<String>,
+
+    /// Output mode: "content", "files_with_matches", or "count"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_mode: Option<OutputMode>,
+
+    /// Number of lines to show before each match (requires content mode)
+    #[serde(rename = "-B", skip_serializing_if = "Option::is_none")]
+    pub before_context: Option<u32>,
+
+    /// Number of lines to show after each match (requires content mode)
+    #[serde(rename = "-A", skip_serializing_if = "Option::is_none")]
+    pub after_context: Option<u32>,
+
+    /// Number of lines to show before and after each match (requires content mode)
+    #[serde(rename = "-C", skip_serializing_if = "Option::is_none")]
+    pub context: Option<u32>,
+
+    /// Show line numbers in output (requires content mode, defaults to true)
+    #[serde(rename = "-n", skip_serializing_if = "Option::is_none")]
+    pub show_line_numbers: Option<bool>,
+
+    /// Case insensitive search
+    #[serde(rename = "-i", skip_serializing_if = "Option::is_none")]
+    pub case_insensitive: Option<bool>,
+
+    /// File type to search (e.g., "js", "py", "rust")
+    #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
+    pub file_type: Option<String>,
+
+    /// Limit output to first N lines/entries (0 = unlimited)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub head_limit: Option<u32>,
+
+    /// Skip first N lines/entries before applying head_limit
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub offset: Option<u32>,
+
+    /// Enable multiline mode where patterns can span lines
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub multiline: Option<bool>,
+}
+
+/// Output mode for search results
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum OutputMode {
+    /// Show matching lines with content
+    Content,
+    /// Show only file paths with matches
+    FilesWithMatches,
+    /// Show match counts per file
+    Count,
+}
+
+impl Default for FSSearch {
+    fn default() -> Self {
+        Self {
+            pattern: String::new(),
+            path: None,
+            glob: None,
+            output_mode: None,
+            before_context: None,
+            after_context: None,
+            context: None,
+            show_line_numbers: None,
+            case_insensitive: None,
+            file_type: None,
+            head_limit: None,
+            offset: None,
+            multiline: None,
+        }
+    }
 }
 
 /// A paired query and use_case for semantic search. Each query must have a
@@ -575,24 +636,24 @@ impl ToolCatalog {
                 message: format!("Create/overwrite file: {}", display_path_for(&input.path)),
             }),
             ToolCatalog::FsSearch(input) => {
+                let path_str = input.path.as_deref().unwrap_or(".");
                 let base_message = format!(
                     "Search in directory/file: {}",
-                    display_path_for(&input.path)
+                    display_path_for(path_str)
                 );
-                let message = match (&input.regex, &input.file_pattern) {
-                    (Some(regex), Some(pattern)) => {
-                        format!("{base_message} for pattern: '{regex}' in '{pattern}' files")
+                let message = match (&input.glob, &input.file_type) {
+                    (Some(glob), _) => {
+                        format!("{base_message} for pattern: '{}' in '{glob}' files", input.pattern)
                     }
-                    (Some(regex), None) => {
-                        format!("{base_message} for pattern: {regex}")
+                    (None, Some(file_type)) => {
+                        format!("{base_message} for pattern: '{}' in {file_type} files", input.pattern)
                     }
-                    (None, Some(pattern)) => {
-                        format!("{base_message} in '{pattern}' files")
+                    (None, None) => {
+                        format!("{base_message} for pattern: {}", input.pattern)
                     }
-                    (None, None) => base_message,
                 };
                 Some(crate::policies::PermissionOperation::Read {
-                    path: std::path::PathBuf::from(&input.path),
+                    path: std::path::PathBuf::from(path_str),
                     cwd,
                     message,
                 })
@@ -672,11 +733,11 @@ impl ToolCatalog {
         }))
     }
 
-    /// Creates a Search tool call with the specified path and regex pattern
-    pub fn tool_call_search(path: &str, regex: Option<&str>) -> ToolCallFull {
+    /// Creates a Search tool call with the specified path and pattern
+    pub fn tool_call_search(path: &str, pattern: &str) -> ToolCallFull {
         ToolCallFull::from(ToolCatalog::FsSearch(FSSearch {
-            path: path.to_string(),
-            regex: regex.map(|r| r.to_string()),
+            pattern: pattern.to_string(),
+            path: Some(path.to_string()),
             ..Default::default()
         }))
     }
@@ -1049,11 +1110,9 @@ mod tests {
         use crate::policies::PermissionOperation;
 
         let search_with_regex = ToolCatalog::FsSearch(FSSearch {
-            path: "/home/user/project".to_string(),
-            regex: Some("fn main".to_string()),
-            start_index: None,
-            max_search_lines: None,
-            file_pattern: None,
+            path: Some("/home/user/project".to_string()),
+            pattern: "fn main".to_string(),
+            ..Default::default()
         });
 
         let operation = search_with_regex
@@ -1079,11 +1138,9 @@ mod tests {
         use crate::policies::PermissionOperation;
 
         let search_without_regex = ToolCatalog::FsSearch(FSSearch {
-            path: "/home/user/project".to_string(),
-            regex: None,
-            start_index: None,
-            max_search_lines: None,
-            file_pattern: None,
+            path: Some("/home/user/project".to_string()),
+            pattern: ".*".to_string(), // Match all content
+            ..Default::default()
         });
 
         let operation = search_without_regex
@@ -1092,7 +1149,7 @@ mod tests {
 
         match operation {
             PermissionOperation::Read { message, .. } => {
-                assert_eq!(message, "Search in directory/file: `/home/user/project`");
+                assert_eq!(message, "Search in directory/file: `/home/user/project` for pattern: .*");
             }
             _ => panic!("Expected Read operation"),
         }
@@ -1106,11 +1163,10 @@ mod tests {
         use crate::policies::PermissionOperation;
 
         let search_with_pattern = ToolCatalog::FsSearch(FSSearch {
-            path: "/home/user/project".to_string(),
-            regex: None,
-            start_index: None,
-            max_search_lines: None,
-            file_pattern: Some("*.rs".to_string()),
+            path: Some("/home/user/project".to_string()),
+            pattern: ".*".to_string(),
+            glob: Some("*.rs".to_string()),
+            ..Default::default()
         });
 
         let operation = search_with_pattern
@@ -1121,7 +1177,7 @@ mod tests {
             PermissionOperation::Read { message, .. } => {
                 assert_eq!(
                     message,
-                    "Search in directory/file: `/home/user/project` in '*.rs' files"
+                    "Search in directory/file: `/home/user/project` for pattern: '.*' in '*.rs' files"
                 );
             }
             _ => panic!("Expected Read operation"),
@@ -1136,11 +1192,10 @@ mod tests {
         use crate::policies::PermissionOperation;
 
         let search_with_both = ToolCatalog::FsSearch(FSSearch {
-            path: "/home/user/project".to_string(),
-            regex: Some("fn main".to_string()),
-            start_index: None,
-            max_search_lines: None,
-            file_pattern: Some("*.rs".to_string()),
+            path: Some("/home/user/project".to_string()),
+            pattern: "fn main".to_string(),
+            glob: Some("*.rs".to_string()),
+            ..Default::default()
         });
 
         let operation = search_with_both

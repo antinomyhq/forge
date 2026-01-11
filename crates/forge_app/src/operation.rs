@@ -319,35 +319,35 @@ impl ToolOperation {
                 Some(out) => {
                     let max_lines = min(
                         env.max_search_lines,
-                        input.max_search_lines.unwrap_or(i32::MAX) as usize,
+                        input.head_limit.unwrap_or(u32::MAX) as usize,
                     );
-                    let start_index = input.start_index.unwrap_or(1);
-                    let start_index = if start_index > 0 { start_index - 1 } else { 0 };
-                    let search_dir = Path::new(&input.path);
+                    let offset = input.offset.unwrap_or(0) as usize;
+                    let search_dir = Path::new(input.path.as_deref().unwrap_or("."));
                     let truncated_output = truncate_search_output(
                         &out.matches,
-                        start_index as usize,
+                        offset,
                         max_lines,
                         env.max_search_result_bytes,
                         search_dir,
                     );
 
                     let display_lines = if truncated_output.start < truncated_output.end {
-                        // 1 Line based indexing
-                        let new_start = truncated_output.start.saturating_add(1);
-                        format!("{}-{}", new_start, truncated_output.end)
+                        // Use 1-based indexing for display (humans count from 1)
+                        format!("{}-{}", truncated_output.start + 1, truncated_output.end)
                     } else {
-                        format!("{}-{}", truncated_output.start, truncated_output.end)
+                        // No matches or empty result
+                        "0-0".to_string()
                     };
 
                     let mut elm = Element::new("search_results")
-                        .attr("path", &input.path)
+                        .attr("path", input.path.as_deref().unwrap_or("."))
                         .attr("max_bytes_allowed", env.max_search_result_bytes)
                         .attr("total_lines", truncated_output.total)
                         .attr("display_lines", display_lines);
 
-                    elm = elm.attr_if_some("regex", input.regex);
-                    elm = elm.attr_if_some("file_pattern", input.file_pattern);
+                    elm = elm.attr("pattern", &input.pattern);
+                    elm = elm.attr_if_some("glob", input.glob.as_ref());
+                    elm = elm.attr_if_some("file_type", input.file_type.as_ref());
 
                     match truncated_output.strategy {
                         TruncationMode::Byte => {
@@ -370,9 +370,10 @@ impl ToolOperation {
                     forge_domain::ToolOutput::text(elm)
                 }
                 None => {
-                    let mut elm = Element::new("search_results").attr("path", &input.path);
-                    elm = elm.attr_if_some("regex", input.regex);
-                    elm = elm.attr_if_some("file_pattern", input.file_pattern);
+                    let mut elm = Element::new("search_results");
+                    elm = elm.attr_if_some("path", input.path);
+                    elm = elm.attr("pattern", &input.pattern);
+                    elm = elm.attr_if_some("glob", input.glob);
 
                     forge_domain::ToolOutput::text(elm)
                 }
@@ -1175,18 +1176,17 @@ mod tests {
                 path: "/home/user/project/foo.txt".to_string(),
                 result: Some(MatchResult::Found {
                     line: format!("Match line {}: Test", i),
-                    line_number: i,
+                    line_number: Some(i),
                 }),
             });
         }
 
         let fixture = ToolOperation::FsSearch {
             input: forge_domain::FSSearch {
-                path: "/home/user/project".to_string(),
-                regex: Some("search".to_string()),
-                start_index: Some(6),
-                max_search_lines: Some(30), // This will be limited by env.max_search_lines (25)
-                file_pattern: Some("*.txt".to_string()),
+                path: Some("/home/user/project".to_string()),
+                pattern: "search".to_string(),
+                glob: Some("*.txt".to_string()),
+                ..Default::default()
             },
             output: Some(SearchResult { matches }),
         };
@@ -1213,18 +1213,17 @@ mod tests {
                 path: "/home/user/project/foo.txt".to_string(),
                 result: Some(MatchResult::Found {
                     line: format!("Match line {}: Test", i),
-                    line_number: i,
+                    line_number: Some(i),
                 }),
             });
         }
 
         let fixture = ToolOperation::FsSearch {
             input: forge_domain::FSSearch {
-                path: "/home/user/project".to_string(),
-                regex: Some("search".to_string()),
-                start_index: Some(6),
-                max_search_lines: Some(30), // This will be limited by env.max_search_lines (25)
-                file_pattern: Some("*.txt".to_string()),
+                path: Some("/home/user/project".to_string()),
+                pattern: "search".to_string(),
+                glob: Some("*.txt".to_string()),
+                ..Default::default()
             },
             output: Some(SearchResult { matches }),
         };
@@ -1253,18 +1252,17 @@ mod tests {
                 path: "/home/user/project/foo.txt".to_string(),
                 result: Some(MatchResult::Found {
                     line: format!("Match line {}: {}", i, "AB".repeat(50)),
-                    line_number: i,
+                    line_number: Some(i),
                 }),
             });
         }
 
         let fixture = ToolOperation::FsSearch {
             input: forge_domain::FSSearch {
-                path: "/home/user/project".to_string(),
-                regex: Some("search".to_string()),
-                start_index: Some(6),
-                max_search_lines: Some(30), // This will be limited by env.max_search_lines (20)
-                file_pattern: Some("*.txt".to_string()),
+                path: Some("/home/user/project".to_string()),
+                pattern: "search".to_string(),
+                glob: Some("*.txt".to_string()),
+                ..Default::default()
             },
             output: Some(SearchResult { matches }),
         };
@@ -1298,18 +1296,17 @@ mod tests {
                         i,
                         "abcdefghijklmnopqrstuvwxyz".repeat(40)
                     ),
-                    line_number: i,
+                    line_number: Some(i),
                 }),
             });
         }
 
         let fixture = ToolOperation::FsSearch {
             input: forge_domain::FSSearch {
-                path: "/home/user/project".to_string(),
-                regex: Some("search".to_string()),
-                start_index: Some(6),
-                max_search_lines: Some(30), // This will be limited by env.max_search_lines (20)
-                file_pattern: Some("*.txt".to_string()),
+                path: Some("/home/user/project".to_string()),
+                pattern: "search".to_string(),
+                glob: Some("*.txt".to_string()),
+                ..Default::default()
             },
             output: Some(SearchResult { matches }),
         };
@@ -1334,11 +1331,9 @@ mod tests {
     fn test_fs_search_no_matches() {
         let fixture = ToolOperation::FsSearch {
             input: forge_domain::FSSearch {
-                path: "/home/user/empty_project".to_string(),
-                regex: Some("nonexistent".to_string()),
-                start_index: None,
-                max_search_lines: None,
-                file_pattern: None,
+                path: Some("/home/user/empty_project".to_string()),
+                pattern: "nonexistent".to_string(),
+                ..Default::default()
             },
             output: None,
         };
@@ -1439,26 +1434,423 @@ mod tests {
     fn test_fs_search_with_results() {
         let fixture = ToolOperation::FsSearch {
             input: forge_domain::FSSearch {
-                path: "/home/user/project".to_string(),
-                regex: Some("Hello".to_string()),
-                start_index: None,
-                max_search_lines: None,
-                file_pattern: Some("*.txt".to_string()),
+                path: Some("/home/user/project".to_string()),
+                pattern: "Hello".to_string(),
+                glob: Some("*.txt".to_string()),
+                ..Default::default()
             },
             output: Some(SearchResult {
                 matches: vec![
                     Match {
                         path: "file1.txt".to_string(),
                         result: Some(MatchResult::Found {
-                            line_number: 1,
+                            line_number: Some(1),
                             line: "Hello world".to_string(),
                         }),
                     },
                     Match {
                         path: "file2.txt".to_string(),
                         result: Some(MatchResult::Found {
-                            line_number: 3,
+                            line_number: Some(3),
                             line: "Hello universe".to_string(),
+                        }),
+                    },
+                ],
+            }),
+        };
+
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(
+            ToolKind::FsSearch,
+            TempContentFiles::default(),
+            &env,
+            &mut Metrics::default(),
+        );
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_fs_search_with_offset() {
+        // Create 50 matches to test offset and pagination
+        let mut matches = Vec::new();
+        let total_lines = 50;
+        for i in 1..=total_lines {
+            matches.push(Match {
+                path: "/home/user/project/foo.txt".to_string(),
+                result: Some(MatchResult::Found {
+                    line: format!("Match line {}: Test", i),
+                    line_number: Some(i),
+                }),
+            });
+        }
+
+        let fixture = ToolOperation::FsSearch {
+            input: forge_domain::FSSearch {
+                path: Some("/home/user/project".to_string()),
+                pattern: "search".to_string(),
+                glob: Some("*.txt".to_string()),
+                offset: Some(10), // Skip first 10 matches
+                head_limit: Some(15), // Take 15 matches after offset
+                ..Default::default()
+            },
+            output: Some(SearchResult { matches }),
+        };
+
+        let env = fixture_environment(); // max_search_lines is 25
+
+        let actual = fixture.into_tool_output(
+            ToolKind::FsSearch,
+            TempContentFiles::default(),
+            &env,
+            &mut Metrics::default(),
+        );
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_fs_search_files_with_matches_mode() {
+        let fixture = ToolOperation::FsSearch {
+            input: forge_domain::FSSearch {
+                path: Some("/home/user/project".to_string()),
+                pattern: "test".to_string(),
+                output_mode: Some(forge_domain::OutputMode::FilesWithMatches),
+                ..Default::default()
+            },
+            output: Some(SearchResult {
+                matches: vec![
+                    Match {
+                        path: "/home/user/project/file1.rs".to_string(),
+                        result: Some(MatchResult::FileMatch),
+                    },
+                    Match {
+                        path: "/home/user/project/file2.rs".to_string(),
+                        result: Some(MatchResult::FileMatch),
+                    },
+                ],
+            }),
+        };
+
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(
+            ToolKind::FsSearch,
+            TempContentFiles::default(),
+            &env,
+            &mut Metrics::default(),
+        );
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_fs_search_count_mode() {
+        let fixture = ToolOperation::FsSearch {
+            input: forge_domain::FSSearch {
+                path: Some("/home/user/project".to_string()),
+                pattern: "test".to_string(),
+                output_mode: Some(forge_domain::OutputMode::Count),
+                ..Default::default()
+            },
+            output: Some(SearchResult {
+                matches: vec![
+                    Match {
+                        path: "/home/user/project/file1.rs".to_string(),
+                        result: Some(MatchResult::Count { count: 5 }),
+                    },
+                    Match {
+                        path: "/home/user/project/file2.rs".to_string(),
+                        result: Some(MatchResult::Count { count: 3 }),
+                    },
+                    Match {
+                        path: "/home/user/project/file3.rs".to_string(),
+                        result: Some(MatchResult::Count { count: 12 }),
+                    },
+                ],
+            }),
+        };
+
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(
+            ToolKind::FsSearch,
+            TempContentFiles::default(),
+            &env,
+            &mut Metrics::default(),
+        );
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_fs_search_with_context_lines() {
+        let fixture = ToolOperation::FsSearch {
+            input: forge_domain::FSSearch {
+                path: Some("/home/user/project".to_string()),
+                pattern: "MATCH".to_string(),
+                context: Some(2), // 2 lines before and after
+                ..Default::default()
+            },
+            output: Some(SearchResult {
+                matches: vec![
+                    Match {
+                        path: "/home/user/project/test.txt".to_string(),
+                        result: Some(MatchResult::ContextMatch {
+                            line_number: Some(10),
+                            line: "This is the MATCH line".to_string(),
+                            before_context: vec![
+                                "line 8 before context".to_string(),
+                                "line 9 before context".to_string(),
+                            ],
+                            after_context: vec![
+                                "line 11 after context".to_string(),
+                                "line 12 after context".to_string(),
+                            ],
+                        }),
+                    },
+                ],
+            }),
+        };
+
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(
+            ToolKind::FsSearch,
+            TempContentFiles::default(),
+            &env,
+            &mut Metrics::default(),
+        );
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_fs_search_with_before_context() {
+        let fixture = ToolOperation::FsSearch {
+            input: forge_domain::FSSearch {
+                path: Some("/home/user/project".to_string()),
+                pattern: "ERROR".to_string(),
+                before_context: Some(3), // 3 lines before
+                ..Default::default()
+            },
+            output: Some(SearchResult {
+                matches: vec![
+                    Match {
+                        path: "/home/user/project/log.txt".to_string(),
+                        result: Some(MatchResult::ContextMatch {
+                            line_number: Some(50),
+                            line: "ERROR: Something went wrong".to_string(),
+                            before_context: vec![
+                                "line 47: INFO startup".to_string(),
+                                "line 48: DEBUG processing".to_string(),
+                                "line 49: WARN slow operation".to_string(),
+                            ],
+                            after_context: vec![],
+                        }),
+                    },
+                ],
+            }),
+        };
+
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(
+            ToolKind::FsSearch,
+            TempContentFiles::default(),
+            &env,
+            &mut Metrics::default(),
+        );
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_fs_search_with_after_context() {
+        let fixture = ToolOperation::FsSearch {
+            input: forge_domain::FSSearch {
+                path: Some("/home/user/project".to_string()),
+                pattern: "TODO".to_string(),
+                after_context: Some(2), // 2 lines after
+                ..Default::default()
+            },
+            output: Some(SearchResult {
+                matches: vec![
+                    Match {
+                        path: "/home/user/project/src/main.rs".to_string(),
+                        result: Some(MatchResult::ContextMatch {
+                            line_number: Some(15),
+                            line: "// TODO: Implement this feature".to_string(),
+                            before_context: vec![],
+                            after_context: vec![
+                                "fn main() {".to_string(),
+                                "    println!(\"Hello\");".to_string(),
+                            ],
+                        }),
+                    },
+                ],
+            }),
+        };
+
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(
+            ToolKind::FsSearch,
+            TempContentFiles::default(),
+            &env,
+            &mut Metrics::default(),
+        );
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_fs_search_without_line_numbers() {
+        let fixture = ToolOperation::FsSearch {
+            input: forge_domain::FSSearch {
+                path: Some("/home/user/project".to_string()),
+                pattern: "function".to_string(),
+                show_line_numbers: Some(false),
+                ..Default::default()
+            },
+            output: Some(SearchResult {
+                matches: vec![
+                    Match {
+                        path: "/home/user/project/app.js".to_string(),
+                        result: Some(MatchResult::Found {
+                            line_number: None, // No line number when disabled
+                            line: "function doSomething() {".to_string(),
+                        }),
+                    },
+                    Match {
+                        path: "/home/user/project/utils.js".to_string(),
+                        result: Some(MatchResult::Found {
+                            line_number: None,
+                            line: "function helper() {".to_string(),
+                        }),
+                    },
+                ],
+            }),
+        };
+
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(
+            ToolKind::FsSearch,
+            TempContentFiles::default(),
+            &env,
+            &mut Metrics::default(),
+        );
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_fs_search_with_file_type() {
+        let fixture = ToolOperation::FsSearch {
+            input: forge_domain::FSSearch {
+                path: Some("/home/user/project".to_string()),
+                pattern: "class".to_string(),
+                file_type: Some("py".to_string()), // Python files only
+                ..Default::default()
+            },
+            output: Some(SearchResult {
+                matches: vec![
+                    Match {
+                        path: "/home/user/project/models.py".to_string(),
+                        result: Some(MatchResult::Found {
+                            line_number: Some(1),
+                            line: "class User:".to_string(),
+                        }),
+                    },
+                    Match {
+                        path: "/home/user/project/views.py".to_string(),
+                        result: Some(MatchResult::Found {
+                            line_number: Some(5),
+                            line: "class HomeView:".to_string(),
+                        }),
+                    },
+                ],
+            }),
+        };
+
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(
+            ToolKind::FsSearch,
+            TempContentFiles::default(),
+            &env,
+            &mut Metrics::default(),
+        );
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_fs_search_case_insensitive() {
+        let fixture = ToolOperation::FsSearch {
+            input: forge_domain::FSSearch {
+                path: Some("/home/user/project".to_string()),
+                pattern: "error".to_string(),
+                case_insensitive: Some(true),
+                ..Default::default()
+            },
+            output: Some(SearchResult {
+                matches: vec![
+                    Match {
+                        path: "/home/user/project/log.txt".to_string(),
+                        result: Some(MatchResult::Found {
+                            line_number: Some(10),
+                            line: "ERROR: Connection failed".to_string(),
+                        }),
+                    },
+                    Match {
+                        path: "/home/user/project/log.txt".to_string(),
+                        result: Some(MatchResult::Found {
+                            line_number: Some(15),
+                            line: "error in processing".to_string(),
+                        }),
+                    },
+                    Match {
+                        path: "/home/user/project/log.txt".to_string(),
+                        result: Some(MatchResult::Found {
+                            line_number: Some(20),
+                            line: "Error: Invalid input".to_string(),
+                        }),
+                    },
+                ],
+            }),
+        };
+
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(
+            ToolKind::FsSearch,
+            TempContentFiles::default(),
+            &env,
+            &mut Metrics::default(),
+        );
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_fs_search_multiline_pattern() {
+        let fixture = ToolOperation::FsSearch {
+            input: forge_domain::FSSearch {
+                path: Some("/home/user/project".to_string()),
+                pattern: "struct.*\\{.*field".to_string(),
+                multiline: Some(true),
+                ..Default::default()
+            },
+            output: Some(SearchResult {
+                matches: vec![
+                    Match {
+                        path: "/home/user/project/types.rs".to_string(),
+                        result: Some(MatchResult::Found {
+                            line_number: Some(10),
+                            line: "struct User {\n    field: String".to_string(),
                         }),
                     },
                 ],
@@ -1481,11 +1873,9 @@ mod tests {
     fn test_fs_search_no_results() {
         let fixture = ToolOperation::FsSearch {
             input: forge_domain::FSSearch {
-                path: "/home/user/project".to_string(),
-                regex: Some("NonExistentPattern".to_string()),
-                start_index: None,
-                max_search_lines: None,
-                file_pattern: None,
+                path: Some("/home/user/project".to_string()),
+                pattern: "NonExistentPattern".to_string(),
+                ..Default::default()
             },
             output: None,
         };

@@ -148,15 +148,12 @@ impl<
                 (input, output).into()
             }
             ToolCatalog::FsSearch(input) => {
-                let normalized_path = self.normalize_path(input.path.clone());
-                let output = self
-                    .services
-                    .search(
-                        normalized_path,
-                        input.regex.clone(),
-                        input.file_pattern.clone(),
-                    )
-                    .await?;
+                let mut params = input.clone();
+                // Normalize path if provided
+                if let Some(ref path) = params.path {
+                    params.path = Some(self.normalize_path(path.clone()));
+                }
+                let output = self.services.search(params).await?;
                 (input, output).into()
             }
             ToolCatalog::SemSearch(input) => {

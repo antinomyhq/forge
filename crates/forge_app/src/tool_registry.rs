@@ -651,17 +651,20 @@ fn test_template_rendering_in_tool_descriptions() {
         .find(|t| t.name.as_str() == "fs_search")
         .unwrap();
 
-    // The description should have the template variable rendered
-    assert!(
-        fs_search_tool.description.contains("1000"),
-        "Description should contain the rendered max_search_lines value: {}",
-        fs_search_tool.description
-    );
+    // The description should not contain unrendered template variables
     assert!(
         !fs_search_tool
             .description
-            .contains("{{env.maxSearchLines}}"),
-        "Description should not contain unrendered template variable"
+            .contains("{{"),
+        "Description should not contain unrendered template variable: {}",
+        fs_search_tool.description
+    );
+    
+    // The description should contain the expected usage info
+    assert!(
+        fs_search_tool.description.contains("ripgrep"),
+        "Description should mention ripgrep: {}",
+        fs_search_tool.description
     );
 }
 

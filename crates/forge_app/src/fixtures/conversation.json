@@ -820,7 +820,7 @@
               "call_id": "toolu_015mSQdr2qS4AR2MGnhpb5Wo",
               "arguments": {
                 "path": "/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/transformers",
-                "regex": "SummaryMessageBlock\\s*\\{"
+                "pattern": "SummaryMessageBlock\\s*\\{"
               }
             }
           ]
@@ -912,9 +912,9 @@
               "name": "fs_search",
               "call_id": "toolu_01HKnoBtzs5pq35K3uNnzs3B",
               "arguments": {
-                "max_search_lines": 500,
+                "head_limit": 500,
                 "path": "/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/transformers/trim_context_summary.rs",
-                "regex": "Block::(default|read|update|remove)"
+                "pattern": "Block::(default|read|update|remove)"
               }
             }
           ]
@@ -1646,7 +1646,7 @@
               "call_id": "toolu_016TvoHDn1RJtrKzgGvEBQ7o",
               "arguments": {
                 "path": "/Users/tushar/Documents/Projects/code-forge-workspace/code-forge/crates/forge_domain/src/compact/transformers/strip_working_dir.rs",
-                "regex": "Block::(read|update|remove)\\("
+                "pattern": "Block::(read|update|remove)\\("
               }
             }
           ]

@@ -315,10 +315,13 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
             ToolCatalog::Patch(input) => Some(SummaryTool::FileUpdate { path: input.path }),
             ToolCatalog::Remove(input) => Some(SummaryTool::FileRemove { path: input.path }),
             ToolCatalog::Shell(input) => Some(SummaryTool::Shell { command: input.command }),
-            ToolCatalog::FsSearch(input) => input
-                .file_pattern
-                .or(input.regex)
-                .map(|pattern| SummaryTool::Search { pattern }),
+            ToolCatalog::FsSearch(input) => {
+                // Use glob, file_type, or pattern as the search identifier
+                let pattern = input.glob
+                    .or(input.file_type)
+                    .unwrap_or(input.pattern);
+                Some(SummaryTool::Search { pattern })
+            }
             ToolCatalog::SemSearch(input) => Some(SummaryTool::SemSearch {
                 queries: input.queries,
                 file_extensions: input.extensions,
@@ -918,7 +921,7 @@ mod tests {
             vec![ToolCallFull {
                 name: ToolName::new("fs_search"),
                 call_id: Some(ToolCallId::new("call_1")),
-                arguments: ToolCallArguments::from_json(r#"{"path": "/test", "regex": "pattern"}"#),
+                arguments: ToolCallArguments::from_json(r#"{"path": "/test", "pattern": "pattern"}"#),
             }],
         )]);
 
@@ -955,7 +958,7 @@ mod tests {
     fn test_context_summary_extracts_search_tool_calls() {
         let fixture = context(vec![assistant_with_tools(
             "Searching files",
-            vec![ToolCatalog::tool_call_search("/test", Some("/test/src")).call_id("call_1")],
+            vec![ToolCatalog::tool_call_search("/test", "/test/src").call_id("call_1")],
         )]);
 
         let actual = ContextSummary::from(&fixture);
@@ -1011,7 +1014,7 @@ mod tests {
         let fixture = context(vec![
             assistant_with_tools(
                 "Searching",
-                vec![ToolCatalog::tool_call_search("/test", Some("/test/src")).call_id("call_1")],
+                vec![ToolCatalog::tool_call_search("/test", "/test/src").call_id("call_1")],
             ),
             tool_result("search", "call_1", false),
         ]);
@@ -1036,7 +1039,7 @@ mod tests {
             vec![
                 ToolCatalog::tool_call_read("/test/file.rs").call_id("call_1"),
                 ToolCatalog::tool_call_shell("cargo test", "/test").call_id("call_2"),
-                ToolCatalog::tool_call_search("/test", Some("/test/src")).call_id("call_3"),
+                ToolCatalog::tool_call_search("/test", "/test/src").call_id("call_3"),
                 ToolCatalog::tool_call_write("/test/output.txt", "result").call_id("call_4"),
             ],
         )]);
@@ -1316,7 +1319,7 @@ mod tests {
                 ToolCatalog::tool_call_write("/test/output.txt", "content").call_id("call_2"),
                 ToolCatalog::tool_call_remove("/test/old.txt").call_id("call_3"),
                 ToolCatalog::tool_call_shell("cargo build", "/test").call_id("call_4"),
-                ToolCatalog::tool_call_search("/test", Some("/test/src")).call_id("call_5"),
+                ToolCatalog::tool_call_search("/test", "/test/src").call_id("call_5"),
                 ToolCatalog::tool_call_undo("/test/undo.txt").call_id("call_6"),
                 ToolCatalog::tool_call_fetch("https://example.com").call_id("call_7"),
                 ToolCatalog::tool_call_followup("Proceed?").call_id("call_8"),

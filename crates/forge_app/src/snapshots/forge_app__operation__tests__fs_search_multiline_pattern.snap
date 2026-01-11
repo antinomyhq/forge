@@ -5,10 +5,9 @@ expression: to_value(actual)
 <search_results
   path="/home/user/project"
   max_bytes_allowed="256000"
-  total_lines="2"
-  display_lines="1-2"
-  pattern="Hello"
-  glob="*.txt"
-><![CDATA[file1.txt:1:Hello world
-file2.txt:3:Hello universe]]>
+  total_lines="1"
+  display_lines="1-1"
+  pattern="struct.*\{.*field"
+><![CDATA[types.rs:10:struct User {
+    field: String]]>
 </search_results>
