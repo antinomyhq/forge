@@ -41,7 +41,7 @@ impl<'de> Deserialize<'de> for ToolCallArguments {
 
 impl Default for ToolCallArguments {
     fn default() -> Self {
-        ToolCallArguments::Parsed(Value::default())
+        ToolCallArguments::Parsed(Value::Object(Map::new()))
     }
 }
 
