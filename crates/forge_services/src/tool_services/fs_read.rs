@@ -12,7 +12,6 @@ use crate::range::resolve_range;
 use crate::utils::assert_absolute_path;
 
 /// Truncates a line to the maximum length if it exceeds the limit
-
 fn truncate_line(line: &str, max_length: usize) -> String {
     if line.len() > max_length {
         // Use char indices to avoid panicking on unicode boundaries
