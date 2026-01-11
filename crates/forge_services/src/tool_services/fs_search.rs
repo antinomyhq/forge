@@ -157,9 +157,10 @@ impl<W: WalkerInfra + FileReaderInfra + FileInfoInfra> ForgeFsSearch<W> {
 
         // Apply file type filter if provided (only if glob not specified)
         if params.glob.is_none()
-            && let Some(file_type) = &params.file_type {
-                return self.matches_file_type(path, file_type);
-            }
+            && let Some(file_type) = &params.file_type
+        {
+            return self.matches_file_type(path, file_type);
+        }
 
         Ok(true)
     }

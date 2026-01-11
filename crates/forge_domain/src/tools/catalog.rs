@@ -180,7 +180,6 @@ pub enum OutputMode {
     Count,
 }
 
-
 /// A paired query and use_case for semantic search. Each query must have a
 /// corresponding use_case for document reranking.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
