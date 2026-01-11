@@ -96,6 +96,15 @@ impl Conversation {
         crate::conversation_html::render_conversation_html(self)
     }
 
+    /// Generates an HTML representation with related agent conversations
+    ///
+    /// Creates a single HTML document containing the main conversation
+    /// and all related agent conversations with anchor links for navigation.
+    pub fn to_html_with_related(&self, related: &[Conversation]) -> String {
+        crate::conversation_html::render_conversation_html_with_related(self, related)
+    }
+
+
     /// Returns a vector of user messages, selecting the first message from
     /// each consecutive sequence of user messages.
     pub fn first_user_messages(&self) -> Vec<&crate::ContextMessage> {

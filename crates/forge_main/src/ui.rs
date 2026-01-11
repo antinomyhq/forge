@@ -2600,23 +2600,17 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
 
                 if html {
-                    // Export as HTML
-                    let mut html_content = conversation.to_html();
-
-                    // Append related conversations
-                    if !related_conversations.is_empty() {
-                        html_content.push_str("\n\n<hr>\n<h2>Related Agent Conversations</h2>\n");
-                        for related in &related_conversations {
-                            html_content.push_str(&format!(
-                                "\n<h3>Agent Conversation: {}</h3>\n",
-                                related.id
-                            ));
-                            html_content.push_str(&related.to_html());
-                        }
-                    }
-
+                    // Create a single HTML with all conversations
+                    let html_content = if related_conversations.is_empty() {
+                        // No related conversations, just render the main one
+                        conversation.to_html()
+                    } else {
+                        // Render main conversation with related conversations in the same HTML
+                        conversation.to_html_with_related(&related_conversations)
+                    };
+                    
                     let path = format!("{timestamp}-dump.html");
-                    tokio::fs::write(path.as_str(), html_content).await?;
+                    tokio::fs::write(path.as_str(), &html_content).await?;
 
                     let subtitle = if related_conversations.is_empty() {
                         path.to_string()

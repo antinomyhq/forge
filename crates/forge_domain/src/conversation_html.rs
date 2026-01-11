@@ -52,6 +52,82 @@ pub fn render_conversation_html(conversation: &Conversation) -> String {
     format!("<!DOCTYPE html>\n{}", html.render())
 }
 
+/// Renders a conversation with related agent conversations in a single HTML document
+///
+/// Creates a complete HTML page with the main conversation followed by
+/// related agent conversations. Uses anchor links for navigation.
+///
+/// # Arguments
+///
+/// * `conversation` - The main conversation to render
+/// * `related` - Related agent conversations to include
+pub fn render_conversation_html_with_related(
+    conversation: &Conversation,
+    related: &[Conversation],
+) -> String {
+    let c_title = format!(
+        "Title: {}",
+        conversation
+            .title
+            .clone()
+            .unwrap_or(conversation.id.to_string())
+    );
+    
+    let mut body = Element::new("body")
+        // Combined Information Table
+        .append(create_info_table(conversation))
+        // Conversation Context Section
+        .append(create_conversation_context_section(conversation))
+        // Tools Section
+        .append(create_tools_section(conversation));
+
+    // Add related conversations section
+    if !related.is_empty() {
+        body = body.append(
+            Element::new("div.section")
+                .append(Element::new("h2").text(format!("Related Agent Conversations ({})", related.len())))
+        );
+
+        for related_conv in related {
+            let anchor_id = format!("conversation-{}", related_conv.id);
+            body = body
+                .append(
+                    Element::new("div.related-conversation")
+                        .attr("id", &anchor_id)
+                        .append(
+                            Element::new("div.back-to-main")
+                                .append(
+                                    Element::new("a")
+                                        .attr("href", "#")
+                                        .text("⬆ Back to main conversation")
+                                )
+                        )
+                        .append(create_info_table(related_conv))
+                        .append(create_conversation_context_section(related_conv))
+                        .append(create_tools_section(related_conv))
+                );
+        }
+    }
+
+    let html = Element::new("html")
+        .attr("lang", "en")
+        .append(
+            Element::new("head")
+                .append(Element::new("meta").attr("charset", "UTF-8"))
+                .append(
+                    Element::new("meta")
+                        .attr("name", "viewport")
+                        .attr("content", "width=device-width, initial-scale=1.0"),
+                )
+                .append(Element::new("title").text(&c_title))
+                .append(Element::new("style").text(include_str!("conversation_style.css"))),
+        )
+        .append(body);
+
+    format!("<!DOCTYPE html>\n{}", html.render())
+}
+
+
 /// Creates a table row with a label and value
 fn create_table_row(label: impl Into<String>, value: impl Into<String>) -> Element {
     Element::new("tr")
@@ -345,13 +421,25 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
                                             Some(Element::new("img").attr("src", image.url()))
                                         }
                                         crate::ToolValue::Empty => None,
-                                        crate::ToolValue::AI { value, conversation_id } => Some(
-                                            Element::new("div")
-                                                .append(Element::new("b").text(format!(
-                                                    "Conversation ID: {conversation_id}"
-                                                )))
-                                                .append(Element::new("pre").text(value)),
-                                        ),
+                                        crate::ToolValue::AI { value, conversation_id } => {
+                                            // Use anchor link to navigate within the same HTML
+                                            let anchor_id = format!("conversation-{}", conversation_id);
+                                            
+                                            Some(
+                                                Element::new("div.agent-conversation")
+                                                    .append(
+                                                        Element::new("p")
+                                                            .append(Element::new("strong").text("🤖 Agent Conversation: "))
+                                                            .append(
+                                                                Element::new("a")
+                                                                    .attr("href", &format!("#{}", anchor_id))
+                                                                    .attr("title", "Click to view agent conversation")
+                                                                    .text(conversation_id.to_string())
+                                                            )
+                                                    )
+                                                    .append(Element::new("pre").text(value)),
+                                            )
+                                        },
                                     }
                                 }),
                             ))
