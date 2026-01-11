@@ -408,10 +408,11 @@ pub trait FsRemoveService: Send + Sync {
 #[async_trait::async_trait]
 pub trait FsSearchService: Send + Sync {
     /// Searches for files and content based on the provided parameters.
-    /// 
+    ///
     /// # Arguments
-    /// * `params` - Search parameters including pattern, path, output mode, etc.
-    /// 
+    /// * `params` - Search parameters including pattern, path, output mode,
+    ///   etc.
+    ///
     /// # Returns
     /// * `Ok(Some(SearchResult))` - Matches found
     /// * `Ok(None)` - No matches found

@@ -1,15 +1,15 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use anyhow::{anyhow, Context};
+use anyhow::{Context, anyhow};
 use forge_app::{
     FileInfoInfra, FileReaderInfra, FsSearchService, Match, MatchResult, SearchResult, Walker,
     WalkerInfra,
 };
 use forge_domain::{FSSearch, OutputMode};
 use grep_regex::RegexMatcherBuilder;
-use grep_searcher::{Searcher, SearcherBuilder};
 use grep_searcher::sinks::UTF8;
+use grep_searcher::{Searcher, SearcherBuilder};
 
 /// A powerful search tool built on grep-matcher and grep-searcher crates.
 /// Supports regex patterns, file type filtering, output modes, context lines,
@@ -50,12 +50,16 @@ impl<W: WalkerInfra + FileReaderInfra + FileInfoInfra> FsSearchService for Forge
         }
 
         // Determine output mode (default to FilesWithMatches)
-        let output_mode = params.output_mode.as_ref().unwrap_or(&OutputMode::FilesWithMatches);
+        let output_mode = params
+            .output_mode
+            .as_ref()
+            .unwrap_or(&OutputMode::FilesWithMatches);
 
         // Execute search based on output mode
         let matches = match output_mode {
             OutputMode::FilesWithMatches => {
-                self.search_files_with_matches(&file_paths, &matcher).await?
+                self.search_files_with_matches(&file_paths, &matcher)
+                    .await?
             }
             OutputMode::Content => self.search_content(&file_paths, &matcher, &params).await?,
             OutputMode::Count => self.search_count(&file_paths, &matcher).await?,
@@ -152,16 +156,16 @@ impl<W: WalkerInfra + FileReaderInfra + FileInfoInfra> ForgeFsSearch<W> {
         }
 
         // Apply file type filter if provided (only if glob not specified)
-        if params.glob.is_none() {
-            if let Some(file_type) = &params.file_type {
+        if params.glob.is_none()
+            && let Some(file_type) = &params.file_type {
                 return self.matches_file_type(path, file_type);
             }
-        }
 
         Ok(true)
     }
 
-    /// Checks if a file matches a given file type using ignore crate's type definitions
+    /// Checks if a file matches a given file type using ignore crate's type
+    /// definitions
     fn matches_file_type(&self, path: &Path, file_type: &str) -> anyhow::Result<bool> {
         use ignore::types::TypesBuilder;
 
@@ -212,10 +216,7 @@ impl<W: WalkerInfra + FileReaderInfra + FileInfoInfra> ForgeFsSearch<W> {
                 .ok();
 
             if has_match {
-                matches.push(Match {
-                    path: path.to_string_lossy().to_string(),
-                    result: None,
-                });
+                matches.push(Match { path: path.to_string_lossy().to_string(), result: None });
             }
         }
 
@@ -413,11 +414,7 @@ mod test {
                         let file_name = path.file_name().map(|n| n.to_string_lossy().to_string());
                         let size = entry.metadata().await?.len();
 
-                        files.push(WalkedFile {
-                            path: relative_path,
-                            file_name,
-                            size,
-                        });
+                        files.push(WalkedFile { path: relative_path, file_name, size });
                     }
                 }
             }
@@ -434,7 +431,11 @@ mod test {
         )
         .await?;
         fs::write(temp_dir.path().join("other.txt"), "no match here").await?;
-        fs::write(temp_dir.path().join("code.rs"), "fn test() {}\nfn main() {}").await?;
+        fs::write(
+            temp_dir.path().join("code.rs"),
+            "fn test() {}\nfn main() {}",
+        )
+        .await?;
         fs::write(temp_dir.path().join("app.js"), "function test() {}").await?;
 
         Ok(temp_dir)
@@ -501,10 +502,12 @@ mod test {
         assert!(actual.is_some());
         let result = actual.unwrap();
         // Should return counts
-        assert!(result.matches.iter().all(|m| matches!(
-            m.result,
-            Some(MatchResult::Count { count: _ })
-        )));
+        assert!(
+            result
+                .matches
+                .iter()
+                .all(|m| matches!(m.result, Some(MatchResult::Count { count: _ })))
+        );
     }
 
     #[tokio::test]
@@ -586,11 +589,13 @@ mod test {
         assert!(actual.is_some());
         let result = actual.unwrap();
         // Should have line numbers
-        assert!(result
-            .matches
-            .iter()
-            .filter_map(|m| m.result.as_ref())
-            .all(|r| matches!(r, MatchResult::Found { line_number: Some(_), .. })));
+        assert!(
+            result
+                .matches
+                .iter()
+                .filter_map(|m| m.result.as_ref())
+                .all(|r| matches!(r, MatchResult::Found { line_number: Some(_), .. }))
+        );
     }
 
     #[tokio::test]
@@ -612,11 +617,13 @@ mod test {
         assert!(actual.is_some());
         let result = actual.unwrap();
         // Should not have line numbers
-        assert!(result
-            .matches
-            .iter()
-            .filter_map(|m| m.result.as_ref())
-            .all(|r| matches!(r, MatchResult::Found { line_number: None, .. })));
+        assert!(
+            result
+                .matches
+                .iter()
+                .filter_map(|m| m.result.as_ref())
+                .all(|r| matches!(r, MatchResult::Found { line_number: None, .. }))
+        );
     }
 
     #[tokio::test]
@@ -656,7 +663,9 @@ mod test {
     #[tokio::test]
     async fn test_skip_binary_files() {
         let fixture = TempDir::new().unwrap();
-        fs::write(fixture.path().join("text.txt"), "hello world").await.unwrap();
+        fs::write(fixture.path().join("text.txt"), "hello world")
+            .await
+            .unwrap();
         fs::write(fixture.path().join("binary.exe"), "hello world")
             .await
             .unwrap();

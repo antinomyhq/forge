@@ -47,13 +47,19 @@ impl FormatContent for ToolCatalog {
             ToolCatalog::FsSearch(input) => {
                 let formatted_dir = input.path.as_deref().unwrap_or(".");
                 let formatted_dir = display_path_for(formatted_dir);
-                
+
                 let title = match (&input.glob, &input.file_type) {
                     (Some(glob), _) => {
-                        format!("Search for '{}' in '{}' files at {}", input.pattern, glob, formatted_dir)
+                        format!(
+                            "Search for '{}' in '{}' files at {}",
+                            input.pattern, glob, formatted_dir
+                        )
                     }
                     (None, Some(file_type)) => {
-                        format!("Search for '{}' in {} files at {}", input.pattern, file_type, formatted_dir)
+                        format!(
+                            "Search for '{}' in {} files at {}",
+                            input.pattern, file_type, formatted_dir
+                        )
                     }
                     (None, None) => {
                         format!("Search for '{}' at {}", input.pattern, formatted_dir)

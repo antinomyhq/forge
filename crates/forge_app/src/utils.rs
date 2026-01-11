@@ -56,17 +56,14 @@ pub fn format_match(matched: &Match, base_dir: &Path) -> String {
             }
         }
         Some(MatchResult::Count { count }) => {
-            format!("{}:{}", format_display_path(Path::new(&matched.path), base_dir), count)
+            format!(
+                "{}:{}",
+                format_display_path(Path::new(&matched.path), base_dir),
+                count
+            )
         }
-        Some(MatchResult::FileMatch) => {
-            format_display_path(Path::new(&matched.path), base_dir)
-        }
-        Some(MatchResult::ContextMatch {
-            line_number,
-            line,
-            before_context,
-            after_context,
-        }) => {
+        Some(MatchResult::FileMatch) => format_display_path(Path::new(&matched.path), base_dir),
+        Some(MatchResult::ContextMatch { line_number, line, before_context, after_context }) => {
             let path = format_display_path(Path::new(&matched.path), base_dir);
             let mut output = String::new();
 

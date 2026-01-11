@@ -1491,7 +1491,7 @@ mod tests {
                 path: Some("/home/user/project".to_string()),
                 pattern: "search".to_string(),
                 glob: Some("*.txt".to_string()),
-                offset: Some(10), // Skip first 10 matches
+                offset: Some(10),     // Skip first 10 matches
                 head_limit: Some(15), // Take 15 matches after offset
                 ..Default::default()
             },
@@ -1594,23 +1594,21 @@ mod tests {
                 ..Default::default()
             },
             output: Some(SearchResult {
-                matches: vec![
-                    Match {
-                        path: "/home/user/project/test.txt".to_string(),
-                        result: Some(MatchResult::ContextMatch {
-                            line_number: Some(10),
-                            line: "This is the MATCH line".to_string(),
-                            before_context: vec![
-                                "line 8 before context".to_string(),
-                                "line 9 before context".to_string(),
-                            ],
-                            after_context: vec![
-                                "line 11 after context".to_string(),
-                                "line 12 after context".to_string(),
-                            ],
-                        }),
-                    },
-                ],
+                matches: vec![Match {
+                    path: "/home/user/project/test.txt".to_string(),
+                    result: Some(MatchResult::ContextMatch {
+                        line_number: Some(10),
+                        line: "This is the MATCH line".to_string(),
+                        before_context: vec![
+                            "line 8 before context".to_string(),
+                            "line 9 before context".to_string(),
+                        ],
+                        after_context: vec![
+                            "line 11 after context".to_string(),
+                            "line 12 after context".to_string(),
+                        ],
+                    }),
+                }],
             }),
         };
 
@@ -1636,21 +1634,19 @@ mod tests {
                 ..Default::default()
             },
             output: Some(SearchResult {
-                matches: vec![
-                    Match {
-                        path: "/home/user/project/log.txt".to_string(),
-                        result: Some(MatchResult::ContextMatch {
-                            line_number: Some(50),
-                            line: "ERROR: Something went wrong".to_string(),
-                            before_context: vec![
-                                "line 47: INFO startup".to_string(),
-                                "line 48: DEBUG processing".to_string(),
-                                "line 49: WARN slow operation".to_string(),
-                            ],
-                            after_context: vec![],
-                        }),
-                    },
-                ],
+                matches: vec![Match {
+                    path: "/home/user/project/log.txt".to_string(),
+                    result: Some(MatchResult::ContextMatch {
+                        line_number: Some(50),
+                        line: "ERROR: Something went wrong".to_string(),
+                        before_context: vec![
+                            "line 47: INFO startup".to_string(),
+                            "line 48: DEBUG processing".to_string(),
+                            "line 49: WARN slow operation".to_string(),
+                        ],
+                        after_context: vec![],
+                    }),
+                }],
             }),
         };
 
@@ -1676,20 +1672,18 @@ mod tests {
                 ..Default::default()
             },
             output: Some(SearchResult {
-                matches: vec![
-                    Match {
-                        path: "/home/user/project/src/main.rs".to_string(),
-                        result: Some(MatchResult::ContextMatch {
-                            line_number: Some(15),
-                            line: "// TODO: Implement this feature".to_string(),
-                            before_context: vec![],
-                            after_context: vec![
-                                "fn main() {".to_string(),
-                                "    println!(\"Hello\");".to_string(),
-                            ],
-                        }),
-                    },
-                ],
+                matches: vec![Match {
+                    path: "/home/user/project/src/main.rs".to_string(),
+                    result: Some(MatchResult::ContextMatch {
+                        line_number: Some(15),
+                        line: "// TODO: Implement this feature".to_string(),
+                        before_context: vec![],
+                        after_context: vec![
+                            "fn main() {".to_string(),
+                            "    println!(\"Hello\");".to_string(),
+                        ],
+                    }),
+                }],
             }),
         };
 
@@ -1845,15 +1839,13 @@ mod tests {
                 ..Default::default()
             },
             output: Some(SearchResult {
-                matches: vec![
-                    Match {
-                        path: "/home/user/project/types.rs".to_string(),
-                        result: Some(MatchResult::Found {
-                            line_number: Some(10),
-                            line: "struct User {\n    field: String".to_string(),
-                        }),
-                    },
-                ],
+                matches: vec![Match {
+                    path: "/home/user/project/types.rs".to_string(),
+                    result: Some(MatchResult::Found {
+                        line_number: Some(10),
+                        line: "struct User {\n    field: String".to_string(),
+                    }),
+                }],
             }),
         };
 

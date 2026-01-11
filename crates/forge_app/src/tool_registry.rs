@@ -653,13 +653,11 @@ fn test_template_rendering_in_tool_descriptions() {
 
     // The description should not contain unrendered template variables
     assert!(
-        !fs_search_tool
-            .description
-            .contains("{{"),
+        !fs_search_tool.description.contains("{{"),
         "Description should not contain unrendered template variable: {}",
         fs_search_tool.description
     );
-    
+
     // The description should contain the expected usage info
     assert!(
         fs_search_tool.description.contains("ripgrep"),

@@ -317,9 +317,7 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
             ToolCatalog::Shell(input) => Some(SummaryTool::Shell { command: input.command }),
             ToolCatalog::FsSearch(input) => {
                 // Use glob, file_type, or pattern as the search identifier
-                let pattern = input.glob
-                    .or(input.file_type)
-                    .unwrap_or(input.pattern);
+                let pattern = input.glob.or(input.file_type).unwrap_or(input.pattern);
                 Some(SummaryTool::Search { pattern })
             }
             ToolCatalog::SemSearch(input) => Some(SummaryTool::SemSearch {
@@ -921,7 +919,9 @@ mod tests {
             vec![ToolCallFull {
                 name: ToolName::new("fs_search"),
                 call_id: Some(ToolCallId::new("call_1")),
-                arguments: ToolCallArguments::from_json(r#"{"path": "/test", "pattern": "pattern"}"#),
+                arguments: ToolCallArguments::from_json(
+                    r#"{"path": "/test", "pattern": "pattern"}"#,
+                ),
             }],
         )]);
 

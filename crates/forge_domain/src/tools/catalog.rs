@@ -113,6 +113,7 @@ pub struct FSWrite {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 #[tool_description_file = "crates/forge_domain/src/tools/descriptions/fs_search.md"]
+#[derive(Default)]
 pub struct FSSearch {
     /// The regular expression pattern to search for in file contents.
     pub pattern: String,
@@ -137,7 +138,8 @@ pub struct FSSearch {
     #[serde(rename = "-A", skip_serializing_if = "Option::is_none")]
     pub after_context: Option<u32>,
 
-    /// Number of lines to show before and after each match (requires content mode)
+    /// Number of lines to show before and after each match (requires content
+    /// mode)
     #[serde(rename = "-C", skip_serializing_if = "Option::is_none")]
     pub context: Option<u32>,
 
@@ -178,25 +180,6 @@ pub enum OutputMode {
     Count,
 }
 
-impl Default for FSSearch {
-    fn default() -> Self {
-        Self {
-            pattern: String::new(),
-            path: None,
-            glob: None,
-            output_mode: None,
-            before_context: None,
-            after_context: None,
-            context: None,
-            show_line_numbers: None,
-            case_insensitive: None,
-            file_type: None,
-            head_limit: None,
-            offset: None,
-            multiline: None,
-        }
-    }
-}
 
 /// A paired query and use_case for semantic search. Each query must have a
 /// corresponding use_case for document reranking.
@@ -637,16 +620,20 @@ impl ToolCatalog {
             }),
             ToolCatalog::FsSearch(input) => {
                 let path_str = input.path.as_deref().unwrap_or(".");
-                let base_message = format!(
-                    "Search in directory/file: {}",
-                    display_path_for(path_str)
-                );
+                let base_message =
+                    format!("Search in directory/file: {}", display_path_for(path_str));
                 let message = match (&input.glob, &input.file_type) {
                     (Some(glob), _) => {
-                        format!("{base_message} for pattern: '{}' in '{glob}' files", input.pattern)
+                        format!(
+                            "{base_message} for pattern: '{}' in '{glob}' files",
+                            input.pattern
+                        )
                     }
                     (None, Some(file_type)) => {
-                        format!("{base_message} for pattern: '{}' in {file_type} files", input.pattern)
+                        format!(
+                            "{base_message} for pattern: '{}' in {file_type} files",
+                            input.pattern
+                        )
                     }
                     (None, None) => {
                         format!("{base_message} for pattern: {}", input.pattern)
@@ -1149,7 +1136,10 @@ mod tests {
 
         match operation {
             PermissionOperation::Read { message, .. } => {
-                assert_eq!(message, "Search in directory/file: `/home/user/project` for pattern: .*");
+                assert_eq!(
+                    message,
+                    "Search in directory/file: `/home/user/project` for pattern: .*"
+                );
             }
             _ => panic!("Expected Read operation"),
         }
