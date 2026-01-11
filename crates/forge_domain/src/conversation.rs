@@ -129,12 +129,11 @@ impl Conversation {
         self.accumulated_usage().and_then(|usage| usage.cost)
     }
 
-
     /// Extracts all related conversation IDs from agent tool calls.
     ///
     /// This method scans through all tool results in the conversation's context
-    /// and collects conversation IDs from AI tool values, which are created when
-    /// agent tools are called and trigger new conversations.
+    /// and collects conversation IDs from AI tool values, which are created
+    /// when agent tools are called and trigger new conversations.
     pub fn related_conversation_ids(&self) -> Vec<ConversationId> {
         self.context
             .as_ref()
@@ -179,26 +178,24 @@ mod tests {
         let context = Context::default()
             .add_message(ContextMessage::user("Test task", None))
             .add_message(ContextMessage::assistant("Working on it", None, None))
-            .add_message(ContextMessage::Tool(
-                ToolResult::new("agent_tool")
-                    .output(Ok(ToolOutput {
-                        is_error: false,
-                        values: vec![ToolValue::AI {
-                            value: "Agent result".to_string(),
-                            conversation_id: agent_conv_id_1,
-                        }],
-                    })),
-            ))
+            .add_message(ContextMessage::Tool(ToolResult::new("agent_tool").output(
+                Ok(ToolOutput {
+                    is_error: false,
+                    values: vec![ToolValue::AI {
+                        value: "Agent result".to_string(),
+                        conversation_id: agent_conv_id_1,
+                    }],
+                }),
+            )))
             .add_message(ContextMessage::assistant("Continuing", None, None))
             .add_message(ContextMessage::Tool(
-                ToolResult::new("another_agent")
-                    .output(Ok(ToolOutput {
-                        is_error: false,
-                        values: vec![ToolValue::AI {
-                            value: "Another agent result".to_string(),
-                            conversation_id: agent_conv_id_2,
-                        }],
-                    })),
+                ToolResult::new("another_agent").output(Ok(ToolOutput {
+                    is_error: false,
+                    values: vec![ToolValue::AI {
+                        value: "Another agent result".to_string(),
+                        conversation_id: agent_conv_id_2,
+                    }],
+                })),
             ));
 
         let conversation = Conversation::generate().context(context);
@@ -218,16 +215,15 @@ mod tests {
             .add_message(ContextMessage::Tool(
                 ToolResult::new("regular_tool").output(Ok(ToolOutput::text("Regular result"))),
             ))
-            .add_message(ContextMessage::Tool(
-                ToolResult::new("agent_tool")
-                    .output(Ok(ToolOutput {
-                        is_error: false,
-                        values: vec![ToolValue::AI {
-                            value: "Agent result".to_string(),
-                            conversation_id: agent_conv_id,
-                        }],
-                    })),
-            ))
+            .add_message(ContextMessage::Tool(ToolResult::new("agent_tool").output(
+                Ok(ToolOutput {
+                    is_error: false,
+                    values: vec![ToolValue::AI {
+                        value: "Agent result".to_string(),
+                        conversation_id: agent_conv_id,
+                    }],
+                }),
+            )))
             .add_message(ContextMessage::Tool(
                 ToolResult::new("another_regular_tool")
                     .output(Ok(ToolOutput::text("Another regular result"))),

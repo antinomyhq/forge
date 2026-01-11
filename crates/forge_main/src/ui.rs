@@ -2589,7 +2589,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             let conversation = self.api.conversation(&conversation_id).await?;
             if let Some(conversation) = conversation {
                 let timestamp = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
-                
+
                 // Collect related conversations from agent tool calls
                 let related_ids = conversation.related_conversation_ids();
                 let mut related_conversations = Vec::new();
@@ -2598,20 +2598,23 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         related_conversations.push(related);
                     }
                 }
-                
+
                 if html {
                     // Export as HTML
                     let mut html_content = conversation.to_html();
-                    
+
                     // Append related conversations
                     if !related_conversations.is_empty() {
                         html_content.push_str("\n\n<hr>\n<h2>Related Agent Conversations</h2>\n");
                         for related in &related_conversations {
-                            html_content.push_str(&format!("\n<h3>Agent Conversation: {}</h3>\n", related.id));
+                            html_content.push_str(&format!(
+                                "\n<h3>Agent Conversation: {}</h3>\n",
+                                related.id
+                            ));
                             html_content.push_str(&related.to_html());
                         }
                     }
-                    
+
                     let path = format!("{timestamp}-dump.html");
                     tokio::fs::write(path.as_str(), html_content).await?;
 
@@ -2632,7 +2635,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 } else {
                     // Default: Export as JSON
                     use serde_json::json;
-                    
+
                     let dump_data = if related_conversations.is_empty() {
                         json!(&conversation)
                     } else {
@@ -2641,7 +2644,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                             "related_conversations": related_conversations
                         })
                     };
-                    
+
                     let path = format!("{timestamp}-dump.json");
                     let content = serde_json::to_string_pretty(&dump_data)?;
                     tokio::fs::write(path.as_str(), content).await?;
