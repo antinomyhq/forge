@@ -2630,14 +2630,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     // Default: Export as JSON
                     use serde_json::json;
 
-                    let dump_data = if related_conversations.is_empty() {
-                        json!(&conversation)
-                    } else {
-                        json!({
-                            "conversation": &conversation,
-                            "related_conversations": related_conversations
-                        })
-                    };
+                    let dump_data = json!({
+                        "conversation": &conversation,
+                        "related_conversations": related_conversations
+                    });
 
                     let path = format!("{timestamp}-dump.json");
                     let content = serde_json::to_string_pretty(&dump_data)?;
