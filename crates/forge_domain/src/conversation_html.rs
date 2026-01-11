@@ -52,7 +52,8 @@ pub fn render_conversation_html(conversation: &Conversation) -> String {
     format!("<!DOCTYPE html>\n{}", html.render())
 }
 
-/// Renders a conversation with related agent conversations in a single HTML document
+/// Renders a conversation with related agent conversations in a single HTML
+/// document
 ///
 /// Creates a complete HTML page with the main conversation followed by
 /// related agent conversations. Uses anchor links for navigation.
@@ -72,7 +73,7 @@ pub fn render_conversation_html_with_related(
             .clone()
             .unwrap_or(conversation.id.to_string())
     );
-    
+
     let mut body = Element::new("body")
         // Combined Information Table
         .append(create_info_table(conversation))
@@ -83,29 +84,26 @@ pub fn render_conversation_html_with_related(
 
     // Add related conversations section
     if !related.is_empty() {
-        body = body.append(
-            Element::new("div.section")
-                .append(Element::new("h2").text(format!("Related Agent Conversations ({})", related.len())))
-        );
+        body = body.append(Element::new("div.section").append(
+            Element::new("h2").text(format!("Related Agent Conversations ({})", related.len())),
+        ));
 
         for related_conv in related {
             let anchor_id = format!("conversation-{}", related_conv.id);
-            body = body
-                .append(
-                    Element::new("div.related-conversation")
-                        .attr("id", &anchor_id)
-                        .append(
-                            Element::new("div.back-to-main")
-                                .append(
-                                    Element::new("a")
-                                        .attr("href", "#")
-                                        .text("⬆ Back to main conversation")
-                                )
-                        )
-                        .append(create_info_table(related_conv))
-                        .append(create_conversation_context_section(related_conv))
-                        .append(create_tools_section(related_conv))
-                );
+            body = body.append(
+                Element::new("div.related-conversation")
+                    .attr("id", &anchor_id)
+                    .append(
+                        Element::new("div.back-to-main").append(
+                            Element::new("a")
+                                .attr("href", "#")
+                                .text("⬆ Back to main conversation"),
+                        ),
+                    )
+                    .append(create_info_table(related_conv))
+                    .append(create_conversation_context_section(related_conv))
+                    .append(create_tools_section(related_conv)),
+            );
         }
     }
 
@@ -126,7 +124,6 @@ pub fn render_conversation_html_with_related(
 
     format!("<!DOCTYPE html>\n{}", html.render())
 }
-
 
 /// Creates a table row with a label and value
 fn create_table_row(label: impl Into<String>, value: impl Into<String>) -> Element {
@@ -424,7 +421,6 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
                                         crate::ToolValue::AI { value, conversation_id } => {
                                             // Use anchor link to navigate within the same HTML
                                             let anchor_id = format!("conversation-{}", conversation_id);
-                                            
                                             Some(
                                                 Element::new("div.agent-conversation")
                                                     .append(
@@ -432,7 +428,7 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
                                                             .append(Element::new("strong").text("🤖 Agent Conversation: "))
                                                             .append(
                                                                 Element::new("a")
-                                                                    .attr("href", &format!("#{}", anchor_id))
+                                                                    .attr("href", format!("#{}", anchor_id))
                                                                     .attr("title", "Click to view agent conversation")
                                                                     .text(conversation_id.to_string())
                                                             )

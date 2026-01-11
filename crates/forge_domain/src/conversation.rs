@@ -104,7 +104,6 @@ impl Conversation {
         crate::conversation_html::render_conversation_html_with_related(self, related)
     }
 
-
     /// Returns a vector of user messages, selecting the first message from
     /// each consecutive sequence of user messages.
     pub fn first_user_messages(&self) -> Vec<&crate::ContextMessage> {

@@ -2608,7 +2608,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                         // Render main conversation with related conversations in the same HTML
                         conversation.to_html_with_related(&related_conversations)
                     };
-                    
+
                     let path = format!("{timestamp}-dump.html");
                     tokio::fs::write(path.as_str(), &html_content).await?;
 
