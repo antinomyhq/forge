@@ -324,10 +324,7 @@ impl<S> ToolRegistry<S> {
                         .map(|m| {
                             m.input_modalities
                                 .iter()
-                                .map(|im| match im {
-                                    InputModality::Text => "text".to_string(),
-                                    InputModality::Image => "image".to_string(),
-                                })
+                                .map(|im| im.to_string())
                                 .collect::<Vec<_>>()
                                 .join(", ")
                         })
