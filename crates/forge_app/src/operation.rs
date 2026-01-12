@@ -374,7 +374,7 @@ impl ToolOperation {
                     elm = elm.attr_if_some("path", input.path);
                     elm = elm.attr("pattern", &input.pattern);
                     elm = elm.attr_if_some("glob", input.glob);
-                    elm = elm.attr_if_some("file_type", input.file_type);
+                    elm = elm.attr_if_some("file_type", input.file_type.as_ref());
                     forge_domain::ToolOutput::text(elm)
                 }
             },

@@ -100,6 +100,23 @@ impl<W: WalkerInfra + FileReaderInfra + FileInfoInfra> ForgeFsSearch<W> {
         search_path: &Path,
         params: &FSSearch,
     ) -> anyhow::Result<Vec<PathBuf>> {
+        // Build type matcher once if file_type is specified (for efficiency)
+        let types_matcher = if let Some(file_type) = &params.file_type {
+            use ignore::types::TypesBuilder;
+
+            let mut builder = TypesBuilder::new();
+            builder.add_defaults();
+            builder.select(file_type);
+
+            Some(
+                builder
+                    .build()
+                    .with_context(|| format!("Failed to build type matcher for: {file_type}"))?,
+            )
+        } else {
+            None
+        };
+
         let paths = if self.infra.is_file(search_path).await? {
             vec![search_path.to_path_buf()]
         } else {
@@ -109,7 +126,10 @@ impl<W: WalkerInfra + FileReaderInfra + FileInfoInfra> ForgeFsSearch<W> {
         // Apply file filtering
         let mut filtered_paths = Vec::new();
         for path in paths {
-            if self.matches_file_filters(&path, params).await? {
+            if self
+                .matches_file_filters(&path, params, types_matcher.as_ref())
+                .await?
+            {
                 filtered_paths.push(path);
             }
         }
@@ -125,17 +145,24 @@ impl<W: WalkerInfra + FileReaderInfra + FileInfoInfra> ForgeFsSearch<W> {
             .await
             .with_context(|| format!("Failed to walk directory '{}'", dir.display()))?;
 
-        let paths = walked_files
-            .into_iter()
-            .map(|file| dir.join(file.path))
-            .filter(|path| path.is_file())
-            .collect();
+        let mut paths = Vec::new();
+        for file in walked_files {
+            let path = dir.join(file.path);
+            if self.infra.is_file(&path).await? {
+                paths.push(path);
+            }
+        }
 
         Ok(paths)
     }
 
     /// Checks if a file matches the glob and type filters
-    async fn matches_file_filters(&self, path: &Path, params: &FSSearch) -> anyhow::Result<bool> {
+    async fn matches_file_filters(
+        &self,
+        path: &Path,
+        params: &FSSearch,
+        types_matcher: Option<&ignore::types::Types>,
+    ) -> anyhow::Result<bool> {
         // Must be a file
         if !self.infra.is_file(path).await? {
             return Ok(false);
@@ -157,9 +184,9 @@ impl<W: WalkerInfra + FileReaderInfra + FileInfoInfra> ForgeFsSearch<W> {
 
         // Apply file type filter if provided (only if glob not specified)
         if params.glob.is_none()
-            && let Some(file_type) = &params.file_type
+            && let Some(types) = types_matcher
         {
-            return self.matches_file_type(path, file_type);
+            return self.matches_file_type(path, types);
         }
 
         Ok(true)
@@ -167,19 +194,7 @@ impl<W: WalkerInfra + FileReaderInfra + FileInfoInfra> ForgeFsSearch<W> {
 
     /// Checks if a file matches a given file type using ignore crate's type
     /// definitions
-    fn matches_file_type(&self, path: &Path, file_type: &str) -> anyhow::Result<bool> {
-        use ignore::types::TypesBuilder;
-
-        let mut builder = TypesBuilder::new();
-        builder.add_defaults();
-
-        // Select the specified type
-        builder.select(file_type);
-
-        let types = builder
-            .build()
-            .with_context(|| format!("Failed to build type matcher for: {file_type}"))?;
-
+    fn matches_file_type(&self, path: &Path, types: &ignore::types::Types) -> anyhow::Result<bool> {
         // Check if the file matches the type
         let matched = types.matched(path, false).is_whitelist();
 
