@@ -1,12 +1,13 @@
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
 use anyhow::{Context as _, Result};
 use forge_app::dto::models_dev::{ModelData, ModelsDevResponse};
 use forge_app::{EnvironmentInfra, HttpInfra};
 use forge_domain::{Model, ModelId, ModelRepository, ProviderId};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::path::PathBuf;
-use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::fs;
 use tracing::{debug, info, warn};
 use url::Url;
@@ -42,17 +43,14 @@ impl<F: EnvironmentInfra + HttpInfra> ForgeModelRepository<F> {
         let cache_path = env.cache_dir().join("models.json");
         let cache_ttl = Duration::from_secs(24 * 60 * 60); // 24 hours
 
-        Self {
-            infra,
-            cache_path,
-            cache_ttl,
-        }
+        Self { infra, cache_path, cache_ttl }
     }
 
     /// Gets current time in seconds since UNIX_EPOCH
-    /// 
-    /// In tests with `#[tokio::test(start_paused = true)]`, this will use tokio's
-    /// mocked time which can be advanced with `tokio::time::advance()`
+    ///
+    /// In tests with `#[tokio::test(start_paused = true)]`, this will use
+    /// tokio's mocked time which can be advanced with
+    /// `tokio::time::advance()`
     fn now(&self) -> u64 {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -71,8 +69,8 @@ impl<F: EnvironmentInfra + HttpInfra> ForgeModelRepository<F> {
     async fn fetch_and_transform_models(&self) -> Result<HashMap<ProviderId, Vec<Model>>> {
         info!("Fetching models from models.dev API");
 
-        let url = Url::parse("https://models.dev/api.json")
-            .context("Failed to parse models.dev URL")?;
+        let url =
+            Url::parse("https://models.dev/api.json").context("Failed to parse models.dev URL")?;
 
         let response = self
             .infra
@@ -104,7 +102,7 @@ impl<F: EnvironmentInfra + HttpInfra> ForgeModelRepository<F> {
         for (provider_id, provider_data) in models_dev_response.0 {
             // Map models.dev provider ID to forge provider ID(s)
             let forge_provider_ids = crate::provider::map_models_dev_provider_id(&provider_id);
-            
+
             if forge_provider_ids.is_empty() {
                 debug!("Skipping unmapped provider: {}", provider_id);
                 continue;
@@ -153,13 +151,10 @@ impl<F: EnvironmentInfra + HttpInfra> ForgeModelRepository<F> {
 
         let cached_at = self.now();
 
-        let cache_data = CacheData {
-            cached_at,
-            models: models.clone(),
-        };
+        let cache_data = CacheData { cached_at, models: models.clone() };
 
-        let json = serde_json::to_string_pretty(&cache_data)
-            .context("Failed to serialize cache data")?;
+        let json =
+            serde_json::to_string_pretty(&cache_data).context("Failed to serialize cache data")?;
 
         fs::write(&self.cache_path, json)
             .await
@@ -265,14 +260,9 @@ impl<F: EnvironmentInfra + HttpInfra> ModelRepository for ForgeModelRepository<F
     ) -> Result<Option<Model>> {
         let models = self.get_models().await?;
 
-        let result = models
-            .get(provider_id)
-            .and_then(|provider_models| {
-                provider_models
-                    .iter()
-                    .find(|m| &m.id == model_id)
-                    .cloned()
-            });
+        let result = models.get(provider_id).and_then(|provider_models| {
+            provider_models.iter().find(|m| &m.id == model_id).cloned()
+        });
 
         if result.is_some() {
             debug!(
@@ -308,13 +298,15 @@ impl<F: EnvironmentInfra + HttpInfra> ModelRepository for ForgeModelRepository<F
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use forge_domain::{Environment, InputModality};
-    use pretty_assertions::assert_eq;
     use std::time::{SystemTime, UNIX_EPOCH};
-    use tempfile::TempDir;
+
     use fake::{Fake, Faker};
+    use forge_domain::{Environment, InputModality};
     use mockito::Server;
+    use pretty_assertions::assert_eq;
+    use tempfile::TempDir;
+
+    use super::*;
 
     struct MockInfra {
         env: Environment,
@@ -324,7 +316,7 @@ mod tests {
         fn new(cache_dir: PathBuf) -> Self {
             let env: Environment = Faker.fake();
             // Set base_path so that cache_dir() returns our temp directory
-            // Since cache_dir() returns base_path.join("cache"), 
+            // Since cache_dir() returns base_path.join("cache"),
             // we need base_path to be cache_dir without the "cache" suffix
             let base_path = if cache_dir.ends_with("cache") {
                 cache_dir.parent().unwrap().to_path_buf()
@@ -405,10 +397,7 @@ mod tests {
         let mut models = HashMap::new();
         models.insert(ProviderId::OPENAI, vec![create_fixture_model()]);
 
-        CacheData {
-            cached_at: 1704720000,
-            models,
-        }
+        CacheData { cached_at: 1704720000, models }
     }
 
     #[test]
@@ -484,10 +473,7 @@ mod tests {
             .as_secs()
             .saturating_sub(25 * 3600); // 25 hours ago
 
-        let cache_data = CacheData {
-            cached_at: old_timestamp,
-            models,
-        };
+        let cache_data = CacheData { cached_at: old_timestamp, models };
 
         // Create cache directory
         if let Some(parent) = repo.cache_path.parent() {
@@ -541,7 +527,7 @@ mod tests {
         let infra = Arc::new(MockInfra::new(temp_dir.path().to_path_buf()));
         // Override the repository to use the mock server URL
         let repo = ForgeModelRepository::new(infra);
-        
+
         // Manually set the cache path and fetch models with mocked URL
         // Since we can't easily override the URL in fetch_and_transform_models,
         // we'll pre-populate the cache for this test

@@ -13,7 +13,7 @@ pub enum InputModality {
     Image,
     Audio,
     Video,
-    Pdf
+    Pdf,
 }
 
 /// Default input modalities when not specified (text-only)

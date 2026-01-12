@@ -7,8 +7,8 @@ use forge_app::{
 };
 use forge_domain::{
     AppConfigRepository, ChatRepository, ConversationRepository, FuzzySearchRepository,
-    ModelRepository, ProviderRepository, SkillRepository, SnapshotRepository,
-    ValidationRepository, WorkspaceIndexRepository, WorkspaceRepository,
+    ModelRepository, ProviderRepository, SkillRepository, SnapshotRepository, ValidationRepository,
+    WorkspaceIndexRepository, WorkspaceRepository,
 };
 
 use crate::ForgeProviderAuthService;

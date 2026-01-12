@@ -634,9 +634,7 @@ impl<F: HttpInfra + EnvironmentInfra + Send + Sync> ModelRepository for ForgeRep
         provider_id: &ProviderId,
         model_id: &ModelId,
     ) -> anyhow::Result<Option<Model>> {
-        self.model_repository
-            .get_model(provider_id, model_id)
-            .await
+        self.model_repository.get_model(provider_id, model_id).await
     }
 
     async fn list_models(&self, provider_id: &ProviderId) -> anyhow::Result<Vec<Model>> {

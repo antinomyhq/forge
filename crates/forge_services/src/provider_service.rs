@@ -7,7 +7,8 @@ use forge_app::domain::{
     AnyProvider, ChatCompletionMessage, Model, ModelId, ProviderId, ResultStream,
 };
 use forge_domain::{
-    AuthCredential, ChatRepository, Context, MigrationResult, ModelRepository, ModelSource, Provider, ProviderRepository, ProviderTemplate
+    AuthCredential, ChatRepository, Context, MigrationResult, ModelRepository, ModelSource,
+    Provider, ProviderRepository, ProviderTemplate,
 };
 use tokio::sync::Mutex;
 use url::Url;
@@ -81,7 +82,9 @@ impl<R> ForgeProviderService<R> {
 }
 
 #[async_trait::async_trait]
-impl<R: ChatRepository + ProviderRepository + ModelRepository> ProviderService for ForgeProviderService<R> {
+impl<R: ChatRepository + ProviderRepository + ModelRepository> ProviderService
+    for ForgeProviderService<R>
+{
     async fn chat(
         &self,
         model_id: &ModelId,

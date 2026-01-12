@@ -57,7 +57,12 @@ impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
 #[async_trait::async_trait]
 impl<
     A: Services,
-    F: CommandInfra + EnvironmentInfra + SkillRepository + AppConfigRepository + GrpcInfra + forge_domain::ModelRepository,
+    F: CommandInfra
+        + EnvironmentInfra
+        + SkillRepository
+        + AppConfigRepository
+        + GrpcInfra
+        + ModelRepository,
 > API for ForgeAPI<A, F>
 {
     async fn discover(&self) -> Result<Vec<File>> {

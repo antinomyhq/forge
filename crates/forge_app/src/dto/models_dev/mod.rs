@@ -1,5 +1,6 @@
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+
+use serde::{Deserialize, Serialize};
 
 /// Response structure from models.dev API
 ///
@@ -115,9 +116,10 @@ impl From<ModelData> for forge_domain::Model {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use forge_domain::InputModality;
     use pretty_assertions::assert_eq;
+
+    use super::*;
 
     #[test]
     fn test_model_data_conversion() {
@@ -142,10 +144,7 @@ mod tests {
                 output: Some(0.002),
                 cache_read: Some(0.0001),
             }),
-            limit: Some(Limit {
-                context: Some(128000),
-                output: Some(4096),
-            }),
+            limit: Some(Limit { context: Some(128000), output: Some(4096) }),
         };
 
         let actual: forge_domain::Model = fixture.into();
