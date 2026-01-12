@@ -9,7 +9,6 @@ tools:
   - sage
   - fs_search
   - read
-  - read_image
   - write
   - undo
   - remove

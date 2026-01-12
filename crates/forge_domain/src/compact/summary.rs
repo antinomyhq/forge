@@ -311,7 +311,6 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
     if let Ok(tool) = ToolCatalog::try_from(call.clone()) {
         return match tool {
             ToolCatalog::Read(input) => Some(SummaryTool::FileRead { path: input.path }),
-            ToolCatalog::ReadImage(input) => Some(SummaryTool::FileRead { path: input.path }),
             ToolCatalog::Write(input) => Some(SummaryTool::FileUpdate { path: input.path }),
             ToolCatalog::Patch(input) => Some(SummaryTool::FileUpdate { path: input.path }),
             ToolCatalog::Remove(input) => Some(SummaryTool::FileRemove { path: input.path }),
@@ -569,7 +568,7 @@ mod tests {
     fn test_context_summary_extracts_read_image_tool_calls() {
         let fixture = context(vec![assistant_with_tools(
             "Reading image",
-            vec![ToolCatalog::tool_call_read_image("/test/image.png").call_id("call_1")],
+            vec![ToolCatalog::tool_call_read("/test/image.png").call_id("call_1")],
         )]);
 
         let actual = ContextSummary::from(&fixture);

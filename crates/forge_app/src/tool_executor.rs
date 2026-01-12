@@ -7,9 +7,10 @@ use crate::fmt::content::FormatContent;
 use crate::operation::{TempContentFiles, ToolOperation};
 use crate::services::ShellService;
 use crate::{
-    ConversationService, EnvironmentService, FollowUpService, FsCreateService, FsPatchService,
-    FsReadService, FsRemoveService, FsSearchService, FsUndoService, ImageReadService,
-    NetFetchService, PlanCreateService, SkillFetchService, WorkspaceService,
+    AgentRegistry, ConversationService, EnvironmentService, FollowUpService, FsCreateService,
+    FsPatchService, FsReadService, FsRemoveService, FsSearchService, FsUndoService,
+    ImageReadService, NetFetchService, PlanCreateService, ProviderService, SkillFetchService,
+    WorkspaceService,
 };
 
 pub struct ToolExecutor<S> {
@@ -31,7 +32,9 @@ impl<
         + ConversationService
         + EnvironmentService
         + PlanCreateService
-        + SkillFetchService,
+        + SkillFetchService
+        + AgentRegistry
+        + ProviderService,
 > ToolExecutor<S>
 {
     pub fn new(services: Arc<S>) -> Self {
@@ -135,11 +138,6 @@ impl<
                     .await?;
 
                 (input, output).into()
-            }
-            ToolCatalog::ReadImage(input) => {
-                let normalized_path = self.normalize_path(input.path.clone());
-                let output = self.services.read_image(normalized_path).await?;
-                output.into()
             }
             ToolCatalog::Write(input) => {
                 let normalized_path = self.normalize_path(input.path.clone());

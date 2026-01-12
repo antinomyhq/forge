@@ -103,14 +103,106 @@
     "url_param_vars": [],
     "response_type": "Anthropic",
     "url": "https://api.anthropic.com/v1/messages",
-    "models": "https://api.anthropic.com/v1/models",
+    "models": [
+      {
+        "id": "claude-opus-4-5-20251101",
+        "name": "Claude Opus 4.5",
+        "description": "Most capable Claude model with enhanced reasoning and analysis capabilities",
+        "context_length": 200000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "claude-haiku-4-5-20251001",
+        "name": "Claude Haiku 4.5",
+        "description": "Fast and efficient Claude model optimized for quick responses",
+        "context_length": 200000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "claude-sonnet-4-5-20250929",
+        "name": "Claude Sonnet 4.5",
+        "description": "Balanced Claude model with excellent performance and speed",
+        "context_length": 200000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "claude-opus-4-1-20250805",
+        "name": "Claude Opus 4.1",
+        "description": "Advanced Claude model with improved capabilities",
+        "context_length": 200000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "claude-opus-4-20250514",
+        "name": "Claude Opus 4",
+        "description": "Fourth generation flagship Claude model",
+        "context_length": 200000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "claude-sonnet-4-20250514",
+        "name": "Claude Sonnet 4",
+        "description": "Fourth generation balanced Claude model",
+        "context_length": 200000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "claude-3-7-sonnet-20250219",
+        "name": "Claude Sonnet 3.7",
+        "description": "Enhanced third generation Claude model with improved performance",
+        "context_length": 200000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "claude-3-5-haiku-20241022",
+        "name": "Claude Haiku 3.5",
+        "description": "Fast third generation Claude model optimized for efficiency",
+        "context_length": 200000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "claude-3-haiku-20240307",
+        "name": "Claude Haiku 3",
+        "description": "Third generation fast Claude model",
+        "context_length": 200000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": false,
+        "input_modalities": ["text", "image"]
+      }
+    ],
     "auth_methods": [
       {
         "oauth_code": {
           "auth_url": "https://claude.ai/oauth/authorize",
           "token_url": "https://console.anthropic.com/v1/oauth/token",
           "client_id": "9d1c250a-e61b-44d9-88ed-5944d1962f5e",
-          "scopes": ["org:create_api_key", "user:profile", "user:inference"],
+          "scopes": [
+            "org:create_api_key",
+            "user:profile",
+            "user:inference",
+            "user:sessions:claude_code"
+          ],
           "redirect_uri": "https://console.anthropic.com/oauth/code/callback",
           "use_pkce": true,
           "extra_auth_params": {
@@ -152,7 +244,8 @@
         "context_length": 200000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "supports_reasoning": true
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
       },
       {
         "id": "glm-4.6",
@@ -161,7 +254,8 @@
         "context_length": 200000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "supports_reasoning": true
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
       },
       {
         "id": "glm-4.5",
@@ -170,7 +264,8 @@
         "context_length": 128000,
         "tools_supported": true,
         "supports_parallel_tool_calls": false,
-        "supports_reasoning": true
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
       },
       {
         "id": "glm-4.5-air",
@@ -179,7 +274,8 @@
         "context_length": 128000,
         "tools_supported": true,
         "supports_parallel_tool_calls": false,
-        "supports_reasoning": true
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
       },
       {
         "id": "glm-4.5-x",
@@ -188,7 +284,8 @@
         "context_length": 128000,
         "tools_supported": true,
         "supports_parallel_tool_calls": false,
-        "supports_reasoning": true
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
       },
       {
         "id": "glm-4.5-airx",
@@ -197,7 +294,8 @@
         "context_length": 128000,
         "tools_supported": true,
         "supports_parallel_tool_calls": false,
-        "supports_reasoning": true
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
       },
       {
         "id": "glm-4.5-flash",
@@ -206,7 +304,8 @@
         "context_length": 128000,
         "tools_supported": true,
         "supports_parallel_tool_calls": false,
-        "supports_reasoning": true
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
       },
       {
         "id": "glm-4-32b-0414-128k",
@@ -215,7 +314,8 @@
         "context_length": 128000,
         "tools_supported": true,
         "supports_parallel_tool_calls": false,
-        "supports_reasoning": false
+        "supports_reasoning": false,
+        "input_modalities": ["text"]
       }
     ],
     "auth_methods": ["api_key"]
@@ -234,7 +334,8 @@
         "context_length": 200000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "supports_reasoning": true
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
       },
       {
         "id": "glm-4.6",
@@ -243,7 +344,8 @@
         "context_length": 200000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "supports_reasoning": true
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
       },
       {
         "id": "glm-4.5",
@@ -252,7 +354,8 @@
         "context_length": 128000,
         "tools_supported": true,
         "supports_parallel_tool_calls": false,
-        "supports_reasoning": true
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
       },
       {
         "id": "glm-4.5-air",
@@ -261,7 +364,8 @@
         "context_length": 128000,
         "tools_supported": true,
         "supports_parallel_tool_calls": false,
-        "supports_reasoning": true
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
       },
       {
         "id": "glm-4.5-x",
@@ -270,7 +374,8 @@
         "context_length": 128000,
         "tools_supported": true,
         "supports_parallel_tool_calls": false,
-        "supports_reasoning": true
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
       },
       {
         "id": "glm-4.5-airx",
@@ -279,7 +384,8 @@
         "context_length": 128000,
         "tools_supported": true,
         "supports_parallel_tool_calls": false,
-        "supports_reasoning": true
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
       },
       {
         "id": "glm-4.5-flash",
@@ -288,7 +394,8 @@
         "context_length": 128000,
         "tools_supported": true,
         "supports_parallel_tool_calls": false,
-        "supports_reasoning": true
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
       },
       {
         "id": "glm-4-32b-0414-128k",
@@ -297,7 +404,8 @@
         "context_length": 128000,
         "tools_supported": true,
         "supports_parallel_tool_calls": false,
-        "supports_reasoning": false
+        "supports_reasoning": false,
+        "input_modalities": ["text"]
       }
     ],
     "auth_methods": ["api_key"]
@@ -405,42 +513,48 @@
         "name": "Amazon Titan Text G1 - Large",
         "description": "Amazon's Titan large text generation model",
         "context_length": 8000,
-        "tools_supported": false
+        "tools_supported": false,
+        "input_modalities": ["text"]
       },
       {
         "id": "amazon.titan-text-express-v1",
         "name": "Amazon Titan Text Express v1",
         "description": "Amazon's Titan text express model",
         "context_length": 8000,
-        "tools_supported": false
+        "tools_supported": false,
+        "input_modalities": ["text"]
       },
       {
         "id": "amazon.titan-text-lite-v1",
         "name": "Amazon Titan Text Lite v1",
         "description": "Amazon's Titan lite text model for cost-effective tasks",
         "context_length": 4000,
-        "tools_supported": false
+        "tools_supported": false,
+        "input_modalities": ["text"]
       },
       {
         "id": "anthropic.claude-v2",
         "name": "Claude v2",
         "description": "Anthropic's Claude v2 model",
         "context_length": 100000,
-        "tools_supported": false
+        "tools_supported": false,
+        "input_modalities": ["text"]
       },
       {
         "id": "anthropic.claude-v2:1",
         "name": "Claude v2.1",
         "description": "Anthropic's Claude v2.1 model with improved capabilities",
         "context_length": 200000,
-        "tools_supported": false
+        "tools_supported": false,
+        "input_modalities": ["text"]
       },
       {
         "id": "anthropic.claude-instant-v1",
         "name": "Claude Instant v1",
         "description": "Anthropic's fast Claude Instant model",
         "context_length": 100000,
-        "tools_supported": false
+        "tools_supported": false,
+        "input_modalities": ["text"]
       },
       {
         "id": "anthropic.claude-haiku-4-5-20251001-v1:0",
@@ -449,7 +563,8 @@
         "context_length": 200000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "supports_reasoning": true
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
       },
       {
         "id": "anthropic.claude-sonnet-4-20250514-v1:0",
@@ -458,7 +573,8 @@
         "context_length": 200000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "supports_reasoning": true
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
       },
       {
         "id": "anthropic.claude-sonnet-4-5-20250929-v1:0",
@@ -467,7 +583,8 @@
         "context_length": 200000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "supports_reasoning": true
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
       },
       {
         "id": "anthropic.claude-opus-4-20250514-v1:0",
@@ -476,7 +593,8 @@
         "context_length": 200000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "supports_reasoning": true
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
       },
       {
         "id": "anthropic.claude-opus-4-1-20250805-v1:0",
@@ -485,7 +603,8 @@
         "context_length": 200000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "supports_reasoning": true
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
       },
       {
         "id": "anthropic.claude-3-7-sonnet-20250219-v1:0",
@@ -494,7 +613,8 @@
         "context_length": 200000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "supports_reasoning": true
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
       },
       {
         "id": "anthropic.claude-3-5-sonnet-20240620-v1:0",
@@ -503,7 +623,8 @@
         "context_length": 200000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "supports_reasoning": true
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
       },
       {
         "id": "anthropic.claude-3-5-sonnet-20241022-v2:0",
@@ -512,7 +633,8 @@
         "context_length": 200000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "supports_reasoning": true
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
       },
       {
         "id": "anthropic.claude-3-5-haiku-20241022-v1:0",
@@ -520,7 +642,8 @@
         "description": "Anthropic's fastest model for responsive applications",
         "context_length": 200000,
         "tools_supported": true,
-        "supports_parallel_tool_calls": true
+        "supports_parallel_tool_calls": true,
+        "input_modalities": ["text", "image"]
       },
       {
         "id": "anthropic.claude-3-sonnet-20240229-v1:0",
@@ -528,7 +651,8 @@
         "description": "Anthropic's Claude 3 Sonnet - balanced model",
         "context_length": 200000,
         "tools_supported": true,
-        "supports_parallel_tool_calls": true
+        "supports_parallel_tool_calls": true,
+        "input_modalities": ["text", "image"]
       },
       {
         "id": "anthropic.claude-3-haiku-20240307-v1:0",
@@ -536,7 +660,8 @@
         "description": "Anthropic's Claude 3 Haiku - fast and efficient",
         "context_length": 200000,
         "tools_supported": true,
-        "supports_parallel_tool_calls": true
+        "supports_parallel_tool_calls": true,
+        "input_modalities": ["text", "image"]
       },
       {
         "id": "anthropic.claude-3-opus-20240229-v1:0",
@@ -544,126 +669,144 @@
         "description": "Anthropic's most powerful model for complex tasks",
         "context_length": 200000,
         "tools_supported": true,
-        "supports_parallel_tool_calls": true
+        "supports_parallel_tool_calls": true,
+        "input_modalities": ["text", "image"]
       },
       {
         "id": "cohere.command-text-v14",
         "name": "Cohere Command Text v14",
         "description": "Cohere's Command text generation model",
         "context_length": 4096,
-        "tools_supported": false
+        "tools_supported": false,
+        "input_modalities": ["text"]
       },
       {
         "id": "cohere.command-light-text-v14",
         "name": "Cohere Command Light Text v14",
         "description": "Cohere's lightweight Command model",
         "context_length": 4096,
-        "tools_supported": false
+        "tools_supported": false,
+        "input_modalities": ["text"]
       },
       {
         "id": "cohere.command-r-v1:0",
         "name": "Cohere Command R v1",
         "description": "Cohere's Command R model for retrieval-augmented generation",
         "context_length": 128000,
-        "tools_supported": true
+        "tools_supported": true,
+        "input_modalities": ["text"]
       },
       {
         "id": "cohere.command-r-plus-v1:0",
         "name": "Cohere Command R Plus v1",
         "description": "Cohere's enhanced Command R Plus model",
         "context_length": 128000,
-        "tools_supported": true
+        "tools_supported": true,
+        "input_modalities": ["text"]
       },
       {
         "id": "meta.llama3-70b-instruct-v1:0",
         "name": "Llama 3 70B Instruct",
         "description": "Meta's Llama 3 70B instruction-tuned model",
         "context_length": 8192,
-        "tools_supported": false
+        "tools_supported": false,
+        "input_modalities": ["text"]
       },
       {
         "id": "meta.llama3-8b-instruct-v1:0",
         "name": "Llama 3 8B Instruct",
         "description": "Meta's Llama 3 8B instruction-tuned model",
         "context_length": 8192,
-        "tools_supported": false
+        "tools_supported": false,
+        "input_modalities": ["text"]
       },
       {
         "id": "meta.llama3-1-405b-instruct-v1:0",
         "name": "Llama 3.1 405B Instruct",
         "description": "Meta's largest and most capable open model",
         "context_length": 128000,
-        "tools_supported": true
+        "tools_supported": true,
+        "input_modalities": ["text"]
       },
       {
         "id": "meta.llama3-1-70b-instruct-v1:0",
         "name": "Llama 3.1 70B Instruct",
         "description": "Meta's Llama 3.1 70B with extended context",
         "context_length": 128000,
-        "tools_supported": true
+        "tools_supported": true,
+        "input_modalities": ["text"]
       },
       {
         "id": "meta.llama3-1-8b-instruct-v1:0",
         "name": "Llama 3.1 8B Instruct",
         "description": "Meta's Llama 3.1 8B with extended context",
         "context_length": 128000,
-        "tools_supported": true
+        "tools_supported": true,
+        "input_modalities": ["text"]
       },
       {
         "id": "meta.llama3-2-11b-instruct-v1:0",
         "name": "Llama 3.2 11B Instruct",
         "description": "Meta's Llama 3.2 11B multimodal model",
         "context_length": 128000,
-        "tools_supported": true
+        "tools_supported": true,
+        "input_modalities": ["text", "image"]
       },
       {
         "id": "meta.llama3-2-1b-instruct-v1:0",
         "name": "Llama 3.2 1B Instruct",
         "description": "Meta's compact Llama 3.2 1B model",
         "context_length": 128000,
-        "tools_supported": false
+        "tools_supported": false,
+        "input_modalities": ["text"]
       },
       {
         "id": "meta.llama3-2-3b-instruct-v1:0",
         "name": "Llama 3.2 3B Instruct",
         "description": "Meta's efficient Llama 3.2 3B model",
         "context_length": 128000,
-        "tools_supported": true
+        "tools_supported": true,
+        "input_modalities": ["text"]
       },
       {
         "id": "meta.llama3-2-90b-instruct-v1:0",
         "name": "Llama 3.2 90B Instruct",
         "description": "Meta's powerful Llama 3.2 90B multimodal model",
         "context_length": 128000,
-        "tools_supported": true
+        "tools_supported": true,
+        "input_modalities": ["text", "image"]
       },
       {
         "id": "mistral.mistral-7b-instruct-v0:2",
         "name": "Mistral 7B Instruct v0.2",
         "description": "Mistral AI's 7B instruction-tuned model",
         "context_length": 32000,
-        "tools_supported": false
+        "tools_supported": false,
+        "input_modalities": ["text"]
       },
       {
         "id": "mistral.mixtral-8x7b-instruct-v0:1",
         "name": "Mixtral 8x7B Instruct",
         "description": "Mistral AI's mixture-of-experts model",
         "context_length": 32000,
-        "tools_supported": true
+        "tools_supported": true,
+        "input_modalities": ["text"]
       },
       {
         "id": "mistral.mistral-large-2402-v1:0",
         "name": "Mistral Large 2402",
         "description": "Mistral AI's large flagship model",
         "context_length": 32000,
-        "tools_supported": true
+        "tools_supported": true,
+        "input_modalities": ["text"]
       },
       {
         "id": "mistral.mistral-small-2402-v1:0",
         "name": "Mistral Small 2402",
         "description": "Mistral AI's efficient small model",
         "context_length": 32000,
-        "tools_supported": true
+        "tools_supported": true,
+        "input_modalities": ["text"]
       },
       {
         "id": "us.amazon.nova-premier-v1:0",
@@ -671,7 +814,8 @@
         "description": "Amazon's premier multimodal model - US region",
         "context_length": 300000,
         "tools_supported": true,
-        "supports_parallel_tool_calls": true
+        "supports_parallel_tool_calls": true,
+        "input_modalities": ["text", "image"]
       },
       {
         "id": "us.amazon.nova-pro-v1:0",
@@ -679,21 +823,24 @@
         "description": "Amazon's high-capability multimodal model - US region",
         "context_length": 300000,
         "tools_supported": true,
-        "supports_parallel_tool_calls": true
+        "supports_parallel_tool_calls": true,
+        "input_modalities": ["text", "image"]
       },
       {
         "id": "us.amazon.nova-lite-v1:0",
         "name": "Amazon Nova Lite (US)",
         "description": "Amazon's fast and cost-effective model - US region",
         "context_length": 300000,
-        "tools_supported": true
+        "tools_supported": true,
+        "input_modalities": ["text", "image"]
       },
       {
         "id": "us.amazon.nova-micro-v1:0",
         "name": "Amazon Nova Micro (US)",
         "description": "Amazon's ultra-fast text-only model - US region",
         "context_length": 128000,
-        "tools_supported": false
+        "tools_supported": false,
+        "input_modalities": ["text"]
       },
       {
         "id": "us.anthropic.claude-3-sonnet-20240229-v1:0",
@@ -701,7 +848,8 @@
         "description": "US regional variant of Claude 3 Sonnet",
         "context_length": 200000,
         "tools_supported": true,
-        "supports_parallel_tool_calls": true
+        "supports_parallel_tool_calls": true,
+        "input_modalities": ["text", "image"]
       },
       {
         "id": "us.anthropic.claude-3-opus-20240229-v1:0",
@@ -709,7 +857,8 @@
         "description": "US regional variant of Claude 3 Opus",
         "context_length": 200000,
         "tools_supported": true,
-        "supports_parallel_tool_calls": true
+        "supports_parallel_tool_calls": true,
+        "input_modalities": ["text", "image"]
       },
       {
         "id": "us.anthropic.claude-3-haiku-20240307-v1:0",
@@ -717,7 +866,8 @@
         "description": "US regional variant of Claude 3 Haiku",
         "context_length": 200000,
         "tools_supported": true,
-        "supports_parallel_tool_calls": true
+        "supports_parallel_tool_calls": true,
+        "input_modalities": ["text", "image"]
       },
       {
         "id": "us.anthropic.claude-3-5-sonnet-20240620-v1:0",
@@ -726,7 +876,8 @@
         "context_length": 200000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "supports_reasoning": true
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
       },
       {
         "id": "us.anthropic.claude-3-5-haiku-20241022-v1:0",
@@ -734,7 +885,8 @@
         "description": "US regional variant of Claude 3.5 Haiku",
         "context_length": 200000,
         "tools_supported": true,
-        "supports_parallel_tool_calls": true
+        "supports_parallel_tool_calls": true,
+        "input_modalities": ["text", "image"]
       },
       {
         "id": "us.anthropic.claude-3-5-sonnet-20241022-v2:0",
@@ -743,7 +895,8 @@
         "context_length": 200000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "supports_reasoning": true
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
       },
       {
         "id": "us.anthropic.claude-3-7-sonnet-20250219-v1:0",
@@ -752,7 +905,8 @@
         "context_length": 200000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "supports_reasoning": true
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
       },
       {
         "id": "us.anthropic.claude-sonnet-4-20250514-v1:0",
@@ -761,7 +915,8 @@
         "context_length": 200000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "supports_reasoning": true
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
       },
       {
         "id": "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
@@ -770,7 +925,8 @@
         "context_length": 200000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "supports_reasoning": true
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
       },
       {
         "id": "us.anthropic.claude-opus-4-20250514-v1:0",
@@ -779,7 +935,8 @@
         "context_length": 200000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "supports_reasoning": true
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
       },
       {
         "id": "us.anthropic.claude-opus-4-1-20250805-v1:0",
@@ -788,56 +945,64 @@
         "context_length": 200000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
-        "supports_reasoning": true
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
       },
       {
         "id": "us.meta.llama3-2-11b-instruct-v1:0",
         "name": "Llama 3.2 11B Instruct (US)",
         "description": "US regional variant of Llama 3.2 11B",
         "context_length": 128000,
-        "tools_supported": true
+        "tools_supported": true,
+        "input_modalities": ["text", "image"]
       },
       {
         "id": "us.meta.llama3-2-3b-instruct-v1:0",
         "name": "Llama 3.2 3B Instruct (US)",
         "description": "US regional variant of Llama 3.2 3B",
         "context_length": 128000,
-        "tools_supported": true
+        "tools_supported": true,
+        "input_modalities": ["text"]
       },
       {
         "id": "us.meta.llama3-2-90b-instruct-v1:0",
         "name": "Llama 3.2 90B Instruct (US)",
         "description": "US regional variant of Llama 3.2 90B",
         "context_length": 128000,
-        "tools_supported": true
+        "tools_supported": true,
+        "input_modalities": ["text", "image"]
       },
       {
         "id": "us.meta.llama3-2-1b-instruct-v1:0",
         "name": "Llama 3.2 1B Instruct (US)",
         "description": "US regional variant of Llama 3.2 1B",
         "context_length": 128000,
-        "tools_supported": false
+        "tools_supported": false,
+        "input_modalities": ["text"]
       },
       {
         "id": "us.meta.llama3-1-8b-instruct-v1:0",
         "name": "Llama 3.1 8B Instruct (US)",
         "description": "US regional variant of Llama 3.1 8B",
         "context_length": 128000,
-        "tools_supported": true
+        "tools_supported": true,
+        "input_modalities": ["text"]
       },
       {
         "id": "us.meta.llama3-1-70b-instruct-v1:0",
         "name": "Llama 3.1 70B Instruct (US)",
         "description": "US regional variant of Llama 3.1 70B",
         "context_length": 128000,
-        "tools_supported": true
+        "tools_supported": true,
+        "input_modalities": ["text"]
       },
       {
         "id": "us.meta.llama3-3-70b-instruct-v1:0",
         "name": "Llama 3.3 70B Instruct (US)",
         "description": "US regional variant of Llama 3.3 70B",
         "context_length": 128000,
-        "tools_supported": true
+        "tools_supported": true,
+        "input_modalities": ["text"]
       },
       {
         "id": "us.deepseek.r1-v1:0",
@@ -845,28 +1010,32 @@
         "description": "US regional variant of DeepSeek R1 reasoning model",
         "context_length": 64000,
         "tools_supported": false,
-        "supports_reasoning": true
+        "supports_reasoning": true,
+        "input_modalities": ["text"]
       },
       {
         "id": "us.mistral.pixtral-large-2502-v1:0",
         "name": "Pixtral Large (US)",
         "description": "US regional variant of Mistral's Pixtral Large multimodal model",
         "context_length": 128000,
-        "tools_supported": true
+        "tools_supported": true,
+        "input_modalities": ["text", "image"]
       },
       {
         "id": "us.meta.llama4-scout-17b-instruct-v1:0",
         "name": "Llama 4 Scout 17B Instruct (US)",
         "description": "US regional variant of Llama 4 Scout 17B",
         "context_length": 128000,
-        "tools_supported": true
+        "tools_supported": true,
+        "input_modalities": ["text"]
       },
       {
         "id": "us.meta.llama4-maverick-17b-instruct-v1:0",
         "name": "Llama 4 Maverick 17B Instruct (US)",
         "description": "US regional variant of Llama 4 Maverick 17B",
         "context_length": 128000,
-        "tools_supported": true
+        "tools_supported": true,
+        "input_modalities": ["text"]
       }
     ],
     "auth_methods": ["api_key"]

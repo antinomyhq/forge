@@ -127,6 +127,7 @@ impl Drop for ApplicationCursorKeysGuard {
 #[derive(Default)]
 pub struct CursorRestoreGuard;
 
+
 impl Drop for CursorRestoreGuard {
     fn drop(&mut self) {
         // Best effort to re-enable - ignore errors during drop

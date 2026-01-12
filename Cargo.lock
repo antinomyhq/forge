@@ -1959,6 +1959,7 @@ dependencies = [
  "html2md",
  "http 1.4.0",
  "humantime",
+ "infer",
  "lazy_static",
  "merge",
  "oauth2",

@@ -33,19 +33,6 @@ expression: tools
   }
 }
 {
-  "title": "ReadImage",
-  "type": "object",
-  "required": [
-    "path"
-  ],
-  "properties": {
-    "path": {
-      "description": "The absolute path to the image file (e.g., /home/user/image.png). Relative paths are not supported. The file must exist and be readable.",
-      "type": "string"
-    }
-  }
-}
-{
   "title": "FSWrite",
   "type": "object",
   "required": [
