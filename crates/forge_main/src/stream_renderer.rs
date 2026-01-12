@@ -45,10 +45,7 @@ impl<P: ConsoleWriter> SharedSpinner<P> {
 
     /// Resets the stopwatch to zero.
     pub fn reset(&self) {
-        self.0
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .reset()
+        self.0.lock().unwrap_or_else(|e| e.into_inner()).reset()
     }
 
     /// Writes a line to stdout, suspending the spinner if active.

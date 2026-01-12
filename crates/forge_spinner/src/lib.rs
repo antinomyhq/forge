@@ -141,7 +141,12 @@ impl<P: ConsoleWriter> SpinnerManager<P> {
             self.println(&message);
         }
 
-        if let Some(handle) = self.tracker.lock().unwrap_or_else(|e| e.into_inner()).take() {
+        if let Some(handle) = self
+            .tracker
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .take()
+        {
             handle.abort();
         }
         self.message = None;
