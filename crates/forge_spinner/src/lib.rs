@@ -123,7 +123,7 @@ impl<P: ConsoleWriter> SpinnerManager<P> {
                 }
             }
         });
-        *self.tracker.lock().unwrap() = Some(handle);
+        *self.tracker.lock().unwrap_or_else(|e| e.into_inner()) = Some(handle);
 
         Ok(())
     }
@@ -141,7 +141,7 @@ impl<P: ConsoleWriter> SpinnerManager<P> {
             self.println(&message);
         }
 
-        if let Some(handle) = self.tracker.lock().unwrap().take() {
+        if let Some(handle) = self.tracker.lock().unwrap_or_else(|e| e.into_inner()).take() {
             handle.abort();
         }
         self.message = None;

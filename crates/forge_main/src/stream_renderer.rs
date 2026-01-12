@@ -29,27 +29,42 @@ impl<P: ConsoleWriter> SharedSpinner<P> {
 
     /// Start the spinner with a message.
     pub fn start(&self, message: Option<&str>) -> Result<()> {
-        self.0.lock().unwrap().start(message)
+        self.0
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .start(message)
     }
 
     /// Stop the active spinner if any.
     pub fn stop(&self, message: Option<String>) -> Result<()> {
-        self.0.lock().unwrap().stop(message)
+        self.0
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .stop(message)
     }
 
     /// Resets the stopwatch to zero.
     pub fn reset(&self) {
-        self.0.lock().unwrap().reset()
+        self.0
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .reset()
     }
 
     /// Writes a line to stdout, suspending the spinner if active.
     pub fn write_ln(&self, message: impl ToString) -> Result<()> {
-        self.0.lock().unwrap().write_ln(message)
+        self.0
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .write_ln(message)
     }
 
     /// Writes a line to stderr, suspending the spinner if active.
     pub fn ewrite_ln(&self, message: impl ToString) -> Result<()> {
-        self.0.lock().unwrap().ewrite_ln(message)
+        self.0
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .ewrite_ln(message)
     }
 }
 

@@ -47,34 +47,22 @@ impl<O, E> StdConsoleWriter<O, E> {
 
 impl<O: Write + Send, E: Write + Send> ConsoleWriter for StdConsoleWriter<O, E> {
     fn write(&self, buf: &[u8]) -> io::Result<usize> {
-        let mut guard = self
-            .stdout
-            .lock()
-            .map_err(|_| io::Error::other("mutex poisoned"))?;
+        let mut guard = self.stdout.lock().unwrap_or_else(|e| e.into_inner());
         guard.write(buf)
     }
 
     fn write_err(&self, buf: &[u8]) -> io::Result<usize> {
-        let mut guard = self
-            .stderr
-            .lock()
-            .map_err(|_| io::Error::other("mutex poisoned"))?;
+        let mut guard = self.stderr.lock().unwrap_or_else(|e| e.into_inner());
         guard.write(buf)
     }
 
     fn flush(&self) -> io::Result<()> {
-        let mut guard = self
-            .stdout
-            .lock()
-            .map_err(|_| io::Error::other("mutex poisoned"))?;
+        let mut guard = self.stdout.lock().unwrap_or_else(|e| e.into_inner());
         guard.flush()
     }
 
     fn flush_err(&self) -> io::Result<()> {
-        let mut guard = self
-            .stderr
-            .lock()
-            .map_err(|_| io::Error::other("mutex poisoned"))?;
+        let mut guard = self.stderr.lock().unwrap_or_else(|e| e.into_inner());
         guard.flush()
     }
 }
