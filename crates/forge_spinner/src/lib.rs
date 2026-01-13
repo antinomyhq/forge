@@ -134,6 +134,9 @@ impl<P: ConsoleWriter> SpinnerManager<P> {
 
         if let Some(spinner) = self.spinner.take() {
             spinner.finish_and_clear();
+            // Ensure spinner output is fully cleared from terminal
+            let _ = self.printer.flush();
+            let _ = self.printer.flush_err();
             if let Some(msg) = message {
                 self.println(&msg);
             }
@@ -164,12 +167,7 @@ impl<P: ConsoleWriter> SpinnerManager<P> {
     pub fn write_ln(&mut self, message: impl ToString) -> Result<()> {
         let msg = message.to_string();
         if let Some(spinner) = &self.spinner {
-            let printer = self.printer.clone();
-            spinner.suspend(|| {
-                let line = format!("{msg}\n");
-                let _ = printer.write(line.as_bytes());
-                let _ = printer.flush();
-            });
+            spinner.suspend(|| self.println(&msg));
         } else {
             self.println(&msg);
         }
@@ -180,12 +178,7 @@ impl<P: ConsoleWriter> SpinnerManager<P> {
     pub fn ewrite_ln(&mut self, message: impl ToString) -> Result<()> {
         let msg = message.to_string();
         if let Some(spinner) = &self.spinner {
-            let printer = self.printer.clone();
-            spinner.suspend(|| {
-                let line = format!("{msg}\n");
-                let _ = printer.write_err(line.as_bytes());
-                let _ = printer.flush_err();
-            });
+            spinner.suspend(|| self.eprintln(&msg));
         } else {
             self.eprintln(&msg);
         }
