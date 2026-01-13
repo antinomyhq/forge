@@ -44,6 +44,9 @@ service ForgeService {
 
   // Selects relevant skills based on user prompt
   rpc SelectSkill(SelectSkillRequest) returns (SelectSkillResponse);
+
+  // Searches for needle in haystack using fuzzy search
+  rpc FuzzySearch(FuzzySearchRequest) returns (FuzzySearchResponse);
 }
 
 // Node types
@@ -340,4 +343,20 @@ message SelectSkillRequest {
 
 message SelectSkillResponse {
   repeated SelectedSkill skills = 1;
+}
+
+
+message FuzzySearchRequest {
+  string needle     = 1;
+  string haystack   = 2;
+  bool   search_all = 3;
+}
+
+message FuzzySearchResponse {
+  repeated SearchMatch matches = 1;
+}
+
+message SearchMatch {
+  uint32 start_line = 1;
+  uint32 end_line   = 2;
 }

@@ -11,8 +11,9 @@ use forge_app::{
 use forge_domain::{
     AnyProvider, AppConfig, AppConfigRepository, AuthCredential, ChatCompletionMessage,
     ChatRepository, CommandOutput, Context, Conversation, ConversationId, ConversationRepository,
-    Environment, FileInfo, McpServerConfig, MigrationResult, Model, ModelId, Provider, ProviderId,
-    ProviderRepository, ResultStream, Skill, SkillRepository, Snapshot, SnapshotRepository,
+    Environment, FileInfo, FuzzySearchRepository, McpServerConfig, MigrationResult, Model, ModelId,
+    Provider, ProviderId, ProviderRepository, ResultStream, SearchMatch, Skill, SkillRepository,
+    Snapshot, SnapshotRepository,
 };
 // Re-export CacacheStorage from forge_infra
 pub use forge_infra::CacacheStorage;
@@ -27,6 +28,7 @@ use crate::context_engine::ForgeContextEngineRepository;
 use crate::conversation::ConversationRepositoryImpl;
 use crate::database::{DatabasePool, PoolConfig};
 use crate::fs_snap::ForgeFileSnapshotService;
+use crate::fuzzy_search::ForgeFuzzySearchRepository;
 use crate::provider::{ForgeChatRepository, ForgeProviderRepository};
 use crate::skill::ForgeSkillRepository;
 use crate::validation::ForgeValidationRepository;
@@ -50,6 +52,7 @@ pub struct ForgeRepo<F> {
     agent_repository: Arc<ForgeAgentRepository<F>>,
     skill_repository: Arc<ForgeSkillRepository<F>>,
     validation_repository: Arc<ForgeValidationRepository<F>>,
+    fuzzy_search_repository: Arc<ForgeFuzzySearchRepository<F>>,
 }
 
 impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpInfra> ForgeRepo<F> {
@@ -79,6 +82,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpI
         let agent_repository = Arc::new(ForgeAgentRepository::new(infra.clone()));
         let skill_repository = Arc::new(ForgeSkillRepository::new(infra.clone()));
         let validation_repository = Arc::new(ForgeValidationRepository::new(infra.clone()));
+        let fuzzy_search_repository = Arc::new(ForgeFuzzySearchRepository::new(infra.clone()));
         Self {
             infra,
             file_snapshot_service,
@@ -92,6 +96,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpI
             agent_repository,
             skill_repository,
             validation_repository,
+            fuzzy_search_repository,
         }
     }
 }
@@ -500,11 +505,8 @@ impl<F: Send + Sync> forge_domain::WorkspaceRepository for ForgeRepo<F> {
             .await
     }
 
-    async fn find_by_path(
-        &self,
-        path: &std::path::Path,
-    ) -> anyhow::Result<Option<forge_domain::Workspace>> {
-        self.indexing_repository.find_by_path(path).await
+    async fn list(&self) -> anyhow::Result<Vec<forge_domain::Workspace>> {
+        self.indexing_repository.list().await
     }
 
     async fn get_user_id(&self) -> anyhow::Result<Option<forge_domain::UserId>> {
@@ -607,6 +609,20 @@ impl<F: GrpcInfra + Send + Sync> forge_domain::ValidationRepository for ForgeRep
     }
 }
 
+#[async_trait::async_trait]
+impl<F: GrpcInfra + Send + Sync> FuzzySearchRepository for ForgeRepo<F> {
+    async fn fuzzy_search(
+        &self,
+        needle: &str,
+        haystack: &str,
+        search_all: bool,
+    ) -> anyhow::Result<Vec<SearchMatch>> {
+        self.fuzzy_search_repository
+            .fuzzy_search(needle, haystack, search_all)
+            .await
+    }
+}
+
 impl<F: GrpcInfra> GrpcInfra for ForgeRepo<F> {
     fn channel(&self) -> tonic::transport::Channel {
         self.infra.channel()
@@ -614,5 +630,23 @@ impl<F: GrpcInfra> GrpcInfra for ForgeRepo<F> {
 
     fn hydrate(&self) {
         self.infra.hydrate();
+    }
+}
+
+impl<F: forge_domain::ConsoleWriter> forge_domain::ConsoleWriter for ForgeRepo<F> {
+    fn write(&self, buf: &[u8]) -> std::io::Result<usize> {
+        self.infra.write(buf)
+    }
+
+    fn write_err(&self, buf: &[u8]) -> std::io::Result<usize> {
+        self.infra.write_err(buf)
+    }
+
+    fn flush(&self) -> std::io::Result<()> {
+        self.infra.flush()
+    }
+
+    fn flush_err(&self) -> std::io::Result<()> {
+        self.infra.flush_err()
     }
 }

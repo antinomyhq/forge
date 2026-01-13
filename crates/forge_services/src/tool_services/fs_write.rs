@@ -4,8 +4,8 @@ use std::sync::Arc;
 use anyhow::Context;
 use bytes::Bytes;
 use forge_app::{
-    FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra, FsCreateOutput,
-    FsCreateService, compute_hash,
+    FileDirectoryInfra, FileInfoInfra, FileReaderInfra, FileWriterInfra, FsWriteOutput,
+    FsWriteService, compute_hash,
 };
 use forge_domain::{SnapshotRepository, ValidationRepository};
 
@@ -15,11 +15,11 @@ use crate::utils::assert_absolute_path;
 ///
 /// This service coordinates between infrastructure (file I/O) and repository
 /// (snapshots) to create files while preserving the ability to undo changes.
-pub struct ForgeFsCreate<F> {
+pub struct ForgeFsWrite<F> {
     infra: Arc<F>,
 }
 
-impl<F> ForgeFsCreate<F> {
+impl<F> ForgeFsWrite<F> {
     pub fn new(infra: Arc<F>) -> Self {
         Self { infra }
     }
@@ -35,14 +35,14 @@ impl<
         + ValidationRepository
         + Send
         + Sync,
-> FsCreateService for ForgeFsCreate<F>
+> FsWriteService for ForgeFsWrite<F>
 {
-    async fn create(
+    async fn write(
         &self,
         path: String,
         content: String,
         overwrite: bool,
-    ) -> anyhow::Result<FsCreateOutput> {
+    ) -> anyhow::Result<FsWriteOutput> {
         let path = Path::new(&path);
         assert_absolute_path(path)?;
 
@@ -89,7 +89,7 @@ impl<
         // Compute hash of the written file content
         let content_hash = compute_hash(&content);
 
-        Ok(FsCreateOutput {
+        Ok(FsWriteOutput {
             path: path.display().to_string(),
             before: old_content,
             errors,

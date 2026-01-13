@@ -20,7 +20,7 @@ impl ForgeWorkspaceRepository {
 }
 
 /// Database model for workspace table
-#[derive(Debug, Queryable, Selectable, Insertable, AsChangeset)]
+#[derive(Debug, Queryable, Selectable, Insertable, AsChangeset, diesel::QueryableByName)]
 #[diesel(table_name = workspace)]
 #[diesel(check_for_backend(diesel::sqlite::Sqlite))]
 struct IndexingRecord {
@@ -43,13 +43,13 @@ impl IndexingRecord {
     }
 }
 
-impl TryFrom<IndexingRecord> for Workspace {
+impl TryFrom<&IndexingRecord> for Workspace {
     type Error = anyhow::Error;
 
-    fn try_from(record: IndexingRecord) -> anyhow::Result<Self> {
+    fn try_from(record: &IndexingRecord) -> anyhow::Result<Self> {
         let workspace_id = WorkspaceId::from_string(&record.remote_workspace_id)?;
         let user_id = UserId::from_string(&record.user_id)?;
-        let path = PathBuf::from(record.path);
+        let path = PathBuf::from(&record.path);
 
         Ok(Self {
             workspace_id,
@@ -80,14 +80,15 @@ impl WorkspaceRepository for ForgeWorkspaceRepository {
         Ok(())
     }
 
-    async fn find_by_path(&self, path: &std::path::Path) -> anyhow::Result<Option<Workspace>> {
+    async fn list(&self) -> anyhow::Result<Vec<Workspace>> {
         let mut connection = self.pool.get_connection()?;
-        let path_str = path.to_string_lossy().into_owned();
-        let record = workspace::table
-            .filter(workspace::path.eq(path_str))
-            .first::<IndexingRecord>(&mut connection)
-            .optional()?;
-        record.map(Workspace::try_from).transpose()
+
+        let records: Vec<IndexingRecord> = workspace::table.load(&mut connection)?;
+
+        Ok(records
+            .into_iter()
+            .map(|record| Workspace::try_from(&record))
+            .collect::<Result<Vec<_>, _>>()?)
     }
 
     async fn get_user_id(&self) -> anyhow::Result<Option<UserId>> {
@@ -113,21 +114,22 @@ impl WorkspaceRepository for ForgeWorkspaceRepository {
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
+    use std::sync::Arc;
 
-    use forge_domain::UserId;
+    use forge_domain::{UserId, WorkspaceId};
     use pretty_assertions::assert_eq;
 
     use super::*;
     use crate::database::DatabasePool;
 
-    fn repo_impl() -> ForgeWorkspaceRepository {
+    fn repo_fixture() -> ForgeWorkspaceRepository {
         let pool = Arc::new(DatabasePool::in_memory().unwrap());
         ForgeWorkspaceRepository::new(pool)
     }
 
     #[tokio::test]
-    async fn test_upsert_and_find_by_path() {
-        let fixture = repo_impl();
+    async fn test_upsert_and_find_all_by_user_id() {
+        let fixture = repo_fixture();
         let workspace_id = WorkspaceId::generate();
         let user_id = UserId::generate();
         let path = PathBuf::from("/test/project");
@@ -137,17 +139,18 @@ mod tests {
             .await
             .unwrap();
 
-        let actual = fixture.find_by_path(&path).await.unwrap().unwrap();
+        let actual = fixture.list().await.unwrap();
 
-        assert_eq!(actual.workspace_id, workspace_id);
-        assert_eq!(actual.user_id, user_id);
-        assert_eq!(actual.path, path);
-        assert!(actual.updated_at.is_none());
+        assert_eq!(actual.len(), 1);
+        assert_eq!(actual[0].workspace_id, workspace_id);
+        assert_eq!(actual[0].user_id, user_id);
+        assert_eq!(actual[0].path, path);
+        assert!(actual[0].updated_at.is_none());
     }
 
     #[tokio::test]
     async fn test_upsert_updates_timestamp() {
-        let fixture = repo_impl();
+        let fixture = repo_fixture();
         let workspace_id = WorkspaceId::generate();
         let user_id = UserId::generate();
         let path = PathBuf::from("/test/project");
@@ -161,8 +164,42 @@ mod tests {
             .await
             .unwrap();
 
-        let actual = fixture.find_by_path(&path).await.unwrap().unwrap();
+        let actual = fixture.list().await.unwrap();
 
-        assert!(actual.updated_at.is_some());
+        assert_eq!(actual.len(), 1);
+        assert!(actual[0].updated_at.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_find_all_by_user_id_returns_all_workspaces() {
+        let fixture = repo_fixture();
+        let user_id = UserId::generate();
+        let workspace_id_1 = WorkspaceId::generate();
+        let workspace_id_2 = WorkspaceId::generate();
+        let path_1 = PathBuf::from("/test/project1");
+        let path_2 = PathBuf::from("/test/project2");
+
+        fixture
+            .upsert(&workspace_id_1, &user_id, &path_1)
+            .await
+            .unwrap();
+        fixture
+            .upsert(&workspace_id_2, &user_id, &path_2)
+            .await
+            .unwrap();
+
+        let actual = fixture.list().await.unwrap();
+
+        assert_eq!(actual.len(), 2);
+        assert!(actual.iter().any(|w| w.workspace_id == workspace_id_1));
+        assert!(actual.iter().any(|w| w.workspace_id == workspace_id_2));
+    }
+
+    #[tokio::test]
+    async fn test_find_all_by_user_id_returns_empty_when_no_workspaces() {
+        let fixture = repo_fixture();
+        let actual = fixture.list().await.unwrap();
+
+        assert_eq!(actual.len(), 0);
     }
 }

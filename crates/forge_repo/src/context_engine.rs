@@ -80,7 +80,9 @@ impl TryFrom<FileRefNode> for forge_domain::FileHash {
     }
 }
 
-/// gRPC implementation of CodebaseRepository
+/// gRPC implementation of WorkspaceIndexRepository
+///
+/// This repository provides gRPC-based workspace operations.
 pub struct ForgeContextEngineRepository<I> {
     infra: Arc<I>,
 }
@@ -202,7 +204,7 @@ impl<I: GrpcInfra> WorkspaceIndexRepository for ForgeContextEngineRepository<I> 
                 top_k: search_query.data.top_k,
                 relevance_query: Some(search_query.data.use_case.to_string()),
                 starts_with: search_query.data.starts_with.clone().into_iter().collect(),
-                ends_with: search_query.data.ends_with.clone().into_iter().collect(),
+                ends_with: search_query.data.ends_with.clone().unwrap_or_default(),
                 max_distance: None,
                 kinds: vec![NodeKind::FileChunk.into()],
             }),

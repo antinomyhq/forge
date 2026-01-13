@@ -1,51 +1,68 @@
 use proc_macro::TokenStream;
-use proc_macro2::TokenTree;
 use quote::{ToTokens, quote};
-use syn::{DeriveInput, parse_macro_input};
+use syn::{DeriveInput, Expr, ExprLit, Lit, parse_macro_input};
 
-#[proc_macro_derive(ToolDescription)]
+/// Custom attribute for specifying tool description file path
+extern crate proc_macro;
+
+#[proc_macro_attribute]
+pub fn tool_description_file(_attr: TokenStream, _item: TokenStream) -> TokenStream {
+    // This is just a marker attribute, the actual processing happens in
+    // ToolDescription
+    _item
+}
+
+#[proc_macro_derive(ToolDescription, attributes(tool_description_file))]
 pub fn derive_description(input: TokenStream) -> TokenStream {
     // Parse the input struct or enum
     let input = parse_macro_input!(input as DeriveInput);
     let name = &input.ident;
     let generics = &input.generics;
 
-    // Collect doc lines from all `#[doc = "..."]` attributes
-    let mut doc_lines = Vec::new();
+    // Check for tool_description_file attribute first
+    let mut description_file = None;
     for attr in &input.attrs {
-        // Check if the attribute is `#[doc(...)]`
-        if attr.path().is_ident("doc") {
-            // `parse_nested_meta` calls the provided closure for each nested token
-            // of the attribute (e.g., = "some doc string").
-
-            for t in attr
-                .to_token_stream()
-                .into_iter()
-                .filter_map(|t| match t {
-                    TokenTree::Group(lit) => Some(lit.stream()),
-                    _ => None,
-                })
-                .flatten()
-            {
-                if let TokenTree::Literal(lit) = t {
-                    let str = lit.to_string();
-                    // Remove surrounding quotes from the doc string
-                    let clean_str = str.trim_matches('"').to_string();
-                    if !clean_str.is_empty() {
-                        doc_lines.push(clean_str);
-                    }
-                }
-            }
+        if attr.path().is_ident("tool_description_file")
+            && let syn::Meta::NameValue(name_value) = &attr.meta
+            && let Expr::Lit(ExprLit { lit: Lit::Str(lit_str), .. }) = &name_value.value
+        {
+            description_file = Some(lit_str.value());
         }
     }
 
-    // Join all lines with a space (or newline, if you prefer)
-    if doc_lines.is_empty() {
-        panic!("No doc comment found for {name}");
-    }
-    let doc_string = doc_lines.join("\n").trim().to_string();
+    // If we have a description file, read it at compile time
+    let doc_string = if let Some(file_path) = description_file {
+        std::fs::read_to_string(&file_path)
+            .unwrap_or_else(|e| {
+                panic!(
+                    "Failed to read tool description file '{}': {}",
+                    file_path, e
+                )
+            })
+            .trim()
+            .to_string()
+    } else {
+        // Collect doc lines from doc comments
+        let mut doc_lines = Vec::new();
+        for attr in &input.attrs {
+            if attr.path().is_ident("doc") {
+                // Get the doc content as a string
+                let doc_string = attr.meta.to_token_stream().to_string();
+                // Remove the quotes and = sign
+                let clean = doc_string.trim_start_matches("=").trim_matches('"').trim();
+                if !clean.is_empty() {
+                    doc_lines.push(clean.to_string());
+                }
+            }
+        }
 
-    // Generate an implementation of `ToolDescription` that returns the doc string
+        if doc_lines.is_empty() {
+            panic!("No doc comment found for {name}");
+        }
+        doc_lines.join("\n")
+    };
+
+    // Generate the implementation
     let expanded = if generics.params.is_empty() {
         quote! {
             impl ToolDescription for #name {

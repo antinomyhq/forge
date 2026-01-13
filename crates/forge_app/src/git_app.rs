@@ -31,6 +31,8 @@ pub struct CommitResult {
     pub committed: bool,
     /// Whether there are staged files (used internally)
     pub has_staged_files: bool,
+    /// Output from git commit command (stdout + stderr)
+    pub git_output: String,
 }
 
 /// Details about commit message generation
@@ -114,7 +116,12 @@ where
             .generate_commit_message(max_diff_size, diff, additional_context)
             .await?;
 
-        Ok(CommitResult { message, committed: false, has_staged_files })
+        Ok(CommitResult {
+            message,
+            committed: false,
+            has_staged_files,
+            git_output: String::new(),
+        })
     }
 
     /// Commits changes with the provided commit message
@@ -143,7 +150,7 @@ where
 
         let commit_result = self
             .services
-            .execute(commit_command, cwd, false, false, None)
+            .execute(commit_command, cwd, false, true, None)
             .await
             .context("Failed to commit changes")?;
 
@@ -151,7 +158,19 @@ where
             anyhow::bail!("Git commit failed: {}", commit_result.output.stderr);
         }
 
-        Ok(CommitResult { message, committed: true, has_staged_files })
+        // Combine stdout and stderr for logging
+        let git_output = if commit_result.output.stdout.is_empty() {
+            commit_result.output.stderr.clone()
+        } else if commit_result.output.stderr.is_empty() {
+            commit_result.output.stdout.clone()
+        } else {
+            format!(
+                "{}\n{}",
+                commit_result.output.stdout, commit_result.output.stderr
+            )
+        };
+
+        Ok(CommitResult { message, committed: true, has_staged_files, git_output })
     }
 
     /// Generates a commit message based on staged git changes and returns

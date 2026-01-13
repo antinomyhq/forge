@@ -51,6 +51,7 @@ http = "1.2.0"
 ignore = "0.4.23"
 is_ci = "1.2.0"
 indexmap = "2.11.0"
+infer = "0.19.0"
 insta = { version = "1.42.0", features = ["json", "yaml"] }
 lazy_static = "1.4.0"
 machineid-rs = "1.2.4"
@@ -150,3 +151,5 @@ forge_walker = { path = "crates/forge_walker" }
 forge_json_repair = { path = "crates/forge_json_repair" }
 forge_select = { path = "crates/forge_select" }
 forge_test_kit = { path = "crates/forge_test_kit" }
+
+forge_markdown_stream = { git = "https://github.com/antinomyhq/forge_markdown_stream.git", branch = "master" }

@@ -5,6 +5,7 @@ mod conversation;
 mod database;
 mod forge_repo;
 mod fs_snap;
+mod fuzzy_search;
 mod provider;
 mod skill;
 mod validation;

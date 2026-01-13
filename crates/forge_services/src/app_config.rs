@@ -88,8 +88,8 @@ mod tests {
     use std::sync::Mutex;
 
     use forge_domain::{
-        AnyProvider, AppConfig, ChatRepository, MigrationResult, Model, ModelSource, Provider,
-        ProviderId, ProviderResponse, ProviderTemplate,
+        AnyProvider, AppConfig, ChatRepository, InputModality, MigrationResult, Model, ModelSource,
+        Provider, ProviderId, ProviderResponse, ProviderTemplate,
     };
     use pretty_assertions::assert_eq;
     use url::Url;
@@ -129,6 +129,7 @@ mod tests {
                             tools_supported: Some(true),
                             supports_parallel_tool_calls: Some(true),
                             supports_reasoning: Some(false),
+                            input_modalities: vec![InputModality::Text],
                         }])),
                     },
                     Provider {
@@ -153,6 +154,7 @@ mod tests {
                             tools_supported: Some(true),
                             supports_parallel_tool_calls: Some(true),
                             supports_reasoning: Some(true),
+                            input_modalities: vec![InputModality::Text],
                         }])),
                     },
                 ],

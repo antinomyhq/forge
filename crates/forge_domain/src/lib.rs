@@ -6,6 +6,7 @@ mod auth;
 mod chat_request;
 mod chat_response;
 mod compact;
+mod console;
 mod context;
 mod conversation;
 mod conversation_html;
@@ -60,6 +61,7 @@ pub use attachment::*;
 pub use chat_request::*;
 pub use chat_response::*;
 pub use compact::*;
+pub use console::*;
 pub use context::*;
 pub use conversation::*;
 pub use conversation_html::*;
@@ -69,6 +71,7 @@ pub use error::*;
 pub use event::*;
 pub use file::*;
 pub use file_operation::*;
+pub use fuzzy_search::*;
 pub use group_by_key::*;
 pub use http_config::*;
 pub use image::*;
@@ -112,3 +115,5 @@ pub use line_numbers::*;
 
 /// Type alias for tokio mpsc Sender that sends ChatResponse results
 pub type ArcSender = tokio::sync::mpsc::Sender<anyhow::Result<ChatResponse>>;
+
+mod fuzzy_search;

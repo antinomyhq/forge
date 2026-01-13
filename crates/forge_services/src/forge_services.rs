@@ -6,9 +6,9 @@ use forge_app::{
     McpServerInfra, Services, StrategyFactory, UserInfra, WalkerInfra,
 };
 use forge_domain::{
-    AppConfigRepository, ChatRepository, ConversationRepository, ProviderRepository,
-    SkillRepository, SnapshotRepository, ValidationRepository, WorkspaceIndexRepository,
-    WorkspaceRepository,
+    AppConfigRepository, ChatRepository, ConversationRepository, FuzzySearchRepository,
+    ProviderRepository, SkillRepository, SnapshotRepository, ValidationRepository,
+    WorkspaceIndexRepository, WorkspaceRepository,
 };
 
 use crate::ForgeProviderAuthService;
@@ -26,8 +26,8 @@ use crate::policy::ForgePolicyService;
 use crate::provider_service::ForgeProviderService;
 use crate::template::ForgeTemplateService;
 use crate::tool_services::{
-    ForgeFetch, ForgeFollowup, ForgeFsCreate, ForgeFsPatch, ForgeFsRead, ForgeFsRemove,
-    ForgeFsSearch, ForgeFsUndo, ForgeImageRead, ForgePlanCreate, ForgeShell, ForgeSkillFetch,
+    ForgeFetch, ForgeFollowup, ForgeFsPatch, ForgeFsRead, ForgeFsRemove, ForgeFsSearch,
+    ForgeFsUndo, ForgeFsWrite, ForgeImageRead, ForgePlanCreate, ForgeShell, ForgeSkillFetch,
 };
 use crate::workflow::ForgeWorkflowService;
 
@@ -67,7 +67,7 @@ pub struct ForgeServices<
     workflow_service: Arc<ForgeWorkflowService<F>>,
     discovery_service: Arc<ForgeDiscoveryService<F>>,
     mcp_manager: Arc<ForgeMcpManager<F>>,
-    file_create_service: Arc<ForgeFsCreate<F>>,
+    file_create_service: Arc<ForgeFsWrite<F>>,
     plan_create_service: Arc<ForgePlanCreate<F>>,
     file_read_service: Arc<ForgeFsRead<F>>,
     image_read_service: Arc<ForgeImageRead<F>>,
@@ -125,7 +125,7 @@ impl<
         let auth_service = Arc::new(ForgeAuthService::new(infra.clone()));
         let chat_service = Arc::new(ForgeProviderService::new(infra.clone()));
         let config_service = Arc::new(ForgeAppConfigService::new(infra.clone()));
-        let file_create_service = Arc::new(ForgeFsCreate::new(infra.clone()));
+        let file_create_service = Arc::new(ForgeFsWrite::new(infra.clone()));
         let plan_create_service = Arc::new(ForgePlanCreate::new(infra.clone()));
         let file_read_service = Arc::new(ForgeFsRead::new(infra.clone()));
         let image_read_service = Arc::new(ForgeImageRead::new(infra.clone()));
@@ -208,6 +208,7 @@ impl<
         + WorkspaceRepository
         + WorkspaceIndexRepository
         + ValidationRepository
+        + FuzzySearchRepository
         + Clone
         + 'static,
 > Services for ForgeServices<F>
@@ -226,7 +227,7 @@ impl<
     type WorkflowService = ForgeWorkflowService<F>;
     type FileDiscoveryService = ForgeDiscoveryService<F>;
     type McpConfigManager = ForgeMcpManager<F>;
-    type FsCreateService = ForgeFsCreate<F>;
+    type FsWriteService = ForgeFsWrite<F>;
     type PlanCreateService = ForgePlanCreate<F>;
     type FsPatchService = ForgeFsPatch<F>;
     type FsReadService = ForgeFsRead<F>;
@@ -281,7 +282,7 @@ impl<
         self.mcp_manager.as_ref()
     }
 
-    fn fs_create_service(&self) -> &Self::FsCreateService {
+    fn fs_create_service(&self) -> &Self::FsWriteService {
         &self.file_create_service
     }
 

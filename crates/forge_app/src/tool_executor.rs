@@ -7,9 +7,10 @@ use crate::fmt::content::FormatContent;
 use crate::operation::{TempContentFiles, ToolOperation};
 use crate::services::ShellService;
 use crate::{
-    ConversationService, EnvironmentService, FollowUpService, FsCreateService, FsPatchService,
-    FsReadService, FsRemoveService, FsSearchService, FsUndoService, ImageReadService,
-    NetFetchService, PlanCreateService, SkillFetchService, WorkspaceService,
+    AgentRegistry, ConversationService, EnvironmentService, FollowUpService, FsPatchService,
+    FsReadService, FsRemoveService, FsSearchService, FsUndoService, FsWriteService,
+    ImageReadService, NetFetchService, PlanCreateService, ProviderService, SkillFetchService,
+    WorkspaceService,
 };
 
 pub struct ToolExecutor<S> {
@@ -19,7 +20,7 @@ pub struct ToolExecutor<S> {
 impl<
     S: FsReadService
         + ImageReadService
-        + FsCreateService
+        + FsWriteService
         + FsSearchService
         + WorkspaceService
         + NetFetchService
@@ -31,7 +32,9 @@ impl<
         + ConversationService
         + EnvironmentService
         + PlanCreateService
-        + SkillFetchService,
+        + SkillFetchService
+        + AgentRegistry
+        + ProviderService,
 > ToolExecutor<S>
 {
     pub fn new(services: Arc<S>) -> Self {
@@ -112,7 +115,7 @@ impl<
             .into_temp_path()
             .to_path_buf();
         self.services
-            .create(
+            .write(
                 path.to_string_lossy().to_string(),
                 content.to_string(),
                 true,
@@ -136,16 +139,11 @@ impl<
 
                 (input, output).into()
             }
-            ToolCatalog::ReadImage(input) => {
-                let normalized_path = self.normalize_path(input.path.clone());
-                let output = self.services.read_image(normalized_path).await?;
-                output.into()
-            }
             ToolCatalog::Write(input) => {
                 let normalized_path = self.normalize_path(input.path.clone());
                 let output = self
                     .services
-                    .create(normalized_path, input.content.clone(), input.overwrite)
+                    .write(normalized_path, input.content.clone(), input.overwrite)
                     .await?;
                 (input, output).into()
             }
@@ -171,16 +169,10 @@ impl<
                     .queries
                     .iter()
                     .map(|search_query| {
-                        let mut params = forge_domain::SearchParams::new(
-                            &search_query.query,
-                            &search_query.use_case,
-                        )
-                        .limit(limit)
-                        .top_k(top_k);
-                        if let Some(ext) = &input.file_extension {
-                            params = params.ends_with(ext);
-                        }
-                        params
+                        forge_domain::SearchParams::new(&search_query.query, &search_query.use_case)
+                            .limit(limit)
+                            .top_k(top_k)
+                            .ends_with(input.extensions.clone())
                     })
                     .collect();
 

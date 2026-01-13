@@ -118,10 +118,10 @@ impl SummaryToolCall {
 
     /// Creates a CodebaseSearch tool call with default values (id: None,
     /// is_success: true)
-    pub fn codebase_search(queries: Vec<SearchQuery>, file_extension: Option<String>) -> Self {
+    pub fn codebase_search(queries: Vec<SearchQuery>, file_extensions: Vec<String>) -> Self {
         Self {
             id: None,
-            tool: SummaryTool::SemSearch { queries, file_extension },
+            tool: SummaryTool::SemSearch { queries, file_extensions },
             is_success: true,
         }
     }
@@ -197,7 +197,7 @@ pub enum SummaryTool {
     },
     SemSearch {
         queries: Vec<SearchQuery>,
-        file_extension: Option<String>,
+        file_extensions: Vec<String>,
     },
     Undo {
         path: String,
@@ -311,7 +311,6 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
     if let Ok(tool) = ToolCatalog::try_from(call.clone()) {
         return match tool {
             ToolCatalog::Read(input) => Some(SummaryTool::FileRead { path: input.path }),
-            ToolCatalog::ReadImage(input) => Some(SummaryTool::FileRead { path: input.path }),
             ToolCatalog::Write(input) => Some(SummaryTool::FileUpdate { path: input.path }),
             ToolCatalog::Patch(input) => Some(SummaryTool::FileUpdate { path: input.path }),
             ToolCatalog::Remove(input) => Some(SummaryTool::FileRemove { path: input.path }),
@@ -322,7 +321,7 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
                 .map(|pattern| SummaryTool::Search { pattern }),
             ToolCatalog::SemSearch(input) => Some(SummaryTool::SemSearch {
                 queries: input.queries,
-                file_extension: input.file_extension,
+                file_extensions: input.extensions,
             }),
             ToolCatalog::Undo(input) => Some(SummaryTool::Undo { path: input.path }),
             ToolCatalog::Fetch(input) => Some(SummaryTool::Fetch { url: input.url }),
@@ -569,7 +568,7 @@ mod tests {
     fn test_context_summary_extracts_read_image_tool_calls() {
         let fixture = context(vec![assistant_with_tools(
             "Reading image",
-            vec![ToolCatalog::tool_call_read_image("/test/image.png").call_id("call_1")],
+            vec![ToolCatalog::tool_call_read("/test/image.png").call_id("call_1")],
         )]);
 
         let actual = ContextSummary::from(&fixture);
@@ -982,7 +981,7 @@ mod tests {
             vec![
                 ToolCatalog::tool_call_semantic_search(
                     vec![SearchQuery::new("retry mechanism", "find retry logic")],
-                    None,
+                    vec![".rs".to_string()],
                 )
                 .call_id("call_1"),
             ],
@@ -996,7 +995,7 @@ mod tests {
                 Block::content("Searching codebase"),
                 SummaryToolCall::codebase_search(
                     vec![SearchQuery::new("retry mechanism", "find retry logic")],
-                    None,
+                    vec![".rs".to_string()],
                 )
                 .id("call_1")
                 .is_success(false)

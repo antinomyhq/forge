@@ -79,6 +79,7 @@ impl Default for TestContext {
                 max_file_size: 1024 * 1024 * 5,
                 max_search_result_bytes: 200,
                 stdout_max_line_length: 200, // 5 MB
+                max_line_length: 2000,
                 auto_open_dump: false,
                 debug_requests: None,
                 custom_history_path: None,
@@ -89,6 +90,7 @@ impl Default for TestContext {
                 workspace_server_url: Url::parse("http://localhost:8080").unwrap(),
                 override_model: None,
                 override_provider: None,
+                streaming_output: false,
             },
             title: Some("test-conversation".into()),
             agent: Agent::new(

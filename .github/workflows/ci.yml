@@ -41,7 +41,7 @@ jobs:
       contents: read
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
     - name: Setup Protobuf Compiler
       uses: arduino/setup-protoc@v3
       with:
@@ -65,7 +65,7 @@ jobs:
       contents: read
     steps:
     - name: Checkout Code
-      uses: actions/checkout@v5
+      uses: actions/checkout@v6
     - name: Setup Protobuf Compiler
       uses: arduino/setup-protoc@v3
       with:

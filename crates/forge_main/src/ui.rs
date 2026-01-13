@@ -17,7 +17,7 @@ use forge_app::utils::{format_display_path, truncate_key};
 use forge_app::{CommitResult, ToolResolver};
 use forge_display::MarkdownFormat;
 use forge_domain::{
-    AuthMethod, ChatResponseContent, ContextMessage, Role, TitleFormat, UserCommand,
+    AuthMethod, ChatResponseContent, ConsoleWriter, ContextMessage, Role, TitleFormat, UserCommand,
 };
 use forge_fs::ForgeFS;
 use forge_select::ForgeSelect;
@@ -39,6 +39,7 @@ use crate::model::{CliModel, CliProvider, ForgeCommandManager, SlashCommand};
 use crate::porcelain::Porcelain;
 use crate::prompt::ForgePrompt;
 use crate::state::UIState;
+use crate::stream_renderer::{ContentWriter, SharedSpinner};
 use crate::sync_display::SyncProgressDisplay;
 use crate::title_display::TitleDisplayExt;
 use crate::tools_display::format_tools;
@@ -89,7 +90,7 @@ fn format_mcp_headers(server: &forge_domain::McpServerConfig) -> Option<String> 
     }
 }
 
-pub struct UI<A, F: Fn() -> A> {
+pub struct UI<A: ConsoleWriter, F: Fn() -> A> {
     markdown: MarkdownFormat,
     state: UIState,
     api: Arc<F::Output>,
@@ -97,12 +98,12 @@ pub struct UI<A, F: Fn() -> A> {
     console: Console,
     command: Arc<ForgeCommandManager>,
     cli: Cli,
-    spinner: SpinnerManager,
+    spinner: SharedSpinner<A>,
     #[allow(dead_code)] // The guard is kept alive by being held in the struct
     _guard: forge_tracker::Guard,
 }
 
-impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
+impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     /// Writes a line to the console output
     /// Takes anything that implements ToString trait
     fn writeln<T: ToString>(&mut self, content: T) -> anyhow::Result<()> {
@@ -176,6 +177,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         self.cli.conversation = None;
         self.cli.conversation_id = None;
 
+        self.spinner.reset();
         self.display_banner()?;
         self.trace_user();
         self.hydrate_caches();
@@ -213,6 +215,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let api = Arc::new(f());
         let env = api.environment();
         let command = Arc::new(ForgeCommandManager::default());
+        let spinner = SharedSpinner::new(SpinnerManager::new(api.clone()));
         Ok(Self {
             state: Default::default(),
             api,
@@ -220,7 +223,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             console: Console::new(env.clone(), command.clone()),
             cli,
             command,
-            spinner: SpinnerManager::new(),
+            spinner,
             markdown: MarkdownFormat::new(),
             _guard: forge_tracker::init_tracing(env.log_path(), TRACKER.clone())?,
         })
@@ -293,6 +296,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             tokio::select! {
                 _ = tokio::signal::ctrl_c() => {
                     tracing::info!("User interrupted operation with Ctrl+C");
+                    self.spinner.reset();
                     self.spinner.stop(None)?;
                     return Ok(());
                 }
@@ -311,6 +315,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 Ok(command) => {
                     tokio::select! {
                         _ = tokio::signal::ctrl_c() => {
+                            self.spinner.reset();
                             tracing::info!("User interrupted operation with Ctrl+C");
                         }
                         result = self.on_command(command) => {
@@ -610,7 +615,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                             params = params.starts_with(prefix);
                         }
                         if let Some(suffix) = ends_with {
-                            params = params.ends_with(suffix);
+                            params = params.ends_with(vec![suffix]);
                         }
                         self.on_query(path, params).await?;
                     }
@@ -632,6 +637,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 let result = self.handle_commit_command(commit_group).await?;
                 if preview {
                     self.writeln(&result.message)?;
+                } else if !result.git_output.is_empty() {
+                    self.writeln_to_stderr(result.git_output.trim_end().to_string())?;
+                } else {
+                    self.writeln_to_stderr(result.message.trim_end().to_string())?;
                 }
                 return Ok(());
             }
@@ -1086,6 +1095,19 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             } else {
                 info = info.add_key_value("Tools", markers::EMPTY)
             }
+
+            // Add image modality support indicator
+            let supports_image = model
+                .input_modalities
+                .contains(&forge_domain::InputModality::Image);
+            info = info.add_key_value(
+                "Image",
+                if supports_image {
+                    status::YES
+                } else {
+                    status::NO
+                },
+            );
         }
 
         if porcelain {
@@ -1844,8 +1866,8 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
             SlashCommand::Index => {
                 let working_dir = self.state.cwd.clone();
-                // Use default batch size of 10 for slash command
-                self.on_index(working_dir, 10).await?;
+                // Use default batch size of 100 for slash command
+                self.on_index(working_dir, 100).await?;
             }
             SlashCommand::AgentSwitch(agent_id) => {
                 // Validate that the agent exists by checking against loaded agents
@@ -2583,10 +2605,22 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     async fn on_chat(&mut self, chat: ChatRequest) -> Result<()> {
         let mut stream = self.api.chat(chat).await?;
 
+        // Create content writer - streaming or direct based on environment config
+        let mut writer = if self.api.environment().streaming_output {
+            ContentWriter::streaming(self.spinner.clone(), self.api.clone())
+        } else {
+            ContentWriter::direct(
+                self.spinner.clone(),
+                self.api.clone(),
+                self.markdown.clone(),
+            )
+        };
+
         while let Some(message) = stream.next().await {
             match message {
-                Ok(message) => self.handle_chat_response(message).await?,
+                Ok(message) => self.handle_chat_response(message, &mut writer).await?,
                 Err(err) => {
+                    writer.finish()?;
                     self.spinner.stop(None)?;
                     self.spinner.reset();
                     return Err(err);
@@ -2594,6 +2628,7 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
         }
 
+        writer.finish()?;
         self.spinner.stop(None)?;
         self.spinner.reset();
 
@@ -2646,23 +2681,37 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(())
     }
 
-    async fn handle_chat_response(&mut self, message: ChatResponse) -> Result<()> {
+    async fn handle_chat_response(
+        &mut self,
+        message: ChatResponse,
+        writer: &mut ContentWriter<A>,
+    ) -> Result<()> {
         debug!(chat_response = ?message, "Chat Response");
         if message.is_empty() {
             return Ok(());
         }
-
         match message {
             ChatResponse::TaskMessage { content } => match content {
-                ChatResponseContent::Title(title) => self.writeln(title.display())?,
-                ChatResponseContent::PlainText(text) => self.writeln(text)?,
+                ChatResponseContent::Title(title) => {
+                    writer.finish()?;
+                    self.writeln(title.display())?;
+                }
+                ChatResponseContent::PlainText(text) => {
+                    writer.finish()?;
+                    self.writeln(text)?;
+                }
                 ChatResponseContent::Markdown(text) => {
                     tracing::info!(message = %text, "Agent Response");
-                    self.writeln(self.markdown.render(&text))?;
+                    writer.write(&text)?;
                 }
             },
-            ChatResponse::ToolCallStart(_) => {
-                self.spinner.stop(None)?;
+            ChatResponse::ToolCallStart(tool_call) => {
+                writer.finish()?;
+
+                // Stop spinner only for tools that require stdout/stderr access
+                if tool_call.requires_stdout() {
+                    self.spinner.stop(None)?;
+                }
             }
             ChatResponse::ToolCallEnd(toolcall_result) => {
                 // Only track toolcall name in case of success else track the error.
@@ -2684,11 +2733,13 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
             ChatResponse::RetryAttempt { cause, duration: _ } => {
                 if !self.api.environment().retry_config.suppress_retry_errors {
+                    writer.finish()?;
                     self.spinner.start(Some("Retrying"))?;
                     self.writeln_title(TitleFormat::error(cause.as_str()))?;
                 }
             }
             ChatResponse::Interrupt { reason } => {
+                writer.finish()?;
                 self.spinner.stop(None)?;
 
                 let title = match reason {
@@ -2704,12 +2755,10 @@ impl<A: API + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.should_continue().await?;
             }
             ChatResponse::TaskReasoning { content } => {
-                if !content.trim().is_empty() {
-                    let rendered_content = self.markdown.render(&content);
-                    self.writeln(rendered_content.dimmed())?;
-                }
+                writer.write_dimmed(&content)?;
             }
             ChatResponse::TaskComplete => {
+                writer.finish()?;
                 if let Some(conversation_id) = self.state.conversation_id {
                     self.writeln_title(
                         TitleFormat::debug("Finished").sub_title(conversation_id.into_string()),

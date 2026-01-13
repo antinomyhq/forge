@@ -80,20 +80,23 @@ impl ForgeEnvironmentInfra {
             debug_requests: parse_env::<String>("FORGE_DEBUG_REQUESTS").map(PathBuf::from),
             stdout_max_line_length: parse_env::<usize>("FORGE_STDOUT_MAX_LINE_LENGTH")
                 .unwrap_or(2000),
+            max_line_length: parse_env::<usize>("FORGE_MAX_LINE_LENGTH").unwrap_or(2000),
             http: resolve_http_config(),
             max_file_size: 256 << 10, // 256 KiB
             max_image_size: parse_env::<u64>("FORGE_MAX_IMAGE_SIZE").unwrap_or(256 << 10), /* 256 KiB */
             forge_api_url,
             custom_history_path,
             max_conversations: parse_env::<usize>("FORGE_MAX_CONVERSATIONS").unwrap_or(100),
-            sem_search_limit: parse_env::<usize>("FORGE_SEM_SEARCH_LIMIT").unwrap_or(100),
-            sem_search_top_k: parse_env::<usize>("FORGE_SEM_SEARCH_TOP_K").unwrap_or(10),
+            sem_search_limit: parse_env::<usize>("FORGE_SEM_SEARCH_LIMIT").unwrap_or(200),
+            sem_search_top_k: parse_env::<usize>("FORGE_SEM_SEARCH_TOP_K").unwrap_or(20),
             workspace_server_url: parse_env::<String>("FORGE_WORKSPACE_SERVER_URL")
                 .as_ref()
                 .and_then(|url| Url::parse(url.as_str()).ok())
                 .unwrap_or_else(|| Url::parse("https://api.forgecode.dev/").unwrap()),
             override_model,
             override_provider,
+
+            streaming_output: parse_env::<bool>("FORGE_STREAMING_OUTPUT").unwrap_or(false),
         }
     }
 

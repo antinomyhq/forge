@@ -8,7 +8,7 @@ use crate::utils::format_display_path;
 impl FormatContent for ToolOperation {
     fn to_content(&self, env: &Environment) -> Option<ChatResponseContent> {
         match self {
-            ToolOperation::FsCreate { input, output } => {
+            ToolOperation::FsWrite { input, output } => {
                 if let Some(ref before) = output.before {
                     let after = &input.content;
                     Some(ChatResponseContent::PlainText(
@@ -31,7 +31,6 @@ impl FormatContent for ToolOperation {
                 title.into()
             }),
             ToolOperation::FsRead { input: _, output: _ }
-            | ToolOperation::ImageRead { output: _ }
             | ToolOperation::FsRemove { input: _, output: _ }
             | ToolOperation::FsSearch { input: _, output: _ }
             | ToolOperation::CodebaseSearch { output: _ }
@@ -58,7 +57,7 @@ mod tests {
     // ContentFormat is now ChatResponseContent
     use crate::operation::ToolOperation;
     use crate::{
-        Content, FsCreateOutput, FsRemoveOutput, FsUndoOutput, HttpResponse, Match, MatchResult,
+        Content, FsRemoveOutput, FsUndoOutput, FsWriteOutput, HttpResponse, Match, MatchResult,
         PatchOutput, ReadOutput, ResponseContext, SearchResult, ShellOutput,
     };
 
@@ -75,6 +74,7 @@ mod tests {
             .max_read_size(10)
             .stdout_max_prefix_length(10)
             .stdout_max_suffix_length(10)
+            .max_line_length(100)
             .max_file_size(0)
     }
 
@@ -133,13 +133,13 @@ mod tests {
     #[test]
     fn test_fs_create_new_file() {
         let content = "New file content";
-        let fixture = ToolOperation::FsCreate {
+        let fixture = ToolOperation::FsWrite {
             input: forge_domain::FSWrite {
                 path: "/home/user/project/new_file.txt".to_string(),
                 content: content.to_string(),
                 overwrite: false,
             },
-            output: FsCreateOutput {
+            output: FsWriteOutput {
                 path: "/home/user/project/new_file.txt".to_string(),
                 before: None,
                 errors: vec![],
@@ -157,13 +157,13 @@ mod tests {
     #[test]
     fn test_fs_create_overwrite() {
         let content = "new content";
-        let fixture = ToolOperation::FsCreate {
+        let fixture = ToolOperation::FsWrite {
             input: forge_domain::FSWrite {
                 path: "/home/user/project/existing_file.txt".to_string(),
                 content: content.to_string(),
                 overwrite: true,
             },
-            output: FsCreateOutput {
+            output: FsWriteOutput {
                 path: "/home/user/project/existing_file.txt".to_string(),
                 before: Some("old content".to_string()),
                 errors: vec![],
@@ -185,13 +185,13 @@ mod tests {
     #[test]
     fn test_fs_create_with_warning() {
         let content = "File content";
-        let fixture = ToolOperation::FsCreate {
+        let fixture = ToolOperation::FsWrite {
             input: forge_domain::FSWrite {
                 path: "/home/user/project/file.txt".to_string(),
                 content: content.to_string(),
                 overwrite: false,
             },
-            output: FsCreateOutput {
+            output: FsWriteOutput {
                 path: "/home/user/project/file.txt".to_string(),
                 before: None,
                 errors: vec![forge_domain::SyntaxError {

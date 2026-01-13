@@ -1,3 +1,4 @@
+mod console;
 pub mod executor;
 
 mod auth;
@@ -18,6 +19,7 @@ mod mcp_client;
 mod mcp_server;
 mod walker;
 
+pub use console::StdConsoleWriter;
 pub use executor::ForgeCommandExecutorService;
 pub use forge_infra::*;
 pub use kv_storage::CacacheStorage;
