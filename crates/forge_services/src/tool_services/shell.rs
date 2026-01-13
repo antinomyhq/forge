@@ -212,7 +212,10 @@ mod tests {
 
         assert_eq!(actual.output.stdout, "Mock output");
         assert_eq!(actual.output.exit_code, Some(0));
-        assert_eq!(actual.description, Some("Prints hello to stdout".to_string()));
+        assert_eq!(
+            actual.description,
+            Some("Prints hello to stdout".to_string())
+        );
     }
 
     #[tokio::test]

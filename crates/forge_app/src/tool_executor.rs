@@ -222,7 +222,8 @@ impl<
                 (input, output).into()
             }
             ToolCatalog::Shell(input) => {
-                let cwd = input.cwd
+                let cwd = input
+                    .cwd
                     .map(|p| p.display().to_string())
                     .unwrap_or_else(|| self.services.get_environment().cwd.display().to_string());
                 let normalized_cwd = self.normalize_path(cwd);

@@ -248,8 +248,14 @@ where
                 None,
                 None,
             ),
-            self.services
-                .execute("git diff".into(), cwd.to_path_buf(), false, true, None, None,)
+            self.services.execute(
+                "git diff".into(),
+                cwd.to_path_buf(),
+                false,
+                true,
+                None,
+                None,
+            )
         );
 
         let staged_diff = staged_diff.context("Failed to get staged changes")?;

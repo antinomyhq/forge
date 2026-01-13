@@ -332,7 +332,8 @@ pub struct Shell {
     pub command: String,
 
     /// The working directory where the command should be executed.
-    /// If not specified, defaults to the current working directory from the environment.
+    /// If not specified, defaults to the current working directory from the
+    /// environment.
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cwd: Option<PathBuf>,
@@ -888,8 +889,8 @@ mod tests {
     use pretty_assertions::assert_eq;
     use strum::IntoEnumIterator;
 
-    use crate::{ToolCatalog, ToolKind, ToolName};
     use super::Shell;
+    use crate::{ToolCatalog, ToolKind, ToolName};
 
     #[test]
     fn test_tool_definition() {
