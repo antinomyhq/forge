@@ -251,9 +251,11 @@ impl JsonSchema for PatchOperation {
 #[tool_description_file = "crates/forge_domain/src/tools/descriptions/fs_patch.md"]
 pub struct FSPatch {
     /// The absolute path to the file to modify
+    #[serde(alias = "path")]
     pub file_path: String,
 
     /// The text to replace
+    #[serde(alias = "search")]
     pub old_string: Option<String>,
 
     /// The operation to perform on the matched text. Possible options are: -
@@ -268,6 +270,7 @@ pub struct FSPatch {
     pub operation: PatchOperation,
 
     /// The text to replace it with (must be different from old_string)
+    #[serde(alias = "content")]
     pub new_string: String,
 }
 
@@ -1151,6 +1154,145 @@ mod tests {
                 );
             }
             _ => panic!("Expected Read operation"),
+        }
+    }
+
+    #[test]
+    fn test_fs_patch_backward_compatibility_path() {
+        use crate::{ToolCallArguments, ToolCallFull};
+
+        // Test old field name "path" still works
+        let tool_call = ToolCallFull {
+            name: ToolName::new("patch"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(
+                r#"{"path": "/test/file.rs", "operation": "replace", "new_string": "new", "old_string": "old"}"#,
+            ),
+        };
+
+        let actual = ToolCatalog::try_from(tool_call);
+
+        assert!(
+            actual.is_ok(),
+            "Should successfully parse old 'path' field name"
+        );
+
+        if let Ok(ToolCatalog::Patch(fs_patch)) = actual {
+            assert_eq!(fs_patch.file_path, "/test/file.rs");
+        } else {
+            panic!("Expected FSPatch variant");
+        }
+    }
+
+    #[test]
+    fn test_fs_patch_backward_compatibility_search() {
+        use crate::{ToolCallArguments, ToolCallFull};
+
+        // Test old field name "search" still works
+        let tool_call = ToolCallFull {
+            name: ToolName::new("patch"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(
+                r#"{"file_path": "/test/file.rs", "operation": "replace", "new_string": "new", "search": "old text"}"#,
+            ),
+        };
+
+        let actual = ToolCatalog::try_from(tool_call);
+
+        assert!(
+            actual.is_ok(),
+            "Should successfully parse old 'search' field name"
+        );
+
+        if let Ok(ToolCatalog::Patch(fs_patch)) = actual {
+            assert_eq!(fs_patch.old_string, Some("old text".to_string()));
+        } else {
+            panic!("Expected FSPatch variant");
+        }
+    }
+
+    #[test]
+    fn test_fs_patch_backward_compatibility_content() {
+        use crate::{ToolCallArguments, ToolCallFull};
+
+        // Test old field name "content" still works
+        let tool_call = ToolCallFull {
+            name: ToolName::new("patch"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(
+                r#"{"file_path": "/test/file.rs", "operation": "replace", "content": "new content", "old_string": "old"}"#,
+            ),
+        };
+
+        let actual = ToolCatalog::try_from(tool_call);
+
+        assert!(
+            actual.is_ok(),
+            "Should successfully parse old 'content' field name"
+        );
+
+        if let Ok(ToolCatalog::Patch(fs_patch)) = actual {
+            assert_eq!(fs_patch.new_string, "new content");
+        } else {
+            panic!("Expected FSPatch variant");
+        }
+    }
+
+    #[test]
+    fn test_fs_patch_backward_compatibility_all_old_fields() {
+        use crate::{ToolCallArguments, ToolCallFull};
+
+        // Test all old field names together
+        let tool_call = ToolCallFull {
+            name: ToolName::new("patch"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(
+                r#"{"path": "/test/file.rs", "operation": "replace", "content": "new content", "search": "old text"}"#,
+            ),
+        };
+
+        let actual = ToolCatalog::try_from(tool_call);
+
+        assert!(
+            actual.is_ok(),
+            "Should successfully parse all old field names together"
+        );
+
+        if let Ok(ToolCatalog::Patch(fs_patch)) = actual {
+            assert_eq!(fs_patch.file_path, "/test/file.rs");
+            assert_eq!(fs_patch.old_string, Some("old text".to_string()));
+            assert_eq!(fs_patch.new_string, "new content");
+        } else {
+            panic!("Expected FSPatch variant");
+        }
+    }
+
+    #[test]
+    fn test_fs_patch_new_field_names() {
+        use crate::{ToolCallArguments, ToolCallFull};
+
+        // Test new field names work as expected
+        let tool_call = ToolCallFull {
+            name: ToolName::new("patch"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(
+                r#"{"file_path": "/test/file.rs", "operation": "replace", "new_string": "new content", "old_string": "old text"}"#,
+            ),
+        };
+
+        let actual = ToolCatalog::try_from(tool_call);
+
+        assert!(
+            actual.is_ok(),
+            "Should successfully parse new field names"
+        );
+
+        if let Ok(ToolCatalog::Patch(fs_patch)) = actual {
+            assert_eq!(fs_patch.file_path, "/test/file.rs");
+            assert_eq!(fs_patch.old_string, Some("old text".to_string()));
+            assert_eq!(fs_patch.new_string, "new content");
+        } else {
+            panic!("Expected FSPatch variant");
         }
     }
 }
