@@ -149,9 +149,9 @@ impl<P: ConsoleWriter> DirectContentWriter<P> {
         }
         self.pause_spinner();
         let rendered = self.markdown.render(text);
-        let _ = self.printer.write(rendered.as_bytes());
-        let _ = self.printer.write(b"\n");
-        let _ = self.printer.flush();
+        self.printer.write(rendered.as_bytes())?;
+        self.printer.write(b"\n")?;
+        self.printer.flush()?;
         self.resume_spinner();
         Ok(())
     }
@@ -164,9 +164,9 @@ impl<P: ConsoleWriter> DirectContentWriter<P> {
         self.pause_spinner();
         let rendered = self.markdown.render(text);
         let styled = rendered.dimmed().to_string();
-        let _ = self.printer.write(styled.as_bytes());
-        let _ = self.printer.write(b"\n");
-        let _ = self.printer.flush();
+        self.printer.write(styled.as_bytes())?;
+        self.printer.write(b"\n")?;
+        self.printer.flush()?;
         self.resume_spinner();
         Ok(())
     }
@@ -306,8 +306,8 @@ impl<P: ConsoleWriter> io::Write for StreamDirectWriter<P> {
             Err(_) => String::from_utf8_lossy(buf).into_owned(),
         };
         let styled = self.style.apply(content);
-        let _ = self.printer.write(styled.as_bytes());
-        let _ = self.printer.flush();
+        self.printer.write(styled.as_bytes())?;
+        self.printer.flush()?;
 
         // Track if we ended on a newline - only safe to show spinner at line start
         if buf.last() == Some(&b'\n') {
@@ -318,7 +318,6 @@ impl<P: ConsoleWriter> io::Write for StreamDirectWriter<P> {
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        let _ = self.printer.flush();
-        Ok(())
+        self.printer.flush()
     }
 }
