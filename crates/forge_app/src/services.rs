@@ -106,7 +106,7 @@ pub enum ResponseContext {
 }
 
 #[derive(Debug)]
-pub struct FsCreateOutput {
+pub struct FsWriteOutput {
     pub path: String,
     // Set when the file already exists
     pub before: Option<String>,
@@ -336,14 +336,14 @@ pub trait FileDiscoveryService: Send + Sync {
 }
 
 #[async_trait::async_trait]
-pub trait FsCreateService: Send + Sync {
+pub trait FsWriteService: Send + Sync {
     /// Create a file at the specified path with the given content.
-    async fn create(
+    async fn write(
         &self,
         path: String,
         content: String,
         overwrite: bool,
-    ) -> anyhow::Result<FsCreateOutput>;
+    ) -> anyhow::Result<FsWriteOutput>;
 }
 
 #[async_trait::async_trait]
@@ -545,7 +545,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type WorkflowService: WorkflowService + Sync;
     type FileDiscoveryService: FileDiscoveryService;
     type McpConfigManager: McpConfigManager;
-    type FsCreateService: FsCreateService;
+    type FsWriteService: FsWriteService;
     type PlanCreateService: PlanCreateService;
     type FsPatchService: FsPatchService;
     type FsReadService: FsReadService;
@@ -573,7 +573,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn workflow_service(&self) -> &Self::WorkflowService;
     fn file_discovery_service(&self) -> &Self::FileDiscoveryService;
     fn mcp_config_manager(&self) -> &Self::McpConfigManager;
-    fn fs_create_service(&self) -> &Self::FsCreateService;
+    fn fs_create_service(&self) -> &Self::FsWriteService;
     fn plan_create_service(&self) -> &Self::PlanCreateService;
     fn fs_patch_service(&self) -> &Self::FsPatchService;
     fn fs_read_service(&self) -> &Self::FsReadService;
@@ -751,15 +751,15 @@ impl<I: Services> FileDiscoveryService for I {
 }
 
 #[async_trait::async_trait]
-impl<I: Services> FsCreateService for I {
-    async fn create(
+impl<I: Services> FsWriteService for I {
+    async fn write(
         &self,
         path: String,
         content: String,
         overwrite: bool,
-    ) -> anyhow::Result<FsCreateOutput> {
+    ) -> anyhow::Result<FsWriteOutput> {
         self.fs_create_service()
-            .create(path, content, overwrite)
+            .write(path, content, overwrite)
             .await
     }
 }
