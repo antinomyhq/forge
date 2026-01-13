@@ -219,19 +219,21 @@ impl<W: WalkerInfra + FileReaderInfra + FileInfoInfra> ForgeFsSearch<W> {
 
             // Check if file has any matches
             let mut has_match = false;
-            Searcher::new()
-                .search_slice(
-                    matcher,
-                    &content,
-                    UTF8(|_, _| {
-                        // Found a match, set flag and stop searching
-                        has_match = true;
-                        Ok(false)
-                    }),
-                )?;
+            Searcher::new().search_slice(
+                matcher,
+                &content,
+                UTF8(|_, _| {
+                    // Found a match, set flag and stop searching
+                    has_match = true;
+                    Ok(false)
+                }),
+            )?;
 
             if has_match {
-                matches.push(Match { path: path.to_string_lossy().to_string(), result: Some(MatchResult::FileMatch) });
+                matches.push(Match {
+                    path: path.to_string_lossy().to_string(),
+                    result: Some(MatchResult::FileMatch),
+                });
             }
         }
 
@@ -646,7 +648,12 @@ mod test {
         assert!(actual.is_some());
         let result = actual.unwrap();
         // Should return file paths only, no content
-        assert!(result.matches.iter().all(|m| m.result.is_some() && matches!(m.result, Some(MatchResult::FileMatch))));
+        assert!(
+            result
+                .matches
+                .iter()
+                .all(|m| m.result.is_some() && matches!(m.result, Some(MatchResult::FileMatch)))
+        );
     }
 
     #[tokio::test]
