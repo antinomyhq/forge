@@ -1,11 +1,11 @@
 mod fetch;
 mod followup;
-mod fs_create;
 mod fs_patch;
 mod fs_read;
 mod fs_remove;
 mod fs_search;
 mod fs_undo;
+mod fs_write;
 mod image_read;
 mod plan_create;
 mod shell;
@@ -13,12 +13,12 @@ mod skill;
 
 pub use fetch::*;
 pub use followup::*;
-pub use fs_create::*;
 pub use fs_patch::*;
 pub use fs_read::*;
 pub use fs_remove::*;
 pub use fs_search::*;
 pub use fs_undo::*;
+pub use fs_write::*;
 pub use image_read::*;
 pub use plan_create::*;
 pub use shell::*;

@@ -17,7 +17,7 @@ use crate::truncation::{
 };
 use crate::utils::{compute_hash, format_display_path};
 use crate::{
-    FsCreateOutput, FsRemoveOutput, FsUndoOutput, HttpResponse, PatchOutput, PlanCreateOutput,
+    FsRemoveOutput, FsUndoOutput, FsWriteOutput, HttpResponse, PatchOutput, PlanCreateOutput,
     ReadOutput, ResponseContext, SearchResult, ShellOutput,
 };
 
@@ -34,9 +34,9 @@ pub enum ToolOperation {
         input: FSRead,
         output: ReadOutput,
     },
-    FsCreate {
+    FsWrite {
         input: FSWrite,
-        output: FsCreateOutput,
+        output: FsWriteOutput,
     },
     FsRemove {
         input: FSRemove,
@@ -266,7 +266,7 @@ impl ToolOperation {
 
                 forge_domain::ToolOutput::text(elm)
             }
-            ToolOperation::FsCreate { input, output } => {
+            ToolOperation::FsWrite { input, output } => {
                 let diff_result = DiffFormat::format(
                     output.before.as_ref().unwrap_or(&"".to_string()),
                     &input.content,
@@ -855,13 +855,13 @@ mod tests {
     #[test]
     fn test_fs_create_basic() {
         let content = "Hello, world!";
-        let fixture = ToolOperation::FsCreate {
+        let fixture = ToolOperation::FsWrite {
             input: forge_domain::FSWrite {
                 path: "/home/user/new_file.txt".to_string(),
                 content: content.to_string(),
                 overwrite: false,
             },
-            output: FsCreateOutput {
+            output: FsWriteOutput {
                 path: "/home/user/new_file.txt".to_string(),
                 before: None,
                 errors: vec![],
@@ -884,13 +884,13 @@ mod tests {
     #[test]
     fn test_fs_create_overwrite() {
         let content = "New content for the file";
-        let fixture = ToolOperation::FsCreate {
+        let fixture = ToolOperation::FsWrite {
             input: forge_domain::FSWrite {
                 path: "/home/user/existing_file.txt".to_string(),
                 content: content.to_string(),
                 overwrite: true,
             },
-            output: FsCreateOutput {
+            output: FsWriteOutput {
                 path: "/home/user/existing_file.txt".to_string(),
                 before: Some("Old content".to_string()),
                 errors: vec![],
@@ -1353,13 +1353,13 @@ mod tests {
     #[test]
     fn test_fs_create_with_warning() {
         let content = "Content with warning";
-        let fixture = ToolOperation::FsCreate {
+        let fixture = ToolOperation::FsWrite {
             input: forge_domain::FSWrite {
                 path: "/home/user/file_with_warning.txt".to_string(),
                 content: content.to_string(),
                 overwrite: false,
             },
-            output: FsCreateOutput {
+            output: FsWriteOutput {
                 path: "/home/user/file_with_warning.txt".to_string(),
                 before: None,
                 errors: test_syntax_errors(vec![(10, 5, "Syntax error on line 10")]),
@@ -1382,13 +1382,13 @@ mod tests {
     #[test]
     fn test_fs_create_with_warning_xml_tags() {
         let content = "Content with warning";
-        let fixture = ToolOperation::FsCreate {
+        let fixture = ToolOperation::FsWrite {
             input: forge_domain::FSWrite {
                 path: "/home/user/file_with_warning.txt".to_string(),
                 content: content.to_string(),
                 overwrite: false,
             },
-            output: FsCreateOutput {
+            output: FsWriteOutput {
                 path: "/home/user/file_with_warning.txt".to_string(),
                 before: None,
                 errors: test_syntax_errors(vec![
