@@ -320,9 +320,10 @@ impl<
 
         // Enforce read-before-edit for overwrite writes
         if let ToolCatalog::Write(input) = &tool_input
-            && input.overwrite {
-                self.require_prior_read(context, &input.path, "overwrite it")?;
-            }
+            && input.overwrite
+        {
+            self.require_prior_read(context, &input.path, "overwrite it")?;
+        }
 
         let execution_result = self.call_internal(tool_input.clone()).await;
 
