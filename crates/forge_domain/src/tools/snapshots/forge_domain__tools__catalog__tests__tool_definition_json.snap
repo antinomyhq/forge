@@ -198,14 +198,23 @@ expression: tools
   "title": "FSPatch",
   "type": "object",
   "required": [
-    "content",
-    "operation",
-    "path"
+    "file_path",
+    "new_string",
+    "operation"
   ],
   "properties": {
-    "content": {
-      "description": "The text to replace it with (must be different from search)",
+    "file_path": {
+      "description": "The absolute path to the file to modify",
       "type": "string"
+    },
+    "new_string": {
+      "description": "The text to replace it with (must be different from old_string)",
+      "type": "string"
+    },
+    "old_string": {
+      "description": "The text to replace",
+      "type": "string",
+      "nullable": true
     },
     "operation": {
       "description": "The operation to perform on the matched text. Possible options are: - 'prepend': Add content before the matched text - 'append': Add content after the matched text - 'replace': Use only for specific, targeted replacements where you need to modify just the first match. - 'replace_all': Should be used for renaming variables, functions, types, or any widespread replacements across the file. This is the recommended choice for consistent refactoring operations as it ensures all occurrences are updated. - 'swap': Replace the matched text with another text (search for the second text and swap them)",
@@ -217,15 +226,6 @@ expression: tools
         "replace_all",
         "swap"
       ]
-    },
-    "path": {
-      "description": "The path to the file to modify",
-      "type": "string"
-    },
-    "search": {
-      "description": "The text to replace. When skipped the patch operation applies to the entire content. `Append` adds the new content to the end, `Prepend` adds it to the beginning, and `Replace` fully overwrites the original content. `Swap` requires a search target, so without one, it makes no changes.",
-      "type": "string",
-      "nullable": true
     }
   }
 }

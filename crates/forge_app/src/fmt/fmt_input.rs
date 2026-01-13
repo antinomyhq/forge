@@ -84,7 +84,7 @@ impl FormatContent for ToolCatalog {
                 Some(TitleFormat::debug("Remove").sub_title(display_path).into())
             }
             ToolCatalog::Patch(input) => {
-                let display_path = display_path_for(&input.path);
+                let display_path = display_path_for(&input.file_path);
                 Some(
                     TitleFormat::debug(input.operation.as_ref())
                         .sub_title(display_path)

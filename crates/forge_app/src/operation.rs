@@ -435,16 +435,16 @@ impl ToolOperation {
                 let diff = console::strip_ansi_codes(diff_result.diff()).to_string();
 
                 let mut elm = Element::new("file_diff")
-                    .attr("path", &input.path)
+                    .attr("path", &input.file_path)
                     .attr("total_lines", output.after.lines().count())
                     .cdata(diff);
 
                 if !output.errors.is_empty() {
-                    elm = elm.append(create_validation_warning(&input.path, &output.errors));
+                    elm = elm.append(create_validation_warning(&input.file_path, &output.errors));
                 }
 
                 *metrics = metrics.clone().insert(
-                    input.path.clone(),
+                    input.file_path.clone(),
                     FileOperation::new(tool_kind)
                         .lines_added(diff_result.lines_added())
                         .lines_removed(diff_result.lines_removed())
@@ -1901,10 +1901,10 @@ mod tests {
         let after_content = "Hello universe\nThis is a test";
         let fixture = ToolOperation::FsPatch {
             input: forge_domain::FSPatch {
-                path: "/home/user/test.txt".to_string(),
-                search: Some("world".to_string()),
+                file_path: "/home/user/test.txt".to_string(),
+                old_string: Some("world".to_string()),
                 operation: forge_domain::PatchOperation::Replace,
-                content: "universe".to_string(),
+                new_string: "universe".to_string(),
             },
             output: PatchOutput {
                 errors: vec![],
@@ -1931,10 +1931,10 @@ mod tests {
         let after_content = "line1\nnew line\nline2";
         let fixture = ToolOperation::FsPatch {
             input: forge_domain::FSPatch {
-                path: "/home/user/large_file.txt".to_string(),
-                search: Some("line1".to_string()),
+                file_path: "/home/user/large_file.txt".to_string(),
+                old_string: Some("line1".to_string()),
                 operation: forge_domain::PatchOperation::Append,
-                content: "\nnew line".to_string(),
+                new_string: "\nnew line".to_string(),
             },
             output: PatchOutput {
                 errors: test_syntax_errors(vec![(5, 10, "Invalid syntax")]),
@@ -1961,10 +1961,10 @@ mod tests {
         let after_content = "line1\nnew line\nline2";
         let fixture = ToolOperation::FsPatch {
             input: forge_domain::FSPatch {
-                path: "/home/user/test.zsh".to_string(),
-                search: Some("line1".to_string()),
+                file_path: "/home/user/test.zsh".to_string(),
+                old_string: Some("line1".to_string()),
                 operation: forge_domain::PatchOperation::Append,
-                content: "\nnew line".to_string(),
+                new_string: "\nnew line".to_string(),
             },
             output: PatchOutput {
                 errors: test_syntax_errors(vec![

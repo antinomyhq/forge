@@ -152,6 +152,21 @@ impl<S: AttachmentService> UserPromptGenerator<S> {
 
         // Parse Attachments (do NOT parse piped input for attachments)
         let attachments = self.services.attachments(content).await?;
+
+        // Track file attachments as read operations in metrics
+        let mut metrics = conversation.metrics.clone();
+        for attachment in &attachments {
+            // Only track file content attachments (not images or directory listings)
+            if let AttachmentContent::FileContent { content, .. } = &attachment.content {
+                let content_hash = crate::utils::compute_hash(content);
+                metrics = metrics.insert(
+                    attachment.path.clone(),
+                    FileOperation::new(ToolKind::Read).content_hash(Some(content_hash)),
+                );
+            }
+        }
+        conversation.metrics = metrics;
+
         context = context.add_attachments(attachments, Some(self.agent.model.clone()));
 
         Ok(conversation.context(context))
@@ -160,7 +175,10 @@ impl<S: AttachmentService> UserPromptGenerator<S> {
 
 #[cfg(test)]
 mod tests {
-    use forge_domain::{AgentId, Context, ContextMessage, ConversationId, ModelId, ProviderId};
+    use forge_domain::{
+        AgentId, AttachmentContent, Context, ContextMessage, ConversationId, ModelId, ProviderId,
+        ToolKind,
+    };
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -293,5 +311,80 @@ mod tests {
         } else {
             panic!("Expected TextMessage");
         }
+    }
+
+    #[tokio::test]
+    async fn test_attachments_tracked_as_read_operations() {
+        // Setup - Create a service that returns file attachments
+        struct MockServiceWithFiles;
+
+        #[async_trait::async_trait]
+        impl AttachmentService for MockServiceWithFiles {
+            async fn attachments(&self, _url: &str) -> anyhow::Result<Vec<Attachment>> {
+                Ok(vec![
+                    Attachment {
+                        path: "/test/file1.rs".to_string(),
+                        content: AttachmentContent::FileContent {
+                            content: "fn main() {}".to_string(),
+                            start_line: 1,
+                            end_line: 1,
+                            total_lines: 1,
+                        },
+                    },
+                    Attachment {
+                        path: "/test/file2.rs".to_string(),
+                        content: AttachmentContent::FileContent {
+                            content: "fn test() {}".to_string(),
+                            start_line: 1,
+                            end_line: 1,
+                            total_lines: 1,
+                        },
+                    },
+                ])
+            }
+        }
+
+        let agent = fixture_agent_without_user_prompt();
+        let event = Event::new("Task with @[/test/file1.rs] and @[/test/file2.rs]");
+        let conversation = Conversation::new(ConversationId::default());
+        let generator = UserPromptGenerator::new(
+            Arc::new(MockServiceWithFiles),
+            agent.clone(),
+            event,
+            chrono::Local::now(),
+        );
+
+        // Execute
+        let actual = generator.add_user_prompt(conversation).await.unwrap();
+
+        // Assert - Both files should be tracked as read operations
+        let file1_op = actual.metrics.file_operations.get("/test/file1.rs");
+        let file2_op = actual.metrics.file_operations.get("/test/file2.rs");
+
+        assert!(file1_op.is_some(), "file1.rs should be tracked in metrics");
+        assert!(file2_op.is_some(), "file2.rs should be tracked in metrics");
+
+        // Verify the operation is marked as Read
+        let file1_metrics = file1_op.unwrap();
+        assert_eq!(
+            file1_metrics.tool,
+            ToolKind::Read,
+            "file1.rs should be tracked as Read operation"
+        );
+        assert!(
+            file1_metrics.content_hash.is_some(),
+            "file1.rs should have content hash"
+        );
+
+        let file2_metrics = file2_op.unwrap();
+        assert_eq!(
+            file2_metrics.tool,
+            ToolKind::Read,
+            "file2.rs should be tracked as Read operation"
+        );
+        assert!(
+            file2_metrics.content_hash.is_some(),
+            "file2.rs should have content hash"
+        );
     }
 }
