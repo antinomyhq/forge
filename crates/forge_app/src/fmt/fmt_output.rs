@@ -305,9 +305,9 @@ mod tests {
         let after_content = "Hello universe\nThis is a test\nNew line";
         let fixture = ToolOperation::FsPatch {
             input: forge_domain::FSPatch {
-                path: "/home/user/project/test.txt".to_string(),
-                search: Some("Hello world".to_string()),
-                content: "Hello universe".to_string(),
+                file_path: "/home/user/project/test.txt".to_string(),
+                old_string: Some("Hello world".to_string()),
+                new_string: "Hello universe".to_string(),
                 operation: PatchOperation::Replace,
             },
             output: PatchOutput {
@@ -328,9 +328,9 @@ mod tests {
         let after_content = "line1\nnew line\nline2";
         let fixture = ToolOperation::FsPatch {
             input: forge_domain::FSPatch {
-                path: "/home/user/project/large_file.txt".to_string(),
-                search: Some("line2".to_string()),
-                content: "new line\nline2".to_string(),
+                file_path: "/home/user/project/large_file.txt".to_string(),
+                old_string: Some("line2".to_string()),
+                new_string: "new line\nline2".to_string(),
                 operation: PatchOperation::Replace,
             },
             output: PatchOutput {
