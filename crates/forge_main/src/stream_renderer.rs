@@ -314,6 +314,10 @@ impl<P: ConsoleWriter> io::Write for StreamDirectWriter<P> {
             self.resume_spinner();
         }
 
+        // Return `buf.len()`, not `styled.as_bytes().len()`. The `io::Write` contract
+        // requires returning how many bytes were consumed from the input buffer, not
+        // how many bytes were written to the output. Styling adds ANSI escape codes
+        // which makes the output larger than the input.
         Ok(buf.len())
     }
 
