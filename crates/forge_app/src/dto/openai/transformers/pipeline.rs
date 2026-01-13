@@ -5,6 +5,7 @@ use super::drop_tool_call::DropToolCalls;
 use super::github_copilot_reasoning::GitHubCopilotReasoning;
 use super::make_cerebras_compat::MakeCerebrasCompat;
 use super::make_openai_compat::MakeOpenAiCompat;
+use super::minimax::SetMinimaxParams;
 use super::normalize_tool_schema::NormalizeToolSchema;
 use super::set_cache::SetCache;
 use super::tool_choice::SetToolChoice;
@@ -35,6 +36,7 @@ impl Transformer for ProviderPipeline<'_> {
         let zai_thinking = SetZaiThinking.when(move |_| is_zai_provider(provider));
 
         let or_transformers = DefaultTransformation::<Request>::new()
+            .pipe(SetMinimaxParams.when(when_model("minimax")))
             .pipe(DropToolCalls.when(when_model("mistral")))
             .pipe(SetToolChoice::new(ToolChoice::Auto).when(when_model("gemini")))
             .pipe(SetCache.when(when_model("gemini|anthropic")))
