@@ -321,10 +321,7 @@ fn extract_array_from_string(s: &str) -> Option<Value> {
     let has_array_like_content = after_bracket.contains('"')
         || after_bracket.contains(',')
         || after_bracket.contains(']')
-        || after_bracket
-            .chars()
-            .next()
-            .is_some_and(|c| c.is_numeric());
+        || after_bracket.chars().next().is_some_and(|c| c.is_numeric());
 
     if !has_array_like_content {
         return None;
@@ -338,9 +335,10 @@ fn extract_array_from_string(s: &str) -> Option<Value> {
 
         // Try to repair and parse this candidate
         if let Ok(parsed) = crate::json_repair::<Value>(candidate)
-            && parsed.is_array() {
-                return Some(parsed);
-            }
+            && parsed.is_array()
+        {
+            return Some(parsed);
+        }
     }
 
     None
