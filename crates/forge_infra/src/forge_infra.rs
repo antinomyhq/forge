@@ -18,6 +18,7 @@ use reqwest::{Response, Url};
 use reqwest_eventsource::EventSource;
 
 use crate::auth::{AnyAuthStrategy, ForgeAuthStrategyFactory};
+use crate::console::StdConsoleWriter;
 use crate::env::ForgeEnvironmentInfra;
 use crate::executor::ForgeCommandExecutorService;
 use crate::fs_create_dirs::ForgeCreateDirsService;
@@ -51,6 +52,7 @@ pub struct ForgeInfra {
     http_service: Arc<ForgeHttpInfra<ForgeFileWriteService>>,
     strategy_factory: Arc<ForgeAuthStrategyFactory>,
     grpc_client: Arc<ForgeGrpcClient>,
+    output_printer: Arc<StdConsoleWriter>,
 }
 
 impl ForgeInfra {
@@ -64,6 +66,7 @@ impl ForgeInfra {
         let file_meta_service = Arc::new(ForgeFileMetaService);
         let directory_reader_service = Arc::new(ForgeDirectoryReaderService);
         let grpc_client = Arc::new(ForgeGrpcClient::new(env.workspace_server_url.clone()));
+        let output_printer = Arc::new(StdConsoleWriter::default());
 
         Self {
             file_read_service,
@@ -76,6 +79,7 @@ impl ForgeInfra {
             command_executor_service: Arc::new(ForgeCommandExecutorService::new(
                 restricted,
                 env.clone(),
+                output_printer.clone(),
             )),
             inquire_service: Arc::new(ForgeInquire::new()),
             mcp_server: ForgeMcpServer,
@@ -83,6 +87,7 @@ impl ForgeInfra {
             strategy_factory: Arc::new(ForgeAuthStrategyFactory::new()),
             http_service,
             grpc_client,
+            output_printer,
         }
     }
 }
@@ -305,5 +310,23 @@ impl GrpcInfra for ForgeInfra {
 
     fn hydrate(&self) {
         self.grpc_client.hydrate();
+    }
+}
+
+impl forge_domain::ConsoleWriter for ForgeInfra {
+    fn write(&self, buf: &[u8]) -> std::io::Result<usize> {
+        self.output_printer.write(buf)
+    }
+
+    fn write_err(&self, buf: &[u8]) -> std::io::Result<usize> {
+        self.output_printer.write_err(buf)
+    }
+
+    fn flush(&self) -> std::io::Result<()> {
+        self.output_printer.flush()
+    }
+
+    fn flush_err(&self) -> std::io::Result<()> {
+        self.output_printer.flush_err()
     }
 }
