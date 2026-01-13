@@ -297,7 +297,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 _ = tokio::signal::ctrl_c() => {
                     tracing::info!("User interrupted operation with Ctrl+C");
                     self.spinner.reset();
-                    self.spinner.stop(None)?;
                     return Ok(());
                 }
                 result = self.on_message(Some(input)) => {
