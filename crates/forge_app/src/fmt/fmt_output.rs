@@ -427,6 +427,7 @@ mod tests {
                     exit_code: Some(0),
                 },
                 shell: "/bin/bash".to_string(),
+                description: None,
             },
         };
         let env = fixture_environment();
@@ -448,6 +449,7 @@ mod tests {
                     exit_code: Some(0),
                 },
                 shell: "/bin/bash".to_string(),
+                description: None,
             },
         };
         let env = fixture_environment();
@@ -469,6 +471,7 @@ mod tests {
                     exit_code: Some(127),
                 },
                 shell: "/bin/bash".to_string(),
+                description: None,
             },
         };
         let env = fixture_environment();

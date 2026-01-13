@@ -150,7 +150,7 @@ where
 
         let commit_result = self
             .services
-            .execute(commit_command, cwd, false, false, None)
+            .execute(commit_command, cwd, false, false, None, None)
             .await
             .context("Failed to commit changes")?;
 
@@ -219,12 +219,14 @@ where
                 false,
                 true,
                 None,
+                None,
             ),
             self.services.execute(
                 "git rev-parse --abbrev-ref HEAD".into(),
                 cwd.to_path_buf(),
                 false,
                 true,
+                None,
                 None,
             ),
         );
@@ -244,9 +246,10 @@ where
                 false,
                 true,
                 None,
+                None,
             ),
             self.services
-                .execute("git diff".into(), cwd.to_path_buf(), false, true, None,)
+                .execute("git diff".into(), cwd.to_path_buf(), false, true, None, None,)
         );
 
         let staged_diff = staged_diff.context("Failed to get staged changes")?;

@@ -222,7 +222,10 @@ impl<
                 (input, output).into()
             }
             ToolCatalog::Shell(input) => {
-                let normalized_cwd = self.normalize_path(input.cwd.display().to_string());
+                let cwd = input.cwd
+                    .map(|p| p.display().to_string())
+                    .unwrap_or_else(|| self.services.get_environment().cwd.display().to_string());
+                let normalized_cwd = self.normalize_path(cwd);
                 let output = self
                     .services
                     .execute(
@@ -231,6 +234,7 @@ impl<
                         input.keep_ansi,
                         false,
                         input.env.clone(),
+                        input.description.clone(),
                     )
                     .await?;
                 output.into()

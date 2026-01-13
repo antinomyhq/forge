@@ -47,6 +47,7 @@ impl<I: CommandInfra + EnvironmentInfra> ShellService for ForgeShell<I> {
         keep_ansi: bool,
         silent: bool,
         env_vars: Option<Vec<String>>,
+        description: Option<String>,
     ) -> anyhow::Result<ShellOutput> {
         Self::validate_command(&command)?;
 
@@ -60,7 +61,7 @@ impl<I: CommandInfra + EnvironmentInfra> ShellService for ForgeShell<I> {
             output.stderr = strip_ansi(output.stderr);
         }
 
-        Ok(ShellOutput { output, shell: self.env.shell.clone() })
+        Ok(ShellOutput { output, shell: self.env.shell.clone(), description })
     }
 }
 #[cfg(test)]
@@ -142,6 +143,7 @@ mod tests {
                 false,
                 false,
                 Some(vec!["PATH".to_string(), "HOME".to_string()]),
+                None,
             )
             .await
             .unwrap();
@@ -160,6 +162,7 @@ mod tests {
                 PathBuf::from("."),
                 false,
                 false,
+                None,
                 None,
             )
             .await
@@ -182,11 +185,54 @@ mod tests {
                 false,
                 false,
                 Some(vec![]),
+                None,
             )
             .await
             .unwrap();
 
         assert_eq!(actual.output.stdout, "Mock output");
         assert_eq!(actual.output.exit_code, Some(0));
+    }
+
+    #[tokio::test]
+    async fn test_shell_service_with_description() {
+        let fixture = ForgeShell::new(Arc::new(MockCommandInfra { expected_env_vars: None }));
+
+        let actual = fixture
+            .execute(
+                "echo hello".to_string(),
+                PathBuf::from("."),
+                false,
+                false,
+                None,
+                Some("Prints hello to stdout".to_string()),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(actual.output.stdout, "Mock output");
+        assert_eq!(actual.output.exit_code, Some(0));
+        assert_eq!(actual.description, Some("Prints hello to stdout".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_shell_service_without_description() {
+        let fixture = ForgeShell::new(Arc::new(MockCommandInfra { expected_env_vars: None }));
+
+        let actual = fixture
+            .execute(
+                "echo hello".to_string(),
+                PathBuf::from("."),
+                false,
+                false,
+                None,
+                None,
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(actual.output.stdout, "Mock output");
+        assert_eq!(actual.output.exit_code, Some(0));
+        assert_eq!(actual.description, None);
     }
 }

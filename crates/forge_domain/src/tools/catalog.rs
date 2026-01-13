@@ -332,7 +332,10 @@ pub struct Shell {
     pub command: String,
 
     /// The working directory where the command should be executed.
-    pub cwd: PathBuf,
+    /// If not specified, defaults to the current working directory from the environment.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<PathBuf>,
 
     /// Whether to preserve ANSI escape codes in the output.
     /// If true, ANSI escape codes will be preserved in the output.
@@ -340,12 +343,22 @@ pub struct Shell {
     #[serde(default)]
     #[serde(skip_serializing_if = "is_default")]
     pub keep_ansi: bool,
+
     /// Environment variable names to pass to command execution (e.g., ["PATH",
     /// "HOME", "USER"]). The system automatically reads the specified
     /// values and applies them during command execution.
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub env: Option<Vec<String>>,
+
+    /// Clear, concise description of what this command does. Recommended to be
+    /// 5-10 words for simple commands. For complex commands with pipes or
+    /// multiple operations, provide more context. Examples: "Lists files in
+    /// current directory", "Installs package dependencies", "Compiles Rust
+    /// project with release optimizations".
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
 }
 
 /// Input type for the net fetch tool
@@ -714,7 +727,7 @@ impl ToolCatalog {
     pub fn tool_call_shell(command: &str, cwd: impl Into<PathBuf>) -> ToolCallFull {
         ToolCallFull::from(ToolCatalog::Shell(Shell {
             command: command.to_string(),
-            cwd: cwd.into(),
+            cwd: Some(cwd.into()),
             ..Default::default()
         }))
     }
@@ -870,10 +883,13 @@ impl From<ToolCatalog> for ToolCallFull {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use pretty_assertions::assert_eq;
     use strum::IntoEnumIterator;
 
     use crate::{ToolCatalog, ToolKind, ToolName};
+    use super::Shell;
 
     #[test]
     fn test_tool_definition() {
@@ -1200,5 +1216,71 @@ mod tests {
             }
             _ => panic!("Expected Read operation"),
         }
+    }
+
+    #[test]
+    fn test_shell_with_description_serialization() {
+        use pretty_assertions::assert_eq;
+
+        let fixture = Shell {
+            command: "git status".to_string(),
+            cwd: Some(PathBuf::from("/test")),
+            keep_ansi: false,
+            env: None,
+            description: Some("Shows working tree status".to_string()),
+        };
+
+        let actual = serde_json::to_value(&fixture).unwrap();
+
+        let expected = serde_json::json!({
+            "command": "git status",
+            "cwd": "/test",
+            "description": "Shows working tree status"
+        });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_shell_without_description_serialization() {
+        use pretty_assertions::assert_eq;
+
+        let fixture = Shell {
+            command: "ls -la".to_string(),
+            cwd: Some(PathBuf::from("/home")),
+            keep_ansi: false,
+            env: None,
+            description: None,
+        };
+
+        let actual = serde_json::to_value(&fixture).unwrap();
+
+        let expected = serde_json::json!({
+            "command": "ls -la",
+            "cwd": "/home"
+        });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_shell_without_cwd_serialization() {
+        use pretty_assertions::assert_eq;
+
+        let fixture = Shell {
+            command: "pwd".to_string(),
+            cwd: None,
+            keep_ansi: false,
+            env: None,
+            description: None,
+        };
+
+        let actual = serde_json::to_value(&fixture).unwrap();
+
+        let expected = serde_json::json!({
+            "command": "pwd"
+        });
+
+        assert_eq!(actual, expected);
     }
 }
