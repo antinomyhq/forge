@@ -7,8 +7,8 @@ use crate::fmt::content::FormatContent;
 use crate::operation::{TempContentFiles, ToolOperation};
 use crate::services::ShellService;
 use crate::{
-    AgentRegistry, ConversationService, EnvironmentService, FollowUpService, FsCreateService,
-    FsPatchService, FsReadService, FsRemoveService, FsSearchService, FsUndoService,
+    AgentRegistry, ConversationService, EnvironmentService, FollowUpService, FsPatchService,
+    FsReadService, FsRemoveService, FsSearchService, FsUndoService, FsWriteService,
     ImageReadService, NetFetchService, PlanCreateService, ProviderService, SkillFetchService,
     WorkspaceService,
 };
@@ -20,7 +20,7 @@ pub struct ToolExecutor<S> {
 impl<
     S: FsReadService
         + ImageReadService
-        + FsCreateService
+        + FsWriteService
         + FsSearchService
         + WorkspaceService
         + NetFetchService
@@ -115,7 +115,7 @@ impl<
             .into_temp_path()
             .to_path_buf();
         self.services
-            .create(
+            .write(
                 path.to_string_lossy().to_string(),
                 content.to_string(),
                 true,
@@ -143,7 +143,7 @@ impl<
                 let normalized_path = self.normalize_path(input.path.clone());
                 let output = self
                     .services
-                    .create(normalized_path, input.content.clone(), input.overwrite)
+                    .write(normalized_path, input.content.clone(), input.overwrite)
                     .await?;
                 (input, output).into()
             }
