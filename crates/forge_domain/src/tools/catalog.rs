@@ -118,44 +118,56 @@ pub struct FSSearch {
     /// The regular expression pattern to search for in file contents.
     pub pattern: String,
 
-    /// File or directory to search in. Defaults to current working directory.
+    /// File or directory to search in (rg PATH). Defaults to current working
+    /// directory.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub path: Option<String>,
 
-    /// Glob pattern to filter files (e.g., "*.js", "*.{ts,tsx}")
+    /// Glob pattern to filter files (e.g. "*.js", "*.{ts,tsx}") - maps to rg
+    /// --glob
     #[serde(skip_serializing_if = "Option::is_none")]
     pub glob: Option<String>,
 
-    /// Output mode: "content", "files_with_matches", or "count"
+    /// Output mode: "content" shows matching lines (supports -A/-B/-C context,
+    /// -n line numbers, head_limit), "files_with_matches" shows file paths
+    /// (supports head_limit), "count" shows match counts (supports head_limit).
+    /// Defaults to "files_with_matches".
     #[serde(skip_serializing_if = "Option::is_none")]
     pub output_mode: Option<OutputMode>,
 
-    /// Number of lines to show before each match (requires content mode)
+    /// Number of lines to show before each match (rg -B). Requires output_mode:
+    /// "content", ignored otherwise.
     #[serde(rename = "-B", skip_serializing_if = "Option::is_none")]
     pub before_context: Option<u32>,
 
-    /// Number of lines to show after each match (requires content mode)
+    /// Number of lines to show after each match (rg -A). Requires output_mode:
+    /// "content", ignored otherwise.
     #[serde(rename = "-A", skip_serializing_if = "Option::is_none")]
     pub after_context: Option<u32>,
 
-    /// Number of lines to show before and after each match (requires content
-    /// mode)
+    /// Number of lines to show before and after each match (rg -C). Requires
+    /// output_mode: "content", ignored otherwise.
     #[serde(rename = "-C", skip_serializing_if = "Option::is_none")]
     pub context: Option<u32>,
 
-    /// Show line numbers in output (requires content mode, defaults to true)
+    /// Show line numbers in output (rg -n). Requires output_mode: "content",
+    /// ignored otherwise.
     #[serde(rename = "-n", skip_serializing_if = "Option::is_none")]
     pub show_line_numbers: Option<bool>,
 
-    /// Case insensitive search
+    /// Case insensitive search (rg -i)
     #[serde(rename = "-i", skip_serializing_if = "Option::is_none")]
     pub case_insensitive: Option<bool>,
 
-    /// File type to search (e.g., "js", "py", "rust")
+    /// File type to search (rg --type). Common types: js, py, rust, go, java,
+    /// etc. More efficient than include for standard file types.
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
     pub file_type: Option<String>,
 
-    /// Limit output to first N lines/entries (0 = unlimited)
+    /// Limit output to first N lines/entries, equivalent to "| head -N". Works
+    /// across all output modes: content (limits output lines),
+    /// files_with_matches (limits file paths), count (limits count entries).
+    /// When unspecified, shows all results from ripgrep.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub head_limit: Option<u32>,
 
@@ -163,13 +175,14 @@ pub struct FSSearch {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub offset: Option<u32>,
 
-    /// Enable multiline mode where patterns can span lines
+    /// Enable multiline mode where . matches newlines and patterns can span
+    /// lines (rg -U --multiline-dotall). Default: false.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub multiline: Option<bool>,
 }
 
 /// Output mode for search results
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, AsRefStr, EnumIter)]
 #[serde(rename_all = "snake_case")]
 pub enum OutputMode {
     /// Show matching lines with content
@@ -264,17 +277,22 @@ pub enum PatchOperation {
     Swap,
 }
 
-// TODO: do the Blanket impl for all the unit enums
-impl JsonSchema for PatchOperation {
-    fn schema_name() -> String {
+/// Helper trait to generate simple string enum schemas for unit enums.
+///
+/// This trait is automatically implemented for enums that derive both
+/// `AsRefStr` and `EnumIter`. It provides a consistent way to generate
+/// JSON schemas that represent enums as simple string enumerations
+/// rather than complex oneOf structures.
+trait SimpleEnumSchema: AsRef<str> + IntoEnumIterator {
+    fn simple_enum_schema_name() -> String {
         std::any::type_name::<Self>()
             .split("::")
             .last()
-            .unwrap_or("PatchOperation")
+            .unwrap_or("Enum")
             .to_string()
     }
 
-    fn json_schema(_gen: &mut schemars::r#gen::SchemaGenerator) -> schemars::schema::Schema {
+    fn simple_enum_schema(_gen: &mut schemars::r#gen::SchemaGenerator) -> schemars::schema::Schema {
         use schemars::schema::{InstanceType, Schema, SchemaObject};
         let variants: Vec<serde_json::Value> = Self::iter()
             .map(|variant| variant.as_ref().to_case(Case::Snake).into())
@@ -287,6 +305,30 @@ impl JsonSchema for PatchOperation {
             })),
             ..Default::default()
         })
+    }
+}
+
+// Blanket implementation for all types that implement AsRef<str> and
+// IntoEnumIterator
+impl<T> SimpleEnumSchema for T where T: AsRef<str> + IntoEnumIterator {}
+
+impl JsonSchema for PatchOperation {
+    fn schema_name() -> String {
+        <Self as SimpleEnumSchema>::simple_enum_schema_name()
+    }
+
+    fn json_schema(r#gen: &mut schemars::r#gen::SchemaGenerator) -> schemars::schema::Schema {
+        <Self as SimpleEnumSchema>::simple_enum_schema(r#gen)
+    }
+}
+
+impl JsonSchema for OutputMode {
+    fn schema_name() -> String {
+        <Self as SimpleEnumSchema>::simple_enum_schema_name()
+    }
+
+    fn json_schema(r#gen: &mut schemars::r#gen::SchemaGenerator) -> schemars::schema::Schema {
+        <Self as SimpleEnumSchema>::simple_enum_schema(r#gen)
     }
 }
 
@@ -1200,5 +1242,47 @@ mod tests {
             }
             _ => panic!("Expected Read operation"),
         }
+    }
+
+    #[test]
+    fn test_unit_enum_schema_generation() {
+        use schemars::r#gen::SchemaSettings;
+
+        use crate::{OutputMode, PatchOperation};
+
+        // Test PatchOperation schema
+        let r#gen = SchemaSettings::default().into_generator();
+        let patch_schema = r#gen.into_root_schema_for::<PatchOperation>();
+
+        // Verify it generates a simple string enum, not a oneOf
+        assert_eq!(
+            patch_schema.schema.instance_type,
+            Some(schemars::schema::SingleOrVec::Single(Box::new(
+                schemars::schema::InstanceType::String
+            )))
+        );
+        assert!(patch_schema.schema.enum_values.is_some());
+        let enum_values = patch_schema.schema.enum_values.unwrap();
+        assert_eq!(enum_values.len(), 5);
+        assert_eq!(enum_values[0], serde_json::json!("prepend"));
+        assert_eq!(enum_values[1], serde_json::json!("append"));
+
+        // Test OutputMode schema
+        let r#gen = SchemaSettings::default().into_generator();
+        let output_schema = r#gen.into_root_schema_for::<OutputMode>();
+
+        // Verify it also generates a simple string enum
+        assert_eq!(
+            output_schema.schema.instance_type,
+            Some(schemars::schema::SingleOrVec::Single(Box::new(
+                schemars::schema::InstanceType::String
+            )))
+        );
+        assert!(output_schema.schema.enum_values.is_some());
+        let enum_values = output_schema.schema.enum_values.unwrap();
+        assert_eq!(enum_values.len(), 3);
+        assert_eq!(enum_values[0], serde_json::json!("content"));
+        assert_eq!(enum_values[1], serde_json::json!("files_with_matches"));
+        assert_eq!(enum_values[2], serde_json::json!("count"));
     }
 }
