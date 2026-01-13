@@ -3,24 +3,32 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use forge_app::CommandInfra;
-use forge_domain::{CommandOutput, Environment};
+use forge_domain::{CommandOutput, ConsoleWriter as OutputPrinterTrait, Environment};
 use tokio::io::AsyncReadExt;
 use tokio::process::Command;
 use tokio::sync::Mutex;
+
+use crate::console::StdConsoleWriter;
 
 /// Service for executing shell commands
 #[derive(Clone, Debug)]
 pub struct ForgeCommandExecutorService {
     restricted: bool,
     env: Environment,
+    output_printer: Arc<StdConsoleWriter>,
 
     // Mutex to ensure that only one command is executed at a time
     ready: Arc<Mutex<()>>,
 }
 
 impl ForgeCommandExecutorService {
-    pub fn new(restricted: bool, env: Environment) -> Self {
-        Self { restricted, env, ready: Arc::new(Mutex::new(())) }
+    pub fn new(restricted: bool, env: Environment, output_printer: Arc<StdConsoleWriter>) -> Self {
+        Self {
+            restricted,
+            env,
+            output_printer,
+            ready: Arc::new(Mutex::new(())),
+        }
     }
 
     fn prepare_command(
@@ -117,10 +125,12 @@ impl ForgeCommandExecutorService {
                 stream(&mut stderr_pipe, io::sink())
             )?
         } else {
+            let stdout_writer = OutputPrinterWriter::stdout(self.output_printer.clone());
+            let stderr_writer = OutputPrinterWriter::stderr(self.output_printer.clone());
             tokio::try_join!(
                 child.wait(),
-                stream(&mut stdout_pipe, io::stdout()),
-                stream(&mut stderr_pipe, io::stderr())
+                stream(&mut stdout_pipe, stdout_writer),
+                stream(&mut stderr_pipe, stderr_writer)
             )?
         };
 
@@ -135,6 +145,40 @@ impl ForgeCommandExecutorService {
             exit_code: status.code(),
             command,
         })
+    }
+}
+
+/// Writer that delegates to OutputPrinter for synchronized writes.
+struct OutputPrinterWriter {
+    printer: Arc<StdConsoleWriter>,
+    is_stdout: bool,
+}
+
+impl OutputPrinterWriter {
+    fn stdout(printer: Arc<StdConsoleWriter>) -> Self {
+        Self { printer, is_stdout: true }
+    }
+
+    fn stderr(printer: Arc<StdConsoleWriter>) -> Self {
+        Self { printer, is_stdout: false }
+    }
+}
+
+impl Write for OutputPrinterWriter {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        if self.is_stdout {
+            self.printer.write(buf)
+        } else {
+            self.printer.write_err(buf)
+        }
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        if self.is_stdout {
+            self.printer.flush()
+        } else {
+            self.printer.flush_err()
+        }
     }
 }
 
@@ -215,9 +259,13 @@ mod tests {
             )
     }
 
+    fn test_printer() -> Arc<StdConsoleWriter> {
+        Arc::new(StdConsoleWriter::default())
+    }
+
     #[tokio::test]
     async fn test_command_executor() {
-        let fixture = ForgeCommandExecutorService::new(false, test_env());
+        let fixture = ForgeCommandExecutorService::new(false, test_env(), test_printer());
         let cmd = "echo 'hello world'";
         let dir = ".";
 
@@ -249,7 +297,7 @@ mod tests {
             std::env::set_var("ANOTHER_TEST_VAR", "another_value");
         }
 
-        let fixture = ForgeCommandExecutorService::new(false, test_env());
+        let fixture = ForgeCommandExecutorService::new(false, test_env(), test_printer());
         let cmd = if cfg!(target_os = "windows") {
             "echo %TEST_ENV_VAR%"
         } else {
@@ -282,7 +330,7 @@ mod tests {
             std::env::remove_var("MISSING_ENV_VAR");
         }
 
-        let fixture = ForgeCommandExecutorService::new(false, test_env());
+        let fixture = ForgeCommandExecutorService::new(false, test_env(), test_printer());
         let cmd = if cfg!(target_os = "windows") {
             "echo %MISSING_ENV_VAR%"
         } else {
@@ -305,7 +353,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_command_executor_with_empty_env_list() {
-        let fixture = ForgeCommandExecutorService::new(false, test_env());
+        let fixture = ForgeCommandExecutorService::new(false, test_env(), test_printer());
         let cmd = "echo 'no env vars'";
 
         let actual = fixture
@@ -329,7 +377,7 @@ mod tests {
             std::env::set_var("SECOND_VAR", "second");
         }
 
-        let fixture = ForgeCommandExecutorService::new(false, test_env());
+        let fixture = ForgeCommandExecutorService::new(false, test_env(), test_printer());
         let cmd = if cfg!(target_os = "windows") {
             "echo %FIRST_VAR% %SECOND_VAR%"
         } else {
@@ -359,7 +407,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_command_executor_silent() {
-        let fixture = ForgeCommandExecutorService::new(false, test_env());
+        let fixture = ForgeCommandExecutorService::new(false, test_env(), test_printer());
         let cmd = "echo 'silent test'";
         let dir = ".";
 
