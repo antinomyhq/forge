@@ -250,15 +250,11 @@ impl JsonSchema for PatchOperation {
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 #[tool_description_file = "crates/forge_domain/src/tools/descriptions/fs_patch.md"]
 pub struct FSPatch {
-    /// The path to the file to modify
-    pub path: String,
+    /// The absolute path to the file to modify
+    pub file_path: String,
 
-    /// The text to replace. When skipped the patch operation applies to the
-    /// entire content. `Append` adds the new content to the end, `Prepend` adds
-    /// it to the beginning, and `Replace` fully overwrites the original
-    /// content. `Swap` requires a search target, so without one, it makes no
-    /// changes.
-    pub search: Option<String>,
+    /// The text to replace
+    pub old_string: Option<String>,
 
     /// The operation to perform on the matched text. Possible options are: -
     /// 'prepend': Add content before the matched text - 'append': Add content
@@ -271,8 +267,8 @@ pub struct FSPatch {
     /// text (search for the second text and swap them)
     pub operation: PatchOperation,
 
-    /// The text to replace it with (must be different from search)
-    pub content: String,
+    /// The text to replace it with (must be different from old_string)
+    pub new_string: String,
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
@@ -603,9 +599,9 @@ impl ToolCatalog {
                 message: format!("Remove file: {}", display_path_for(&input.path)),
             }),
             ToolCatalog::Patch(input) => Some(crate::policies::PermissionOperation::Write {
-                path: std::path::PathBuf::from(&input.path),
+                path: std::path::PathBuf::from(&input.file_path),
                 cwd,
-                message: format!("Modify file: {}", display_path_for(&input.path)),
+                message: format!("Modify file: {}", display_path_for(&input.file_path)),
             }),
             ToolCatalog::Shell(input) => Some(crate::policies::PermissionOperation::Execute {
                 command: input.command.clone(),
@@ -650,10 +646,10 @@ impl ToolCatalog {
         search: Option<&str>,
     ) -> ToolCallFull {
         ToolCallFull::from(ToolCatalog::Patch(FSPatch {
-            path: path.to_string(),
-            search: search.map(|s| s.to_string()),
+            file_path: path.to_string(),
+            old_string: search.map(|s| s.to_string()),
             operation,
-            content: content.to_string(),
+            new_string: content.to_string(),
         }))
     }
 
