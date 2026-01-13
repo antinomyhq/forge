@@ -3,7 +3,7 @@ Writes a file to the local filesystem.
 Usage:
 - The path parameter must be an absolute path, not a relative path
 - The tool automatically handles the creation of any missing intermediary directories in the specified path
-- For existing files being overwritten (when overwrite=true).
+- For existing files being overwritten (when overwrite=true), snapshots are automatically created to enable undo functionality.
 - If a file exists and 'overwrite' is false (or not set), an error will be returned indicating the file already exists
 - Files are automatically validated for syntax errors when possible; validation failures are reported but don't prevent file creation
 - Snapshots are automatically created before overwriting existing files to enable undo functionality
