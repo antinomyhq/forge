@@ -95,6 +95,8 @@ impl ForgeEnvironmentInfra {
                 .unwrap_or_else(|| Url::parse("https://api.forgecode.dev/").unwrap()),
             override_model,
             override_provider,
+
+            streaming_output: parse_env::<bool>("FORGE_STREAMING_OUTPUT").unwrap_or(false),
         }
     }
 
