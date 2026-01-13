@@ -9,7 +9,7 @@ use forge_app::{
 use forge_domain::{FSSearch, OutputMode};
 use grep_regex::RegexMatcherBuilder;
 use grep_searcher::sinks::UTF8;
-use grep_searcher::{Searcher, SearcherBuilder};
+use grep_searcher::{Searcher, SearcherBuilder, Sink, SinkContext, SinkContextKind, SinkMatch};
 
 /// A powerful search tool built on grep-matcher and grep-searcher crates.
 /// Supports regex patterns, file type filtering, output modes, context lines,
@@ -275,7 +275,143 @@ impl<W: WalkerInfra + FileReaderInfra + FileInfoInfra> ForgeFsSearch<W> {
 
         Ok(matches)
     }
+}
 
+/// Custom sink for capturing matches with context lines.
+///
+/// This sink implements the full `Sink` trait from grep-searcher to capture
+/// both matches and their surrounding context lines. The grep-searcher's
+/// convenience sinks (UTF8, Lossy, Bytes) only report matches and ignore
+/// context, so we need a custom implementation.
+///
+/// # Context Handling
+///
+/// - **Before context**: Lines that appear before a match are accumulated in
+///   `before_context` as they arrive via `context()` calls with
+///   `SinkContextKind::Before`.
+/// - **Match**: When a match is found via `matched()`, we save any pending
+///   match (from the previous iteration) along with its contexts, then store
+///   the new match.
+/// - **After context**: Lines that appear after a match are accumulated in
+///   `current_after_context` as they arrive via `context()` calls with
+///   `SinkContextKind::After`.
+/// - **Final flush**: When the search completes, `into_matches()` is called to
+///   flush the last pending match with its accumulated contexts.
+struct ContextSink {
+    path: String,
+    show_line_numbers: bool,
+    matches: Vec<Match>,
+    before_context: Vec<String>,
+    current_match: Option<(usize, String)>,
+    current_after_context: Vec<String>,
+}
+
+impl ContextSink {
+    fn new(path: String, show_line_numbers: bool) -> Self {
+        Self {
+            path,
+            show_line_numbers,
+            matches: Vec::new(),
+            before_context: Vec::new(),
+            current_match: None,
+            current_after_context: Vec::new(),
+        }
+    }
+
+    fn into_matches(mut self, has_context: bool) -> Vec<Match> {
+        // If we have a pending match, flush it
+        if let Some((line_num, line)) = self.current_match.take() {
+            if has_context {
+                self.matches.push(Match {
+                    path: self.path.clone(),
+                    result: Some(MatchResult::ContextMatch {
+                        line_number: if self.show_line_numbers {
+                            Some(line_num)
+                        } else {
+                            None
+                        },
+                        line,
+                        before_context: self.before_context.clone(),
+                        after_context: self.current_after_context.clone(),
+                    }),
+                });
+            } else {
+                self.matches.push(Match {
+                    path: self.path.clone(),
+                    result: Some(MatchResult::Found {
+                        line_number: if self.show_line_numbers {
+                            Some(line_num)
+                        } else {
+                            None
+                        },
+                        line,
+                    }),
+                });
+            }
+        }
+        self.matches
+    }
+}
+
+impl Sink for ContextSink {
+    type Error = std::io::Error;
+
+    fn matched(&mut self, _searcher: &Searcher, mat: &SinkMatch<'_>) -> Result<bool, Self::Error> {
+        // If we have a pending match, save it first (it's now complete with all after
+        // context)
+        if let Some((line_num, line)) = self.current_match.take() {
+            self.matches.push(Match {
+                path: self.path.clone(),
+                result: Some(MatchResult::ContextMatch {
+                    line_number: if self.show_line_numbers {
+                        Some(line_num)
+                    } else {
+                        None
+                    },
+                    line,
+                    before_context: self.before_context.clone(),
+                    after_context: self.current_after_context.clone(),
+                }),
+            });
+
+            // Clear contexts now that we've used them
+            self.before_context.clear();
+            self.current_after_context.clear();
+        }
+
+        // Store the current match (before_context is already accumulated, after_context
+        // will be added via context() calls)
+        let line_num = mat.line_number().unwrap_or(0) as usize;
+        let line = String::from_utf8_lossy(mat.bytes()).trim_end().to_string();
+        self.current_match = Some((line_num, line));
+
+        Ok(true)
+    }
+
+    fn context(
+        &mut self,
+        _searcher: &Searcher,
+        ctx: &SinkContext<'_>,
+    ) -> Result<bool, Self::Error> {
+        let line = String::from_utf8_lossy(ctx.bytes()).trim_end().to_string();
+
+        match ctx.kind() {
+            SinkContextKind::Before => {
+                // Accumulate before context for the next match
+                self.before_context.push(line);
+            }
+            SinkContextKind::After => {
+                // Add to the current match's after_context
+                self.current_after_context.push(line);
+            }
+            _ => {}
+        }
+
+        Ok(true)
+    }
+}
+
+impl<W: WalkerInfra + FileReaderInfra + FileInfoInfra> ForgeFsSearch<W> {
     /// Searches files and returns matching lines with content
     async fn search_content(
         &self,
@@ -283,11 +419,16 @@ impl<W: WalkerInfra + FileReaderInfra + FileInfoInfra> ForgeFsSearch<W> {
         matcher: &grep_regex::RegexMatcher,
         params: &FSSearch,
     ) -> anyhow::Result<Vec<Match>> {
-        let mut matches = Vec::new();
         let show_line_numbers = params.show_line_numbers.unwrap_or(true);
+
+        // Check if context lines are requested
+        let has_context = params.context.is_some()
+            || params.before_context.is_some()
+            || params.after_context.is_some();
 
         // Configure searcher with context lines
         let mut searcher_builder = SearcherBuilder::new();
+        searcher_builder.line_number(true); // Always enable line numbers for the searcher
 
         // Determine context lines
         if let Some(context) = params.context {
@@ -303,6 +444,7 @@ impl<W: WalkerInfra + FileReaderInfra + FileInfoInfra> ForgeFsSearch<W> {
         }
 
         let mut searcher = searcher_builder.build();
+        let mut all_matches = Vec::new();
 
         for path in paths {
             // Skip binary files
@@ -313,27 +455,35 @@ impl<W: WalkerInfra + FileReaderInfra + FileInfoInfra> ForgeFsSearch<W> {
             let content = self.infra.read(path).await?;
             let path_string = path.to_string_lossy().to_string();
 
-            searcher.search_slice(
-                matcher,
-                &content,
-                UTF8(|line_num, line| {
-                    matches.push(Match {
-                        path: path_string.clone(),
-                        result: Some(MatchResult::Found {
-                            line_number: if show_line_numbers {
-                                Some(line_num as usize)
-                            } else {
-                                None
-                            },
-                            line: line.trim_end().to_string(),
-                        }),
-                    });
-                    Ok(true)
-                }),
-            )?;
+            if has_context {
+                // Use custom sink to capture context lines
+                let mut sink = ContextSink::new(path_string.clone(), show_line_numbers);
+                searcher.search_slice(matcher, &content, &mut sink)?;
+                all_matches.extend(sink.into_matches(true));
+            } else {
+                // Use simple UTF8 sink for matches without context
+                searcher.search_slice(
+                    matcher,
+                    &content,
+                    UTF8(|line_num, line| {
+                        all_matches.push(Match {
+                            path: path_string.clone(),
+                            result: Some(MatchResult::Found {
+                                line_number: if show_line_numbers {
+                                    Some(line_num as usize)
+                                } else {
+                                    None
+                                },
+                                line: line.trim_end().to_string(),
+                            }),
+                        });
+                        Ok(true)
+                    }),
+                )?;
+            }
         }
 
-        Ok(matches)
+        Ok(all_matches)
     }
 }
 
@@ -703,5 +853,167 @@ mod test {
         // Should only find text.txt, not binary.exe
         assert_eq!(result.matches.len(), 1);
         assert!(result.matches[0].path.ends_with("text.txt"));
+    }
+
+    #[tokio::test]
+    async fn test_context_lines_both() {
+        let fixture = TempDir::new().unwrap();
+        fs::write(
+            fixture.path().join("test.txt"),
+            "line 1\nline 2\nline 3\nMATCH HERE\nline 5\nline 6\nline 7",
+        )
+        .await
+        .unwrap();
+
+        let params = FSSearch {
+            pattern: "MATCH".to_string(),
+            path: Some(fixture.path().to_string_lossy().to_string()),
+            output_mode: Some(OutputMode::Content),
+            context: Some(2), // 2 lines before and after
+            ..Default::default()
+        };
+
+        let actual = ForgeFsSearch::new(Arc::new(MockInfra::default()))
+            .search(params)
+            .await
+            .unwrap();
+
+        assert!(actual.is_some());
+        let result = actual.unwrap();
+        assert_eq!(result.matches.len(), 1);
+
+        // Verify it's a ContextMatch with before and after context
+        match &result.matches[0].result {
+            Some(MatchResult::ContextMatch {
+                line,
+                before_context,
+                after_context,
+                line_number,
+            }) => {
+                assert_eq!(line, "MATCH HERE");
+                assert_eq!(line_number, &Some(4));
+                assert_eq!(before_context.len(), 2);
+                assert_eq!(before_context[0], "line 2");
+                assert_eq!(before_context[1], "line 3");
+                assert_eq!(after_context.len(), 2);
+                assert_eq!(after_context[0], "line 5");
+                assert_eq!(after_context[1], "line 6");
+            }
+            _ => panic!("Expected ContextMatch, got {:?}", result.matches[0].result),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_before_context_only() {
+        let fixture = TempDir::new().unwrap();
+        fs::write(
+            fixture.path().join("test.txt"),
+            "line 1\nline 2\nline 3\nMATCH HERE\nline 5\nline 6",
+        )
+        .await
+        .unwrap();
+
+        let params = FSSearch {
+            pattern: "MATCH".to_string(),
+            path: Some(fixture.path().to_string_lossy().to_string()),
+            output_mode: Some(OutputMode::Content),
+            before_context: Some(2), // 2 lines before only
+            ..Default::default()
+        };
+
+        let actual = ForgeFsSearch::new(Arc::new(MockInfra::default()))
+            .search(params)
+            .await
+            .unwrap();
+
+        assert!(actual.is_some());
+        let result = actual.unwrap();
+        assert_eq!(result.matches.len(), 1);
+
+        match &result.matches[0].result {
+            Some(MatchResult::ContextMatch { line, before_context, after_context, .. }) => {
+                assert_eq!(line, "MATCH HERE");
+                assert_eq!(before_context.len(), 2);
+                assert_eq!(before_context[0], "line 2");
+                assert_eq!(before_context[1], "line 3");
+                assert_eq!(after_context.len(), 0); // No after context
+            }
+            _ => panic!("Expected ContextMatch"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_after_context_only() {
+        let fixture = TempDir::new().unwrap();
+        fs::write(
+            fixture.path().join("test.txt"),
+            "line 1\nline 2\nMATCH HERE\nline 4\nline 5\nline 6",
+        )
+        .await
+        .unwrap();
+
+        let params = FSSearch {
+            pattern: "MATCH".to_string(),
+            path: Some(fixture.path().to_string_lossy().to_string()),
+            output_mode: Some(OutputMode::Content),
+            after_context: Some(2), // 2 lines after only
+            ..Default::default()
+        };
+
+        let actual = ForgeFsSearch::new(Arc::new(MockInfra::default()))
+            .search(params)
+            .await
+            .unwrap();
+
+        assert!(actual.is_some());
+        let result = actual.unwrap();
+        assert_eq!(result.matches.len(), 1);
+
+        match &result.matches[0].result {
+            Some(MatchResult::ContextMatch { line, before_context, after_context, .. }) => {
+                assert_eq!(line, "MATCH HERE");
+                assert_eq!(before_context.len(), 0); // No before context
+                assert_eq!(after_context.len(), 2);
+                assert_eq!(after_context[0], "line 4");
+                assert_eq!(after_context[1], "line 5");
+            }
+            _ => panic!("Expected ContextMatch"),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_no_context_returns_found() {
+        let fixture = TempDir::new().unwrap();
+        fs::write(
+            fixture.path().join("test.txt"),
+            "line 1\nMATCH HERE\nline 3",
+        )
+        .await
+        .unwrap();
+
+        let params = FSSearch {
+            pattern: "MATCH".to_string(),
+            path: Some(fixture.path().to_string_lossy().to_string()),
+            output_mode: Some(OutputMode::Content),
+            // No context specified
+            ..Default::default()
+        };
+
+        let actual = ForgeFsSearch::new(Arc::new(MockInfra::default()))
+            .search(params)
+            .await
+            .unwrap();
+
+        assert!(actual.is_some());
+        let result = actual.unwrap();
+        assert_eq!(result.matches.len(), 1);
+
+        // Should be Found, not ContextMatch when no context is requested
+        match &result.matches[0].result {
+            Some(MatchResult::Found { line, .. }) => {
+                assert_eq!(line, "MATCH HERE");
+            }
+            _ => panic!("Expected Found, got {:?}", result.matches[0].result),
+        }
     }
 }
