@@ -150,7 +150,7 @@ where
 
         let commit_result = self
             .services
-            .execute(commit_command, cwd, false, false, None)
+            .execute(commit_command, cwd, false, true, None)
             .await
             .context("Failed to commit changes")?;
 
