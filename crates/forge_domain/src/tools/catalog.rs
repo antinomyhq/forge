@@ -1282,10 +1282,7 @@ mod tests {
 
         let actual = ToolCatalog::try_from(tool_call);
 
-        assert!(
-            actual.is_ok(),
-            "Should successfully parse new field names"
-        );
+        assert!(actual.is_ok(), "Should successfully parse new field names");
 
         if let Ok(ToolCatalog::Patch(fs_patch)) = actual {
             assert_eq!(fs_patch.file_path, "/test/file.rs");
