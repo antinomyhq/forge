@@ -228,11 +228,10 @@ impl<W: WalkerInfra + FileReaderInfra + FileInfoInfra> ForgeFsSearch<W> {
                         has_match = true;
                         Ok(false)
                     }),
-                )
-                .ok();
+                )?;
 
             if has_match {
-                matches.push(Match { path: path.to_string_lossy().to_string(), result: None });
+                matches.push(Match { path: path.to_string_lossy().to_string(), result: Some(MatchResult::FileMatch) });
             }
         }
 
@@ -647,7 +646,7 @@ mod test {
         assert!(actual.is_some());
         let result = actual.unwrap();
         // Should return file paths only, no content
-        assert!(result.matches.iter().all(|m| m.result.is_none()));
+        assert!(result.matches.iter().all(|m| m.result.is_some() && matches!(m.result, Some(MatchResult::FileMatch))));
     }
 
     #[tokio::test]
