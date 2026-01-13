@@ -134,9 +134,6 @@ impl<P: ConsoleWriter> SpinnerManager<P> {
 
         if let Some(spinner) = self.spinner.take() {
             spinner.finish_and_clear();
-            // Ensure spinner output is fully cleared from terminal
-            let _ = self.printer.flush();
-            let _ = self.printer.flush_err();
             if let Some(msg) = message {
                 self.println(&msg);
             }
