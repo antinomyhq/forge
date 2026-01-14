@@ -541,6 +541,10 @@ impl ToolOperation {
                     .attr("command", &output.output.command)
                     .attr("shell", &output.shell);
 
+                if let Some(description) = &output.description {
+                    parent_elem = parent_elem.attr("description", description);
+                }
+
                 if let Some(exit_code) = output.output.exit_code {
                     parent_elem = parent_elem.attr("exit_code", exit_code);
                 }
@@ -920,6 +924,7 @@ mod tests {
                     exit_code: Some(0),
                 },
                 shell: "/bin/bash".to_string(),
+                description: None,
             },
         };
 
@@ -952,6 +957,7 @@ mod tests {
                     exit_code: Some(0),
                 },
                 shell: "/bin/bash".to_string(),
+                description: None,
             },
         };
 
@@ -986,6 +992,7 @@ mod tests {
                     exit_code: Some(1),
                 },
                 shell: "/bin/bash".to_string(),
+                description: None,
             },
         };
 
@@ -1026,6 +1033,7 @@ mod tests {
                     exit_code: Some(0),
                 },
                 shell: "/bin/bash".to_string(),
+                description: None,
             },
         };
 
@@ -1061,6 +1069,7 @@ mod tests {
                     exit_code: Some(0),
                 },
                 shell: "/bin/bash".to_string(),
+                description: None,
             },
         };
 
@@ -1086,6 +1095,7 @@ mod tests {
                     exit_code: Some(0),
                 },
                 shell: "/bin/bash".to_string(),
+                description: None,
             },
         };
 
@@ -1111,6 +1121,7 @@ mod tests {
                     exit_code: Some(0),
                 },
                 shell: "/bin/bash".to_string(),
+                description: None,
             },
         };
 
@@ -1149,6 +1160,7 @@ mod tests {
                     exit_code: Some(0),
                 },
                 shell: "/bin/bash".to_string(),
+                description: None,
             },
         };
 
@@ -2174,6 +2186,34 @@ mod tests {
                     exit_code: Some(0),
                 },
                 shell: "/bin/bash".to_string(),
+                description: None,
+            },
+        };
+
+        let env = fixture_environment();
+
+        let actual = fixture.into_tool_output(
+            ToolKind::Shell,
+            TempContentFiles::default(),
+            &env,
+            &mut Metrics::default(),
+        );
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_shell_with_description() {
+        let fixture = ToolOperation::Shell {
+            output: ShellOutput {
+                output: forge_domain::CommandOutput {
+                    command: "git status".to_string(),
+                    stdout: "On branch main\nnothing to commit, working tree clean".to_string(),
+                    stderr: "".to_string(),
+                    exit_code: Some(0),
+                },
+                shell: "/bin/bash".to_string(),
+                description: Some("Shows working tree status".to_string()),
             },
         };
 
