@@ -77,7 +77,8 @@ pub struct FSRead {
     #[serde(alias = "path")]
     pub file_path: String,
 
-    /// The line number to start reading from starting from 1 not 0. Only provide if the file is too large to read at once
+    /// The line number to start reading from starting from 1 not 0. Only
+    /// provide if the file is too large to read at once
     #[serde(skip_serializing_if = "Option::is_none")]
     pub start_line: Option<i32>,
 
@@ -86,7 +87,8 @@ pub struct FSRead {
     #[serde(default = "default_true")]
     pub show_line_numbers: bool,
 
-    /// The line number to stop reading at (inclusive). Only provide if the file is too large to read at once
+    /// The line number to stop reading at (inclusive). Only provide if the file
+    /// is too large to read at once
     #[serde(skip_serializing_if = "Option::is_none")]
     pub end_line: Option<i32>,
 }
@@ -668,7 +670,10 @@ impl ToolCatalog {
             ToolCatalog::Write(input) => Some(crate::policies::PermissionOperation::Write {
                 path: std::path::PathBuf::from(&input.file_path),
                 cwd,
-                message: format!("Create/overwrite file: {}", display_path_for(&input.file_path)),
+                message: format!(
+                    "Create/overwrite file: {}",
+                    display_path_for(&input.file_path)
+                ),
             }),
             ToolCatalog::FsSearch(input) => {
                 let path_str = input.path.as_deref().unwrap_or(".");
