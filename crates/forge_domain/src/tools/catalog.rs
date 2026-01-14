@@ -646,7 +646,6 @@ impl ToolCatalog {
             .any(|v| v.to_string().to_case(Case::Snake).eq(normalized.as_str()))
     }
 
-
     /// Returns a user-friendly display message for the tool
     pub fn display_message(tool_name: &ToolName) -> Option<String> {
         ToolKind::from_name(tool_name)
