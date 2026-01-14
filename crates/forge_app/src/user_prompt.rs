@@ -386,5 +386,15 @@ mod tests {
             file2_metrics.content_hash.is_some(),
             "file2.rs should have content hash"
         );
+
+        // Verify both files are in files_accessed (since they are Read operations)
+        assert!(
+            actual.metrics.files_accessed.contains("/test/file1.rs"),
+            "file1.rs should be in files_accessed"
+        );
+        assert!(
+            actual.metrics.files_accessed.contains("/test/file2.rs"),
+            "file2.rs should be in files_accessed"
+        );
     }
 }

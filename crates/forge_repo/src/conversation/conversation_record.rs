@@ -818,6 +818,8 @@ pub(super) enum FileOperationOrArray {
 pub(super) struct MetricsRecord {
     started_at: Option<chrono::DateTime<chrono::Utc>>,
     files_changed: std::collections::HashMap<String, FileOperationOrArray>,
+    #[serde(default, skip_serializing_if = "std::collections::HashSet::is_empty")]
+    files_accessed: std::collections::HashSet<String>,
 }
 
 impl From<&forge_domain::Metrics> for MetricsRecord {
@@ -834,15 +836,15 @@ impl From<&forge_domain::Metrics> for MetricsRecord {
                     )
                 })
                 .collect(),
+            files_accessed: metrics.files_accessed.clone(),
         }
     }
 }
 
 impl From<MetricsRecord> for forge_domain::Metrics {
     fn from(record: MetricsRecord) -> Self {
-        Self {
-            started_at: record.started_at,
-            file_operations: record
+        let file_operations: std::collections::HashMap<String, forge_domain::FileOperation> =
+            record
                 .files_changed
                 .into_iter()
                 .filter_map(|(path, file_record)| {
@@ -858,7 +860,26 @@ impl From<MetricsRecord> for forge_domain::Metrics {
                     };
                     Some((path, operation))
                 })
-                .collect(),
+                .collect();
+
+        // Use persisted files_accessed if available, otherwise build from Read
+        // operations
+        let files_accessed = if record.files_accessed.is_empty() {
+            // Legacy data: build from Read operations
+            file_operations
+                .iter()
+                .filter(|(_, op)| op.tool == forge_domain::ToolKind::Read)
+                .map(|(path, _)| path.clone())
+                .collect()
+        } else {
+            // Use persisted set
+            record.files_accessed
+        };
+
+        Self {
+            started_at: record.started_at,
+            file_operations,
+            files_accessed,
         }
     }
 }

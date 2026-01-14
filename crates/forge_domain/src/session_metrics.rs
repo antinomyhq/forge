@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
 use chrono::{DateTime, Utc};
@@ -16,12 +16,20 @@ pub struct Metrics {
     /// Holds the last file operation for each file
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub file_operations: HashMap<String, FileOperation>,
+
+    /// Tracks all files that have been read in this session
+    #[serde(default, skip_serializing_if = "HashSet::is_empty")]
+    pub files_accessed: HashSet<String>,
 }
 
 impl Metrics {
     /// Records a file operation, replacing any previous operation for the same
-    /// file
+    /// file. Only Read operations are tracked in files_accessed.
     pub fn insert(mut self, path: String, metrics: FileOperation) -> Self {
+        // Only track Read operations in files_accessed
+        if metrics.tool == crate::ToolKind::Read {
+            self.files_accessed.insert(path.clone());
+        }
         self.file_operations.insert(path, metrics);
         self
     }
@@ -146,5 +154,42 @@ mod tests {
         assert_eq!(operation.lines_added, 0);
         assert_eq!(operation.lines_removed, 0);
         assert_eq!(operation.content_hash, Some("hash1".to_string()));
+    }
+
+    #[test]
+    fn test_files_accessed_only_tracks_reads() {
+        let metrics = Metrics::default()
+            .insert("file1.rs".to_string(), FileOperation::new(ToolKind::Read))
+            .insert(
+                "file2.rs".to_string(),
+                FileOperation::new(ToolKind::Write).lines_added(10u64),
+            )
+            .insert("file3.rs".to_string(), FileOperation::new(ToolKind::Read))
+            .insert(
+                "file3.rs".to_string(),
+                FileOperation::new(ToolKind::Patch).lines_added(5u64),
+            );
+
+        // Only Read operations should be in files_accessed
+        // file3 was read first, then patched - it stays in files_accessed
+        assert_eq!(metrics.files_accessed.len(), 2);
+        assert!(metrics.files_accessed.contains("file1.rs"));
+        assert!(metrics.files_accessed.contains("file3.rs"));
+        assert!(!metrics.files_accessed.contains("file2.rs")); // Write only, not in set
+
+        // file_operations should have the last operation for each file
+        assert_eq!(metrics.file_operations.len(), 3);
+        assert_eq!(
+            metrics.file_operations.get("file1.rs").unwrap().tool,
+            ToolKind::Read
+        );
+        assert_eq!(
+            metrics.file_operations.get("file2.rs").unwrap().tool,
+            ToolKind::Write
+        );
+        assert_eq!(
+            metrics.file_operations.get("file3.rs").unwrap().tool,
+            ToolKind::Patch
+        );
     }
 }
