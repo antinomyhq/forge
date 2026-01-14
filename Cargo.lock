@@ -1872,7 +1872,6 @@ name = "forge_markdown_stream"
 version = "0.1.0"
 dependencies = [
  "colored",
- "indicatif",
  "insta",
  "streamdown-ansi",
  "streamdown-core",
