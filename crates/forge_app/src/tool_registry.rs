@@ -329,7 +329,7 @@ impl<S> ToolRegistry<S> {
         // Currently, only the read tool can return image content
         if let ToolCatalog::Read(input) = tool_input {
             // Check if the file extension suggests it's an image
-            if Self::has_image_extension(&input.path) {
+            if Self::has_image_extension(&input.file_path) {
                 // Check if the model supports image input
                 let supports_image = model
                     .and_then(|m| {
@@ -734,7 +734,7 @@ fn test_validate_tool_modality_with_image_file_and_vision_model() {
 
     let vision_model = create_test_model("gpt-4o", vec![InputModality::Text, InputModality::Image]);
     let tool_input = ToolCatalog::Read(forge_domain::FSRead {
-        path: "/home/user/test.png".to_string(),
+        file_path: "/home/user/test.png".to_string(),
         ..Default::default()
     });
 
@@ -748,7 +748,7 @@ fn test_validate_tool_modality_with_image_file_and_text_only_model() {
 
     let text_only_model = create_test_model("gpt-3.5-turbo", vec![InputModality::Text]);
     let tool_input = ToolCatalog::Read(forge_domain::FSRead {
-        path: "/home/user/test.png".to_string(),
+        file_path: "/home/user/test.png".to_string(),
         ..Default::default()
     });
 
@@ -769,7 +769,7 @@ fn test_validate_tool_modality_with_text_file_and_text_only_model() {
 
     let text_only_model = create_test_model("gpt-3.5-turbo", vec![InputModality::Text]);
     let tool_input = ToolCatalog::Read(forge_domain::FSRead {
-        path: "/home/user/test.txt".to_string(),
+        file_path: "/home/user/test.txt".to_string(),
         ..Default::default()
     });
 
@@ -782,7 +782,7 @@ fn test_validate_tool_modality_with_no_model() {
     use forge_domain::ToolCatalog;
 
     let tool_input = ToolCatalog::Read(forge_domain::FSRead {
-        path: "/home/user/test.png".to_string(),
+        file_path: "/home/user/test.png".to_string(),
         ..Default::default()
     });
 
@@ -800,7 +800,7 @@ fn test_validate_tool_modality_with_non_read_tool() {
 
     let text_only_model = create_test_model("gpt-3.5-turbo", vec![InputModality::Text]);
     let tool_input = ToolCatalog::Write(forge_domain::FSWrite {
-        path: "/home/user/test.png".to_string(),
+        file_path: "/home/user/test.png".to_string(),
         content: "test".to_string(),
         ..Default::default()
     });

@@ -83,7 +83,7 @@ mod tests {
         let content = "Hello, world!";
         let fixture = ToolOperation::FsRead {
             input: forge_domain::FSRead {
-                path: "/home/user/test.txt".to_string(),
+                file_path: "/home/user/test.txt".to_string(),
                 start_line: None,
                 end_line: None,
                 show_line_numbers: true,
@@ -109,7 +109,7 @@ mod tests {
         let content = "Line 1\nLine 2\nLine 3";
         let fixture = ToolOperation::FsRead {
             input: forge_domain::FSRead {
-                path: "/home/user/test.txt".to_string(),
+                file_path: "/home/user/test.txt".to_string(),
                 start_line: Some(2),
                 end_line: Some(4),
                 show_line_numbers: true,
@@ -135,7 +135,7 @@ mod tests {
         let content = "New file content";
         let fixture = ToolOperation::FsWrite {
             input: forge_domain::FSWrite {
-                path: "/home/user/project/new_file.txt".to_string(),
+                file_path: "/home/user/project/new_file.txt".to_string(),
                 content: content.to_string(),
                 overwrite: false,
             },
@@ -159,7 +159,7 @@ mod tests {
         let content = "new content";
         let fixture = ToolOperation::FsWrite {
             input: forge_domain::FSWrite {
-                path: "/home/user/project/existing_file.txt".to_string(),
+                file_path: "/home/user/project/existing_file.txt".to_string(),
                 content: content.to_string(),
                 overwrite: true,
             },
@@ -187,7 +187,7 @@ mod tests {
         let content = "File content";
         let fixture = ToolOperation::FsWrite {
             input: forge_domain::FSWrite {
-                path: "/home/user/project/file.txt".to_string(),
+                file_path: "/home/user/project/file.txt".to_string(),
                 content: content.to_string(),
                 overwrite: false,
             },

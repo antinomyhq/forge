@@ -11,7 +11,7 @@ impl FormatContent for ToolCatalog {
 
         match self {
             ToolCatalog::Read(input) => {
-                let display_path = display_path_for(&input.path);
+                let display_path = display_path_for(&input.file_path);
                 let is_explicit_range = input.start_line.is_some() || input.end_line.is_some();
                 let mut subtitle = display_path;
                 if is_explicit_range {
@@ -31,8 +31,8 @@ impl FormatContent for ToolCatalog {
                 Some(TitleFormat::debug("Read").sub_title(subtitle).into())
             }
             ToolCatalog::Write(input) => {
-                let path = PathBuf::from(&input.path);
-                let display_path = display_path_for(&input.path);
+                let path = PathBuf::from(&input.file_path);
+                let display_path = display_path_for(&input.file_path);
                 let title = match (path.exists(), input.overwrite) {
                     (true, true) => "Overwrite",
                     (true, false) => {

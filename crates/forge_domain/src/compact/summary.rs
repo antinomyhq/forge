@@ -310,8 +310,8 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
     // Try to parse as a Tools enum variant
     if let Ok(tool) = ToolCatalog::try_from(call.clone()) {
         return match tool {
-            ToolCatalog::Read(input) => Some(SummaryTool::FileRead { path: input.path }),
-            ToolCatalog::Write(input) => Some(SummaryTool::FileUpdate { path: input.path }),
+            ToolCatalog::Read(input) => Some(SummaryTool::FileRead { path: input.file_path }),
+            ToolCatalog::Write(input) => Some(SummaryTool::FileUpdate { path: input.file_path }),
             ToolCatalog::Patch(input) => Some(SummaryTool::FileUpdate { path: input.file_path }),
             ToolCatalog::Remove(input) => Some(SummaryTool::FileRemove { path: input.path }),
             ToolCatalog::Shell(input) => Some(SummaryTool::Shell { command: input.command }),

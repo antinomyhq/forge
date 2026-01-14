@@ -73,11 +73,11 @@ fn default_true() -> bool {
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 #[tool_description_file = "crates/forge_domain/src/tools/descriptions/fs_read.md"]
 pub struct FSRead {
-    /// The path of the file to read, always provide absolute paths.
-    pub path: String,
+    /// The absolute path to the file to read
+    #[serde(alias = "path")]
+    pub file_path: String,
 
-    /// Optional start position in lines (1-based). If provided, reading
-    /// will start from this line position.
+    /// The line number to start reading from starting from 1 not 0. Only provide if the file is too large to read at once
     #[serde(skip_serializing_if = "Option::is_none")]
     pub start_line: Option<i32>,
 
@@ -86,8 +86,7 @@ pub struct FSRead {
     #[serde(default = "default_true")]
     pub show_line_numbers: bool,
 
-    /// Optional end position in lines (inclusive). If provided, reading
-    /// will end at this line position.
+    /// The line number to stop reading at (inclusive). Only provide if the file is too large to read at once
     #[serde(skip_serializing_if = "Option::is_none")]
     pub end_line: Option<i32>,
 }
@@ -95,12 +94,11 @@ pub struct FSRead {
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 #[tool_description_file = "crates/forge_domain/src/tools/descriptions/fs_write.md"]
 pub struct FSWrite {
-    /// The path of the file to write to (absolute path required)
-    pub path: String,
+    /// The absolute path to the file to write (must be absolute, not relative)
+    #[serde(alias = "path")]
+    pub file_path: String,
 
-    /// The content to write to the file. ALWAYS provide the COMPLETE intended
-    /// content of the file, without any truncation or omissions. You MUST
-    /// include ALL parts of the file, even if they haven't been modified.
+    /// The content to write to the file
     pub content: String,
 
     /// If set to true, existing files will be overwritten. If not set and the
@@ -663,14 +661,14 @@ impl ToolCatalog {
 
         match self {
             ToolCatalog::Read(input) => Some(crate::policies::PermissionOperation::Read {
-                path: std::path::PathBuf::from(&input.path),
+                path: std::path::PathBuf::from(&input.file_path),
                 cwd,
-                message: format!("Read file: {}", display_path_for(&input.path)),
+                message: format!("Read file: {}", display_path_for(&input.file_path)),
             }),
             ToolCatalog::Write(input) => Some(crate::policies::PermissionOperation::Write {
-                path: std::path::PathBuf::from(&input.path),
+                path: std::path::PathBuf::from(&input.file_path),
                 cwd,
-                message: format!("Create/overwrite file: {}", display_path_for(&input.path)),
+                message: format!("Create/overwrite file: {}", display_path_for(&input.file_path)),
             }),
             ToolCatalog::FsSearch(input) => {
                 let path_str = input.path.as_deref().unwrap_or(".");
@@ -730,7 +728,7 @@ impl ToolCatalog {
     /// Creates a Read tool call with the specified path
     pub fn tool_call_read(path: &str) -> ToolCallFull {
         ToolCallFull::from(ToolCatalog::Read(FSRead {
-            path: path.to_string(),
+            file_path: path.to_string(),
             ..Default::default()
         }))
     }
@@ -738,7 +736,7 @@ impl ToolCatalog {
     /// Creates a Write tool call with the specified path and content
     pub fn tool_call_write(path: &str, content: &str) -> ToolCallFull {
         ToolCallFull::from(ToolCatalog::Write(FSWrite {
-            path: path.to_string(),
+            file_path: path.to_string(),
             content: content.to_string(),
             ..Default::default()
         }))
@@ -988,7 +986,7 @@ mod tests {
         );
 
         if let Ok(ToolCatalog::Read(fs_read)) = actual {
-            assert_eq!(fs_read.path, "/test/path.rs");
+            assert_eq!(fs_read.file_path, "/test/path.rs");
             assert_eq!(fs_read.start_line, Some(10));
             assert_eq!(fs_read.end_line, Some(20));
         } else {
@@ -1017,7 +1015,7 @@ mod tests {
         );
 
         if let Ok(ToolCatalog::Read(fs_read)) = actual {
-            assert_eq!(fs_read.path, "/test/path.rs");
+            assert_eq!(fs_read.file_path, "/test/path.rs");
             assert_eq!(fs_read.start_line, Some(10));
             assert_eq!(fs_read.end_line, Some(20));
         } else {
@@ -1046,7 +1044,7 @@ mod tests {
         );
 
         if let Ok(ToolCatalog::Read(fs_read)) = actual {
-            assert_eq!(fs_read.path, "/test/path.rs");
+            assert_eq!(fs_read.file_path, "/test/path.rs");
             assert_eq!(fs_read.start_line, Some(10));
             assert_eq!(fs_read.end_line, Some(20));
         } else {
@@ -1075,7 +1073,7 @@ mod tests {
         );
 
         if let Ok(ToolCatalog::Write(fs_write)) = actual {
-            assert_eq!(fs_write.path, "/test/path.rs");
+            assert_eq!(fs_write.file_path, "/test/path.rs");
             assert_eq!(fs_write.content, "test content");
         } else {
             panic!("Expected FSWrite variant");
