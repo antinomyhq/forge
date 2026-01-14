@@ -23,8 +23,8 @@ pub struct Metrics {
 }
 
 impl Metrics {
-    /// Records a file operation, replacing any previous operation for the same file.
-    /// Only Read operations are tracked in files_accessed.
+    /// Records a file operation, replacing any previous operation for the same
+    /// file. Only Read operations are tracked in files_accessed.
     pub fn insert(mut self, path: String, metrics: FileOperation) -> Self {
         // Only track Read operations in files_accessed
         if metrics.tool == crate::ToolKind::Read {
@@ -159,23 +159,15 @@ mod tests {
     #[test]
     fn test_files_accessed_only_tracks_reads() {
         let metrics = Metrics::default()
-            .insert(
-                "file1.rs".to_string(),
-                FileOperation::new(ToolKind::Read),
-            )
+            .insert("file1.rs".to_string(), FileOperation::new(ToolKind::Read))
             .insert(
                 "file2.rs".to_string(),
-                FileOperation::new(ToolKind::Write)
-                    .lines_added(10u64),
+                FileOperation::new(ToolKind::Write).lines_added(10u64),
             )
+            .insert("file3.rs".to_string(), FileOperation::new(ToolKind::Read))
             .insert(
                 "file3.rs".to_string(),
-                FileOperation::new(ToolKind::Read),
-            )
-            .insert(
-                "file3.rs".to_string(),
-                FileOperation::new(ToolKind::Patch)
-                    .lines_added(5u64),
+                FileOperation::new(ToolKind::Patch).lines_added(5u64),
             );
 
         // Only Read operations should be in files_accessed
@@ -187,8 +179,17 @@ mod tests {
 
         // file_operations should have the last operation for each file
         assert_eq!(metrics.file_operations.len(), 3);
-        assert_eq!(metrics.file_operations.get("file1.rs").unwrap().tool, ToolKind::Read);
-        assert_eq!(metrics.file_operations.get("file2.rs").unwrap().tool, ToolKind::Write);
-        assert_eq!(metrics.file_operations.get("file3.rs").unwrap().tool, ToolKind::Patch);
+        assert_eq!(
+            metrics.file_operations.get("file1.rs").unwrap().tool,
+            ToolKind::Read
+        );
+        assert_eq!(
+            metrics.file_operations.get("file2.rs").unwrap().tool,
+            ToolKind::Write
+        );
+        assert_eq!(
+            metrics.file_operations.get("file3.rs").unwrap().tool,
+            ToolKind::Patch
+        );
     }
 }
