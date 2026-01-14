@@ -47,12 +47,3 @@ pub struct SystemContext {
     #[serde(skip_serializing_if = "Map::is_empty")]
     pub tool_names: Map<String, Value>,
 }
-
-impl SystemContext {
-    /// Gets a tool name by its key for template rendering.
-    /// Returns None if the tool name is not found.
-    #[allow(clippy::unused_self)]
-    pub fn get_tool_name(&self, tool_key: &str) -> Option<&str> {
-        self.tool_names.get(tool_key).and_then(|v| v.as_str())
-    }
-}
