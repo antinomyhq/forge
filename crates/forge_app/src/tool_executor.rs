@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::anyhow;
-use forge_domain::{CodebaseQueryResult, ToolCallContext, ToolCatalog, ToolKind, ToolOutput};
+use forge_domain::{CodebaseQueryResult, ToolCallContext, ToolCatalog, ToolOutput};
 
 use crate::fmt::content::FormatContent;
 use crate::operation::{TempContentFiles, ToolOperation};
@@ -50,11 +50,8 @@ impl<
     ) -> anyhow::Result<()> {
         let target_path = self.normalize_path(raw_path.to_string());
         let has_read = context.with_metrics(|metrics| {
-            metrics
-                .file_operations
-                .get(&target_path)
-                .or_else(|| metrics.file_operations.get(raw_path))
-                .is_some_and(|op| op.tool == ToolKind::Read)
+            metrics.files_accessed.contains(&target_path)
+                || metrics.files_accessed.contains(raw_path)
         })?;
 
         if has_read {

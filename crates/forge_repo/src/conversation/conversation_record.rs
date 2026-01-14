@@ -818,6 +818,8 @@ pub(super) enum FileOperationOrArray {
 pub(super) struct MetricsRecord {
     started_at: Option<chrono::DateTime<chrono::Utc>>,
     files_changed: std::collections::HashMap<String, FileOperationOrArray>,
+    #[serde(default, skip_serializing_if = "std::collections::HashSet::is_empty")]
+    files_accessed: std::collections::HashSet<String>,
 }
 
 impl From<&forge_domain::Metrics> for MetricsRecord {
@@ -834,31 +836,48 @@ impl From<&forge_domain::Metrics> for MetricsRecord {
                     )
                 })
                 .collect(),
+            files_accessed: metrics.files_accessed.clone(),
         }
     }
 }
 
 impl From<MetricsRecord> for forge_domain::Metrics {
     fn from(record: MetricsRecord) -> Self {
+        let file_operations: std::collections::HashMap<String, forge_domain::FileOperation> = record
+            .files_changed
+            .into_iter()
+            .filter_map(|(path, file_record)| {
+                let operation = match file_record {
+                    // If it's an array, take the last operation (most recent)
+                    FileOperationOrArray::Array(mut arr) if !arr.is_empty() => {
+                        arr.pop().unwrap().into()
+                    }
+                    // If it's a single object, use it directly
+                    FileOperationOrArray::Single(record) => record.into(),
+                    // If it's an empty array, skip this file
+                    FileOperationOrArray::Array(_) => return None,
+                };
+                Some((path, operation))
+            })
+            .collect();
+
+        // Use persisted files_accessed if available, otherwise build from Read operations
+        let files_accessed = if record.files_accessed.is_empty() {
+            // Legacy data: build from Read operations
+            file_operations
+                .iter()
+                .filter(|(_, op)| op.tool == forge_domain::ToolKind::Read)
+                .map(|(path, _)| path.clone())
+                .collect()
+        } else {
+            // Use persisted set
+            record.files_accessed
+        };
+
         Self {
             started_at: record.started_at,
-            file_operations: record
-                .files_changed
-                .into_iter()
-                .filter_map(|(path, file_record)| {
-                    let operation = match file_record {
-                        // If it's an array, take the last operation (most recent)
-                        FileOperationOrArray::Array(mut arr) if !arr.is_empty() => {
-                            arr.pop().unwrap().into()
-                        }
-                        // If it's a single object, use it directly
-                        FileOperationOrArray::Single(record) => record.into(),
-                        // If it's an empty array, skip this file
-                        FileOperationOrArray::Array(_) => return None,
-                    };
-                    Some((path, operation))
-                })
-                .collect(),
+            file_operations,
+            files_accessed,
         }
     }
 }
