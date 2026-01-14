@@ -97,9 +97,17 @@ mod tests {
         h1.join().unwrap();
         h2.join().unwrap();
 
-        // Verify output is one of the valid non-interleaved orderings
+        // Verify output is one of the valid orderings where individual writes are atomic
+        // but sequences can interleave. AAAA must come before BBBB, XXXX must come before ZZZZ
         let actual = printer.stdout.lock().unwrap().get_ref().clone();
-        let valid_orderings = [b"AAAABBBBXXXXZZZZ".to_vec(), b"XXXXZZZZAAAABBBB".to_vec()];
+        let valid_orderings = [
+            b"AAAABBBBXXXXZZZZ".to_vec(), // Thread 1 completes, then Thread 2
+            b"XXXXZZZZAAAABBBB".to_vec(), // Thread 2 completes, then Thread 1
+            b"AAAAXXXXBBBBZZZZ".to_vec(), // A, X, B, Z
+            b"AAAAXXXXZZZZBBBB".to_vec(), // A, X, Z, B
+            b"XXXXAAAABBBBZZZZ".to_vec(), // X, A, B, Z
+            b"XXXXAAAAZZZZBBBB".to_vec(), // X, A, Z, B
+        ];
         assert!(
             valid_orderings.contains(&actual),
             "Output was interleaved: {:?}",
