@@ -1,0 +1,15 @@
+---
+source: src/table.rs
+expression: "render(vec![vec![\"ID\", \"Value\"], vec![\"1\", \"one\"], vec![\"2\", \"two\"],\nvec![\"3\", \"three\"], vec![\"4\", \"four\"],])"
+---
+  ┌────┬───────┐
+  │ ID │ Value │
+  ├────┼───────┤
+  │ 1  │ one   │
+  ├────┼───────┤
+  │ 2  │ two   │
+  ├────┼───────┤
+  │ 3  │ three │
+  ├────┼───────┤
+  │ 4  │ four  │
+  └────┴───────┘

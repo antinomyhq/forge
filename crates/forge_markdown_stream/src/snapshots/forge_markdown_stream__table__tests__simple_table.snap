@@ -1,0 +1,9 @@
+---
+source: src/table.rs
+expression: "render(vec![vec![\"Name\", \"Age\"], vec![\"Alice\", \"30\"],])"
+---
+  ┌───────┬─────┐
+  │ Name  │ Age │
+  ├───────┼─────┤
+  │ Alice │ 30  │
+  └───────┴─────┘

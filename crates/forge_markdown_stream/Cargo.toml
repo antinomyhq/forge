@@ -1,0 +1,29 @@
+[package]
+name = "forge_markdown_stream"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Forge Markdown Stream - Streaming markdown renderer for terminal output, optimized for LLM responses"
+license = "MIT"
+repository = "https://github.com/antinomyhq/forge_markdown_stream"
+keywords = ["markdown", "terminal", "streaming", "llm", "cli"]
+categories = ["command-line-interface", "text-processing"]
+
+[lib]
+name = "forge_markdown_stream"
+path = "src/lib.rs"
+
+[dependencies]
+streamdown-parser = { git = "https://github.com/fed-stew/streamdown-rs", rev = "5c136b72b502697e440e5eb0804818cbf2a53c1b" }
+streamdown-core = { git = "https://github.com/fed-stew/streamdown-rs", rev = "5c136b72b502697e440e5eb0804818cbf2a53c1b" }
+streamdown-ansi = { git = "https://github.com/fed-stew/streamdown-rs", rev = "5c136b72b502697e440e5eb0804818cbf2a53c1b" }
+streamdown-render = { git = "https://github.com/fed-stew/streamdown-rs", rev = "5c136b72b502697e440e5eb0804818cbf2a53c1b" }
+syntect.workspace = true
+colored.workspace = true
+unicode-width = "0.2"
+terminal-colorsaurus = "1.0.3"
+
+[dev-dependencies]
+indicatif = "0.18"
+insta.workspace = true
+strip-ansi-escapes.workspace = true

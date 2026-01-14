@@ -62,7 +62,7 @@ version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "40c48f72fd53cd289104fc64099abca73db4166ad86ea0b4341abe65af83dadc"
 dependencies = [
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -73,7 +73,7 @@ checksum = "291e6a250ff86cd4a820112fb8898808a366d8f9f58ce16d1f538353ad55747d"
 dependencies = [
  "anstyle",
  "once_cell_polyfill",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1320,7 +1320,7 @@ dependencies = [
  "libc",
  "option-ext",
  "redox_users 0.5.2",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1452,7 +1452,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -1870,14 +1870,17 @@ dependencies = [
 [[package]]
 name = "forge_markdown_stream"
 version = "0.1.0"
-source = "git+https://github.com/antinomyhq/forge_markdown_stream.git?branch=master#a160bf268119249243a511aee9a62b7a11188051"
 dependencies = [
  "colored",
+ "indicatif",
+ "insta",
  "streamdown-ansi",
  "streamdown-core",
  "streamdown-parser",
  "streamdown-render",
+ "strip-ansi-escapes",
  "syntect",
+ "terminal-colorsaurus",
  "unicode-width 0.2.2",
 ]
 
@@ -3540,7 +3543,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3619,7 +3622,7 @@ version = "5.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "51e219e79014df21a225b1860a479e2dcd7cbd9130f4defd4bd0e191ea31d67d"
 dependencies = [
- "base64 0.21.7",
+ "base64 0.22.1",
  "chrono",
  "getrandom 0.2.16",
  "http 1.4.0",
@@ -4715,7 +4718,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.11.0",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -5289,8 +5292,7 @@ checksum = "6ce2be8dc25455e1f91df71bfa12ad37d7af1092ae736f3a6cd0e37bc7810596"
 [[package]]
 name = "streamdown-ansi"
 version = "0.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "38601319ce67101a252a65685a894bb25ce298bf7ce35e35e5be48af65fc2bab"
+source = "git+https://github.com/fed-stew/streamdown-rs?rev=5c136b72b502697e440e5eb0804818cbf2a53c1b#5c136b72b502697e440e5eb0804818cbf2a53c1b"
 dependencies = [
  "crossterm 0.28.1",
  "regex",
@@ -5300,8 +5302,7 @@ dependencies = [
 [[package]]
 name = "streamdown-config"
 version = "0.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c1b0ff31c57ec7c92e923bc3af64506b59311cb886af293cc2689a3cd8a89a9"
+source = "git+https://github.com/fed-stew/streamdown-rs?rev=5c136b72b502697e440e5eb0804818cbf2a53c1b#5c136b72b502697e440e5eb0804818cbf2a53c1b"
 dependencies = [
  "crossterm 0.28.1",
  "directories",
@@ -5314,8 +5315,7 @@ dependencies = [
 [[package]]
 name = "streamdown-core"
 version = "0.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5722240f4081c5ea38c92c739d91712095a49357ada4bc6c98b11667a970355"
+source = "git+https://github.com/fed-stew/streamdown-rs?rev=5c136b72b502697e440e5eb0804818cbf2a53c1b#5c136b72b502697e440e5eb0804818cbf2a53c1b"
 dependencies = [
  "regex",
  "serde",
@@ -5325,8 +5325,7 @@ dependencies = [
 [[package]]
 name = "streamdown-parser"
 version = "0.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e083cce85cf61f92a51053b2807bb8d690d2cdbf1af9dff5e00407cdde1f8b3"
+source = "git+https://github.com/fed-stew/streamdown-rs?rev=5c136b72b502697e440e5eb0804818cbf2a53c1b#5c136b72b502697e440e5eb0804818cbf2a53c1b"
 dependencies = [
  "regex",
  "streamdown-ansi",
@@ -5337,8 +5336,7 @@ dependencies = [
 [[package]]
 name = "streamdown-render"
 version = "0.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7fe4953c53c4f8078ab14e69c6e6322364b14a19305aa2fbe5712acb6b5d9862"
+source = "git+https://github.com/fed-stew/streamdown-rs?rev=5c136b72b502697e440e5eb0804818cbf2a53c1b#5c136b72b502697e440e5eb0804818cbf2a53c1b"
 dependencies = [
  "base64 0.22.1",
  "crossterm 0.28.1",
@@ -5353,8 +5351,7 @@ dependencies = [
 [[package]]
 name = "streamdown-syntax"
 version = "0.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "29f8844bac853e902c8ec8df1b28f9b8ee799f48db1183d79aaca259cba52a64"
+source = "git+https://github.com/fed-stew/streamdown-rs?rev=5c136b72b502697e440e5eb0804818cbf2a53c1b#5c136b72b502697e440e5eb0804818cbf2a53c1b"
 dependencies = [
  "streamdown-core",
  "syntect",
@@ -5584,7 +5581,7 @@ dependencies = [
  "getrandom 0.3.4",
  "once_cell",
  "rustix 1.1.2",
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -5612,6 +5609,32 @@ dependencies = [
  "serde",
  "thiserror 2.0.17",
  "unicode-width 0.1.14",
+]
+
+[[package]]
+name = "terminal-colorsaurus"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7a46bb5364467da040298c573c8a95dbf9a512efc039630409a03126e3703e90"
+dependencies = [
+ "cfg-if",
+ "libc",
+ "memchr",
+ "mio",
+ "terminal-trx",
+ "windows-sys 0.61.2",
+ "xterm-color",
+]
+
+[[package]]
+name = "terminal-trx"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3b3f27d9a8a177e57545481faec87acb45c6e854ed1e5a3658ad186c106f38ed"
+dependencies = [
+ "cfg-if",
+ "libc",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6477,7 +6500,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -7031,6 +7054,12 @@ dependencies = [
  "mac",
  "markup5ever",
 ]
+
+[[package]]
+name = "xterm-color"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7008a9d8ba97a7e47d9b2df63fcdb8dade303010c5a7cd5bf2469d4da6eba673"
 
 [[package]]
 name = "xxhash-rust"
