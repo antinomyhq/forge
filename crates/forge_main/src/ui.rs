@@ -297,7 +297,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 _ = tokio::signal::ctrl_c() => {
                     tracing::info!("User interrupted operation with Ctrl+C");
                     self.spinner.reset();
-                    self.spinner.stop(None)?;
                     return Ok(());
                 }
                 result = self.on_message(Some(input)) => {
@@ -649,6 +648,14 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 while let Some(data) = stream.next().await {
                     self.writeln(data?)?;
                 }
+            }
+            TopLevelCommand::Vscode(vscode_command) => {
+                match vscode_command {
+                    crate::cli::VscodeCommand::InstallExtension => {
+                        self.on_vscode_extension_install().await?;
+                    }
+                }
+                return Ok(());
             }
         }
         Ok(())
@@ -1479,6 +1486,35 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Stream the diagnostic output in real-time
         crate::zsh::run_zsh_doctor()?;
+
+        Ok(())
+    }
+
+    /// Install the Forge VS Code extension
+    async fn on_vscode_extension_install(&mut self) -> anyhow::Result<()> {
+        self.spinner
+            .start(Some("Installing Forge VS Code extension"))?;
+
+        match crate::vscode::install_extension() {
+            Ok(true) => {
+                self.spinner.stop(None)?;
+                self.writeln_title(TitleFormat::info(
+                    "Forge VS Code extension installed successfully",
+                ))?;
+            }
+            Ok(false) => {
+                self.spinner.stop(None)?;
+                self.writeln_title(TitleFormat::error(
+                    "Failed to install Forge VS Code extension.",
+                ))?;
+            }
+            Err(e) => {
+                self.spinner.stop(None)?;
+                self.writeln_title(TitleFormat::error(format!(
+                    "Failed to install Forge VS Code extension: {e}"
+                )))?;
+            }
+        }
 
         Ok(())
     }

@@ -153,7 +153,7 @@ impl<
     async fn call_internal(&self, input: ToolCatalog) -> anyhow::Result<ToolOperation> {
         Ok(match input {
             ToolCatalog::Read(input) => {
-                let normalized_path = self.normalize_path(input.path.clone());
+                let normalized_path = self.normalize_path(input.file_path.clone());
                 let output = self
                     .services
                     .read(
@@ -166,7 +166,7 @@ impl<
                 (input, output).into()
             }
             ToolCatalog::Write(input) => {
-                let normalized_path = self.normalize_path(input.path.clone());
+                let normalized_path = self.normalize_path(input.file_path.clone());
                 let output = self
                     .services
                     .write(normalized_path, input.content.clone(), input.overwrite)
@@ -324,7 +324,7 @@ impl<
         if let ToolCatalog::Write(input) = &tool_input
             && input.overwrite
         {
-            self.require_prior_read(context, &input.path, "overwrite it")?;
+            self.require_prior_read(context, &input.file_path, "overwrite it")?;
         }
 
         let execution_result = self.call_internal(tool_input.clone()).await;

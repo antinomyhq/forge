@@ -1,0 +1,7 @@
+---
+source: src/table.rs
+expression: "render(vec![vec![\"Only\", \"Headers\"],])"
+---
+  ┌──────┬─────────┐
+  │ Only │ Headers │
+  └──────┴─────────┘

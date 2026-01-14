@@ -1,0 +1,11 @@
+---
+source: src/table.rs
+expression: "render(vec![vec![\"Text\", \"Result\"], vec![\"~~strikethrough~~\", \"Should show\"],\nvec![\"Normal ~~strike~~ text\", \"Mixed\"],])"
+---
+  ┌────────────────────┬─────────────┐
+  │ Text               │ Result      │
+  ├────────────────────┼─────────────┤
+  │ strikethrough      │ Should show │
+  ├────────────────────┼─────────────┤
+  │ Normal strike text │ Mixed       │
+  └────────────────────┴─────────────┘

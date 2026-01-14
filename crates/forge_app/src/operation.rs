@@ -224,12 +224,12 @@ impl ToolOperation {
                 if let Some(image) = output.content.as_image() {
                     // Track read operations for visual content
                     tracing::info!(
-                        path = %input.path,
+                        path = %input.file_path,
                         tool = %tool_name,
                         "Visual content read (image/PDF)"
                     );
                     *metrics = metrics.clone().insert(
-                        input.path.clone(),
+                        input.file_path.clone(),
                         FileOperation::new(tool_kind)
                             .content_hash(Some(output.content_hash.clone())),
                     );
@@ -245,7 +245,7 @@ impl ToolOperation {
                     content.to_string()
                 };
                 let elm = Element::new("file")
-                    .attr("path", &input.path)
+                    .attr("path", &input.file_path)
                     .attr(
                         "display_lines",
                         format!("{}-{}", output.start_line, output.end_line),
@@ -255,12 +255,12 @@ impl ToolOperation {
 
                 // Track read operations
                 tracing::info!(
-                    path = %input.path,
+                    path = %input.file_path,
                     tool = %tool_name,
                     "File read"
                 );
                 *metrics = metrics.clone().insert(
-                    input.path.clone(),
+                    input.file_path.clone(),
                     FileOperation::new(tool_kind).content_hash(Some(output.content_hash.clone())),
                 );
 
@@ -274,7 +274,7 @@ impl ToolOperation {
                 let diff = console::strip_ansi_codes(diff_result.diff()).to_string();
 
                 *metrics = metrics.clone().insert(
-                    input.path.clone(),
+                    input.file_path.clone(),
                     FileOperation::new(tool_kind)
                         .lines_added(diff_result.lines_added())
                         .lines_removed(diff_result.lines_removed())
@@ -288,11 +288,11 @@ impl ToolOperation {
                 };
 
                 elm = elm
-                    .attr("path", &input.path)
+                    .attr("path", &input.file_path)
                     .attr("total_lines", input.content.lines().count());
 
                 if !output.errors.is_empty() {
-                    elm = elm.append(create_validation_warning(&input.path, &output.errors));
+                    elm = elm.append(create_validation_warning(&input.file_path, &output.errors));
                 }
 
                 forge_domain::ToolOutput::text(elm)
@@ -733,7 +733,7 @@ mod tests {
         let hash = crate::compute_hash(content);
         let fixture = ToolOperation::FsRead {
             input: FSRead {
-                path: "/home/user/test.txt".to_string(),
+                file_path: "/home/user/test.txt".to_string(),
                 start_line: None,
                 end_line: None,
                 show_line_numbers: true,
@@ -765,7 +765,7 @@ mod tests {
         let hash = crate::compute_hash(content);
         let fixture = ToolOperation::FsRead {
             input: FSRead {
-                path: "/home/user/test.txt".to_string(),
+                file_path: "/home/user/test.txt".to_string(),
                 start_line: None,
                 end_line: None,
                 show_line_numbers: true,
@@ -796,7 +796,7 @@ mod tests {
         let hash = crate::compute_hash(content);
         let fixture = ToolOperation::FsRead {
             input: FSRead {
-                path: "/home/user/test.txt".to_string(),
+                file_path: "/home/user/test.txt".to_string(),
                 start_line: Some(2),
                 end_line: Some(3),
                 show_line_numbers: true,
@@ -828,7 +828,7 @@ mod tests {
         let hash = crate::compute_hash(content);
         let fixture = ToolOperation::FsRead {
             input: FSRead {
-                path: "/home/user/large_file.txt".to_string(),
+                file_path: "/home/user/large_file.txt".to_string(),
                 start_line: None,
                 end_line: None,
                 show_line_numbers: true,
@@ -861,7 +861,7 @@ mod tests {
         let content = "Hello, world!";
         let fixture = ToolOperation::FsWrite {
             input: forge_domain::FSWrite {
-                path: "/home/user/new_file.txt".to_string(),
+                file_path: "/home/user/new_file.txt".to_string(),
                 content: content.to_string(),
                 overwrite: false,
             },
@@ -890,7 +890,7 @@ mod tests {
         let content = "New content for the file";
         let fixture = ToolOperation::FsWrite {
             input: forge_domain::FSWrite {
-                path: "/home/user/existing_file.txt".to_string(),
+                file_path: "/home/user/existing_file.txt".to_string(),
                 content: content.to_string(),
                 overwrite: true,
             },
@@ -1367,7 +1367,7 @@ mod tests {
         let content = "Content with warning";
         let fixture = ToolOperation::FsWrite {
             input: forge_domain::FSWrite {
-                path: "/home/user/file_with_warning.txt".to_string(),
+                file_path: "/home/user/file_with_warning.txt".to_string(),
                 content: content.to_string(),
                 overwrite: false,
             },
@@ -1396,7 +1396,7 @@ mod tests {
         let content = "Content with warning";
         let fixture = ToolOperation::FsWrite {
             input: forge_domain::FSWrite {
-                path: "/home/user/file_with_warning.txt".to_string(),
+                file_path: "/home/user/file_with_warning.txt".to_string(),
                 content: content.to_string(),
                 overwrite: false,
             },
@@ -2401,7 +2401,7 @@ mod tests {
 
         let fixture = ToolOperation::FsRead {
             input: FSRead {
-                path: "/home/user/test.png".to_string(),
+                file_path: "/home/user/test.png".to_string(),
                 start_line: None,
                 end_line: None,
                 show_line_numbers: true,

@@ -1,0 +1,32 @@
+---
+source: src/table.rs
+expression: "render(vec![vec![\"Feature\", \"Status\", \"Description\", \"Link\"],\nvec![\"**Authentication**\", \"✅ `completed`\",\n\"Implements *JWT-based* authentication with ~~basic~~ **OAuth2** support\",\n\"[Docs](https://example.com)\",],\nvec![\"**Database Layer**\", \"🚧 `in-progress`\",\n\"Uses `PostgreSQL` with **Diesel ORM** for *type-safe* queries\",\n\"[GitHub](https://github.com)\",],\nvec![\"**API Gateway**\", \"⏳ `planned`\",\n\"RESTful API with `async/await` and ~~synchronous~~ **asynchronous** handlers\",\n\"[Spec](https://api.example.com)\",],\nvec![\"**Testing**\", \"✅ `completed`\",\n\"Includes *unit tests*, **integration tests**, and `snapshot testing`\",\n\"[Coverage](https://coverage.io)\",],\nvec![\"**Deployment**\", \"🚧 `in-progress`\",\n\"Docker containerization with `K8s` orchestration and **CI/CD** pipeline\",\n\"[Deploy](https://deploy.com)\",],])"
+---
+  ┌─────────┬───────────┬───────────────────────────────────┬────────────────┐
+  │ Feature │ Status    │ Description                       │ Link           │
+  ├─────────┼───────────┼───────────────────────────────────┼────────────────┤
+  │ <b>Auth │ ✅        │ Implements <i>JWT-based</i>       │ <a             │
+  │ enticat │ <code>com │ authentication with <s>basic</s>  │ href="https:// │
+  │ ion</b> │ pleted</c │ <b>OAuth2</b> support             │ example.com">D │
+  │         │ ode>      │                                   │ ocs</a>        │
+  ├─────────┼───────────┼───────────────────────────────────┼────────────────┤
+  │ <b>Data │ 🚧        │ Uses <code>PostgreSQL</code>      │ <a             │
+  │ base    │ <code>in- │ with <b>Diesel ORM</b> for        │ href="https:// │
+  │ Layer</ │ progress< │ <i>type-safe</i> queries          │ github.com">Gi │
+  │ b>      │ /code>    │                                   │ tHub</a>       │
+  ├─────────┼───────────┼───────────────────────────────────┼────────────────┤
+  │ <b>API  │ ⏳        │ RESTful API with                  │ <a             │
+  │ Gateway │ <code>pla │ <code>async/await</code> and      │ href="https:// │
+  │ </b>    │ nned</cod │ <s>synchronous</s>                │ api.example.co │
+  │         │ e>        │ <b>asynchronous</b> handlers      │ m">Spec</a>    │
+  ├─────────┼───────────┼───────────────────────────────────┼────────────────┤
+  │ <b>Test │ ✅        │ Includes <i>unit tests</i>,       │ <a             │
+  │ ing</b> │ <code>com │ <b>integration tests</b>, and     │ href="https:// │
+  │         │ pleted</c │ <code>snapshot testing</code>     │ coverage.io">C │
+  │         │ ode>      │                                   │ overage</a>    │
+  ├─────────┼───────────┼───────────────────────────────────┼────────────────┤
+  │ <b>Depl │ 🚧        │ Docker containerization with      │ <a             │
+  │ oyment< │ <code>in- │ <code>K8s</code> orchestration    │ href="https:// │
+  │ /b>     │ progress< │ and <b>CI/CD</b> pipeline         │ deploy.com">De │
+  │         │ /code>    │                                   │ ploy</a>       │
+  └─────────┴───────────┴───────────────────────────────────┴────────────────┘

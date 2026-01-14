@@ -1,0 +1,11 @@
+---
+source: src/table.rs
+expression: "render(vec![vec![\"Header\", \"Description\"],\nvec![\"Short\",\n\"This is a much longer piece of content that should demonstrate how the table handles varying content lengths\"],])"
+---
+  ┌───────┬─────────────────────────────────────────────────────────────────────┐
+  │ Heade │ Description                                                         │
+  │ r     │                                                                     │
+  ├───────┼─────────────────────────────────────────────────────────────────────┤
+  │ Short │ This is a much longer piece of content that should demonstrate how  │
+  │       │ the table handles varying content lengths                           │
+  └───────┴─────────────────────────────────────────────────────────────────────┘
