@@ -926,7 +926,6 @@ impl ToolKind {
             ToolKind::Skill => Some("Loading"),
             ToolKind::Plan => Some("Planning"),
             ToolKind::Followup => Some("Asking"),
-            // Shell tools require stdout, so they won't show a spinner message
             ToolKind::Shell => Some("Executing"),
         }
     }
