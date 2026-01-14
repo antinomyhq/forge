@@ -1,6 +1,5 @@
 ---
 source: crates/forge_app/src/tool_registry.rs
-assertion_line: 904
 expression: "all_descriptions.join(\"\\n---\\n\\n\")"
 ---
 ### read
@@ -71,6 +70,8 @@ Request to remove a file at the specified path. Use when you need to delete an e
 ### patch
 
 Performs exact string replacements in files.
+
+Required parameters: `file_path`, `old_string`, `operation`, `new_string`
 
 Usage:
 - You must use your `read` tool at least once in the conversation before editing. This tool will error if you attempt an edit without reading the file. 
