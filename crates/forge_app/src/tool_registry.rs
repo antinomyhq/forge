@@ -10,6 +10,7 @@ use forge_domain::{
 };
 use forge_template::Element;
 use futures::future::join_all;
+use serde_json::{json, Map, Value};
 use strum::IntoEnumIterator;
 use tokio::time::timeout;
 
@@ -237,8 +238,24 @@ impl<S> ToolRegistry<S> {
 
         let handlebars = TemplateEngine::handlebar_instance();
 
+        // Build tool_names map from all available tools
+        let tool_names: Map<String, Value> = ToolCatalog::iter()
+            .filter(|tool| {
+                // Only include tools that are supported (filter sem_search if not supported)
+                if matches!(tool, ToolCatalog::SemSearch(_)) {
+                    sem_search_supported
+                } else {
+                    true
+                }
+            })
+            .map(|tool| {
+                let def = tool.definition();
+                (def.name.to_string(), json!(def.name.to_string()))
+            })
+            .collect();
+
         // Create template data with environment nested under "env"
-        let ctx = SystemContext { env: Some(env.clone()), model, ..Default::default() };
+        let ctx = SystemContext { env: Some(env.clone()), model, tool_names, ..Default::default() };
 
         ToolCatalog::iter()
             .filter(|tool| {

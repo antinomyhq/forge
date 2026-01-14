@@ -1,1 +1,1 @@
-Request to remove a file at the specified path. Use this when you need to delete an existing file. The path must be absolute. This operation can be undone using the `undo` tool.
+Request to remove a file at the specified path. Use this when you need to delete an existing file. The path must be absolute. This operation can be undone using the `{{tool_names.fs_undo}}` tool.
