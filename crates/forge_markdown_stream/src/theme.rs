@@ -1,6 +1,7 @@
 //! Theme configuration for markdown rendering.
 //!
-//! Provides customizable styling for all markdown elements using the `colored` crate.
+//! Provides customizable styling for all markdown elements using the `colored`
+//! crate.
 
 use colored::{Color, ColoredString, Colorize};
 use streamdown_parser::decode_html_entities;
@@ -9,6 +10,7 @@ use crate::style::{HeadingStyler, InlineStyler, ListStyler, TableStyler};
 
 /// Style configuration for a single element.
 #[derive(Clone, Debug)]
+#[derive(Default)]
 pub struct Style {
     pub fg: Option<Color>,
     pub bg: Option<Color>,
@@ -19,19 +21,6 @@ pub struct Style {
     pub dimmed: bool,
 }
 
-impl Default for Style {
-    fn default() -> Self {
-        Self {
-            fg: None,
-            bg: None,
-            bold: false,
-            italic: false,
-            underline: false,
-            strikethrough: false,
-            dimmed: false,
-        }
-    }
-}
 
 impl Style {
     pub fn new() -> Self {
@@ -273,9 +262,10 @@ impl TableStyler for Theme {
 }
 
 impl Theme {
-    /// Detects the terminal theme (dark or light) and returns the appropriate theme.
+    /// Detects the terminal theme (dark or light) and returns the appropriate
+    /// theme.
     pub fn detect() -> Self {
-        use crate::utils::{detect_theme_mode, ThemeMode};
+        use crate::utils::{ThemeMode, detect_theme_mode};
 
         match detect_theme_mode() {
             ThemeMode::Light => Self::light(),
@@ -378,7 +368,6 @@ impl Theme {
     }
 }
 
-
 /// Test styler that outputs readable HTML-like tags.
 #[cfg(test)]
 pub struct TagStyler;
@@ -430,7 +419,6 @@ impl InlineStyler for TagStyler {
     }
 }
 
-
 #[cfg(test)]
 impl HeadingStyler for TagStyler {
     fn h1(&self, text: &str) -> String {
@@ -458,7 +446,6 @@ impl HeadingStyler for TagStyler {
     }
 }
 
-
 #[cfg(test)]
 impl ListStyler for TagStyler {
     fn bullet_dash(&self, text: &str) -> String {
@@ -481,7 +468,6 @@ impl ListStyler for TagStyler {
         format!("<num>{}</num>", text)
     }
 }
-
 
 #[cfg(test)]
 impl TableStyler for TagStyler {

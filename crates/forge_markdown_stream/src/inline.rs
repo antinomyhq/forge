@@ -1,7 +1,8 @@
 //! Inline content rendering with theme-based formatting.
 
-use crate::style::InlineStyler;
 use streamdown_parser::{InlineElement, InlineParser};
+
+use crate::style::InlineStyler;
 
 /// Render inline elements to a string using a styler.
 pub fn render_inline_content<S: InlineStyler>(content: &str, styler: &S) -> String {
@@ -14,34 +15,34 @@ pub fn render_inline_elements<S: InlineStyler>(elements: &[InlineElement], style
     for element in elements {
         match element {
             InlineElement::Text(text) => {
-                result.push_str(&styler.text(&text));
+                result.push_str(&styler.text(text));
             }
             InlineElement::Bold(text) => {
-                result.push_str(&styler.bold(&text));
+                result.push_str(&styler.bold(text));
             }
             InlineElement::Italic(text) => {
-                result.push_str(&styler.italic(&text));
+                result.push_str(&styler.italic(text));
             }
             InlineElement::BoldItalic(text) => {
-                result.push_str(&styler.bold_italic(&text));
+                result.push_str(&styler.bold_italic(text));
             }
             InlineElement::Strikeout(text) => {
-                result.push_str(&styler.strikethrough(&text));
+                result.push_str(&styler.strikethrough(text));
             }
             InlineElement::Underline(text) => {
-                result.push_str(&styler.underline(&text));
+                result.push_str(&styler.underline(text));
             }
             InlineElement::Code(text) => {
-                result.push_str(&styler.code(&text));
+                result.push_str(&styler.code(text));
             }
             InlineElement::Link { text, url } => {
-                result.push_str(&styler.link(&text, &url));
+                result.push_str(&styler.link(text, url));
             }
             InlineElement::Image { alt, url } => {
-                result.push_str(&styler.image(&alt, &url));
+                result.push_str(&styler.image(alt, url));
             }
             InlineElement::Footnote(text) => {
-                result.push_str(&styler.footnote(&text));
+                result.push_str(&styler.footnote(text));
             }
         }
     }
@@ -51,9 +52,9 @@ pub fn render_inline_elements<S: InlineStyler>(elements: &[InlineElement], style
 
 #[cfg(test)]
 mod tests {
-    use crate::{theme::TagStyler, Theme};
-
     use super::*;
+    use crate::Theme;
+    use crate::theme::TagStyler;
 
     fn render(content: &str) -> String {
         render_inline_content(content, &TagStyler)

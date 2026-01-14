@@ -1,9 +1,10 @@
 //! Table rendering with box-drawing characters.
 
-use crate::inline::render_inline_content;
-use crate::style::{InlineStyler, TableStyler};
 use streamdown_ansi::utils::visible_length;
 use unicode_width::{UnicodeWidthChar, UnicodeWidthStr};
+
+use crate::inline::render_inline_content;
+use crate::style::{InlineStyler, TableStyler};
 
 /// Render a table with proper column widths, shrinking and wrapping if needed.
 pub fn render_table<S: TableStyler + InlineStyler>(
@@ -543,7 +544,10 @@ mod tests {
     fn test_long_content_in_cells() {
         insta::assert_snapshot!(render(vec![
             vec!["Header", "Description"],
-            vec!["Short", "This is a much longer piece of content that should demonstrate how the table handles varying content lengths"],
+            vec![
+                "Short",
+                "This is a much longer piece of content that should demonstrate how the table handles varying content lengths"
+            ],
         ]));
     }
 

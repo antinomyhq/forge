@@ -1,10 +1,11 @@
 //! List rendering with nested indentation and bullet cycling.
 
-use crate::inline::render_inline_content;
-use crate::style::{InlineStyler, ListStyler};
 use streamdown_ansi::utils::visible_length;
 use streamdown_parser::ListBullet;
 use streamdown_render::text::text_wrap;
+
+use crate::inline::render_inline_content;
+use crate::style::{InlineStyler, ListStyler};
 
 /// Bullet characters for dash lists at different nesting levels.
 const BULLETS_DASH: [&str; 4] = ["•", "◦", "▪", "‣"];
@@ -73,7 +74,8 @@ impl ListState {
         self.pending_reset = false;
     }
 
-    /// Mark list as pending reset (saw ListEnd, but might continue with more items)
+    /// Mark list as pending reset (saw ListEnd, but might continue with more
+    /// items)
     pub fn mark_pending_reset(&mut self) {
         self.pending_reset = true;
     }
@@ -138,7 +140,15 @@ pub fn render_list_item<S: InlineStyler + ListStyler>(
     let next_prefix = format!("{}{}", margin, " ".repeat(content_indent));
 
     // Wrap the content
-    let wrapped = text_wrap(&rendered_content, width, 0, &first_prefix, &next_prefix, false, true);
+    let wrapped = text_wrap(
+        &rendered_content,
+        width,
+        0,
+        &first_prefix,
+        &next_prefix,
+        false,
+        true,
+    );
 
     if wrapped.is_empty() {
         vec![first_prefix]
@@ -168,7 +178,10 @@ mod tests {
 
     fn render_with_width(indent: usize, bullet: ListBullet, content: &str, width: usize) -> String {
         let mut state = ListState::default();
-        render_list_item(indent, &bullet, content, width, "  ", &TagStyler, &mut state).join("\n")
+        render_list_item(
+            indent, &bullet, content, width, "  ", &TagStyler, &mut state,
+        )
+        .join("\n")
     }
 
     #[test]
@@ -270,7 +283,12 @@ mod tests {
 
     #[test]
     fn test_wrapping_long_content() {
-        let result = render_with_width(0, ListBullet::Dash, "This is a very long list item that should wrap to multiple lines", 40);
+        let result = render_with_width(
+            0,
+            ListBullet::Dash,
+            "This is a very long list item that should wrap to multiple lines",
+            40,
+        );
         insta::assert_snapshot!(result, @r"
         <dash>•</dash> This is a very long list item that
           should wrap to multiple lines
@@ -306,7 +324,10 @@ mod tests {
         let unordered = render_with_state(0, ListBullet::Dash, "Unordered item", &mut state2);
 
         assert!(ordered.contains("<num>"), "Ordered should use number style");
-        assert!(unordered.contains("<dash>"), "Unordered should use dash style");
+        assert!(
+            unordered.contains("<dash>"),
+            "Unordered should use dash style"
+        );
     }
 
     #[test]

@@ -1,7 +1,8 @@
 //! Forge Markdown Stream - Streaming markdown renderer for terminal output.
 //!
 //! This crate provides a streaming markdown renderer optimized for LLM output.
-//! It renders markdown with syntax highlighting, styled headings, tables, lists, and more.
+//! It renders markdown with syntax highlighting, styled headings, tables,
+//! lists, and more.
 //!
 //! # Example
 //!
@@ -28,17 +29,16 @@ mod inline;
 mod list;
 mod renderer;
 mod repair;
+mod style;
 mod table;
 mod theme;
-mod style;
 mod utils;
 
 use std::io::{self, Write};
 
-pub use streamdown_parser::Parser;
-
 pub use renderer::Renderer;
 pub use repair::repair_line;
+pub use streamdown_parser::Parser;
 pub use theme::{Style, Theme};
 
 /// Streaming markdown renderer for terminal output.
@@ -46,7 +46,8 @@ pub use theme::{Style, Theme};
 /// Buffers incoming tokens and renders complete lines with syntax highlighting,
 /// styled headings, tables, lists, and more.
 ///
-/// The renderer is generic over the writer type `W`, which must implement `Write`.
+/// The renderer is generic over the writer type `W`, which must implement
+/// `Write`.
 pub struct StreamdownRenderer<W: Write> {
     parser: Parser,
     renderer: Renderer<W>,
@@ -108,4 +109,3 @@ impl<W: Write> StreamdownRenderer<W> {
         Ok(())
     }
 }
-

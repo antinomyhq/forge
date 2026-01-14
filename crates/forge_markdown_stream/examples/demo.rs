@@ -5,8 +5,8 @@ use std::sync::mpsc::{self, Sender};
 use std::thread::{self, JoinHandle};
 use std::time::Duration;
 
-use indicatif::{ProgressBar, ProgressStyle};
 use forge_markdown_stream::StreamdownRenderer;
+use indicatif::{ProgressBar, ProgressStyle};
 
 /// A spinner that only shows during idle periods (no content for a while).
 struct Spinner {
@@ -16,10 +16,7 @@ struct Spinner {
 
 impl Spinner {
     fn new(message: impl Into<String>) -> Self {
-        Self {
-            inner: None,
-            message: message.into(),
-        }
+        Self { inner: None, message: message.into() }
     }
 
     /// Show the spinner (called after timeout with no content).
@@ -57,8 +54,8 @@ impl Drop for Spinner {
     }
 }
 
-/// A writer that outputs content character-by-character with small delays in a background thread.
-/// Shows a spinner only during idle periods.
+/// A writer that outputs content character-by-character with small delays in a
+/// background thread. Shows a spinner only during idle periods.
 struct CharWriter {
     sender: Sender<Option<String>>,
     handle: Option<JoinHandle<()>>,
@@ -111,10 +108,7 @@ impl CharWriter {
             }
         });
 
-        Self {
-            sender,
-            handle: Some(handle),
-        }
+        Self { sender, handle: Some(handle) }
     }
 }
 

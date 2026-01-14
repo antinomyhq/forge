@@ -3,15 +3,15 @@
 use std::io::{self, Write};
 
 use streamdown_parser::ParseEvent;
+use streamdown_render::text::text_wrap;
 
 use crate::code::CodeHighlighter;
 use crate::heading::render_heading;
 use crate::inline::{render_inline_content, render_inline_elements};
-use crate::list::{render_list_item, ListState};
+use crate::list::{ListState, render_list_item};
+use crate::style::InlineStyler;
 use crate::table::render_table;
 use crate::theme::Theme;
-use crate::style::InlineStyler;
-use streamdown_render::text::text_wrap;
 
 /// Main renderer for markdown events.
 pub struct Renderer<W: Write> {
@@ -215,11 +215,7 @@ impl<W: Write> Renderer<W> {
                 self.code_buffer.clear();
             }
 
-            ParseEvent::ListItem {
-                indent,
-                bullet,
-                content,
-            } => {
+            ParseEvent::ListItem { indent, bullet, content } => {
                 let margin = self.left_margin();
                 let width = self.current_width();
                 let lines = render_list_item(

@@ -11,8 +11,7 @@ pub enum ThemeMode {
 
 /// Detects the terminal theme mode (dark or light).
 pub fn detect_theme_mode() -> ThemeMode {
-    use terminal_colorsaurus::{theme_mode, QueryOptions};
-    use terminal_colorsaurus::ThemeMode as ColorsaurusThemeMode;
+    use terminal_colorsaurus::{QueryOptions, ThemeMode as ColorsaurusThemeMode, theme_mode};
 
     match theme_mode(QueryOptions::default()) {
         Ok(ColorsaurusThemeMode::Light) => ThemeMode::Light,

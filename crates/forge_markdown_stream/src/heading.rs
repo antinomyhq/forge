@@ -1,8 +1,9 @@
 //! Heading rendering with theme-based styling.
 
+use streamdown_render::simple_wrap;
+
 use crate::inline::render_inline_content;
 use crate::style::{HeadingStyler, InlineStyler};
-use streamdown_render::simple_wrap;
 
 /// Render a heading with appropriate styling.
 pub fn render_heading<S: InlineStyler + HeadingStyler>(
@@ -15,18 +16,19 @@ pub fn render_heading<S: InlineStyler + HeadingStyler>(
     // Create the dimmed heading prefix (e.g., "# ", "## ", etc.)
     let prefix = "#".repeat(level as usize);
     let dimmed_prefix = styler.dimmed(&prefix);
-    
+
     // For h1, uppercase the content before rendering inline elements
     let content_to_render = if level == 1 {
         content.to_uppercase()
     } else {
         content.to_string()
     };
-    
+
     // First render inline elements (bold, italic, etc.) in the content
     let rendered_content = render_inline_content(&content_to_render, styler);
-    
-    // Adjust width to account for the prefix (e.g., "# " = 2 chars, "## " = 3 chars, etc.)
+
+    // Adjust width to account for the prefix (e.g., "# " = 2 chars, "## " = 3
+    // chars, etc.)
     let prefix_display_width = level as usize + 1;
     let content_width = width.saturating_sub(prefix_display_width);
     let lines = simple_wrap(&rendered_content, content_width);
@@ -36,11 +38,23 @@ pub fn render_heading<S: InlineStyler + HeadingStyler>(
         let formatted = match level {
             1 => {
                 // H1: Bold, left-aligned, uppercase, with dimmed prefix
-                format!("{}\n{}{} {}", margin, margin, dimmed_prefix, styler.h1(&line))
+                format!(
+                    "{}\n{}{} {}",
+                    margin,
+                    margin,
+                    dimmed_prefix,
+                    styler.h1(&line)
+                )
             }
             2 => {
                 // H2: Bold, bright color, left-aligned, with dimmed prefix
-                format!("{}\n{}{} {}", margin, margin, dimmed_prefix, styler.h2(&line))
+                format!(
+                    "{}\n{}{} {}",
+                    margin,
+                    margin,
+                    dimmed_prefix,
+                    styler.h2(&line)
+                )
             }
             3 => {
                 format!("{}{} {}", margin, dimmed_prefix, styler.h3(&line))
@@ -217,7 +231,7 @@ mod tests {
         let h1 = render(1, "H1");
         let h2 = render(2, "H2");
         let h3 = render(3, "H3");
-        
+
         assert!(h1.contains("\n"), "H1 should have newline");
         assert!(h2.contains("\n"), "H2 should have newline");
         assert!(!h3.starts_with("\n"), "H3 should not start with newline");

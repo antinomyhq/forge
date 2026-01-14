@@ -13,8 +13,6 @@ pub trait InlineStyler {
     fn dimmed(&self, text: &str) -> String;
 }
 
-
-
 /// Trait for styling heading elements.
 pub trait HeadingStyler {
     fn h1(&self, text: &str) -> String;
@@ -25,8 +23,6 @@ pub trait HeadingStyler {
     fn h6(&self, text: &str) -> String;
 }
 
-
-
 /// Trait for styling list elements.
 pub trait ListStyler {
     fn bullet_dash(&self, text: &str) -> String;
@@ -35,8 +31,6 @@ pub trait ListStyler {
     fn bullet_plus_expand(&self, text: &str) -> String;
     fn number(&self, text: &str) -> String;
 }
-
-
 
 /// Trait for styling table elements.
 pub trait TableStyler {
