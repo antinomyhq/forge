@@ -58,33 +58,86 @@ expression: tools
   "title": "FSSearch",
   "type": "object",
   "required": [
-    "path"
+    "pattern"
   ],
   "properties": {
-    "file_pattern": {
-      "description": "Glob pattern to filter files (e.g., '*.ts' for TypeScript files). If not provided, it will search all files (*).",
+    "-A": {
+      "description": "Number of lines to show after each match (rg -A). Requires output_mode: \"content\", ignored otherwise.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0.0,
+      "nullable": true
+    },
+    "-B": {
+      "description": "Number of lines to show before each match (rg -B). Requires output_mode: \"content\", ignored otherwise.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0.0,
+      "nullable": true
+    },
+    "-C": {
+      "description": "Number of lines to show before and after each match (rg -C). Requires output_mode: \"content\", ignored otherwise.",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0.0,
+      "nullable": true
+    },
+    "-i": {
+      "description": "Case insensitive search (rg -i)",
+      "type": "boolean",
+      "nullable": true
+    },
+    "-n": {
+      "description": "Show line numbers in output (rg -n). Requires output_mode: \"content\", ignored otherwise.",
+      "type": "boolean",
+      "nullable": true
+    },
+    "glob": {
+      "description": "Glob pattern to filter files (e.g. \"*.js\", \"*.{ts,tsx}\") - maps to rg --glob",
       "type": "string",
       "nullable": true
     },
-    "max_search_lines": {
-      "description": "Maximum number of lines to return in the search results.",
+    "head_limit": {
+      "description": "Limit output to first N lines/entries, equivalent to \"| head -N\". Works across all output modes: content (limits output lines), files_with_matches (limits file paths), count (limits count entries). When unspecified, shows all results from ripgrep.",
       "type": "integer",
-      "format": "int32",
+      "format": "uint32",
+      "minimum": 0.0,
+      "nullable": true
+    },
+    "multiline": {
+      "description": "Enable multiline mode where . matches newlines and patterns can span lines (rg -U --multiline-dotall). Default: false.",
+      "type": "boolean",
+      "nullable": true
+    },
+    "offset": {
+      "description": "Skip first N lines/entries before applying head_limit",
+      "type": "integer",
+      "format": "uint32",
+      "minimum": 0.0,
+      "nullable": true
+    },
+    "output_mode": {
+      "description": "Output mode: \"content\" shows matching lines (supports -A/-B/-C context, -n line numbers, head_limit), \"files_with_matches\" shows file paths (supports head_limit), \"count\" shows match counts (supports head_limit). Defaults to \"files_with_matches\".",
+      "type": "string",
+      "enum": [
+        "content",
+        "files_with_matches",
+        "count"
+      ],
       "nullable": true
     },
     "path": {
-      "description": "The absolute path of the directory or file to search in. If it's a directory, it will be searched recursively. If it's a file path, only that specific file will be searched.",
-      "type": "string"
-    },
-    "regex": {
-      "description": "The regular expression pattern to search for in file contents. Uses Rust regex syntax. If not provided, only file name matching will be performed.",
+      "description": "File or directory to search in (rg PATH). Defaults to current working directory.",
       "type": "string",
       "nullable": true
     },
-    "start_index": {
-      "description": "Starting index for the search results (1-based).",
-      "type": "integer",
-      "format": "int32",
+    "pattern": {
+      "description": "The regular expression pattern to search for in file contents.",
+      "type": "string"
+    },
+    "type": {
+      "description": "File type to search (rg --type). Common types: js, py, rust, go, java, etc. More efficient than include for standard file types.",
+      "type": "string",
       "nullable": true
     }
   }
@@ -145,14 +198,23 @@ expression: tools
   "title": "FSPatch",
   "type": "object",
   "required": [
-    "content",
-    "operation",
-    "path"
+    "file_path",
+    "new_string",
+    "operation"
   ],
   "properties": {
-    "content": {
-      "description": "The text to replace it with (must be different from search)",
+    "file_path": {
+      "description": "The absolute path to the file to modify",
       "type": "string"
+    },
+    "new_string": {
+      "description": "The text to replace it with (must be different from old_string)",
+      "type": "string"
+    },
+    "old_string": {
+      "description": "The text to replace",
+      "type": "string",
+      "nullable": true
     },
     "operation": {
       "description": "The operation to perform on the matched text. Possible options are: - 'prepend': Add content before the matched text - 'append': Add content after the matched text - 'replace': Use only for specific, targeted replacements where you need to modify just the first match. - 'replace_all': Should be used for renaming variables, functions, types, or any widespread replacements across the file. This is the recommended choice for consistent refactoring operations as it ensures all occurrences are updated. - 'swap': Replace the matched text with another text (search for the second text and swap them)",
@@ -164,15 +226,6 @@ expression: tools
         "replace_all",
         "swap"
       ]
-    },
-    "path": {
-      "description": "The path to the file to modify",
-      "type": "string"
-    },
-    "search": {
-      "description": "The text to replace. When skipped the patch operation applies to the entire content. `Append` adds the new content to the end, `Prepend` adds it to the beginning, and `Replace` fully overwrites the original content. `Swap` requires a search target, so without one, it makes no changes.",
-      "type": "string",
-      "nullable": true
     }
   }
 }
@@ -193,8 +246,7 @@ expression: tools
   "title": "Shell",
   "type": "object",
   "required": [
-    "command",
-    "cwd"
+    "command"
   ],
   "properties": {
     "command": {
@@ -202,8 +254,14 @@ expression: tools
       "type": "string"
     },
     "cwd": {
-      "description": "The working directory where the command should be executed.",
-      "type": "string"
+      "description": "The working directory where the command should be executed. If not specified, defaults to the current working directory from the environment.",
+      "type": "string",
+      "nullable": true
+    },
+    "description": {
+      "description": "Clear, concise description of what this command does. Recommended to be 5-10 words for simple commands. For complex commands with pipes or multiple operations, provide more context. Examples: \"Lists files in current directory\", \"Installs package dependencies\", \"Compiles Rust project with release optimizations\".",
+      "type": "string",
+      "nullable": true
     },
     "env": {
       "description": "Environment variable names to pass to command execution (e.g., [\"PATH\", \"HOME\", \"USER\"]). The system automatically reads the specified values and applies them during command execution.",

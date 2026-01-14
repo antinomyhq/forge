@@ -111,30 +111,86 @@ pub struct FSWrite {
     pub overwrite: bool,
 }
 
-#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 #[tool_description_file = "crates/forge_domain/src/tools/descriptions/fs_search.md"]
+#[derive(Default)]
 pub struct FSSearch {
-    /// The absolute path of the directory or file to search in. If it's a
-    /// directory, it will be searched recursively. If it's a file path,
-    /// only that specific file will be searched.
-    pub path: String,
+    /// The regular expression pattern to search for in file contents.
+    pub pattern: String,
 
-    /// The regular expression pattern to search for in file contents. Uses Rust
-    /// regex syntax. If not provided, only file name matching will be
-    /// performed.
+    /// File or directory to search in (rg PATH). Defaults to current working
+    /// directory.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub regex: Option<String>,
+    pub path: Option<String>,
 
-    /// Starting index for the search results (1-based).
-    pub start_index: Option<i32>,
-
-    /// Maximum number of lines to return in the search results.
-    pub max_search_lines: Option<i32>,
-
-    /// Glob pattern to filter files (e.g., '*.ts' for TypeScript files).
-    /// If not provided, it will search all files (*).
+    /// Glob pattern to filter files (e.g. "*.js", "*.{ts,tsx}") - maps to rg
+    /// --glob
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub file_pattern: Option<String>,
+    pub glob: Option<String>,
+
+    /// Output mode: "content" shows matching lines (supports -A/-B/-C context,
+    /// -n line numbers, head_limit), "files_with_matches" shows file paths
+    /// (supports head_limit), "count" shows match counts (supports head_limit).
+    /// Defaults to "files_with_matches".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_mode: Option<OutputMode>,
+
+    /// Number of lines to show before each match (rg -B). Requires output_mode:
+    /// "content", ignored otherwise.
+    #[serde(rename = "-B", skip_serializing_if = "Option::is_none")]
+    pub before_context: Option<u32>,
+
+    /// Number of lines to show after each match (rg -A). Requires output_mode:
+    /// "content", ignored otherwise.
+    #[serde(rename = "-A", skip_serializing_if = "Option::is_none")]
+    pub after_context: Option<u32>,
+
+    /// Number of lines to show before and after each match (rg -C). Requires
+    /// output_mode: "content", ignored otherwise.
+    #[serde(rename = "-C", skip_serializing_if = "Option::is_none")]
+    pub context: Option<u32>,
+
+    /// Show line numbers in output (rg -n). Requires output_mode: "content",
+    /// ignored otherwise.
+    #[serde(rename = "-n", skip_serializing_if = "Option::is_none")]
+    pub show_line_numbers: Option<bool>,
+
+    /// Case insensitive search (rg -i)
+    #[serde(rename = "-i", skip_serializing_if = "Option::is_none")]
+    pub case_insensitive: Option<bool>,
+
+    /// File type to search (rg --type). Common types: js, py, rust, go, java,
+    /// etc. More efficient than include for standard file types.
+    #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
+    pub file_type: Option<String>,
+
+    /// Limit output to first N lines/entries, equivalent to "| head -N". Works
+    /// across all output modes: content (limits output lines),
+    /// files_with_matches (limits file paths), count (limits count entries).
+    /// When unspecified, shows all results from ripgrep.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub head_limit: Option<u32>,
+
+    /// Skip first N lines/entries before applying head_limit
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub offset: Option<u32>,
+
+    /// Enable multiline mode where . matches newlines and patterns can span
+    /// lines (rg -U --multiline-dotall). Default: false.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub multiline: Option<bool>,
+}
+
+/// Output mode for search results
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, AsRefStr, EnumIter)]
+#[serde(rename_all = "snake_case")]
+pub enum OutputMode {
+    /// Show matching lines with content
+    Content,
+    /// Show only file paths with matches
+    FilesWithMatches,
+    /// Show match counts per file
+    Count,
 }
 
 /// A paired query and use_case for semantic search. Each query must have a
@@ -221,17 +277,22 @@ pub enum PatchOperation {
     Swap,
 }
 
-// TODO: do the Blanket impl for all the unit enums
-impl JsonSchema for PatchOperation {
-    fn schema_name() -> String {
+/// Helper trait to generate simple string enum schemas for unit enums.
+///
+/// This trait is automatically implemented for enums that derive both
+/// `AsRefStr` and `EnumIter`. It provides a consistent way to generate
+/// JSON schemas that represent enums as simple string enumerations
+/// rather than complex oneOf structures.
+trait SimpleEnumSchema: AsRef<str> + IntoEnumIterator {
+    fn simple_enum_schema_name() -> String {
         std::any::type_name::<Self>()
             .split("::")
             .last()
-            .unwrap_or("PatchOperation")
+            .unwrap_or("Enum")
             .to_string()
     }
 
-    fn json_schema(_gen: &mut schemars::r#gen::SchemaGenerator) -> schemars::schema::Schema {
+    fn simple_enum_schema(_gen: &mut schemars::r#gen::SchemaGenerator) -> schemars::schema::Schema {
         use schemars::schema::{InstanceType, Schema, SchemaObject};
         let variants: Vec<serde_json::Value> = Self::iter()
             .map(|variant| variant.as_ref().to_case(Case::Snake).into())
@@ -247,18 +308,40 @@ impl JsonSchema for PatchOperation {
     }
 }
 
+// Blanket implementation for all types that implement AsRef<str> and
+// IntoEnumIterator
+impl<T> SimpleEnumSchema for T where T: AsRef<str> + IntoEnumIterator {}
+
+impl JsonSchema for PatchOperation {
+    fn schema_name() -> String {
+        <Self as SimpleEnumSchema>::simple_enum_schema_name()
+    }
+
+    fn json_schema(r#gen: &mut schemars::r#gen::SchemaGenerator) -> schemars::schema::Schema {
+        <Self as SimpleEnumSchema>::simple_enum_schema(r#gen)
+    }
+}
+
+impl JsonSchema for OutputMode {
+    fn schema_name() -> String {
+        <Self as SimpleEnumSchema>::simple_enum_schema_name()
+    }
+
+    fn json_schema(r#gen: &mut schemars::r#gen::SchemaGenerator) -> schemars::schema::Schema {
+        <Self as SimpleEnumSchema>::simple_enum_schema(r#gen)
+    }
+}
+
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 #[tool_description_file = "crates/forge_domain/src/tools/descriptions/fs_patch.md"]
 pub struct FSPatch {
-    /// The path to the file to modify
-    pub path: String,
+    /// The absolute path to the file to modify
+    #[serde(alias = "path")]
+    pub file_path: String,
 
-    /// The text to replace. When skipped the patch operation applies to the
-    /// entire content. `Append` adds the new content to the end, `Prepend` adds
-    /// it to the beginning, and `Replace` fully overwrites the original
-    /// content. `Swap` requires a search target, so without one, it makes no
-    /// changes.
-    pub search: Option<String>,
+    /// The text to replace
+    #[serde(alias = "search")]
+    pub old_string: Option<String>,
 
     /// The operation to perform on the matched text. Possible options are: -
     /// 'prepend': Add content before the matched text - 'append': Add content
@@ -271,8 +354,9 @@ pub struct FSPatch {
     /// text (search for the second text and swap them)
     pub operation: PatchOperation,
 
-    /// The text to replace it with (must be different from search)
-    pub content: String,
+    /// The text to replace it with (must be different from old_string)
+    #[serde(alias = "content")]
+    pub new_string: String,
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
@@ -289,7 +373,11 @@ pub struct Shell {
     pub command: String,
 
     /// The working directory where the command should be executed.
-    pub cwd: PathBuf,
+    /// If not specified, defaults to the current working directory from the
+    /// environment.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<PathBuf>,
 
     /// Whether to preserve ANSI escape codes in the output.
     /// If true, ANSI escape codes will be preserved in the output.
@@ -297,12 +385,22 @@ pub struct Shell {
     #[serde(default)]
     #[serde(skip_serializing_if = "is_default")]
     pub keep_ansi: bool,
+
     /// Environment variable names to pass to command execution (e.g., ["PATH",
     /// "HOME", "USER"]). The system automatically reads the specified
     /// values and applies them during command execution.
     #[serde(default)]
     #[serde(skip_serializing_if = "Option::is_none")]
     pub env: Option<Vec<String>>,
+
+    /// Clear, concise description of what this command does. Recommended to be
+    /// 5-10 words for simple commands. For complex commands with pipes or
+    /// multiple operations, provide more context. Examples: "Lists files in
+    /// current directory", "Installs package dependencies", "Compiles Rust
+    /// project with release optimizations".
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
 }
 
 /// Input type for the net fetch tool
@@ -575,24 +673,28 @@ impl ToolCatalog {
                 message: format!("Create/overwrite file: {}", display_path_for(&input.path)),
             }),
             ToolCatalog::FsSearch(input) => {
-                let base_message = format!(
-                    "Search in directory/file: {}",
-                    display_path_for(&input.path)
-                );
-                let message = match (&input.regex, &input.file_pattern) {
-                    (Some(regex), Some(pattern)) => {
-                        format!("{base_message} for pattern: '{regex}' in '{pattern}' files")
+                let path_str = input.path.as_deref().unwrap_or(".");
+                let base_message =
+                    format!("Search in directory/file: {}", display_path_for(path_str));
+                let message = match (&input.glob, &input.file_type) {
+                    (Some(glob), _) => {
+                        format!(
+                            "{base_message} for pattern: '{}' in '{glob}' files",
+                            input.pattern
+                        )
                     }
-                    (Some(regex), None) => {
-                        format!("{base_message} for pattern: {regex}")
+                    (None, Some(file_type)) => {
+                        format!(
+                            "{base_message} for pattern: '{}' in {file_type} files",
+                            input.pattern
+                        )
                     }
-                    (None, Some(pattern)) => {
-                        format!("{base_message} in '{pattern}' files")
+                    (None, None) => {
+                        format!("{base_message} for pattern: {}", input.pattern)
                     }
-                    (None, None) => base_message,
                 };
                 Some(crate::policies::PermissionOperation::Read {
-                    path: std::path::PathBuf::from(&input.path),
+                    path: std::path::PathBuf::from(path_str),
                     cwd,
                     message,
                 })
@@ -603,9 +705,9 @@ impl ToolCatalog {
                 message: format!("Remove file: {}", display_path_for(&input.path)),
             }),
             ToolCatalog::Patch(input) => Some(crate::policies::PermissionOperation::Write {
-                path: std::path::PathBuf::from(&input.path),
+                path: std::path::PathBuf::from(&input.file_path),
                 cwd,
-                message: format!("Modify file: {}", display_path_for(&input.path)),
+                message: format!("Modify file: {}", display_path_for(&input.file_path)),
             }),
             ToolCatalog::Shell(input) => Some(crate::policies::PermissionOperation::Execute {
                 command: input.command.clone(),
@@ -650,10 +752,10 @@ impl ToolCatalog {
         search: Option<&str>,
     ) -> ToolCallFull {
         ToolCallFull::from(ToolCatalog::Patch(FSPatch {
-            path: path.to_string(),
-            search: search.map(|s| s.to_string()),
+            file_path: path.to_string(),
+            old_string: search.map(|s| s.to_string()),
             operation,
-            content: content.to_string(),
+            new_string: content.to_string(),
         }))
     }
 
@@ -667,16 +769,16 @@ impl ToolCatalog {
     pub fn tool_call_shell(command: &str, cwd: impl Into<PathBuf>) -> ToolCallFull {
         ToolCallFull::from(ToolCatalog::Shell(Shell {
             command: command.to_string(),
-            cwd: cwd.into(),
+            cwd: Some(cwd.into()),
             ..Default::default()
         }))
     }
 
-    /// Creates a Search tool call with the specified path and regex pattern
-    pub fn tool_call_search(path: &str, regex: Option<&str>) -> ToolCallFull {
+    /// Creates a Search tool call with the specified path and pattern
+    pub fn tool_call_search(path: &str, pattern: &str) -> ToolCallFull {
         ToolCallFull::from(ToolCatalog::FsSearch(FSSearch {
-            path: path.to_string(),
-            regex: regex.map(|r| r.to_string()),
+            pattern: pattern.to_string(),
+            path: Some(path.to_string()),
             ..Default::default()
         }))
     }
@@ -823,9 +925,12 @@ impl From<ToolCatalog> for ToolCallFull {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use pretty_assertions::assert_eq;
     use strum::IntoEnumIterator;
 
+    use super::Shell;
     use crate::{ToolCatalog, ToolKind, ToolName};
 
     #[test]
@@ -1049,11 +1154,9 @@ mod tests {
         use crate::policies::PermissionOperation;
 
         let search_with_regex = ToolCatalog::FsSearch(FSSearch {
-            path: "/home/user/project".to_string(),
-            regex: Some("fn main".to_string()),
-            start_index: None,
-            max_search_lines: None,
-            file_pattern: None,
+            path: Some("/home/user/project".to_string()),
+            pattern: "fn main".to_string(),
+            ..Default::default()
         });
 
         let operation = search_with_regex
@@ -1079,11 +1182,9 @@ mod tests {
         use crate::policies::PermissionOperation;
 
         let search_without_regex = ToolCatalog::FsSearch(FSSearch {
-            path: "/home/user/project".to_string(),
-            regex: None,
-            start_index: None,
-            max_search_lines: None,
-            file_pattern: None,
+            path: Some("/home/user/project".to_string()),
+            pattern: ".*".to_string(), // Match all content
+            ..Default::default()
         });
 
         let operation = search_without_regex
@@ -1092,7 +1193,10 @@ mod tests {
 
         match operation {
             PermissionOperation::Read { message, .. } => {
-                assert_eq!(message, "Search in directory/file: `/home/user/project`");
+                assert_eq!(
+                    message,
+                    "Search in directory/file: `/home/user/project` for pattern: .*"
+                );
             }
             _ => panic!("Expected Read operation"),
         }
@@ -1106,11 +1210,10 @@ mod tests {
         use crate::policies::PermissionOperation;
 
         let search_with_pattern = ToolCatalog::FsSearch(FSSearch {
-            path: "/home/user/project".to_string(),
-            regex: None,
-            start_index: None,
-            max_search_lines: None,
-            file_pattern: Some("*.rs".to_string()),
+            path: Some("/home/user/project".to_string()),
+            pattern: ".*".to_string(),
+            glob: Some("*.rs".to_string()),
+            ..Default::default()
         });
 
         let operation = search_with_pattern
@@ -1121,7 +1224,7 @@ mod tests {
             PermissionOperation::Read { message, .. } => {
                 assert_eq!(
                     message,
-                    "Search in directory/file: `/home/user/project` in '*.rs' files"
+                    "Search in directory/file: `/home/user/project` for pattern: '.*' in '*.rs' files"
                 );
             }
             _ => panic!("Expected Read operation"),
@@ -1136,11 +1239,10 @@ mod tests {
         use crate::policies::PermissionOperation;
 
         let search_with_both = ToolCatalog::FsSearch(FSSearch {
-            path: "/home/user/project".to_string(),
-            regex: Some("fn main".to_string()),
-            start_index: None,
-            max_search_lines: None,
-            file_pattern: Some("*.rs".to_string()),
+            path: Some("/home/user/project".to_string()),
+            pattern: "fn main".to_string(),
+            glob: Some("*.rs".to_string()),
+            ..Default::default()
         });
 
         let operation = search_with_both
@@ -1156,5 +1258,249 @@ mod tests {
             }
             _ => panic!("Expected Read operation"),
         }
+    }
+
+    #[test]
+    fn test_fs_patch_backward_compatibility_path() {
+        use crate::{ToolCallArguments, ToolCallFull};
+
+        // Test old field name "path" still works
+        let tool_call = ToolCallFull {
+            name: ToolName::new("patch"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(
+                r#"{"path": "/test/file.rs", "operation": "replace", "new_string": "new", "old_string": "old"}"#,
+            ),
+        };
+
+        let actual = ToolCatalog::try_from(tool_call);
+
+        assert!(
+            actual.is_ok(),
+            "Should successfully parse old 'path' field name"
+        );
+
+        if let Ok(ToolCatalog::Patch(fs_patch)) = actual {
+            assert_eq!(fs_patch.file_path, "/test/file.rs");
+        } else {
+            panic!("Expected FSPatch variant");
+        }
+    }
+
+    #[test]
+    fn test_fs_patch_backward_compatibility_search() {
+        use crate::{ToolCallArguments, ToolCallFull};
+
+        // Test old field name "search" still works
+        let tool_call = ToolCallFull {
+            name: ToolName::new("patch"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(
+                r#"{"file_path": "/test/file.rs", "operation": "replace", "new_string": "new", "search": "old text"}"#,
+            ),
+        };
+
+        let actual = ToolCatalog::try_from(tool_call);
+
+        assert!(
+            actual.is_ok(),
+            "Should successfully parse old 'search' field name"
+        );
+
+        if let Ok(ToolCatalog::Patch(fs_patch)) = actual {
+            assert_eq!(fs_patch.old_string, Some("old text".to_string()));
+        } else {
+            panic!("Expected FSPatch variant");
+        }
+    }
+
+    #[test]
+    fn test_fs_patch_backward_compatibility_content() {
+        use crate::{ToolCallArguments, ToolCallFull};
+
+        // Test old field name "content" still works
+        let tool_call = ToolCallFull {
+            name: ToolName::new("patch"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(
+                r#"{"file_path": "/test/file.rs", "operation": "replace", "content": "new content", "old_string": "old"}"#,
+            ),
+        };
+
+        let actual = ToolCatalog::try_from(tool_call);
+
+        assert!(
+            actual.is_ok(),
+            "Should successfully parse old 'content' field name"
+        );
+
+        if let Ok(ToolCatalog::Patch(fs_patch)) = actual {
+            assert_eq!(fs_patch.new_string, "new content");
+        } else {
+            panic!("Expected FSPatch variant");
+        }
+    }
+
+    #[test]
+    fn test_fs_patch_backward_compatibility_all_old_fields() {
+        use crate::{ToolCallArguments, ToolCallFull};
+
+        // Test all old field names together
+        let tool_call = ToolCallFull {
+            name: ToolName::new("patch"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(
+                r#"{"path": "/test/file.rs", "operation": "replace", "content": "new content", "search": "old text"}"#,
+            ),
+        };
+
+        let actual = ToolCatalog::try_from(tool_call);
+
+        assert!(
+            actual.is_ok(),
+            "Should successfully parse all old field names together"
+        );
+
+        if let Ok(ToolCatalog::Patch(fs_patch)) = actual {
+            assert_eq!(fs_patch.file_path, "/test/file.rs");
+            assert_eq!(fs_patch.old_string, Some("old text".to_string()));
+            assert_eq!(fs_patch.new_string, "new content");
+        } else {
+            panic!("Expected FSPatch variant");
+        }
+    }
+
+    #[test]
+    fn test_fs_patch_new_field_names() {
+        use crate::{ToolCallArguments, ToolCallFull};
+
+        // Test new field names work as expected
+        let tool_call = ToolCallFull {
+            name: ToolName::new("patch"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(
+                r#"{"file_path": "/test/file.rs", "operation": "replace", "new_string": "new content", "old_string": "old text"}"#,
+            ),
+        };
+
+        let actual = ToolCatalog::try_from(tool_call);
+
+        assert!(actual.is_ok(), "Should successfully parse new field names");
+
+        if let Ok(ToolCatalog::Patch(fs_patch)) = actual {
+            assert_eq!(fs_patch.file_path, "/test/file.rs");
+            assert_eq!(fs_patch.old_string, Some("old text".to_string()));
+            assert_eq!(fs_patch.new_string, "new content");
+        } else {
+            panic!("Expected FSPatch variant");
+        }
+    }
+
+    #[test]
+    fn test_unit_enum_schema_generation() {
+        use schemars::r#gen::SchemaSettings;
+
+        use crate::{OutputMode, PatchOperation};
+
+        // Test PatchOperation schema
+        let r#gen = SchemaSettings::default().into_generator();
+        let patch_schema = r#gen.into_root_schema_for::<PatchOperation>();
+
+        // Verify it generates a simple string enum, not a oneOf
+        assert_eq!(
+            patch_schema.schema.instance_type,
+            Some(schemars::schema::SingleOrVec::Single(Box::new(
+                schemars::schema::InstanceType::String
+            )))
+        );
+        assert!(patch_schema.schema.enum_values.is_some());
+        let enum_values = patch_schema.schema.enum_values.unwrap();
+        assert_eq!(enum_values.len(), 5);
+        assert_eq!(enum_values[0], serde_json::json!("prepend"));
+        assert_eq!(enum_values[1], serde_json::json!("append"));
+
+        // Test OutputMode schema
+        let r#gen = SchemaSettings::default().into_generator();
+        let output_schema = r#gen.into_root_schema_for::<OutputMode>();
+
+        // Verify it also generates a simple string enum
+        assert_eq!(
+            output_schema.schema.instance_type,
+            Some(schemars::schema::SingleOrVec::Single(Box::new(
+                schemars::schema::InstanceType::String
+            )))
+        );
+        assert!(output_schema.schema.enum_values.is_some());
+        let enum_values = output_schema.schema.enum_values.unwrap();
+        assert_eq!(enum_values.len(), 3);
+        assert_eq!(enum_values[0], serde_json::json!("content"));
+        assert_eq!(enum_values[1], serde_json::json!("files_with_matches"));
+        assert_eq!(enum_values[2], serde_json::json!("count"));
+    }
+
+    #[test]
+    fn test_shell_with_description_serialization() {
+        use pretty_assertions::assert_eq;
+
+        let fixture = Shell {
+            command: "git status".to_string(),
+            cwd: Some(PathBuf::from("/test")),
+            keep_ansi: false,
+            env: None,
+            description: Some("Shows working tree status".to_string()),
+        };
+
+        let actual = serde_json::to_value(&fixture).unwrap();
+
+        let expected = serde_json::json!({
+            "command": "git status",
+            "cwd": "/test",
+            "description": "Shows working tree status"
+        });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_shell_without_description_serialization() {
+        use pretty_assertions::assert_eq;
+
+        let fixture = Shell {
+            command: "ls -la".to_string(),
+            cwd: Some(PathBuf::from("/home")),
+            keep_ansi: false,
+            env: None,
+            description: None,
+        };
+
+        let actual = serde_json::to_value(&fixture).unwrap();
+
+        let expected = serde_json::json!({
+            "command": "ls -la",
+            "cwd": "/home"
+        });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_shell_without_cwd_serialization() {
+        use pretty_assertions::assert_eq;
+
+        let fixture = Shell {
+            command: "pwd".to_string(),
+            cwd: None,
+            keep_ansi: false,
+            env: None,
+            description: None,
+        };
+
+        let actual = serde_json::to_value(&fixture).unwrap();
+
+        let expected = serde_json::json!({
+            "command": "pwd"
+        });
+
+        assert_eq!(actual, expected);
     }
 }

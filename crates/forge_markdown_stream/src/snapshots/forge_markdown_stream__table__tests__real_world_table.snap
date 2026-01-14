@@ -1,0 +1,27 @@
+---
+source: src/table.rs
+expression: "render(vec![vec![\"Feature\", \"Status\", \"Description\", \"Link\"],\nvec![\"**Authentication**\", \"✅ `completed`\",\n\"Implements *JWT-based* authentication with ~~basic~~ **OAuth2** support\",\n\"[Docs](https://example.com)\"],\nvec![\"**Database Layer**\", \"🚧 `in-progress`\",\n\"Uses `PostgreSQL` with **Diesel ORM** for *type-safe* queries\",\n\"[GitHub](https://github.com)\"],\nvec![\"**API Gateway**\", \"⏳ `planned`\",\n\"RESTful API with `async/await` and ~~synchronous~~ **asynchronous** handlers\",\n\"[Spec](https://api.example.com)\"],\nvec![\"**Testing**\", \"✅ `completed`\",\n\"Includes *unit tests*, **integration tests**, and `snapshot testing`\",\n\"[Coverage](https://coverage.io)\"],\nvec![\"**Deployment**\", \"🚧 `in-progress`\",\n\"Docker containerization with `K8s` orchestration and **CI/CD** pipeline\",\n\"[Deploy](https://deploy.com)\"],])"
+---
+  ┌────────────┬────────────┬──────────────────────────────────┬────────────────────┐
+  │ Feature    │ Status     │ Description                      │ Link               │
+  ├────────────┼────────────┼──────────────────────────────────┼────────────────────┤
+  │ Authenticat │ ✅         │ Implements JWT-based             │ Docs (https: │
+  │ ion        │ completed  │ authentication with basic        │  //example.com)    │
+  │            │            │ OAuth2 support                   │                    │
+  ├────────────┼────────────┼──────────────────────────────────┼────────────────────┤
+  │ Database   │ 🚧         │ Uses PostgreSQL with Diesel ORM  │ GitHub (https://   │
+  │ Layer      │ in-progress │ for type-safe queries            │  github.com)       │
+  │            │            │                                  │                    │
+  ├────────────┼────────────┼──────────────────────────────────┼────────────────────┤
+  │ API        │ ⏳ planned │ RESTful API with async/await     │ Spec (https: │
+  │ Gateway    │            │ and synchronous asynchronous     │  //api.example.com) │
+  │            │            │ handlers                         │                    │
+  ├────────────┼────────────┼──────────────────────────────────┼────────────────────┤
+  │ Testing    │ ✅         │ Includes unit tests,             │ Coverage (https:// │
+  │            │ completed  │ integration tests, and snapshot  │  coverage.io)      │
+  │            │            │ testing                          │                    │
+  ├────────────┼────────────┼──────────────────────────────────┼────────────────────┤
+  │ Deployment │ 🚧         │ Docker containerization with     │ Deploy (https://   │
+  │            │ in-progress │ K8s orchestration and CI/CD      │  deploy.com)       │
+  │            │            │ pipeline                         │                    │
+  └────────────┴────────────┴──────────────────────────────────┴────────────────────┘

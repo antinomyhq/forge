@@ -96,7 +96,7 @@ impl ForgeEnvironmentInfra {
             override_model,
             override_provider,
 
-            streaming_output: parse_env::<bool>("FORGE_STREAMING_OUTPUT").unwrap_or(false),
+            streaming_output: parse_env::<bool>("FORGE_STREAMING_OUTPUT").unwrap_or(true),
         }
     }
 

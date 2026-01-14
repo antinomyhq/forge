@@ -45,14 +45,25 @@ impl FormatContent for ToolCatalog {
                 Some(TitleFormat::debug(title).sub_title(display_path).into())
             }
             ToolCatalog::FsSearch(input) => {
-                let formatted_dir = display_path_for(&input.path);
-                let title = match (&input.regex, &input.file_pattern) {
-                    (Some(regex), Some(pattern)) => {
-                        format!("Search for '{regex}' in '{pattern}' files at {formatted_dir}")
+                let formatted_dir = input.path.as_deref().unwrap_or(".");
+                let formatted_dir = display_path_for(formatted_dir);
+
+                let title = match (&input.glob, &input.file_type) {
+                    (Some(glob), _) => {
+                        format!(
+                            "Search for '{}' in '{}' files at {}",
+                            input.pattern, glob, formatted_dir
+                        )
                     }
-                    (Some(regex), None) => format!("Search for '{regex}' at {formatted_dir}"),
-                    (None, Some(pattern)) => format!("Search for '{pattern}' at {formatted_dir}"),
-                    (None, None) => format!("Search at {formatted_dir}"),
+                    (None, Some(file_type)) => {
+                        format!(
+                            "Search for '{}' in {} files at {}",
+                            input.pattern, file_type, formatted_dir
+                        )
+                    }
+                    (None, None) => {
+                        format!("Search for '{}' at {}", input.pattern, formatted_dir)
+                    }
                 };
                 Some(TitleFormat::debug(title).into())
             }
@@ -73,7 +84,7 @@ impl FormatContent for ToolCatalog {
                 Some(TitleFormat::debug("Remove").sub_title(display_path).into())
             }
             ToolCatalog::Patch(input) => {
-                let display_path = display_path_for(&input.path);
+                let display_path = display_path_for(&input.file_path);
                 Some(
                     TitleFormat::debug(input.operation.as_ref())
                         .sub_title(display_path)

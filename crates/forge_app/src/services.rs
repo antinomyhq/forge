@@ -24,6 +24,7 @@ use crate::user::{User, UserUsage};
 pub struct ShellOutput {
     pub output: CommandOutput,
     pub shell: String,
+    pub description: Option<String>,
 }
 
 #[derive(Debug)]
@@ -88,7 +89,20 @@ pub struct Match {
 #[derive(Debug)]
 pub enum MatchResult {
     Error(String),
-    Found { line_number: usize, line: String },
+    Found {
+        line_number: Option<usize>,
+        line: String,
+    },
+    Count {
+        count: usize,
+    },
+    FileMatch, // For files_with_matches mode
+    ContextMatch {
+        line_number: Option<usize>,
+        line: String,
+        before_context: Vec<String>,
+        after_context: Vec<String>,
+    },
 }
 
 #[derive(Debug)]
@@ -394,13 +408,17 @@ pub trait FsRemoveService: Send + Sync {
 
 #[async_trait::async_trait]
 pub trait FsSearchService: Send + Sync {
-    /// Searches for a file at the specified path and returns its content.
-    async fn search(
-        &self,
-        path: String,
-        regex: Option<String>,
-        file_pattern: Option<String>,
-    ) -> anyhow::Result<Option<SearchResult>>;
+    /// Searches for files and content based on the provided parameters.
+    ///
+    /// # Arguments
+    /// * `params` - Search parameters including pattern, path, output mode,
+    ///   etc.
+    ///
+    /// # Returns
+    /// * `Ok(Some(SearchResult))` - Matches found
+    /// * `Ok(None)` - No matches found
+    /// * `Err(_)` - Search error
+    async fn search(&self, params: forge_domain::FSSearch) -> anyhow::Result<Option<SearchResult>>;
 }
 
 #[async_trait::async_trait]
@@ -439,6 +457,7 @@ pub trait ShellService: Send + Sync {
         keep_ansi: bool,
         silent: bool,
         env_vars: Option<Vec<String>>,
+        description: Option<String>,
     ) -> anyhow::Result<ShellOutput>;
 }
 
@@ -822,15 +841,8 @@ impl<I: Services> FsRemoveService for I {
 
 #[async_trait::async_trait]
 impl<I: Services> FsSearchService for I {
-    async fn search(
-        &self,
-        path: String,
-        regex: Option<String>,
-        file_pattern: Option<String>,
-    ) -> anyhow::Result<Option<SearchResult>> {
-        self.fs_search_service()
-            .search(path, regex, file_pattern)
-            .await
+    async fn search(&self, params: forge_domain::FSSearch) -> anyhow::Result<Option<SearchResult>> {
+        self.fs_search_service().search(params).await
     }
 }
 
@@ -871,9 +883,10 @@ impl<I: Services> ShellService for I {
         keep_ansi: bool,
         silent: bool,
         env_vars: Option<Vec<String>>,
+        description: Option<String>,
     ) -> anyhow::Result<ShellOutput> {
         self.shell_service()
-            .execute(command, cwd, keep_ansi, silent, env_vars)
+            .execute(command, cwd, keep_ansi, silent, env_vars, description)
             .await
     }
 }

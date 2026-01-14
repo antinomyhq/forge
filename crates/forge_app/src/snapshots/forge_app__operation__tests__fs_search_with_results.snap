@@ -7,8 +7,8 @@ expression: to_value(actual)
   max_bytes_allowed="256000"
   total_lines="2"
   display_lines="1-2"
-  regex="Hello"
-  file_pattern="*.txt"
+  pattern="Hello"
+  glob="*.txt"
 ><![CDATA[file1.txt:1:Hello world
 file2.txt:3:Hello universe]]>
 </search_results>

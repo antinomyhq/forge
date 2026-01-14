@@ -1,1 +1,10 @@
-Recursively searches directories for files by content (regex) and/or name (glob pattern). Provides context-rich results with line numbers for content matches. Two modes: content search (when regex provided) or file finder (when regex omitted). Uses case-insensitive Rust regex syntax. Requires absolute paths. Avoids binary files and excluded directories. Best for code exploration, API usage discovery, configuration settings, or finding patterns across projects. For large pages, returns the first {{env.maxSearchLines}} lines and stores the complete content in a temporary file for subsequent access.
+A powerful search tool built on ripgrep
+
+Usage:
+- ALWAYS use `{{tool_names.fs_search}}` for search tasks. NEVER invoke `grep` or `rg` as a Bash command. The `{{tool_names.fs_search}}` tool has been optimized for correct permissions and access.
+- Supports full regex syntax (e.g., "log.*Error", "function\\s+\\w+")
+- Filter files with glob parameter (e.g., "*.js", "**/*.tsx") or type parameter (e.g., "js", "py", "rust")
+- Output modes: "content" shows matching lines, "files_with_matches" shows only file paths (default), "count" shows match counts
+- Use Task tool for open-ended searches requiring multiple rounds
+- Pattern syntax: Uses ripgrep (not grep) - literal braces need escaping (use `interface\\{\\}` to find `interface{}` in Go code)
+- Multiline matching: By default patterns match within single lines only. For cross-line patterns like `struct \\{[\\s\\S]*?field`, use `multiline: true`

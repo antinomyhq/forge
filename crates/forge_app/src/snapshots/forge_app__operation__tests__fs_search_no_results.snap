@@ -4,6 +4,6 @@ expression: to_value(actual)
 ---
 <search_results
   path="/home/user/project"
-  regex="NonExistentPattern"
+  pattern="NonExistentPattern"
 >
 </search_results>

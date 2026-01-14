@@ -1,0 +1,9 @@
+---
+source: src/table.rs
+expression: "render(vec![vec![\"Note\", \"Details\"], vec![\"*emphasis*\", \"Regular text\"],])"
+---
+  ┌─────────────────┬──────────────┐
+  │ Note            │ Details      │
+  ├─────────────────┼──────────────┤
+  │ <i>emphasis</i> │ Regular text │
+  └─────────────────┴──────────────┘

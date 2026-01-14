@@ -1,0 +1,9 @@
+---
+source: src/table.rs
+expression: "render_with_width(vec![vec![\"Long Header One\", \"Long Header Two\"],\nvec![\"value1\", \"value2\"],], 40)"
+---
+  ┌─────────────────┬─────────────────┐
+  │ Long Header One │ Long Header Two │
+  ├─────────────────┼─────────────────┤
+  │ value1          │ value2          │
+  └─────────────────┴─────────────────┘

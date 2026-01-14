@@ -1,0 +1,17 @@
+---
+source: src/table.rs
+expression: "render(vec![vec![\"Items\"], vec![\"First\"], vec![\"Second\"], vec![\"Third\"],\nvec![\"Fourth\"], vec![\"Fifth\"],])"
+---
+  ┌────────┐
+  │ Items  │
+  ├────────┤
+  │ First  │
+  ├────────┤
+  │ Second │
+  ├────────┤
+  │ Third  │
+  ├────────┤
+  │ Fourth │
+  ├────────┤
+  │ Fifth  │
+  └────────┘

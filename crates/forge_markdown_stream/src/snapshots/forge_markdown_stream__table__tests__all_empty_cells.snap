@@ -1,0 +1,9 @@
+---
+source: src/table.rs
+expression: "render(vec![vec![\"\", \"\"], vec![\"\", \"\"],])"
+---
+  ┌──┬──┐
+  │  │  │
+  ├──┼──┤
+  │  │  │
+  └──┴──┘

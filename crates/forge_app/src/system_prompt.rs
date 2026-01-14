@@ -71,6 +71,7 @@ impl<S: SkillFetchService> SystemPrompt<S> {
                 supports_parallel_tool_calls,
                 skills,
                 model: None,
+                tool_names: Default::default(),
             };
 
             let static_block = TemplateEngine::default()

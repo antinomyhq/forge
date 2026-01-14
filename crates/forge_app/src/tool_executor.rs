@@ -1,7 +1,8 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use forge_domain::{CodebaseQueryResult, ToolCallContext, ToolCatalog, ToolOutput};
+use anyhow::anyhow;
+use forge_domain::{CodebaseQueryResult, ToolCallContext, ToolCatalog, ToolKind, ToolOutput};
 
 use crate::fmt::content::FormatContent;
 use crate::operation::{TempContentFiles, ToolOperation};
@@ -39,6 +40,31 @@ impl<
 {
     pub fn new(services: Arc<S>) -> Self {
         Self { services }
+    }
+
+    fn require_prior_read(
+        &self,
+        context: &ToolCallContext,
+        raw_path: &str,
+        action: &str,
+    ) -> anyhow::Result<()> {
+        let target_path = self.normalize_path(raw_path.to_string());
+        let has_read = context.with_metrics(|metrics| {
+            metrics
+                .file_operations
+                .get(&target_path)
+                .or_else(|| metrics.file_operations.get(raw_path))
+                .is_some_and(|op| op.tool == ToolKind::Read)
+        })?;
+
+        if has_read {
+            Ok(())
+        } else {
+            Err(anyhow!(
+                "You must read the file with the read tool before attempting to {action}.",
+                action = action
+            ))
+        }
     }
 
     async fn dump_operation(&self, operation: &ToolOperation) -> anyhow::Result<TempContentFiles> {
@@ -148,15 +174,12 @@ impl<
                 (input, output).into()
             }
             ToolCatalog::FsSearch(input) => {
-                let normalized_path = self.normalize_path(input.path.clone());
-                let output = self
-                    .services
-                    .search(
-                        normalized_path,
-                        input.regex.clone(),
-                        input.file_pattern.clone(),
-                    )
-                    .await?;
+                let mut params = input.clone();
+                // Normalize path if provided
+                if let Some(ref path) = params.path {
+                    params.path = Some(self.normalize_path(path.clone()));
+                }
+                let output = self.services.search(params).await?;
                 (input, output).into()
             }
             ToolCatalog::SemSearch(input) => {
@@ -207,14 +230,14 @@ impl<
                 (input, output).into()
             }
             ToolCatalog::Patch(input) => {
-                let normalized_path = self.normalize_path(input.path.clone());
+                let normalized_path = self.normalize_path(input.file_path.clone());
                 let output = self
                     .services
                     .patch(
                         normalized_path,
-                        input.search.clone(),
+                        input.old_string.clone(),
                         input.operation.clone(),
-                        input.content.clone(),
+                        input.new_string.clone(),
                     )
                     .await?;
                 (input, output).into()
@@ -225,7 +248,11 @@ impl<
                 (input, output).into()
             }
             ToolCatalog::Shell(input) => {
-                let normalized_cwd = self.normalize_path(input.cwd.display().to_string());
+                let cwd = input
+                    .cwd
+                    .map(|p| p.display().to_string())
+                    .unwrap_or_else(|| self.services.get_environment().cwd.display().to_string());
+                let normalized_cwd = self.normalize_path(cwd);
                 let output = self
                     .services
                     .execute(
@@ -234,6 +261,7 @@ impl<
                         input.keep_ansi,
                         false,
                         input.env.clone(),
+                        input.description.clone(),
                     )
                     .await?;
                 output.into()
@@ -286,6 +314,18 @@ impl<
     ) -> anyhow::Result<ToolOutput> {
         let tool_kind = tool_input.kind();
         let env = self.services.get_environment();
+
+        // Enforce read-before-edit for patch
+        if let ToolCatalog::Patch(input) = &tool_input {
+            self.require_prior_read(context, &input.file_path, "edit it")?;
+        }
+
+        // Enforce read-before-edit for overwrite writes
+        if let ToolCatalog::Write(input) = &tool_input
+            && input.overwrite
+        {
+            self.require_prior_read(context, &input.path, "overwrite it")?;
+        }
 
         let execution_result = self.call_internal(tool_input.clone()).await;
 

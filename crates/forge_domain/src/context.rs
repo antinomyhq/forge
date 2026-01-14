@@ -231,6 +231,14 @@ impl ContextMessage {
             ContextMessage::Image(_) => false,
         }
     }
+
+    /// Returns the tool result if this message is a Tool variant
+    pub fn as_tool_result(&self) -> Option<&ToolResult> {
+        match self {
+            ContextMessage::Tool(result) => Some(result),
+            _ => None,
+        }
+    }
 }
 
 fn tool_call_content_char_count(text_message: &TextMessage) -> usize {

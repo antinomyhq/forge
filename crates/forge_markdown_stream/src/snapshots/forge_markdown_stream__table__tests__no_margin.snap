@@ -1,0 +1,9 @@
+---
+source: src/table.rs
+expression: "render_with_margin(vec![vec![\"A\", \"B\"], vec![\"1\", \"2\"],], \"\")"
+---
+┌───┬───┐
+│ A │ B │
+├───┼───┤
+│ 1 │ 2 │
+└───┴───┘
