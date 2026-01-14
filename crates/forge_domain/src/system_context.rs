@@ -41,8 +41,9 @@ pub struct SystemContext {
     pub model: Option<Model>,
 
     /// Map of tool names for template rendering.
-    /// Keys are tool identifiers (e.g., "read", "write"), values are display names.
-    /// Accessed in templates as {{tool_names.read}}, {{tool_names.write}}, etc.
+    /// Keys are tool identifiers (e.g., "read", "write"), values are display
+    /// names. Accessed in templates as {{tool_names.read}},
+    /// {{tool_names.write}}, etc.
     #[serde(skip_serializing_if = "Map::is_empty")]
     pub tool_names: Map<String, Value>,
 }

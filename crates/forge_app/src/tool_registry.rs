@@ -10,7 +10,7 @@ use forge_domain::{
 };
 use forge_template::Element;
 use futures::future::join_all;
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 use strum::IntoEnumIterator;
 use tokio::time::timeout;
 
@@ -255,7 +255,12 @@ impl<S> ToolRegistry<S> {
             .collect();
 
         // Create template data with environment nested under "env"
-        let ctx = SystemContext { env: Some(env.clone()), model, tool_names, ..Default::default() };
+        let ctx = SystemContext {
+            env: Some(env.clone()),
+            model,
+            tool_names,
+            ..Default::default()
+        };
 
         ToolCatalog::iter()
             .filter(|tool| {
