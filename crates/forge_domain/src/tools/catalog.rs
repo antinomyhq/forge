@@ -647,10 +647,9 @@ impl ToolCatalog {
     }
 
     /// Returns a user-friendly display message for the tool
-    pub fn display_message(tool_name: &ToolName) -> Option<String> {
-        ToolKind::from_name(tool_name)
-            .and_then(|kind| kind.display_message())
-            .map(String::from)
+    /// Returns None for unknown tools (e.g., MCP tools)
+    pub fn display_message(tool_name: &ToolName) -> Option<&'static str> {
+        ToolKind::from_name(tool_name).map(|kind| kind.display_message())
     }
     /// Convert a tool input to its corresponding domain operation for policy
     /// checking. Returns None for tools that don't require permission
@@ -914,19 +913,18 @@ impl ToolKind {
     }
 
     /// Returns a user-friendly display message for the tool
-    /// Returns None if the tool doesn't have a custom display message
-    pub fn display_message(&self) -> Option<&'static str> {
+    pub fn display_message(&self) -> &'static str {
         match self {
-            ToolKind::Read => Some("Understanding"),
-            ToolKind::Write | ToolKind::Patch => Some("Editing"),
-            ToolKind::FsSearch | ToolKind::SemSearch => Some("Searching"),
-            ToolKind::Remove => Some("Removing"),
-            ToolKind::Undo => Some("Restoring"),
-            ToolKind::Fetch => Some("Fetching"),
-            ToolKind::Skill => Some("Loading"),
-            ToolKind::Plan => Some("Planning"),
-            ToolKind::Followup => Some("Asking"),
-            ToolKind::Shell => Some("Executing"),
+            ToolKind::Read => "Understanding",
+            ToolKind::Write | ToolKind::Patch => "Editing",
+            ToolKind::FsSearch | ToolKind::SemSearch => "Searching",
+            ToolKind::Remove => "Removing",
+            ToolKind::Undo => "Restoring",
+            ToolKind::Fetch => "Fetching",
+            ToolKind::Skill => "Loading",
+            ToolKind::Plan => "Planning",
+            ToolKind::Followup => "Asking",
+            ToolKind::Shell => "Executing",
         }
     }
 }

@@ -2747,7 +2747,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 if tool_call.requires_stdout() {
                     self.spinner.stop(None)?;
                 } else if let Some(message) = tool_call.display_message() {
-                    self.spinner.start(Some(&message))?;
+                    self.spinner.start(Some(message))?;
                 }
             }
             ChatResponse::ToolCallEnd(toolcall_result) => {

@@ -97,7 +97,7 @@ impl ToolCallFull {
     }
 
     /// Returns a user-friendly display message for this tool
-    pub fn display_message(&self) -> Option<String> {
+    pub fn display_message(&self) -> Option<&'static str> {
         crate::ToolCatalog::display_message(&self.name)
     }
 
