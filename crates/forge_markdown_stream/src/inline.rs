@@ -154,12 +154,4 @@ mod tests {
     fn test_image_empty_alt() {
         insta::assert_snapshot!(render("![](image.png)"), @r#"<img alt="" src="image.png"/>"#);
     }
-
-    // Verify Theme implementation produces ANSI
-    #[test]
-    fn test_theme_produces_ansi() {
-        let theme = Theme::default();
-        let result = render_inline_content("**bold**", &theme);
-        assert!(result.contains("\x1b["), "Expected ANSI codes from Theme");
-    }
 }

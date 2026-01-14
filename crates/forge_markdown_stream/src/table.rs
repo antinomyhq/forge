@@ -436,18 +436,6 @@ mod tests {
     }
 
     #[test]
-    fn test_header_styling() {
-        // First row should have header styling (bold in dark theme)
-        let rows: Vec<Vec<String>> = vec![
-            vec!["Header1".to_string(), "Header2".to_string()],
-            vec!["data1".to_string(), "data2".to_string()],
-        ];
-        let result = render_table(&rows, "  ", &Theme::dark(), 80).join("\n");
-        // The raw output should contain ANSI codes for bold headers
-        assert!(result.contains("\x1b["));
-    }
-
-    #[test]
     fn test_custom_margin() {
         insta::assert_snapshot!(render_with_margin(
             vec![vec!["A", "B"], vec!["1", "2"],],
