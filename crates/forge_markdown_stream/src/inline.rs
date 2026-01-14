@@ -53,7 +53,7 @@ pub fn render_inline_elements<S: InlineStyler>(elements: &[InlineElement], style
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Theme;
+    
     use crate::theme::TagStyler;
 
     fn render(content: &str) -> String {
