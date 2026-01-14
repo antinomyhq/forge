@@ -13,9 +13,10 @@ use streamdown_core::ParseState;
 pub fn repair_line(line: &str, state: &ParseState) -> Vec<String> {
     // Only check for embedded closing fence when we're inside a code block
     if state.is_in_code()
-        && let Some(lines) = split_embedded_fence(line) {
-            return lines;
-        }
+        && let Some(lines) = split_embedded_fence(line)
+    {
+        return lines;
+    }
 
     vec![line.to_string()]
 }
@@ -27,15 +28,17 @@ fn split_embedded_fence(line: &str) -> Option<Vec<String>> {
 
     // Check for ``` at the end
     if let Some(stripped) = trimmed.strip_suffix("```")
-        && !stripped.trim().is_empty() {
-            return Some(vec![stripped.to_string(), "```".to_string()]);
-        }
+        && !stripped.trim().is_empty()
+    {
+        return Some(vec![stripped.to_string(), "```".to_string()]);
+    }
 
     // Check for ~~~ at the end
     if let Some(stripped) = trimmed.strip_suffix("~~~")
-        && !stripped.trim().is_empty() {
-            return Some(vec![stripped.to_string(), "~~~".to_string()]);
-        }
+        && !stripped.trim().is_empty()
+    {
+        return Some(vec![stripped.to_string(), "~~~".to_string()]);
+    }
 
     None
 }

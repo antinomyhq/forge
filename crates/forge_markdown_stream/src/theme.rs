@@ -9,8 +9,7 @@ use streamdown_parser::decode_html_entities;
 use crate::style::{HeadingStyler, InlineStyler, ListStyler, TableStyler};
 
 /// Style configuration for a single element.
-#[derive(Clone, Debug)]
-#[derive(Default)]
+#[derive(Clone, Debug, Default)]
 pub struct Style {
     pub fg: Option<Color>,
     pub bg: Option<Color>,
@@ -20,7 +19,6 @@ pub struct Style {
     pub strikethrough: bool,
     pub dimmed: bool,
 }
-
 
 impl Style {
     pub fn new() -> Self {
