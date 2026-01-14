@@ -32,7 +32,7 @@ use crate::{ToolCallArguments, ToolCallFull, ToolDefinition, ToolDescription, To
     PartialEq,
     EnumDiscriminants,
 )]
-#[strum_discriminants(derive(Display, Serialize, Deserialize, Hash))]
+#[strum_discriminants(derive(Display, Serialize, Deserialize, Hash, EnumIter))]
 #[strum_discriminants(serde(rename_all = "snake_case"))]
 #[serde(tag = "name", content = "arguments", rename_all = "snake_case")]
 #[strum_discriminants(name(ToolKind))]
@@ -646,6 +646,13 @@ impl ToolCatalog {
             .any(|v| v.to_string().to_case(Case::Snake).eq(normalized.as_str()))
     }
 
+
+    /// Returns a user-friendly display message for the tool
+    pub fn display_message(tool_name: &ToolName) -> Option<String> {
+        ToolKind::from_name(tool_name)
+            .and_then(|kind| kind.display_message())
+            .map(String::from)
+    }
     /// Convert a tool input to its corresponding domain operation for policy
     /// checking. Returns None for tools that don't require permission
     /// checks.
@@ -892,12 +899,37 @@ impl ToolKind {
         ToolName::new(self.to_string().to_case(Case::Snake))
     }
 
+    /// Attempts to convert a ToolName to a ToolKind
+    pub fn from_name(tool_name: &ToolName) -> Option<Self> {
+        let normalized = normalize_tool_name(tool_name);
+        use strum::IntoEnumIterator;
+        Self::iter().find(|kind| kind.name() == normalized)
+    }
+
     // TODO: This is an extremely slow operation
     pub fn definition(&self) -> ToolDefinition {
         ToolCatalog::iter()
             .find(|tool| tool.definition().name == self.name())
             .map(|tool| tool.definition())
             .expect("Forge tool definition not found")
+    }
+
+    /// Returns a user-friendly display message for the tool
+    /// Returns None if the tool doesn't have a custom display message
+    pub fn display_message(&self) -> Option<&'static str> {
+        match self {
+            ToolKind::Read => Some("Understanding"),
+            ToolKind::Write | ToolKind::Patch => Some("Editing"),
+            ToolKind::FsSearch | ToolKind::SemSearch => Some("Searching"),
+            ToolKind::Remove => Some("Removing"),
+            ToolKind::Undo => Some("Restoring"),
+            ToolKind::Fetch => Some("Fetching"),
+            ToolKind::Skill => Some("Loading"),
+            ToolKind::Plan => Some("Planning"),
+            ToolKind::Followup => Some("Asking"),
+            // Shell tools require stdout, so they won't show a spinner message
+            ToolKind::Shell => Some("Executing"),
+        }
     }
 }
 

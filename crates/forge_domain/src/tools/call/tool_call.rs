@@ -96,6 +96,12 @@ impl ToolCallFull {
         crate::ToolCatalog::requires_stdout(&self.name)
     }
 
+
+    /// Returns a user-friendly display message for this tool
+    pub fn display_message(&self) -> Option<String> {
+        crate::ToolCatalog::display_message(&self.name)
+    }
+
     pub fn try_from_parts(parts: &[ToolCallPart]) -> Result<Vec<Self>> {
         if parts.is_empty() {
             return Ok(vec![]);
