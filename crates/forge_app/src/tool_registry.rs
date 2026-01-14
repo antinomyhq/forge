@@ -10,6 +10,7 @@ use forge_domain::{
 };
 use forge_template::Element;
 use futures::future::join_all;
+use serde_json::{Map, Value, json};
 use strum::IntoEnumIterator;
 use tokio::time::timeout;
 
@@ -237,8 +238,29 @@ impl<S> ToolRegistry<S> {
 
         let handlebars = TemplateEngine::handlebar_instance();
 
+        // Build tool_names map from all available tools
+        let tool_names: Map<String, Value> = ToolCatalog::iter()
+            .filter(|tool| {
+                // Only include tools that are supported (filter sem_search if not supported)
+                if matches!(tool, ToolCatalog::SemSearch(_)) {
+                    sem_search_supported
+                } else {
+                    true
+                }
+            })
+            .map(|tool| {
+                let def = tool.definition();
+                (def.name.to_string(), json!(def.name.to_string()))
+            })
+            .collect();
+
         // Create template data with environment nested under "env"
-        let ctx = SystemContext { env: Some(env.clone()), model, ..Default::default() };
+        let ctx = SystemContext {
+            env: Some(env.clone()),
+            model,
+            tool_names,
+            ..Default::default()
+        };
 
         ToolCatalog::iter()
             .filter(|tool| {
@@ -850,4 +872,42 @@ fn test_dynamic_tool_description_without_model() {
 
     // Without model info, should show basic text file support
     insta::assert_snapshot!(read_tool.description);
+}
+
+#[test]
+fn test_all_rendered_tool_descriptions() {
+    use fake::{Fake, Faker};
+
+    let mut env: Environment = Faker.fake();
+    env.cwd = "/Users/amit/code-forge".into();
+    env.max_read_size = 2000;
+    env.max_line_length = 2000;
+    env.max_image_size = 5000;
+    env.stdout_max_prefix_length = 200;
+    env.stdout_max_suffix_length = 200;
+    env.stdout_max_line_length = 2000;
+
+    let tools = ToolRegistry::<()>::get_system_tools(true, &env, None);
+
+    // Verify all tools have rendered descriptions (no template syntax left)
+    for tool in &tools {
+        assert!(
+            !tool.description.contains("{{"),
+            "Tool '{}' has unrendered template variables:\n{}",
+            tool.name,
+            tool.description
+        );
+    }
+
+    // Snapshot all rendered tool descriptions for visual verification
+    // This will fail if a tool is renamed and descriptions reference the old name
+    let all_descriptions: Vec<_> = tools
+        .iter()
+        .map(|t| format!("### {}\n\n{}\n", t.name, t.description))
+        .collect();
+
+    insta::assert_snapshot!(
+        "all_rendered_tool_descriptions",
+        all_descriptions.join("\n---\n\n")
+    );
 }

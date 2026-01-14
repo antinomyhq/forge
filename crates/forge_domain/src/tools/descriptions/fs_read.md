@@ -11,5 +11,5 @@ Usage:
 - PDFs, Automatically encoded as base64 and sent as visual content for LLM to analyze pages. Any PDFs larger than {{env.maxImageSize}} bytes will return error
 {{/if}}
 - Jupyter notebooks (.ipynb files) are read as plain JSON text - you can parse the cell structure, outputs, and embedded content directly from the JSON
-- This tool can only read files, not directories. To read a directory, use an ls command via the `shell` tool.
+- This tool can only read files, not directories. To read a directory, use an ls command via the `{{tool_names.shell}}` tool.
 - You can call multiple tools in a single response. It is always better to speculatively read multiple potentially useful files in parallel.

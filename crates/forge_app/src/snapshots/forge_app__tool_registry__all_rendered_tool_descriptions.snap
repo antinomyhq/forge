@@ -1,0 +1,164 @@
+---
+source: crates/forge_app/src/tool_registry.rs
+expression: "all_descriptions.join(\"\\n---\\n\\n\")"
+---
+### read
+
+Reads a file from the local filesystem. You can access any file directly by using this tool. Assume this tool is able to read all files on the machine. If the User provides a path to a file assume that path is valid. It is okay to read a file that does not exist; an error will be returned.
+
+Usage:
+- The path parameter must be an absolute path, not a relative path
+- By default, it reads up to 2000 lines starting from the beginning of the file
+- You can optionally specify a line start_line and end_line (especially handy for long files), but it's recommended to read the whole file by not providing these parameters
+- Any lines longer than 2000 characters will be truncated
+- Results are returned using rg "" -n format, with line numbers starting at 1
+- Jupyter notebooks (.ipynb files) are read as plain JSON text - you can parse the cell structure, outputs, and embedded content directly from the JSON
+- This tool can only read files, not directories. To read a directory, use an ls command via the `shell` tool.
+- You can call multiple tools in a single response. It is always better to speculatively read multiple potentially useful files in parallel.
+
+---
+
+### write
+
+Writes a file to the local filesystem.
+
+Usage:
+- The path parameter must be an absolute path, not a relative path
+- The tool automatically handles the creation of any missing intermediary directories in the specified path
+- For existing files being overwritten (when overwrite=true), snapshots are automatically created to enable undo functionality.
+- If a file exists and 'overwrite' is false (or not set), an error will be returned indicating the file already exists
+- Files are automatically validated for syntax errors when possible; validation failures are reported but don't prevent file creation
+- Snapshots are automatically created before overwriting existing files to enable undo functionality
+- IMPORTANT: DO NOT attempt to use this tool to move or rename files, use the `shell` tool instead.
+- ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.
+- NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
+- Only use emojis if the user explicitly requests it. Avoid writing emojis to files unless asked.
+
+---
+
+### fs_search
+
+A powerful search tool built on ripgrep
+
+Usage:
+- ALWAYS use `fs_search` for search tasks. NEVER invoke `grep` or `rg` as a Bash command. The `fs_search` tool has been optimized for correct permissions and access.
+- Supports full regex syntax (e.g., "log.*Error", "function\\s+\\w+")
+- Filter files with glob parameter (e.g., "*.js", "**/*.tsx") or type parameter (e.g., "js", "py", "rust")
+- Output modes: "content" shows matching lines, "files_with_matches" shows only file paths (default), "count" shows match counts
+- Use Task tool for open-ended searches requiring multiple rounds
+- Pattern syntax: Uses ripgrep (not grep) - literal braces need escaping (use `interface\\{\\}` to find `interface{}` in Go code)
+- Multiline matching: By default patterns match within single lines only. For cross-line patterns like `struct \\{[\\s\\S]*?field`, use `multiline: true`
+
+---
+
+### sem_search
+
+AI-powered semantic code search. YOUR DEFAULT TOOL for code discovery tasks. Use this when you need to find code locations, understand implementations, or explore functionality - it works with natural language about behavior and concepts, not just keyword matching.
+
+Start with sem_search when: locating code to modify, understanding how features work, finding patterns/examples, or exploring unfamiliar areas. Understands queries like "authentication flow" (finds login), "retry logic" (finds backoff), "validation" (finds checking/sanitization).
+
+Returns the topK most relevant file:line locations with code context. Use multiple varied queries (2-3) for best coverage. For exact string matching (TODO comments, specific function names), use fs_search instead.
+
+---
+
+### remove
+
+Request to remove a file at the specified path. Use when you need to delete an existing file. The path must be absolute. This operation can be undone using the `undo` tool.
+
+---
+
+### patch
+
+Performs exact string replacements in files.
+
+Required parameters: `file_path`, `old_string`, `operation`, `new_string`
+
+Usage:
+- You must use your `read` tool at least once in the conversation before editing. This tool will error if you attempt an edit without reading the file. 
+- When editing text from `read` tool output, ensure you preserve the exact indentation (tabs/spaces) as it appears AFTER the line number prefix. The line number prefix format is: 'line_number:'. Everything after that line_number: is the actual file content to match. Never include any part of the line number prefix in the old_string or new_string.
+- ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.
+- Only use emojis if the user explicitly requests it. Avoid adding emojis to files unless asked.
+- The edit will FAIL if `old_string` is not unique in the file. Either provide a larger string with more surrounding context to make it unique or use `replace_all` to change every instance of `old_string`. 
+- Use `replace_all` for replacing and renaming strings across the file. This parameter is useful if you want to rename a variable for instance.
+
+---
+
+### undo
+
+Reverts the most recent file operation (create/modify/delete) on a specific file. Use this tool when you need to recover from incorrect file changes or if a revert is requested by the user.
+
+---
+
+### shell
+
+Executes shell commands. The `cwd` parameter sets the working directory for command execution. If not specified, defaults to `/Users/amit/code-forge`.
+
+CRITICAL: Do NOT use `cd` commands in the command string. This is FORBIDDEN. Always use the `cwd` parameter to set the working directory instead. Any use of `cd` in the command is redundant, incorrect, and violates the tool contract.
+
+IMPORTANT: This tool is for terminal operations like git, npm, docker, etc. DO NOT use it for file operations (reading, writing, editing, searching, finding files) - use the specialized tools for this instead.
+
+Before executing the command, please follow these steps:
+
+1. Directory Verification:
+   - If the command will create new directories or files, first use `shell` with `ls` to verify the parent directory exists and is the correct location
+   - For example, before running "mkdir foo/bar", first use `ls foo` to check that "foo" exists and is the intended parent directory
+
+2. Command Execution:
+   - Always quote file paths that contain spaces with double quotes (e.g., python "path with spaces/script.py")
+   - Examples of proper quoting:
+     - mkdir "/Users/name/My Documents" (correct)
+     - mkdir /Users/name/My Documents (incorrect - will fail)
+     - python "/path/with spaces/script.py" (correct)
+     - python /path/with spaces/script.py (incorrect - will fail)
+   - After ensuring proper quoting, execute the command.
+   - Capture the output of the command.
+
+Usage notes:
+  - The command argument is required.
+  - It is very helpful if you write a clear, concise description of what this command does in 5-10 words.
+  - If the output exceeds 200 prefix lines or 200 suffix lines, or if a line exceeds 2000 characters, it will be truncated and the full output will be written to a temporary file. You can use read with start_line/end_line to read specific sections or fs_search to search the full content. Because of this, you do NOT need to use `head`, `tail`, or other truncation commands to limit output - just run the command directly.
+  - Avoid using shell with the `find`, `grep`, `cat`, `head`, `tail`, `sed`, `awk`, or `echo` commands, unless explicitly instructed or when these commands are truly necessary for the task. Instead, always prefer using the dedicated tools for these commands:
+    - File search: Use `fs_search` (NOT find or ls)
+    - Content search: Use `fs_search` with regex (NOT grep or rg)
+    - Read files: Use `read` (NOT cat/head/tail)
+    - Edit files: Use `patch`(NOT sed/awk)
+    - Write files: Use `write` (NOT echo >/cat <<EOF)
+    - Communication: Output text directly (NOT echo/printf)
+  - When issuing multiple commands:
+    - If the commands are independent and can run in parallel, make multiple `shell` tool calls in a single message. For example, if you need to run "git status" and "git diff", send a single message with two `shell` tool calls in parallel.
+    - If the commands depend on each other and must run sequentially, use a single `shell` call with '&&' to chain them together (e.g., `git add . && git commit -m "message" && git push`). For instance, if one operation must complete before another starts (like mkdir before cp, write before shell for git operations, or git add before git commit), run these operations sequentially instead.
+    - Use ';' only when you need to run commands sequentially but don't care if earlier commands fail
+    - DO NOT use newlines to separate commands (newlines are ok in quoted strings)
+  - DO NOT use `cd <directory> && <command>`. Use the `cwd` parameter to change directories instead.
+
+Good examples:
+  - With explicit cwd: cwd="/foo/bar" with command: pytest tests
+
+Bad example:
+  cd /foo/bar && pytest tests
+
+Returns complete output including stdout, stderr, and exit code for diagnostic purposes.
+
+---
+
+### fetch
+
+Retrieves content from URLs as markdown or raw text. Enables access to current online information including websites, APIs and documentation. Use for obtaining up-to-date information beyond training data, verifying facts, or retrieving specific online content. Handles HTTP/HTTPS and converts HTML to readable markdown by default. Cannot access private/restricted resources requiring authentication. Respects robots.txt and may be blocked by anti-scraping measures. For large pages, returns the first 40,000 characters and stores the complete content in a temporary file for subsequent access.
+
+---
+
+### followup
+
+Use this tool when you encounter ambiguities, need clarification, or require more details to proceed effectively. Use this tool judiciously to maintain a balance between gathering necessary information and avoiding excessive back-and-forth.
+
+---
+
+### plan
+
+Creates a new plan file with the specified name, version, and content. Use this tool to create structured project plans, task breakdowns, or implementation strategies that can be tracked and referenced throughout development sessions.
+
+---
+
+### skill
+
+Fetches detailed information about a specific skill. Use this tool to load skill content and instructions when you need to understand how to perform a specialized task. Skills provide domain-specific knowledge, workflows, and best practices. Only invoke skills that are listed in the available skills section. Do not invoke a skill that is already active.
