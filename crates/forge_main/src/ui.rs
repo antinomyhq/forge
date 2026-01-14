@@ -649,9 +649,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     self.writeln(data?)?;
                 }
             }
-            TopLevelCommand::Install(install_command) => {
-                match install_command {
-                    crate::cli::InstallCommand::VscodeExtension => {
+            TopLevelCommand::Vscode(vscode_command) => {
+                match vscode_command {
+                    crate::cli::VscodeCommand::InstallExtension => {
                         self.on_vscode_extension_install().await?;
                     }
                 }
