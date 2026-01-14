@@ -1982,6 +1982,7 @@ dependencies = [
  "html2md",
  "http 1.4.0",
  "humantime",
+ "ignore",
  "infer",
  "lazy_static",
  "merge",

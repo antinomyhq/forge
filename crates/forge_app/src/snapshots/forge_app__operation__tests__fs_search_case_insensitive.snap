@@ -5,10 +5,10 @@ expression: to_value(actual)
 <search_results
   path="/home/user/project"
   max_bytes_allowed="256000"
-  total_lines="2"
-  display_lines="1-2"
-  pattern="Hello"
-  glob="*.txt"
-><![CDATA[file1.txt:1:Hello world
-file2.txt:3:Hello universe]]>
+  total_lines="3"
+  display_lines="1-3"
+  pattern="error"
+><![CDATA[log.txt:10:ERROR: Connection failed
+log.txt:15:error in processing
+log.txt:20:Error: Invalid input]]>
 </search_results>

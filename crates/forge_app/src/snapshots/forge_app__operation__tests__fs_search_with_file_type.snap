@@ -7,8 +7,8 @@ expression: to_value(actual)
   max_bytes_allowed="256000"
   total_lines="2"
   display_lines="1-2"
-  pattern="Hello"
-  glob="*.txt"
-><![CDATA[file1.txt:1:Hello world
-file2.txt:3:Hello universe]]>
+  pattern="class"
+  file_type="py"
+><![CDATA[models.py:1:class User:
+views.py:5:class HomeView:]]>
 </search_results>

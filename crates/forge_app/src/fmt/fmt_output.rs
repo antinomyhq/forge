@@ -228,25 +228,23 @@ mod tests {
     fn test_fs_search_with_matches() {
         let fixture = ToolOperation::FsSearch {
             input: forge_domain::FSSearch {
-                path: "/home/user/project".to_string(),
-                regex: Some("Hello".to_string()),
-                file_pattern: None,
-                max_search_lines: None,
-                start_index: None,
+                path: Some("/home/user/project".to_string()),
+                pattern: "Hello".to_string(),
+                ..Default::default()
             },
             output: Some(SearchResult {
                 matches: vec![
                     Match {
                         path: "file1.txt".to_string(),
                         result: Some(MatchResult::Found {
-                            line_number: 1,
+                            line_number: Some(1),
                             line: "Hello world".to_string(),
                         }),
                     },
                     Match {
                         path: "file2.txt".to_string(),
                         result: Some(MatchResult::Found {
-                            line_number: 3,
+                            line_number: Some(3),
                             line: "Hello universe".to_string(),
                         }),
                     },
@@ -265,11 +263,9 @@ mod tests {
     fn test_fs_search_no_matches() {
         let fixture = ToolOperation::FsSearch {
             input: forge_domain::FSSearch {
-                path: "/home/user/project".to_string(),
-                regex: Some("nonexistent".to_string()),
-                file_pattern: None,
-                max_search_lines: None,
-                start_index: None,
+                path: Some("/home/user/project".to_string()),
+                pattern: "nonexistent".to_string(),
+                ..Default::default()
             },
             output: Some(SearchResult {
                 matches: vec![Match {
@@ -290,11 +286,9 @@ mod tests {
     fn test_fs_search_none() {
         let fixture = ToolOperation::FsSearch {
             input: forge_domain::FSSearch {
-                path: "/home/user/project".to_string(),
-                regex: Some("search".to_string()),
-                file_pattern: None,
-                max_search_lines: None,
-                start_index: None,
+                path: Some("/home/user/project".to_string()),
+                pattern: "search".to_string(),
+                ..Default::default()
             },
             output: None,
         };
