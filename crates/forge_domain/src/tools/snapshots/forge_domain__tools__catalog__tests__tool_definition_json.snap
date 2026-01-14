@@ -246,8 +246,7 @@ expression: tools
   "title": "Shell",
   "type": "object",
   "required": [
-    "command",
-    "cwd"
+    "command"
   ],
   "properties": {
     "command": {
@@ -255,8 +254,14 @@ expression: tools
       "type": "string"
     },
     "cwd": {
-      "description": "The working directory where the command should be executed.",
-      "type": "string"
+      "description": "The working directory where the command should be executed. If not specified, defaults to the current working directory from the environment.",
+      "type": "string",
+      "nullable": true
+    },
+    "description": {
+      "description": "Clear, concise description of what this command does. Recommended to be 5-10 words for simple commands. For complex commands with pipes or multiple operations, provide more context. Examples: \"Lists files in current directory\", \"Installs package dependencies\", \"Compiles Rust project with release optimizations\".",
+      "type": "string",
+      "nullable": true
     },
     "env": {
       "description": "Environment variable names to pass to command execution (e.g., [\"PATH\", \"HOME\", \"USER\"]). The system automatically reads the specified values and applies them during command execution.",

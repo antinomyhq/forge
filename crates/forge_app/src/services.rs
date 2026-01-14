@@ -24,6 +24,7 @@ use crate::user::{User, UserUsage};
 pub struct ShellOutput {
     pub output: CommandOutput,
     pub shell: String,
+    pub description: Option<String>,
 }
 
 #[derive(Debug)]
@@ -456,6 +457,7 @@ pub trait ShellService: Send + Sync {
         keep_ansi: bool,
         silent: bool,
         env_vars: Option<Vec<String>>,
+        description: Option<String>,
     ) -> anyhow::Result<ShellOutput>;
 }
 
@@ -881,9 +883,10 @@ impl<I: Services> ShellService for I {
         keep_ansi: bool,
         silent: bool,
         env_vars: Option<Vec<String>>,
+        description: Option<String>,
     ) -> anyhow::Result<ShellOutput> {
         self.shell_service()
-            .execute(command, cwd, keep_ansi, silent, env_vars)
+            .execute(command, cwd, keep_ansi, silent, env_vars, description)
             .await
     }
 }
