@@ -1408,7 +1408,10 @@ mod tests {
 
         let actual = ToolCatalog::try_from(tool_call);
 
-        assert!(actual.is_ok(), "Should successfully parse replace_all parameter");
+        assert!(
+            actual.is_ok(),
+            "Should successfully parse replace_all parameter"
+        );
 
         if let Ok(ToolCatalog::Patch(fs_patch)) = actual {
             assert_eq!(fs_patch.replace_all, true);
