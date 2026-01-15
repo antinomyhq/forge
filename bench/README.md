@@ -2,6 +2,10 @@
 Compile forge for `x86_64-unknown-linux-musl`, the MUSL binary will be
 used for benchmarks.
 
+```shell
+cross build --release --target x86_64-unknown-linux-musl
+```
+
 Note: Only x86_64 linux MUSL build will work for all benchmarks,
 some benches uses linux image which does not have required GLIBC version. 
 
