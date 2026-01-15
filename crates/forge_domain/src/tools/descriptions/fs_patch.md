@@ -1,7 +1,4 @@
 Performs exact string replacements in files.
-
-Required parameters: `file_path`, `old_string`, `operation`, `new_string`
-
 Usage:
 - You must use your `{{tool_names.read}}` tool at least once in the conversation before editing. This tool will error if you attempt an edit without reading the file. 
 - When editing text from `{{tool_names.read}}` tool output, ensure you preserve the exact indentation (tabs/spaces) as it appears AFTER the line number prefix. The line number prefix format is: 'line_number:'. Everything after that line_number: is the actual file content to match. Never include any part of the line number prefix in the old_string or new_string.

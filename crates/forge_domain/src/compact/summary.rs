@@ -344,7 +344,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        ContextMessage, PatchOperation, TextMessage, ToolCallArguments, ToolCallId, ToolName,
+        ContextMessage, TextMessage, ToolCallArguments, ToolCallId, ToolName,
         ToolOutput,
     };
 
@@ -519,8 +519,8 @@ mod tests {
                 ToolCatalog::tool_call_patch(
                     "/test/file.rs",
                     "new",
-                    PatchOperation::Replace,
-                    Some("old"),
+                    "old",
+                    false,
                 )
                 .call_id("call_1"),
             ],
