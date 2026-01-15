@@ -1902,9 +1902,9 @@ mod tests {
         let fixture = ToolOperation::FsPatch {
             input: forge_domain::FSPatch {
                 file_path: "/home/user/test.txt".to_string(),
-                old_string: Some("world".to_string()),
-                operation: forge_domain::PatchOperation::Replace,
+                old_string: "world".to_string(),
                 new_string: "universe".to_string(),
+                replace_all: false,
             },
             output: PatchOutput {
                 errors: vec![],
@@ -1932,9 +1932,9 @@ mod tests {
         let fixture = ToolOperation::FsPatch {
             input: forge_domain::FSPatch {
                 file_path: "/home/user/large_file.txt".to_string(),
-                old_string: Some("line1".to_string()),
-                operation: forge_domain::PatchOperation::Append,
+                old_string: "line1".to_string(),
                 new_string: "\nnew line".to_string(),
+                replace_all: false,
             },
             output: PatchOutput {
                 errors: test_syntax_errors(vec![(5, 10, "Invalid syntax")]),
@@ -1962,9 +1962,9 @@ mod tests {
         let fixture = ToolOperation::FsPatch {
             input: forge_domain::FSPatch {
                 file_path: "/home/user/test.zsh".to_string(),
-                old_string: Some("line1".to_string()),
-                operation: forge_domain::PatchOperation::Append,
+                old_string: "line1".to_string(),
                 new_string: "\nnew line".to_string(),
+                replace_all: false,
             },
             output: PatchOutput {
                 errors: test_syntax_errors(vec![
