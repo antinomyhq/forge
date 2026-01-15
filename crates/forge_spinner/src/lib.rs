@@ -15,7 +15,8 @@ pub use progress_bar::*;
 ///
 /// Uses indicatif's built-in `{elapsed}` template for time display,
 /// eliminating the need for a background task to update the message.
-/// Accumulated time is preserved across start/stop cycles using `with_elapsed()`.
+/// Accumulated time is preserved across start/stop cycles using
+/// `with_elapsed()`.
 pub struct SpinnerManager<P: ConsoleWriter> {
     spinner: Option<ProgressBar>,
     accumulated_elapsed: Duration,
@@ -73,23 +74,26 @@ impl<P: ConsoleWriter> SpinnerManager<P> {
                     .tick_strings(&["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"])
                     .template("{spinner:.green} {elapsed_custom:.white} {msg} {prefix:.white.dim}")
                     .unwrap()
-                    .with_key("elapsed_custom", |state: &ProgressState, w: &mut dyn std::fmt::Write| {
-                        let total_seconds = state.elapsed().as_secs();
-                        let _ = if total_seconds < 60 {
-                            // Less than 1 minute: "01s", "02s", etc.
-                            write!(w, "{:02}s", total_seconds)
-                        } else if total_seconds < 3600 {
-                            // Less than 1 hour: "1:01m", "1:59m", etc.
-                            let minutes = total_seconds / 60;
-                            let seconds = total_seconds % 60;
-                            write!(w, "{}:{:02}m", minutes, seconds)
-                        } else {
-                            // 1 hour or more: "1:01h", "2:30h", etc.
-                            let hours = total_seconds / 3600;
-                            let minutes = (total_seconds % 3600) / 60;
-                            write!(w, "{}:{:02}h", hours, minutes)
-                        };
-                    }),
+                    .with_key(
+                        "elapsed_custom",
+                        |state: &ProgressState, w: &mut dyn std::fmt::Write| {
+                            let total_seconds = state.elapsed().as_secs();
+                            let _ = if total_seconds < 60 {
+                                // Less than 1 minute: "01s", "02s", etc.
+                                write!(w, "{:02}s", total_seconds)
+                            } else if total_seconds < 3600 {
+                                // Less than 1 hour: "1:01m", "1:59m", etc.
+                                let minutes = total_seconds / 60;
+                                let seconds = total_seconds % 60;
+                                write!(w, "{}:{:02}m", minutes, seconds)
+                            } else {
+                                // 1 hour or more: "1:01h", "2:30h", etc.
+                                let hours = total_seconds / 3600;
+                                let minutes = (total_seconds % 3600) / 60;
+                                write!(w, "{}:{:02}h", hours, minutes)
+                            };
+                        },
+                    ),
             )
             .with_message(word.green().bold().to_string())
             .with_prefix("· Ctrl+C to interrupt");
