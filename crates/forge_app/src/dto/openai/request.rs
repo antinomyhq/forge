@@ -158,23 +158,15 @@ pub struct Tool {
 
 /// Response format configuration for OpenAI API
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
-#[serde(untagged)]
+#[serde(tag = "type", content = "json_schema")]
 pub enum ResponseFormat {
-    Text {
-        r#type: String,
-    },
+    #[serde(rename = "text")]
+    Text,
+    #[serde(rename = "json_schema")]
     JsonSchema {
-        r#type: String,
-        json_schema: JsonSchemaDefinition,
+        name: String,
+        schema: schemars::schema::RootSchema,
     },
-}
-
-/// JSON schema definition with name and schema
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
-pub struct JsonSchemaDefinition {
-    pub name: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub schema: Option<schemars::schema::RootSchema>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
@@ -359,22 +351,17 @@ impl From<Context> for Request {
             model: None,
             prompt: Default::default(),
             response_format: context.response_format.map(|rf| match rf {
-                forge_domain::ResponseFormat::Text => {
-                    ResponseFormat::Text { r#type: "text".to_string() }
-                }
+                forge_domain::ResponseFormat::Text => ResponseFormat::Text,
                 forge_domain::ResponseFormat::JsonSchema(schema) => {
-                    // Extract name from schema title, or use a default
+                    // Extract name from schema title
                     let name = schema
                         .schema
                         .metadata
                         .as_ref()
                         .and_then(|m| m.title.clone())
-                        .unwrap_or_else(|| "response".to_string());
+                        .expect("Schema must have a title in metadata");
 
-                    ResponseFormat::JsonSchema {
-                        r#type: "json_schema".to_string(),
-                        json_schema: JsonSchemaDefinition { name, schema: Some(schema) },
-                    }
+                    ResponseFormat::JsonSchema { name, schema }
                 }
             }),
             stop: Default::default(),
