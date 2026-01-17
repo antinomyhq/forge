@@ -853,6 +853,7 @@ mod tests {
         use serde::Deserialize;
 
         #[derive(Deserialize, JsonSchema)]
+        #[allow(dead_code)]
         #[schemars(title = "test_response")]
         struct TestResponse {
             message: String,
