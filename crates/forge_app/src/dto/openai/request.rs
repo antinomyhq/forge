@@ -359,9 +359,9 @@ impl From<Context> for Request {
             model: None,
             prompt: Default::default(),
             response_format: context.response_format.map(|rf| match rf {
-                forge_domain::ResponseFormat::Text => ResponseFormat::Text {
-                    r#type: "text".to_string(),
-                },
+                forge_domain::ResponseFormat::Text => {
+                    ResponseFormat::Text { r#type: "text".to_string() }
+                }
                 forge_domain::ResponseFormat::JsonSchema(schema) => {
                     // Extract name from schema title, or use a default
                     let name = schema
@@ -373,10 +373,7 @@ impl From<Context> for Request {
 
                     ResponseFormat::JsonSchema {
                         r#type: "json_schema".to_string(),
-                        json_schema: JsonSchemaDefinition {
-                            name,
-                            schema: Some(schema),
-                        },
+                        json_schema: JsonSchemaDefinition { name, schema: Some(schema) },
                     }
                 }
             }),
@@ -864,16 +861,16 @@ mod tests {
         let schema = schemars::schema_for!(TestResponse);
         let fixture = forge_domain::Context::default()
             .response_format(forge_domain::ResponseFormat::JsonSchema(schema));
-        
+
         let actual = Request::from(fixture);
-        
+
         assert!(actual.response_format.is_some());
         let rf = actual.response_format.unwrap();
-        
+
         // Serialize to JSON to verify the format
         let json = serde_json::to_string(&rf).unwrap();
         println!("Serialized response_format: {}", json);
-        
+
         // Should contain type and json_schema fields
         assert!(json.contains("\"type\":\"json_schema\""));
         assert!(json.contains("\"json_schema\""));

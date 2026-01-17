@@ -321,9 +321,9 @@ where
         let stream = self.services.chat(&model, context, provider).await?;
         let message = stream.into_full(false).await?;
 
-        // Parse the response - try JSON first (structured output), fallback to plain text
-        let commit_message = match serde_json::from_str::<CommitMessageResponse>(&message.content)
-        {
+        // Parse the response - try JSON first (structured output), fallback to plain
+        // text
+        let commit_message = match serde_json::from_str::<CommitMessageResponse>(&message.content) {
             Ok(response) => response.commit_message,
             Err(_) => {
                 // Fallback: Some providers don't support structured output, treat as plain text
