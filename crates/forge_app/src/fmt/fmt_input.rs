@@ -85,8 +85,13 @@ impl FormatContent for ToolCatalog {
             }
             ToolCatalog::Patch(input) => {
                 let display_path = display_path_for(&input.file_path);
+                let operation_name = if input.replace_all {
+                    "Replace All"
+                } else {
+                    "Replace"
+                };
                 Some(
-                    TitleFormat::debug(input.operation.as_ref())
+                    TitleFormat::debug(operation_name)
                         .sub_title(display_path)
                         .into(),
                 )
