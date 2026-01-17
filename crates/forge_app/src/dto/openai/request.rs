@@ -156,9 +156,25 @@ pub struct Tool {
     pub function: FunctionDescription,
 }
 
+/// Response format configuration for OpenAI API
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
-pub struct ResponseFormat {
-    pub r#type: String,
+#[serde(untagged)]
+pub enum ResponseFormat {
+    Text {
+        r#type: String,
+    },
+    JsonSchema {
+        r#type: String,
+        json_schema: JsonSchemaDefinition,
+    },
+}
+
+/// JSON schema definition with name and schema
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
+pub struct JsonSchemaDefinition {
+    pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub schema: Option<schemars::schema::RootSchema>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
@@ -342,7 +358,28 @@ impl From<Context> for Request {
             },
             model: None,
             prompt: Default::default(),
-            response_format: Default::default(),
+            response_format: context.response_format.map(|rf| match rf {
+                forge_domain::ResponseFormat::Text => ResponseFormat::Text {
+                    r#type: "text".to_string(),
+                },
+                forge_domain::ResponseFormat::JsonSchema(schema) => {
+                    // Extract name from schema title, or use a default
+                    let name = schema
+                        .schema
+                        .metadata
+                        .as_ref()
+                        .and_then(|m| m.title.clone())
+                        .unwrap_or_else(|| "response".to_string());
+
+                    ResponseFormat::JsonSchema {
+                        r#type: "json_schema".to_string(),
+                        json_schema: JsonSchemaDefinition {
+                            name,
+                            schema: Some(schema),
+                        },
+                    }
+                }
+            }),
             stop: Default::default(),
             stream: Some(context.stream.unwrap_or(true)),
             max_tokens: context.max_tokens.map(|t| t as u32),
@@ -811,5 +848,34 @@ mod tests {
         let actual = Request::from(fixture);
 
         assert_eq!(actual.stream, Some(false));
+    }
+
+    #[test]
+    fn test_response_format_json_schema_serialization() {
+        use schemars::JsonSchema;
+        use serde::Deserialize;
+
+        #[derive(Deserialize, JsonSchema)]
+        #[schemars(title = "test_response")]
+        struct TestResponse {
+            message: String,
+        }
+
+        let schema = schemars::schema_for!(TestResponse);
+        let fixture = forge_domain::Context::default()
+            .response_format(forge_domain::ResponseFormat::JsonSchema(schema));
+        
+        let actual = Request::from(fixture);
+        
+        assert!(actual.response_format.is_some());
+        let rf = actual.response_format.unwrap();
+        
+        // Serialize to JSON to verify the format
+        let json = serde_json::to_string(&rf).unwrap();
+        println!("Serialized response_format: {}", json);
+        
+        // Should contain type and json_schema fields
+        assert!(json.contains("\"type\":\"json_schema\""));
+        assert!(json.contains("\"json_schema\""));
     }
 }

@@ -89,6 +89,7 @@ mod tests {
             top_k: None,
             reasoning: None,
             stream: None,
+            response_format: None,
         };
 
         Request::try_from(context).unwrap()

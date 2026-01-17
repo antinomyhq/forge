@@ -1594,6 +1594,7 @@ mod tests {
             max_tokens: None,
             reasoning: None,
             stream: None,
+            response_format: None,
         };
 
         let actual = ConverseStreamInput::from_domain(fixture).unwrap();
@@ -1622,6 +1623,7 @@ mod tests {
             max_tokens: None,
             reasoning: None,
             stream: None,
+            response_format: None,
         };
 
         let actual = ConverseStreamInput::from_domain(fixture).unwrap();
@@ -1651,6 +1653,7 @@ mod tests {
                 enabled: Some(true),
             }),
             stream: None,
+            response_format: None,
         };
 
         let actual = ConverseStreamInput::from_domain(fixture).unwrap();
@@ -1683,6 +1686,7 @@ mod tests {
                 enabled: Some(true),
             }),
             stream: None,
+            response_format: None,
         };
 
         let actual = ConverseStreamInput::from_domain(fixture).unwrap();

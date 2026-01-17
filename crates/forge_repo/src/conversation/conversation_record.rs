@@ -767,6 +767,7 @@ impl TryFrom<ContextRecord> for Context {
             top_k: record.top_k.map(forge_domain::TopK::new_unchecked),
             reasoning: record.reasoning.map(Into::into),
             stream: record.stream,
+            response_format: None,
         })
     }
 }

@@ -3,7 +3,8 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use forge_domain::*;
-use forge_template::Element;
+use schemars::JsonSchema;
+use serde::Deserialize;
 
 use crate::{
     AgentProviderResolver, AgentRegistry, AppConfigService, EnvironmentService,
@@ -42,6 +43,15 @@ struct CommitMessageDetails {
     message: String,
     /// Whether there are staged files
     has_staged_files: bool,
+}
+
+/// Structured response for commit message generation using JSON format
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+#[schemars(title = "commit_message")]
+pub struct CommitMessageResponse {
+    /// The commit message in conventional commit format
+    pub commit_message: String,
 }
 
 /// Context for generating a commit message from a diff
@@ -287,36 +297,42 @@ where
             agent_provider_resolver.get_model(agent_id)
         )?;
         let provider = self.services.refresh_provider_credential(provider).await?;
-        // Build git diff content with optional truncation notice
-        // Build user message using Element
-        let mut user_message = Element::new("user_message")
-            .append(Element::new("branch_name").text(&ctx.branch_name))
-            .append(Element::new("recent_commit_messages").text(&ctx.recent_commits))
-            .append(Element::new("git_diff").cdata(&ctx.diff_content));
 
-        // Add additional context if provided
-        if let Some(additional_context) = &ctx.additional_context {
-            user_message =
-                user_message.append(Element::new("additional_context").text(additional_context));
-        }
+        // Build user message using structured JSON format
+        let user_data = serde_json::json!({
+            "branch_name": ctx.branch_name,
+            "recent_commit_messages": ctx.recent_commits,
+            "git_diff": ctx.diff_content,
+            "additional_context": ctx.additional_context
+        });
+
+        // Generate JSON schema from CommitMessageResponse using schemars
+        let schema = schemars::schema_for!(CommitMessageResponse);
 
         let context = forge_domain::Context::default()
             .add_message(ContextMessage::system(rendered_prompt))
             .add_message(ContextMessage::user(
-                user_message.to_string(),
+                serde_json::to_string(&user_data)?,
                 Some(model.clone()),
-            ));
+            ))
+            .response_format(ResponseFormat::JsonSchema(schema));
 
         // Send message to LLM
         let stream = self.services.chat(&model, context, provider).await?;
         let message = stream.into_full(false).await?;
 
-        // Extract the command from the <shell_command> tag
-        let commit_message = forge_domain::extract_tag_content(&message.content, "commit_message")
-            .ok_or_else(|| anyhow::anyhow!("Failed to generate commit message"))?;
+        // Parse the response - try JSON first (structured output), fallback to plain text
+        let commit_message = match serde_json::from_str::<CommitMessageResponse>(&message.content)
+        {
+            Ok(response) => response.commit_message,
+            Err(_) => {
+                // Fallback: Some providers don't support structured output, treat as plain text
+                message.content.trim().to_string()
+            }
+        };
 
         Ok(CommitMessageDetails {
-            message: commit_message.to_string(),
+            message: commit_message,
             has_staged_files: ctx.has_staged_files,
         })
     }
