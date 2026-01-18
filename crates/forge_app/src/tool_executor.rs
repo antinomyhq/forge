@@ -233,8 +233,8 @@ impl<
                     .patch(
                         normalized_path,
                         input.old_string.clone(),
-                        input.operation.clone(),
                         input.new_string.clone(),
+                        input.replace_all,
                     )
                     .await?;
                 (input, output).into()

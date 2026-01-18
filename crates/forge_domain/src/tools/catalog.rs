@@ -341,22 +341,16 @@ pub struct FSPatch {
 
     /// The text to replace
     #[serde(alias = "search")]
-    pub old_string: Option<String>,
-
-    /// The operation to perform on the matched text. Possible options are: -
-    /// 'prepend': Add content before the matched text - 'append': Add content
-    /// after the matched text - 'replace': Use only for specific, targeted
-    /// replacements where you need to modify just the first match. -
-    /// 'replace_all': Should be used for renaming variables, functions, types,
-    /// or any widespread replacements across the file. This is the recommended
-    /// choice for consistent refactoring operations as it ensures all
-    /// occurrences are updated. - 'swap': Replace the matched text with another
-    /// text (search for the second text and swap them)
-    pub operation: PatchOperation,
+    pub old_string: String,
 
     /// The text to replace it with (must be different from old_string)
     #[serde(alias = "content")]
     pub new_string: String,
+
+    /// Replace all occurrences of old_string (default false)
+    #[serde(default)]
+    #[schemars(default)]
+    pub replace_all: bool,
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
@@ -751,14 +745,14 @@ impl ToolCatalog {
     pub fn tool_call_patch(
         path: &str,
         content: &str,
-        operation: PatchOperation,
-        search: Option<&str>,
+        search: &str,
+        replace_all: bool,
     ) -> ToolCallFull {
         ToolCallFull::from(ToolCatalog::Patch(FSPatch {
             file_path: path.to_string(),
-            old_string: search.map(|s| s.to_string()),
-            operation,
+            old_string: search.to_string(),
             new_string: content.to_string(),
+            replace_all,
         }))
     }
 
@@ -1311,7 +1305,7 @@ mod tests {
         );
 
         if let Ok(ToolCatalog::Patch(fs_patch)) = actual {
-            assert_eq!(fs_patch.old_string, Some("old text".to_string()));
+            assert_eq!(fs_patch.old_string, "old text");
         } else {
             panic!("Expected FSPatch variant");
         }
@@ -1366,7 +1360,7 @@ mod tests {
 
         if let Ok(ToolCatalog::Patch(fs_patch)) = actual {
             assert_eq!(fs_patch.file_path, "/test/file.rs");
-            assert_eq!(fs_patch.old_string, Some("old text".to_string()));
+            assert_eq!(fs_patch.old_string, "old text");
             assert_eq!(fs_patch.new_string, "new content");
         } else {
             panic!("Expected FSPatch variant");
@@ -1392,8 +1386,35 @@ mod tests {
 
         if let Ok(ToolCatalog::Patch(fs_patch)) = actual {
             assert_eq!(fs_patch.file_path, "/test/file.rs");
-            assert_eq!(fs_patch.old_string, Some("old text".to_string()));
+            assert_eq!(fs_patch.old_string, "old text");
             assert_eq!(fs_patch.new_string, "new content");
+        } else {
+            panic!("Expected FSPatch variant");
+        }
+    }
+
+    #[test]
+    fn test_fs_patch_with_replace_all() {
+        use crate::{ToolCallArguments, ToolCallFull};
+
+        // Test replace_all parameter
+        let tool_call = ToolCallFull {
+            name: ToolName::new("patch"),
+            call_id: None,
+            arguments: ToolCallArguments::from_json(
+                r#"{"file_path": "/test/file.rs", "new_string": "new", "old_string": "old", "replace_all": true}"#,
+            ),
+        };
+
+        let actual = ToolCatalog::try_from(tool_call);
+
+        assert!(
+            actual.is_ok(),
+            "Should successfully parse replace_all parameter"
+        );
+
+        if let Ok(ToolCatalog::Patch(fs_patch)) = actual {
+            assert_eq!(fs_patch.replace_all, true);
         } else {
             panic!("Expected FSPatch variant");
         }

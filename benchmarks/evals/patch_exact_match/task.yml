@@ -184,7 +184,7 @@ run:
        Trade-offs: More flexible and extensible architecture, but adds abstraction layers and complexity. The current approach of checking tool type is simpler for the immediate use case.
     EOF
   - |  
-      FORGE_OVERRIDE_PROVIDER=zai_coding FORGE_OVERRIDE_MODEL={{model}} FORGE_DEBUG_REQUESTS='{{dir}}/context.json' forgee -p '{{task}}'
+      FORGE_OVERRIDE_PROVIDER=open_router FORGE_OVERRIDE_MODEL={{model}} FORGE_DEBUG_REQUESTS='{{dir}}/context.json' forgee -p '{{task}}'
 parallelism: 2
 timeout: 180
 early_exit: true
@@ -192,6 +192,10 @@ validations:
   - name: "Should use patch tool"
     type: shell
     command: "jq -e '[.messages[]?.tool_calls[]? | select(.function.name == \"patch\")] | length > 0' {{dir}}/context.json"
+    
+  - name: "Should NOT have patch failures due to missing operation field"
+    type: shell
+    command: "! jq -e '[.messages[]? | select(.role == \"tool\" and .name == \"patch\" and (.content | contains(\"missing field\") and contains(\"operation\")))] | length > 0' {{dir}}/context.json"
     
   - name: "Should NOT have patch failures due to text mismatch"
     type: shell
@@ -206,5 +210,8 @@ validations:
 
 sources:
   - value:
-      - model: "glm-4.7"
+      - model: "anthropic/claude-sonnet-4.5"
+      - model: "z-ai/glm-4.6:exacto"
+      - model: "minimax/minimax-m2.1"
+
   - csv: patch_exact_match_tasks.csv

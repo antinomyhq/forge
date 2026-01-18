@@ -49,7 +49,7 @@ mod tests {
 
     use console::strip_ansi_codes;
     use forge_display::DiffFormat;
-    use forge_domain::{ChatResponseContent, Environment, PatchOperation};
+    use forge_domain::{ChatResponseContent, Environment};
     use insta::assert_snapshot;
     use pretty_assertions::assert_eq;
 
@@ -306,9 +306,9 @@ mod tests {
         let fixture = ToolOperation::FsPatch {
             input: forge_domain::FSPatch {
                 file_path: "/home/user/project/test.txt".to_string(),
-                old_string: Some("Hello world".to_string()),
+                old_string: "Hello world".to_string(),
                 new_string: "Hello universe".to_string(),
-                operation: PatchOperation::Replace,
+                replace_all: false,
             },
             output: PatchOutput {
                 errors: vec![],
@@ -329,9 +329,9 @@ mod tests {
         let fixture = ToolOperation::FsPatch {
             input: forge_domain::FSPatch {
                 file_path: "/home/user/project/large_file.txt".to_string(),
-                old_string: Some("line2".to_string()),
+                old_string: "line2".to_string(),
                 new_string: "new line\nline2".to_string(),
-                operation: PatchOperation::Replace,
+                replace_all: false,
             },
             output: PatchOutput {
                 errors: vec![forge_domain::SyntaxError {
