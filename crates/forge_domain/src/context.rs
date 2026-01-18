@@ -22,6 +22,17 @@ use crate::{
     ToolChoice, ToolDefinition, ToolOutput, ToolValue, Usage,
 };
 
+/// Response format for structured output
+#[derive(Clone, Debug, Default, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum ResponseFormat {
+    /// Plain text response
+    #[default]
+    Text,
+    /// JSON response with schema
+    JsonSchema(schemars::schema::RootSchema),
+}
+
 /// Represents a message being sent to the LLM provider
 /// NOTE: ToolResults message are part of the larger Request object and not part
 /// of the message.
@@ -390,6 +401,9 @@ pub struct Context {
     /// specified.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stream: Option<bool>,
+    /// Response format for structured output (JSON schema)
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub response_format: Option<ResponseFormat>,
 }
 
 impl Context {
