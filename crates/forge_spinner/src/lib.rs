@@ -200,7 +200,8 @@ impl<P: ConsoleWriter> SpinnerManager<P> {
 impl<P: ConsoleWriter> Drop for SpinnerManager<P> {
     fn drop(&mut self) {
         // Stop spinner before flushing to ensure finish_and_clear() is called
-        // This prevents the spinner from leaving the cursor at column 0 without a newline
+        // This prevents the spinner from leaving the cursor at column 0 without a
+        // newline
         let _ = self.stop(None);
         // Flush both stdout and stderr to ensure all output is visible
         // This prevents race conditions with shell prompt resets
