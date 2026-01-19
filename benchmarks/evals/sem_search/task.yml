@@ -1,7 +1,7 @@
 run:
   # Clone into `tmp/task` dir
   - git clone --depth=1 --branch main https://github.com/antinomyhq/forge .
-  - /Users/ranjit/Desktop/workspace/forge/target/debug/forge workspace sync
+  - forgee workspace sync
   - FORGE_OVERRIDE_PROVIDER=open_router FORGE_OVERRIDE_MODEL={{model}} FORGE_DEBUG_REQUESTS='{{dir}}/context.json' forgee -p '{{task}}'
 parallelism: 50
 timeout: 120
