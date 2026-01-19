@@ -40,7 +40,8 @@ impl<'a, F: FsReadService> CodebaseSearchAugmenter<'a, F> {
         result.join("\n")
     }
 
-    /// Reads a file snippet for a given tag and returns it as a formatted code block.
+    /// Reads a file snippet for a given tag and returns it as a formatted code
+    /// block.
     async fn read_file_snippet(&self, tag: &forge_domain::FileTag) -> Option<String> {
         let file_path = PathBuf::from(&tag.path);
         let (start_line, end_line) = match &tag.loc {
@@ -48,7 +49,8 @@ impl<'a, F: FsReadService> CodebaseSearchAugmenter<'a, F> {
             None => (None, None),
         };
 
-        // Normalize the path by joining with cwd if needed, then canonicalize to get absolute path
+        // Normalize the path by joining with cwd if needed, then canonicalize to get
+        // absolute path
         let normalized_path = if file_path.is_absolute() {
             file_path
         } else {
@@ -72,7 +74,7 @@ impl<'a, F: FsReadService> CodebaseSearchAugmenter<'a, F> {
             return None;
         }
 
-        let lang = tag.path.split('.').last().unwrap_or("text");
+        let lang = tag.path.split('.').next_back().unwrap_or("text");
         let content = read_output.content.file_content();
         Some(format!("```{lang}\n{content}\n```"))
     }
@@ -80,10 +82,12 @@ impl<'a, F: FsReadService> CodebaseSearchAugmenter<'a, F> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
+    use pretty_assertions::assert_eq;
+
     use super::*;
     use crate::services::{Content, ReadOutput};
-    use pretty_assertions::assert_eq;
-    use std::collections::HashMap;
 
     /// Mock FsReadService for testing
     struct MockFsReadService {

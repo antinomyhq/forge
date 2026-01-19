@@ -123,7 +123,8 @@ impl FileTag {
         let parse_u64 = || map_res(digit1, str::parse::<u64>);
         let parse_symbol = preceded(char('#'), take_while1(|c: char| c != ']'));
 
-        // Support both colon (:) and hyphen (-) as separators between start and end line
+        // Support both colon (:) and hyphen (-) as separators between start and end
+        // line
         let parse_location_full = (
             preceded(char(':'), parse_u64()),
             preceded(one_of(":-"), parse_u64()),
@@ -267,7 +268,8 @@ mod tests {
 
     #[test]
     fn test_attachment_parse_with_location_hyphen_separator() {
-        // Support hyphen as separator between start and end line (common LLM output format)
+        // Support hyphen as separator between start and end line (common LLM output
+        // format)
         let text = String::from("Check line @[/path/to/file.txt:10-20]");
         let paths = Attachment::parse_all(text);
         assert_eq!(paths.len(), 1);
