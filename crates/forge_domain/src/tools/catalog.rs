@@ -652,9 +652,7 @@ impl ToolCatalog {
             ToolCatalog::Write(_) => r#gen.into_root_schema_for::<FSWrite>(),
             ToolCatalog::Plan(_) => r#gen.into_root_schema_for::<PlanCreate>(),
             ToolCatalog::Skill(_) => r#gen.into_root_schema_for::<SkillFetch>(),
-            ToolCatalog::SearchReport(_) => {
-                r#gen.into_root_schema_for::<SearchReport>()
-            }
+            ToolCatalog::SearchReport(_) => r#gen.into_root_schema_for::<SearchReport>(),
         }
     }
 

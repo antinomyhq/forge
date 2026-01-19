@@ -5,7 +5,7 @@ use anyhow::anyhow;
 use forge_domain::{CodebaseQueryResult, ToolCallContext, ToolCatalog, ToolOutput};
 
 use crate::fmt::content::FormatContent;
-use crate::operation::{SearchReportOutput, ReadChunk, TempContentFiles, ToolOperation};
+use crate::operation::{ReadChunk, SearchReportOutput, TempContentFiles, ToolOperation};
 use crate::services::ShellService;
 use crate::{
     AgentRegistry, ConversationService, EnvironmentService, FollowUpService, FsPatchService,
@@ -263,9 +263,7 @@ impl<
                     .flatten()
                     .collect();
 
-                ToolOperation::SearchReport {
-                    output: SearchReportOutput { chunks },
-                }
+                ToolOperation::SearchReport { output: SearchReportOutput { chunks } }
             }
             ToolCatalog::Remove(input) => {
                 let normalized_path = self.normalize_path(input.path.clone());
