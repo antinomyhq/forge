@@ -79,13 +79,11 @@ impl FormatContent for ToolCatalog {
                         .into(),
                 )
             }
-            ToolCatalog::CodebaseSearchResult(input) => {
-                Some(
-                    TitleFormat::debug("Codebase Search Result")
-                        .sub_title(format!("{} chunks", input.chunks.len()))
-                        .into(),
-                )
-            }
+            ToolCatalog::CodebaseSearchResult(input) => Some(
+                TitleFormat::debug("Codebase Search Result")
+                    .sub_title(format!("{} chunks", input.chunks.len()))
+                    .into(),
+            ),
             ToolCatalog::Remove(input) => {
                 let display_path = display_path_for(&input.path);
                 Some(TitleFormat::debug("Remove").sub_title(display_path).into())

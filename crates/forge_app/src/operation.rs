@@ -466,7 +466,7 @@ impl ToolOperation {
                         .attr("end", chunk.end_line)
                         .attr("reason", &chunk.reason)
                         .attr("relevance", &chunk.relevance)
-                        .cdata(&chunk.content.to_numbered_from(chunk.start_line as usize));
+                        .cdata(chunk.content.to_numbered_from(chunk.start_line as usize));
                     root = root.append(element);
                 }
                 forge_domain::ToolOutput::text(root)

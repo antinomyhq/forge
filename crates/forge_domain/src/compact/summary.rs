@@ -328,9 +328,7 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
                 file_extensions: input.extensions,
             }),
             ToolCatalog::CodebaseSearchResult(input) => {
-                Some(SummaryTool::CodebaseSearchResult {
-                    chunks_count: input.chunks.len(),
-                })
+                Some(SummaryTool::CodebaseSearchResult { chunks_count: input.chunks.len() })
             }
             ToolCatalog::Undo(input) => Some(SummaryTool::Undo { path: input.path }),
             ToolCatalog::Fetch(input) => Some(SummaryTool::Fetch { url: input.url }),
