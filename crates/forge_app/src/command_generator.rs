@@ -1,11 +1,22 @@
 use std::sync::Arc;
 
 use anyhow::Result;
-use forge_domain::{extract_tag_content, *};
+use forge_domain::*;
+use schemars::JsonSchema;
+use serde::Deserialize;
 
 use crate::{
     AppConfigService, EnvironmentService, FileDiscoveryService, ProviderService, TemplateEngine,
 };
+
+/// Response struct for shell command generation using JSON format
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+#[schemars(title = "shell_command")]
+pub struct ShellCommandResponse {
+    /// The generated shell command
+    pub command: String,
+}
 
 /// CommandGenerator handles shell command generation from natural language
 pub struct CommandGenerator<S> {
@@ -48,15 +59,17 @@ where
         let stream = self.services.chat(&model, ctx, provider).await?;
         let message = stream.into_full(false).await?;
 
-        // Extract the command from the <shell_command> tag
-        let command = extract_tag_content(&message.content, "shell_command").ok_or_else(|| {
-            anyhow::anyhow!(
-                "Failed to generate shell command: Unexpected response: {}",
-                message.content
-            )
-        })?;
+        // Parse the structured JSON response
+        let response: ShellCommandResponse =
+            serde_json::from_str(&message.content).map_err(|e| {
+                anyhow::anyhow!(
+                    "Failed to parse shell command response: {}. Response: {}",
+                    e,
+                    message.content
+                )
+            })?;
 
-        Ok(command.to_string())
+        Ok(response.command)
     }
 
     /// Creates a context with system and user messages for the LLM
@@ -66,9 +79,13 @@ where
         user_content: String,
         model: &ModelId,
     ) -> Context {
+        // Generate JSON schema from the response struct
+        let schema = schemars::schema_for!(ShellCommandResponse);
+
         Context::default()
             .add_message(ContextMessage::system(system_prompt))
             .add_message(ContextMessage::user(user_content, Some(model.clone())))
+            .response_format(ResponseFormat::JsonSchema(schema))
     }
 }
 
@@ -229,7 +246,7 @@ mod tests {
     #[tokio::test]
     async fn test_generate_simple_command() {
         let fixture = MockServices::new(
-            "<shell_command>ls -la</shell_command>",
+            r#"{"command": "ls -la"}"#,
             vec![("file1.txt", false), ("file2.rs", false)],
         );
         let generator = CommandGenerator::new(fixture.clone());
@@ -246,7 +263,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_generate_with_no_files() {
-        let fixture = MockServices::new("<shell_command>pwd</shell_command>", vec![]);
+        let fixture = MockServices::new(r#"{"command": "pwd"}"#, vec![]);
         let generator = CommandGenerator::new(fixture.clone());
 
         let actual = generator
@@ -261,7 +278,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_generate_fails_when_missing_tag() {
-        let fixture = MockServices::new("No command tag here", vec![]);
+        let fixture = MockServices::new(r#"{"invalid": "json"}"#, vec![]);
         let generator = CommandGenerator::new(fixture);
 
         let actual = generator
@@ -269,9 +286,7 @@ mod tests {
             .await;
 
         assert!(actual.is_err());
-        assert_eq!(
-            actual.unwrap_err().to_string(),
-            "Failed to generate shell command: Unexpected response: No command tag here"
-        );
+        let error_msg = actual.unwrap_err().to_string();
+        assert!(error_msg.contains("Failed to parse shell command response"));
     }
 }

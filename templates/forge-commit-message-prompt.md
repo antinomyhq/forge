@@ -34,8 +34,3 @@ Bad (too verbose):
 - `refactor: improve the authentication system by adding new OAuth2 support and updating the login flow`
 - `fix: fix bug` (too vague)
 - `Add new feature` (not lowercase, missing type)
-
-# Output Format
-<commit_message>type(scope): description</commit_message>
-
-Output ONLY a single-line commit message wrapped in <commit_message> tags. No explanations, no bullet points, no multi-line messages.

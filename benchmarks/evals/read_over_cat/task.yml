@@ -1,0 +1,75 @@
+run:
+  - git clone --depth=1 --branch main https://github.com/antinomyhq/forge .
+  - FORGE_OVERRIDE_PROVIDER=open_router FORGE_OVERRIDE_MODEL={{model}} FORGE_DEBUG_REQUESTS='{{dir}}/context.json' forgee -p '{{task}}'
+parallelism: 10
+timeout: 180
+early_exit: true
+
+validations:
+  # Primary: Model should NOT use shell cat command for reading files
+  - name: "No shell cat command usage"
+    type: shell
+    command: |
+      jq -e '
+        [.messages[]?.tool_calls[]? | 
+         select(.function.name == "shell") | 
+         .function.arguments | fromjson | 
+         select(.command | test("\\bcat\\s+"))
+        ] | length == 0
+      ' {{dir}}/context.json
+
+  # Model SHOULD use read tool instead
+  - name: "Uses read tool for file reading"
+    type: shell
+    command: |
+      jq -e '
+        [.messages[]?.tool_calls[]? | 
+         select(.function.name == "read" or 
+                .function.name == "Read" or
+                .function.name == "fs_read")
+        ] | length > 0
+      ' {{dir}}/context.json
+
+  # Detect specific anti-pattern: cat with redirection or pipes
+  - name: "No cat anti-patterns (pipes/redirection)"
+    type: shell
+    command: |
+      jq -e '
+        [.messages[]?.tool_calls[]? | 
+         select(.function.name == "shell") | 
+         .function.arguments | fromjson | 
+         select(.command | test("cat\\s+[^\\s]+\\s*(\\||>)"))
+        ] | length == 0
+      ' {{dir}}/context.json
+
+  # Detect cat with multiple files
+  - name: "No cat for reading multiple files"
+    type: shell
+    command: |
+      jq -e '
+        [.messages[]?.tool_calls[]? | 
+         select(.function.name == "shell") | 
+         .function.arguments | fromjson | 
+         select(.command | test("cat\\s+[^\\s]+\\s+[^\\s]+"))
+        ] | length == 0
+      ' {{dir}}/context.json
+
+sources:
+  - value:
+      - model: "anthropic/claude-sonnet-4.5"
+      - model: "z-ai/glm-4.6:exacto"
+  - value:
+      # File reading tasks - should use Read tool, NOT cat command
+      - task: "Show me the contents of README.md file."
+      - task: "Read the Cargo.toml file and tell me the project version."
+      - task: "What does the main.rs file contain?"
+      - task: "Display the contents of the config file at src/config.rs."
+      - task: "Check what's in the .gitignore file."
+      
+      # Multiple file reading - should use multiple Read tool calls
+      - task: "Compare the contents of Cargo.toml and package.json files."
+      - task: "Read both src/main.rs and src/lib.rs to understand the structure."
+      
+      # File inspection tasks
+      - task: "Show me the first 50 lines of README.md to understand the project."
+      - task: "I need to see the error messages in src/error.rs file."
