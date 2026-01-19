@@ -19,23 +19,23 @@ pub struct ToolExecutor<S> {
 }
 
 impl<
-    S: FsReadService
-        + ImageReadService
-        + FsWriteService
-        + FsSearchService
-        + WorkspaceService
-        + NetFetchService
-        + FsRemoveService
-        + FsPatchService
-        + FsUndoService
-        + ShellService
-        + FollowUpService
-        + ConversationService
-        + EnvironmentService
-        + PlanCreateService
-        + SkillFetchService
-        + AgentRegistry
-        + ProviderService,
+        S: FsReadService
+            + ImageReadService
+            + FsWriteService
+            + FsSearchService
+            + WorkspaceService
+            + NetFetchService
+            + FsRemoveService
+            + FsPatchService
+            + FsUndoService
+            + ShellService
+            + FollowUpService
+            + ConversationService
+            + EnvironmentService
+            + PlanCreateService
+            + SkillFetchService
+            + AgentRegistry
+            + ProviderService,
 > ToolExecutor<S>
 {
     pub fn new(services: Arc<S>) -> Self {
@@ -222,28 +222,47 @@ impl<
                 ToolOperation::CodebaseSearch { output }
             }
             ToolCatalog::CodebaseSearchResult(input) => {
-                let mut chunks = Vec::new();
-                for chunk in input.chunks {
-                    let normalized_path =
-                        self.normalize_path(chunk.file.file_path.display().to_string());
-                    let start_line = chunk.file.start.map(|s| s as u64);
-                    let end_line = chunk.file.end.map(|e| e as u64);
+                // Read all chunks in parallel using futures
+                let read_futures: Vec<_> = input
+                    .chunks
+                    .into_iter()
+                    .map(|chunk| {
+                        let normalized_path =
+                            self.normalize_path(chunk.file.file_path.display().to_string());
+                        let start_line = chunk.file.start.map(|s| s as u64);
+                        let end_line = chunk.file.end.map(|e| e as u64);
+                        let reason = chunk.reason;
+                        let relevance = chunk.relevance.as_str().to_string();
+                        let services = self.services.clone();
 
-                    let read_output = self
-                        .services
-                        .read(normalized_path.clone(), start_line, end_line)
-                        .await?;
+                        async move {
+                            let read_output = match services
+                                .read(normalized_path.clone(), start_line, end_line)
+                                .await
+                            {
+                                Ok(output) => output,
+                                Err(_) => return Ok::<Option<ReadChunk>, anyhow::Error>(None), // Skip this chunk on error
+                            };
 
-                    let content = read_output.content.file_content().to_string();
-                    chunks.push(ReadChunk {
-                        file_path: normalized_path,
-                        content,
-                        start_line: read_output.start_line,
-                        end_line: read_output.end_line,
-                        reason: chunk.reason,
-                        relevance: chunk.relevance.as_str().to_string(),
-                    });
-                }
+                            let content = read_output.content.file_content().to_string();
+                            Ok(Some(ReadChunk {
+                                file_path: normalized_path,
+                                content,
+                                start_line: read_output.start_line,
+                                end_line: read_output.end_line,
+                                reason,
+                                relevance,
+                            }))
+                        }
+                    })
+                    .collect();
+
+                let chunks = futures::future::try_join_all(read_futures)
+                    .await?
+                    .into_iter()
+                    .filter_map(|chunk| chunk)
+                    .collect();
+
                 ToolOperation::CodebaseSearchResult {
                     output: CodebaseSearchResultOutput { chunks },
                 }
