@@ -48,6 +48,12 @@ impl ToolName {
     pub fn into_sanitized(self) -> Self {
         ToolName::sanitized(self.0.as_str())
     }
+
+    /// Checks if this tool's results should be returned to the calling agent.
+    pub fn should_return_to_caller(&self) -> bool {
+        crate::ToolKind::from_name(self)
+            .is_some_and(|kind| kind.should_return_to_caller())
+    }
 }
 
 impl From<String> for ToolName {

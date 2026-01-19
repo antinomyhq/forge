@@ -5,7 +5,6 @@ mod app;
 mod apply_tunable_parameters;
 mod authenticator;
 mod changed_files;
-mod codebase_search_augmenter;
 mod command_generator;
 mod compact;
 mod data_gen;

@@ -199,6 +199,9 @@ pub enum SummaryTool {
         queries: Vec<SearchQuery>,
         file_extensions: Vec<String>,
     },
+    CodebaseSearchResult {
+        chunks_count: usize,
+    },
     Undo {
         path: String,
     },
@@ -324,6 +327,11 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
                 queries: input.queries,
                 file_extensions: input.extensions,
             }),
+            ToolCatalog::CodebaseSearchResult(input) => {
+                Some(SummaryTool::CodebaseSearchResult {
+                    chunks_count: input.chunks.len(),
+                })
+            }
             ToolCatalog::Undo(input) => Some(SummaryTool::Undo { path: input.path }),
             ToolCatalog::Fetch(input) => Some(SummaryTool::Fetch { url: input.url }),
             ToolCatalog::Followup(input) => {

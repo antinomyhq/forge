@@ -9,9 +9,8 @@ use forge_template::Element;
 use futures::StreamExt;
 use tokio::sync::RwLock;
 
-use crate::codebase_search_augmenter::CodebaseSearchAugmenter;
 use crate::error::Error;
-use crate::{AgentRegistry, ConversationService, EnvironmentService, Services};
+use crate::{AgentRegistry, ConversationService, Services};
 
 #[derive(Clone)]
 pub struct AgentExecutor<S> {
@@ -69,6 +68,7 @@ impl<S: Services> AgentExecutor<S> {
 
         // Collect responses from the agent
         let mut output = None;
+        let mut last_tool_result: Option<forge_domain::ToolResult> = None;
         while let Some(message) = response_stream.next().await {
             let message = message?;
             match message {
@@ -80,30 +80,26 @@ impl<S: Services> AgentExecutor<S> {
                 ChatResponse::TaskReasoning { .. } => {}
                 ChatResponse::TaskComplete => {}
                 ChatResponse::ToolCallStart(_) => ctx.send(message).await?,
-                ChatResponse::ToolCallEnd(_) => ctx.send(message).await?,
+                ChatResponse::ToolCallEnd(ref result) => {
+                    if result.should_return_back() {
+                        last_tool_result = Some(result.clone());
+                    }
+                    ctx.send(message).await?;
+                }
                 ChatResponse::RetryAttempt { .. } => ctx.send(message).await?,
                 ChatResponse::Interrupt { .. } => ctx.send(message).await?,
             }
         }
 
-        if let Some(output) = output {
-            // Augment codebase_search output with code snippets
-            let augmented_output = if agent_id.is_codebase_search() {
-                let augmenter = CodebaseSearchAugmenter::new(
-                    self.services.fs_read_service(),
-                    self.services.get_environment().cwd.clone(),
-                );
-                augmenter.augment(output).await
-            } else {
-                output
-            };
-
-            // Create tool output
+        // Prefer the last tool result output, fall back to text output
+        if let Some(result) = last_tool_result {
+            Ok(result.output)
+        } else if let Some(output) = output {
             Ok(ToolOutput::ai(
                 conversation.id,
                 Element::new("task_completed")
                     .attr("task", &task)
-                    .append(Element::new("output").text(augmented_output)),
+                    .append(Element::new("output").text(output)),
             ))
         } else {
             Err(Error::EmptyToolResponse.into())

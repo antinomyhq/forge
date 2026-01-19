@@ -5,7 +5,7 @@ use anyhow::anyhow;
 use forge_domain::{CodebaseQueryResult, ToolCallContext, ToolCatalog, ToolOutput};
 
 use crate::fmt::content::FormatContent;
-use crate::operation::{TempContentFiles, ToolOperation};
+use crate::operation::{CodebaseSearchResultOutput, ReadChunk, TempContentFiles, ToolOperation};
 use crate::services::ShellService;
 use crate::{
     AgentRegistry, ConversationService, EnvironmentService, FollowUpService, FsPatchService,
@@ -220,6 +220,33 @@ impl<
 
                 let output = forge_domain::CodebaseSearchResults { queries: output };
                 ToolOperation::CodebaseSearch { output }
+            }
+            ToolCatalog::CodebaseSearchResult(input) => {
+                let mut chunks = Vec::new();
+                for chunk in input.chunks {
+                    let normalized_path =
+                        self.normalize_path(chunk.file.file_path.display().to_string());
+                    let start_line = chunk.file.start.map(|s| s as u64);
+                    let end_line = chunk.file.end.map(|e| e as u64);
+
+                    let read_output = self
+                        .services
+                        .read(normalized_path.clone(), start_line, end_line)
+                        .await?;
+
+                    let content = read_output.content.file_content().to_string();
+                    chunks.push(ReadChunk {
+                        file_path: normalized_path,
+                        content,
+                        start_line: read_output.start_line,
+                        end_line: read_output.end_line,
+                        reason: chunk.reason,
+                        relevance: chunk.relevance.as_str().to_string(),
+                    });
+                }
+                ToolOperation::CodebaseSearchResult {
+                    output: CodebaseSearchResultOutput { chunks },
+                }
             }
             ToolCatalog::Remove(input) => {
                 let normalized_path = self.normalize_path(input.path.clone());

@@ -25,6 +25,11 @@ impl ToolResult {
         }
     }
 
+    /// Checks if this tool result should be returned back to the caller agent.
+    pub fn should_return_back(&self) -> bool {
+        self.name.should_return_to_caller()
+    }
+
     pub fn success(mut self, content: impl Into<String>) -> Self {
         self.output = ToolOutput::text(content.into());
 

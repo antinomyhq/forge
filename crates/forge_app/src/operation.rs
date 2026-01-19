@@ -21,6 +21,29 @@ use crate::{
     ReadOutput, ResponseContext, SearchResult, ShellOutput,
 };
 
+/// A file chunk with its content read from disk
+#[derive(Debug, Clone)]
+pub struct ReadChunk {
+    /// File path
+    pub file_path: String,
+    /// Code content
+    pub content: String,
+    /// Start line in the file
+    pub start_line: u64,
+    /// End line in the file
+    pub end_line: u64,
+    /// Reason for selecting this chunk
+    pub reason: String,
+    /// Relevance score of the chunk
+    pub relevance: String,
+}
+
+/// Output for CodebaseSearchResult containing read file chunks
+#[derive(Debug, Default)]
+pub struct CodebaseSearchResultOutput {
+    pub chunks: Vec<ReadChunk>,
+}
+
 #[derive(Debug, Default, Setters)]
 #[setters(into, strip_option)]
 pub struct TempContentFiles {
@@ -48,6 +71,9 @@ pub enum ToolOperation {
     },
     CodebaseSearch {
         output: CodebaseSearchResults,
+    },
+    CodebaseSearchResult {
+        output: CodebaseSearchResultOutput,
     },
     FsPatch {
         input: FSPatch,
@@ -428,6 +454,21 @@ impl ToolOperation {
                     }
                 }
 
+                forge_domain::ToolOutput::text(root)
+            }
+            ToolOperation::CodebaseSearchResult { output } => {
+                let mut root =
+                    Element::new("codebase_search_results").attr("results", output.chunks.len());
+                for chunk in output.chunks {
+                    let element = Element::new("chunk")
+                        .attr("file_path", &chunk.file_path)
+                        .attr("start", chunk.start_line)
+                        .attr("end", chunk.end_line)
+                        .attr("reason", &chunk.reason)
+                        .attr("relevance", &chunk.relevance)
+                        .cdata(&chunk.content.to_numbered_from(chunk.start_line as usize));
+                    root = root.append(element);
+                }
                 forge_domain::ToolOutput::text(root)
             }
             ToolOperation::FsPatch { input, output } => {
