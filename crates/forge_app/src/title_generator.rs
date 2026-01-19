@@ -3,11 +3,22 @@ use std::sync::Arc;
 use derive_setters::Setters;
 use forge_domain::{
     ChatCompletionMessageFull, Context, ContextMessage, ConversationId, ModelId, ProviderId,
-    ReasoningConfig, ResultStreamExt, UserPrompt, extract_tag_content,
+    ReasoningConfig, ResponseFormat, ResultStreamExt, UserPrompt,
 };
+use schemars::JsonSchema;
+use serde::Deserialize;
 
 use crate::TemplateEngine;
 use crate::agent::AgentService as AS;
+
+/// Structured response for title generation using JSON format
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+#[schemars(title = "title")]
+pub struct TitleResponse {
+    /// The generated title for the conversation
+    pub title: String,
+}
 
 /// Service for generating contextually appropriate titles
 #[derive(Setters)]
@@ -47,11 +58,16 @@ impl<S: AS> TitleGenerator<S> {
         )?;
 
         let prompt = format!("<user_prompt>{}</user_prompt>", self.user_prompt.as_str());
+        
+        // Generate JSON schema from TitleResponse using schemars
+        let schema = schemars::schema_for!(TitleResponse);
+
         let mut ctx = Context::default()
             .temperature(1.0f32)
             .conversation_id(ConversationId::generate())
             .add_message(ContextMessage::system(template))
-            .add_message(ContextMessage::user(prompt, Some(self.model_id.clone())));
+            .add_message(ContextMessage::user(prompt, Some(self.model_id.clone())))
+            .response_format(ResponseFormat::JsonSchema(schema));
 
         // Set the reasoning if configured.
         if let Some(reasoning) = self.reasoning.as_ref() {
@@ -63,9 +79,14 @@ impl<S: AS> TitleGenerator<S> {
             .chat_agent(&self.model_id, ctx, self.provider_id.clone())
             .await?;
         let ChatCompletionMessageFull { content, .. } = stream.into_full(false).await?;
-        if let Some(extracted) = extract_tag_content(&content, "title") {
-            return Ok(Some(extracted.to_string()));
+
+        // Parse the response - try JSON first (structured output), fallback to plain text
+        match serde_json::from_str::<TitleResponse>(&content) {
+            Ok(response) => Ok(Some(response.title)),
+            Err(_) => {
+                // Fallback: Some providers don't support structured output, treat as plain text
+                Ok(Some(content.trim().to_string()))
+            }
         }
-        Ok(None)
     }
 }
