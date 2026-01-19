@@ -116,16 +116,17 @@ pub struct FileTag {
 impl FileTag {
     pub fn parse(input: &str) -> nom::IResult<&str, FileTag> {
         use nom::bytes::complete::take_while1;
-        use nom::character::complete::{char, digit1};
+        use nom::character::complete::{char, digit1, one_of};
         use nom::combinator::{map_res, opt};
         use nom::sequence::{delimited, preceded};
 
         let parse_u64 = || map_res(digit1, str::parse::<u64>);
         let parse_symbol = preceded(char('#'), take_while1(|c: char| c != ']'));
 
+        // Support both colon (:) and hyphen (-) as separators between start and end line
         let parse_location_full = (
             preceded(char(':'), parse_u64()),
-            preceded(char(':'), parse_u64()),
+            preceded(one_of(":-"), parse_u64()),
         );
         let parse_location_start_only = preceded(char(':'), parse_u64());
 
@@ -252,6 +253,22 @@ mod tests {
     #[test]
     fn test_attachment_parse_with_location() {
         let text = String::from("Check line @[/path/to/file.txt:10:20]");
+        let paths = Attachment::parse_all(text);
+        assert_eq!(paths.len(), 1);
+
+        let expected = FileTag {
+            path: "/path/to/file.txt".to_string(),
+            loc: Some(Location { start: Some(10), end: Some(20) }),
+            symbol: None,
+        };
+        let actual = paths.first().unwrap();
+        assert_eq!(actual, &expected);
+    }
+
+    #[test]
+    fn test_attachment_parse_with_location_hyphen_separator() {
+        // Support hyphen as separator between start and end line (common LLM output format)
+        let text = String::from("Check line @[/path/to/file.txt:10-20]");
         let paths = Attachment::parse_all(text);
         assert_eq!(paths.len(), 1);
 

@@ -4,7 +4,7 @@ title: "Codebase search"
 description: |-
   AI-powered semantic code search. YOUR DEFAULT TOOL for code discovery tasks. Use this when you need to find code locations, understand implementations, or explore functionality - it works with natural language about behavior and concepts, not just keyword matching.
   Start with codebase_search when: locating code to modify, understanding how features work, finding patterns/examples, or exploring unfamiliar areas. Understands queries like 'authentication flow' (finds login), 'retry logic' (finds backoff), 'validation' (finds checking/sanitization).
-  Returns the topK most relevant file:line locations with code context. Use multiple varied queries (2-3) for best coverage. For exact string matching (TODO comments, specific function names), use {{tool_names.fs_search}} instead.
+  Returns the topK most relevant file:line locations. Code snippets are automatically included inline for each location. Use multiple varied queries for best coverage. For exact string matching (TODO comments, specific function names), use {{tool_names.fs_search}} instead.
   QUERY QUALITY MATTERS: Provide detailed, structured queries for better results. Specify WHAT you're looking for, WHY you need it, and enumerate the specific aspects you need to find. Good: 'Find the authentication system. I need to see: 1. How credentials are validated 2. Token refresh logic 3. Where auth headers are applied to requests 4. Error handling for invalid credentials'. Bad: 'authentication' (too vague). Bad: 'Find where X is used. Look for Y.' (missing numbered list).
 reasoning:
   enabled: true
@@ -50,18 +50,18 @@ For best results, use multiple query approaches:
 
 ## Response Format:
 
-**CRITICAL**: Keep responses concise and focused. Return ONLY a list of relevant code locations.
+**CRITICAL**: Keep responses concise and focused. Return ONLY a list of relevant code locations using the attachment tag format.
 
 Format each result as:
 ```
-filepath:startLine-endLine - Brief one-line description
+@[filepath:startLine:endLine] - Brief one-line description
 ```
 
 Example response:
 ```
-src/auth/login.rs:45-67 - JWT token validation and refresh logic
-src/middleware/auth.rs:12-30 - Authentication middleware entry point
-src/models/user.rs:89 - User session struct definition
+@[src/auth/login.rs:45:67] - JWT token validation and refresh logic
+@[src/middleware/auth.rs:12:30] - Authentication middleware entry point
+@[src/models/user.rs:89] - User session struct definition
 ```
 
 **Do NOT include**:
@@ -73,12 +73,13 @@ src/models/user.rs:89 - User session struct definition
 **Do include**:
 - 3-10 most relevant file:line locations
 - One-line description per location
+- Use attachment tag format: `@[filepath:startLine:endLine]`
 - Locations ordered by relevance
 
 ## Best Practices:
 
 - **Prefer sem_search**: Use semantic search first - it's usually sufficient for most queries
 - **Minimize tool calls**: Don't use `search` or `read` if `sem_search` already found good results
-- Always use exact format: `filepath:startLine-endLine` or `filepath:startLine`
+- Always use attachment tag format: `@[filepath:startLine:endLine]` or `@[filepath:startLine]`
 - Keep descriptions to one short sentence
 - If query is ambiguous, search multiple interpretations but keep output concise

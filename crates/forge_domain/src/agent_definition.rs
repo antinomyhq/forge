@@ -33,6 +33,10 @@ impl AgentId {
         self.0.as_ref()
     }
 
+    pub fn is_codebase_search(&self) -> bool {
+        self.as_str() == "codebase_search"
+    }
+
     pub const FORGE: AgentId = AgentId(Cow::Borrowed("forge"));
     pub const MUSE: AgentId = AgentId(Cow::Borrowed("muse"));
     pub const SAGE: AgentId = AgentId(Cow::Borrowed("sage"));

@@ -9,8 +9,9 @@ use forge_template::Element;
 use futures::StreamExt;
 use tokio::sync::RwLock;
 
+use crate::codebase_search_augmenter::CodebaseSearchAugmenter;
 use crate::error::Error;
-use crate::{AgentRegistry, ConversationService, Services};
+use crate::{AgentRegistry, ConversationService, EnvironmentService, Services};
 
 #[derive(Clone)]
 pub struct AgentExecutor<S> {
@@ -86,12 +87,23 @@ impl<S: Services> AgentExecutor<S> {
         }
 
         if let Some(output) = output {
+            // Augment codebase_search output with code snippets
+            let augmented_output = if agent_id.is_codebase_search() {
+                let augmenter = CodebaseSearchAugmenter::new(
+                    self.services.fs_read_service(),
+                    self.services.get_environment().cwd.clone(),
+                );
+                augmenter.augment(output).await
+            } else {
+                output
+            };
+
             // Create tool output
             Ok(ToolOutput::ai(
                 conversation.id,
                 Element::new("task_completed")
                     .attr("task", &task)
-                    .append(Element::new("output").text(output)),
+                    .append(Element::new("output").text(augmented_output)),
             ))
         } else {
             Err(Error::EmptyToolResponse.into())
