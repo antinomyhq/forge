@@ -34,7 +34,7 @@ impl FormatContent for ToolOperation {
             | ToolOperation::FsRemove { input: _, output: _ }
             | ToolOperation::FsSearch { input: _, output: _ }
             | ToolOperation::CodebaseSearch { output: _ }
-            | ToolOperation::CodebaseSearchResult { output: _ }
+            | ToolOperation::SearchReport { output: _ }
             | ToolOperation::FsUndo { input: _, output: _ }
             | ToolOperation::NetFetch { input: _, output: _ }
             | ToolOperation::Shell { output: _ }

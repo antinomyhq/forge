@@ -38,9 +38,9 @@ pub struct ReadChunk {
     pub relevance: String,
 }
 
-/// Output for CodebaseSearchResult containing read file chunks
+/// Output for SearchReport containing read file chunks
 #[derive(Debug, Default)]
-pub struct CodebaseSearchResultOutput {
+pub struct SearchReportOutput {
     pub chunks: Vec<ReadChunk>,
 }
 
@@ -72,8 +72,8 @@ pub enum ToolOperation {
     CodebaseSearch {
         output: CodebaseSearchResults,
     },
-    CodebaseSearchResult {
-        output: CodebaseSearchResultOutput,
+    SearchReport {
+        output: SearchReportOutput,
     },
     FsPatch {
         input: FSPatch,
@@ -456,7 +456,7 @@ impl ToolOperation {
 
                 forge_domain::ToolOutput::text(root)
             }
-            ToolOperation::CodebaseSearchResult { output } => {
+            ToolOperation::SearchReport { output } => {
                 let mut root =
                     Element::new("codebase_search_results").attr("results", output.chunks.len());
                 for chunk in output.chunks {

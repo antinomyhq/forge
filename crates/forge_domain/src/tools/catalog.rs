@@ -44,7 +44,7 @@ pub enum ToolCatalog {
     Write(FSWrite),
     FsSearch(FSSearch),
     SemSearch(SemanticSearch),
-    CodebaseSearchResult(CodebaseSearchResult),
+    SearchReport(SearchReport),
     Remove(FSRemove),
     Patch(FSPatch),
     Undo(FSUndo),
@@ -567,7 +567,7 @@ impl ToolDescription for ToolCatalog {
             ToolCatalog::Write(v) => v.description(),
             ToolCatalog::Plan(v) => v.description(),
             ToolCatalog::Skill(v) => v.description(),
-            ToolCatalog::CodebaseSearchResult(v) => v.description(),
+            ToolCatalog::SearchReport(v) => v.description(),
         }
     }
 }
@@ -621,8 +621,8 @@ pub struct ChunkSelection {
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
-#[tool_description_file = "crates/forge_domain/src/tools/descriptions/codebase_search_result.md"]
-pub struct CodebaseSearchResult {
+#[tool_description_file = "crates/forge_domain/src/tools/descriptions/search_report.md"]
+pub struct SearchReport {
     pub chunks: Vec<ChunkSelection>,
 }
 
@@ -652,8 +652,8 @@ impl ToolCatalog {
             ToolCatalog::Write(_) => r#gen.into_root_schema_for::<FSWrite>(),
             ToolCatalog::Plan(_) => r#gen.into_root_schema_for::<PlanCreate>(),
             ToolCatalog::Skill(_) => r#gen.into_root_schema_for::<SkillFetch>(),
-            ToolCatalog::CodebaseSearchResult(_) => {
-                r#gen.into_root_schema_for::<CodebaseSearchResult>()
+            ToolCatalog::SearchReport(_) => {
+                r#gen.into_root_schema_for::<SearchReport>()
             }
         }
     }
@@ -764,7 +764,7 @@ impl ToolCatalog {
             | ToolCatalog::Followup(_)
             | ToolCatalog::Plan(_)
             | ToolCatalog::Skill(_)
-            | ToolCatalog::CodebaseSearchResult(_) => None,
+            | ToolCatalog::SearchReport(_) => None,
         }
     }
 
@@ -941,7 +941,7 @@ impl ToolKind {
     /// Checks if this tool kind's results should be returned to the calling
     /// agent.
     pub fn should_return_to_caller(&self) -> bool {
-        matches!(self, ToolKind::CodebaseSearchResult)
+        matches!(self, ToolKind::SearchReport)
     }
 
     /// Attempts to parse a tool name into a ToolKind.

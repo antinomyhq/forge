@@ -5,7 +5,7 @@ use anyhow::anyhow;
 use forge_domain::{CodebaseQueryResult, ToolCallContext, ToolCatalog, ToolOutput};
 
 use crate::fmt::content::FormatContent;
-use crate::operation::{CodebaseSearchResultOutput, ReadChunk, TempContentFiles, ToolOperation};
+use crate::operation::{SearchReportOutput, ReadChunk, TempContentFiles, ToolOperation};
 use crate::services::ShellService;
 use crate::{
     AgentRegistry, ConversationService, EnvironmentService, FollowUpService, FsPatchService,
@@ -221,7 +221,7 @@ impl<
                 let output = forge_domain::CodebaseSearchResults { queries: output };
                 ToolOperation::CodebaseSearch { output }
             }
-            ToolCatalog::CodebaseSearchResult(input) => {
+            ToolCatalog::SearchReport(input) => {
                 // Read all chunks in parallel using futures
                 let read_futures: Vec<_> = input
                     .chunks
@@ -263,8 +263,8 @@ impl<
                     .flatten()
                     .collect();
 
-                ToolOperation::CodebaseSearchResult {
-                    output: CodebaseSearchResultOutput { chunks },
+                ToolOperation::SearchReport {
+                    output: SearchReportOutput { chunks },
                 }
             }
             ToolCatalog::Remove(input) => {

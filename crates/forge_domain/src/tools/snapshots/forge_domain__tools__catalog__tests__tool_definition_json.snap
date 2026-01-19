@@ -182,7 +182,7 @@ expression: tools
   }
 }
 {
-  "title": "CodebaseSearchResult",
+  "title": "SearchReport",
   "type": "object",
   "required": [
     "chunks"

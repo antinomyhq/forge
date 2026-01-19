@@ -118,7 +118,7 @@ impl FormatContent for ToolCatalog {
                     .sub_title(input.name.to_lowercase())
                     .into(),
             ),
-            ToolCatalog::CodebaseSearchResult(_) | ToolCatalog::Plan(_) => None,
+            ToolCatalog::SearchReport(_) | ToolCatalog::Plan(_) => None,
         }
     }
 }
