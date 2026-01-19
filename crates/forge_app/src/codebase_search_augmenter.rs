@@ -1,4 +1,4 @@
-use std::{io::Write, path::PathBuf};
+use std::path::PathBuf;
 
 use forge_domain::Attachment;
 
@@ -20,12 +20,9 @@ impl<'a, F: FsReadService> CodebaseSearchAugmenter<'a, F> {
     /// including code snippets for each referenced location.
     pub async fn augment(&self, output: String) -> String {
         let lines = output.lines();
-        let mut fs = std::fs::OpenOptions::new().create(true).append(true).write(true).open("data.md").unwrap();
         let mut result = Vec::with_capacity(lines.count());
         for line in output.lines() {
             let line_tags = Attachment::parse_all(line);
-            fs.write_all(format!("Line: {}\n", line).as_bytes()).unwrap();
-            fs.write_all(format!("Tags: {:#?}\n\n", line_tags).as_bytes()).unwrap();
             if line_tags.is_empty() {
                 result.push(line.to_string());
                 continue;
@@ -60,11 +57,6 @@ impl<'a, F: FsReadService> CodebaseSearchAugmenter<'a, F> {
 
         let absolute_path = normalized_path.canonicalize().ok()?;
 
-        // Debug logging
-        let mut fs = std::fs::OpenOptions::new().create(true).append(true).write(true).open("data.md").unwrap();
-        fs.write_all(format!("read_file_snippet: tag.path={}, normalized_path={:?}, absolute_path={:?}, exists={}\n",
-            tag.path, normalized_path, absolute_path, absolute_path.exists()).as_bytes()).unwrap();
-
         let read_result = self
             .fs_read_service
             .read(
@@ -73,9 +65,6 @@ impl<'a, F: FsReadService> CodebaseSearchAugmenter<'a, F> {
                 end_line,
             )
             .await;
-
-        // Debug logging
-        fs.write_all(format!("read_result: {:?}\n\n", read_result.as_ref().map(|r| r.content.file_content().len())).as_bytes()).unwrap();
 
         let read_output = read_result.ok()?;
 
