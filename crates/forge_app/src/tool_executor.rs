@@ -5,7 +5,8 @@ use anyhow::anyhow;
 use forge_domain::{CodebaseQueryResult, ToolCallContext, ToolCatalog, ToolOutput};
 
 use crate::fmt::content::FormatContent;
-use crate::operation::{ReadChunk, SearchReportOutput, TempContentFiles, ToolOperation};
+use crate::operation::{TempContentFiles, ToolOperation};
+use crate::services::{SearchReportOutput, ReadChunk};
 use crate::services::ShellService;
 use crate::{
     AgentRegistry, ConversationService, EnvironmentService, FollowUpService, FsPatchService,
