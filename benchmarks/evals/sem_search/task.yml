@@ -1,7 +1,7 @@
 run:
   # Clone into `tmp/task` dir
   - git clone --depth=1 --branch main https://github.com/antinomyhq/forge .
-  - forgee workspace sync
+  - /Users/ranjit/Desktop/workspace/forge/target/debug/forge workspace sync
   - FORGE_OVERRIDE_PROVIDER=open_router FORGE_OVERRIDE_MODEL={{model}} FORGE_DEBUG_REQUESTS='{{dir}}/context.json' forgee -p '{{task}}'
 parallelism: 50
 timeout: 120
@@ -9,7 +9,7 @@ early_exit: true
 validations:
   - name: "Uses codebase search tool"
     type: shell
-    command: cat '{{dir}}/context.json' | jq -e '[.messages[]?.tool_calls[]? | select(.function.name == "sem_search")] | any'
+    command: cat '{{dir}}/context.json' | jq -e '[.messages[]?.tool_calls[]? | select(.function.name == "codebase_search")] | any'
 sources:
   - value:
       # - model: "x-ai/grok-code-fast-1"

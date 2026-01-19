@@ -49,15 +49,12 @@ impl<'a, F: FsReadService> CodebaseSearchAugmenter<'a, F> {
             None => (None, None),
         };
 
-        // Normalize the path by joining with cwd if needed, then canonicalize to get
-        // absolute path
-        let normalized_path = if file_path.is_absolute() {
+        // Normalize the path by joining with cwd if needed
+        let absolute_path = if file_path.is_absolute() {
             file_path
         } else {
             self.cwd.join(&file_path)
         };
-
-        let absolute_path = normalized_path.canonicalize().ok()?;
 
         let read_result = self
             .fs_read_service
