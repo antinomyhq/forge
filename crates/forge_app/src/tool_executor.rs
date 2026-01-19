@@ -19,23 +19,23 @@ pub struct ToolExecutor<S> {
 }
 
 impl<
-        S: FsReadService
-            + ImageReadService
-            + FsWriteService
-            + FsSearchService
-            + WorkspaceService
-            + NetFetchService
-            + FsRemoveService
-            + FsPatchService
-            + FsUndoService
-            + ShellService
-            + FollowUpService
-            + ConversationService
-            + EnvironmentService
-            + PlanCreateService
-            + SkillFetchService
-            + AgentRegistry
-            + ProviderService,
+    S: FsReadService
+        + ImageReadService
+        + FsWriteService
+        + FsSearchService
+        + WorkspaceService
+        + NetFetchService
+        + FsRemoveService
+        + FsPatchService
+        + FsUndoService
+        + ShellService
+        + FollowUpService
+        + ConversationService
+        + EnvironmentService
+        + PlanCreateService
+        + SkillFetchService
+        + AgentRegistry
+        + ProviderService,
 > ToolExecutor<S>
 {
     pub fn new(services: Arc<S>) -> Self {
@@ -260,7 +260,7 @@ impl<
                 let chunks = futures::future::try_join_all(read_futures)
                     .await?
                     .into_iter()
-                    .filter_map(|chunk| chunk)
+                    .flatten()
                     .collect();
 
                 ToolOperation::CodebaseSearchResult {
