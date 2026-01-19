@@ -47,4 +47,3 @@ Cargo.lock
 **/.forge/request.body.json
 node_modules/
 
-examples/augment-search-example/**/*
