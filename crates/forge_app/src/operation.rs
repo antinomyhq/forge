@@ -460,13 +460,25 @@ impl ToolOperation {
                 let mut root =
                     Element::new("codebase_search_results").attr("results", output.chunks.len());
                 for chunk in output.chunks {
+                    // Format content in ripgrep format: path:line_number:content
+                    let ripgrep_format = chunk
+                        .content
+                        .lines()
+                        .enumerate()
+                        .map(|(i, line)| {
+                            let line_num = chunk.start_line + i as u64;
+                            format!("{}:{}:{}", chunk.file_path, line_num, line)
+                        })
+                        .collect::<Vec<_>>()
+                        .join("\n");
+
                     let element = Element::new("chunk")
                         .attr("file_path", &chunk.file_path)
                         .attr("start", chunk.start_line)
                         .attr("end", chunk.end_line)
                         .attr("reason", &chunk.reason)
                         .attr("relevance", &chunk.relevance)
-                        .cdata(chunk.content.to_numbered_from(chunk.start_line as usize));
+                        .cdata(ripgrep_format);
                     root = root.append(element);
                 }
                 forge_domain::ToolOutput::text(root)
