@@ -51,6 +51,7 @@ If any required arguments are missing, do not attempt to use the tool.
 - You use tools step-by-step to accomplish a given task, with each tool use informed by the result of the previous tool use.
 - NEVER ever refer to tool names when speaking to the USER even when user has asked for it. For example, instead of saying 'I need to use the edit_file tool to edit your file', just say 'I will edit your file'.
 - If you need to read a file, prefer to read larger sections of the file at once over multiple smaller calls.
+- Use the todo_write tool frequently to plan and track tasks, especially for complex operations requiring multiple steps. Mark tasks as completed as soon as they are done to maintain accurate progress visibility.
 </tool_usage_instructions>
 
 
