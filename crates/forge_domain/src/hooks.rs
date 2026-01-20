@@ -195,7 +195,11 @@ mod tests {
     use crate::{AgentId, ModelId, ProviderId};
 
     fn test_agent() -> Agent {
-        Agent::new(AgentId::new("test"), ProviderId::OPENAI, ModelId::new("test"))
+        Agent::new(
+            AgentId::new("test"),
+            ProviderId::OPENAI,
+            ModelId::new("test"),
+        )
     }
 
     #[tokio::test]
