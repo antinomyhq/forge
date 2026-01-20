@@ -93,12 +93,6 @@ pub struct Environment {
     /// If set, this provider will be used as default.
     #[dummy(default)]
     pub override_provider: Option<ProviderId>,
-
-    /// Whether to use streaming markdown output rendering.
-    /// When enabled, markdown is rendered incrementally as it arrives.
-    /// When disabled, uses the traditional batch rendering approach.
-    /// Controlled by FORGE_STREAMING_OUTPUT environment variable.
-    pub streaming_output: bool,
 }
 
 impl Environment {
@@ -308,7 +302,6 @@ fn test_command_path() {
         workspace_server_url: "http://localhost:8080".parse().unwrap(),
         override_model: None,
         override_provider: None,
-        streaming_output: false,
     };
 
     let actual = fixture.command_path();
@@ -349,7 +342,6 @@ fn test_command_cwd_path() {
         workspace_server_url: "http://localhost:8080".parse().unwrap(),
         override_model: None,
         override_provider: None,
-        streaming_output: false,
     };
 
     let actual = fixture.command_cwd_path();
@@ -390,7 +382,6 @@ fn test_command_cwd_path_independent_from_command_path() {
         workspace_server_url: "http://localhost:8080".parse().unwrap(),
         override_model: None,
         override_provider: None,
-        streaming_output: false,
     };
 
     let command_path = fixture.command_path();

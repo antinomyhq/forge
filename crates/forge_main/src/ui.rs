@@ -39,7 +39,7 @@ use crate::model::{CliModel, CliProvider, ForgeCommandManager, SlashCommand};
 use crate::porcelain::Porcelain;
 use crate::prompt::ForgePrompt;
 use crate::state::UIState;
-use crate::stream_renderer::{ContentWriter, SharedSpinner};
+use crate::stream_renderer::{SharedSpinner, StreamingWriter};
 use crate::sync_display::SyncProgressDisplay;
 use crate::title_display::TitleDisplayExt;
 use crate::tools_display::format_tools;
@@ -2604,16 +2604,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     async fn on_chat(&mut self, chat: ChatRequest) -> Result<()> {
         let mut stream = self.api.chat(chat).await?;
 
-        // Create content writer - streaming or direct based on environment config
-        let mut writer = if self.api.environment().streaming_output {
-            ContentWriter::streaming(self.spinner.clone(), self.api.clone())
-        } else {
-            ContentWriter::direct(
-                self.spinner.clone(),
-                self.api.clone(),
-                self.markdown.clone(),
-            )
-        };
+        // Always use streaming content writer
+        let mut writer = StreamingWriter::new(self.spinner.clone(), self.api.clone());
 
         while let Some(message) = stream.next().await {
             match message {
@@ -2719,7 +2711,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     async fn handle_chat_response(
         &mut self,
         message: ChatResponse,
-        writer: &mut ContentWriter<A>,
+        writer: &mut StreamingWriter<A>,
     ) -> Result<()> {
         debug!(chat_response = ?message, "Chat Response");
         if message.is_empty() {

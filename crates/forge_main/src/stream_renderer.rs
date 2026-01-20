@@ -3,7 +3,6 @@ use std::sync::{Arc, Mutex};
 
 use anyhow::Result;
 use colored::Colorize;
-use forge_display::MarkdownFormat;
 use forge_domain::ConsoleWriter;
 use forge_markdown_stream::StreamdownRenderer;
 use forge_spinner::SpinnerManager;
@@ -80,108 +79,6 @@ impl Style {
             Self::Normal => content,
             Self::Dimmed => content.dimmed().to_string(),
         }
-    }
-}
-
-/// Unified content writer that handles both streaming and direct output modes.
-/// - `Streaming`: Renders markdown incrementally as chunks arrive (uses
-///   streamdown)
-/// - `Direct`: Renders markdown immediately in full (uses MarkdownFormat)
-pub enum ContentWriter<P: ConsoleWriter> {
-    Streaming(StreamingWriter<P>),
-    Direct(DirectContentWriter<P>),
-}
-
-impl<P: ConsoleWriter + 'static> ContentWriter<P> {
-    /// Creates a new streaming content writer.
-    pub fn streaming(spinner: SharedSpinner<P>, printer: Arc<P>) -> Self {
-        Self::Streaming(StreamingWriter::new(spinner, printer))
-    }
-
-    /// Creates a new direct content writer.
-    pub fn direct(spinner: SharedSpinner<P>, printer: Arc<P>, markdown: MarkdownFormat) -> Self {
-        Self::Direct(DirectContentWriter::new(spinner, printer, markdown))
-    }
-
-    /// Writes markdown content with normal styling.
-    pub fn write(&mut self, text: &str) -> Result<()> {
-        match self {
-            Self::Streaming(w) => w.write(text),
-            Self::Direct(w) => w.write(text),
-        }
-    }
-
-    /// Writes markdown content with dimmed styling (for reasoning blocks).
-    pub fn write_dimmed(&mut self, text: &str) -> Result<()> {
-        match self {
-            Self::Streaming(w) => w.write_dimmed(text),
-            Self::Direct(w) => w.write_dimmed(text),
-        }
-    }
-
-    /// Finishes any pending rendering.
-    pub fn finish(&mut self) -> Result<()> {
-        match self {
-            Self::Streaming(w) => w.finish(),
-            Self::Direct(w) => w.finish(),
-        }
-    }
-}
-
-/// Direct content writer that renders markdown immediately using
-/// MarkdownFormat.
-pub struct DirectContentWriter<P: ConsoleWriter> {
-    spinner: SharedSpinner<P>,
-    printer: Arc<P>,
-    markdown: MarkdownFormat,
-}
-
-impl<P: ConsoleWriter> DirectContentWriter<P> {
-    /// Creates a new direct content writer.
-    pub fn new(spinner: SharedSpinner<P>, printer: Arc<P>, markdown: MarkdownFormat) -> Self {
-        Self { spinner, printer, markdown }
-    }
-
-    /// Writes markdown content with normal styling.
-    pub fn write(&mut self, text: &str) -> Result<()> {
-        if text.trim().is_empty() {
-            return Ok(());
-        }
-        self.pause_spinner();
-        let rendered = self.markdown.render(text);
-        self.printer.write(rendered.as_bytes())?;
-        self.printer.write(b"\n")?;
-        self.printer.flush()?;
-        self.resume_spinner();
-        Ok(())
-    }
-
-    /// Writes markdown content with dimmed styling.
-    pub fn write_dimmed(&mut self, text: &str) -> Result<()> {
-        if text.trim().is_empty() {
-            return Ok(());
-        }
-        self.pause_spinner();
-        let rendered = self.markdown.render(text);
-        let styled = rendered.dimmed().to_string();
-        self.printer.write(styled.as_bytes())?;
-        self.printer.write(b"\n")?;
-        self.printer.flush()?;
-        self.resume_spinner();
-        Ok(())
-    }
-
-    /// No-op for direct writer - content is already rendered.
-    pub fn finish(&mut self) -> Result<()> {
-        Ok(())
-    }
-
-    fn pause_spinner(&self) {
-        let _ = self.spinner.stop(None);
-    }
-
-    fn resume_spinner(&self) {
-        let _ = self.spinner.start(None);
     }
 }
 
