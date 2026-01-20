@@ -439,7 +439,7 @@ impl ToolOperation {
                     return forge_domain::ToolOutput::text("No code sections were retrieved.\n");
                 }
 
-                let mut markdown = String::from("The following code sections were retrieved:\n");
+                let mut markdown = String::from("The following code sections were retrieved:\n\n");
 
                 // Group chunks by file path
                 let mut chunks_by_file: std::collections::HashMap<String, Vec<&_>> =

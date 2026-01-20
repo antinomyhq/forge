@@ -3,6 +3,7 @@ source: crates/forge_app/src/operation.rs
 expression: to_value(actual)
 ---
 The following code sections were retrieved:
+
 File Path: src/auth.rs
    10 fn authenticate_user(token: &str) -> Result<User> {
    11     verify_jwt(token)
