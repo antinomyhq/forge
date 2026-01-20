@@ -47,14 +47,14 @@ impl<S: Services> ForgeApp<S, NoOpHook> {
     }
 }
 
-impl<S: Services, H: OrchHook + Clone + 'static> ForgeApp<S, H> {
+impl<S: Services, H: OrchHook + 'static> ForgeApp<S, H> {
     /// Creates a new ForgeApp with a custom hook.
-    pub fn with_hook<NewH: OrchHook + Clone + 'static>(self, hook: NewH) -> ForgeApp<S, NewH> {
+    pub fn with_hook<NewH: OrchHook + 'static>(self, hook: Arc<NewH>) -> ForgeApp<S, NewH> {
         ForgeApp {
             services: self.services,
             tool_registry: self.tool_registry,
             authenticator: self.authenticator,
-            hook: Arc::new(hook),
+            hook,
         }
     }
 
@@ -162,7 +162,7 @@ impl<S: Services, H: OrchHook + Clone + 'static> ForgeApp<S, H> {
             agent,
             chat.event,
         )
-        .with_hook((*self.hook).clone())
+        .with_hook(self.hook.clone())
         .error_tracker(ToolErrorTracker::new(max_tool_failure_per_turn))
         .tool_definitions(tool_definitions)
         .models(models);

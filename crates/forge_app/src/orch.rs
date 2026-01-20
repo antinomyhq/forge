@@ -63,7 +63,7 @@ impl<S: AgentService> Orchestrator<S, NoOpHook> {
 
 impl<S: AgentService, H: OrchHook + 'static> Orchestrator<S, H> {
     /// Creates a new orchestrator with a custom hook.
-    pub fn with_hook<NewH: OrchHook + 'static>(self, hook: NewH) -> Orchestrator<S, NewH> {
+    pub fn with_hook<NewH: OrchHook + 'static>(self, hook: Arc<NewH>) -> Orchestrator<S, NewH> {
         Orchestrator {
             services: self.services,
             sender: self.sender,
@@ -74,7 +74,7 @@ impl<S: AgentService, H: OrchHook + 'static> Orchestrator<S, H> {
             agent: self.agent,
             event: self.event,
             error_tracker: self.error_tracker,
-            hook: Arc::new(hook),
+            hook,
         }
     }
 
