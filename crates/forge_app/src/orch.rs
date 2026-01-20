@@ -301,11 +301,11 @@ impl<S: AgentService, H: OrchHook + 'static> Orchestrator<S, H> {
             if chat_action.stop {
                 should_yield = true;
             }
-            let chat_context = chat_action.context;
+            context = chat_action.context;
 
             let message = crate::retry::retry_with_config(
                 &self.environment.retry_config,
-                || self.execute_chat_turn(&model_id, chat_context.clone(), chat_context.is_reasoning_supported()),
+                || self.execute_chat_turn(&model_id, context.clone(), context.is_reasoning_supported()),
                 self.sender.as_ref().map(|sender| {
                     let sender = sender.clone();
                     let agent_id = agent.id.clone();
