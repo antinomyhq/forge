@@ -112,11 +112,15 @@ impl<S: AgentService, H: OrchHook + 'static> Orchestrator<S, H> {
             // Send start notification for system tools
             let is_system_tool = system_tools.contains(&tool_call.name);
             if is_system_tool {
-                self.send(ChatResponse::ToolCallStart(tool_call.clone())).await?;
+                self.send(ChatResponse::ToolCallStart(tool_call.clone()))
+                    .await?;
             }
 
             // Execute the tool
-            let tool_result = self.services.call(agent, tool_context, tool_call.clone()).await;
+            let tool_result = self
+                .services
+                .call(agent, tool_context, tool_call.clone())
+                .await;
 
             // Apply post_tool_call hook
             let post_ctx = PostToolCallContext {
@@ -360,7 +364,8 @@ impl<S: AgentService, H: OrchHook + 'static> Orchestrator<S, H> {
             is_complete =
                 message.finish_reason == Some(FinishReason::Stop) && message.tool_calls.is_empty();
 
-            // Should yield if: hook requested it, task is complete, or a tool is asking for a follow-up
+            // Should yield if: hook requested it, task is complete, or a tool is asking for
+            // a follow-up
             should_yield = should_yield
                 || is_complete
                 || message
