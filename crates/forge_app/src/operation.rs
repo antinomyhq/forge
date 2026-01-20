@@ -434,31 +434,53 @@ impl ToolOperation {
                 forge_domain::ToolOutput::text(root)
             }
             ToolOperation::SearchReport { output } => {
-                let mut root =
-                    Element::new("codebase_search_results").attr("results", output.chunks.len());
-                for chunk in output.chunks {
-                    // Format content in ripgrep format: path:line_number:content
-                    let ripgrep_format = chunk
-                        .content
-                        .lines()
-                        .enumerate()
-                        .map(|(i, line)| {
-                            let line_num = chunk.start_line + i as u64;
-                            format!("{}:{}:{}", chunk.file_path, line_num, line)
-                        })
-                        .collect::<Vec<_>>()
-                        .join("\n");
-
-                    let element = Element::new("chunk")
-                        .attr("file_path", &chunk.file_path)
-                        .attr("start", chunk.start_line)
-                        .attr("end", chunk.end_line)
-                        .attr("reason", &chunk.reason)
-                        .attr("relevance", &chunk.relevance)
-                        .cdata(ripgrep_format);
-                    root = root.append(element);
+                // Handle empty chunks case
+                if output.chunks.is_empty() {
+                    return forge_domain::ToolOutput::text("No code sections were retrieved.\n");
                 }
-                forge_domain::ToolOutput::text(root)
+
+                let mut markdown = String::from("The following code sections were retrieved:\n");
+
+                // Group chunks by file path
+                let mut chunks_by_file: std::collections::HashMap<String, Vec<&_>> =
+                    std::collections::HashMap::new();
+
+                for chunk in &output.chunks {
+                    chunks_by_file
+                        .entry(chunk.file_path.clone())
+                        .or_default()
+                        .push(chunk);
+                }
+
+                // Output merged chunks per file (sorted by file path for consistent ordering)
+                let mut sorted_files: Vec<_> = chunks_by_file.into_iter().collect();
+                sorted_files.sort_by(|a, b| a.0.cmp(&b.0));
+
+                for (file_path, chunks) in sorted_files {
+                    markdown.push_str(&format!("File Path: {}\n", file_path));
+                    for (i, chunk) in chunks.iter().enumerate() {
+                        // Format content with line numbers (5-character wide, right-aligned)
+                        let numbered_content = chunk
+                            .content
+                            .lines()
+                            .enumerate()
+                            .map(|(i, line)| {
+                                let line_num = chunk.start_line as u64 + i as u64;
+                                format!("{:5} {}", line_num, line)
+                            })
+                            .collect::<Vec<_>>()
+                            .join("\n");
+
+                        markdown.push_str(&numbered_content);
+                        // Add separator between chunks, but not after the last one
+                        if i < chunks.len() - 1 {
+                            markdown.push_str("\n...\n");
+                        }
+                    }
+                    markdown.push_str("\n...\n\n");
+                }
+
+                forge_domain::ToolOutput::text(markdown)
             }
             ToolOperation::FsPatch { input, output } => {
                 let diff_result = DiffFormat::format(&output.before, &output.after);
@@ -2462,5 +2484,74 @@ mod tests {
             forge_domain::ToolValue::Image(_) => (), // Expected
             _ => panic!("Expected image output for vision model"),
         }
+    }
+
+    #[test]
+    fn test_search_report_chunk_merging() {
+        use crate::ReadChunk;
+
+        // Test chunk merging: multiple chunks from the same file are merged under one "Path:" header
+        // while chunks from different files have separate "Path:" headers
+        let fixture = ToolOperation::SearchReport {
+            output: SearchReportOutput {
+                chunks: vec![
+                    // First chunk from retry.rs
+                    ReadChunk {
+                        file_path: "src/retry.rs".to_string(),
+                        content: "fn retry_with_backoff(max_attempts: u32) {\n    let mut delay = 100;\n}".to_string(),
+                        start_line: 10,
+                        end_line: 12,
+                        reason: "Contains retry logic".to_string(),
+                        relevance: "0.95".to_string(),
+                    },
+                    // Second chunk from retry.rs (should be merged under same Path header)
+                    ReadChunk {
+                        file_path: "src/retry.rs".to_string(),
+                        content: "fn exponential_backoff(attempt: u32) -> Duration {\n    Duration::from_millis(2_u64.pow(attempt) * 100)\n}".to_string(),
+                        start_line: 50,
+                        end_line: 52,
+                        reason: "Backoff implementation".to_string(),
+                        relevance: "0.90".to_string(),
+                    },
+                    // Chunk from auth.rs (should have separate Path header)
+                    ReadChunk {
+                        file_path: "src/auth.rs".to_string(),
+                        content: "fn authenticate_user(token: &str) -> Result<User> {\n    verify_jwt(token)\n}".to_string(),
+                        start_line: 10,
+                        end_line: 12,
+                        reason: "Authentication function".to_string(),
+                        relevance: "0.95".to_string(),
+                    },
+                ],
+            },
+        };
+
+        let env = fixture_environment();
+        let actual = fixture.into_tool_output(
+            ToolKind::SearchReport,
+            TempContentFiles::default(),
+            &env,
+            &mut Metrics::default(),
+        );
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_search_report_empty_chunks() {
+        // Test that empty chunks are handled correctly
+        let fixture = ToolOperation::SearchReport {
+            output: SearchReportOutput { chunks: vec![] },
+        };
+
+        let env = fixture_environment();
+        let actual = fixture.into_tool_output(
+            ToolKind::SearchReport,
+            TempContentFiles::default(),
+            &env,
+            &mut Metrics::default(),
+        );
+
+        insta::assert_snapshot!(to_value(actual));
     }
 }
