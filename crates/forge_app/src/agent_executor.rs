@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use convert_case::{Case, Casing};
 use forge_domain::{
@@ -57,18 +57,28 @@ impl<S: Services> AgentExecutor<S> {
             .conversation_service()
             .upsert_conversation(conversation.clone())
             .await?;
+        
         // Execute the request through the ForgeApp
-        let app = crate::ForgeApp::<S, NoOpHook>::new(self.services.clone());
-        let mut response_stream = app
-            .chat(
+        let hook = Arc::new(CodebaseSearchAgentHook::default());
+        let mut response_stream = if agent_id.is_codebase_search() {
+            let app =
+                crate::ForgeApp::<S, NoOpHook>::new(self.services.clone()).with_hook(hook.clone());
+            app.chat(
                 agent_id.clone(),
                 ChatRequest::new(Event::new(task.clone()), conversation.id),
             )
-            .await?;
+            .await?
+        } else {
+            let app = crate::ForgeApp::<S, NoOpHook>::new(self.services.clone());
+            app.chat(
+                agent_id.clone(),
+                ChatRequest::new(Event::new(task.clone()), conversation.id),
+            )
+            .await?
+        };
 
         // Collect responses from the agent
         let mut output = None;
-        let mut last_tool_result: Option<forge_domain::ToolResult> = None;
         while let Some(message) = response_stream.next().await {
             let message = message?;
             match message {
@@ -80,19 +90,14 @@ impl<S: Services> AgentExecutor<S> {
                 ChatResponse::TaskReasoning { .. } => {}
                 ChatResponse::TaskComplete => {}
                 ChatResponse::ToolCallStart(_) => ctx.send(message).await?,
-                ChatResponse::ToolCallEnd(ref result) => {
-                    if result.should_return_back() {
-                        last_tool_result = Some(result.clone());
-                    }
-                    ctx.send(message).await?;
-                }
+                ChatResponse::ToolCallEnd(_) => ctx.send(message).await?,
                 ChatResponse::RetryAttempt { .. } => ctx.send(message).await?,
                 ChatResponse::Interrupt { .. } => ctx.send(message).await?,
             }
         }
 
         // Prefer the last tool result output, fall back to text output
-        if let Some(result) = last_tool_result {
+        if let Some(result) = hook.captured_output.lock().unwrap().take() {
             Ok(result.output)
         } else if let Some(output) = output {
             Ok(ToolOutput::ai(
@@ -109,5 +114,52 @@ impl<S: Services> AgentExecutor<S> {
     pub async fn contains_tool(&self, tool_name: &ToolName) -> anyhow::Result<bool> {
         let agent_tools = self.agent_definitions().await?;
         Ok(agent_tools.iter().any(|tool| tool.name == *tool_name))
+    }
+}
+
+#[derive(Debug, Clone)]
+struct CodebaseSearchAgentHook {
+    max_iterations: usize,
+    captured_output: Arc<Mutex<Option<forge_domain::ToolResult>>>,
+}
+
+impl Default for CodebaseSearchAgentHook {
+    fn default() -> Self {
+        Self {
+            max_iterations: 5,
+            captured_output: Arc::new(Mutex::new(None)),
+        }
+    }
+}
+
+impl forge_domain::OrchHook for CodebaseSearchAgentHook {
+    /// Called before making a call to the provider.
+    fn pre_chat<'a>(
+        &'a self,
+        mut ctx: forge_domain::PreChatContext,
+    ) -> forge_domain::BoxFuture<'a, forge_domain::HookResult<forge_domain::ChatAction>> {
+        if ctx.iteration + 1 == self.max_iterations {
+            ctx.context = ctx
+                .context
+                .tool_choice(forge_domain::ToolChoice::Call(ToolName::new(
+                    "search_report",
+                )));
+            Box::pin(async move {
+                forge_domain::HookResult::Continue(forge_domain::ChatAction::stop(ctx.context))
+            })
+        } else {
+            Box::pin(async move {
+                forge_domain::HookResult::Continue(forge_domain::ChatAction::cont(ctx.context))
+            })
+        }
+    }
+
+    /// Called after each tool execution completes.
+    fn post_tool_call<'a>(
+        &'a self,
+        ctx: forge_domain::PostToolCallContext,
+    ) -> forge_domain::BoxFuture<'a, forge_domain::HookResult<forge_domain::ToolResult>> {
+        *self.captured_output.lock().unwrap() = Some(ctx.result.clone());
+        Box::pin(async move { forge_domain::HookResult::Continue(ctx.result) })
     }
 }
