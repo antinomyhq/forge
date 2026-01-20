@@ -5,12 +5,14 @@ expression: to_value(actual)
 The following code sections were retrieved:
 
 File Path: src/auth.rs
+...
    10 fn authenticate_user(token: &str) -> Result<User> {
    11     verify_jwt(token)
    12 }
 ...
 
 File Path: src/retry.rs
+...
    10 fn retry_with_backoff(max_attempts: u32) {
    11     let mut delay = 100;
    12 }
