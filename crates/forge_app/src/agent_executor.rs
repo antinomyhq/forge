@@ -131,10 +131,7 @@ struct CodebaseSearchAgentHook {
 
 impl CodebaseSearchAgentHook {
     fn new(max_iterations: usize) -> Self {
-        Self {
-            max_iterations,
-            captured_output: Arc::new(Mutex::new(None)),
-        }
+        Self { max_iterations, captured_output: Arc::new(Mutex::new(None)) }
     }
 }
 

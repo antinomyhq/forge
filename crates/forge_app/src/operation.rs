@@ -465,7 +465,7 @@ impl ToolOperation {
                             .lines()
                             .enumerate()
                             .map(|(i, line)| {
-                                let line_num = chunk.start_line as u64 + i as u64;
+                                let line_num = chunk.start_line + i as u64;
                                 format!("{:5} {}", line_num, line)
                             })
                             .collect::<Vec<_>>()
@@ -2490,8 +2490,9 @@ mod tests {
     fn test_search_report_chunk_merging() {
         use crate::ReadChunk;
 
-        // Test chunk merging: multiple chunks from the same file are merged under one "Path:" header
-        // while chunks from different files have separate "Path:" headers
+        // Test chunk merging: multiple chunks from the same file are merged under one
+        // "Path:" header while chunks from different files have separate
+        // "Path:" headers
         let fixture = ToolOperation::SearchReport {
             output: SearchReportOutput {
                 chunks: vec![
@@ -2540,9 +2541,7 @@ mod tests {
     #[test]
     fn test_search_report_empty_chunks() {
         // Test that empty chunks are handled correctly
-        let fixture = ToolOperation::SearchReport {
-            output: SearchReportOutput { chunks: vec![] },
-        };
+        let fixture = ToolOperation::SearchReport { output: SearchReportOutput { chunks: vec![] } };
 
         let env = fixture_environment();
         let actual = fixture.into_tool_output(
