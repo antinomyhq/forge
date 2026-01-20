@@ -57,7 +57,7 @@ impl<S: Services> AgentExecutor<S> {
             .conversation_service()
             .upsert_conversation(conversation.clone())
             .await?;
-        
+
         // Execute the request through the ForgeApp
         let hook = Arc::new(CodebaseSearchAgentHook::default());
         let mut response_stream = if agent_id.is_codebase_search() {
@@ -98,7 +98,10 @@ impl<S: Services> AgentExecutor<S> {
 
         // Prefer the last tool result output, fall back to text output
         if let Some(result) = hook.captured_output.lock().unwrap().take() {
-            Ok(result.output)
+            Ok(ToolOutput::ai(
+                conversation.id,
+                result.output.as_str().unwrap_or(""),
+            ))
         } else if let Some(output) = output {
             Ok(ToolOutput::ai(
                 conversation.id,
