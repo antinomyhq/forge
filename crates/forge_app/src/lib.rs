@@ -46,6 +46,7 @@ pub use data_gen::*;
 pub use error::*;
 pub use git_app::*;
 pub use infra::*;
+pub use orch::*;
 pub use services::*;
 pub use template_engine::*;
 pub use tool_resolver::*;

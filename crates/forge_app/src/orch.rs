@@ -5,7 +5,14 @@ use std::time::Duration;
 
 use async_recursion::async_recursion;
 use derive_setters::Setters;
-use forge_domain::{Agent, *};
+use forge_domain::{
+    Agent, ArcSender, ChatCompletionMessageFull, ChatResponse, CompleteContext, Context,
+    Conversation, DefaultTransformation, DropReasoningDetails, Environment, Event, FinishReason,
+    ImageHandling, InitContext, InterruptionReason, Model, ModelId, NoOpHook, OrchHook,
+    PostChatContext, PostToolCallContext, PreChatContext, PreToolCallContext, ReasoningNormalizer,
+    ResultStreamExt, SetModel, SortTools, ToolCallContext, ToolCallFull, ToolCatalog,
+    ToolDefinition, ToolErrorTracker, ToolOutput, ToolResult, TransformToolCalls, Transformer,
+};
 use forge_template::Element;
 use tokio::task::JoinHandle;
 use tracing::{debug, info, warn};
@@ -17,7 +24,7 @@ use crate::title_generator::TitleGenerator;
 
 #[derive(Clone, Setters)]
 #[setters(into)]
-pub struct Orchestrator<S> {
+pub struct Orchestrator<S, H: OrchHook = NoOpHook> {
     services: Arc<S>,
     sender: Option<ArcSender>,
     conversation: Conversation,
@@ -27,9 +34,11 @@ pub struct Orchestrator<S> {
     agent: Agent,
     event: Event,
     error_tracker: ToolErrorTracker,
+    #[setters(skip)]
+    hook: Arc<H>,
 }
 
-impl<S: AgentService> Orchestrator<S> {
+impl<S: AgentService> Orchestrator<S, NoOpHook> {
     pub fn new(
         services: Arc<S>,
         environment: Environment,
@@ -47,6 +56,25 @@ impl<S: AgentService> Orchestrator<S> {
             tool_definitions: Default::default(),
             models: Default::default(),
             error_tracker: Default::default(),
+            hook: Arc::new(NoOpHook),
+        }
+    }
+}
+
+impl<S: AgentService, H: OrchHook + 'static> Orchestrator<S, H> {
+    /// Creates a new orchestrator with a custom hook.
+    pub fn with_hook<NewH: OrchHook + 'static>(self, hook: NewH) -> Orchestrator<S, NewH> {
+        Orchestrator {
+            services: self.services,
+            sender: self.sender,
+            conversation: self.conversation,
+            environment: self.environment,
+            tool_definitions: self.tool_definitions,
+            models: self.models,
+            agent: self.agent,
+            event: self.event,
+            error_tracker: self.error_tracker,
+            hook: Arc::new(hook),
         }
     }
 
@@ -73,18 +101,34 @@ impl<S: AgentService> Orchestrator<S> {
             .collect::<HashSet<_>>();
 
         for tool_call in tool_calls {
-            // Send the start notification for system tools and not agent as a tool
+            // Apply pre_tool_call hook
+            let pre_ctx = PreToolCallContext { agent: agent.clone(), tool_call: tool_call.clone() };
+            let tool_call = self
+                .hook
+                .pre_tool_call(pre_ctx)
+                .await
+                .into_anyhow("pre_tool_call")?;
+
+            // Send start notification for system tools
             let is_system_tool = system_tools.contains(&tool_call.name);
             if is_system_tool {
-                self.send(ChatResponse::ToolCallStart(tool_call.clone()))
-                    .await?;
+                self.send(ChatResponse::ToolCallStart(tool_call.clone())).await?;
             }
 
             // Execute the tool
+            let tool_result = self.services.call(agent, tool_context, tool_call.clone()).await;
+
+            // Apply post_tool_call hook
+            let post_ctx = PostToolCallContext {
+                agent: agent.clone(),
+                tool_call: tool_call.clone(),
+                result: tool_result,
+            };
             let tool_result = self
-                .services
-                .call(agent, tool_context, tool_call.clone())
-                .await;
+                .hook
+                .post_tool_call(post_ctx)
+                .await
+                .into_anyhow("post_tool_call")?;
 
             if tool_result.is_error() {
                 warn!(
@@ -207,6 +251,10 @@ impl<S: AgentService> Orchestrator<S> {
 
         let mut context = self.conversation.context.clone().unwrap_or_default();
 
+        // Apply init hook
+        let init_ctx = InitContext { agent: self.agent.clone(), context };
+        context = self.hook.init(init_ctx).await.into_anyhow("init")?;
+
         // Create agent reference for the rest of the method
         let agent = &self.agent;
 
@@ -233,9 +281,27 @@ impl<S: AgentService> Orchestrator<S> {
             self.conversation.context = Some(context.clone());
             self.services.update(self.conversation.clone()).await?;
 
+            // Apply pre_chat hook
+            let pre_chat_ctx = PreChatContext {
+                agent: agent.clone(),
+                context: context.clone(),
+                iteration: request_count,
+            };
+            let chat_action = self
+                .hook
+                .pre_chat(pre_chat_ctx)
+                .await
+                .into_anyhow("pre_chat")?;
+
+            // Check if hook wants to stop after this iteration
+            if chat_action.stop {
+                should_yield = true;
+            }
+            let chat_context = chat_action.context;
+
             let message = crate::retry::retry_with_config(
                 &self.environment.retry_config,
-                || self.execute_chat_turn(&model_id, context.clone(), context.is_reasoning_supported()),
+                || self.execute_chat_turn(&model_id, chat_context.clone(), chat_context.is_reasoning_supported()),
                 self.sender.as_ref().map(|sender| {
                     let sender = sender.clone();
                     let agent_id = agent.id.clone();
@@ -251,6 +317,19 @@ impl<S: AgentService> Orchestrator<S> {
                     }
                 }),
             ).await?;
+
+            // Apply post_chat hook
+            let post_chat_ctx = PostChatContext {
+                agent: agent.clone(),
+                context: context.clone(),
+                message,
+                iteration: request_count,
+            };
+            let message = self
+                .hook
+                .post_chat(post_chat_ctx)
+                .await
+                .into_anyhow("post_chat")?;
 
             // TODO: Add a unit test in orch spec, to guarantee that compaction is
             // triggered after receiving the response Trigger compaction after
@@ -281,8 +360,9 @@ impl<S: AgentService> Orchestrator<S> {
             is_complete =
                 message.finish_reason == Some(FinishReason::Stop) && message.tool_calls.is_empty();
 
-            // Should yield if a tool is asking for a follow-up
-            should_yield = is_complete
+            // Should yield if: hook requested it, task is complete, or a tool is asking for a follow-up
+            should_yield = should_yield
+                || is_complete
                 || message
                     .tool_calls
                     .iter()
@@ -363,6 +443,16 @@ impl<S: AgentService> Orchestrator<S> {
                 self.conversation.metrics = metrics.clone();
             })?;
         }
+
+        // Apply complete hook
+        debug!(agent_id = %agent.id, is_complete, total_iterations = request_count, "Invoking complete hook");
+        let complete_ctx = CompleteContext {
+            agent: agent.clone(),
+            context: context.clone(),
+            is_complete,
+            total_iterations: request_count,
+        };
+        self.hook.complete(complete_ctx).await;
 
         // Set conversation title
         if let Some(title) = title.await.ok().flatten() {
