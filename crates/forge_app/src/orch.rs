@@ -288,7 +288,6 @@ impl<S: AgentService> Orchestrator<S> {
                     .iter()
                     .any(|call| ToolCatalog::should_yield(&call.name));
 
-
             // Process tool calls and update context
             let mut tool_call_records = self
                 .execute_tool_calls(&message.tool_calls, &tool_context)
