@@ -664,10 +664,11 @@ impl<F: FileReaderInfra + FileWriterInfra + EnvironmentInfra + Send + Sync>
             Err(e) => {
                 // Check if the error is because the file doesn't exist
                 if let Some(io_err) = e.downcast_ref::<std::io::Error>()
-                    && io_err.kind() == std::io::ErrorKind::NotFound {
-                        // File doesn't exist yet, return empty list
-                        return Ok(Vec::new());
-                    }
+                    && io_err.kind() == std::io::ErrorKind::NotFound
+                {
+                    // File doesn't exist yet, return empty list
+                    return Ok(Vec::new());
+                }
                 Err(e)
             }
         }
