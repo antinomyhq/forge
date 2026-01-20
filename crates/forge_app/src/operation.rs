@@ -458,7 +458,7 @@ impl ToolOperation {
 
                 for (file_path, chunks) in sorted_files {
                     markdown.push_str(&format!("File Path: {}\n", file_path));
-                    let first_chunk = chunks.get(0).map(|c| c.start_line).unwrap_or_default();
+                    let first_chunk = chunks.first().map(|c| c.start_line).unwrap_or_default();
                     if first_chunk > 1 {
                         // if chunk starts from position 1 then don't add ... separator.
                         markdown.push_str("...\n");
