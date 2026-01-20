@@ -86,6 +86,7 @@ impl Default for TestContext {
                 max_conversations: 100,
                 sem_search_limit: 100,
                 sem_search_top_k: 10,
+                codebase_search_max_iterations: 10,
                 max_image_size: 262144,
                 workspace_server_url: Url::parse("http://localhost:8080").unwrap(),
                 override_model: None,

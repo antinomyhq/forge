@@ -10,7 +10,7 @@ use futures::StreamExt;
 use tokio::sync::RwLock;
 
 use crate::error::Error;
-use crate::{AgentRegistry, ConversationService, Services};
+use crate::{AgentRegistry, ConversationService, EnvironmentService, Services};
 
 #[derive(Clone)]
 pub struct AgentExecutor<S> {
@@ -59,7 +59,10 @@ impl<S: Services> AgentExecutor<S> {
             .await?;
 
         // Execute the request through the ForgeApp
-        let hook = Arc::new(CodebaseSearchAgentHook::default());
+        let env = self.services.get_environment();
+        let hook = Arc::new(CodebaseSearchAgentHook::new(
+            env.codebase_search_max_iterations,
+        ));
         let mut response_stream = if agent_id.is_codebase_search() {
             let app =
                 crate::ForgeApp::<S, NoOpHook>::new(self.services.clone()).with_hook(hook.clone());
@@ -126,10 +129,10 @@ struct CodebaseSearchAgentHook {
     captured_output: Arc<Mutex<Option<forge_domain::ToolResult>>>,
 }
 
-impl Default for CodebaseSearchAgentHook {
-    fn default() -> Self {
+impl CodebaseSearchAgentHook {
+    fn new(max_iterations: usize) -> Self {
         Self {
-            max_iterations: 10,
+            max_iterations,
             captured_output: Arc::new(Mutex::new(None)),
         }
     }
