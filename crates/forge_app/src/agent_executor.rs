@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use convert_case::{Case, Casing};
 use forge_domain::{
-    AgentId, ChatRequest, ChatResponse, ChatResponseContent, Conversation, Event, TitleFormat,
-    ToolCallContext, ToolDefinition, ToolName, ToolOutput,
+    AgentId, ChatRequest, ChatResponse, ChatResponseContent, Conversation, Event, NoOpHook,
+    TitleFormat, ToolCallContext, ToolDefinition, ToolName, ToolOutput,
 };
 use forge_template::Element;
 use futures::StreamExt;
@@ -58,7 +58,7 @@ impl<S: Services> AgentExecutor<S> {
             .upsert_conversation(conversation.clone())
             .await?;
         // Execute the request through the ForgeApp
-        let app = crate::ForgeApp::new(self.services.clone());
+        let app = crate::ForgeApp::<S, NoOpHook>::new(self.services.clone());
         let mut response_stream = app
             .chat(
                 agent_id.clone(),

@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use anyhow::Result;
 use chrono::Local;
-use forge_domain::{InitAuth, *};
+use forge_domain::{InitAuth, NoOpHook, OrchHook, *};
 use forge_stream::MpscStream;
 
 use crate::apply_tunable_parameters::ApplyTunableParameters;
@@ -28,19 +28,33 @@ use crate::{
 /// ForgeApp handles the core chat functionality by orchestrating various
 /// services. It encapsulates the complex logic previously contained in the
 /// ForgeAPI chat method.
-pub struct ForgeApp<S> {
+pub struct ForgeApp<S, H: OrchHook = NoOpHook> {
     services: Arc<S>,
     tool_registry: ToolRegistry<S>,
     authenticator: Authenticator<S>,
+    hook: Arc<H>,
 }
 
-impl<S: Services> ForgeApp<S> {
+impl<S: Services> ForgeApp<S, NoOpHook> {
     /// Creates a new ForgeApp instance with the provided services.
     pub fn new(services: Arc<S>) -> Self {
         Self {
             tool_registry: ToolRegistry::new(services.clone()),
             authenticator: Authenticator::new(services.clone()),
             services,
+            hook: Arc::new(NoOpHook),
+        }
+    }
+}
+
+impl<S: Services, H: OrchHook + Clone + 'static> ForgeApp<S, H> {
+    /// Creates a new ForgeApp with a custom hook.
+    pub fn with_hook<NewH: OrchHook + Clone + 'static>(self, hook: NewH) -> ForgeApp<S, NewH> {
+        ForgeApp {
+            services: self.services,
+            tool_registry: self.tool_registry,
+            authenticator: self.authenticator,
+            hook: Arc::new(hook),
         }
     }
 
@@ -148,6 +162,7 @@ impl<S: Services> ForgeApp<S> {
             agent,
             chat.event,
         )
+        .with_hook((*self.hook).clone())
         .error_tracker(ToolErrorTracker::new(max_tool_failure_per_turn))
         .tool_definitions(tool_definitions)
         .models(models);
