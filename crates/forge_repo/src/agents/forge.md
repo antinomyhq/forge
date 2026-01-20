@@ -82,6 +82,7 @@ Choose tools based on the nature of the task:
 - Avoid generating long hashes or binary code
 - Validate changes by compiling and running tests
 - Do not delete failing tests without a compelling reason
+- The conversation has unlimited context through automatic summarization. So do not stop unless the objective is achieved completely.
 
 {{#if skills}}
 {{> forge-partial-skill-instructions.md}}
