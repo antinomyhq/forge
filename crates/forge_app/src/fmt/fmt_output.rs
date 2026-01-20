@@ -30,6 +30,31 @@ impl FormatContent for ToolOperation {
                 ));
                 title.into()
             }),
+            ToolOperation::TodoWrite { input: _, output } => Some({
+                let completed = output.current.iter().filter(|t| matches!(t.status, forge_domain::TodoStatus::Completed)).count();
+                let total = output.current.len();
+                
+                let mut formatted = format!("**Todo List Progress: {}/{}**\n\n", completed, total);
+                
+                for todo in &output.current {
+                    // Use standard markdown task list syntax
+                    let (checkbox, content) = match todo.status {
+                        forge_domain::TodoStatus::Pending => {
+                            ("[ ]", todo.content.clone())
+                        }
+                        forge_domain::TodoStatus::InProgress => {
+                            ("[~]", format!("**{}**", todo.content))
+                        }
+                        forge_domain::TodoStatus::Completed => {
+                            ("[x]", format!("~~{}~~", todo.content))
+                        }
+                    };
+                    
+                    formatted.push_str(&format!("- {} {}\n", checkbox, content));
+                }
+                
+                ChatResponseContent::Markdown(formatted)
+            }),
             ToolOperation::FsRead { input: _, output: _ }
             | ToolOperation::FsRemove { input: _, output: _ }
             | ToolOperation::FsSearch { input: _, output: _ }

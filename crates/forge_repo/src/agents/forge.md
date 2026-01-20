@@ -16,6 +16,7 @@ tools:
   - shell
   - fetch
   - skill
+  - todo_write
   - mcp_*
 user_prompt: |-
   <{{event.name}}>{{event.value}}</{{event.name}}>

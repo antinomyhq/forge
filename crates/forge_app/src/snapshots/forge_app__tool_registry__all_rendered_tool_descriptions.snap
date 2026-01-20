@@ -151,6 +151,55 @@ Creates a new plan file with the specified name, version, and content. Use this 
 
 ---
 
+### todo_write
+
+Creates and manages a structured task list to track progress during complex multi-step operations.
+
+**CRITICAL COMPLETION REQUIREMENTS:**
+
+- **MUST keep working until ALL items in the todo list are checked off and marked as completed**
+- **NEVER end your turn with incomplete todos** - you are committing to complete every task you create
+- **Mark todos as completed AS SOON AS the task is done**, not before
+- **If you create a todo list, you MUST complete ALL tasks before ending** - this is non-negotiable
+- **Check off items immediately when done and update the list frequently** to maintain accurate progress tracking
+
+**When to Use This Tool:**
+
+Use `todo_write` for:
+- Complex multi-step tasks requiring explicit progress tracking (e.g., implementing a feature with 5+ distinct steps)
+- Long-running operations where you need to maintain state across multiple actions
+- Tasks with dependencies where completing one step unlocks the next
+- Situations where you want to provide clear visibility into your progress
+
+**When NOT to Use This Tool:**
+
+Do NOT use `todo_write` for:
+- Simple single-step operations (e.g., "read a file", "run a test")
+- Trivial tasks that can be completed in one action
+- Every small action in your workflow - only create todos for genuinely complex work
+- Tasks you're not ready to commit to completing in this conversation
+
+**Important Guidelines:**
+
+1. **Only create todos when genuinely needed** - not every task requires a todo list
+2. **Each todo must have a unique ID** for tracking purposes
+3. **Only one task can be in_progress at a time** - focus on completing one task before moving to the next
+4. **Update status immediately** when you complete a task - don't wait until the end
+5. **If blocked, create new todos** for resolving blockers, but continue working
+6. **The conversation should not end** while any todo has status `pending` or `in_progress`
+
+**Workflow Pattern:**
+
+1. Create initial todo list with all tasks set to `pending`
+2. Update first task to `in_progress` and begin work
+3. When complete, mark as `completed` and update next task to `in_progress`
+4. Repeat until all tasks are `completed`
+5. Only then can you end your turn
+
+This tool helps maintain focus and ensures systematic completion of complex tasks.
+
+---
+
 ### skill
 
 Fetches detailed information about a specific skill. Use this tool to load skill content and instructions when you need to understand how to perform a specialized task. Skills provide domain-specific knowledge, workflows, and best practices. Only invoke skills that are listed in the available skills section. Do not invoke a skill that is already active.

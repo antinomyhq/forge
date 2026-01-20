@@ -140,6 +140,14 @@ pub struct PlanCreateOutput {
     pub before: Option<String>,
 }
 
+#[derive(Debug)]
+pub struct TodoWriteOutput {
+    /// Current list of todos
+    pub current: Vec<forge_domain::Todo>,
+    /// Previous list of todos for diff tracking
+    pub previous: Option<Vec<forge_domain::Todo>>,
+}
+
 #[derive(Default, Debug, derive_more::From)]
 pub struct FsUndoOutput {
     pub before_undo: Option<String>,
@@ -371,6 +379,23 @@ pub trait PlanCreateService: Send + Sync {
 }
 
 #[async_trait::async_trait]
+pub trait TodoWriteService: Send + Sync {
+    /// Creates or updates a todo list in the conversation context.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - Todo IDs are not unique
+    /// - More than one task is in progress
+    /// - Any todo content is empty
+    async fn execute_todo_write(
+        &self,
+        input: forge_domain::TodoWrite,
+        context: &forge_domain::Context,
+    ) -> anyhow::Result<TodoWriteOutput>;
+}
+
+#[async_trait::async_trait]
 pub trait FsPatchService: Send + Sync {
     /// Patches a file at the specified path with the given content.
     async fn patch(
@@ -565,6 +590,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type McpConfigManager: McpConfigManager;
     type FsWriteService: FsWriteService;
     type PlanCreateService: PlanCreateService;
+    type TodoWriteService: TodoWriteService;
     type FsPatchService: FsPatchService;
     type FsReadService: FsReadService;
     type ImageReadService: ImageReadService;
@@ -593,6 +619,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn mcp_config_manager(&self) -> &Self::McpConfigManager;
     fn fs_create_service(&self) -> &Self::FsWriteService;
     fn plan_create_service(&self) -> &Self::PlanCreateService;
+    fn todo_write_service(&self) -> &Self::TodoWriteService;
     fn fs_patch_service(&self) -> &Self::FsPatchService;
     fn fs_read_service(&self) -> &Self::FsReadService;
     fn image_read_service(&self) -> &Self::ImageReadService;
@@ -792,6 +819,19 @@ impl<I: Services> PlanCreateService for I {
     ) -> anyhow::Result<PlanCreateOutput> {
         self.plan_create_service()
             .create_plan(plan_name, version, content)
+            .await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> TodoWriteService for I {
+    async fn execute_todo_write(
+        &self,
+        input: forge_domain::TodoWrite,
+        context: &forge_domain::Context,
+    ) -> anyhow::Result<TodoWriteOutput> {
+        self.todo_write_service()
+            .execute_todo_write(input, context)
             .await
     }
 }

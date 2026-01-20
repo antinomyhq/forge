@@ -51,6 +51,7 @@ pub enum ToolCatalog {
     Fetch(NetFetch),
     Followup(Followup),
     Plan(PlanCreate),
+    TodoWrite(TodoWrite),
     Skill(SkillFetch),
 }
 
@@ -457,6 +458,13 @@ pub struct PlanCreate {
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+#[tool_description_file = "crates/forge_domain/src/tools/descriptions/todo_write.md"]
+pub struct TodoWrite {
+    /// List of todo items to create or update
+    pub todos: Vec<crate::Todo>,
+}
+
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 #[tool_description_file = "crates/forge_domain/src/tools/descriptions/skill_fetch.md"]
 pub struct SkillFetch {
     /// The name of the skill to fetch (e.g., "pdf", "code_review")
@@ -565,6 +573,7 @@ impl ToolDescription for ToolCatalog {
             ToolCatalog::Undo(v) => v.description(),
             ToolCatalog::Write(v) => v.description(),
             ToolCatalog::Plan(v) => v.description(),
+            ToolCatalog::TodoWrite(v) => v.description(),
             ToolCatalog::Skill(v) => v.description(),
         }
     }
@@ -611,6 +620,7 @@ impl ToolCatalog {
             ToolCatalog::Undo(_) => r#gen.into_root_schema_for::<FSUndo>(),
             ToolCatalog::Write(_) => r#gen.into_root_schema_for::<FSWrite>(),
             ToolCatalog::Plan(_) => r#gen.into_root_schema_for::<PlanCreate>(),
+            ToolCatalog::TodoWrite(_) => r#gen.into_root_schema_for::<TodoWrite>(),
             ToolCatalog::Skill(_) => r#gen.into_root_schema_for::<SkillFetch>(),
         }
     }
@@ -720,7 +730,8 @@ impl ToolCatalog {
             | ToolCatalog::Undo(_)
             | ToolCatalog::Followup(_)
             | ToolCatalog::Plan(_)
-            | ToolCatalog::Skill(_) => None,
+            | ToolCatalog::Skill(_)
+            | ToolCatalog::TodoWrite(_) => None,
         }
     }
 

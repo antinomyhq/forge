@@ -7,7 +7,7 @@ use derive_setters::Setters;
 use forge_display::DiffFormat;
 use forge_domain::{
     CodebaseSearchResults, Environment, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite,
-    FileOperation, LineNumbers, Metrics, NetFetch, PlanCreate, ToolKind,
+    FileOperation, LineNumbers, Metrics, NetFetch, PlanCreate, TodoWrite, ToolKind,
 };
 use forge_template::Element;
 
@@ -18,7 +18,7 @@ use crate::truncation::{
 use crate::utils::{compute_hash, format_display_path};
 use crate::{
     FsRemoveOutput, FsUndoOutput, FsWriteOutput, HttpResponse, PatchOutput, PlanCreateOutput,
-    ReadOutput, ResponseContext, SearchResult, ShellOutput,
+    ReadOutput, ResponseContext, SearchResult, ShellOutput, TodoWriteOutput,
 };
 
 #[derive(Debug, Default, Setters)]
@@ -70,6 +70,10 @@ pub enum ToolOperation {
     PlanCreate {
         input: PlanCreate,
         output: PlanCreateOutput,
+    },
+    TodoWrite {
+        input: TodoWrite,
+        output: TodoWriteOutput,
     },
     Skill {
         output: forge_domain::Skill,
@@ -607,6 +611,24 @@ impl ToolOperation {
                     elm = elm.append(output.resources.iter().map(|resource| {
                         Element::new("resource").text(resource.display().to_string())
                     }));
+                }
+
+                forge_domain::ToolOutput::text(elm)
+            }
+            ToolOperation::TodoWrite { input: _, output } => {
+                let mut elm = Element::new("todo_list_updated")
+                    .attr("total_todos", output.current.len())
+                    .attr(
+                        "completed",
+                        output
+                            .current
+                            .iter()
+                            .filter(|t| matches!(t.status, forge_domain::TodoStatus::Completed))
+                            .count(),
+                    );
+
+                if let Some(prev) = &output.previous {
+                    elm = elm.attr("previous_total", prev.len());
                 }
 
                 forge_domain::ToolOutput::text(elm)

@@ -28,6 +28,7 @@ use crate::template::ForgeTemplateService;
 use crate::tool_services::{
     ForgeFetch, ForgeFollowup, ForgeFsPatch, ForgeFsRead, ForgeFsRemove, ForgeFsSearch,
     ForgeFsUndo, ForgeFsWrite, ForgeImageRead, ForgePlanCreate, ForgeShell, ForgeSkillFetch,
+    ForgeTodoWrite,
 };
 use crate::workflow::ForgeWorkflowService;
 
@@ -69,6 +70,7 @@ pub struct ForgeServices<
     mcp_manager: Arc<ForgeMcpManager<F>>,
     file_create_service: Arc<ForgeFsWrite<F>>,
     plan_create_service: Arc<ForgePlanCreate<F>>,
+    todo_write_service: Arc<ForgeTodoWrite<F>>,
     file_read_service: Arc<ForgeFsRead<F>>,
     image_read_service: Arc<ForgeImageRead<F>>,
     file_search_service: Arc<ForgeFsSearch<F>>,
@@ -127,6 +129,7 @@ impl<
         let config_service = Arc::new(ForgeAppConfigService::new(infra.clone()));
         let file_create_service = Arc::new(ForgeFsWrite::new(infra.clone()));
         let plan_create_service = Arc::new(ForgePlanCreate::new(infra.clone()));
+        let todo_write_service = Arc::new(ForgeTodoWrite::new(infra.clone()));
         let file_read_service = Arc::new(ForgeFsRead::new(infra.clone()));
         let image_read_service = Arc::new(ForgeImageRead::new(infra.clone()));
         let file_search_service = Arc::new(ForgeFsSearch::new(infra.clone()));
@@ -157,6 +160,7 @@ impl<
             mcp_manager,
             file_create_service,
             plan_create_service,
+            todo_write_service,
             file_read_service,
             image_read_service,
             file_search_service,
@@ -229,6 +233,7 @@ impl<
     type McpConfigManager = ForgeMcpManager<F>;
     type FsWriteService = ForgeFsWrite<F>;
     type PlanCreateService = ForgePlanCreate<F>;
+    type TodoWriteService = ForgeTodoWrite<F>;
     type FsPatchService = ForgeFsPatch<F>;
     type FsReadService = ForgeFsRead<F>;
     type ImageReadService = ForgeImageRead<F>;
@@ -288,6 +293,10 @@ impl<
 
     fn plan_create_service(&self) -> &Self::PlanCreateService {
         &self.plan_create_service
+    }
+
+    fn todo_write_service(&self) -> &Self::TodoWriteService {
+        &self.todo_write_service
     }
 
     fn fs_patch_service(&self) -> &Self::FsPatchService {

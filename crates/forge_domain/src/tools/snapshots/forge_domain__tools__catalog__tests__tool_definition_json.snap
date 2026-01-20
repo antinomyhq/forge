@@ -356,6 +356,64 @@ expression: tools
   }
 }
 {
+  "title": "TodoWrite",
+  "type": "object",
+  "required": [
+    "todos"
+  ],
+  "properties": {
+    "todos": {
+      "description": "List of todo items to create or update",
+      "type": "array",
+      "items": {
+        "description": "Represents a single todo item in a task list",
+        "type": "object",
+        "required": [
+          "content",
+          "id"
+        ],
+        "properties": {
+          "content": {
+            "description": "Content describing the task to be done",
+            "type": "string"
+          },
+          "id": {
+            "description": "Unique identifier for the todo item",
+            "type": "string"
+          },
+          "status": {
+            "description": "Current status of the task",
+            "default": "pending",
+            "oneOf": [
+              {
+                "description": "Task is pending and not yet started",
+                "type": "string",
+                "enum": [
+                  "pending"
+                ]
+              },
+              {
+                "description": "Task is currently in progress",
+                "type": "string",
+                "enum": [
+                  "in_progress"
+                ]
+              },
+              {
+                "description": "Task is completed",
+                "type": "string",
+                "enum": [
+                  "completed"
+                ]
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+{
   "title": "SkillFetch",
   "type": "object",
   "required": [

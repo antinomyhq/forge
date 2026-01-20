@@ -43,6 +43,7 @@ mod suggestion;
 mod system_context;
 mod temperature;
 mod template;
+mod todo;
 mod tools;
 
 mod tool_order;
@@ -98,6 +99,7 @@ pub use suggestion::*;
 pub use system_context::*;
 pub use temperature::*;
 pub use template::*;
+pub use todo::*;
 pub use tool_order::*;
 pub use tools::*;
 pub use top_k::*;

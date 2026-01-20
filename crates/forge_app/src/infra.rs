@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use bytes::Bytes;
 use forge_domain::{
-    AuthCodeParams, CommandOutput, Environment, FileInfo, McpServerConfig, OAuthConfig,
-    OAuthTokenResponse, ToolDefinition, ToolName, ToolOutput,
+    AuthCodeParams, CommandOutput, Conversation, ConversationId, Environment, FileInfo,
+    McpServerConfig, OAuthConfig, OAuthTokenResponse, ToolDefinition, ToolName, ToolOutput,
 };
 use reqwest::Response;
 use reqwest::header::HeaderMap;
@@ -15,6 +15,19 @@ use serde::de::DeserializeOwned;
 use url::Url;
 
 use crate::{WalkedFile, Walker};
+
+/// Infrastructure trait for conversation storage and retrieval
+#[async_trait::async_trait]
+pub trait ConversationInfra: Send + Sync {
+    /// Finds a conversation by its ID
+    async fn find_conversation(
+        &self,
+        id: &ConversationId,
+    ) -> anyhow::Result<Option<Conversation>>;
+
+    /// Upserts (inserts or updates) a conversation
+    async fn upsert_conversation(&self, conversation: Conversation) -> anyhow::Result<()>;
+}
 
 /// Infrastructure trait for accessing environment configuration and system
 /// variables.

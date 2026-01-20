@@ -11,7 +11,7 @@ use crate::{
     AgentRegistry, ConversationService, EnvironmentService, FollowUpService, FsPatchService,
     FsReadService, FsRemoveService, FsSearchService, FsUndoService, FsWriteService,
     ImageReadService, NetFetchService, PlanCreateService, ProviderService, SkillFetchService,
-    WorkspaceService,
+    TodoWriteService, WorkspaceService,
 };
 
 pub struct ToolExecutor<S> {
@@ -33,6 +33,7 @@ impl<
         + ConversationService
         + EnvironmentService
         + PlanCreateService
+        + TodoWriteService
         + SkillFetchService
         + AgentRegistry
         + ProviderService,
@@ -147,7 +148,7 @@ impl<
         Ok(path)
     }
 
-    async fn call_internal(&self, input: ToolCatalog) -> anyhow::Result<ToolOperation> {
+    async fn call_internal(&self, input: ToolCatalog, context: &ToolCallContext) -> anyhow::Result<ToolOperation> {
         Ok(match input {
             ToolCatalog::Read(input) => {
                 let normalized_path = self.normalize_path(input.file_path.clone());
@@ -297,6 +298,15 @@ impl<
                     .await?;
                 (input, output).into()
             }
+            ToolCatalog::TodoWrite(input) => {
+                // TODO: Wire up proper conversation context from request
+                let context = forge_domain::Context::default();
+                let output = self
+                    .services
+                    .execute_todo_write(input.clone(), &context)
+                    .await?;
+                (input, output).into()
+            }
             ToolCatalog::Skill(input) => {
                 let skill = self.services.fetch_skill(input.name.clone()).await?;
                 ToolOperation::Skill { output: skill }
@@ -324,7 +334,7 @@ impl<
             self.require_prior_read(context, &input.file_path, "overwrite it")?;
         }
 
-        let execution_result = self.call_internal(tool_input.clone()).await;
+        let execution_result = self.call_internal(tool_input.clone(), context).await;
 
         if let Err(ref error) = execution_result {
             tracing::error!(error = ?error, "Tool execution failed");
