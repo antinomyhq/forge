@@ -5,8 +5,8 @@ description: "Hands-on implementation agent that executes software development t
 reasoning:
   enabled: true
 tools:
-  - sage
   - codebase_search
+  - sage
   - fs_search
   - read
   - write

@@ -126,7 +126,7 @@ struct CodebaseSearchAgentHook {
 impl Default for CodebaseSearchAgentHook {
     fn default() -> Self {
         Self {
-            max_iterations: 5,
+            max_iterations: 10,
             captured_output: Arc::new(Mutex::new(None)),
         }
     }
