@@ -56,7 +56,7 @@ impl Step {
         matches!(self, Self::Interrupt { .. })
     }
 
-    /// Returns the reason if this is a Suspend step
+    /// Returns the reason if this is a interrupt step
     pub fn reason(&self) -> Option<&InterruptionReason> {
         match self {
             Self::Interrupt { reason } => Some(reason),
