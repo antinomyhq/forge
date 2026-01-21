@@ -1,6 +1,7 @@
+use std::fmt;
+
 use async_trait::async_trait;
 use derive_setters::Setters;
-use std::fmt;
 
 use crate::{Conversation, InterruptionReason};
 
@@ -90,10 +91,11 @@ pub trait EventHandle: Send + Sync {
 
 /// Extension trait for combining event handlers
 ///
-/// This trait provides methods to combine multiple event handlers into a single handler
-/// that executes them in sequence.
+/// This trait provides methods to combine multiple event handlers into a single
+/// handler that executes them in sequence.
 pub trait EventHandleExt: EventHandle {
-    /// Combines this handler with another handler, creating a new handler that runs both in sequence
+    /// Combines this handler with another handler, creating a new handler that
+    /// runs both in sequence
     ///
     /// When an event is handled, both handlers will be called in sequence.
     /// This handler runs first, then the other handler.
@@ -192,11 +194,12 @@ impl Hook {
         }
     }
 
-    /// Combines this hook with another hook, creating a new hook that runs both handlers
+    /// Combines this hook with another hook, creating a new hook that runs both
+    /// handlers
     ///
-    /// When an event is handled, both hooks' handlers will be called in sequence.
-    /// The first hook's handler runs first, then the second hook's handler.
-    /// The result from the second hook is returned.
+    /// When an event is handled, both hooks' handlers will be called in
+    /// sequence. The first hook's handler runs first, then the second
+    /// hook's handler. The result from the second hook is returned.
     ///
     /// # Arguments
     /// * `other` - Another hook to combine with this one
@@ -305,8 +308,9 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use pretty_assertions::assert_eq;
+
+    use super::*;
 
     #[derive(Debug, Default)]
     struct TestHandler {
