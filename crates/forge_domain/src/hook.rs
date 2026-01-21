@@ -378,7 +378,7 @@ mod tests {
                     events.lock().unwrap().push(event);
                     Ok(Step::proceed())
                 }
-            }
+            },
         );
 
         let mut conversation = Conversation::generate();
