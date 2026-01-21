@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use derive_setters::Setters;
 use std::fmt;
 
-use crate::Conversation;
+use crate::{Conversation, InterruptionReason};
 
 /// Lifecycle events that can occur during conversation processing
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -25,13 +25,13 @@ pub enum LifecycleEvent {
 ///
 /// This enum is open for extension - new variants can be added to represent
 /// different control flow decisions in the processing pipeline.
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, PartialEq, Eq)]
 pub enum Step {
     /// Continue processing
     #[default]
     Proceed,
-    /// Halt processing
-    Suspend,
+    /// Halt processing with a reason
+    Interrupt { reason: InterruptionReason },
 }
 
 impl Step {
@@ -40,19 +40,27 @@ impl Step {
         Self::Proceed
     }
 
-    /// Creates a Halt step
-    pub fn suspend() -> Self {
-        Self::Suspend
+    /// Creates a Halt step with a reason
+    pub fn interrupt(reason: impl Into<InterruptionReason>) -> Self {
+        Self::Interrupt { reason: reason.into() }
     }
 
     /// Returns true if this step indicates processing should continue
-    pub fn should_continue(&self) -> bool {
+    pub fn should_proceed(&self) -> bool {
         matches!(self, Self::Proceed)
     }
 
     /// Returns true if this step indicates processing should halt
-    pub fn should_halt(&self) -> bool {
-        matches!(self, Self::Suspend)
+    pub fn should_interrupt(&self) -> bool {
+        matches!(self, Self::Interrupt { .. })
+    }
+
+    /// Returns the reason if this is a Suspend step
+    pub fn reason(&self) -> Option<&InterruptionReason> {
+        match self {
+            Self::Interrupt { reason } => Some(reason),
+            Self::Proceed => None,
+        }
     }
 }
 
@@ -127,6 +135,7 @@ impl EventHandle for Box<dyn EventHandle> {
 /// Hooks allow you to attach custom behavior at specific points
 /// during conversation processing.
 #[derive(Setters)]
+#[setters(into)]
 pub struct Hook {
     on_start: Box<dyn EventHandle>,
     on_end: Box<dyn EventHandle>,
@@ -175,20 +184,6 @@ impl Hook {
     pub fn default() -> Self {
         Self {
             on_start: Box::new(NoOpHandler),
-            on_end: Box::new(NoOpHandler),
-            on_request: Box::new(NoOpHandler),
-            on_response: Box::new(NoOpHandler),
-            on_toolcall_start: Box::new(NoOpHandler),
-            on_toolcall_end: Box::new(NoOpHandler),
-        }
-    }
-
-    /// Creates a new hook with a handler for the Start event
-    ///
-    /// All other handlers use a no-op implementation.
-    pub fn with_start<F: EventHandle + 'static>(f: F) -> Self {
-        Self {
-            on_start: Box::new(f),
             on_end: Box::new(NoOpHandler),
             on_request: Box::new(NoOpHandler),
             on_response: Box::new(NoOpHandler),
@@ -254,9 +249,14 @@ impl EventHandle for CombinedHandler {
         conversation: &mut Conversation,
     ) -> anyhow::Result<Step> {
         // Run the first handler
-        self.0.handle(event, conversation).await?;
-        // Run the second handler and return its result
-        self.1.handle(event, conversation).await
+        let step = self.0.handle(event, conversation).await?;
+        match step {
+            Step::Proceed => {
+                // Run the second handler and return its result
+                self.1.handle(event, conversation).await
+            }
+            Step::Interrupt { .. } => Ok(step),
+        }
     }
 }
 
@@ -314,23 +314,27 @@ mod tests {
     fn test_step_continue() {
         let step = Step::proceed();
 
-        assert!(step.should_continue());
-        assert!(!step.should_halt());
+        assert!(step.should_proceed());
+        assert!(!step.should_interrupt());
     }
 
     #[test]
     fn test_step_halt() {
-        let step = Step::suspend();
+        let step = Step::interrupt(InterruptionReason::MaxRequestPerTurnLimitReached { limit: 10 });
 
-        assert!(!step.should_continue());
-        assert!(step.should_halt());
+        assert!(!step.should_proceed());
+        assert!(step.should_interrupt());
+        assert_eq!(
+            step.reason(),
+            Some(&InterruptionReason::MaxRequestPerTurnLimitReached { limit: 10 })
+        );
     }
 
     #[test]
     fn test_step_from_conversation() {
         let step = Step::proceed();
 
-        assert!(step.should_continue());
+        assert!(step.should_proceed());
     }
 
     #[test]
@@ -338,7 +342,7 @@ mod tests {
         let step = Step::proceed();
 
         // Just verify it's a Continue step
-        assert!(step.should_continue());
+        assert!(step.should_proceed());
     }
 
     #[test]
@@ -346,7 +350,7 @@ mod tests {
         let step = Step::proceed();
 
         // Just verify it's a Continue step
-        assert!(step.should_continue());
+        assert!(step.should_proceed());
     }
 
     #[tokio::test]
@@ -354,14 +358,14 @@ mod tests {
         let events = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
         let handler = TestHandler { events_handled: events.clone() };
 
-        let hook = Hook::with_start(handler);
+        let hook = Hook::default().on_start(Box::new(handler));
         let mut conversation = Conversation::generate();
 
         let step = hook
             .handle(LifecycleEvent::Start, &mut conversation)
             .await
             .unwrap();
-        assert!(step.should_continue());
+        assert!(step.should_proceed());
 
         let handled = events.lock().unwrap();
         assert_eq!(handled.len(), 1);
@@ -372,7 +376,8 @@ mod tests {
     async fn test_hook_builder() {
         let events = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
 
-        let hook = Hook::with_start(TestHandler { events_handled: events.clone() })
+        let hook = Hook::default()
+            .on_start(Box::new(TestHandler { events_handled: events.clone() }))
             .on_end(Box::new(TestHandler { events_handled: events.clone() }))
             .on_request(Box::new(TestHandler { events_handled: events.clone() }));
 
@@ -450,7 +455,7 @@ mod tests {
             }
         }
 
-        let hook = Hook::with_start(MutableHandler);
+        let hook = Hook::default().on_start(Box::new(MutableHandler));
         let mut conversation = Conversation::generate();
 
         assert!(conversation.title.is_none());
@@ -460,7 +465,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(step.should_continue());
+        assert!(step.should_proceed());
         assert_eq!(conversation.title, Some("Modified title".to_string()));
     }
 
@@ -475,11 +480,13 @@ mod tests {
                 _event: LifecycleEvent,
                 _conversation: &mut Conversation,
             ) -> anyhow::Result<Step> {
-                Ok(Step::suspend())
+                Ok(Step::interrupt(InterruptionReason::MaxRequestPerTurnLimitReached {
+                    limit: 5,
+                }))
             }
         }
 
-        let hook = Hook::with_start(HaltHandler);
+        let hook = Hook::default().on_start(Box::new(HaltHandler));
         let mut conversation = Conversation::generate();
 
         let step = hook
@@ -487,8 +494,12 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(step.should_halt());
-        assert!(!step.should_continue());
+        assert!(step.should_interrupt());
+        assert!(!step.should_proceed());
+        assert_eq!(
+            step.reason(),
+            Some(&InterruptionReason::MaxRequestPerTurnLimitReached { limit: 5 })
+        );
     }
 
     #[test]
@@ -536,9 +547,9 @@ mod tests {
         let counter1 = std::sync::Arc::new(std::sync::Mutex::new(0));
         let counter2 = std::sync::Arc::new(std::sync::Mutex::new(0));
 
-        let hook1 = Hook::with_start(Handler1 { counter: counter1.clone() });
+        let hook1 = Hook::default().on_start(Box::new(Handler1 { counter: counter1.clone() }));
 
-        let hook2 = Hook::with_start(Handler2 { counter: counter2.clone() });
+        let hook2 = Hook::default().on_start(Box::new(Handler2 { counter: counter2.clone() }));
 
         let combined = hook1.zip(hook2);
 
@@ -577,11 +588,11 @@ mod tests {
 
         let events = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
 
-        let hook1 = Hook::with_start(Handler { id: "h1", events: events.clone() });
+        let hook1 = Hook::default().on_start(Box::new(Handler { id: "h1", events: events.clone() }));
 
-        let hook2 = Hook::with_start(Handler { id: "h2", events: events.clone() });
+        let hook2 = Hook::default().on_start(Box::new(Handler { id: "h2", events: events.clone() }));
 
-        let hook3 = Hook::with_start(Handler { id: "h3", events: events.clone() });
+        let hook3 = Hook::default().on_start(Box::new(Handler { id: "h3", events: events.clone() }));
 
         let combined = hook1.zip(hook2).zip(hook3);
 
@@ -627,7 +638,9 @@ mod tests {
             }
         }
 
-        let hook1 = Hook::with_start(StartHandler).on_end(Box::new(EndHandler));
+        let hook1 = Hook::default()
+            .on_start(Box::new(StartHandler))
+            .on_end(Box::new(EndHandler));
         let hook2 = Hook::default();
 
         let combined = hook1.zip(hook2);
@@ -840,7 +853,7 @@ mod tests {
         // Combine handlers using extension trait
         let combined_handler = StartHandler.and(LoggingHandler { events: events.clone() });
 
-        let hook = Hook::with_start(combined_handler);
+        let hook = Hook::default().on_start(combined_handler);
 
         let mut conversation = Conversation::generate();
         let _ = hook
@@ -882,7 +895,9 @@ mod tests {
             }
         }
 
-        let hook = Hook::with_start(StartHandler).on_end(Box::new(EndHandler));
+        let hook = Hook::default()
+            .on_start(Box::new(StartHandler))
+            .on_end(Box::new(EndHandler));
 
         // Test using handle() directly (EventHandle trait)
         let mut conversation = Conversation::generate();
@@ -891,14 +906,14 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(conversation.title, Some("Started".to_string()));
-        assert!(step.should_continue());
+        assert!(step.should_proceed());
 
         let step = hook
             .handle(LifecycleEvent::End, &mut conversation)
             .await
             .unwrap();
         assert_eq!(conversation.title, Some("Ended".to_string()));
-        assert!(step.should_continue());
+        assert!(step.should_proceed());
     }
 
     #[tokio::test]
@@ -930,8 +945,8 @@ mod tests {
             }
         }
 
-        let hook1 = Hook::with_start(StartHandler);
-        let hook2 = Hook::with_start(EndHandler);
+        let hook1 = Hook::default().on_start(Box::new(StartHandler));
+        let hook2 = Hook::default().on_start(Box::new(EndHandler));
 
         // Combine hooks using and() extension method
         let combined = hook1.and(hook2);
