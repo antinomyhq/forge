@@ -5,14 +5,7 @@ use std::time::Duration;
 
 use async_recursion::async_recursion;
 use derive_setters::Setters;
-use forge_domain::{
-    Agent, ArcSender, ChatCompletionMessageFull, ChatResponse, CompleteContext, Context,
-    Conversation, DefaultTransformation, DropReasoningDetails, Environment, Event, FinishReason,
-    ImageHandling, InitContext, InterruptionReason, Model, ModelId, NoOpHook, OrchHook,
-    PostChatContext, PostToolCallContext, PreChatContext, PreToolCallContext, ReasoningNormalizer,
-    ResultStreamExt, SetModel, SortTools, ToolCallContext, ToolCallFull, ToolCatalog,
-    ToolDefinition, ToolErrorTracker, ToolOutput, ToolResult, TransformToolCalls, Transformer,
-};
+use forge_domain::{Agent, *};
 use forge_template::Element;
 use tokio::task::JoinHandle;
 use tracing::{debug, info, warn};
@@ -24,7 +17,7 @@ use crate::title_generator::TitleGenerator;
 
 #[derive(Clone, Setters)]
 #[setters(into)]
-pub struct Orchestrator<S, H: OrchHook = NoOpHook> {
+pub struct Orchestrator<S> {
     services: Arc<S>,
     sender: Option<ArcSender>,
     conversation: Conversation,
@@ -34,11 +27,10 @@ pub struct Orchestrator<S, H: OrchHook = NoOpHook> {
     agent: Agent,
     event: Event,
     error_tracker: ToolErrorTracker,
-    #[setters(skip)]
-    hook: Arc<H>,
+    hook: Arc<Hook>,
 }
 
-impl<S: AgentService> Orchestrator<S, NoOpHook> {
+impl<S: AgentService> Orchestrator<S> {
     pub fn new(
         services: Arc<S>,
         environment: Environment,
@@ -56,26 +48,14 @@ impl<S: AgentService> Orchestrator<S, NoOpHook> {
             tool_definitions: Default::default(),
             models: Default::default(),
             error_tracker: Default::default(),
-            hook: Arc::new(NoOpHook),
+            hook: Arc::new(Hook::default()),
         }
     }
-}
 
-impl<S: AgentService, H: OrchHook + 'static> Orchestrator<S, H> {
-    /// Creates a new orchestrator with a custom hook.
-    pub fn with_hook<NewH: OrchHook + 'static>(self, hook: Arc<NewH>) -> Orchestrator<S, NewH> {
-        Orchestrator {
-            services: self.services,
-            sender: self.sender,
-            conversation: self.conversation,
-            environment: self.environment,
-            tool_definitions: self.tool_definitions,
-            models: self.models,
-            agent: self.agent,
-            event: self.event,
-            error_tracker: self.error_tracker,
-            hook,
-        }
+    /// Sets a custom hook for this orchestrator
+    pub fn with_hook(mut self, hook: Arc<Hook>) -> Self {
+        self.hook = hook;
+        self
     }
 
     /// Get a reference to the internal conversation
@@ -86,11 +66,10 @@ impl<S: AgentService, H: OrchHook + 'static> Orchestrator<S, H> {
     // Helper function to get all tool results from a vector of tool calls
     #[async_recursion]
     async fn execute_tool_calls<'a>(
-        &self,
+        &mut self,
         tool_calls: &[ToolCallFull],
         tool_context: &ToolCallContext,
     ) -> anyhow::Result<Vec<(ToolCallFull, ToolResult)>> {
-        let agent = &self.agent;
         // Always process tool calls sequentially
         let mut tool_call_records = Vec::with_capacity(tool_calls.len());
 
@@ -101,47 +80,66 @@ impl<S: AgentService, H: OrchHook + 'static> Orchestrator<S, H> {
             .collect::<HashSet<_>>();
 
         for tool_call in tool_calls {
-            // Apply pre_tool_call hook
-            let pre_ctx = PreToolCallContext { agent: agent.clone(), tool_call: tool_call.clone() };
-            let tool_call = self
-                .hook
-                .pre_tool_call(pre_ctx)
-                .await
-                .into_anyhow("pre_tool_call")?;
-
-            // Send start notification for system tools
+            // Send the start notification for system tools and not agent as a tool
             let is_system_tool = system_tools.contains(&tool_call.name);
             if is_system_tool {
                 self.send(ChatResponse::ToolCallStart(tool_call.clone()))
                     .await?;
             }
 
+            // Fire the ToolcallStart lifecycle event
+            let toolcall_start_event = LifecycleEvent::ToolcallStart(tool_call.clone());
+            match self
+                .hook
+                .handle(toolcall_start_event, &mut self.conversation)
+                .await?
+            {
+                Step::Proceed => {}
+                Step::Interrupt { reason } => {
+                    // Send the interrupt and continue to next tool call
+                    let _ = self.send(ChatResponse::Interrupt { reason: reason.clone() }).await;
+                    tool_call_records.push((
+                        tool_call.clone(),
+                        ToolResult::new(tool_call.name.clone())
+                            .output(Ok(ToolOutput::text(format!(
+                                "Interrupted by hook: {:?}",
+                                reason
+                            )))),
+                    ));
+                    continue;
+                }
+            }
+
             // Execute the tool
             let tool_result = self
                 .services
-                .call(agent, tool_context, tool_call.clone())
+                .call(&self.agent, tool_context, tool_call.clone())
                 .await;
-
-            // Apply post_tool_call hook
-            let post_ctx = PostToolCallContext {
-                agent: agent.clone(),
-                tool_call: tool_call.clone(),
-                result: tool_result,
-            };
-            let tool_result = self
-                .hook
-                .post_tool_call(post_ctx)
-                .await
-                .into_anyhow("post_tool_call")?;
 
             if tool_result.is_error() {
                 warn!(
-                    agent_id = %agent.id,
+                    agent_id = %self.agent.id,
                     name = %tool_call.name,
                     arguments = %tool_call.arguments.to_owned().into_string(),
                     output = ?tool_result.output,
                     "Tool call failed",
                 );
+            }
+
+            // Fire the ToolcallEnd lifecycle event
+            let toolcall_end_event = LifecycleEvent::ToolcallEnd(tool_result.clone());
+            match self
+                .hook
+                .handle(toolcall_end_event, &mut self.conversation)
+                .await?
+            {
+                Step::Proceed => {}
+                Step::Interrupt { reason } => {
+                    // Send the interrupt and continue to next tool call
+                    let _ = self.send(ChatResponse::Interrupt { reason: reason.clone() }).await;
+                    tool_call_records.push((tool_call.clone(), tool_result));
+                    continue;
+                }
             }
 
             // Send the end notification for system tools and not agent as a tool
@@ -166,11 +164,10 @@ impl<S: AgentService, H: OrchHook + 'static> Orchestrator<S, H> {
 
     // Returns if agent supports tool or not.
     fn is_tool_supported(&self) -> anyhow::Result<bool> {
-        let agent = &self.agent;
-        let model_id = &agent.model;
+        let model_id = &self.agent.model;
 
         // Check if at agent level tool support is defined
-        let tool_supported = match agent.tool_supported {
+        let tool_supported = match self.agent.tool_supported {
             Some(tool_supported) => tool_supported,
             None => {
                 // If not defined at agent level, check model level
@@ -183,7 +180,7 @@ impl<S: AgentService, H: OrchHook + 'static> Orchestrator<S, H> {
         };
 
         debug!(
-            agent_id = %agent.id,
+            agent_id = %self.agent.id,
             model_id = %model_id,
             tool_supported,
             "Tool support check"
@@ -220,16 +217,15 @@ impl<S: AgentService, H: OrchHook + 'static> Orchestrator<S, H> {
     }
     /// Checks if compaction is needed and performs it if necessary
     fn check_and_compact(&self, context: &Context) -> anyhow::Result<Option<Context>> {
-        let agent = &self.agent;
         // Estimate token count for compaction decision
         let token_count = context.token_count();
-        if agent.compact.should_compact(context, *token_count) {
-            info!(agent_id = %agent.id, "Compaction needed");
-            Compactor::new(agent.compact.clone(), self.environment.clone())
+        if self.agent.compact.should_compact(context, *token_count) {
+            info!(agent_id = %self.agent.id, "Compaction needed");
+            Compactor::new(self.agent.compact.clone(), self.environment.clone())
                 .compact(context.clone(), false)
                 .map(Some)
         } else {
-            debug!(agent_id = %agent.id, "Compaction not needed");
+            debug!(agent_id = %self.agent.id, "Compaction not needed");
             Ok(None)
         }
     }
@@ -255,12 +251,18 @@ impl<S: AgentService, H: OrchHook + 'static> Orchestrator<S, H> {
 
         let mut context = self.conversation.context.clone().unwrap_or_default();
 
-        // Apply init hook
-        let init_ctx = InitContext { agent: self.agent.clone(), context };
-        context = self.hook.init(init_ctx).await.into_anyhow("init")?;
-
-        // Create agent reference for the rest of the method
-        let agent = &self.agent;
+        // Fire the Start lifecycle event
+        let start_event = LifecycleEvent::Start {
+            agent: self.agent.clone(),
+            model_id: model_id.clone(),
+        };
+        match self.hook.handle(start_event, &mut self.conversation).await? {
+            Step::Proceed => {}
+            Step::Interrupt { reason } => {
+                self.send(ChatResponse::Interrupt { reason }).await?;
+                return Ok(());
+            }
+        }
 
         // Signals that the loop should suspend (task may or may not be completed)
         let mut should_yield = false;
@@ -271,8 +273,7 @@ impl<S: AgentService, H: OrchHook + 'static> Orchestrator<S, H> {
         let mut request_count = 0;
 
         // Retrieve the number of requests allowed per tick.
-        let max_requests_per_turn = agent.max_requests_per_turn;
-
+        let max_requests_per_turn = self.agent.max_requests_per_turn;
         let tool_context =
             ToolCallContext::new(self.conversation.metrics.clone()).sender(self.sender.clone());
 
@@ -285,30 +286,30 @@ impl<S: AgentService, H: OrchHook + 'static> Orchestrator<S, H> {
             self.conversation.context = Some(context.clone());
             self.services.update(self.conversation.clone()).await?;
 
-            // Apply pre_chat hook
-            let pre_chat_ctx = PreChatContext {
-                agent: agent.clone(),
-                context: context.clone(),
-                iteration: request_count,
+            // Fire the Request lifecycle event
+            let request_event = LifecycleEvent::Request {
+                agent: self.agent.clone(),
+                model_id: model_id.clone(),
+                request_count,
             };
-            let chat_action = self
+            match self
                 .hook
-                .pre_chat(pre_chat_ctx)
-                .await
-                .into_anyhow("pre_chat")?;
-
-            // Check if hook wants to stop after this iteration
-            if chat_action.stop {
-                should_yield = true;
+                .handle(request_event, &mut self.conversation)
+                .await?
+            {
+                Step::Proceed => {}
+                Step::Interrupt { reason } => {
+                    self.send(ChatResponse::Interrupt { reason }).await?;
+                    break;
+                }
             }
-            let chat_context = chat_action.context;
 
             let message = crate::retry::retry_with_config(
                 &self.environment.retry_config,
-                || self.execute_chat_turn(&model_id, chat_context.clone(), chat_context.is_reasoning_supported()),
+                || self.execute_chat_turn(&model_id, context.clone(), context.is_reasoning_supported()),
                 self.sender.as_ref().map(|sender| {
                     let sender = sender.clone();
-                    let agent_id = agent.id.clone();
+                    let agent_id = self.agent.id.clone();
                     let model_id = model_id.clone();
                     move |error: &anyhow::Error, duration: Duration| {
                         let root_cause = error.root_cause();
@@ -322,28 +323,29 @@ impl<S: AgentService, H: OrchHook + 'static> Orchestrator<S, H> {
                 }),
             ).await?;
 
-            // Apply post_chat hook
-            let post_chat_ctx = PostChatContext {
-                agent: agent.clone(),
-                context: context.clone(),
-                message,
-                iteration: request_count,
-            };
-            let message = self
+            // Fire the Response lifecycle event
+            let response_event = LifecycleEvent::Response(message.clone());
+            match self
                 .hook
-                .post_chat(post_chat_ctx)
-                .await
-                .into_anyhow("post_chat")?;
+                .handle(response_event, &mut self.conversation)
+                .await?
+            {
+                Step::Proceed => {}
+                Step::Interrupt { reason } => {
+                    self.send(ChatResponse::Interrupt { reason }).await?;
+                    break;
+                }
+            }
 
             // TODO: Add a unit test in orch spec, to guarantee that compaction is
-            // triggered after receiving the response Trigger compaction after
+            // triggered after receiving the response
             // making a request NOTE: Ideally compaction should be implemented
             // as a transformer
             if let Some(c_context) = self.check_and_compact(&context)? {
-                info!(agent_id = %agent.id, "Using compacted context from execution");
+                info!(agent_id = %self.agent.id, "Using compacted context from execution");
                 context = c_context;
             } else {
-                debug!(agent_id = %agent.id, "No compaction was needed");
+                debug!(agent_id = %self.agent.id, "No compaction was needed");
             }
 
             info!(
@@ -357,17 +359,14 @@ impl<S: AgentService, H: OrchHook + 'static> Orchestrator<S, H> {
                 "Processing usage information"
             );
 
-            debug!(agent_id = %agent.id, tool_call_count = message.tool_calls.len(), "Tool call count");
-
+            debug!(agent_id = %self.agent.id, tool_call_count = message.tool_calls.len(), "Tool call count");
             // Turn is completed, if finish_reason is 'stop'. Gemini models return stop as
             // finish reason with tool calls.
             is_complete =
                 message.finish_reason == Some(FinishReason::Stop) && message.tool_calls.is_empty();
 
-            // Should yield if: hook requested it, task is complete, or a tool is asking for
-            // a follow-up
-            should_yield = should_yield
-                || is_complete
+            // Should yield if a tool is asking for a follow-up
+            should_yield = is_complete
                 || message
                     .tool_calls
                     .iter()
@@ -425,7 +424,7 @@ impl<S: AgentService, H: OrchHook + 'static> Orchestrator<S, H> {
                 // Check if agent has reached the maximum request per turn limit
                 if request_count >= max_request_allowed {
                     warn!(
-                        agent_id = %agent.id,
+                        agent_id = %self.agent.id,
                         model_id = %model_id,
                         request_count,
                         max_request_allowed,
@@ -449,16 +448,6 @@ impl<S: AgentService, H: OrchHook + 'static> Orchestrator<S, H> {
             })?;
         }
 
-        // Apply complete hook
-        debug!(agent_id = %agent.id, is_complete, total_iterations = request_count, "Invoking complete hook");
-        let complete_ctx = CompleteContext {
-            agent: agent.clone(),
-            context: context.clone(),
-            is_complete,
-            total_iterations: request_count,
-        };
-        self.hook.complete(complete_ctx).await;
-
         // Set conversation title
         if let Some(title) = title.await.ok().flatten() {
             debug!(conversation_id = %self.conversation.id, title, "Title generated for conversation");
@@ -466,6 +455,19 @@ impl<S: AgentService, H: OrchHook + 'static> Orchestrator<S, H> {
         }
 
         self.services.update(self.conversation.clone()).await?;
+
+        // Fire the End lifecycle event
+        match self
+            .hook
+            .handle(LifecycleEvent::End, &mut self.conversation)
+            .await?
+        {
+            Step::Proceed => {}
+            Step::Interrupt { reason } => {
+                self.send(ChatResponse::Interrupt { reason }).await?;
+                return Ok(());
+            }
+        }
 
         // Signal Task Completion
         if is_complete {

@@ -74,7 +74,7 @@ impl ChatResponse {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InterruptionReason {
     MaxToolFailurePerTurnLimitReached {
         limit: u64,

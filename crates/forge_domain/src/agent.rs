@@ -9,7 +9,7 @@ use crate::{
 
 /// Runtime agent representation with required model and provider
 /// Created by converting AgentDefinition with resolved defaults
-#[derive(Debug, Clone, Setters)]
+#[derive(Debug, Clone, Setters, PartialEq)]
 #[setters(strip_option, into)]
 pub struct Agent {
     /// Flag to enable/disable tool support for this agent.

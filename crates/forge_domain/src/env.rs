@@ -13,7 +13,7 @@ const VERSION: &str = match option_env!("APP_VERSION") {
     None => env!("CARGO_PKG_VERSION"),
 };
 
-#[derive(Debug, Setters, Clone, Serialize, Deserialize, fake::Dummy)]
+#[derive(Debug, Setters, Clone, Serialize, Deserialize, fake::Dummy, PartialEq)]
 #[serde(rename_all = "camelCase")]
 #[setters(strip_option)]
 /// Represents the environment in which the application is running.

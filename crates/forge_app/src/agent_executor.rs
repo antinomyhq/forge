@@ -2,8 +2,9 @@ use std::sync::{Arc, Mutex};
 
 use convert_case::{Case, Casing};
 use forge_domain::{
-    AgentId, ChatRequest, ChatResponse, ChatResponseContent, Conversation, Event, NoOpHook,
-    TitleFormat, ToolCallContext, ToolDefinition, ToolName, ToolOutput,
+    AgentId, ChatRequest, ChatResponse, ChatResponseContent, Conversation, Event, Hook,
+    LifecycleEvent, Step, TitleFormat, ToolCallContext, ToolDefinition, ToolName,
+    ToolOutput,
 };
 use forge_template::Element;
 use futures::StreamExt;
@@ -60,19 +61,22 @@ impl<S: Services> AgentExecutor<S> {
 
         // Execute the request through the ForgeApp
         let env = self.services.get_environment();
-        let hook = Arc::new(CodebaseSearchAgentHook::new(
-            env.codebase_search_max_iterations,
-        ));
-        let mut response_stream = if agent_id.is_codebase_search() {
-            let app =
-                crate::ForgeApp::<S, NoOpHook>::new(self.services.clone()).with_hook(hook.clone());
+        let (hook, captured_output) = if agent_id.is_codebase_search() {
+            let hook = CodebaseSearchAgentHook::new(env.codebase_search_max_iterations);
+            (Some(Arc::new(hook.hook)), hook.captured_output)
+        } else {
+            (None, Arc::new(Mutex::new(None)))
+        };
+
+        let mut response_stream = if let Some(hook) = hook {
+            let app = crate::ForgeApp::<S>::new(self.services.clone()).with_hook(hook);
             app.chat(
                 agent_id.clone(),
                 ChatRequest::new(Event::new(task.clone()), conversation.id),
             )
             .await?
         } else {
-            let app = crate::ForgeApp::<S, NoOpHook>::new(self.services.clone());
+            let app = crate::ForgeApp::<S>::new(self.services.clone());
             app.chat(
                 agent_id.clone(),
                 ChatRequest::new(Event::new(task.clone()), conversation.id),
@@ -100,7 +104,7 @@ impl<S: Services> AgentExecutor<S> {
         }
 
         // Prefer the last tool result output, fall back to text output
-        if let Some(result) = hook.captured_output.lock().unwrap().take() {
+        if let Some(result) = captured_output.lock().unwrap().take() {
             Ok(ToolOutput::ai(
                 conversation.id,
                 result.output.as_str().unwrap_or(""),
@@ -123,46 +127,58 @@ impl<S: Services> AgentExecutor<S> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct CodebaseSearchAgentHook {
-    max_iterations: usize,
+    hook: Hook,
     captured_output: Arc<Mutex<Option<forge_domain::ToolResult>>>,
 }
 
 impl CodebaseSearchAgentHook {
     fn new(max_iterations: usize) -> Self {
-        Self { max_iterations, captured_output: Arc::new(Mutex::new(None)) }
-    }
-}
+        let captured_output = Arc::new(Mutex::new(None));
+        let hook = Hook::default()
+            .on_request({
+                move |event: LifecycleEvent, conversation: &mut forge_domain::Conversation| {
+                    let request_count = match event {
+                        LifecycleEvent::Request { request_count, .. } => request_count,
+                        _ => 0,
+                    };
 
-impl forge_domain::OrchHook for CodebaseSearchAgentHook {
-    /// Called before making a call to the provider.
-    fn pre_chat<'a>(
-        &'a self,
-        mut ctx: forge_domain::PreChatContext,
-    ) -> forge_domain::BoxFuture<'a, forge_domain::HookResult<forge_domain::ChatAction>> {
-        if ctx.iteration + 1 == self.max_iterations {
-            ctx.context = ctx
-                .context
-                .tool_choice(forge_domain::ToolChoice::Call(ToolName::new(
-                    "search_report",
-                )));
-            Box::pin(async move {
-                forge_domain::HookResult::Continue(forge_domain::ChatAction::stop(ctx.context))
-            })
-        } else {
-            Box::pin(async move {
-                forge_domain::HookResult::Continue(forge_domain::ChatAction::cont(ctx.context))
-            })
-        }
-    }
+                    let step = match request_count {
+                        n if n == max_iterations => Step::Interrupt {
+                            reason: forge_domain::InterruptionReason::MaxRequestPerTurnLimitReached {
+                                limit: max_iterations as u64,
+                            }
+                        },
+                        n if n == max_iterations + 1 => {
+                            if let Some(ctx) = conversation.context.take() {
+                                conversation.context = Some(ctx.tool_choice(
+                                    forge_domain::ToolChoice::Call(
+                                        forge_domain::ToolName::new("search_report")
+                                    )
+                                ));
+                            }
+                            Step::proceed()
+                        }
+                        _ => Step::proceed(),
+                    };
 
-    /// Called after each tool execution completes.
-    fn post_tool_call<'a>(
-        &'a self,
-        ctx: forge_domain::PostToolCallContext,
-    ) -> forge_domain::BoxFuture<'a, forge_domain::HookResult<forge_domain::ToolResult>> {
-        *self.captured_output.lock().unwrap() = Some(ctx.result.clone());
-        Box::pin(async move { forge_domain::HookResult::Continue(ctx.result) })
+                    async move { Ok(step) }
+                }
+            })
+            .on_toolcall_end({
+                let captured_output = captured_output.clone();
+                move |event: LifecycleEvent, _conversation: &mut forge_domain::Conversation| {
+                    let captured_output = captured_output.clone();
+                    async move {
+                        if let LifecycleEvent::ToolcallEnd(result) = event {
+                            *captured_output.lock().unwrap() = Some(result);
+                        }
+                        Ok(Step::proceed())
+                    }
+                }
+            });
+
+        Self { hook, captured_output }
     }
 }

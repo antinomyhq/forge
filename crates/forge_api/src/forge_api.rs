@@ -11,7 +11,7 @@ use forge_app::{
     McpService, ProviderAuthService, ProviderService, Services, User, UserUsage, Walker,
     WorkspaceService,
 };
-use forge_domain::{Agent, ConsoleWriter, InitAuth, LoginInfo, NoOpHook, *};
+use forge_domain::{Agent, ConsoleWriter, InitAuth, LoginInfo, *};
 use forge_infra::ForgeInfra;
 use forge_repo::ForgeRepo;
 use forge_services::ForgeServices;
@@ -36,7 +36,7 @@ impl<A, F> ForgeAPI<A, F> {
     where
         A: Services,
     {
-        ForgeApp::<A, NoOpHook>::new(self.services.clone())
+        ForgeApp::<A>::new(self.services.clone())
     }
 }
 
