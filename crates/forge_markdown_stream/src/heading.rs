@@ -13,9 +13,8 @@ pub fn render_heading<S: InlineStyler + HeadingStyler>(
     margin: &str,
     styler: &S,
 ) -> Vec<String> {
-    // Create the dimmed heading prefix (e.g., "# ", "## ", etc.)
+    // Create the heading prefix (e.g., "# ", "## ", etc.)
     let prefix = "#".repeat(level as usize);
-    let dimmed_prefix = styler.dimmed(&prefix);
 
     // For h1, uppercase the content before rendering inline elements
     let content_to_render = if level == 1 {
@@ -42,7 +41,7 @@ pub fn render_heading<S: InlineStyler + HeadingStyler>(
                     "{}\n{}{} {}",
                     margin,
                     margin,
-                    dimmed_prefix,
+                    styler.dimmed(&styler.h1(&prefix)),
                     styler.h1(&line)
                 )
             }
@@ -52,21 +51,21 @@ pub fn render_heading<S: InlineStyler + HeadingStyler>(
                     "{}\n{}{} {}",
                     margin,
                     margin,
-                    dimmed_prefix,
+                    styler.dimmed(&styler.h2(&prefix)),
                     styler.h2(&line)
                 )
             }
             3 => {
-                format!("{}{} {}", margin, dimmed_prefix, styler.h3(&line))
+                format!("{}{} {}", margin, styler.dimmed(&styler.h3(&prefix)), styler.h3(&line))
             }
             4 => {
-                format!("{}{} {}", margin, dimmed_prefix, styler.h4(&line))
+                format!("{}{} {}", margin, styler.dimmed(&styler.h4(&prefix)), styler.h4(&line))
             }
             5 => {
-                format!("{}{} {}", margin, dimmed_prefix, styler.h5(&line))
+                format!("{}{} {}", margin, styler.dimmed(&styler.h5(&prefix)), styler.h5(&line))
             }
             _ => {
-                format!("{}{} {}", margin, dimmed_prefix, styler.h6(&line))
+                format!("{}{} {}", margin, styler.dimmed(&styler.h6(&prefix)), styler.h6(&line))
             }
         };
         result.push(formatted);
@@ -94,135 +93,107 @@ mod tests {
 
     #[test]
     fn test_h1_simple() {
-        insta::assert_snapshot!(render(1, "Hello World"), @r"
-          
-          <dim>#</dim> <h1>HELLO WORLD</h1>
-        ");
+        insta::assert_snapshot!(render(1, "Hello World"), @"<dim><h1>#</h1></dim> <h1>HELLO WORLD</h1>");
     }
 
     #[test]
     fn test_h2_simple() {
-        insta::assert_snapshot!(render(2, "Chapter One"), @r"
-          
-          <dim>##</dim> <h2>Chapter One</h2>
-        ");
+        insta::assert_snapshot!(render(2, "Chapter One"), @"<dim><h2>##</h2></dim> <h2>Chapter One</h2>");
     }
 
     #[test]
     fn test_h3_simple() {
-        insta::assert_snapshot!(render(3, "Section Title"), @"  <dim>###</dim> <h3>Section Title</h3>");
+        insta::assert_snapshot!(render(3, "Section Title"), @"  <dim><h3>###</h3></dim> <h3>Section Title</h3>");
     }
 
     #[test]
     fn test_h4_simple() {
-        insta::assert_snapshot!(render(4, "Subsection"), @"  <dim>####</dim> <h4>Subsection</h4>");
+        insta::assert_snapshot!(render(4, "Subsection"), @"  <dim><h4>####</h4></dim> <h4>Subsection</h4>");
     }
 
     #[test]
     fn test_h5_simple() {
-        insta::assert_snapshot!(render(5, "Minor Heading"), @"  <dim>#####</dim> <h5>Minor Heading</h5>");
+        insta::assert_snapshot!(render(5, "Minor Heading"), @"  <dim><h5>#####</h5></dim> <h5>Minor Heading</h5>");
     }
 
     #[test]
     fn test_h6_simple() {
-        insta::assert_snapshot!(render(6, "Smallest Heading"), @"  <dim>######</dim> <h6>Smallest Heading</h6>");
+        insta::assert_snapshot!(render(6, "Smallest Heading"), @"  <dim><h6>######</h6></dim> <h6>Smallest Heading</h6>");
     }
 
     #[test]
     fn test_h1_with_inline_bold() {
-        insta::assert_snapshot!(render(1, "Hello **bold** world"), @r"
-          
-          <dim>#</dim> <h1>HELLO <b>BOLD</b> WORLD</h1>
-        ");
+        insta::assert_snapshot!(render(1, "Hello **bold** world"), @"<dim><h1>#</h1></dim> <h1>HELLO <b>BOLD</b> WORLD</h1>");
     }
 
     #[test]
     fn test_h2_with_inline_italic() {
-        insta::assert_snapshot!(render(2, "Hello *italic* text"), @r"
-          
-          <dim>##</dim> <h2>Hello <i>italic</i> text</h2>
-        ");
+        insta::assert_snapshot!(render(2, "Hello *italic* text"), @"<dim><h2>##</h2></dim> <h2>Hello <i>italic</i> text</h2>");
     }
 
     #[test]
     fn test_h3_with_code() {
-        insta::assert_snapshot!(render(3, "Using `code` here"), @"  <dim>###</dim> <h3>Using <code>code</code> here</h3>");
+        insta::assert_snapshot!(render(3, "Using `code` here"), @"  <dim><h3>###</h3></dim> <h3>Using <code>code</code> here</h3>");
     }
 
     #[test]
     fn test_heading_level_beyond_6() {
         // Level 7+ should fall through to h6 styling
-        insta::assert_snapshot!(render(7, "Level Seven"), @"  <dim>#######</dim> <h6>Level Seven</h6>");
-        insta::assert_snapshot!(render(10, "Level Ten"), @"  <dim>##########</dim> <h6>Level Ten</h6>");
+        insta::assert_snapshot!(render(7, "Level Seven"), @"  <dim><h6>#######</h6></dim> <h6>Level Seven</h6>");
+        insta::assert_snapshot!(render(10, "Level Ten"), @"  <dim><h6>##########</h6></dim> <h6>Level Ten</h6>");
     }
 
     #[test]
     fn test_empty_content() {
-        insta::assert_snapshot!(render(1, ""), @r"
-          
-          <dim>#</dim> <h1></h1>
-        ");
+        insta::assert_snapshot!(render(1, ""), @"<dim><h1>#</h1></dim> <h1></h1>");
     }
 
     #[test]
     fn test_custom_margin() {
-        insta::assert_snapshot!(render_with_margin(1, "Title", "    "), @r"
-            
-            <dim>#</dim> <h1>TITLE</h1>
-        ");
-        insta::assert_snapshot!(render_with_margin(3, "Section", ">>> "), @">>> <dim>###</dim> <h3>Section</h3>");
+        insta::assert_snapshot!(render_with_margin(1, "Title", "    "), @"<dim><h1>#</h1></dim> <h1>TITLE</h1>");
+        insta::assert_snapshot!(render_with_margin(3, "Section", ">>> "), @">>> <dim><h3>###</h3></dim> <h3>Section</h3>");
     }
 
     #[test]
     fn test_no_margin() {
-        insta::assert_snapshot!(render_with_margin(1, "Title", ""), @r"
-
-        <dim>#</dim> <h1>TITLE</h1>
-        ");
-        insta::assert_snapshot!(render_with_margin(3, "Section", ""), @"<dim>###</dim> <h3>Section</h3>");
+        insta::assert_snapshot!(render_with_margin(1, "Title", ""), @"<dim><h1>#</h1></dim> <h1>TITLE</h1>");
+        insta::assert_snapshot!(render_with_margin(3, "Section", ""), @"<dim><h3>###</h3></dim> <h3>Section</h3>");
     }
 
     #[test]
     fn test_wrapping_narrow_width() {
         insta::assert_snapshot!(render_with_width(1, "This is a very long heading that should wrap", 20), @r"
-          
-          <dim>#</dim> <h1>THIS IS A VERY</h1>
-          
-          <dim>#</dim> <h1>LONG HEADING THAT</h1>
-          
-          <dim>#</dim> <h1>SHOULD WRAP</h1>
+        <dim><h1>#</h1></dim> <h1>THIS IS A VERY</h1>
+
+        <dim><h1>#</h1></dim> <h1>LONG HEADING THAT</h1>
+
+        <dim><h1>#</h1></dim> <h1>SHOULD WRAP</h1>
         ");
     }
 
     #[test]
     fn test_h3_wrapping() {
         insta::assert_snapshot!(render_with_width(3, "A long section title that wraps", 15), @r"
-          <dim>###</dim> <h3>A long</h3>
-          <dim>###</dim> <h3>section</h3>
-          <dim>###</dim> <h3>title that</h3>
-          <dim>###</dim> <h3>wraps</h3>
+        <dim><h3>###</h3></dim> <h3>A long</h3>
+        <dim><h3>###</h3></dim> <h3>section</h3>
+        <dim><h3>###</h3></dim> <h3>title that</h3>
+        <dim><h3>###</h3></dim> <h3>wraps</h3>
         ");
     }
 
     #[test]
     fn test_special_characters() {
-        insta::assert_snapshot!(render(2, "Hello & Goodbye < World >"), @r"
-          
-          <dim>##</dim> <h2>Hello & Goodbye < World ></h2>
-        ");
+        insta::assert_snapshot!(render(2, "Hello & Goodbye < World >"), @"<dim><h2>##</h2></dim> <h2>Hello & Goodbye < World ></h2>");
     }
 
     #[test]
     fn test_heading_with_link() {
-        insta::assert_snapshot!(render(3, "See [documentation](https://example.com)"), @r#"  <dim>###</dim> <h3>See <a href="https://example.com">documentation</a></h3>"#);
+        insta::assert_snapshot!(render(3, "See [documentation](https://example.com)"), @r#"  <dim><h3>###</h3></dim> <h3>See <a href="https://example.com">documentation</a></h3>"#);
     }
 
     #[test]
     fn test_mixed_inline_styles() {
-        insta::assert_snapshot!(render(2, "**Bold** and *italic* and `code`"), @r"
-          
-          <dim>##</dim> <h2><b>Bold</b> and <i>italic</i> and <code>code</code></h2>
-        ");
+        insta::assert_snapshot!(render(2, "**Bold** and *italic* and `code`"), @"<dim><h2>##</h2></dim> <h2><b>Bold</b> and <i>italic</i> and <code>code</code></h2>");
     }
 
     #[test]
