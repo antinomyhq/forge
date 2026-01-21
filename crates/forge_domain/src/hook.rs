@@ -310,6 +310,9 @@ where
 mod tests {
     use pretty_assertions::assert_eq;
 
+    use super::*;
+    use crate::Conversation;
+
     #[test]
     fn test_no_op_handler() {
         let handler = NoOpHandler;
@@ -623,7 +626,7 @@ mod tests {
                 }
             }
         });
-        let combined = hook1.zip(hook2);
+        let combined: Hook = hook1.zip(hook2);
 
         let mut conversation = Conversation::generate();
         let _ = combined
@@ -672,7 +675,7 @@ mod tests {
                 }
             }
         });
-        let combined = hook1.zip(hook2).zip(hook3);
+        let combined: Hook = hook1.zip(hook2).zip(hook3);
 
         let mut conversation = Conversation::generate();
         let _ = combined
@@ -715,7 +718,7 @@ mod tests {
             });
         let hook2 = Hook::default();
 
-        let combined = hook1.zip(hook2);
+        let combined: Hook = hook1.zip(hook2);
 
         let mut conversation = Conversation::generate();
 
@@ -761,7 +764,7 @@ mod tests {
             }
         };
 
-        let combined = handler1.and(handler2);
+        let combined: Box<dyn EventHandle> = handler1.and(handler2);
 
         let mut conversation = Conversation::generate();
         let _ = combined
@@ -801,7 +804,7 @@ mod tests {
             }
         };
 
-        let combined = handler1.and(handler2);
+        let combined: Box<dyn EventHandle> = handler1.and(handler2);
 
         let mut conversation = Conversation::generate();
         let _ = combined
@@ -852,7 +855,7 @@ mod tests {
         };
 
         // Chain handlers using and()
-        let combined = handler1.and(handler2).and(handler3);
+        let combined: Box<dyn EventHandle> = handler1.and(handler2).and(handler3);
 
         let mut conversation = Conversation::generate();
         let _ = combined
@@ -895,7 +898,7 @@ mod tests {
         };
 
         // Combine handlers using extension trait
-        let combined_handler = start_handler.and(logging_handler);
+        let combined_handler: Box<dyn EventHandle> = start_handler.and(logging_handler);
 
         let hook = Hook::default().on_start(combined_handler);
 
@@ -980,7 +983,7 @@ mod tests {
         });
 
         // Combine hooks using and() extension method
-        let combined = hook1.and(hook2);
+        let combined: Box<dyn EventHandle> = hook1.and(hook2);
 
         let mut conversation = Conversation::generate();
         let _ = combined
