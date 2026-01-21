@@ -42,7 +42,7 @@ impl TryFrom<&AuthRecord> for WorkspaceAuth {
     type Error = anyhow::Error;
 
     fn try_from(record: &AuthRecord) -> anyhow::Result<Self> {
-        let user_id = UserId::from_string(&record.user_id)?;
+        let user_id = UserId::from_string(&record.user_id);
         let token = record.token.clone().into();
         let created_at = chrono::DateTime::parse_from_rfc3339(&record.created_at)?
             .with_timezone(&Utc);

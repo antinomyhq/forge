@@ -48,7 +48,7 @@ impl TryFrom<&IndexingRecord> for Workspace {
 
     fn try_from(record: &IndexingRecord) -> anyhow::Result<Self> {
         let workspace_id = WorkspaceId::from_string(&record.remote_workspace_id)?;
-        let user_id = UserId::from_string(&record.user_id)?;
+        let user_id = UserId::from_string(&record.user_id);
         let path = PathBuf::from(&record.path);
 
         Ok(Self {
@@ -98,7 +98,7 @@ impl WorkspaceRepository for ForgeWorkspaceRepository {
             .select(workspace::user_id)
             .first(&mut connection)
             .optional()?;
-        Ok(user_id.map(|id| UserId::from_string(&id)).transpose()?)
+        Ok(user_id.map(UserId::from_string))
     }
 
     async fn delete(&self, workspace_id: &WorkspaceId) -> anyhow::Result<()> {

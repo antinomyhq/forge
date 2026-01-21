@@ -3644,9 +3644,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
                             // Store the authentication
                             let auth = forge_domain::WorkspaceAuth {
-                                user_id: forge_domain::UserId::from_string(
-                                    &login_info.token.as_str()[..36]
-                                )?,
+                                user_id: login_info.user_id.clone(),
                                 token: login_info.token,
                                 created_at: chrono::Utc::now(),
                             };

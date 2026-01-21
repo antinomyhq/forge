@@ -169,20 +169,26 @@ pub type WorkspaceFiles = CodeBase<()>;
 /// Unique per machine, generated once and stored in database.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Display)]
 #[display("{}", _0)]
-pub struct UserId(Uuid);
+pub struct UserId(String);
 
 impl UserId {
     /// Generate a new random user ID
+    ///
+    /// Generates a UUID v4 formatted string by default
     pub fn generate() -> Self {
-        Self(Uuid::new_v4())
+        Self(Uuid::new_v4().to_string())
     }
 
-    /// Parse a user ID from a string
+    /// Create a user ID from any string
     ///
-    /// # Errors
-    /// Returns an error if the string is not a valid UUID
-    pub fn from_string(s: &str) -> anyhow::Result<Self> {
-        Ok(Self(Uuid::parse_str(s)?))
+    /// Accepts any string format, not limited to UUIDs
+    pub fn from_string(s: impl Into<String>) -> Self {
+        Self(s.into())
+    }
+
+    /// Get the user ID as a string slice
+    pub fn as_str(&self) -> &str {
+        &self.0
     }
 }
 
@@ -428,7 +434,7 @@ mod tests {
     fn test_user_id_roundtrip() {
         let user_id = UserId::generate();
         let s = user_id.to_string();
-        let parsed = UserId::from_string(&s).unwrap();
+        let parsed = UserId::from_string(&s);
         assert_eq!(user_id, parsed);
     }
 

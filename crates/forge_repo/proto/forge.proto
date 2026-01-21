@@ -429,6 +429,8 @@ message LoginInfo {
   string token = 1;
   // Masked version of the token for display purposes
   string masked_token = 2;
+  // User identifier
+  UserId user_id = 3;
 }
 
 message PollResponse {

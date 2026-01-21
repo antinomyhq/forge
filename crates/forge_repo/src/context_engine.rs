@@ -19,7 +19,7 @@ impl TryFrom<CreateApiKeyResponse> for WorkspaceAuth {
 
     fn try_from(response: CreateApiKeyResponse) -> Result<Self> {
         let user_id = response.user_id.context("Missing user_id in response")?.id;
-        let user_id = UserId::from_string(&user_id).context("Invalid user_id returned from API")?;
+        let user_id = UserId::from_string(&user_id);
         let token: ApiKey = response.key.into();
 
         Ok(WorkspaceAuth { user_id, token, created_at: Utc::now() })
@@ -105,7 +105,15 @@ impl TryFrom<proto_generated::LoginInfo> for AuthFlowLoginInfo {
     type Error = anyhow::Error;
 
     fn try_from(proto: proto_generated::LoginInfo) -> Result<Self> {
-        Ok(AuthFlowLoginInfo { token: proto.token.into(), masked_token: proto.masked_token })
+        let user_id = proto
+            .user_id
+            .ok_or_else(|| anyhow::anyhow!("Missing user_id in LoginInfo"))?;
+        
+        Ok(AuthFlowLoginInfo {
+            token: proto.token.into(),
+            masked_token: proto.masked_token,
+            user_id: UserId::from_string(user_id.id),
+        })
     }
 }
 

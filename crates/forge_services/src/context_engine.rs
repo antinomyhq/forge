@@ -362,7 +362,7 @@ impl<F> ForgeWorkspaceService<F> {
                     .ok_or_else(|| {
                         anyhow::anyhow!("Missing user_id in ForgeServices credential")
                     })?;
-                let user_id = UserId::from_string(user_id_str.as_str())?;
+                let user_id = UserId::from_string(user_id_str.as_str());
 
                 Ok((token.clone(), user_id))
             }

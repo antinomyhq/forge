@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 
-use crate::ApiKey;
+use crate::{ApiKey, UserId};
 
 /// Response from initializing an authentication flow
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -30,12 +30,14 @@ pub struct AuthFlowLoginInfo {
     pub token: ApiKey,
     /// Masked version of the token for display purposes
     pub masked_token: String,
+    /// User identifier
+    pub user_id: UserId,
 }
 
 impl AuthFlowLoginInfo {
     /// Create a new login info
-    pub fn new(token: ApiKey, masked_token: String) -> Self {
-        Self { token, masked_token }
+    pub fn new(token: ApiKey, masked_token: String, user_id: UserId) -> Self {
+        Self { token, masked_token, user_id }
     }
 }
 
