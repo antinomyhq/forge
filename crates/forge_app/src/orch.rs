@@ -27,6 +27,7 @@ pub struct Orchestrator<S> {
     agent: Agent,
     event: Event,
     error_tracker: ToolErrorTracker,
+    hook: Arc<Hook>,
 }
 
 impl<S: AgentService> Orchestrator<S> {
@@ -47,6 +48,7 @@ impl<S: AgentService> Orchestrator<S> {
             tool_definitions: Default::default(),
             models: Default::default(),
             error_tracker: Default::default(),
+            hook: Arc::new(Hook::default()),
         }
     }
 
@@ -58,11 +60,10 @@ impl<S: AgentService> Orchestrator<S> {
     // Helper function to get all tool results from a vector of tool calls
     #[async_recursion]
     async fn execute_tool_calls<'a>(
-        &self,
+        &mut self,
         tool_calls: &[ToolCallFull],
         tool_context: &ToolCallContext,
     ) -> anyhow::Result<Vec<(ToolCallFull, ToolResult)>> {
-        let agent = &self.agent;
         // Always process tool calls sequentially
         let mut tool_call_records = Vec::with_capacity(tool_calls.len());
 
@@ -80,20 +81,59 @@ impl<S: AgentService> Orchestrator<S> {
                     .await?;
             }
 
+            // Fire the ToolcallStart lifecycle event
+            let toolcall_start_event = LifecycleEvent::ToolcallStart(tool_call.clone());
+            match self
+                .hook
+                .handle(toolcall_start_event, &mut self.conversation)
+                .await?
+            {
+                Step::Proceed => {}
+                Step::Interrupt { reason } => {
+                    // Send the interrupt and continue to next tool call
+                    let _ = self.send(ChatResponse::Interrupt { reason: reason.clone() }).await;
+                    tool_call_records.push((
+                        tool_call.clone(),
+                        ToolResult::new(tool_call.name.clone())
+                            .output(Ok(ToolOutput::text(format!(
+                                "Interrupted by hook: {:?}",
+                                reason
+                            )))),
+                    ));
+                    continue;
+                }
+            }
+
             // Execute the tool
             let tool_result = self
                 .services
-                .call(agent, tool_context, tool_call.clone())
+                .call(&self.agent, tool_context, tool_call.clone())
                 .await;
 
             if tool_result.is_error() {
                 warn!(
-                    agent_id = %agent.id,
+                    agent_id = %self.agent.id,
                     name = %tool_call.name,
                     arguments = %tool_call.arguments.to_owned().into_string(),
                     output = ?tool_result.output,
                     "Tool call failed",
                 );
+            }
+
+            // Fire the ToolcallEnd lifecycle event
+            let toolcall_end_event = LifecycleEvent::ToolcallEnd(tool_result.clone());
+            match self
+                .hook
+                .handle(toolcall_end_event, &mut self.conversation)
+                .await?
+            {
+                Step::Proceed => {}
+                Step::Interrupt { reason } => {
+                    // Send the interrupt and continue to next tool call
+                    let _ = self.send(ChatResponse::Interrupt { reason: reason.clone() }).await;
+                    tool_call_records.push((tool_call.clone(), tool_result));
+                    continue;
+                }
             }
 
             // Send the end notification for system tools and not agent as a tool
@@ -118,11 +158,10 @@ impl<S: AgentService> Orchestrator<S> {
 
     // Returns if agent supports tool or not.
     fn is_tool_supported(&self) -> anyhow::Result<bool> {
-        let agent = &self.agent;
-        let model_id = &agent.model;
+        let model_id = &self.agent.model;
 
         // Check if at agent level tool support is defined
-        let tool_supported = match agent.tool_supported {
+        let tool_supported = match self.agent.tool_supported {
             Some(tool_supported) => tool_supported,
             None => {
                 // If not defined at agent level, check model level
@@ -135,7 +174,7 @@ impl<S: AgentService> Orchestrator<S> {
         };
 
         debug!(
-            agent_id = %agent.id,
+            agent_id = %self.agent.id,
             model_id = %model_id,
             tool_supported,
             "Tool support check"
@@ -172,16 +211,15 @@ impl<S: AgentService> Orchestrator<S> {
     }
     /// Checks if compaction is needed and performs it if necessary
     fn check_and_compact(&self, context: &Context) -> anyhow::Result<Option<Context>> {
-        let agent = &self.agent;
         // Estimate token count for compaction decision
         let token_count = context.token_count();
-        if agent.compact.should_compact(context, *token_count) {
-            info!(agent_id = %agent.id, "Compaction needed");
-            Compactor::new(agent.compact.clone(), self.environment.clone())
+        if self.agent.compact.should_compact(context, *token_count) {
+            info!(agent_id = %self.agent.id, "Compaction needed");
+            Compactor::new(self.agent.compact.clone(), self.environment.clone())
                 .compact(context.clone(), false)
                 .map(Some)
         } else {
-            debug!(agent_id = %agent.id, "Compaction not needed");
+            debug!(agent_id = %self.agent.id, "Compaction not needed");
             Ok(None)
         }
     }
@@ -207,8 +245,18 @@ impl<S: AgentService> Orchestrator<S> {
 
         let mut context = self.conversation.context.clone().unwrap_or_default();
 
-        // Create agent reference for the rest of the method
-        let agent = &self.agent;
+        // Fire the Start lifecycle event
+        let start_event = LifecycleEvent::Start {
+            agent: self.agent.clone(),
+            model_id: model_id.clone(),
+        };
+        match self.hook.handle(start_event, &mut self.conversation).await? {
+            Step::Proceed => {}
+            Step::Interrupt { reason } => {
+                self.send(ChatResponse::Interrupt { reason }).await?;
+                return Ok(());
+            }
+        }
 
         // Signals that the loop should suspend (task may or may not be completed)
         let mut should_yield = false;
@@ -219,8 +267,7 @@ impl<S: AgentService> Orchestrator<S> {
         let mut request_count = 0;
 
         // Retrieve the number of requests allowed per tick.
-        let max_requests_per_turn = agent.max_requests_per_turn;
-
+        let max_requests_per_turn = self.agent.max_requests_per_turn;
         let tool_context =
             ToolCallContext::new(self.conversation.metrics.clone()).sender(self.sender.clone());
 
@@ -233,12 +280,30 @@ impl<S: AgentService> Orchestrator<S> {
             self.conversation.context = Some(context.clone());
             self.services.update(self.conversation.clone()).await?;
 
+            // Fire the Request lifecycle event
+            let request_event = LifecycleEvent::Request {
+                agent: self.agent.clone(),
+                model_id: model_id.clone(),
+                request_count,
+            };
+            match self
+                .hook
+                .handle(request_event, &mut self.conversation)
+                .await?
+            {
+                Step::Proceed => {}
+                Step::Interrupt { reason } => {
+                    self.send(ChatResponse::Interrupt { reason }).await?;
+                    break;
+                }
+            }
+
             let message = crate::retry::retry_with_config(
                 &self.environment.retry_config,
                 || self.execute_chat_turn(&model_id, context.clone(), context.is_reasoning_supported()),
                 self.sender.as_ref().map(|sender| {
                     let sender = sender.clone();
-                    let agent_id = agent.id.clone();
+                    let agent_id = self.agent.id.clone();
                     let model_id = model_id.clone();
                     move |error: &anyhow::Error, duration: Duration| {
                         let root_cause = error.root_cause();
@@ -252,15 +317,29 @@ impl<S: AgentService> Orchestrator<S> {
                 }),
             ).await?;
 
+            // Fire the Response lifecycle event
+            let response_event = LifecycleEvent::Response(message.clone());
+            match self
+                .hook
+                .handle(response_event, &mut self.conversation)
+                .await?
+            {
+                Step::Proceed => {}
+                Step::Interrupt { reason } => {
+                    self.send(ChatResponse::Interrupt { reason }).await?;
+                    break;
+                }
+            }
+
             // TODO: Add a unit test in orch spec, to guarantee that compaction is
-            // triggered after receiving the response Trigger compaction after
+            // triggered after receiving the response
             // making a request NOTE: Ideally compaction should be implemented
             // as a transformer
             if let Some(c_context) = self.check_and_compact(&context)? {
-                info!(agent_id = %agent.id, "Using compacted context from execution");
+                info!(agent_id = %self.agent.id, "Using compacted context from execution");
                 context = c_context;
             } else {
-                debug!(agent_id = %agent.id, "No compaction was needed");
+                debug!(agent_id = %self.agent.id, "No compaction was needed");
             }
 
             info!(
@@ -274,8 +353,7 @@ impl<S: AgentService> Orchestrator<S> {
                 "Processing usage information"
             );
 
-            debug!(agent_id = %agent.id, tool_call_count = message.tool_calls.len(), "Tool call count");
-
+            debug!(agent_id = %self.agent.id, tool_call_count = message.tool_calls.len(), "Tool call count");
             // Turn is completed, if finish_reason is 'stop'. Gemini models return stop as
             // finish reason with tool calls.
             is_complete =
@@ -340,7 +418,7 @@ impl<S: AgentService> Orchestrator<S> {
                 // Check if agent has reached the maximum request per turn limit
                 if request_count >= max_request_allowed {
                     warn!(
-                        agent_id = %agent.id,
+                        agent_id = %self.agent.id,
                         model_id = %model_id,
                         request_count,
                         max_request_allowed,
@@ -371,6 +449,19 @@ impl<S: AgentService> Orchestrator<S> {
         }
 
         self.services.update(self.conversation.clone()).await?;
+
+        // Fire the End lifecycle event
+        match self
+            .hook
+            .handle(LifecycleEvent::End, &mut self.conversation)
+            .await?
+        {
+            Step::Proceed => {}
+            Step::Interrupt { reason } => {
+                self.send(ChatResponse::Interrupt { reason }).await?;
+                return Ok(());
+            }
+        }
 
         // Signal Task Completion
         if is_complete {
