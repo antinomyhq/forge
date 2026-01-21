@@ -278,6 +278,31 @@ impl EventHandle for NoOpHandler {
     }
 }
 
+#[async_trait]
+impl<F, Fut> EventHandle for F
+where
+    F: Fn(LifecycleEvent, &mut Conversation) -> Fut + Send + Sync,
+    Fut: std::future::Future<Output = anyhow::Result<Step>> + Send,
+{
+    async fn handle(
+        &self,
+        event: LifecycleEvent,
+        conversation: &mut Conversation,
+    ) -> anyhow::Result<Step> {
+        (self)(event, conversation).await
+    }
+}
+
+impl<F, Fut> From<F> for Box<dyn EventHandle>
+where
+    F: Fn(LifecycleEvent, &mut Conversation) -> Fut + Send + Sync + 'static,
+    Fut: std::future::Future<Output = anyhow::Result<Step>> + Send + 'static,
+{
+    fn from(handler: F) -> Self {
+        Box::new(handler)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -358,7 +383,7 @@ mod tests {
         let events = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
         let handler = TestHandler { events_handled: events.clone() };
 
-        let hook = Hook::default().on_start(Box::new(handler));
+        let hook = Hook::default().on_start(Box::new(handler) as Box<dyn EventHandle>);
         let mut conversation = Conversation::generate();
 
         let step = hook
@@ -376,10 +401,14 @@ mod tests {
     async fn test_hook_builder() {
         let events = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
 
-        let hook = Hook::default()
-            .on_start(Box::new(TestHandler { events_handled: events.clone() }))
-            .on_end(Box::new(TestHandler { events_handled: events.clone() }))
-            .on_request(Box::new(TestHandler { events_handled: events.clone() }));
+        let hook =
+            Hook::default()
+                .on_start(Box::new(TestHandler { events_handled: events.clone() })
+                    as Box<dyn EventHandle>)
+                .on_end(Box::new(TestHandler { events_handled: events.clone() })
+                    as Box<dyn EventHandle>)
+                .on_request(Box::new(TestHandler { events_handled: events.clone() })
+                    as Box<dyn EventHandle>);
 
         let mut conversation = Conversation::generate();
 
@@ -455,7 +484,7 @@ mod tests {
             }
         }
 
-        let hook = Hook::default().on_start(Box::new(MutableHandler));
+        let hook = Hook::default().on_start(Box::new(MutableHandler) as Box<dyn EventHandle>);
         let mut conversation = Conversation::generate();
 
         assert!(conversation.title.is_none());
@@ -480,13 +509,13 @@ mod tests {
                 _event: LifecycleEvent,
                 _conversation: &mut Conversation,
             ) -> anyhow::Result<Step> {
-                Ok(Step::interrupt(InterruptionReason::MaxRequestPerTurnLimitReached {
-                    limit: 5,
-                }))
+                Ok(Step::interrupt(
+                    InterruptionReason::MaxRequestPerTurnLimitReached { limit: 5 },
+                ))
             }
         }
 
-        let hook = Hook::default().on_start(Box::new(HaltHandler));
+        let hook = Hook::default().on_start(Box::new(HaltHandler) as Box<dyn EventHandle>);
         let mut conversation = Conversation::generate();
 
         let step = hook
@@ -547,9 +576,11 @@ mod tests {
         let counter1 = std::sync::Arc::new(std::sync::Mutex::new(0));
         let counter2 = std::sync::Arc::new(std::sync::Mutex::new(0));
 
-        let hook1 = Hook::default().on_start(Box::new(Handler1 { counter: counter1.clone() }));
+        let hook1 = Hook::default()
+            .on_start(Box::new(Handler1 { counter: counter1.clone() }) as Box<dyn EventHandle>);
 
-        let hook2 = Hook::default().on_start(Box::new(Handler2 { counter: counter2.clone() }));
+        let hook2 = Hook::default()
+            .on_start(Box::new(Handler2 { counter: counter2.clone() }) as Box<dyn EventHandle>);
 
         let combined = hook1.zip(hook2);
 
@@ -588,11 +619,17 @@ mod tests {
 
         let events = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
 
-        let hook1 = Hook::default().on_start(Box::new(Handler { id: "h1", events: events.clone() }));
+        let hook1 = Hook::default().on_start(
+            Box::new(Handler { id: "h1", events: events.clone() }) as Box<dyn EventHandle>,
+        );
 
-        let hook2 = Hook::default().on_start(Box::new(Handler { id: "h2", events: events.clone() }));
+        let hook2 = Hook::default().on_start(
+            Box::new(Handler { id: "h2", events: events.clone() }) as Box<dyn EventHandle>,
+        );
 
-        let hook3 = Hook::default().on_start(Box::new(Handler { id: "h3", events: events.clone() }));
+        let hook3 = Hook::default().on_start(
+            Box::new(Handler { id: "h3", events: events.clone() }) as Box<dyn EventHandle>,
+        );
 
         let combined = hook1.zip(hook2).zip(hook3);
 
@@ -639,8 +676,8 @@ mod tests {
         }
 
         let hook1 = Hook::default()
-            .on_start(Box::new(StartHandler))
-            .on_end(Box::new(EndHandler));
+            .on_start(Box::new(StartHandler) as Box<dyn EventHandle>)
+            .on_end(Box::new(EndHandler) as Box<dyn EventHandle>);
         let hook2 = Hook::default();
 
         let combined = hook1.zip(hook2);
@@ -896,8 +933,8 @@ mod tests {
         }
 
         let hook = Hook::default()
-            .on_start(Box::new(StartHandler))
-            .on_end(Box::new(EndHandler));
+            .on_start(Box::new(StartHandler) as Box<dyn EventHandle>)
+            .on_end(Box::new(EndHandler) as Box<dyn EventHandle>);
 
         // Test using handle() directly (EventHandle trait)
         let mut conversation = Conversation::generate();
@@ -945,8 +982,8 @@ mod tests {
             }
         }
 
-        let hook1 = Hook::default().on_start(Box::new(StartHandler));
-        let hook2 = Hook::default().on_start(Box::new(EndHandler));
+        let hook1 = Hook::default().on_start(Box::new(StartHandler) as Box<dyn EventHandle>);
+        let hook2 = Hook::default().on_start(Box::new(EndHandler) as Box<dyn EventHandle>);
 
         // Combine hooks using and() extension method
         let combined = hook1.and(hook2);
