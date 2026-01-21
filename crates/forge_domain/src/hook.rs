@@ -102,7 +102,11 @@ pub trait EventHandle: Send + Sync {
     ///
     /// # Errors
     /// Returns an error if the event handling fails
-    async fn handle(&self, event: LifecycleEvent, conversation: &mut Conversation) -> anyhow::Result<Step>;
+    async fn handle(
+        &self,
+        event: LifecycleEvent,
+        conversation: &mut Conversation,
+    ) -> anyhow::Result<Step>;
 }
 
 /// Extension trait for combining event handlers
@@ -138,11 +142,14 @@ impl<T: EventHandle + 'static> EventHandleExt for T {
 // Implement EventHandle for Box<dyn EventHandle> to allow using boxed handlers
 #[async_trait]
 impl EventHandle for Box<dyn EventHandle> {
-    async fn handle(&self, event: LifecycleEvent, conversation: &mut Conversation) -> anyhow::Result<Step> {
+    async fn handle(
+        &self,
+        event: LifecycleEvent,
+        conversation: &mut Conversation,
+    ) -> anyhow::Result<Step> {
         (**self).handle(event, conversation).await
     }
 }
-
 
 /// A hook that contains handlers for all lifecycle events
 ///
@@ -240,35 +247,26 @@ impl Hook {
             on_toolcall_end: self.on_toolcall_end.and(other.on_toolcall_end),
         }
     }
-
-    /// Handles a lifecycle event using the appropriate handler
-    ///
-    /// # Arguments
-    /// * `event` - The lifecycle event to handle
-    /// * `conversation` - The current conversation state (mutable)
-    ///
-    /// # Returns
-    /// A step indicating how to proceed with the potentially modified conversation
-    ///
-    /// # Errors
-    /// Returns an error if the event handling fails
-    pub async fn handle_event(&self, event: LifecycleEvent, conversation: &mut Conversation) -> anyhow::Result<Step> {
-        match event {
-            LifecycleEvent::Start => self.on_start.handle(event, conversation).await,
-            LifecycleEvent::End => self.on_end.handle(event, conversation).await,
-            LifecycleEvent::Request => self.on_request.handle(event, conversation).await,
-            LifecycleEvent::Response => self.on_response.handle(event, conversation).await,
-            LifecycleEvent::ToolcallStart => self.on_toolcall_start.handle(event, conversation).await,
-            LifecycleEvent::ToolcallEnd => self.on_toolcall_end.handle(event, conversation).await,
-        }
-    }
 }
 
 // Implement EventHandle for Hook to allow hooks to be used as handlers
 #[async_trait]
 impl EventHandle for Hook {
-    async fn handle(&self, event: LifecycleEvent, conversation: &mut Conversation) -> anyhow::Result<Step> {
-        self.handle_event(event, conversation).await
+    async fn handle(
+        &self,
+        event: LifecycleEvent,
+        conversation: &mut Conversation,
+    ) -> anyhow::Result<Step> {
+        match event {
+            LifecycleEvent::Start => self.on_start.handle(event, conversation).await,
+            LifecycleEvent::End => self.on_end.handle(event, conversation).await,
+            LifecycleEvent::Request => self.on_request.handle(event, conversation).await,
+            LifecycleEvent::Response => self.on_response.handle(event, conversation).await,
+            LifecycleEvent::ToolcallStart => {
+                self.on_toolcall_start.handle(event, conversation).await
+            }
+            LifecycleEvent::ToolcallEnd => self.on_toolcall_end.handle(event, conversation).await,
+        }
     }
 }
 
@@ -279,7 +277,11 @@ struct CombinedHandler(Box<dyn EventHandle>, Box<dyn EventHandle>);
 
 #[async_trait]
 impl EventHandle for CombinedHandler {
-    async fn handle(&self, event: LifecycleEvent, conversation: &mut Conversation) -> anyhow::Result<Step> {
+    async fn handle(
+        &self,
+        event: LifecycleEvent,
+        conversation: &mut Conversation,
+    ) -> anyhow::Result<Step> {
         // Run the first handler
         self.0.handle(event, conversation).await?;
         // Run the second handler and return its result
@@ -296,7 +298,11 @@ pub struct NoOpHandler;
 
 #[async_trait]
 impl EventHandle for NoOpHandler {
-    async fn handle(&self, _event: LifecycleEvent, conversation: &mut Conversation) -> anyhow::Result<Step> {
+    async fn handle(
+        &self,
+        _event: LifecycleEvent,
+        conversation: &mut Conversation,
+    ) -> anyhow::Result<Step> {
         Ok(Step::continue_with(conversation.clone()))
     }
 }
@@ -313,7 +319,11 @@ mod tests {
 
     #[async_trait]
     impl EventHandle for TestHandler {
-        async fn handle(&self, event: LifecycleEvent, conversation: &mut Conversation) -> anyhow::Result<Step> {
+        async fn handle(
+            &self,
+            event: LifecycleEvent,
+            conversation: &mut Conversation,
+        ) -> anyhow::Result<Step> {
             self.events_handled.lock().unwrap().push(event);
             Ok(Step::continue_with(conversation.clone()))
         }
@@ -380,14 +390,15 @@ mod tests {
     #[tokio::test]
     async fn test_hook_on_start() {
         let events = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
-        let handler = TestHandler {
-            events_handled: events.clone(),
-        };
+        let handler = TestHandler { events_handled: events.clone() };
 
         let hook = Hook::with_start(handler);
         let mut conversation = Conversation::generate();
 
-        let result = hook.handle_event(LifecycleEvent::Start, &mut conversation).await.unwrap();
+        let result = hook
+            .handle(LifecycleEvent::Start, &mut conversation)
+            .await
+            .unwrap();
         assert_eq!(result.conversation().id, conversation.id);
 
         let handled = events.lock().unwrap();
@@ -399,24 +410,27 @@ mod tests {
     async fn test_hook_builder() {
         let events = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
 
-        let hook = Hook::with_start(TestHandler {
-            events_handled: events.clone(),
-        })
-        .on_end(Box::new(TestHandler {
-            events_handled: events.clone(),
-        }))
-        .on_request(Box::new(TestHandler {
-            events_handled: events.clone(),
-        }));
+        let hook = Hook::with_start(TestHandler { events_handled: events.clone() })
+            .on_end(Box::new(TestHandler { events_handled: events.clone() }))
+            .on_request(Box::new(TestHandler { events_handled: events.clone() }));
 
         let mut conversation = Conversation::generate();
 
         // Test Start event
-        let _ = hook.handle_event(LifecycleEvent::Start, &mut conversation).await.unwrap();
+        let _ = hook
+            .handle(LifecycleEvent::Start, &mut conversation)
+            .await
+            .unwrap();
         // Test End event
-        let _ = hook.handle_event(LifecycleEvent::End, &mut conversation).await.unwrap();
+        let _ = hook
+            .handle(LifecycleEvent::End, &mut conversation)
+            .await
+            .unwrap();
         // Test Request event
-        let _ = hook.handle_event(LifecycleEvent::Request, &mut conversation).await.unwrap();
+        let _ = hook
+            .handle(LifecycleEvent::Request, &mut conversation)
+            .await
+            .unwrap();
 
         let handled = events.lock().unwrap();
         assert_eq!(handled.len(), 3);
@@ -430,24 +444,12 @@ mod tests {
         let events = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
 
         let hook = Hook::new(
-            Box::new(TestHandler {
-                events_handled: events.clone(),
-            }),
-            Box::new(TestHandler {
-                events_handled: events.clone(),
-            }),
-            Box::new(TestHandler {
-                events_handled: events.clone(),
-            }),
-            Box::new(TestHandler {
-                events_handled: events.clone(),
-            }),
-            Box::new(TestHandler {
-                events_handled: events.clone(),
-            }),
-            Box::new(TestHandler {
-                events_handled: events.clone(),
-            }),
+            Box::new(TestHandler { events_handled: events.clone() }),
+            Box::new(TestHandler { events_handled: events.clone() }),
+            Box::new(TestHandler { events_handled: events.clone() }),
+            Box::new(TestHandler { events_handled: events.clone() }),
+            Box::new(TestHandler { events_handled: events.clone() }),
+            Box::new(TestHandler { events_handled: events.clone() }),
         );
 
         let mut conversation = Conversation::generate();
@@ -462,7 +464,7 @@ mod tests {
         ];
 
         for event in all_events {
-            let _ = hook.handle_event(event, &mut conversation).await.unwrap();
+            let _ = hook.handle(event, &mut conversation).await.unwrap();
         }
 
         let handled = events.lock().unwrap();
@@ -475,7 +477,11 @@ mod tests {
 
         #[async_trait]
         impl EventHandle for MutableHandler {
-            async fn handle(&self, _event: LifecycleEvent, conversation: &mut Conversation) -> anyhow::Result<Step> {
+            async fn handle(
+                &self,
+                _event: LifecycleEvent,
+                conversation: &mut Conversation,
+            ) -> anyhow::Result<Step> {
                 // Modify the conversation
                 conversation.title = Some("Modified title".to_string());
                 Ok(Step::continue_with(conversation.clone()))
@@ -487,9 +493,15 @@ mod tests {
 
         assert!(conversation.title.is_none());
 
-        let step = hook.handle_event(LifecycleEvent::Start, &mut conversation).await.unwrap();
+        let step = hook
+            .handle(LifecycleEvent::Start, &mut conversation)
+            .await
+            .unwrap();
 
-        assert_eq!(step.conversation().title, Some("Modified title".to_string()));
+        assert_eq!(
+            step.conversation().title,
+            Some("Modified title".to_string())
+        );
         assert_eq!(conversation.title, Some("Modified title".to_string()));
     }
 
@@ -499,7 +511,11 @@ mod tests {
 
         #[async_trait]
         impl EventHandle for HaltHandler {
-            async fn handle(&self, _event: LifecycleEvent, conversation: &mut Conversation) -> anyhow::Result<Step> {
+            async fn handle(
+                &self,
+                _event: LifecycleEvent,
+                conversation: &mut Conversation,
+            ) -> anyhow::Result<Step> {
                 Ok(Step::halt_with(conversation.clone()))
             }
         }
@@ -507,7 +523,10 @@ mod tests {
         let hook = Hook::with_start(HaltHandler);
         let mut conversation = Conversation::generate();
 
-        let step = hook.handle_event(LifecycleEvent::Start, &mut conversation).await.unwrap();
+        let step = hook
+            .handle(LifecycleEvent::Start, &mut conversation)
+            .await
+            .unwrap();
 
         assert!(step.should_halt());
         assert!(!step.should_continue());
@@ -529,7 +548,11 @@ mod tests {
 
         #[async_trait]
         impl EventHandle for Handler1 {
-            async fn handle(&self, _event: LifecycleEvent, conversation: &mut Conversation) -> anyhow::Result<Step> {
+            async fn handle(
+                &self,
+                _event: LifecycleEvent,
+                conversation: &mut Conversation,
+            ) -> anyhow::Result<Step> {
                 *self.counter.lock().unwrap() += 1;
                 Ok(Step::continue_with(conversation.clone()))
             }
@@ -541,7 +564,11 @@ mod tests {
 
         #[async_trait]
         impl EventHandle for Handler2 {
-            async fn handle(&self, _event: LifecycleEvent, conversation: &mut Conversation) -> anyhow::Result<Step> {
+            async fn handle(
+                &self,
+                _event: LifecycleEvent,
+                conversation: &mut Conversation,
+            ) -> anyhow::Result<Step> {
                 *self.counter.lock().unwrap() += 1;
                 Ok(Step::continue_with(conversation.clone()))
             }
@@ -550,18 +577,17 @@ mod tests {
         let counter1 = std::sync::Arc::new(std::sync::Mutex::new(0));
         let counter2 = std::sync::Arc::new(std::sync::Mutex::new(0));
 
-        let hook1 = Hook::with_start(Handler1 {
-            counter: counter1.clone(),
-        });
+        let hook1 = Hook::with_start(Handler1 { counter: counter1.clone() });
 
-        let hook2 = Hook::with_start(Handler2 {
-            counter: counter2.clone(),
-        });
+        let hook2 = Hook::with_start(Handler2 { counter: counter2.clone() });
 
         let combined = hook1.zip(hook2);
 
         let mut conversation = Conversation::generate();
-        let _ = combined.handle_event(LifecycleEvent::Start, &mut conversation).await.unwrap();
+        let _ = combined
+            .handle(LifecycleEvent::Start, &mut conversation)
+            .await
+            .unwrap();
 
         // Both handlers should have been called
         assert_eq!(*counter1.lock().unwrap(), 1);
@@ -577,33 +603,34 @@ mod tests {
 
         #[async_trait]
         impl EventHandle for Handler {
-            async fn handle(&self, event: LifecycleEvent, conversation: &mut Conversation) -> anyhow::Result<Step> {
-                self.events.lock().unwrap().push(format!("{}:{:?}", self.id, event));
+            async fn handle(
+                &self,
+                event: LifecycleEvent,
+                conversation: &mut Conversation,
+            ) -> anyhow::Result<Step> {
+                self.events
+                    .lock()
+                    .unwrap()
+                    .push(format!("{}:{:?}", self.id, event));
                 Ok(Step::continue_with(conversation.clone()))
             }
         }
 
         let events = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
 
-        let hook1 = Hook::with_start(Handler {
-            id: "h1",
-            events: events.clone(),
-        });
+        let hook1 = Hook::with_start(Handler { id: "h1", events: events.clone() });
 
-        let hook2 = Hook::with_start(Handler {
-            id: "h2",
-            events: events.clone(),
-        });
+        let hook2 = Hook::with_start(Handler { id: "h2", events: events.clone() });
 
-        let hook3 = Hook::with_start(Handler {
-            id: "h3",
-            events: events.clone(),
-        });
+        let hook3 = Hook::with_start(Handler { id: "h3", events: events.clone() });
 
         let combined = hook1.zip(hook2).zip(hook3);
 
         let mut conversation = Conversation::generate();
-        let _ = combined.handle_event(LifecycleEvent::Start, &mut conversation).await.unwrap();
+        let _ = combined
+            .handle(LifecycleEvent::Start, &mut conversation)
+            .await
+            .unwrap();
 
         let handled = events.lock().unwrap();
         assert_eq!(handled.len(), 3);
@@ -619,7 +646,11 @@ mod tests {
 
         #[async_trait]
         impl EventHandle for StartHandler {
-            async fn handle(&self, _event: LifecycleEvent, conversation: &mut Conversation) -> anyhow::Result<Step> {
+            async fn handle(
+                &self,
+                _event: LifecycleEvent,
+                conversation: &mut Conversation,
+            ) -> anyhow::Result<Step> {
                 conversation.title = Some("Start".to_string());
                 Ok(Step::continue_with(conversation.clone()))
             }
@@ -627,7 +658,11 @@ mod tests {
 
         #[async_trait]
         impl EventHandle for EndHandler {
-            async fn handle(&self, _event: LifecycleEvent, conversation: &mut Conversation) -> anyhow::Result<Step> {
+            async fn handle(
+                &self,
+                _event: LifecycleEvent,
+                conversation: &mut Conversation,
+            ) -> anyhow::Result<Step> {
                 conversation.title = Some("End".to_string());
                 Ok(Step::continue_with(conversation.clone()))
             }
@@ -641,11 +676,17 @@ mod tests {
         let mut conversation = Conversation::generate();
 
         // Test Start event
-        let _ = combined.handle_event(LifecycleEvent::Start, &mut conversation).await.unwrap();
+        let _ = combined
+            .handle(LifecycleEvent::Start, &mut conversation)
+            .await
+            .unwrap();
         assert_eq!(conversation.title, Some("Start".to_string()));
 
         // Test End event
-        let _ = combined.handle_event(LifecycleEvent::End, &mut conversation).await.unwrap();
+        let _ = combined
+            .handle(LifecycleEvent::End, &mut conversation)
+            .await
+            .unwrap();
         assert_eq!(conversation.title, Some("End".to_string()));
     }
 
@@ -657,7 +698,11 @@ mod tests {
 
         #[async_trait]
         impl EventHandle for Handler1 {
-            async fn handle(&self, _event: LifecycleEvent, conversation: &mut Conversation) -> anyhow::Result<Step> {
+            async fn handle(
+                &self,
+                _event: LifecycleEvent,
+                conversation: &mut Conversation,
+            ) -> anyhow::Result<Step> {
                 *self.counter.lock().unwrap() += 1;
                 Ok(Step::continue_with(conversation.clone()))
             }
@@ -669,7 +714,11 @@ mod tests {
 
         #[async_trait]
         impl EventHandle for Handler2 {
-            async fn handle(&self, _event: LifecycleEvent, conversation: &mut Conversation) -> anyhow::Result<Step> {
+            async fn handle(
+                &self,
+                _event: LifecycleEvent,
+                conversation: &mut Conversation,
+            ) -> anyhow::Result<Step> {
                 *self.counter.lock().unwrap() += 1;
                 Ok(Step::continue_with(conversation.clone()))
             }
@@ -678,17 +727,16 @@ mod tests {
         let counter1 = std::sync::Arc::new(std::sync::Mutex::new(0));
         let counter2 = std::sync::Arc::new(std::sync::Mutex::new(0));
 
-        let handler1 = Handler1 {
-            counter: counter1.clone(),
-        };
-        let handler2 = Handler2 {
-            counter: counter2.clone(),
-        };
+        let handler1 = Handler1 { counter: counter1.clone() };
+        let handler2 = Handler2 { counter: counter2.clone() };
 
         let combined = handler1.and(handler2);
 
         let mut conversation = Conversation::generate();
-        let _ = combined.handle(LifecycleEvent::Start, &mut conversation).await.unwrap();
+        let _ = combined
+            .handle(LifecycleEvent::Start, &mut conversation)
+            .await
+            .unwrap();
 
         // Both handlers should have been called
         assert_eq!(*counter1.lock().unwrap(), 1);
@@ -703,7 +751,11 @@ mod tests {
 
         #[async_trait]
         impl EventHandle for Handler1 {
-            async fn handle(&self, _event: LifecycleEvent, conversation: &mut Conversation) -> anyhow::Result<Step> {
+            async fn handle(
+                &self,
+                _event: LifecycleEvent,
+                conversation: &mut Conversation,
+            ) -> anyhow::Result<Step> {
                 *self.counter.lock().unwrap() += 1;
                 Ok(Step::continue_with(conversation.clone()))
             }
@@ -715,7 +767,11 @@ mod tests {
 
         #[async_trait]
         impl EventHandle for Handler2 {
-            async fn handle(&self, _event: LifecycleEvent, conversation: &mut Conversation) -> anyhow::Result<Step> {
+            async fn handle(
+                &self,
+                _event: LifecycleEvent,
+                conversation: &mut Conversation,
+            ) -> anyhow::Result<Step> {
                 *self.counter.lock().unwrap() += 1;
                 Ok(Step::continue_with(conversation.clone()))
             }
@@ -724,17 +780,16 @@ mod tests {
         let counter1 = std::sync::Arc::new(std::sync::Mutex::new(0));
         let counter2 = std::sync::Arc::new(std::sync::Mutex::new(0));
 
-        let handler1 = Handler1 {
-            counter: counter1.clone(),
-        };
-        let handler2 = Box::new(Handler2 {
-            counter: counter2.clone(),
-        });
+        let handler1 = Handler1 { counter: counter1.clone() };
+        let handler2 = Box::new(Handler2 { counter: counter2.clone() });
 
         let combined = handler1.and(*handler2);
 
         let mut conversation = Conversation::generate();
-        let _ = combined.handle(LifecycleEvent::Start, &mut conversation).await.unwrap();
+        let _ = combined
+            .handle(LifecycleEvent::Start, &mut conversation)
+            .await
+            .unwrap();
 
         // Both handlers should have been called
         assert_eq!(*counter1.lock().unwrap(), 1);
@@ -750,34 +805,35 @@ mod tests {
 
         #[async_trait]
         impl EventHandle for Handler {
-            async fn handle(&self, event: LifecycleEvent, conversation: &mut Conversation) -> anyhow::Result<Step> {
-                self.events.lock().unwrap().push(format!("{}:{:?}", self.id, event));
+            async fn handle(
+                &self,
+                event: LifecycleEvent,
+                conversation: &mut Conversation,
+            ) -> anyhow::Result<Step> {
+                self.events
+                    .lock()
+                    .unwrap()
+                    .push(format!("{}:{:?}", self.id, event));
                 Ok(Step::continue_with(conversation.clone()))
             }
         }
 
         let events = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
 
-        let handler1 = Handler {
-            id: "h1",
-            events: events.clone(),
-        };
+        let handler1 = Handler { id: "h1", events: events.clone() };
 
-        let handler2 = Handler {
-            id: "h2",
-            events: events.clone(),
-        };
+        let handler2 = Handler { id: "h2", events: events.clone() };
 
-        let handler3 = Handler {
-            id: "h3",
-            events: events.clone(),
-        };
+        let handler3 = Handler { id: "h3", events: events.clone() };
 
         // Chain handlers using and()
         let combined = handler1.and(handler2).and(handler3);
 
         let mut conversation = Conversation::generate();
-        let _ = combined.handle(LifecycleEvent::Start, &mut conversation).await.unwrap();
+        let _ = combined
+            .handle(LifecycleEvent::Start, &mut conversation)
+            .await
+            .unwrap();
 
         let handled = events.lock().unwrap();
         assert_eq!(handled.len(), 3);
@@ -795,7 +851,11 @@ mod tests {
 
         #[async_trait]
         impl EventHandle for StartHandler {
-            async fn handle(&self, _event: LifecycleEvent, conversation: &mut Conversation) -> anyhow::Result<Step> {
+            async fn handle(
+                &self,
+                _event: LifecycleEvent,
+                conversation: &mut Conversation,
+            ) -> anyhow::Result<Step> {
                 conversation.title = Some("Started".to_string());
                 Ok(Step::continue_with(conversation.clone()))
             }
@@ -803,8 +863,15 @@ mod tests {
 
         #[async_trait]
         impl EventHandle for LoggingHandler {
-            async fn handle(&self, event: LifecycleEvent, conversation: &mut Conversation) -> anyhow::Result<Step> {
-                self.events.lock().unwrap().push(format!("Event: {:?}", event));
+            async fn handle(
+                &self,
+                event: LifecycleEvent,
+                conversation: &mut Conversation,
+            ) -> anyhow::Result<Step> {
+                self.events
+                    .lock()
+                    .unwrap()
+                    .push(format!("Event: {:?}", event));
                 Ok(Step::continue_with(conversation.clone()))
             }
         }
@@ -812,14 +879,15 @@ mod tests {
         let events = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
 
         // Combine handlers using extension trait
-        let combined_handler = StartHandler.and(LoggingHandler {
-            events: events.clone(),
-        });
+        let combined_handler = StartHandler.and(LoggingHandler { events: events.clone() });
 
         let hook = Hook::with_start(combined_handler);
 
         let mut conversation = Conversation::generate();
-        let _ = hook.handle_event(LifecycleEvent::Start, &mut conversation).await.unwrap();
+        let _ = hook
+            .handle(LifecycleEvent::Start, &mut conversation)
+            .await
+            .unwrap();
 
         assert_eq!(conversation.title, Some("Started".to_string()));
         assert_eq!(events.lock().unwrap().len(), 1);
@@ -833,7 +901,11 @@ mod tests {
 
         #[async_trait]
         impl EventHandle for StartHandler {
-            async fn handle(&self, _event: LifecycleEvent, conversation: &mut Conversation) -> anyhow::Result<Step> {
+            async fn handle(
+                &self,
+                _event: LifecycleEvent,
+                conversation: &mut Conversation,
+            ) -> anyhow::Result<Step> {
                 conversation.title = Some("Started".to_string());
                 Ok(Step::continue_with(conversation.clone()))
             }
@@ -841,7 +913,11 @@ mod tests {
 
         #[async_trait]
         impl EventHandle for EndHandler {
-            async fn handle(&self, _event: LifecycleEvent, conversation: &mut Conversation) -> anyhow::Result<Step> {
+            async fn handle(
+                &self,
+                _event: LifecycleEvent,
+                conversation: &mut Conversation,
+            ) -> anyhow::Result<Step> {
                 conversation.title = Some("Ended".to_string());
                 Ok(Step::continue_with(conversation.clone()))
             }
@@ -851,11 +927,17 @@ mod tests {
 
         // Test using handle() directly (EventHandle trait)
         let mut conversation = Conversation::generate();
-        let step = hook.handle(LifecycleEvent::Start, &mut conversation).await.unwrap();
+        let step = hook
+            .handle(LifecycleEvent::Start, &mut conversation)
+            .await
+            .unwrap();
         assert_eq!(conversation.title, Some("Started".to_string()));
         assert!(step.should_continue());
 
-        let step = hook.handle(LifecycleEvent::End, &mut conversation).await.unwrap();
+        let step = hook
+            .handle(LifecycleEvent::End, &mut conversation)
+            .await
+            .unwrap();
         assert_eq!(conversation.title, Some("Ended".to_string()));
         assert!(step.should_continue());
     }
@@ -867,7 +949,11 @@ mod tests {
 
         #[async_trait]
         impl EventHandle for StartHandler {
-            async fn handle(&self, _event: LifecycleEvent, conversation: &mut Conversation) -> anyhow::Result<Step> {
+            async fn handle(
+                &self,
+                _event: LifecycleEvent,
+                conversation: &mut Conversation,
+            ) -> anyhow::Result<Step> {
                 conversation.title = Some("Started".to_string());
                 Ok(Step::continue_with(conversation.clone()))
             }
@@ -875,7 +961,11 @@ mod tests {
 
         #[async_trait]
         impl EventHandle for EndHandler {
-            async fn handle(&self, _event: LifecycleEvent, conversation: &mut Conversation) -> anyhow::Result<Step> {
+            async fn handle(
+                &self,
+                _event: LifecycleEvent,
+                conversation: &mut Conversation,
+            ) -> anyhow::Result<Step> {
                 conversation.title = Some("Ended".to_string());
                 Ok(Step::continue_with(conversation.clone()))
             }
@@ -888,7 +978,10 @@ mod tests {
         let combined = hook1.and(hook2);
 
         let mut conversation = Conversation::generate();
-        let _ = combined.handle(LifecycleEvent::Start, &mut conversation).await.unwrap();
+        let _ = combined
+            .handle(LifecycleEvent::Start, &mut conversation)
+            .await
+            .unwrap();
 
         // Both handlers should have been called
         // The last handler's result determines the final title
