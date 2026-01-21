@@ -285,7 +285,7 @@ impl DirectoryReaderInfra for ForgeInfra {
             max_total_size: None,
             skip_binary: false,
         };
-        
+
         let entries = self
             .walker_service
             .walk(walker)
