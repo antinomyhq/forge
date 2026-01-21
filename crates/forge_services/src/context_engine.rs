@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
@@ -11,8 +11,8 @@ use forge_app::{
     WorkspaceStatus, compute_hash,
 };
 use forge_domain::{
-    AuthCredential, AuthDetails, FileHash, FileNode, ProviderId, ProviderRepository, SyncProgress,
-    UserId, WorkspaceId, WorkspaceIndexRepository, WorkspaceRepository,
+    AuthDetails, FileHash, FileNode, ProviderId, ProviderRepository, SyncProgress, UserId,
+    WorkspaceId, WorkspaceIndexRepository, WorkspaceRepository,
 };
 use forge_stream::MpscStream;
 use futures::future::join_all;
@@ -501,6 +501,7 @@ impl<
         + WalkerInfra
         + FileReaderInfra
         + EnvironmentInfra
+        + forge_domain::AuthStorage
         + 'static,
 > WorkspaceService for ForgeWorkspaceService<F>
 {
@@ -636,37 +637,17 @@ impl<
     }
 
     async fn is_authenticated(&self) -> Result<bool> {
-        Ok(self
-            .infra
-            .get_credential(&ProviderId::FORGE_SERVICES)
-            .await?
-            .is_some())
+        // Check if we have stored authentication
+        Ok(self.infra.get_auth().await?.is_some())
     }
 
     async fn init_auth_credentials(&self) -> Result<forge_domain::WorkspaceAuth> {
-        // Authenticate with the indexing service
+        // Get stored authentication
         let auth = self
-            .with_retry(|| self.infra.authenticate())
-            .await
-            .context("Failed to authenticate with indexing service")?;
-
-        // Convert to AuthCredential and store
-        let mut url_params = HashMap::new();
-        url_params.insert(
-            "user_id".to_string().into(),
-            auth.user_id.to_string().into(),
-        );
-
-        let credential = AuthCredential {
-            id: ProviderId::FORGE_SERVICES,
-            auth_details: auth.clone().into(),
-            url_params,
-        };
-
-        self.infra
-            .upsert_credential(credential)
-            .await
-            .context("Failed to store authentication credentials")?;
+            .infra
+            .get_auth()
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("No authentication found. Please run 'forge auth login'"))?;
 
         Ok(auth)
     }

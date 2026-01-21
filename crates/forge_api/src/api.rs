@@ -229,4 +229,33 @@ pub trait API: Sync + Send {
         &self,
         data_parameters: DataGenerationParameters,
     ) -> Result<BoxStream<'static, Result<serde_json::Value, anyhow::Error>>>;
+
+    /// Initialize authentication flow (new device flow)
+    async fn auth_init_flow(&self) -> Result<forge_domain::InitFlowResponse>;
+
+    /// Poll for authentication completion
+    async fn auth_poll(
+        &self,
+        session_id: &str,
+        iv: &str,
+        aad: &str,
+    ) -> Result<Option<forge_domain::AuthFlowLoginInfo>>;
+
+    /// Get stored authentication
+    async fn auth_get_stored(&self) -> Result<Option<forge_domain::WorkspaceAuth>>;
+
+    /// Store authentication
+    async fn auth_store(&self, auth: &forge_domain::WorkspaceAuth) -> Result<()>;
+
+    /// Clear stored authentication (logout)
+    async fn auth_clear(&self) -> Result<()>;
+
+    /// Check if current authentication is valid
+    async fn auth_is_valid(&self) -> Result<bool>;
+
+    /// Get all API keys for authenticated user
+    async fn auth_list_keys(&self) -> Result<Vec<forge_domain::ApiKeyInfo>>;
+
+    /// Delete an API key
+    async fn auth_delete_key(&self, key_id: &str) -> Result<()>;
 }

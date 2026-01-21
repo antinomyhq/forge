@@ -183,16 +183,17 @@ impl<R: AuthFlowRepository> AuthFlowService<R> {
 }
 
 /// Check if an error is an authentication error (401/403)
+// FIXME: need better approach
 fn is_auth_error(error: &anyhow::Error) -> bool {
-    // Check if it's a tonic status error with UNAUTHENTICATED or PERMISSION_DENIED
-    if let Some(status) = error.downcast_ref::<tonic::Status>() {
-        matches!(
-            status.code(),
-            tonic::Code::Unauthenticated | tonic::Code::PermissionDenied
-        )
-    } else {
-        false
-    }
+    // Check error message for common auth error patterns
+    let error_msg = error.to_string().to_lowercase();
+    error_msg.contains("unauthenticated")
+        || error_msg.contains("unauthorized")
+        || error_msg.contains("permission denied")
+        || error_msg.contains("invalid token")
+        || error_msg.contains("expired token")
+        || error_msg.contains("401")
+        || error_msg.contains("403")
 }
 
 /// Authentication errors
@@ -243,9 +244,7 @@ mod tests {
             if self.validate_result {
                 Ok(vec![])
             } else {
-                Err(anyhow::anyhow!(tonic::Status::unauthenticated(
-                    "Invalid token"
-                )))
+                Err(anyhow::anyhow!("Unauthenticated: Invalid token"))
             }
         }
 

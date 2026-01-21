@@ -1,5 +1,7 @@
 mod agent;
 mod app_config;
+mod auth_flow;
+mod auth_storage;
 mod context_engine;
 mod conversation;
 mod database;

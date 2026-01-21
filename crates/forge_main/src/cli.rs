@@ -83,6 +83,36 @@ impl Cli {
     pub fn is_interactive(&self) -> bool {
         self.prompt.is_none() && self.piped_input.is_none() && self.subcommands.is_none()
     }
+
+    /// Determines whether the command requires authentication.
+    ///
+    /// Returns false for utility commands that don't need authentication:
+    /// - Version info (handled by clap automatically)
+    /// - Shell completions (zsh)
+    /// - List commands (agents, models, providers, tools, mcp servers)
+    /// - Banner display
+    /// - Environment display
+    /// - Auth login (can't require auth to login!)
+    ///
+    /// All other commands require authentication.
+    pub fn requires_authentication(&self) -> bool {
+        match &self.subcommands {
+            None => true, // Interactive mode requires auth
+            Some(cmd) => match cmd {
+                // Commands that don't require authentication
+                TopLevelCommand::Zsh(_) => false,
+                TopLevelCommand::List(_) => false,
+                TopLevelCommand::Banner => false,
+                TopLevelCommand::Env => false,
+                TopLevelCommand::Auth(auth) => match auth.command {
+                    AuthCommand::Login => false, // Can't require auth to login
+                    _ => true,                   // Status, Logout, List require auth
+                },
+                // All other commands require authentication
+                _ => true,
+            },
+        }
+    }
 }
 
 #[derive(Subcommand, Debug, Clone)]
@@ -135,6 +165,9 @@ pub enum TopLevelCommand {
 
     /// Manage API provider authentication.
     Provider(ProviderCommandGroup),
+
+    /// Manage user authentication.
+    Auth(AuthCommandGroup),
 
     /// Run or list custom commands.
     #[command(aliases = ["command", "commands"])]
@@ -695,6 +728,28 @@ impl From<DataCommandGroup> for forge_domain::DataGenerationParameters {
 pub enum VscodeCommand {
     /// Install the Forge VS Code extension.
     InstallExtension,
+}
+
+/// Command group for authentication management.
+#[derive(Parser, Debug, Clone)]
+pub struct AuthCommandGroup {
+    #[command(subcommand)]
+    pub command: AuthCommand,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum AuthCommand {
+    /// Login to Forge using device authentication flow.
+    Login,
+
+    /// Logout and clear stored authentication.
+    Logout,
+
+    /// Show current authentication status.
+    Status,
+
+    /// List all API keys for the authenticated user.
+    List,
 }
 
 #[cfg(test)]

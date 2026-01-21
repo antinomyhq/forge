@@ -1,6 +1,14 @@
 // @generated automatically by Diesel CLI.
 
 diesel::table! {
+    auth (user_id) {
+        user_id -> Text,
+        token -> Text,
+        created_at -> Text,
+    }
+}
+
+diesel::table! {
     conversations (conversation_id) {
         conversation_id -> Text,
         title -> Nullable<Text>,
@@ -22,4 +30,4 @@ diesel::table! {
     }
 }
 
-diesel::allow_tables_to_appear_in_same_query!(conversations, workspace,);
+diesel::allow_tables_to_appear_in_same_query!(auth, conversations, workspace,);

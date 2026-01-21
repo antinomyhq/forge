@@ -5,8 +5,8 @@ use async_trait::async_trait;
 use chrono::Utc;
 use forge_app::GrpcInfra;
 use forge_domain::{
-    ApiKey, FileUploadInfo, Node, UserId, WorkspaceAuth, WorkspaceId, WorkspaceIndexRepository,
-    WorkspaceInfo,
+    ApiKey, ApiKeyInfo, AuthFlowLoginInfo, FileUploadInfo, InitFlowResponse, Node, SyntaxInfo,
+    UserId, WorkspaceAuth, WorkspaceId, WorkspaceIndexRepository, WorkspaceInfo,
 };
 
 use crate::proto_generated::forge_service_client::ForgeServiceClient;
@@ -80,6 +80,47 @@ impl TryFrom<FileRefNode> for forge_domain::FileHash {
     }
 }
 
+impl TryFrom<proto_generated::SyntaxInfo> for SyntaxInfo {
+    type Error = anyhow::Error;
+
+    fn try_from(proto: proto_generated::SyntaxInfo) -> Result<Self> {
+        Ok(SyntaxInfo { language: proto.language, extensions: proto.extensions })
+    }
+}
+
+impl TryFrom<proto_generated::InitFlowResponse> for InitFlowResponse {
+    type Error = anyhow::Error;
+
+    fn try_from(proto: proto_generated::InitFlowResponse) -> Result<Self> {
+        Ok(InitFlowResponse {
+            device_id: proto.device_id,
+            ttl: proto.ttl,
+            iv: proto.iv,
+            aad: proto.aad,
+        })
+    }
+}
+
+impl TryFrom<proto_generated::LoginInfo> for AuthFlowLoginInfo {
+    type Error = anyhow::Error;
+
+    fn try_from(proto: proto_generated::LoginInfo) -> Result<Self> {
+        Ok(AuthFlowLoginInfo { token: proto.token.into(), masked_token: proto.masked_token })
+    }
+}
+
+impl TryFrom<proto_generated::ApiKeyInfo> for ApiKeyInfo {
+    type Error = anyhow::Error;
+
+    fn try_from(proto: proto_generated::ApiKeyInfo) -> Result<Self> {
+        let created_at = chrono::DateTime::parse_from_rfc3339(&proto.created_at)
+            .context("Failed to parse created_at timestamp")?
+            .with_timezone(&chrono::Utc);
+
+        Ok(ApiKeyInfo { id: proto.id, masked_token: proto.masked_token, created_at })
+    }
+}
+
 /// gRPC implementation of WorkspaceIndexRepository
 ///
 /// This repository provides gRPC-based workspace operations.
@@ -116,6 +157,10 @@ impl<I> ForgeContextEngineRepository<I> {
 #[async_trait]
 impl<I: GrpcInfra> WorkspaceIndexRepository for ForgeContextEngineRepository<I> {
     async fn authenticate(&self) -> Result<WorkspaceAuth> {
+        // DEPRECATED: This method uses the old CreateApiKey RPC which is deprecated.
+        // New code should use AuthGateService::ensure_authenticated() instead.
+        eprintln!("⚠ Warning: Using deprecated authentication method. Please use 'forge auth login' instead.");
+        
         let channel = self.infra.channel();
         let mut client = ForgeServiceClient::new(channel);
         let request = tonic::Request::new(CreateApiKeyRequest { user_id: None });

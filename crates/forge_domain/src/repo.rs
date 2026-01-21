@@ -154,6 +154,14 @@ pub trait WorkspaceRepository: Send + Sync {
 #[async_trait::async_trait]
 pub trait WorkspaceIndexRepository: Send + Sync {
     /// Authenticate with the indexing service via gRPC API
+    /// 
+    /// # Deprecated
+    /// This method is deprecated. Use `AuthGateService::ensure_authenticated()` instead.
+    /// This method will be removed in a future version.
+    #[deprecated(
+        since = "0.2.0",
+        note = "Use AuthGateService::ensure_authenticated() instead"
+    )]
     async fn authenticate(&self) -> anyhow::Result<WorkspaceAuth>;
 
     /// Create a new workspace on the indexing server
@@ -271,4 +279,94 @@ pub trait FuzzySearchRepository: Send + Sync {
         haystack: &str,
         search_all: bool,
     ) -> Result<Vec<SearchMatch>>;
+}
+
+/// Repository for authentication flow operations
+///
+/// This repository provides operations for the device-based authentication flow,
+/// including initializing authentication, polling for completion, and managing API keys.
+#[async_trait::async_trait]
+pub trait AuthFlowRepository: Send + Sync {
+    /// Initialize authentication flow and get device code
+    ///
+    /// # Returns
+    /// * `InitFlowResponse` containing device_id, ttl, iv, and aad for polling
+    ///
+    /// # Errors
+    /// Returns an error if the gRPC call fails or response cannot be parsed
+    async fn init_flow(&self) -> Result<crate::InitFlowResponse>;
+
+    /// Poll for authentication completion
+    ///
+    /// # Arguments
+    /// * `session_id` - The 6-character session ID from init_flow
+    /// * `iv` - Base64-encoded initialization vector from init_flow
+    /// * `aad` - Additional authenticated data from init_flow
+    ///
+    /// # Returns
+    /// * `Some(AuthFlowLoginInfo)` - Authentication complete with token
+    /// * `None` - Authentication still pending
+    ///
+    /// # Errors
+    /// Returns an error if the gRPC call fails or response cannot be parsed
+    async fn poll_auth(
+        &self,
+        session_id: &str,
+        iv: &str,
+        aad: &str,
+    ) -> Result<Option<crate::AuthFlowLoginInfo>>;
+
+    /// Get all API keys for authenticated user
+    ///
+    /// # Arguments
+    /// * `token` - Authentication token
+    ///
+    /// # Returns
+    /// List of API keys with their metadata
+    ///
+    /// # Errors
+    /// Returns an error if unauthorized or gRPC call fails
+    async fn get_api_keys(&self, token: &crate::ApiKey) -> Result<Vec<crate::ApiKeyInfo>>;
+
+    /// Delete an API key
+    ///
+    /// # Arguments
+    /// * `token` - Authentication token
+    /// * `key_id` - UUID of the API key to delete
+    ///
+    /// # Errors
+    /// Returns an error if unauthorized, key not found, or gRPC call fails
+    async fn delete_api_key(&self, token: &crate::ApiKey, key_id: &str) -> Result<()>;
+}
+
+/// Repository for storing authentication credentials locally
+///
+/// This repository provides operations for persisting user authentication
+/// in the local database. Tokens are user-global (not workspace-specific).
+#[async_trait::async_trait]
+pub trait AuthStorage: Send + Sync {
+    /// Store authentication token (user-global)
+    ///
+    /// # Arguments
+    /// * `auth` - WorkspaceAuth containing user_id, token, and created_at
+    ///
+    /// # Errors
+    /// Returns an error if database operation fails
+    async fn store_auth(&self, auth: &WorkspaceAuth) -> Result<()>;
+
+    /// Retrieve stored authentication
+    ///
+    /// # Returns
+    /// * `Some(WorkspaceAuth)` - If user has authenticated before
+    /// * `None` - If never authenticated
+    ///
+    /// # Errors
+    /// Returns an error if database operation fails
+    async fn get_auth(&self) -> Result<Option<WorkspaceAuth>>;
+
+    /// Clear authentication (logout)
+    ///
+    /// # Errors
+    /// Returns an error if database operation fails
+    async fn clear_auth(&self) -> Result<()>;
 }

@@ -57,7 +57,13 @@ impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
 #[async_trait::async_trait]
 impl<
     A: Services,
-    F: CommandInfra + EnvironmentInfra + SkillRepository + AppConfigRepository + GrpcInfra,
+    F: CommandInfra
+        + EnvironmentInfra
+        + SkillRepository
+        + AppConfigRepository
+        + GrpcInfra
+        + AuthFlowRepository
+        + AuthStorage,
 > API for ForgeAPI<A, F>
 {
     async fn discover(&self) -> Result<Vec<File>> {
@@ -390,6 +396,72 @@ impl<
     fn hydrate_channel(&self) -> Result<()> {
         self.infra.hydrate();
         Ok(())
+    }
+
+    async fn auth_init_flow(&self) -> Result<forge_domain::InitFlowResponse> {
+        self.infra.init_flow().await
+    }
+
+    async fn auth_poll(
+        &self,
+        session_id: &str,
+        iv: &str,
+        aad: &str,
+    ) -> Result<Option<forge_domain::AuthFlowLoginInfo>> {
+        self.infra.poll_auth(session_id, iv, aad).await
+    }
+
+    async fn auth_get_stored(&self) -> Result<Option<forge_domain::WorkspaceAuth>> {
+        self.infra.get_auth().await
+    }
+
+    async fn auth_store(&self, auth: &forge_domain::WorkspaceAuth) -> Result<()> {
+        self.infra.store_auth(auth).await
+    }
+
+    async fn auth_clear(&self) -> Result<()> {
+        self.infra.clear_auth().await
+    }
+
+    async fn auth_is_valid(&self) -> Result<bool> {
+        if let Some(auth) = self.infra.get_auth().await? {
+            // Try to validate by calling get_api_keys
+            match self.infra.get_api_keys(&auth.token).await {
+                Ok(_) => Ok(true),
+                Err(e) => {
+                    let error_msg = e.to_string().to_lowercase();
+                    if error_msg.contains("unauthenticated")
+                        || error_msg.contains("unauthorized")
+                        || error_msg.contains("invalid")
+                        || error_msg.contains("expired")
+                    {
+                        Ok(false)
+                    } else {
+                        Err(e)
+                    }
+                }
+            }
+        } else {
+            Ok(false)
+        }
+    }
+
+    async fn auth_list_keys(&self) -> Result<Vec<forge_domain::ApiKeyInfo>> {
+        let auth = self
+            .infra
+            .get_auth()
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Not authenticated"))?;
+        self.infra.get_api_keys(&auth.token).await
+    }
+
+    async fn auth_delete_key(&self, key_id: &str) -> Result<()> {
+        let auth = self
+            .infra
+            .get_auth()
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Not authenticated"))?;
+        self.infra.delete_api_key(&auth.token, key_id).await
     }
 }
 

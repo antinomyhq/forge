@@ -2,6 +2,8 @@ mod agent_registry;
 mod app_config;
 mod attachment;
 mod auth;
+mod auth_flow;
+mod auth_gate;
 mod clipper;
 mod command;
 mod context_engine;
@@ -23,6 +25,8 @@ mod utils;
 mod workflow;
 
 pub use app_config::*;
+pub use auth_flow::*;
+pub use auth_gate::*;
 pub use clipper::*;
 pub use command::*;
 pub use context_engine::*;

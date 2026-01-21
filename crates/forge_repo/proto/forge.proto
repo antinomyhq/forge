@@ -47,6 +47,25 @@ service ForgeService {
 
   // Searches for needle in haystack using fuzzy search
   rpc FuzzySearch(FuzzySearchRequest) returns (FuzzySearchResponse);
+
+
+  // Lists all supported file syntax/extensions
+  rpc ListSupportedSyntax(ListSupportedSyntaxRequest) returns (ListSupportedSyntaxResponse);
+
+  // Initialize a new authentication flow
+  rpc InitFlow(InitFlowRequest) returns (InitFlowResponse);
+
+  // Poll for authentication completion
+  rpc Poll(PollRequest) returns (PollResponse);
+
+  // Update an authentication session with a token
+  rpc UpdateAuthSession(UpdateAuthSessionRequest) returns (UpdateAuthSessionResponse);
+
+  // Get all API keys for a user
+  rpc GetApiKeys(GetApiKeysRequest) returns (GetApiKeysResponse);
+
+  // Delete an API key
+  rpc DeleteApiKey(DeleteApiKeyRequest) returns (DeleteApiKeyResponse);
 }
 
 // Node types
@@ -188,8 +207,9 @@ message RelationCreateResult {
 }
 
 message UploadResult {
-  repeated string               node_ids  = 1;
-  repeated RelationCreateResult relations = 2;
+  repeated string               node_ids          = 1;
+  repeated RelationCreateResult relations         = 2;
+  repeated string               skipped = 3;
 }
 
 // Request/Response messages
@@ -359,4 +379,101 @@ message FuzzySearchResponse {
 message SearchMatch {
   uint32 start_line = 1;
   uint32 end_line   = 2;
+}
+
+
+message ListSupportedSyntaxRequest {}
+
+message SyntaxInfo {
+  string          language   = 1;
+  repeated string extensions = 2;
+}
+
+message ListSupportedSyntaxResponse {
+  repeated SyntaxInfo syntax = 1;
+}
+
+// ============================================================================
+// Authentication Messages
+// ============================================================================
+
+// Initialize authentication flow
+message InitFlowRequest {
+  // No parameters needed, session is created server-side
+}
+
+message InitFlowResponse {
+  // 6-character alphanumeric device/session ID
+  string device_id = 1;
+  // Time-to-live in seconds for the session
+  uint64 ttl = 2;
+  // Base64-encoded initialization vector
+  string iv = 3;
+  // Additional auth data
+  string aad = 4;
+}
+
+// Poll for authentication completion
+message PollRequest {
+  // 6-character session ID
+  string session_id = 1;
+  // Base64-encoded initialization vector
+  string iv = 2;
+  // Additional auth data
+  string aad = 4;
+}
+
+// Login information containing token and its name
+message LoginInfo {
+  // The authentication token (full API key)
+  string token = 1;
+  // Masked version of the token for display purposes
+  string masked_token = 2;
+}
+
+message PollResponse {
+  // Optional login info, present only when authentication is complete
+  // Both token and name are present together or not at all
+  optional LoginInfo login_info = 1;
+}
+
+// Update authentication session with token
+message UpdateAuthSessionRequest {
+  // 6-character session ID
+  string session_id = 1;
+  // name of the token (it will auto generate token)
+  string name = 2;
+}
+
+message UpdateAuthSessionResponse {
+  // Empty response on success
+}
+
+// Get all API keys for a user
+message GetApiKeysRequest {
+  // No parameters needed, user is identified by auth token
+}
+
+message ApiKeyInfo {
+  // Unique identifier for the API key (UUID)
+  string id = 1;
+  // Masked version of the API key for display purposes
+  string masked_token = 2;
+  // Creation timestamp in RFC3339 format
+  string created_at = 3;
+}
+
+message GetApiKeysResponse {
+  // List of API keys belonging to the user
+  repeated ApiKeyInfo api_keys = 1;
+}
+
+// Delete an API key
+message DeleteApiKeyRequest {
+  // Unique identifier (UUID) of the API key to delete
+  string id = 1;
+}
+
+message DeleteApiKeyResponse {
+  // Empty response on success
 }

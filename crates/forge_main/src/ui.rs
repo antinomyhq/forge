@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fmt::Display;
+use std::io::Write;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
@@ -272,6 +273,23 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     }
 
     async fn run_inner(&mut self) -> Result<()> {
+        // Check if command requires authentication
+        if self.cli.requires_authentication() {
+            // Check if user is authenticated
+            let is_authenticated = self.api.auth_is_valid().await.unwrap_or(false);
+            
+            if !is_authenticated {
+                self.writeln_title(TitleFormat::warning(
+                    "Authentication required".to_string(),
+                ))?;
+                self.writeln("")?;
+                self.writeln("  You need to authenticate before using Forge.")?;
+                self.writeln("  Please run: forge auth login")?;
+                self.writeln("")?;
+                return Ok(());
+            }
+        }
+
         if let Some(cmd) = self.cli.subcommands.clone() {
             return self.handle_subcommands(cmd).await;
         }
@@ -648,6 +666,23 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 while let Some(data) = stream.next().await {
                     self.writeln(data?)?;
                 }
+            }
+            TopLevelCommand::Auth(auth_group) => {
+                match auth_group.command {
+                    crate::cli::AuthCommand::Login => {
+                        self.on_auth_login().await?;
+                    }
+                    crate::cli::AuthCommand::Logout => {
+                        self.on_auth_logout().await?;
+                    }
+                    crate::cli::AuthCommand::Status => {
+                        self.on_auth_status().await?;
+                    }
+                    crate::cli::AuthCommand::List => {
+                        self.on_auth_list_keys().await?;
+                    }
+                }
+                return Ok(());
             }
             TopLevelCommand::Vscode(vscode_command) => {
                 match vscode_command {
@@ -3521,6 +3556,188 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 let _ = crate::vscode::install_extension();
             }
         });
+    }
+
+    /// Handle auth login command - initiate device authentication flow
+    async fn on_auth_login(&mut self) -> anyhow::Result<()> {
+        use std::time::{Duration, Instant};
+
+        self.spinner.start(Some("Initializing authentication..."))?;
+
+        // Initialize authentication flow
+        let init_response = match self.api.auth_init_flow().await {
+            Ok(response) => response,
+            Err(e) => {
+                self.spinner.stop(None)?;
+                return Err(anyhow::anyhow!("Failed to initialize authentication: {}", e));
+            }
+        };
+
+        self.spinner.stop(None)?;
+
+        // Get auth URL from environment or use default
+        let auth_url = std::env::var("FORGE_AUTH_URL")
+            .unwrap_or_else(|_| "https://app.forgecode.dev".to_string());
+        let full_url = format!("{}/auth/{}", auth_url, init_response.device_id);
+
+        // Display device code to user
+        self.writeln_title(TitleFormat::info("Authentication Required".to_string()))?;
+        self.writeln("")?;
+        self.writeln(format!("  Device Code: {}", init_response.device_id.bold()))?;
+        self.writeln(format!("  URL: {}", full_url.dimmed()))?;
+        self.writeln("")?;
+        self.writeln("  Please visit the URL above and enter the device code to authenticate.")?;
+        self.writeln(format!(
+            "  This code expires in {} seconds.",
+            init_response.ttl
+        ))?;
+        self.writeln("")?;
+
+        // Ask if user wants to open browser
+        print!("  Open browser now? [Y/n]: ");
+        std::io::stdout().flush()?;
+
+        let mut input = String::new();
+        std::io::stdin().read_line(&mut input)?;
+        let input = input.trim().to_lowercase();
+
+        if input.is_empty() || input == "y" || input == "yes" {
+            if let Err(e) = open::that(&full_url) {
+                self.writeln(format!("  Failed to open browser: {}", e))?;
+            }
+        }
+
+        self.writeln("")?;
+        self.spinner
+            .start(Some("Waiting for authentication..."))?;
+
+        // Poll for authentication completion
+        let start_time = Instant::now();
+        let timeout = Duration::from_secs(init_response.ttl);
+        let poll_interval = Duration::from_secs(2);
+
+        loop {
+            if start_time.elapsed() >= timeout {
+                self.spinner.stop(None)?;
+                return Err(anyhow::anyhow!(
+                    "Authentication timed out. Please try again with 'forge auth login'."
+                ));
+            }
+
+            // Check for Ctrl+C
+            tokio::select! {
+                _ = tokio::signal::ctrl_c() => {
+                    self.spinner.stop(None)?;
+                    self.writeln("")?;
+                    self.writeln_title(TitleFormat::info("Authentication cancelled".to_string()))?;
+                    return Ok(());
+                }
+                result = self.api.auth_poll(
+                    &init_response.device_id,
+                    &init_response.iv,
+                    &init_response.aad,
+                ) => {
+                    match result {
+                        Ok(Some(login_info)) => {
+                            // Authentication successful!
+                            self.spinner.stop(None)?;
+
+                            // Store the authentication
+                            let auth = forge_domain::WorkspaceAuth {
+                                user_id: forge_domain::UserId::from_string(
+                                    &login_info.token.as_str()[..36]
+                                )?,
+                                token: login_info.token,
+                                created_at: chrono::Utc::now(),
+                            };
+
+                            self.api.auth_store(&auth).await?;
+
+                            self.writeln("")?;
+                            self.writeln_title(TitleFormat::info(
+                                "Authentication successful!".to_string(),
+                            ))?;
+                            self.writeln(format!("  User ID: {}", auth.user_id))?;
+                            self.writeln(format!("  Token: {}...", login_info.masked_token))?;
+                            return Ok(());
+                        }
+                        Ok(None) => {
+                            // Still waiting, continue polling
+                            tokio::time::sleep(poll_interval).await;
+                        }
+                        Err(e) => {
+                            self.spinner.stop(None)?;
+                            return Err(anyhow::anyhow!("Authentication failed: {}", e));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// Handle auth logout command - clear stored authentication
+    async fn on_auth_logout(&mut self) -> anyhow::Result<()> {
+        self.spinner.start(Some("Logging out..."))?;
+
+        self.api.auth_clear().await?;
+
+        self.spinner.stop(None)?;
+        self.writeln_title(TitleFormat::info("Logged out successfully".to_string()))?;
+        Ok(())
+    }
+
+    /// Handle auth status command - show current authentication status
+    async fn on_auth_status(&mut self) -> anyhow::Result<()> {
+        self.spinner.start(Some("Checking authentication status..."))?;
+
+        let is_valid = self.api.auth_is_valid().await?;
+
+        self.spinner.stop(None)?;
+
+        if is_valid {
+            if let Some(auth) = self.api.auth_get_stored().await? {
+                self.writeln_title(TitleFormat::info("Authenticated".to_string()))?;
+                self.writeln(format!("  User ID: {}", auth.user_id))?;
+                self.writeln(format!(
+                    "  Authenticated at: {}",
+                    auth.created_at.format("%Y-%m-%d %H:%M:%S UTC")
+                ))?;
+            } else {
+                self.writeln_title(TitleFormat::info("Not authenticated".to_string()))?;
+            }
+        } else {
+            self.writeln_title(TitleFormat::warning("Authentication invalid or expired".to_string()))?;
+            self.writeln("  Please run 'forge auth login' to authenticate.")?;
+        }
+
+        Ok(())
+    }
+
+    /// Handle auth list command - list all API keys
+    async fn on_auth_list_keys(&mut self) -> anyhow::Result<()> {
+        self.spinner.start(Some("Fetching API keys..."))?;
+
+        let keys = self.api.auth_list_keys().await?;
+
+        self.spinner.stop(None)?;
+
+        if keys.is_empty() {
+            self.writeln_title(TitleFormat::info("No API keys found".to_string()))?;
+        } else {
+            self.writeln_title(TitleFormat::info(format!("API Keys ({})", keys.len())))?;
+            self.writeln("")?;
+            for key in keys {
+                self.writeln(format!("  ID: {}", key.id))?;
+                self.writeln(format!("  Token: {}", key.masked_token))?;
+                self.writeln(format!(
+                    "  Created: {}",
+                    key.created_at.format("%Y-%m-%d %H:%M:%S UTC")
+                ))?;
+                self.writeln("")?;
+            }
+        }
+
+        Ok(())
     }
 }
 
