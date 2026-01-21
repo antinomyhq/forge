@@ -25,63 +25,34 @@ pub enum LifecycleEvent {
 ///
 /// This enum is open for extension - new variants can be added to represent
 /// different control flow decisions in the processing pipeline.
-#[derive(Debug, Clone)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Step {
-    /// Continue processing with the updated conversation
-    Continue(Conversation),
-    /// Halt processing and return the conversation
-    Halt(Conversation),
+    /// Continue processing
+    #[default]
+    Proceed,
+    /// Halt processing
+    Suspend,
 }
 
 impl Step {
-    /// Creates a Continue step with the given conversation
-    pub fn continue_with(conversation: Conversation) -> Self {
-        Self::Continue(conversation)
+    /// Creates a Continue step
+    pub fn proceed() -> Self {
+        Self::Proceed
     }
 
-    /// Creates a Halt step with the given conversation
-    pub fn halt_with(conversation: Conversation) -> Self {
-        Self::Halt(conversation)
-    }
-
-    /// Returns a reference to the conversation regardless of the step variant
-    pub fn conversation(&self) -> &Conversation {
-        match self {
-            Self::Continue(conv) => conv,
-            Self::Halt(conv) => conv,
-        }
-    }
-
-    /// Returns a mutable reference to the conversation regardless of the step variant
-    pub fn conversation_mut(&mut self) -> &mut Conversation {
-        match self {
-            Self::Continue(conv) => conv,
-            Self::Halt(conv) => conv,
-        }
-    }
-
-    /// Consumes the step and returns the conversation regardless of the variant
-    pub fn into_conversation(self) -> Conversation {
-        match self {
-            Self::Continue(conv) => conv,
-            Self::Halt(conv) => conv,
-        }
+    /// Creates a Halt step
+    pub fn suspend() -> Self {
+        Self::Suspend
     }
 
     /// Returns true if this step indicates processing should continue
     pub fn should_continue(&self) -> bool {
-        matches!(self, Self::Continue(_))
+        matches!(self, Self::Proceed)
     }
 
     /// Returns true if this step indicates processing should halt
     pub fn should_halt(&self) -> bool {
-        matches!(self, Self::Halt(_))
-    }
-}
-
-impl From<Conversation> for Step {
-    fn from(conversation: Conversation) -> Self {
-        Self::continue_with(conversation)
+        matches!(self, Self::Suspend)
     }
 }
 
@@ -98,7 +69,7 @@ pub trait EventHandle: Send + Sync {
     /// * `conversation` - The current conversation state (mutable)
     ///
     /// # Returns
-    /// A step indicating how to proceed with the potentially modified conversation
+    /// A step indicating how to proceed
     ///
     /// # Errors
     /// Returns an error if the event handling fails
@@ -301,9 +272,9 @@ impl EventHandle for NoOpHandler {
     async fn handle(
         &self,
         _event: LifecycleEvent,
-        conversation: &mut Conversation,
+        _conversation: &mut Conversation,
     ) -> anyhow::Result<Step> {
-        Ok(Step::continue_with(conversation.clone()))
+        Ok(Step::proceed())
     }
 }
 
@@ -322,10 +293,10 @@ mod tests {
         async fn handle(
             &self,
             event: LifecycleEvent,
-            conversation: &mut Conversation,
+            _conversation: &mut Conversation,
         ) -> anyhow::Result<Step> {
             self.events_handled.lock().unwrap().push(event);
-            Ok(Step::continue_with(conversation.clone()))
+            Ok(Step::proceed())
         }
     }
 
@@ -341,50 +312,41 @@ mod tests {
 
     #[test]
     fn test_step_continue() {
-        let conversation = Conversation::generate();
-        let step = Step::continue_with(conversation.clone());
+        let step = Step::proceed();
 
         assert!(step.should_continue());
         assert!(!step.should_halt());
-        assert_eq!(step.conversation().id, conversation.id);
     }
 
     #[test]
     fn test_step_halt() {
-        let conversation = Conversation::generate();
-        let step = Step::halt_with(conversation.clone());
+        let step = Step::suspend();
 
         assert!(!step.should_continue());
         assert!(step.should_halt());
-        assert_eq!(step.conversation().id, conversation.id);
     }
 
     #[test]
     fn test_step_from_conversation() {
-        let conversation = Conversation::generate();
-        let step = Step::from(conversation.clone());
+        let step = Step::proceed();
 
         assert!(step.should_continue());
-        assert_eq!(step.conversation().id, conversation.id);
     }
 
     #[test]
     fn test_step_into_conversation() {
-        let conversation = Conversation::generate();
-        let step = Step::continue_with(conversation.clone());
-        let extracted = step.into_conversation();
+        let step = Step::proceed();
 
-        assert_eq!(extracted.id, conversation.id);
+        // Just verify it's a Continue step
+        assert!(step.should_continue());
     }
 
     #[test]
     fn test_step_conversation_mut() {
-        let conversation = Conversation::generate();
-        let mut step = Step::continue_with(conversation.clone());
+        let step = Step::proceed();
 
-        step.conversation_mut().title = Some("Modified".to_string());
-
-        assert_eq!(step.conversation().title, Some("Modified".to_string()));
+        // Just verify it's a Continue step
+        assert!(step.should_continue());
     }
 
     #[tokio::test]
@@ -395,11 +357,11 @@ mod tests {
         let hook = Hook::with_start(handler);
         let mut conversation = Conversation::generate();
 
-        let result = hook
+        let step = hook
             .handle(LifecycleEvent::Start, &mut conversation)
             .await
             .unwrap();
-        assert_eq!(result.conversation().id, conversation.id);
+        assert!(step.should_continue());
 
         let handled = events.lock().unwrap();
         assert_eq!(handled.len(), 1);
@@ -484,7 +446,7 @@ mod tests {
             ) -> anyhow::Result<Step> {
                 // Modify the conversation
                 conversation.title = Some("Modified title".to_string());
-                Ok(Step::continue_with(conversation.clone()))
+                Ok(Step::proceed())
             }
         }
 
@@ -498,10 +460,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(
-            step.conversation().title,
-            Some("Modified title".to_string())
-        );
+        assert!(step.should_continue());
         assert_eq!(conversation.title, Some("Modified title".to_string()));
     }
 
@@ -514,9 +473,9 @@ mod tests {
             async fn handle(
                 &self,
                 _event: LifecycleEvent,
-                conversation: &mut Conversation,
+                _conversation: &mut Conversation,
             ) -> anyhow::Result<Step> {
-                Ok(Step::halt_with(conversation.clone()))
+                Ok(Step::suspend())
             }
         }
 
@@ -551,10 +510,10 @@ mod tests {
             async fn handle(
                 &self,
                 _event: LifecycleEvent,
-                conversation: &mut Conversation,
+                _conversation: &mut Conversation,
             ) -> anyhow::Result<Step> {
                 *self.counter.lock().unwrap() += 1;
-                Ok(Step::continue_with(conversation.clone()))
+                Ok(Step::proceed())
             }
         }
 
@@ -567,10 +526,10 @@ mod tests {
             async fn handle(
                 &self,
                 _event: LifecycleEvent,
-                conversation: &mut Conversation,
+                _conversation: &mut Conversation,
             ) -> anyhow::Result<Step> {
                 *self.counter.lock().unwrap() += 1;
-                Ok(Step::continue_with(conversation.clone()))
+                Ok(Step::proceed())
             }
         }
 
@@ -606,13 +565,13 @@ mod tests {
             async fn handle(
                 &self,
                 event: LifecycleEvent,
-                conversation: &mut Conversation,
+                _conversation: &mut Conversation,
             ) -> anyhow::Result<Step> {
                 self.events
                     .lock()
                     .unwrap()
                     .push(format!("{}:{:?}", self.id, event));
-                Ok(Step::continue_with(conversation.clone()))
+                Ok(Step::proceed())
             }
         }
 
@@ -652,7 +611,7 @@ mod tests {
                 conversation: &mut Conversation,
             ) -> anyhow::Result<Step> {
                 conversation.title = Some("Start".to_string());
-                Ok(Step::continue_with(conversation.clone()))
+                Ok(Step::proceed())
             }
         }
 
@@ -664,7 +623,7 @@ mod tests {
                 conversation: &mut Conversation,
             ) -> anyhow::Result<Step> {
                 conversation.title = Some("End".to_string());
-                Ok(Step::continue_with(conversation.clone()))
+                Ok(Step::proceed())
             }
         }
 
@@ -701,10 +660,10 @@ mod tests {
             async fn handle(
                 &self,
                 _event: LifecycleEvent,
-                conversation: &mut Conversation,
+                _conversation: &mut Conversation,
             ) -> anyhow::Result<Step> {
                 *self.counter.lock().unwrap() += 1;
-                Ok(Step::continue_with(conversation.clone()))
+                Ok(Step::proceed())
             }
         }
 
@@ -717,10 +676,10 @@ mod tests {
             async fn handle(
                 &self,
                 _event: LifecycleEvent,
-                conversation: &mut Conversation,
+                _conversation: &mut Conversation,
             ) -> anyhow::Result<Step> {
                 *self.counter.lock().unwrap() += 1;
-                Ok(Step::continue_with(conversation.clone()))
+                Ok(Step::proceed())
             }
         }
 
@@ -754,10 +713,10 @@ mod tests {
             async fn handle(
                 &self,
                 _event: LifecycleEvent,
-                conversation: &mut Conversation,
+                _conversation: &mut Conversation,
             ) -> anyhow::Result<Step> {
                 *self.counter.lock().unwrap() += 1;
-                Ok(Step::continue_with(conversation.clone()))
+                Ok(Step::proceed())
             }
         }
 
@@ -770,10 +729,10 @@ mod tests {
             async fn handle(
                 &self,
                 _event: LifecycleEvent,
-                conversation: &mut Conversation,
+                _conversation: &mut Conversation,
             ) -> anyhow::Result<Step> {
                 *self.counter.lock().unwrap() += 1;
-                Ok(Step::continue_with(conversation.clone()))
+                Ok(Step::proceed())
             }
         }
 
@@ -808,13 +767,13 @@ mod tests {
             async fn handle(
                 &self,
                 event: LifecycleEvent,
-                conversation: &mut Conversation,
+                _conversation: &mut Conversation,
             ) -> anyhow::Result<Step> {
                 self.events
                     .lock()
                     .unwrap()
                     .push(format!("{}:{:?}", self.id, event));
-                Ok(Step::continue_with(conversation.clone()))
+                Ok(Step::proceed())
             }
         }
 
@@ -857,7 +816,7 @@ mod tests {
                 conversation: &mut Conversation,
             ) -> anyhow::Result<Step> {
                 conversation.title = Some("Started".to_string());
-                Ok(Step::continue_with(conversation.clone()))
+                Ok(Step::proceed())
             }
         }
 
@@ -866,13 +825,13 @@ mod tests {
             async fn handle(
                 &self,
                 event: LifecycleEvent,
-                conversation: &mut Conversation,
+                _conversation: &mut Conversation,
             ) -> anyhow::Result<Step> {
                 self.events
                     .lock()
                     .unwrap()
                     .push(format!("Event: {:?}", event));
-                Ok(Step::continue_with(conversation.clone()))
+                Ok(Step::proceed())
             }
         }
 
@@ -907,7 +866,7 @@ mod tests {
                 conversation: &mut Conversation,
             ) -> anyhow::Result<Step> {
                 conversation.title = Some("Started".to_string());
-                Ok(Step::continue_with(conversation.clone()))
+                Ok(Step::proceed())
             }
         }
 
@@ -919,7 +878,7 @@ mod tests {
                 conversation: &mut Conversation,
             ) -> anyhow::Result<Step> {
                 conversation.title = Some("Ended".to_string());
-                Ok(Step::continue_with(conversation.clone()))
+                Ok(Step::proceed())
             }
         }
 
@@ -955,7 +914,7 @@ mod tests {
                 conversation: &mut Conversation,
             ) -> anyhow::Result<Step> {
                 conversation.title = Some("Started".to_string());
-                Ok(Step::continue_with(conversation.clone()))
+                Ok(Step::proceed())
             }
         }
 
@@ -967,7 +926,7 @@ mod tests {
                 conversation: &mut Conversation,
             ) -> anyhow::Result<Step> {
                 conversation.title = Some("Ended".to_string());
-                Ok(Step::continue_with(conversation.clone()))
+                Ok(Step::proceed())
             }
         }
 
