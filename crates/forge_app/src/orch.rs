@@ -257,7 +257,11 @@ impl<S: AgentService, H: OrchHook + 'static> Orchestrator<S, H> {
 
         // Apply init hook
         let init_ctx = InitContext { agent: self.agent.clone(), context };
-        context = self.hook.init(init_ctx).await.map_err(|e| anyhow::anyhow!("init: {}", e))?;
+        context = self
+            .hook
+            .init(init_ctx)
+            .await
+            .map_err(|e| anyhow::anyhow!("init: {}", e))?;
 
         // Create agent reference for the rest of the method
         let agent = &self.agent;

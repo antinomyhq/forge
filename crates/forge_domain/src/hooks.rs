@@ -1,8 +1,8 @@
 //! Orchestrator lifecycle hooks.
 
-use async_trait::async_trait;
 use std::fmt::Debug;
 
+use async_trait::async_trait;
 use derive_setters::Setters;
 
 use crate::{Agent, ChatCompletionMessageFull, Context, ToolCallFull, ToolResult};
@@ -114,26 +114,17 @@ pub trait OrchHook: Send + Sync + Debug {
     }
 
     /// Called after the call to the provider has succeeded.
-    async fn post_chat(
-        &self,
-        ctx: PostChatContext,
-    ) -> Result<ChatCompletionMessageFull, String> {
+    async fn post_chat(&self, ctx: PostChatContext) -> Result<ChatCompletionMessageFull, String> {
         Ok(ctx.message)
     }
 
     /// Called before each tool is executed.
-    async fn pre_tool_call(
-        &self,
-        ctx: PreToolCallContext,
-    ) -> Result<ToolCallFull, String> {
+    async fn pre_tool_call(&self, ctx: PreToolCallContext) -> Result<ToolCallFull, String> {
         Ok(ctx.tool_call)
     }
 
     /// Called after each tool execution completes.
-    async fn post_tool_call(
-        &self,
-        ctx: PostToolCallContext,
-    ) -> Result<ToolResult, String> {
+    async fn post_tool_call(&self, ctx: PostToolCallContext) -> Result<ToolResult, String> {
         Ok(ctx.result)
     }
 
