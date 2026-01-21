@@ -124,21 +124,6 @@ pub trait EventHandleExt: EventHandle {
     fn and<H: EventHandle + 'static>(self, other: H) -> Box<dyn EventHandle>
     where
         Self: Sized + 'static;
-
-    /// Combines this handler with another boxed handler, creating a new handler that runs both in sequence
-    ///
-    /// When an event is handled, both handlers will be called in sequence.
-    /// This handler runs first, then the other handler.
-    /// The result from the other handler is returned.
-    ///
-    /// # Arguments
-    /// * `other` - Another boxed handler to combine with this one
-    ///
-    /// # Returns
-    /// A new boxed handler that combines both handlers
-    fn and_boxed(self, other: Box<dyn EventHandle>) -> Box<dyn EventHandle>
-    where
-        Self: Sized + 'static;
 }
 
 impl<T: EventHandle + 'static> EventHandleExt for T {
@@ -147,13 +132,6 @@ impl<T: EventHandle + 'static> EventHandleExt for T {
         Self: Sized + 'static,
     {
         Box::new(CombinedHandler(Box::new(self), Box::new(other)))
-    }
-
-    fn and_boxed(self, other: Box<dyn EventHandle>) -> Box<dyn EventHandle>
-    where
-        Self: Sized + 'static,
-    {
-        Box::new(CombinedHandler(Box::new(self), other))
     }
 }
 
@@ -254,12 +232,12 @@ impl Hook {
     /// A new hook that combines both hooks' handlers
     pub fn zip(self, other: Hook) -> Self {
         Self {
-            on_start: self.on_start.and_boxed(other.on_start),
-            on_end: self.on_end.and_boxed(other.on_end),
-            on_request: self.on_request.and_boxed(other.on_request),
-            on_response: self.on_response.and_boxed(other.on_response),
-            on_toolcall_start: self.on_toolcall_start.and_boxed(other.on_toolcall_start),
-            on_toolcall_end: self.on_toolcall_end.and_boxed(other.on_toolcall_end),
+            on_start: self.on_start.and(other.on_start),
+            on_end: self.on_end.and(other.on_end),
+            on_request: self.on_request.and(other.on_request),
+            on_response: self.on_response.and(other.on_response),
+            on_toolcall_start: self.on_toolcall_start.and(other.on_toolcall_start),
+            on_toolcall_end: self.on_toolcall_end.and(other.on_toolcall_end),
         }
     }
 
@@ -283,6 +261,14 @@ impl Hook {
             LifecycleEvent::ToolcallStart => self.on_toolcall_start.handle(event, conversation).await,
             LifecycleEvent::ToolcallEnd => self.on_toolcall_end.handle(event, conversation).await,
         }
+    }
+}
+
+// Implement EventHandle for Hook to allow hooks to be used as handlers
+#[async_trait]
+impl EventHandle for Hook {
+    async fn handle(&self, event: LifecycleEvent, conversation: &mut Conversation) -> anyhow::Result<Step> {
+        self.handle_event(event, conversation).await
     }
 }
 
@@ -745,7 +731,7 @@ mod tests {
             counter: counter2.clone(),
         });
 
-        let combined = handler1.and_boxed(handler2);
+        let combined = handler1.and(*handler2);
 
         let mut conversation = Conversation::generate();
         let _ = combined.handle(LifecycleEvent::Start, &mut conversation).await.unwrap();
@@ -838,5 +824,74 @@ mod tests {
         assert_eq!(conversation.title, Some("Started".to_string()));
         assert_eq!(events.lock().unwrap().len(), 1);
         assert_eq!(events.lock().unwrap()[0], "Event: Start");
+    }
+
+    #[tokio::test]
+    async fn test_hook_as_event_handle() {
+        struct StartHandler;
+        struct EndHandler;
+
+        #[async_trait]
+        impl EventHandle for StartHandler {
+            async fn handle(&self, _event: LifecycleEvent, conversation: &mut Conversation) -> anyhow::Result<Step> {
+                conversation.title = Some("Started".to_string());
+                Ok(Step::continue_with(conversation.clone()))
+            }
+        }
+
+        #[async_trait]
+        impl EventHandle for EndHandler {
+            async fn handle(&self, _event: LifecycleEvent, conversation: &mut Conversation) -> anyhow::Result<Step> {
+                conversation.title = Some("Ended".to_string());
+                Ok(Step::continue_with(conversation.clone()))
+            }
+        }
+
+        let hook = Hook::with_start(StartHandler).on_end(Box::new(EndHandler));
+
+        // Test using handle() directly (EventHandle trait)
+        let mut conversation = Conversation::generate();
+        let step = hook.handle(LifecycleEvent::Start, &mut conversation).await.unwrap();
+        assert_eq!(conversation.title, Some("Started".to_string()));
+        assert!(step.should_continue());
+
+        let step = hook.handle(LifecycleEvent::End, &mut conversation).await.unwrap();
+        assert_eq!(conversation.title, Some("Ended".to_string()));
+        assert!(step.should_continue());
+    }
+
+    #[tokio::test]
+    async fn test_hook_combination_with_and() {
+        struct StartHandler;
+        struct EndHandler;
+
+        #[async_trait]
+        impl EventHandle for StartHandler {
+            async fn handle(&self, _event: LifecycleEvent, conversation: &mut Conversation) -> anyhow::Result<Step> {
+                conversation.title = Some("Started".to_string());
+                Ok(Step::continue_with(conversation.clone()))
+            }
+        }
+
+        #[async_trait]
+        impl EventHandle for EndHandler {
+            async fn handle(&self, _event: LifecycleEvent, conversation: &mut Conversation) -> anyhow::Result<Step> {
+                conversation.title = Some("Ended".to_string());
+                Ok(Step::continue_with(conversation.clone()))
+            }
+        }
+
+        let hook1 = Hook::with_start(StartHandler);
+        let hook2 = Hook::with_start(EndHandler);
+
+        // Combine hooks using and() extension method
+        let combined = hook1.and(hook2);
+
+        let mut conversation = Conversation::generate();
+        let _ = combined.handle(LifecycleEvent::Start, &mut conversation).await.unwrap();
+
+        // Both handlers should have been called
+        // The last handler's result determines the final title
+        assert_eq!(conversation.title, Some("Ended".to_string()));
     }
 }
