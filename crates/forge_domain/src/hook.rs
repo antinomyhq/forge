@@ -3,23 +3,38 @@ use std::fmt;
 use async_trait::async_trait;
 use derive_setters::Setters;
 
-use crate::{Conversation, InterruptionReason};
+use crate::{Agent, ChatCompletionMessageFull, Conversation, InterruptionReason, ModelId, ToolCallFull, ToolResult};
 
 /// Lifecycle events that can occur during conversation processing
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum LifecycleEvent {
     /// Event fired when conversation processing starts
-    Start,
+    ///
+    /// Contains the model ID being used
+    Start { agent: Agent, model_id: ModelId },
+
     /// Event fired when conversation processing ends
     End,
+
     /// Event fired when a request is made to the LLM
-    Request,
+    ///
+    /// Contains the model ID and request count
+    Request {
+        agent: Agent,
+        model_id: ModelId,
+        request_count: usize,
+    },
+
     /// Event fired when a response is received from the LLM
-    Response,
+    ///
+    /// Contains the full response message
+    Response(ChatCompletionMessageFull),
+
     /// Event fired when a tool call starts
-    ToolcallStart,
+    ToolcallStart(ToolCallFull),
+
     /// Event fired when a tool call ends
-    ToolcallEnd,
+    ToolcallEnd(ToolResult),
 }
 
 /// Represents a step in the conversation processing pipeline
@@ -227,14 +242,20 @@ impl EventHandle for Hook {
         conversation: &mut Conversation,
     ) -> anyhow::Result<Step> {
         match event {
-            LifecycleEvent::Start => self.on_start.handle(event, conversation).await,
+            LifecycleEvent::Start { agent: _, model_id: _ } => {
+                self.on_start.handle(event, conversation).await
+            }
             LifecycleEvent::End => self.on_end.handle(event, conversation).await,
-            LifecycleEvent::Request => self.on_request.handle(event, conversation).await,
-            LifecycleEvent::Response => self.on_response.handle(event, conversation).await,
-            LifecycleEvent::ToolcallStart => {
+            LifecycleEvent::Request {
+                agent: _,
+                model_id: _,
+                request_count: _,
+            } => self.on_request.handle(event, conversation).await,
+            LifecycleEvent::Response(_) => self.on_response.handle(event, conversation).await,
+            LifecycleEvent::ToolcallStart(_) => {
                 self.on_toolcall_start.handle(event, conversation).await
             }
-            LifecycleEvent::ToolcallEnd => self.on_toolcall_end.handle(event, conversation).await,
+            LifecycleEvent::ToolcallEnd(_) => self.on_toolcall_end.handle(event, conversation).await,
         }
     }
 }
@@ -252,10 +273,10 @@ impl EventHandle for CombinedHandler {
         conversation: &mut Conversation,
     ) -> anyhow::Result<Step> {
         // Run the first handler
-        let step = self.0.handle(event, conversation).await?;
+        let step = self.0.handle(event.clone(), conversation).await?;
         match step {
             Step::Proceed => {
-                // Run the second handler and return its result
+                // Run the second handler with the cloned event
                 self.1.handle(event, conversation).await
             }
             Step::Interrupt { .. } => Ok(step),
