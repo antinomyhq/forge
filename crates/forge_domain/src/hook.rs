@@ -254,12 +254,12 @@ impl Hook {
     /// A new hook that combines both hooks' handlers
     pub fn zip(self, other: Hook) -> Self {
         Self {
-            on_start: Box::new(CombinedHandler(self.on_start, other.on_start)),
-            on_end: Box::new(CombinedHandler(self.on_end, other.on_end)),
-            on_request: Box::new(CombinedHandler(self.on_request, other.on_request)),
-            on_response: Box::new(CombinedHandler(self.on_response, other.on_response)),
-            on_toolcall_start: Box::new(CombinedHandler(self.on_toolcall_start, other.on_toolcall_start)),
-            on_toolcall_end: Box::new(CombinedHandler(self.on_toolcall_end, other.on_toolcall_end)),
+            on_start: self.on_start.and_boxed(other.on_start),
+            on_end: self.on_end.and_boxed(other.on_end),
+            on_request: self.on_request.and_boxed(other.on_request),
+            on_response: self.on_response.and_boxed(other.on_response),
+            on_toolcall_start: self.on_toolcall_start.and_boxed(other.on_toolcall_start),
+            on_toolcall_end: self.on_toolcall_end.and_boxed(other.on_toolcall_end),
         }
     }
 
