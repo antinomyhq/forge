@@ -107,7 +107,7 @@ impl<S: AgentService, H: OrchHook + 'static> Orchestrator<S, H> {
                 .hook
                 .pre_tool_call(pre_ctx)
                 .await
-                .into_anyhow("pre_tool_call")?;
+                .map_err(|e| anyhow::anyhow!("pre_tool_call: {}", e))?;
 
             // Send start notification for system tools
             let is_system_tool = system_tools.contains(&tool_call.name);
@@ -132,7 +132,7 @@ impl<S: AgentService, H: OrchHook + 'static> Orchestrator<S, H> {
                 .hook
                 .post_tool_call(post_ctx)
                 .await
-                .into_anyhow("post_tool_call")?;
+                .map_err(|e| anyhow::anyhow!("post_tool_call: {}", e))?;
 
             if tool_result.is_error() {
                 warn!(
@@ -257,7 +257,7 @@ impl<S: AgentService, H: OrchHook + 'static> Orchestrator<S, H> {
 
         // Apply init hook
         let init_ctx = InitContext { agent: self.agent.clone(), context };
-        context = self.hook.init(init_ctx).await.into_anyhow("init")?;
+        context = self.hook.init(init_ctx).await.map_err(|e| anyhow::anyhow!("init: {}", e))?;
 
         // Create agent reference for the rest of the method
         let agent = &self.agent;
@@ -295,7 +295,7 @@ impl<S: AgentService, H: OrchHook + 'static> Orchestrator<S, H> {
                 .hook
                 .pre_chat(pre_chat_ctx)
                 .await
-                .into_anyhow("pre_chat")?;
+                .map_err(|e| anyhow::anyhow!("pre_chat: {}", e))?;
 
             // Check if hook wants to stop after this iteration
             if chat_action.stop {
@@ -333,7 +333,7 @@ impl<S: AgentService, H: OrchHook + 'static> Orchestrator<S, H> {
                 .hook
                 .post_chat(post_chat_ctx)
                 .await
-                .into_anyhow("post_chat")?;
+                .map_err(|e| anyhow::anyhow!("post_chat: {}", e))?;
 
             // TODO: Add a unit test in orch spec, to guarantee that compaction is
             // triggered after receiving the response Trigger compaction after

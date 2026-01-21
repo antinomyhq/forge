@@ -1,48 +1,11 @@
 //! Orchestrator lifecycle hooks.
 
+use async_trait::async_trait;
 use std::fmt::Debug;
-use std::future::Future;
-use std::pin::Pin;
 
 use derive_setters::Setters;
 
 use crate::{Agent, ChatCompletionMessageFull, Context, ToolCallFull, ToolResult};
-
-/// Result type for hook operations.
-#[derive(Debug, Clone)]
-#[must_use = "HookResult should be handled"]
-pub enum HookResult<T> {
-    /// Continue with the (possibly modified) value.
-    Continue(T),
-    /// Abort the orchestrator run with an error.
-    Abort(String),
-}
-
-impl<T> HookResult<T> {
-    /// Returns true if this is a `Continue` variant.
-    pub fn is_continue(&self) -> bool {
-        matches!(self, HookResult::Continue(_))
-    }
-
-    /// Returns true if this is an `Abort` variant.
-    pub fn is_abort(&self) -> bool {
-        matches!(self, HookResult::Abort(_))
-    }
-
-    /// Converts to `Result<T, String>` for use with `?` operator.
-    pub fn into_result(self) -> Result<T, String> {
-        match self {
-            HookResult::Continue(v) => Ok(v),
-            HookResult::Abort(e) => Err(e),
-        }
-    }
-
-    /// Converts to `anyhow::Result<T>` with a hook name for context.
-    pub fn into_anyhow(self, hook_name: &str) -> anyhow::Result<T> {
-        self.into_result()
-            .map_err(|e| anyhow::anyhow!("{}: {}", hook_name, e))
-    }
-}
 
 /// Result from `pre_chat` hook with the context and whether to stop the loop.
 #[derive(Debug, Clone)]
@@ -64,9 +27,6 @@ impl ChatAction {
         Self { context, stop: true }
     }
 }
-
-/// Type alias for boxed async futures used in hooks.
-pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
 /// Context provided to the `init` hook.
 #[derive(Debug, Clone, Setters)]
@@ -141,45 +101,45 @@ pub struct CompleteContext {
 }
 
 /// Trait for implementing orchestrator lifecycle hooks.
+#[async_trait]
 pub trait OrchHook: Send + Sync + Debug {
     /// Called once when the agent is initialized, before the main loop starts.
-    fn init<'a>(&'a self, ctx: InitContext) -> BoxFuture<'a, HookResult<Context>> {
-        Box::pin(async move { HookResult::Continue(ctx.context) })
+    async fn init(&self, ctx: InitContext) -> Result<Context, String> {
+        Ok(ctx.context)
     }
 
     /// Called before making a call to the provider.
-    fn pre_chat<'a>(&'a self, ctx: PreChatContext) -> BoxFuture<'a, HookResult<ChatAction>> {
-        Box::pin(async move { HookResult::Continue(ChatAction::cont(ctx.context)) })
+    async fn pre_chat(&self, ctx: PreChatContext) -> Result<ChatAction, String> {
+        Ok(ChatAction::cont(ctx.context))
     }
 
     /// Called after the call to the provider has succeeded.
-    fn post_chat<'a>(
-        &'a self,
+    async fn post_chat(
+        &self,
         ctx: PostChatContext,
-    ) -> BoxFuture<'a, HookResult<ChatCompletionMessageFull>> {
-        Box::pin(async move { HookResult::Continue(ctx.message) })
+    ) -> Result<ChatCompletionMessageFull, String> {
+        Ok(ctx.message)
     }
 
     /// Called before each tool is executed.
-    fn pre_tool_call<'a>(
-        &'a self,
+    async fn pre_tool_call(
+        &self,
         ctx: PreToolCallContext,
-    ) -> BoxFuture<'a, HookResult<ToolCallFull>> {
-        Box::pin(async move { HookResult::Continue(ctx.tool_call) })
+    ) -> Result<ToolCallFull, String> {
+        Ok(ctx.tool_call)
     }
 
     /// Called after each tool execution completes.
-    fn post_tool_call<'a>(
-        &'a self,
+    async fn post_tool_call(
+        &self,
         ctx: PostToolCallContext,
-    ) -> BoxFuture<'a, HookResult<ToolResult>> {
-        Box::pin(async move { HookResult::Continue(ctx.result) })
+    ) -> Result<ToolResult, String> {
+        Ok(ctx.result)
     }
 
     /// Called after the loop is completed and during final cleanup.
-    fn complete<'a>(&'a self, ctx: CompleteContext) -> BoxFuture<'a, ()> {
+    async fn complete(&self, ctx: CompleteContext) {
         let _ = ctx;
-        Box::pin(async {})
     }
 }
 
@@ -207,21 +167,21 @@ mod tests {
         let hook = NoOpHook;
         let ctx = InitContext { agent: test_agent(), context: Context::default() };
         let result = hook.init(ctx).await;
-        assert!(result.is_continue());
+        assert!(result.is_ok());
     }
 
     #[tokio::test]
     async fn test_hook_result_abort() {
-        let result: HookResult<i32> = HookResult::Abort("error".into());
-        assert!(result.is_abort());
-        assert_eq!(result.into_result().unwrap_err(), "error");
+        let result: Result<i32, String> = Err("error".into());
+        assert!(result.is_err());
+        assert_eq!(result.unwrap_err(), "error");
     }
 
     #[tokio::test]
     async fn test_hook_result_continue() {
-        let result: HookResult<i32> = HookResult::Continue(42);
-        assert!(result.is_continue());
-        assert_eq!(result.into_result().unwrap(), 42);
+        let result: Result<i32, String> = Ok(42);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), 42);
     }
 
     #[tokio::test]
@@ -232,7 +192,7 @@ mod tests {
             context: Context::default(),
             iteration: 0,
         };
-        let result = hook.pre_chat(ctx).await.into_result().unwrap();
+        let result = hook.pre_chat(ctx).await.unwrap();
         assert!(!result.stop);
     }
 
@@ -241,16 +201,15 @@ mod tests {
         stop_at: usize,
     }
 
+    #[async_trait]
     impl OrchHook for StopOnIterationHook {
-        fn pre_chat<'a>(&'a self, ctx: PreChatContext) -> BoxFuture<'a, HookResult<ChatAction>> {
+        async fn pre_chat(&self, ctx: PreChatContext) -> Result<ChatAction, String> {
             let stop_at = self.stop_at;
-            Box::pin(async move {
-                if ctx.iteration >= stop_at {
-                    HookResult::Continue(ChatAction::stop(ctx.context))
-                } else {
-                    HookResult::Continue(ChatAction::cont(ctx.context))
-                }
-            })
+            if ctx.iteration >= stop_at {
+                Ok(ChatAction::stop(ctx.context))
+            } else {
+                Ok(ChatAction::cont(ctx.context))
+            }
         }
     }
 
@@ -262,7 +221,7 @@ mod tests {
             context: Context::default(),
             iteration: 5,
         };
-        let result = hook.pre_chat(ctx).await.into_result().unwrap();
+        let result = hook.pre_chat(ctx).await.unwrap();
         assert!(result.stop);
     }
 }
