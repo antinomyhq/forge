@@ -1,10 +1,33 @@
 use forge_domain::{
-    Compact, CompactionStrategy, Context, ContextMessage, ContextSummary, Environment, Transformer,
+    Compact, CompactionStrategy, Context, ContextMessage, ContextSummary, Environment, Role,
+    TextMessage, Transformer,
 };
 use tracing::info;
 
 use crate::TemplateEngine;
 use crate::transformers::SummaryTransformer;
+
+/// Formats todos as markdown checkboxes for context injection
+fn format_todos_for_context(todos: &[forge_domain::Todo]) -> String {
+    use forge_domain::TodoStatus;
+
+    let mut result = String::new();
+
+    for todo in todos {
+        let checkbox = match todo.status {
+            TodoStatus::Completed => "[x]",
+            TodoStatus::InProgress => "[~]",
+            TodoStatus::Pending => "[ ]",
+        };
+
+        result.push_str(&format!(
+            "{} {} (id: {})\n",
+            checkbox, todo.content, todo.id
+        ));
+    }
+
+    result.trim_end().to_string()
+}
 
 /// A service dedicated to handling context compaction.
 pub struct Compactor {
@@ -118,6 +141,40 @@ impl Compactor {
                 _ => None,
             });
 
+        // Todo list state preservation
+        //
+        // Extract the most recent todo list from tool calls in the compacted sequence.
+        // This ensures the agent always has access to the current todo state after
+        // compaction, even if the original todo_write results are removed.
+        //
+        // We search for the LAST todo_write tool call to get the most recent state.
+        let latest_todos = compaction_sequence
+            .iter()
+            .rev() // Get LAST todo state (most recent)
+            .find_map(|msg| match &**msg {
+                ContextMessage::Text(text) => {
+                    // Look for todo_write tool calls in assistant messages
+                    text.tool_calls.as_ref().and_then(|calls| {
+                        calls
+                            .iter()
+                            .rev()
+                            .find(|call| call.name.as_str() == "todo_write")
+                            .and_then(|call| {
+                                // Extract todos from the tool call arguments
+                                forge_domain::ToolCatalog::try_from(call.clone())
+                                    .ok()
+                                    .and_then(|catalog| match catalog {
+                                        forge_domain::ToolCatalog::TodoWrite(todo_write) => {
+                                            Some(todo_write.todos)
+                                        }
+                                        _ => None,
+                                    })
+                            })
+                    })
+                }
+                _ => None,
+            });
+
         // Replace the range with the summary
         context.messages.splice(
             start..=end,
@@ -140,6 +197,49 @@ impl Compactor {
                 .is_none_or(|rd| rd.is_empty())
         {
             msg.reasoning_details = Some(reasoning);
+        }
+
+        // Inject preserved todo list as a droppable system message if we found any
+        // This makes the current todo state available to the agent after compaction
+        if let Some(todos) = latest_todos
+            && !todos.is_empty()
+        {
+            // Format todos as markdown checkboxes for easy agent comprehension
+            let todo_content = format_todos_for_context(&todos);
+
+            // Create a droppable system message with the current todos
+            // This will be removed in next compaction if newer todos exist
+            let todo_message = TextMessage {
+                role: Role::System,
+                content: format!("<current_todos>\n{}\n</current_todos>", todo_content),
+                raw_content: None,
+                tool_calls: None,
+                reasoning_details: None,
+                model: None,
+                droppable: true, // Allow future compactions to remove this
+            };
+
+            // Insert after the summary but before other messages
+            // Find the position right after the summary (which we just inserted)
+            let insert_pos = context
+                .messages
+                .iter()
+                .position(|msg| {
+                    msg.content()
+                        .is_some_and(|c| c.contains("Previous conversation summary"))
+                })
+                .map(|pos| pos + 1)
+                .unwrap_or(1); // Fallback to position 1 if summary not found
+
+            context
+                .messages
+                .insert(insert_pos, ContextMessage::Text(todo_message).into());
+
+            info!(
+                todos_count = todos.len(),
+                "Preserved {} todos after compaction",
+                todos.len()
+            );
         }
 
         Ok(context)
@@ -553,5 +653,74 @@ mod tests {
             TokenCount::Actual(50000),
             "Token count should use actual value from preserved usage"
         );
+    }
+
+    #[test]
+    fn test_compaction_preserves_todo_list_state() {
+        use forge_domain::{Todo, TodoStatus, ToolCatalog};
+
+        let environment = test_environment();
+        let compactor = Compactor::new(Compact::new(), environment);
+
+        // Create some todos
+        let todos = vec![
+            Todo::new("Task 1").id("1").status(TodoStatus::Pending),
+            Todo::new("Task 2").id("2").status(TodoStatus::InProgress),
+            Todo::new("Task 3").id("3").status(TodoStatus::Completed),
+        ];
+
+        // Create a tool call for todo_write
+        let todo_tool_call = ToolCatalog::tool_call_todo_write(todos.clone());
+
+        // Create context with todo_write call in the compaction sequence
+        let context = Context::default()
+            .add_message(ContextMessage::user("Create some tasks", None))
+            .add_message(ContextMessage::Text(
+                forge_domain::TextMessage::new(forge_domain::Role::Assistant, "Creating tasks")
+                    .tool_calls(vec![todo_tool_call]),
+            ))
+            .add_message(ContextMessage::user("Continue working", None))
+            .add_message(ContextMessage::assistant("Working on it", None, None));
+
+        // Compact the sequence containing the todo_write
+        let actual = compactor.compress_single_sequence(context, (0, 1)).unwrap();
+
+        // Verify that a system message with todos was injected
+        let has_todo_message = actual.messages.iter().any(|msg| {
+            if let ContextMessage::Text(text_msg) = &msg.message {
+                text_msg.role == Role::System
+                    && text_msg.content.contains("<current_todos>")
+                    && text_msg.content.contains("Task 1")
+                    && text_msg.content.contains("Task 2")
+                    && text_msg.content.contains("Task 3")
+                    && text_msg.droppable
+            } else {
+                false
+            }
+        });
+
+        assert!(
+            has_todo_message,
+            "Compaction should preserve todo list state as a droppable system message"
+        );
+
+        // Verify the todo message contains the correct format
+        let todo_message = actual
+            .messages
+            .iter()
+            .find(|msg| {
+                if let ContextMessage::Text(text_msg) = &msg.message {
+                    text_msg.content.contains("<current_todos>")
+                } else {
+                    false
+                }
+            })
+            .unwrap();
+
+        if let ContextMessage::Text(text_msg) = &todo_message.message {
+            assert!(text_msg.content.contains("[ ] Task 1 (id: 1)"));
+            assert!(text_msg.content.contains("[~] Task 2 (id: 2)"));
+            assert!(text_msg.content.contains("[x] Task 3 (id: 3)"));
+        }
     }
 }

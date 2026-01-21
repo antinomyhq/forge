@@ -123,13 +123,18 @@ fn coerce_value_with_schema_object(
 
     // If schema has specific instance types, try to coerce the value
     if let Some(instance_types) = &schema.instance_type {
-        return coerce_by_instance_type(value, instance_types);
+        return coerce_by_instance_type(value, instance_types, schema, root_schema);
     }
 
     value
 }
 
-fn coerce_by_instance_type(value: Value, instance_types: &SingleOrVec<InstanceType>) -> Value {
+fn coerce_by_instance_type(
+    value: Value,
+    instance_types: &SingleOrVec<InstanceType>,
+    schema: &SchemaObject,
+    root_schema: &RootSchema,
+) -> Value {
     let target_types: Vec<&InstanceType> = match instance_types {
         SingleOrVec::Single(t) => vec![t.as_ref()],
         SingleOrVec::Vec(types) => types.iter().collect(),
@@ -143,7 +148,7 @@ fn coerce_by_instance_type(value: Value, instance_types: &SingleOrVec<InstanceTy
     // Try coercion if value is a string
     if let Value::String(s) = &value {
         for target_type in target_types {
-            if let Some(coerced) = try_coerce_string(s, target_type) {
+            if let Some(coerced) = try_coerce_string(s, target_type, schema, root_schema) {
                 return coerced;
             }
         }
@@ -164,7 +169,12 @@ fn type_matches(value: &Value, target_types: &[&InstanceType]) -> bool {
     })
 }
 
-fn try_coerce_string(s: &str, target_type: &InstanceType) -> Option<Value> {
+fn try_coerce_string(
+    s: &str,
+    target_type: &InstanceType,
+    schema: &SchemaObject,
+    root_schema: &RootSchema,
+) -> Option<Value> {
     match target_type {
         InstanceType::Integer => {
             // Try to parse as i64
@@ -220,10 +230,57 @@ fn try_coerce_string(s: &str, target_type: &InstanceType) -> Option<Value> {
             if let Ok(parsed) = try_parse_json_string(s)
                 && parsed.is_array()
             {
-                return Some(parsed);
+                // Recursively coerce array items using the schema
+                return Some(coerce_array_value(parsed, schema, root_schema));
             }
+
+            // If direct parsing fails, try to extract array portion from the string
+            // This handles cases like: "[\"item\"]{\n}" or "garbage[\"item\"]more"
+            if let Some(extracted) = extract_array_from_string(s) {
+                // Recursively coerce the extracted array items
+                return Some(coerce_array_value(extracted, schema, root_schema));
+            }
+
             None
         }
+    }
+}
+
+/// Helper function to recursively coerce array items based on the schema
+fn coerce_array_value(value: Value, schema: &SchemaObject, root_schema: &RootSchema) -> Value {
+    if let Value::Array(arr) = value {
+        // Check if schema defines array item types
+        if let Some(array_validation) = &schema.array
+            && let Some(items_schema) = &array_validation.items
+        {
+            match items_schema {
+                SingleOrVec::Single(item_schema) => {
+                    return Value::Array(
+                        arr.into_iter()
+                            .map(|item| coerce_value_with_schema(item, item_schema, root_schema))
+                            .collect(),
+                    );
+                }
+                SingleOrVec::Vec(item_schemas) => {
+                    return Value::Array(
+                        arr.into_iter()
+                            .enumerate()
+                            .map(|(i, item)| {
+                                item_schemas
+                                    .get(i)
+                                    .map(|schema| {
+                                        coerce_value_with_schema(item.clone(), schema, root_schema)
+                                    })
+                                    .unwrap_or(item)
+                            })
+                            .collect(),
+                    );
+                }
+            }
+        }
+        Value::Array(arr)
+    } else {
+        value
     }
 }
 
@@ -238,6 +295,53 @@ fn try_parse_json_string(s: &str) -> Result<Value, serde_json::Error> {
     // If that fails, try parsing as JSON5 (handles single quotes, comments, etc.)
     // Convert serde_json5::Error to serde_json::Error
     serde_json5::from_str::<Value>(s).map_err(|e| serde_json::Error::custom(e.to_string()))
+}
+
+/// Extracts an array from a string that may contain garbage before/after the
+/// array
+///
+/// # Examples
+///
+/// - `"[\"item\"]{\n}"` -> `["item"]`
+/// - `"garbage[\"item\"]"` -> `["item"]`
+/// - `"prefix[1,2,3]suffix"` -> `[1,2,3]`
+///
+/// This function is more permissive than standard JSON parsing - it will
+/// extract arrays that have trailing or leading garbage. It requires the string
+/// to at least look like it contains array-like content (quotes, commas, or
+/// brackets after '[').
+fn extract_array_from_string(s: &str) -> Option<Value> {
+    // Find the first '[' and try to extract array from there
+    let start_idx = s.find('[')?;
+
+    // Check if there's anything after '[' that looks like array content
+    // This helps us avoid extracting arrays from clearly invalid strings like
+    // "[invalid json"
+    let after_bracket = &s[start_idx + 1..];
+    let has_array_like_content = after_bracket.contains('"')
+        || after_bracket.contains(',')
+        || after_bracket.contains(']')
+        || after_bracket.chars().next().is_some_and(|c| c.is_numeric());
+
+    if !has_array_like_content {
+        return None;
+    }
+
+    // Try to find matching closing bracket by parsing incrementally
+    // Start from the opening bracket and try to parse increasingly longer
+    // substrings We'll try the json_repair on the extracted portion
+    for end_idx in (start_idx + 1..=s.len()).rev() {
+        let candidate = &s[start_idx..end_idx];
+
+        // Try to repair and parse this candidate
+        if let Ok(parsed) = crate::json_repair::<Value>(candidate)
+            && parsed.is_array()
+        {
+            return Some(parsed);
+        }
+    }
+
+    None
 }
 
 #[cfg(test)]
@@ -811,5 +915,214 @@ mod tests {
             edits[1]["path"],
             "crates/forge_json_repair/src/schema_coercion.rs"
         );
+    }
+
+    // Tests for array extraction with garbage
+    #[derive(JsonSchema)]
+    #[allow(dead_code)]
+    struct AgentInput {
+        tasks: Vec<String>,
+    }
+
+    #[test]
+    fn test_coerce_malformed_string_array_with_trailing_garbage() {
+        // This is the exact case from the issue: string that looks like an array but
+        // has trailing garbage
+        let fixture = json!({
+            "tasks": "[\"Find where the main function is defined in the code-forge codebase. Search for main function definitions and entry points.\"]{\n}"
+        });
+
+        let schema = schema_for!(AgentInput);
+        let actual = coerce_to_schema(fixture, &schema);
+
+        // Should extract the array portion and ignore the trailing garbage
+        let expected = json!({
+            "tasks": ["Find where the main function is defined in the code-forge codebase. Search for main function definitions and entry points."]
+        });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_coerce_string_array_with_leading_garbage() {
+        // Test with leading garbage before the array
+        let fixture = json!({
+            "tasks": "garbage[\"task1\", \"task2\"]"
+        });
+
+        let schema = schema_for!(AgentInput);
+        let actual = coerce_to_schema(fixture, &schema);
+
+        // Should extract the array portion from the string
+        let expected = json!({
+            "tasks": ["task1", "task2"]
+        });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_coerce_string_array_with_both_garbage() {
+        // Test with garbage on both ends
+        let fixture = json!({
+            "tasks": "prefix[\"task1\"]suffix"
+        });
+
+        let schema = schema_for!(AgentInput);
+        let actual = coerce_to_schema(fixture, &schema);
+
+        // Should extract the array portion
+        let expected = json!({
+            "tasks": ["task1"]
+        });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_repair_then_coerce_full_payload() {
+        // Test the full flow: repair the JSON structure, then coerce types
+        let malformed = r#"{"tasks": "[\"Find main function\"]{\n}"}"#;
+
+        // First repair the JSON structure
+        let repaired: Value = crate::json_repair(malformed).expect("Should repair JSON");
+
+        // Then coerce to schema
+        let schema = schema_for!(AgentInput);
+        let actual = coerce_to_schema(repaired, &schema);
+
+        let expected = json!({
+            "tasks": ["Find main function"]
+        });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_preserve_already_valid_array() {
+        // Ensure we don't break valid arrays
+        let fixture = json!({
+            "tasks": ["task1", "task2"]
+        });
+
+        let schema = schema_for!(AgentInput);
+        let actual = coerce_to_schema(fixture, &schema);
+
+        let expected = json!({
+            "tasks": ["task1", "task2"]
+        });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_coerce_string_array_without_garbage() {
+        // Valid JSON array string
+        let fixture = json!({
+            "tasks": "[\"task1\", \"task2\"]"
+        });
+
+        let schema = schema_for!(AgentInput);
+        let actual = coerce_to_schema(fixture, &schema);
+
+        let expected = json!({
+            "tasks": ["task1", "task2"]
+        });
+
+        assert_eq!(actual, expected);
+    }
+
+    // Test nested structures
+    #[derive(JsonSchema)]
+    #[allow(dead_code)]
+    struct SearchQuery {
+        query: String,
+        use_case: String,
+    }
+
+    #[derive(JsonSchema)]
+    #[allow(dead_code)]
+    struct SemanticSearchInput {
+        queries: Vec<SearchQuery>,
+        extensions: Vec<String>,
+    }
+
+    #[test]
+    fn test_coerce_nested_array_of_objects_with_garbage() {
+        // Test array of objects with trailing garbage
+        let fixture = json!({
+            "queries": "[{\"query\": \"test\", \"use_case\": \"find\"}]garbage",
+            "extensions": "[\".rs\"]"
+        });
+
+        let schema = schema_for!(SemanticSearchInput);
+        let actual = coerce_to_schema(fixture, &schema);
+
+        let expected = json!({
+            "queries": [{"query": "test", "use_case": "find"}],
+            "extensions": [".rs"]
+        });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_coerce_nested_array_with_string_numbers() {
+        // Test that nested coercion works - string numbers inside objects inside arrays
+        #[derive(JsonSchema)]
+        #[allow(dead_code)]
+        struct Item {
+            id: i64,
+            name: String,
+        }
+
+        #[derive(JsonSchema)]
+        #[allow(dead_code)]
+        struct ItemList {
+            items: Vec<Item>,
+        }
+
+        let fixture = json!({
+            "items": "[{\"id\": \"42\", \"name\": \"test\"}]extra"
+        });
+
+        let schema = schema_for!(ItemList);
+        let actual = coerce_to_schema(fixture, &schema);
+
+        // The id should be coerced from string "42" to number 42
+        let expected = json!({
+            "items": [{"id": 42, "name": "test"}]
+        });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_coerce_deeply_nested_arrays() {
+        // Test arrays containing objects containing arrays
+        #[derive(JsonSchema)]
+        #[allow(dead_code)]
+        struct DeepItem {
+            tags: Vec<String>,
+        }
+
+        #[derive(JsonSchema)]
+        #[allow(dead_code)]
+        struct DeepList {
+            items: Vec<DeepItem>,
+        }
+
+        let fixture = json!({
+            "items": "[{\"tags\": [\"tag1\", \"tag2\"]}]garbage"
+        });
+
+        let schema = schema_for!(DeepList);
+        let actual = coerce_to_schema(fixture, &schema);
+
+        let expected = json!({
+            "items": [{"tags": ["tag1", "tag2"]}]
+        });
+
+        assert_eq!(actual, expected);
     }
 }

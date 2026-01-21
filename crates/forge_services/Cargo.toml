@@ -50,6 +50,7 @@ oauth2 = { version = "5.0", features = ["reqwest"] }
 serde_urlencoded = "0.7.1"
 http.workspace = true
 infer.workspace = true
+uuid.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt", "time", "test-util"] }
