@@ -56,16 +56,36 @@ pub fn render_heading<S: InlineStyler + HeadingStyler>(
                 )
             }
             3 => {
-                format!("{}{} {}", margin, styler.dimmed(&styler.h3(&prefix)), styler.h3(&line))
+                format!(
+                    "{}{} {}",
+                    margin,
+                    styler.dimmed(&styler.h3(&prefix)),
+                    styler.h3(&line)
+                )
             }
             4 => {
-                format!("{}{} {}", margin, styler.dimmed(&styler.h4(&prefix)), styler.h4(&line))
+                format!(
+                    "{}{} {}",
+                    margin,
+                    styler.dimmed(&styler.h4(&prefix)),
+                    styler.h4(&line)
+                )
             }
             5 => {
-                format!("{}{} {}", margin, styler.dimmed(&styler.h5(&prefix)), styler.h5(&line))
+                format!(
+                    "{}{} {}",
+                    margin,
+                    styler.dimmed(&styler.h5(&prefix)),
+                    styler.h5(&line)
+                )
             }
             _ => {
-                format!("{}{} {}", margin, styler.dimmed(&styler.h6(&prefix)), styler.h6(&line))
+                format!(
+                    "{}{} {}",
+                    margin,
+                    styler.dimmed(&styler.h6(&prefix)),
+                    styler.h6(&line)
+                )
             }
         };
         result.push(formatted);
