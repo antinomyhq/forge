@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -6,7 +7,7 @@ use console::style;
 use forge_domain::{
     Agent, AgentId, AgentInput, ChatResponse, ChatResponseContent, Environment, InputModality,
     Model, SystemContext, ToolCallContext, ToolCallFull, ToolCatalog, ToolDefinition, ToolKind,
-    ToolName, ToolOutput, ToolResult,
+    ToolName, ToolOutput, ToolResult, ToolValue,
 };
 use forge_template::Element;
 use futures::future::join_all;
@@ -20,9 +21,10 @@ use crate::error::Error;
 use crate::fmt::content::FormatContent;
 use crate::mcp_executor::McpExecutor;
 use crate::tool_executor::ToolExecutor;
+use crate::truncation::truncate_text_if_needed;
 use crate::{
-    AgentRegistry, EnvironmentService, McpService, PolicyService, ProviderService, Services,
-    ToolResolver, WorkspaceService,
+    AgentRegistry, EnvironmentService, FsWriteService, McpService, PolicyService, ProviderService,
+    Services, ToolResolver, WorkspaceService,
 };
 
 pub struct ToolRegistry<S> {
@@ -168,7 +170,10 @@ impl<S: Services> ToolRegistry<S> {
                     })
                     .await?;
             }
-            Ok(output)
+            Ok(self
+                .truncate_mcp_output_if_needed(output.clone())
+                .await
+                .unwrap_or(output))
         } else {
             Err(Error::NotFound(input.name).into())
         }
@@ -185,6 +190,72 @@ impl<S: Services> ToolRegistry<S> {
         let output = self.call_inner(agent, call, context).await;
 
         ToolResult::new(tool_name).call_id(call_id).output(output)
+    }
+
+    /// Truncates MCP output if any text value exceeds the limit.
+    /// Each truncated value gets its own temp file and XML wrapper.
+    async fn truncate_mcp_output_if_needed(
+        &self,
+        output: ToolOutput,
+    ) -> anyhow::Result<ToolOutput> {
+        let limit = self.services.get_environment().mcp_truncation_limit;
+        let mut new_values = Vec::with_capacity(output.values.len());
+        for value in output.values {
+            match value {
+                ToolValue::Text(text) => {
+                    match truncate_text_if_needed(&text, limit) {
+                        None => {
+                            // Not truncated, keep as-is
+                            new_values.push(ToolValue::Text(text));
+                        }
+                        Some(truncated) => {
+                            // Write full content to temp file
+                            let temp_path = self
+                                .create_temp_file("forge_mcp_", ".txt", truncated.full_text)
+                                .await?;
+
+                            // Wrap in XML with metadata
+                            let xml = Element::new("mcp_output")
+                                .attr("original_size", truncated.original_size)
+                                .attr("limit", limit)
+                                .attr("file_path", temp_path.display())
+                                .cdata(&truncated.content);
+
+                            new_values.push(ToolValue::Text(xml.render()));
+                        }
+                    }
+                }
+                other => {
+                    // Non-text values pass through unchanged
+                    new_values.push(other);
+                }
+            }
+        }
+        Ok(ToolOutput { values: new_values, is_error: output.is_error })
+    }
+
+    /// Creates a temporary file with the given content.
+    async fn create_temp_file(
+        &self,
+        prefix: &str,
+        ext: &str,
+        content: &str,
+    ) -> anyhow::Result<PathBuf> {
+        let path = tempfile::Builder::new()
+            .disable_cleanup(true)
+            .prefix(prefix)
+            .suffix(ext)
+            .tempfile()?
+            .into_temp_path()
+            .to_path_buf();
+        self.services
+            .write(
+                path.to_string_lossy().to_string(),
+                content.to_string(),
+                true,
+            )
+            .await?;
+        Ok(path)
     }
 
     pub async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {

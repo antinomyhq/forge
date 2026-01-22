@@ -60,7 +60,7 @@ mod tests {
         let expected = TruncatedText {
             content: "a".repeat(50),
             original_size: 100,
-            full_text: fixture,
+            full_text: &fixture,
         };
         assert_eq!(actual, Some(expected));
     }
