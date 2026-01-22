@@ -1,7 +1,7 @@
 use anyhow::Context as _;
 use async_openai::types::responses as oai;
 use forge_app::domain::{Context as ChatContext, ContextMessage, Role, ToolChoice};
-use forge_app::utils::normalize_json_schema;
+use forge_app::utils::enforce_strict_schema;
 use forge_domain::{Effort, ReasoningConfig};
 
 use crate::provider::FromDomain;
@@ -76,7 +76,7 @@ fn codex_tool_parameters(
 
     // Use strict mode (true) for OpenAI - adds additionalProperties, properties,
     // and required
-    normalize_json_schema(&mut params, true);
+    enforce_strict_schema(&mut params, true);
 
     Ok(params)
 }
@@ -247,7 +247,7 @@ mod tests {
     use forge_app::domain::{
         Context as ChatContext, ContextMessage, ModelId, ToolCallId, ToolChoice,
     };
-    use forge_app::utils::normalize_json_schema;
+    use forge_app::utils::enforce_strict_schema;
 
     use crate::provider::FromDomain;
 
@@ -531,7 +531,7 @@ mod tests {
             }
         });
 
-        normalize_json_schema(&mut schema, true);
+        enforce_strict_schema(&mut schema, true);
 
         assert_eq!(
             schema["additionalProperties"],
@@ -548,7 +548,7 @@ mod tests {
             }
         });
 
-        normalize_json_schema(&mut schema, true);
+        enforce_strict_schema(&mut schema, true);
 
         assert_eq!(
             schema["additionalProperties"],
@@ -563,7 +563,7 @@ mod tests {
             "type": "object"
         });
 
-        normalize_json_schema(&mut schema, true);
+        enforce_strict_schema(&mut schema, true);
 
         assert_eq!(
             schema["properties"],
@@ -590,7 +590,7 @@ mod tests {
             }
         });
 
-        normalize_json_schema(&mut schema, true);
+        enforce_strict_schema(&mut schema, true);
 
         // Top level should have additionalProperties
         assert_eq!(
@@ -622,7 +622,7 @@ mod tests {
             }
         });
 
-        normalize_json_schema(&mut schema, true);
+        enforce_strict_schema(&mut schema, true);
 
         // Array items should be normalized
         assert_eq!(
@@ -638,7 +638,7 @@ mod tests {
             "type": "string"
         });
 
-        normalize_json_schema(&mut schema, true);
+        enforce_strict_schema(&mut schema, true);
 
         // Should not modify non-object types
         assert_eq!(schema, serde_json::json!({"type": "string"}));
@@ -655,7 +655,7 @@ mod tests {
             }
         });
 
-        normalize_json_schema(&mut schema, true);
+        enforce_strict_schema(&mut schema, true);
 
         assert_eq!(
             schema["required"],

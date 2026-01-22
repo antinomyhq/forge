@@ -1,7 +1,7 @@
 use forge_domain::Transformer;
 
 use crate::dto::anthropic::{OutputFormat, Request};
-use crate::utils::normalize_json_schema;
+use crate::utils::enforce_strict_schema;
 
 /// Transformer that normalizes output_format schema to meet Anthropic API
 /// requirements.
@@ -28,9 +28,9 @@ use crate::utils::normalize_json_schema;
 ///   "additionalProperties": false
 /// }
 /// ```
-pub struct NormalizeOutputSchema;
+pub struct EnforceStrictObjectSchema;
 
-impl Transformer for NormalizeOutputSchema {
+impl Transformer for EnforceStrictObjectSchema {
     type Value = Request;
 
     fn transform(&mut self, mut request: Self::Value) -> Self::Value {
@@ -38,7 +38,7 @@ impl Transformer for NormalizeOutputSchema {
             // Convert schema to JSON value for normalization
             if let Ok(mut schema_value) = serde_json::to_value(&schema) {
                 // Use non-strict mode (false) for Anthropic - only adds additionalProperties
-                normalize_json_schema(&mut schema_value, false);
+                enforce_strict_schema(&mut schema_value, false);
 
                 // Convert back to RootSchema
                 if let Ok(normalized_schema) = serde_json::from_value(schema_value) {
@@ -85,7 +85,7 @@ mod tests {
         let schema = schemars::schema_for!(TestResponse);
         let fixture = Request::default().output_format(OutputFormat::JsonSchema { schema });
 
-        let actual = NormalizeOutputSchema.transform(fixture);
+        let actual = EnforceStrictObjectSchema.transform(fixture);
 
         // Convert to JSON to check if additionalProperties was added
         if let Some(OutputFormat::JsonSchema { schema }) = actual.output_format {
@@ -131,7 +131,7 @@ mod tests {
     fn test_normalize_output_schema_preserves_none() {
         let fixture = Request::default();
 
-        let actual = NormalizeOutputSchema.transform(fixture);
+        let actual = EnforceStrictObjectSchema.transform(fixture);
 
         assert_eq!(actual.output_format, None);
     }

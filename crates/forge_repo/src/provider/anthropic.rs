@@ -7,8 +7,8 @@ use forge_app::domain::{
     ChatCompletionMessage, Context, Model, ModelId, ResultStream, RetryConfig, Transformer,
 };
 use forge_app::dto::anthropic::{
-    AuthSystemMessage, CapitalizeToolNames, DropInvalidToolUse, EventData, ListModelResponse,
-    NormalizeOutputSchema, ReasoningTransform, Request, SetCache,
+    AuthSystemMessage, CapitalizeToolNames, DropInvalidToolUse, EnforceStrictObjectSchema,
+    EventData, ListModelResponse, ReasoningTransform, Request, SetCache,
 };
 use forge_domain::{ChatRepository, Provider};
 use reqwest::Url;
@@ -91,7 +91,7 @@ impl<T: HttpInfra> Anthropic<T> {
             .when(|_| self.use_oauth)
             .pipe(CapitalizeToolNames)
             .pipe(DropInvalidToolUse)
-            .pipe(NormalizeOutputSchema)
+            .pipe(EnforceStrictObjectSchema)
             .pipe(SetCache)
             .transform(request);
         let url = &self.chat_url;

@@ -139,7 +139,7 @@ pub fn compute_hash(content: &str) -> String {
 ///
 /// assert_eq!(schema["additionalProperties"], json!(false));
 /// ```
-pub fn normalize_json_schema(schema: &mut serde_json::Value, strict_mode: bool) {
+pub fn enforce_strict_schema(schema: &mut serde_json::Value, strict_mode: bool) {
     match schema {
         serde_json::Value::Object(map) => {
             // Check if this is an object type
@@ -190,12 +190,12 @@ pub fn normalize_json_schema(schema: &mut serde_json::Value, strict_mode: bool) 
 
             // Recursively normalize nested schemas
             for value in map.values_mut() {
-                normalize_json_schema(value, strict_mode);
+                enforce_strict_schema(value, strict_mode);
             }
         }
         serde_json::Value::Array(items) => {
             for value in items {
-                normalize_json_schema(value, strict_mode);
+                enforce_strict_schema(value, strict_mode);
             }
         }
         _ => {}
@@ -218,7 +218,7 @@ mod tests {
             }
         });
 
-        normalize_json_schema(&mut schema, false);
+        enforce_strict_schema(&mut schema, false);
 
         assert_eq!(schema["additionalProperties"], json!(false));
         // In non-strict mode, required field is not added
@@ -235,7 +235,7 @@ mod tests {
             }
         });
 
-        normalize_json_schema(&mut schema, true);
+        enforce_strict_schema(&mut schema, true);
 
         assert_eq!(schema["additionalProperties"], json!(false));
         assert_eq!(schema["required"], json!(["age", "name"]));
@@ -247,7 +247,7 @@ mod tests {
             "type": "object"
         });
 
-        normalize_json_schema(&mut schema, true);
+        enforce_strict_schema(&mut schema, true);
 
         assert_eq!(schema["properties"], json!({}));
         assert_eq!(schema["additionalProperties"], json!(false));
@@ -268,7 +268,7 @@ mod tests {
             }
         });
 
-        normalize_json_schema(&mut schema, false);
+        enforce_strict_schema(&mut schema, false);
 
         assert_eq!(schema["additionalProperties"], json!(false));
         assert_eq!(
