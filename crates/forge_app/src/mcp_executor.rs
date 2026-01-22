@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use forge_domain::{TitleFormat, ToolCallContext, ToolCallFull, ToolName, ToolOutput, ToolValue};
+use forge_domain::{TitleFormat, ToolCallContext, ToolCallFull, ToolName, ToolOutput};
 use forge_template::Element;
 
 use crate::truncation::{TruncationResult, truncate_mcp_output};
@@ -26,7 +26,10 @@ impl<S: McpService + EnvironmentService + FsWriteService> McpExecutor<S> {
             .await?;
 
         let output = self.services.execute_mcp(input).await?;
-        Ok(self.truncate_if_needed(output.clone()).await.unwrap_or(output))
+        Ok(self
+            .truncate_if_needed(output.clone())
+            .await
+            .unwrap_or(output))
     }
 
     pub async fn contains_tool(&self, tool_name: &ToolName) -> anyhow::Result<bool> {
@@ -70,7 +73,7 @@ impl<S: McpService + EnvironmentService + FsWriteService> McpExecutor<S> {
         match truncate_mcp_output(output, limit)? {
             TruncationResult::Unchanged(output) => Ok(output),
             TruncationResult::Truncated {
-                mut truncated_values,
+                truncated_values,
                 full_json,
                 total_size,
                 limit,
@@ -81,16 +84,28 @@ impl<S: McpService + EnvironmentService + FsWriteService> McpExecutor<S> {
                     .create_temp_file("forge_mcp_", ".json", &full_json)
                     .await?;
 
-                // Add truncation notice
-                let notice = Element::new("truncated").text(format!(
-                    "Content truncated to {} chars (total: {} chars).\n Full content:\n{}",
-                    limit,
-                    total_size,
-                    temp_path.display()
-                ));
-                truncated_values.push(ToolValue::Text(notice.render()));
+                // Wrap truncated values in XML structure with truncation notice
+                let mut elm = Element::new("mcp_output")
+                    .attr("total_size", total_size)
+                    .attr("limit", limit)
+                    .attr("file_path", temp_path.display());
 
-                Ok(ToolOutput { is_error, values: truncated_values })
+                // Add all truncated values as content
+                for value in truncated_values {
+                    if let Some(text) = value.as_str() {
+                        elm = elm.append(Element::new("content").cdata(text));
+                    }
+                }
+
+                // Add truncation notice as nested element with metadata attributes
+                elm = elm.append(
+                    Element::new("truncated")
+                        .attr("limit", limit)
+                        .attr("total_size", total_size)
+                        .text("Content is truncated. Full content is available at the specified path."),
+                );
+
+                Ok(ToolOutput::text(elm).is_error(is_error))
             }
         }
     }
