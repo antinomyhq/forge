@@ -3656,7 +3656,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                                 "Authentication successful!".to_string(),
                             ))?;
                             self.writeln(format!("  User ID: {}", auth.user_id))?;
-                            self.writeln(format!("  Token: {}...", login_info.masked_token))?;
+                            self.writeln(format!("  Token: {}", login_info.masked_token))?;
                             return Ok(());
                         }
                         Ok(None) => {
