@@ -121,6 +121,12 @@ function _forge_start_background_sync() {
     # Get canonical workspace path
     local workspace_path=$(pwd -P)
     
+    # Check if workspace info command succeeds before attempting sync
+    # If the workspace is not valid, exit early
+    if ! $_FORGE_BIN workspace info "$workspace_path" >/dev/null 2>&1; then
+        return 0
+    fi
+    
     # Run sync once in background
     # Close all output streams immediately to prevent any flashing
     {
