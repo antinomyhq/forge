@@ -204,6 +204,9 @@ function forge-accept-line() {
         doctor)
             _forge_action_doctor
         ;;
+        keyboard-shortcuts|kb)
+            _forge_action_keyboard
+        ;;
         *)
             _forge_action_default "$user_action" "$input_text"
         ;;
