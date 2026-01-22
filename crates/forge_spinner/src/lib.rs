@@ -72,7 +72,7 @@ impl<P: ConsoleWriter> SpinnerManager<P> {
             .with_style(
                 ProgressStyle::default_spinner()
                     .tick_strings(&["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"])
-                    .template("{spinner:.green} {elapsed_custom:.white} {msg} {prefix:.white.dim}")
+                    .template("{spinner:.green} {msg} {elapsed_custom:.white} {prefix:.white.dim}")
                     .unwrap()
                     .with_key(
                         "elapsed_custom",
