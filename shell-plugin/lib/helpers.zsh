@@ -109,6 +109,15 @@ function _forge_log() {
     esac
 }
 
+# Helper function to check if a workspace is indexed
+# Usage: _forge_is_workspace_indexed <workspace_path>
+# Returns: 0 if workspace is indexed, 1 otherwise
+function _forge_is_workspace_indexed() {
+    local workspace_path="$1"
+    $_FORGE_BIN workspace info "$workspace_path" >/dev/null 2>&1
+    return $?
+}
+
 # Start background sync job for current workspace if not already running
 # Uses canonical path hash to identify workspace
 function _forge_start_background_sync() {
@@ -121,9 +130,8 @@ function _forge_start_background_sync() {
     # Get canonical workspace path
     local workspace_path=$(pwd -P)
     
-    # Check if workspace info command succeeds before attempting sync
-    # If the workspace is not valid, exit early
-    if ! $_FORGE_BIN workspace info "$workspace_path" >/dev/null 2>&1; then
+    # Check if workspace is indexed before attempting sync
+    if ! _forge_is_workspace_indexed "$workspace_path"; then
         return 0
     fi
     
