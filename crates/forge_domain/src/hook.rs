@@ -120,9 +120,9 @@ pub trait EventHandleExt: EventHandle {
     /// If this handler returns `Step::Interrupt`, the other handler is skipped
     /// and the interrupt is returned immediately (short-circuit).
     ///
-    /// **Important**: If you need the second handler to always execute (e.g., for
-    /// cleanup, logging, or metrics), do not rely on this method. Instead,
-    /// implement a single handler that performs both operations.
+    /// **Important**: If you need the second handler to always execute (e.g.,
+    /// for cleanup, logging, or metrics), do not rely on this method.
+    /// Instead, implement a single handler that performs both operations.
     ///
     /// # Arguments
     /// * `other` - Another handler to combine with this one
@@ -220,14 +220,16 @@ impl Hook {
     /// Combines this hook with another hook, creating a new hook that runs both
     /// handlers with short-circuit behavior
     ///
-    /// When an event is handled, the first hook's handler runs first. If it returns
-    /// `Step::Proceed`, the second hook's handler runs and its result is returned.
-    /// If the first handler returns `Step::Interrupt`, the second handler is skipped
-    /// and the interrupt is returned immediately (short-circuit).
+    /// When an event is handled, the first hook's handler runs first. If it
+    /// returns `Step::Proceed`, the second hook's handler runs and its
+    /// result is returned. If the first handler returns `Step::Interrupt`,
+    /// the second handler is skipped and the interrupt is returned
+    /// immediately (short-circuit).
     ///
-    /// **Important**: If you need the second hook's handlers to always execute (e.g.,
-    /// for cleanup, logging, or metrics), do not rely on this method. Instead,
-    /// implement a single hook that performs both operations.
+    /// **Important**: If you need the second hook's handlers to always execute
+    /// (e.g., for cleanup, logging, or metrics), do not rely on this
+    /// method. Instead, implement a single hook that performs both
+    /// operations.
     ///
     /// # Arguments
     /// * `other` - Another hook to combine with this one
@@ -275,11 +277,12 @@ impl EventHandle for Hook {
 
 /// A handler that combines two event handlers with short-circuit behavior
 ///
-/// Runs the first handler, and only runs the second handler if the first returns
-/// `Step::Proceed`. If the first handler returns `Step::Interrupt`, the second
-/// handler is skipped and the interrupt is returned immediately.
+/// Runs the first handler, and only runs the second handler if the first
+/// returns `Step::Proceed`. If the first handler returns `Step::Interrupt`, the
+/// second handler is skipped and the interrupt is returned immediately.
 ///
-/// This is used internally by the `Hook::zip` and `EventHandleExt::and` methods.
+/// This is used internally by the `Hook::zip` and `EventHandleExt::and`
+/// methods.
 struct CombinedHandler(Box<dyn EventHandle>, Box<dyn EventHandle>);
 
 #[async_trait]
