@@ -3577,7 +3577,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         self.spinner.stop(None)?;
 
         // Get auth URL from environment or use default
-        let auth_url = std::env::var("FORGE_AUTH_URL")
+        let auth_url = std::env::var("FORGE_WORKSPACE_SERVER_URL")
             .unwrap_or_else(|_| "https://app.forgecode.dev".to_string());
         let full_url = format!("{}/auth/{}", auth_url, init_response.device_id);
 
