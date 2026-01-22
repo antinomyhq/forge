@@ -441,7 +441,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Sync>
                     _ => {
                         return Err(anyhow::anyhow!(
                             "FORGE_SERVICES credential must be an API key"
-                        ))
+                        ));
                     }
                 };
 
@@ -449,7 +449,9 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Sync>
                 let user_id_str = cred
                     .url_params
                     .get(&forge_domain::URLParam::from("user_id".to_string()))
-                    .ok_or_else(|| anyhow::anyhow!("Missing user_id in FORGE_SERVICES credential"))?;
+                    .ok_or_else(|| {
+                        anyhow::anyhow!("Missing user_id in FORGE_SERVICES credential")
+                    })?;
                 let user_id = forge_domain::UserId::from_string(user_id_str.as_str());
 
                 // Extract created_at from url_params
@@ -803,10 +805,7 @@ mod env_tests {
             Ok(None)
         }
 
-        async fn store_auth(
-            &self,
-            _auth: &forge_domain::WorkspaceAuth,
-        ) -> anyhow::Result<()> {
+        async fn store_auth(&self, _auth: &forge_domain::WorkspaceAuth) -> anyhow::Result<()> {
             Ok(())
         }
 
@@ -1282,10 +1281,7 @@ mod env_tests {
                 Ok(None)
             }
 
-            async fn store_auth(
-                &self,
-                _auth: &forge_domain::WorkspaceAuth,
-            ) -> anyhow::Result<()> {
+            async fn store_auth(&self, _auth: &forge_domain::WorkspaceAuth) -> anyhow::Result<()> {
                 Ok(())
             }
 
@@ -1328,12 +1324,14 @@ mod env_tests {
 
 #[cfg(test)]
 mod auth_storage_tests {
-    use super::env_tests::MockInfra;
-    use super::*;
+    use std::collections::HashMap;
+
     use chrono::Utc;
     use forge_domain::{UserId, WorkspaceAuth};
     use pretty_assertions::assert_eq;
-    use std::collections::HashMap;
+
+    use super::env_tests::MockInfra;
+    use super::*;
 
     fn auth_fixture() -> WorkspaceAuth {
         WorkspaceAuth {
@@ -1356,7 +1354,7 @@ mod auth_storage_tests {
         assert!(actual.is_some());
         let actual = actual.unwrap();
         assert_eq!(actual.user_id, expected.user_id);
-        assert_eq!(**&actual.token, **&expected.token);
+        assert_eq!(*actual.token, *expected.token);
     }
 
     #[tokio::test]
@@ -1389,7 +1387,7 @@ mod auth_storage_tests {
         let actual = fixture.get_auth().await.unwrap().unwrap();
 
         assert_eq!(actual.user_id, auth2.user_id);
-        assert_eq!(**&actual.token, "new_token_xyz789");
+        assert_eq!(*actual.token, "new_token_xyz789");
     }
 
     #[tokio::test]
@@ -1428,7 +1426,7 @@ mod auth_storage_tests {
         // Verify it's an API key credential
         match &credential.auth_details {
             forge_domain::AuthDetails::ApiKey(key) => {
-                assert_eq!(**key, **&auth.token);
+                assert_eq!(**key, *auth.token);
             }
             _ => panic!("Expected ApiKey auth details"),
         }

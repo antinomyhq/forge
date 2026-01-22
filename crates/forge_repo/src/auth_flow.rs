@@ -78,10 +78,9 @@ impl<I: GrpcInfra> AuthFlowRepository for ForgeAuthFlowRepository<I> {
         let mut request = tonic::Request::new(GetApiKeysRequest {});
 
         // Add authorization header
-        request.metadata_mut().insert(
-            "authorization",
-            format!("Bearer {}", &**token).parse()?,
-        );
+        request
+            .metadata_mut()
+            .insert("authorization", format!("Bearer {}", &**token).parse()?);
 
         let channel = self.infra.channel();
         let mut client = ForgeServiceClient::new(channel);
@@ -100,15 +99,12 @@ impl<I: GrpcInfra> AuthFlowRepository for ForgeAuthFlowRepository<I> {
     }
 
     async fn delete_api_key(&self, token: &ApiKey, key_id: &str) -> Result<()> {
-        let mut request = tonic::Request::new(DeleteApiKeyRequest {
-            id: key_id.to_string(),
-        });
+        let mut request = tonic::Request::new(DeleteApiKeyRequest { id: key_id.to_string() });
 
         // Add authorization header
-        request.metadata_mut().insert(
-            "authorization",
-            format!("Bearer {}", &**token).parse()?,
-        );
+        request
+            .metadata_mut()
+            .insert("authorization", format!("Bearer {}", &**token).parse()?);
 
         let channel = self.infra.channel();
         let mut client = ForgeServiceClient::new(channel);

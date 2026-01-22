@@ -277,11 +277,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         if self.cli.requires_authentication() {
             // Check if user is authenticated
             let is_authenticated = self.api.auth_is_valid().await.unwrap_or(false);
-            
+
             if !is_authenticated {
-                self.writeln_title(TitleFormat::warning(
-                    "Authentication required".to_string(),
-                ))?;
+                self.writeln_title(TitleFormat::warning("Authentication required".to_string()))?;
                 self.writeln("")?;
                 self.writeln("  You need to authenticate before using Forge.")?;
                 self.writeln("  Please run: forge auth login")?;
@@ -3569,7 +3567,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             Ok(response) => response,
             Err(e) => {
                 self.spinner.stop(None)?;
-                return Err(anyhow::anyhow!("Failed to initialize authentication: {}", e));
+                return Err(anyhow::anyhow!(
+                    "Failed to initialize authentication: {}",
+                    e
+                ));
             }
         };
 
@@ -3601,15 +3602,13 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         std::io::stdin().read_line(&mut input)?;
         let input = input.trim().to_lowercase();
 
-        if input.is_empty() || input == "y" || input == "yes" {
-            if let Err(e) = open::that(&full_url) {
+        if (input.is_empty() || input == "y" || input == "yes")
+            && let Err(e) = open::that(&full_url) {
                 self.writeln(format!("  Failed to open browser: {}", e))?;
             }
-        }
 
         self.writeln("")?;
-        self.spinner
-            .start(Some("Waiting for authentication..."))?;
+        self.spinner.start(Some("Waiting for authentication..."))?;
 
         // Poll for authentication completion
         let start_time = Instant::now();
@@ -3686,7 +3685,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Handle auth status command - show current authentication status
     async fn on_auth_status(&mut self) -> anyhow::Result<()> {
-        self.spinner.start(Some("Checking authentication status..."))?;
+        self.spinner
+            .start(Some("Checking authentication status..."))?;
 
         let is_valid = self.api.auth_is_valid().await?;
 
@@ -3704,7 +3704,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.writeln_title(TitleFormat::info("Not authenticated".to_string()))?;
             }
         } else {
-            self.writeln_title(TitleFormat::warning("Authentication invalid or expired".to_string()))?;
+            self.writeln_title(TitleFormat::warning(
+                "Authentication invalid or expired".to_string(),
+            ))?;
             self.writeln("  Please run 'forge auth login' to authenticate.")?;
         }
 

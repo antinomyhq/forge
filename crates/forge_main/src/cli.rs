@@ -86,8 +86,8 @@ impl Cli {
 
     /// Check if the command requires authentication.
     ///
-    /// Authentication is only required for Forge services like codebase indexing.
-    /// Most commands work without authentication.
+    /// Authentication is only required for Forge services like codebase
+    /// indexing. Most commands work without authentication.
     ///
     /// Returns true only for commands that use Forge services:
     /// - Workspace commands (sync, query, list) - require auth for indexing

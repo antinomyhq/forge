@@ -108,7 +108,7 @@ impl TryFrom<proto_generated::LoginInfo> for AuthFlowLoginInfo {
         let user_id = proto
             .user_id
             .ok_or_else(|| anyhow::anyhow!("Missing user_id in LoginInfo"))?;
-        
+
         Ok(AuthFlowLoginInfo {
             token: proto.token.into(),
             masked_token: proto.masked_token,
@@ -167,8 +167,10 @@ impl<I: GrpcInfra> WorkspaceIndexRepository for ForgeContextEngineRepository<I> 
     async fn authenticate(&self) -> Result<WorkspaceAuth> {
         // DEPRECATED: This method uses the old CreateApiKey RPC which is deprecated.
         // New code should use AuthGateService::ensure_authenticated() instead.
-        eprintln!("⚠ Warning: Using deprecated authentication method. Please use 'forge auth login' instead.");
-        
+        eprintln!(
+            "⚠ Warning: Using deprecated authentication method. Please use 'forge auth login' instead."
+        );
+
         let channel = self.infra.channel();
         let mut client = ForgeServiceClient::new(channel);
         let request = tonic::Request::new(CreateApiKeyRequest { user_id: None });

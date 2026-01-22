@@ -4,8 +4,8 @@ use forge_domain::{AuthFlowRepository, ProviderRepository, WorkspaceAuth};
 
 /// Service that ensures user is authenticated before allowing operations
 ///
-/// This service acts as a gate, checking for valid authentication and initiating
-/// the auth flow if needed.
+/// This service acts as a gate, checking for valid authentication and
+/// initiating the auth flow if needed.
 pub struct AuthGateService<R> {
     infra: Arc<R>,
 }
@@ -235,7 +235,7 @@ mod tests {
         let actual = fixture.ensure_authenticated().await.unwrap();
 
         assert_eq!(actual.user_id, expected.user_id);
-        assert_eq!(**&actual.token, **&expected.token);
+        assert_eq!(*actual.token, *expected.token);
     }
 
     #[tokio::test]
@@ -246,10 +246,12 @@ mod tests {
         let result = fixture.ensure_authenticated().await;
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Authentication required"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Authentication required")
+        );
     }
 
     #[tokio::test]
@@ -259,10 +261,12 @@ mod tests {
         let result = fixture.ensure_authenticated().await;
 
         assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .to_string()
-            .contains("Authentication required"));
+        assert!(
+            result
+                .unwrap_err()
+                .to_string()
+                .contains("Authentication required")
+        );
     }
 
     #[tokio::test]

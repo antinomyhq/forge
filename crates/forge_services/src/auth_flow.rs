@@ -74,11 +74,7 @@ impl<R: AuthFlowRepository> AuthFlowService<R> {
         // In production, this would be extracted from the JWT or fetched from server
         let user_id = self.extract_user_id_from_token(&login_info.token).await?;
 
-        Ok(WorkspaceAuth {
-            user_id,
-            token: login_info.token,
-            created_at: Utc::now(),
-        })
+        Ok(WorkspaceAuth { user_id, token: login_info.token, created_at: Utc::now() })
     }
 
     /// Poll for authentication completion
@@ -116,7 +112,10 @@ impl<R: AuthFlowRepository> AuthFlowService<R> {
                 }
                 Ok(None) => {
                     // Still pending, wait and retry
-                    debug!("Authentication still pending, waiting {}s", poll_interval_secs);
+                    debug!(
+                        "Authentication still pending, waiting {}s",
+                        poll_interval_secs
+                    );
                     sleep(poll_interval).await;
                 }
                 Err(e) => {
@@ -214,9 +213,11 @@ pub enum AuthError {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use forge_domain::{ApiKeyInfo, AuthFlowLoginInfo, InitFlowResponse};
     use std::sync::Mutex;
+
+    use forge_domain::{ApiKeyInfo, AuthFlowLoginInfo, InitFlowResponse};
+
+    use super::*;
 
     struct MockAuthFlowRepository {
         init_response: InitFlowResponse,

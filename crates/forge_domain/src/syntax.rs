@@ -5,7 +5,8 @@ use serde::{Deserialize, Serialize};
 pub struct SyntaxInfo {
     /// Language name (e.g., "Rust", "Python", "TypeScript")
     pub language: String,
-    /// File extensions for this language (e.g., [".rs"], [".py"], [".ts", ".tsx"])
+    /// File extensions for this language (e.g., [".rs"], [".py"], [".ts",
+    /// ".tsx"])
     pub extensions: Vec<String>,
 }
 

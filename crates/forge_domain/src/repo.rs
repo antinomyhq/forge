@@ -179,10 +179,10 @@ pub trait WorkspaceRepository: Send + Sync {
 #[async_trait::async_trait]
 pub trait WorkspaceIndexRepository: Send + Sync {
     /// Authenticate with the indexing service via gRPC API
-    /// 
+    ///
     /// # Deprecated
-    /// This method is deprecated. Use `AuthGateService::ensure_authenticated()` instead.
-    /// This method will be removed in a future version.
+    /// This method is deprecated. Use `AuthGateService::ensure_authenticated()`
+    /// instead. This method will be removed in a future version.
     #[deprecated(
         since = "0.2.0",
         note = "Use AuthGateService::ensure_authenticated() instead"
@@ -308,8 +308,9 @@ pub trait FuzzySearchRepository: Send + Sync {
 
 /// Repository for authentication flow operations
 ///
-/// This repository provides operations for the device-based authentication flow,
-/// including initializing authentication, polling for completion, and managing API keys.
+/// This repository provides operations for the device-based authentication
+/// flow, including initializing authentication, polling for completion, and
+/// managing API keys.
 #[async_trait::async_trait]
 pub trait AuthFlowRepository: Send + Sync {
     /// Initialize authentication flow and get device code

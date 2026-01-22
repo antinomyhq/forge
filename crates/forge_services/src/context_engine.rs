@@ -643,11 +643,9 @@ impl<
 
     async fn init_auth_credentials(&self) -> Result<forge_domain::WorkspaceAuth> {
         // Get stored authentication
-        let auth = self
-            .infra
-            .get_auth()
-            .await?
-            .ok_or_else(|| anyhow::anyhow!("No authentication found. Please run 'forge auth login'"))?;
+        let auth = self.infra.get_auth().await?.ok_or_else(|| {
+            anyhow::anyhow!("No authentication found. Please run 'forge auth login'")
+        })?;
 
         Ok(auth)
     }
