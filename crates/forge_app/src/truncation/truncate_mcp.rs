@@ -2,20 +2,20 @@ use super::truncate_text;
 
 /// Result of truncating a single text value.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TruncatedText {
+pub struct TruncatedText<'a> {
     /// The truncated content.
     pub content: String,
     /// Original size before truncation.
     pub original_size: usize,
     /// Full original text (for writing to temp file).
-    pub full_text: String,
+    pub full_text: &'a str,
 }
 
 /// Checks if text needs truncation and returns truncation metadata if so.
 ///
 /// Returns `None` if text is within limit, `Some(TruncatedText)` if truncation
 /// occurred.
-pub fn truncate_text_if_needed(text: &str, limit: usize) -> Option<TruncatedText> {
+pub fn truncate_text_if_needed<'a>(text: &'a str, limit: usize) -> Option<TruncatedText<'a>> {
     if text.len() <= limit {
         return None;
     }
@@ -23,7 +23,7 @@ pub fn truncate_text_if_needed(text: &str, limit: usize) -> Option<TruncatedText
     Some(TruncatedText {
         content: truncate_text(text, limit),
         original_size: text.len(),
-        full_text: text.to_string(),
+        full_text: text,
     })
 }
 
