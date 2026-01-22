@@ -16,6 +16,27 @@ const BULLETS_ASTERISK: [&str; 4] = ["∗", "⁎", "✱", "✳"];
 /// Bullet characters for plus lists at different nesting levels.
 const BULLETS_PLUS: [&str; 4] = ["⊕", "⊙", "⊛", "⊜"];
 
+/// Checkbox characters for task list items.
+const CHECKBOX_UNCHECKED: &str = "☐";
+const CHECKBOX_CHECKED: &str = "☑";
+
+/// Strips checkbox prefix from content and returns (checkbox_char, remaining_content).
+/// Returns None if no checkbox is found at the start.
+fn strip_checkbox_prefix(content: &str) -> Option<(&'static str, &str)> {
+    if let Some(rest) = content.strip_prefix("[ ] ") {
+        Some((CHECKBOX_UNCHECKED, rest))
+    } else if let Some(rest) = content.strip_prefix("[x] ").or_else(|| content.strip_prefix("[X] "))
+    {
+        Some((CHECKBOX_CHECKED, rest))
+    } else if content == "[ ]" {
+        Some((CHECKBOX_UNCHECKED, ""))
+    } else if content == "[x]" || content == "[X]" {
+        Some((CHECKBOX_CHECKED, ""))
+    } else {
+        None
+    }
+}
+
 /// List rendering state for tracking nesting and numbering.
 #[derive(Default)]
 pub struct ListState {
@@ -105,6 +126,19 @@ pub fn render_list_item<S: InlineStyler + ListStyler>(
 
     let level = list_state.level().saturating_sub(1);
 
+    // Check for checkbox at start of content
+    let (checkbox_prefix, actual_content) = match strip_checkbox_prefix(content) {
+        Some((checkbox, rest)) => {
+            let styled = if checkbox == CHECKBOX_CHECKED {
+                styler.checkbox_checked(checkbox)
+            } else {
+                styler.checkbox_unchecked(checkbox)
+            };
+            (format!("{} ", styled), rest)
+        }
+        None => (String::new(), content),
+    };
+
     // Calculate marker - use our own counter for ordered lists to work around
     // the parser bug that normalizes all numbers to 1
     let marker = match bullet {
@@ -121,7 +155,8 @@ pub fn render_list_item<S: InlineStyler + ListStyler>(
     // Calculate indentation
     let indent_spaces = indent * 2;
     let marker_width = visible_length(&marker);
-    let content_indent = indent_spaces + marker_width + 1;
+    let checkbox_width = if checkbox_prefix.is_empty() { 0 } else { 2 }; // checkbox + space
+    let content_indent = indent_spaces + marker_width + 1 + checkbox_width;
 
     // Color the marker based on bullet type
     let colored_marker = match bullet {
@@ -133,10 +168,16 @@ pub fn render_list_item<S: InlineStyler + ListStyler>(
     };
 
     // Parse and render inline content
-    let rendered_content = render_inline_content(content, styler);
+    let rendered_content = render_inline_content(actual_content, styler);
 
     // Build prefixes
-    let first_prefix = format!("{}{}{} ", margin, " ".repeat(indent_spaces), colored_marker);
+    let first_prefix = format!(
+        "{}{}{} {}",
+        margin,
+        " ".repeat(indent_spaces),
+        colored_marker,
+        checkbox_prefix
+    );
     let next_prefix = format!("{}{}", margin, " ".repeat(content_indent));
 
     // Wrap the content
@@ -343,5 +384,137 @@ mod tests {
 
         state.pop();
         assert_eq!(state.level(), 1);
+    }
+
+    mod checkbox {
+        use super::*;
+
+        mod strip_checkbox_prefix_tests {
+            use super::*;
+
+            #[test]
+            fn valid_patterns() {
+                // (input, expected_checkbox, expected_remaining)
+                let cases = [
+                    ("[ ] Task", Some((CHECKBOX_UNCHECKED, "Task"))),
+                    ("[x] Done", Some((CHECKBOX_CHECKED, "Done"))),
+                    ("[X] Done", Some((CHECKBOX_CHECKED, "Done"))),
+                    ("[ ]", Some((CHECKBOX_UNCHECKED, ""))),
+                    ("[x]", Some((CHECKBOX_CHECKED, ""))),
+                    ("[X]", Some((CHECKBOX_CHECKED, ""))),
+                ];
+
+                for (input, expected) in cases {
+                    let actual = strip_checkbox_prefix(input);
+                    assert_eq!(actual, expected, "input: {input:?}");
+                }
+            }
+
+            #[test]
+            fn invalid_patterns() {
+                let cases = [
+                    "[] text",              // no space inside brackets
+                    "[y] text",             // wrong character
+                    "prefix [ ] suffix",    // not at start
+                    "array[x]",             // array index syntax
+                    "Just plain text",      // no brackets
+                    "  [ ] Task",           // leading whitespace
+                    "[X]Task",              // no space after checkbox
+                ];
+
+                for input in cases {
+                    let actual = strip_checkbox_prefix(input);
+                    assert_eq!(actual, None, "input: {input:?} should not match");
+                }
+            }
+        }
+
+        mod render_tests {
+            use super::*;
+
+            #[test]
+            fn checkbox_unchecked() {
+                insta::assert_snapshot!(
+                    render(0, ListBullet::Dash, "[ ] Task to do"),
+                    @"  <dash>•</dash> <unchecked>☐</unchecked> Task to do"
+                );
+            }
+
+            #[test]
+            fn checkbox_checked_lowercase() {
+                insta::assert_snapshot!(
+                    render(0, ListBullet::Dash, "[x] Completed task"),
+                    @"  <dash>•</dash> <checked>☑</checked> Completed task"
+                );
+            }
+
+            #[test]
+            fn checkbox_checked_uppercase() {
+                insta::assert_snapshot!(
+                    render(0, ListBullet::Dash, "[X] Another completed task"),
+                    @"  <dash>•</dash> <checked>☑</checked> Another completed task"
+                );
+            }
+
+            #[test]
+            fn checkbox_unchecked_empty_content() {
+                insta::assert_snapshot!(
+                    render(0, ListBullet::Dash, "[ ]"),
+                    @"  <dash>•</dash> <unchecked>☐</unchecked>"
+                );
+            }
+
+            #[test]
+            fn checkbox_checked_empty_content() {
+                insta::assert_snapshot!(
+                    render(0, ListBullet::Dash, "[x]"),
+                    @"  <dash>•</dash> <checked>☑</checked>"
+                );
+            }
+
+            #[test]
+            fn checkbox_with_ordered_list() {
+                insta::assert_snapshot!(
+                    render(0, ListBullet::Ordered(1), "[ ] Ordered task"),
+                    @"  <num>1.</num> <unchecked>☐</unchecked> Ordered task"
+                );
+            }
+        }
+
+        mod no_false_positives {
+            use super::*;
+
+            #[test]
+            fn empty_brackets() {
+                insta::assert_snapshot!(
+                    render(0, ListBullet::Dash, "[] Not a checkbox"),
+                    @"  <dash>•</dash> [] Not a checkbox"
+                );
+            }
+
+            #[test]
+            fn checkbox_pattern_mid_content() {
+                insta::assert_snapshot!(
+                    render(0, ListBullet::Dash, "Item with [ ] in middle"),
+                    @"  <dash>•</dash> Item with [ ] in middle"
+                );
+            }
+
+            #[test]
+            fn array_index_syntax() {
+                insta::assert_snapshot!(
+                    render(0, ListBullet::Dash, "array[x] access"),
+                    @"  <dash>•</dash> array[x] access"
+                );
+            }
+
+            #[test]
+            fn map_access_syntax() {
+                insta::assert_snapshot!(
+                    render(0, ListBullet::Dash, "map[ ] access"),
+                    @"  <dash>•</dash> map[ ] access"
+                );
+            }
+        }
     }
 }
