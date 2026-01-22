@@ -11,7 +11,8 @@ pub use truncate_shell::*;
 /// Truncates text content based on character limit, preserving Unicode
 /// boundaries.
 pub fn truncate_text(content: &str, limit: usize) -> String {
-    if content.len() <= limit {
+    let char_count = content.chars().count();
+    if char_count <= limit {
         content.to_string()
     } else {
         content.chars().take(limit).collect()
