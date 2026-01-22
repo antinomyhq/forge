@@ -26,7 +26,7 @@ impl<S: McpService + EnvironmentService + FsWriteService> McpExecutor<S> {
             .await?;
 
         let output = self.services.execute_mcp(input).await?;
-        self.truncate_if_needed(output).await
+        Ok(self.truncate_if_needed(output.clone()).await.unwrap_or(output))
     }
 
     pub async fn contains_tool(&self, tool_name: &ToolName) -> anyhow::Result<bool> {
