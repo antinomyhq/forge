@@ -151,14 +151,8 @@ mod tests {
                 // First text: 30 chars, remaining = 20
                 // Second text: truncated to 20 chars, remaining = 0
                 assert_eq!(truncated_values.len(), 2);
-                assert_eq!(
-                    truncated_values[0],
-                    ToolValue::Text("a".repeat(30))
-                );
-                assert_eq!(
-                    truncated_values[1],
-                    ToolValue::Text("b".repeat(20))
-                );
+                assert_eq!(truncated_values[0], ToolValue::Text("a".repeat(30)));
+                assert_eq!(truncated_values[1], ToolValue::Text("b".repeat(20)));
             }
             TruncationResult::Unchanged(_) => panic!("Expected truncation"),
         }
@@ -183,14 +177,8 @@ mod tests {
                 // Second text: 25 chars (fits), remaining = 0
                 // Third text: dropped (remaining = 0)
                 assert_eq!(truncated_values.len(), 2);
-                assert_eq!(
-                    truncated_values[0],
-                    ToolValue::Text("a".repeat(25))
-                );
-                assert_eq!(
-                    truncated_values[1],
-                    ToolValue::Text("b".repeat(25))
-                );
+                assert_eq!(truncated_values[0], ToolValue::Text("a".repeat(25)));
+                assert_eq!(truncated_values[1], ToolValue::Text("b".repeat(25)));
             }
             TruncationResult::Unchanged(_) => panic!("Expected truncation"),
         }
