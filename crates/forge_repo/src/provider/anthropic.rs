@@ -8,7 +8,7 @@ use forge_app::domain::{
 };
 use forge_app::dto::anthropic::{
     AuthSystemMessage, CapitalizeToolNames, DropInvalidToolUse, EventData, ListModelResponse,
-    ReasoningTransform, Request, SetCache,
+    NormalizeOutputSchema, ReasoningTransform, Request, SetCache,
 };
 use forge_domain::{ChatRepository, Provider};
 use reqwest::Url;
@@ -60,10 +60,10 @@ impl<H: HttpInfra> Anthropic<H> {
                 "authorization".to_string(),
                 format!("Bearer {}", self.api_key),
             ));
-            // OAuth requires multiple beta flags
+            // OAuth requires multiple beta flags including structured outputs
             headers.push((
                 "anthropic-beta".to_string(),
-                "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14".to_string(),
+                "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,structured-outputs-2025-11-13".to_string(),
             ));
         } else {
             headers.push(("x-api-key".to_string(), self.api_key.clone()));
@@ -91,6 +91,7 @@ impl<T: HttpInfra> Anthropic<T> {
             .when(|_| self.use_oauth)
             .pipe(CapitalizeToolNames)
             .pipe(DropInvalidToolUse)
+            .pipe(NormalizeOutputSchema)
             .pipe(SetCache)
             .transform(request);
         let url = &self.chat_url;

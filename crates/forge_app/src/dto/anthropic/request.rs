@@ -28,6 +28,8 @@ pub struct Request {
     pub top_p: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub thinking: Option<Thinking>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub output_format: Option<OutputFormat>,
 }
 
 #[derive(Serialize, Default)]
@@ -57,6 +59,13 @@ impl SystemMessage {
 pub struct Thinking {
     pub r#type: ThinkingType,
     pub budget_tokens: u64,
+}
+
+#[derive(Serialize, Debug, PartialEq)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum OutputFormat {
+    #[serde(rename = "json_schema")]
+    JsonSchema { schema: schemars::schema::RootSchema },
 }
 
 #[derive(Serialize, Default, Debug, Clone, Copy, PartialEq, Eq)]
@@ -115,6 +124,15 @@ impl TryFrom<forge_domain::Context> for Request {
                     }
                 })
             }),
+            output_format: request.response_format.map(|rf| match rf {
+                forge_domain::ResponseFormat::Text => {
+                    // Anthropic doesn't have a "text" output format, so we skip it
+                    None
+                }
+                forge_domain::ResponseFormat::JsonSchema(schema) => {
+                    Some(OutputFormat::JsonSchema { schema })
+                }
+            }).flatten(),
             ..Default::default()
         })
     }

@@ -106,3 +106,173 @@ pub fn compute_hash(content: &str) -> String {
     hasher.update(content.as_bytes());
     format!("{:x}", hasher.finalize())
 }
+
+/// Normalizes a JSON schema to meet LLM provider requirements
+///
+/// Many LLM providers (OpenAI, Anthropic) require that all object types in JSON schemas
+/// explicitly set `additionalProperties: false`. This function recursively processes
+/// the schema to add this requirement.
+///
+/// Additionally, for OpenAI compatibility, it ensures:
+/// - All objects have a `properties` field (even if empty)
+/// - All objects have a `required` array with all property keys
+///
+/// # Arguments
+/// * `schema` - The JSON schema to normalize (will be modified in place)
+/// * `strict_mode` - If true, adds `properties` and `required` fields for OpenAI compatibility
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use serde_json::json;
+/// use forge_app::utils::normalize_json_schema;
+///
+/// let mut schema = json!({
+///     "type": "object",
+///     "properties": {
+///         "name": { "type": "string" }
+///     }
+/// });
+///
+/// normalize_json_schema(&mut schema, false);
+///
+/// assert_eq!(schema["additionalProperties"], json!(false));
+/// ```
+pub fn normalize_json_schema(schema: &mut serde_json::Value, strict_mode: bool) {
+    match schema {
+        serde_json::Value::Object(map) => {
+            // Check if this is an object type
+            let is_object = map
+                .get("type")
+                .and_then(|value| value.as_str())
+                .is_some_and(|ty| ty == "object")
+                || map.contains_key("properties");
+
+            if is_object {
+                // OpenAI strict mode: ensure properties field exists
+                if strict_mode && !map.contains_key("properties") {
+                    map.insert(
+                        "properties".to_string(),
+                        serde_json::Value::Object(serde_json::Map::new()),
+                    );
+                }
+
+                // Both OpenAI and Anthropic require this field to be `false` for objects
+                map.insert(
+                    "additionalProperties".to_string(),
+                    serde_json::Value::Bool(false),
+                );
+
+                // OpenAI strict mode: ensure required field exists with all property keys
+                if strict_mode {
+                    let required_keys = map
+                        .get("properties")
+                        .and_then(|value| value.as_object())
+                        .map(|props| {
+                            let mut keys = props.keys().cloned().collect::<Vec<_>>();
+                            keys.sort();
+                            keys
+                        })
+                        .unwrap_or_default();
+
+                    let required_values = required_keys
+                        .into_iter()
+                        .map(serde_json::Value::String)
+                        .collect::<Vec<_>>();
+
+                    map.insert(
+                        "required".to_string(),
+                        serde_json::Value::Array(required_values),
+                    );
+                }
+            }
+
+            // Recursively normalize nested schemas
+            for value in map.values_mut() {
+                normalize_json_schema(value, strict_mode);
+            }
+        }
+        serde_json::Value::Array(items) => {
+            for value in items {
+                normalize_json_schema(value, strict_mode);
+            }
+        }
+        _ => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use pretty_assertions::assert_eq;
+    use serde_json::json;
+
+    use super::*;
+
+    #[test]
+    fn test_normalize_json_schema_anthropic_mode() {
+        let mut schema = json!({
+            "type": "object",
+            "properties": {
+                "name": { "type": "string" }
+            }
+        });
+
+        normalize_json_schema(&mut schema, false);
+
+        assert_eq!(schema["additionalProperties"], json!(false));
+        // In non-strict mode, required field is not added
+        assert_eq!(schema.get("required"), None);
+    }
+
+    #[test]
+    fn test_normalize_json_schema_openai_strict_mode() {
+        let mut schema = json!({
+            "type": "object",
+            "properties": {
+                "name": { "type": "string" },
+                "age": { "type": "number" }
+            }
+        });
+
+        normalize_json_schema(&mut schema, true);
+
+        assert_eq!(schema["additionalProperties"], json!(false));
+        assert_eq!(schema["required"], json!(["age", "name"]));
+    }
+
+    #[test]
+    fn test_normalize_json_schema_adds_empty_properties_in_strict_mode() {
+        let mut schema = json!({
+            "type": "object"
+        });
+
+        normalize_json_schema(&mut schema, true);
+
+        assert_eq!(schema["properties"], json!({}));
+        assert_eq!(schema["additionalProperties"], json!(false));
+        assert_eq!(schema["required"], json!([]));
+    }
+
+    #[test]
+    fn test_normalize_json_schema_nested_objects() {
+        let mut schema = json!({
+            "type": "object",
+            "properties": {
+                "user": {
+                    "type": "object",
+                    "properties": {
+                        "name": { "type": "string" }
+                    }
+                }
+            }
+        });
+
+        normalize_json_schema(&mut schema, false);
+
+        assert_eq!(schema["additionalProperties"], json!(false));
+        assert_eq!(
+            schema["properties"]["user"]["additionalProperties"],
+            json!(false)
+        );
+    }
+}
