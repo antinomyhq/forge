@@ -208,17 +208,15 @@ impl<S: Services> ToolRegistry<S> {
 
                     if is_truncated {
                         // Write full content to temp file
-                        let temp_path = self
-                            .create_temp_file("forge_mcp_", ".txt", &text)
-                            .await?;
+                        let temp_path = self.create_temp_file("forge_mcp_", ".txt", &text).await?;
 
                         // Truncate content for display (same strategy as fetch)
-                        let truncated_content =
-                            truncate_fetch_content(&text, limit);
+                        let truncated_content = truncate_fetch_content(&text, limit);
 
                         let reason = format!(
                             "Content is truncated to {} chars, remaining content can be read from path: {}",
-                            limit, temp_path.display()
+                            limit,
+                            temp_path.display()
                         );
 
                         // Wrap in XML with metadata (same pattern as fetch)
