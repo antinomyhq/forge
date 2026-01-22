@@ -170,8 +170,10 @@ impl<S: Services> ToolRegistry<S> {
                     })
                     .await?;
             }
+
+            let limit = self.services.get_environment().mcp_truncation_limit;
             Ok(self
-                .truncate_mcp_output_if_needed(output.clone())
+                .truncate_mcp_output_if_needed(output.clone(), limit)
                 .await
                 .unwrap_or(output))
         } else {
@@ -190,80 +192,6 @@ impl<S: Services> ToolRegistry<S> {
         let output = self.call_inner(agent, call, context).await;
 
         ToolResult::new(tool_name).call_id(call_id).output(output)
-    }
-
-    /// Truncates MCP output if any text value exceeds the limit.
-    /// Each truncated value gets its own temp file and XML wrapper.
-    async fn truncate_mcp_output_if_needed(
-        &self,
-        output: ToolOutput,
-    ) -> anyhow::Result<ToolOutput> {
-        let limit = self.services.get_environment().mcp_truncation_limit;
-        let mut new_values = Vec::with_capacity(output.values.len());
-        for value in output.values {
-            match value {
-                ToolValue::Text(text) => {
-                    let original_length = text.len();
-                    let is_truncated = original_length > limit;
-
-                    if is_truncated {
-                        // Write full content to temp file
-                        let temp_path = self.create_temp_file("forge_mcp_", ".txt", &text).await?;
-
-                        // Truncate content for display (same strategy as fetch)
-                        let truncated_content = truncate_fetch_content(&text, limit);
-
-                        let reason = format!(
-                            "Content is truncated to {} chars, remaining content can be read from path: {}",
-                            limit,
-                            temp_path.display()
-                        );
-
-                        // Wrap in XML with metadata (same pattern as fetch)
-                        let xml = Element::new("mcp_output")
-                            .attr("start_char", 0)
-                            .attr("end_char", limit.min(original_length))
-                            .attr("total_chars", original_length)
-                            .append(Element::new("body").cdata(truncated_content.content))
-                            .append(Element::new("truncated").text(reason));
-
-                        new_values.push(ToolValue::Text(xml.render()));
-                    } else {
-                        // Not truncated, keep as-is
-                        new_values.push(ToolValue::Text(text));
-                    }
-                }
-                other => {
-                    // Non-text values pass through unchanged
-                    new_values.push(other);
-                }
-            }
-        }
-        Ok(ToolOutput { values: new_values, is_error: output.is_error })
-    }
-
-    /// Creates a temporary file with the given content.
-    async fn create_temp_file(
-        &self,
-        prefix: &str,
-        ext: &str,
-        content: &str,
-    ) -> anyhow::Result<PathBuf> {
-        let path = tempfile::Builder::new()
-            .disable_cleanup(true)
-            .prefix(prefix)
-            .suffix(ext)
-            .tempfile()?
-            .into_temp_path()
-            .to_path_buf();
-        self.services
-            .write(
-                path.to_string_lossy().to_string(),
-                content.to_string(),
-                true,
-            )
-            .await?;
-        Ok(path)
     }
 
     pub async fn list(&self) -> anyhow::Result<Vec<ToolDefinition>> {
@@ -444,6 +372,82 @@ impl<S> ToolRegistry<S> {
         }
 
         Ok(())
+    }
+}
+
+impl<S: FsWriteService> ToolRegistry<S> {
+    /// Truncates MCP output if any text value exceeds the limit.
+    /// Each truncated value gets its own temp file and XML wrapper.
+    async fn truncate_mcp_output_if_needed(
+        &self,
+        output: ToolOutput,
+        limit: usize,
+    ) -> anyhow::Result<ToolOutput> {
+        let mut new_values = Vec::with_capacity(output.values.len());
+        for value in output.values {
+            match value {
+                ToolValue::Text(text) => {
+                    let original_length = text.len();
+                    let is_truncated = original_length > limit;
+
+                    if is_truncated {
+                        // Write full content to temp file
+                        let temp_path = self.create_temp_file("forge_mcp_", ".txt", &text).await?;
+
+                        // Truncate content for display (same strategy as fetch)
+                        let truncated_content = truncate_fetch_content(&text, limit);
+
+                        let reason = format!(
+                            "Content is truncated to {} chars, remaining content can be read from path: {}",
+                            limit,
+                            temp_path.display()
+                        );
+
+                        // Wrap in XML with metadata (same pattern as fetch)
+                        let xml = Element::new("mcp_output")
+                            .attr("start_char", 0)
+                            .attr("end_char", limit.min(original_length))
+                            .attr("total_chars", original_length)
+                            .append(Element::new("body").cdata(truncated_content.content))
+                            .append(Element::new("truncated").text(reason));
+
+                        new_values.push(ToolValue::Text(xml.render()));
+                    } else {
+                        // Not truncated, keep as-is
+                        new_values.push(ToolValue::Text(text));
+                    }
+                }
+                other => {
+                    // Non-text values pass through unchanged
+                    new_values.push(other);
+                }
+            }
+        }
+        Ok(ToolOutput { values: new_values, is_error: output.is_error })
+    }
+
+    /// Creates a temporary file with the given content.
+    async fn create_temp_file(
+        &self,
+        prefix: &str,
+        ext: &str,
+        content: &str,
+    ) -> anyhow::Result<PathBuf> {
+        let path = tempfile::Builder::new()
+            .disable_cleanup(true)
+            .prefix(prefix)
+            .suffix(ext)
+            .tempfile()?
+            .into_temp_path()
+            .to_path_buf();
+        self.services
+            .write(
+                path.to_string_lossy().to_string(),
+                content.to_string(),
+                true,
+            )
+            .await?;
+        Ok(path)
     }
 }
 
