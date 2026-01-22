@@ -130,6 +130,71 @@ pub fn run_zsh_doctor() -> Result<()> {
     Ok(())
 }
 
+/// Shows ZSH keyboard shortcuts with streaming output
+///
+/// # Errors
+///
+/// Returns error if the keyboard script cannot be executed
+pub fn run_zsh_keyboard() -> Result<()> {
+    // Get the embedded keyboard script
+    let script_content = include_str!("../../../../shell-plugin/keyboard.zsh");
+
+    // Execute the script in a zsh subprocess with piped output
+    let mut child = std::process::Command::new("zsh")
+        .arg("-c")
+        .arg(script_content)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .context("Failed to execute zsh keyboard script")?;
+
+    // Get stdout and stderr handles
+    let stdout = child.stdout.take().context("Failed to capture stdout")?;
+    let stderr = child.stderr.take().context("Failed to capture stderr")?;
+
+    // Create buffered readers for streaming
+    let stdout_reader = BufReader::new(stdout);
+    let stderr_reader = BufReader::new(stderr);
+
+    // Stream stdout line by line
+    let stdout_handle = std::thread::spawn(move || {
+        for line in stdout_reader.lines() {
+            match line {
+                Ok(line) => println!("{}", line),
+                Err(e) => eprintln!("Error reading stdout: {}", e),
+            }
+        }
+    });
+
+    // Stream stderr line by line
+    let stderr_handle = std::thread::spawn(move || {
+        for line in stderr_reader.lines() {
+            match line {
+                Ok(line) => eprintln!("{}", line),
+                Err(e) => eprintln!("Error reading stderr: {}", e),
+            }
+        }
+    });
+
+    // Wait for both threads to complete
+    stdout_handle.join().expect("stdout thread panicked");
+    stderr_handle.join().expect("stderr thread panicked");
+
+    // Wait for the child process to complete
+    let status = child
+        .wait()
+        .context("Failed to wait for zsh keyboard script")?;
+
+    if !status.success() {
+        anyhow::bail!(
+            "ZSH keyboard script failed with exit code: {:?}",
+            status.code()
+        );
+    }
+
+    Ok(())
+}
+
 /// Represents the state of markers in a file
 enum MarkerState {
     /// No markers found
