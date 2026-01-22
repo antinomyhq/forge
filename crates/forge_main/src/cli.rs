@@ -84,32 +84,27 @@ impl Cli {
         self.prompt.is_none() && self.piped_input.is_none() && self.subcommands.is_none()
     }
 
-    /// Determines whether the command requires authentication.
+    /// Check if the command requires authentication.
     ///
-    /// Returns false for utility commands that don't need authentication:
-    /// - Version info (handled by clap automatically)
-    /// - Shell completions (zsh)
-    /// - List commands (agents, models, providers, tools, mcp servers)
-    /// - Banner display
-    /// - Environment display
-    /// - Auth login (can't require auth to login!)
+    /// Authentication is only required for Forge services like codebase indexing.
+    /// Most commands work without authentication.
     ///
-    /// All other commands require authentication.
+    /// Returns true only for commands that use Forge services:
+    /// - Workspace commands (sync, query, list) - require auth for indexing
+    /// - Auth status, logout, list - require existing auth
+    ///
+    /// All other commands work without authentication.
     pub fn requires_authentication(&self) -> bool {
         match &self.subcommands {
-            None => true, // Interactive mode requires auth
+            None => false, // Interactive mode doesn't require auth
             Some(cmd) => match cmd {
-                // Commands that don't require authentication
-                TopLevelCommand::Zsh(_) => false,
-                TopLevelCommand::List(_) => false,
-                TopLevelCommand::Banner => false,
-                TopLevelCommand::Env => false,
+                TopLevelCommand::Workspace(_) => true,
                 TopLevelCommand::Auth(auth) => match auth.command {
-                    AuthCommand::Login => false, // Can't require auth to login
-                    _ => true,                   // Status, Logout, List require auth
+                    AuthCommand::Login | AuthCommand::Logout => false,
+                    _ => true,
                 },
-                // All other commands require authentication
-                _ => true,
+                // All other commands work without authentication
+                _ => false,
             },
         }
     }

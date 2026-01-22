@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
 use bytes::Bytes;
@@ -406,8 +407,6 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Sync>
     }
 
     async fn store_auth(&self, auth: &forge_domain::WorkspaceAuth) -> anyhow::Result<()> {
-        use std::collections::HashMap;
-
         // Create URL params to store user_id and created_at
         let mut url_params = HashMap::new();
         url_params.insert(

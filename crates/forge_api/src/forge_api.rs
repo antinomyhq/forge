@@ -424,26 +424,7 @@ impl<
     }
 
     async fn auth_is_valid(&self) -> Result<bool> {
-        if let Some(auth) = self.infra.get_auth().await? {
-            // Try to validate by calling get_api_keys
-            match self.infra.get_api_keys(&auth.token).await {
-                Ok(_) => Ok(true),
-                Err(e) => {
-                    let error_msg = e.to_string().to_lowercase();
-                    if error_msg.contains("unauthenticated")
-                        || error_msg.contains("unauthorized")
-                        || error_msg.contains("invalid")
-                        || error_msg.contains("expired")
-                    {
-                        Ok(false)
-                    } else {
-                        Err(e)
-                    }
-                }
-            }
-        } else {
-            Ok(false)
-        }
+        Ok(self.infra.get_auth().await?.is_some())
     }
 
     async fn auth_list_keys(&self) -> Result<Vec<forge_domain::ApiKeyInfo>> {

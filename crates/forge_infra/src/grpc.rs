@@ -37,8 +37,6 @@ impl ForgeGrpcClient {
             return channel.clone();
         }
 
-        println!("{}",self.server_url);
-
         let mut channel = Channel::from_shared(self.server_url.to_string())
             .expect("Invalid server URL")
             .concurrency_limit(256);
