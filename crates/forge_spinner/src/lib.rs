@@ -11,6 +11,33 @@ mod progress_bar;
 
 pub use progress_bar::*;
 
+/// Formats elapsed time into a compact string representation.
+///
+/// # Arguments
+///
+/// * `duration` - The elapsed time duration
+///
+/// # Returns
+///
+/// A formatted string:
+/// - Less than 1 minute: "01s", "02s", etc.
+/// - Less than 1 hour: "1:01m", "1:59m", etc.
+/// - 1 hour or more: "1:01h", "2:30h", etc.
+fn format_elapsed_time(duration: Duration) -> String {
+    let total_seconds = duration.as_secs();
+    if total_seconds < 60 {
+        format!("{:02}s", total_seconds)
+    } else if total_seconds < 3600 {
+        let minutes = total_seconds / 60;
+        let seconds = total_seconds % 60;
+        format!("{}:{:02}m", minutes, seconds)
+    } else {
+        let hours = total_seconds / 3600;
+        let minutes = (total_seconds % 3600) / 60;
+        format!("{}:{:02}h", hours, minutes)
+    }
+}
+
 /// Manages spinner functionality for the UI.
 ///
 /// Uses indicatif's built-in `{elapsed}` template for time display,
@@ -77,21 +104,7 @@ impl<P: ConsoleWriter> SpinnerManager<P> {
                     .with_key(
                         "elapsed_custom",
                         |state: &ProgressState, w: &mut dyn std::fmt::Write| {
-                            let total_seconds = state.elapsed().as_secs();
-                            let _ = if total_seconds < 60 {
-                                // Less than 1 minute: "01s", "02s", etc.
-                                write!(w, "{:02}s", total_seconds)
-                            } else if total_seconds < 3600 {
-                                // Less than 1 hour: "1:01m", "1:59m", etc.
-                                let minutes = total_seconds / 60;
-                                let seconds = total_seconds % 60;
-                                write!(w, "{}:{:02}m", minutes, seconds)
-                            } else {
-                                // 1 hour or more: "1:01h", "2:30h", etc.
-                                let hours = total_seconds / 3600;
-                                let minutes = (total_seconds % 3600) / 60;
-                                write!(w, "{}:{:02}h", hours, minutes)
-                            };
+                            let _ = write!(w, "{}", format_elapsed_time(state.elapsed()));
                         },
                     ),
             )
@@ -193,11 +206,12 @@ impl<P: ConsoleWriter> Drop for SpinnerManager<P> {
 mod tests {
     use std::io::Write;
     use std::sync::Arc;
+    use std::time::Duration;
 
     use forge_domain::ConsoleWriter;
     use pretty_assertions::assert_eq;
 
-    use super::SpinnerManager;
+    use super::{format_elapsed_time, SpinnerManager};
 
     /// A simple printer that writes directly to stdout/stderr.
     /// Used for testing when synchronized output is not needed.
@@ -286,5 +300,57 @@ mod tests {
 
         // Word index should be identical because it's cached
         assert_eq!(first_index, second_index);
+    }
+
+    #[test]
+    fn test_format_elapsed_time_seconds_only() {
+        let actual = format_elapsed_time(Duration::from_secs(5));
+        let expected = "05s";
+        assert_eq!(actual, expected);
+
+        let actual = format_elapsed_time(Duration::from_secs(59));
+        let expected = "59s";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_format_elapsed_time_minutes_and_seconds() {
+        let actual = format_elapsed_time(Duration::from_secs(60));
+        let expected = "1:00m";
+        assert_eq!(actual, expected);
+
+        let actual = format_elapsed_time(Duration::from_secs(125));
+        let expected = "2:05m";
+        assert_eq!(actual, expected);
+
+        let actual = format_elapsed_time(Duration::from_secs(3599));
+        let expected = "59:59m";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_format_elapsed_time_hours_and_minutes() {
+        let actual = format_elapsed_time(Duration::from_secs(3600));
+        let expected = "1:00h";
+        assert_eq!(actual, expected);
+
+        let actual = format_elapsed_time(Duration::from_secs(3661));
+        let expected = "1:01h";
+        assert_eq!(actual, expected);
+
+        let actual = format_elapsed_time(Duration::from_secs(7200));
+        let expected = "2:00h";
+        assert_eq!(actual, expected);
+
+        let actual = format_elapsed_time(Duration::from_secs(9000));
+        let expected = "2:30h";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_format_elapsed_time_zero() {
+        let actual = format_elapsed_time(Duration::ZERO);
+        let expected = "00s";
+        assert_eq!(actual, expected);
     }
 }
