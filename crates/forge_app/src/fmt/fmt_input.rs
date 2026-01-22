@@ -68,13 +68,15 @@ impl FormatContent for ToolCatalog {
                 Some(TitleFormat::debug(title).into())
             }
             ToolCatalog::SemSearch(input) => {
+                let cwd = env.cwd.display().to_string();
+                let path = input.dir_path.as_ref().unwrap_or(&cwd);
                 let pairs: Vec<_> = input
                     .queries
                     .iter()
                     .map(|item| item.query.as_str())
                     .collect();
                 Some(
-                    TitleFormat::debug("Codebase Search")
+                    TitleFormat::debug(format!("Codebase Search ({})", path))
                         .sub_title(format!("[{}]", pairs.join(" · ")))
                         .into(),
                 )
