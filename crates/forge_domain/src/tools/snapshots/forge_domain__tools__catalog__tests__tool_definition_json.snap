@@ -157,6 +157,11 @@ expression: tools
         "type": "string"
       }
     },
+    "path": {
+      "description": "File or directory to search in. Defaults to current working directory.",
+      "type": "string",
+      "nullable": true
+    },
     "queries": {
       "description": "List of search queries to execute in parallel. Using multiple queries (2-3) with varied phrasings significantly improves results - each query captures different aspects of what you're looking for. Each query pairs a search term with a use_case for reranking. Example: for authentication, try \"user login verification\", \"token generation\", \"OAuth flow\".",
       "type": "array",

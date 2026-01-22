@@ -241,6 +241,10 @@ pub struct SemanticSearch {
     /// these extensions will be included in the search results. At least one
     /// extension must be provided.
     pub extensions: Vec<String>,
+
+    /// Directory path to search in. Defaults to current working directory.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dir_path: Option<String>,
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
@@ -788,6 +792,7 @@ impl ToolCatalog {
         ToolCallFull::from(ToolCatalog::SemSearch(SemanticSearch {
             queries,
             extensions,
+            dir_path: None,
         }))
     }
 
