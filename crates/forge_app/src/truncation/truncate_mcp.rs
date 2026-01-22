@@ -1,72 +1,29 @@
-use forge_domain::{ToolOutput, ToolValue};
-
 use super::truncate_text;
 
-/// Result of MCP output truncation.
+/// Result of truncating a single text value.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TruncationResult {
-    /// Content was within limit, no truncation needed.
-    Unchanged(ToolOutput),
-    /// Content was truncated, includes truncated output and full JSON for temp
-    /// file.
-    Truncated {
-        /// The truncated tool output values.
-        truncated_values: Vec<ToolValue>,
-        /// The original output serialized as JSON (for writing to temp file).
-        full_json: String,
-        /// Total size of original text content.
-        total_size: usize,
-        /// The truncation limit that was applied.
-        limit: usize,
-        /// Whether the original output was an error.
-        is_error: bool,
-    },
+pub struct TruncatedText {
+    /// The truncated content.
+    pub content: String,
+    /// Original size before truncation.
+    pub original_size: usize,
+    /// Full original text (for writing to temp file).
+    pub full_text: String,
 }
 
-/// Truncates MCP output text values if total text content exceeds the limit.
+/// Checks if text needs truncation and returns truncation metadata if so.
 ///
-/// Returns `TruncationResult::Unchanged` if no truncation is needed, otherwise
-/// returns `TruncationResult::Truncated` with the truncated values and metadata
-/// needed to create a temp file with full content.
-pub fn truncate_mcp_output(output: ToolOutput, limit: usize) -> anyhow::Result<TruncationResult> {
-    // Calculate total text size
-    let total_size: usize = output
-        .values
-        .iter()
-        .filter_map(ToolValue::as_str)
-        .map(str::len)
-        .sum();
-
-    // No truncation needed
-    if total_size <= limit {
-        return Ok(TruncationResult::Unchanged(output));
+/// Returns `None` if text is within limit, `Some(TruncatedText)` if truncation
+/// occurred.
+pub fn truncate_text_if_needed(text: &str, limit: usize) -> Option<TruncatedText> {
+    if text.len() <= limit {
+        return None;
     }
 
-    // Serialize full output to JSON for temp file
-    let full_json = serde_json::to_string_pretty(&output)?;
-
-    // Truncate text values
-    let mut remaining = limit;
-    let truncated_values: Vec<ToolValue> = output
-        .values
-        .into_iter()
-        .filter_map(|value| match value {
-            ToolValue::Text(text) if remaining > 0 => {
-                let truncated = truncate_text(&text, remaining);
-                remaining = remaining.saturating_sub(truncated.len());
-                Some(ToolValue::Text(truncated))
-            }
-            ToolValue::Text(_) => None,
-            other => Some(other),
-        })
-        .collect();
-
-    Ok(TruncationResult::Truncated {
-        truncated_values,
-        full_json,
-        total_size,
-        limit,
-        is_error: output.is_error,
+    Some(TruncatedText {
+        content: truncate_text(text, limit),
+        original_size: text.len(),
+        full_text: text.to_string(),
     })
 }
 
@@ -77,156 +34,59 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_truncate_mcp_output_no_truncation_needed() {
-        let fixture = ToolOutput::text("short content");
-        let actual = truncate_mcp_output(fixture.clone(), 100).unwrap();
-        assert_eq!(actual, TruncationResult::Unchanged(fixture));
+    fn test_no_truncation_needed() {
+        let fixture = "short content";
+
+        let actual = truncate_text_if_needed(fixture, 100);
+
+        assert_eq!(actual, None);
     }
 
     #[test]
-    fn test_truncate_mcp_output_exact_boundary() {
-        let content = "a".repeat(50);
-        let fixture = ToolOutput::text(&content);
-        let actual = truncate_mcp_output(fixture.clone(), 50).unwrap();
-        assert_eq!(actual, TruncationResult::Unchanged(fixture));
+    fn test_exact_boundary() {
+        let fixture = "a".repeat(50);
+
+        let actual = truncate_text_if_needed(&fixture, 50);
+
+        assert_eq!(actual, None);
     }
 
     #[test]
-    fn test_truncate_mcp_output_truncates_single_text() {
-        let content = "a".repeat(100);
-        let fixture = ToolOutput::text(&content);
-        let actual = truncate_mcp_output(fixture, 50).unwrap();
-        match actual {
-            TruncationResult::Truncated {
-                truncated_values, total_size, limit, is_error, ..
-            } => {
-                assert_eq!(truncated_values.len(), 1);
-                assert_eq!(truncated_values[0], ToolValue::Text("a".repeat(50)));
-                assert_eq!(total_size, 100);
-                assert_eq!(limit, 50);
-                assert!(!is_error);
-            }
-            TruncationResult::Unchanged(_) => panic!("Expected truncation"),
-        }
-    }
+    fn test_truncates_long_text() {
+        let fixture = "a".repeat(100);
 
-    #[test]
-    fn test_truncate_mcp_output_truncates_multiple_texts() {
-        let fixture = ToolOutput {
-            is_error: false,
-            values: vec![
-                ToolValue::Text("a".repeat(60)),
-                ToolValue::Text("b".repeat(40)),
-            ],
+        let actual = truncate_text_if_needed(&fixture, 50);
+
+        let expected = TruncatedText {
+            content: "a".repeat(50),
+            original_size: 100,
+            full_text: fixture,
         };
-
-        let actual = truncate_mcp_output(fixture, 50).unwrap();
-
-        match actual {
-            TruncationResult::Truncated { truncated_values, total_size, limit, .. } => {
-                // First text is truncated to 50, second is dropped (remaining=0)
-                assert_eq!(truncated_values.len(), 1);
-                assert_eq!(truncated_values[0], ToolValue::Text("a".repeat(50)));
-                assert_eq!(total_size, 100);
-                assert_eq!(limit, 50);
-            }
-            TruncationResult::Unchanged(_) => panic!("Expected truncation"),
-        }
+        assert_eq!(actual, Some(expected));
     }
 
     #[test]
-    fn test_truncate_mcp_output_shares_limit_across_texts() {
-        let fixture = ToolOutput {
-            is_error: false,
-            values: vec![
-                ToolValue::Text("a".repeat(30)),
-                ToolValue::Text("b".repeat(40)),
-            ],
-        };
+    fn test_preserves_full_text() {
+        let fixture = "hello world this is a long string";
 
-        let actual = truncate_mcp_output(fixture, 50).unwrap();
+        let actual = truncate_text_if_needed(fixture, 10);
 
-        match actual {
-            TruncationResult::Truncated { truncated_values, .. } => {
-                // First text: 30 chars, remaining = 20
-                // Second text: truncated to 20 chars, remaining = 0
-                assert_eq!(truncated_values.len(), 2);
-                assert_eq!(truncated_values[0], ToolValue::Text("a".repeat(30)));
-                assert_eq!(truncated_values[1], ToolValue::Text("b".repeat(20)));
-            }
-            TruncationResult::Unchanged(_) => panic!("Expected truncation"),
-        }
+        assert!(actual.is_some());
+        let truncated = actual.unwrap();
+        assert_eq!(truncated.full_text, fixture);
+        assert_eq!(truncated.content, "hello worl");
+        assert_eq!(truncated.original_size, 33);
     }
 
     #[test]
-    fn test_truncate_mcp_output_truncates_multiple_partial_texts() {
-        let fixture = ToolOutput {
-            is_error: false,
-            values: vec![
-                ToolValue::Text("a".repeat(25)),
-                ToolValue::Text("b".repeat(25)),
-                ToolValue::Text("c".repeat(25)),
-            ],
-        };
+    fn test_unicode_safe() {
+        let fixture = "Hello 世界! 🌍 more text here";
 
-        let actual = truncate_mcp_output(fixture, 50).unwrap();
+        let actual = truncate_text_if_needed(fixture, 10);
 
-        match actual {
-            TruncationResult::Truncated { truncated_values, .. } => {
-                // First text: 25 chars (fits), remaining = 25
-                // Second text: 25 chars (fits), remaining = 0
-                // Third text: dropped (remaining = 0)
-                assert_eq!(truncated_values.len(), 2);
-                assert_eq!(truncated_values[0], ToolValue::Text("a".repeat(25)));
-                assert_eq!(truncated_values[1], ToolValue::Text("b".repeat(25)));
-            }
-            TruncationResult::Unchanged(_) => panic!("Expected truncation"),
-        }
-    }
-
-    #[test]
-    fn test_truncate_mcp_output_preserves_non_text_values() {
-        let fixture = ToolOutput {
-            is_error: false,
-            values: vec![ToolValue::Text("a".repeat(100)), ToolValue::Empty],
-        };
-        let actual = truncate_mcp_output(fixture, 50).unwrap();
-        match actual {
-            TruncationResult::Truncated { truncated_values, .. } => {
-                assert_eq!(truncated_values.len(), 2);
-                assert_eq!(truncated_values[0], ToolValue::Text("a".repeat(50)));
-                assert_eq!(truncated_values[1], ToolValue::Empty);
-            }
-            TruncationResult::Unchanged(_) => panic!("Expected truncation"),
-        }
-    }
-
-    #[test]
-    fn test_truncate_mcp_output_preserves_error_flag() {
-        let fixture = ToolOutput {
-            is_error: true,
-            values: vec![ToolValue::Text("a".repeat(100))],
-        };
-        let actual = truncate_mcp_output(fixture, 50).unwrap();
-
-        match actual {
-            TruncationResult::Truncated { is_error, .. } => {
-                assert!(is_error);
-            }
-            TruncationResult::Unchanged(_) => panic!("Expected truncation"),
-        }
-    }
-
-    #[test]
-    fn test_truncate_mcp_output_generates_valid_json() {
-        let fixture = ToolOutput::text("a".repeat(100));
-        let actual = truncate_mcp_output(fixture.clone(), 50).unwrap();
-        match actual {
-            TruncationResult::Truncated { full_json, .. } => {
-                let parsed: ToolOutput = serde_json::from_str(&full_json).unwrap();
-                assert_eq!(parsed, fixture);
-            }
-            TruncationResult::Unchanged(_) => panic!("Expected truncation"),
-        }
+        assert!(actual.is_some());
+        let truncated = actual.unwrap();
+        assert_eq!(truncated.content.chars().count(), 10);
+        assert_eq!(truncated.content, "Hello 世界! ");
     }
 }
