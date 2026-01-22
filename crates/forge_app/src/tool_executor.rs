@@ -2,7 +2,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use anyhow::anyhow;
-use forge_domain::{CodebaseQueryResult, ToolCallContext, ToolCatalog, ToolOutput};
+use forge_domain::{
+    CodebaseQueryResult, Error as DomainError, ToolCallContext, ToolCatalog, ToolOutput,
+};
 
 use crate::fmt::content::FormatContent;
 use crate::operation::{TempContentFiles, ToolOperation};
@@ -209,7 +211,16 @@ impl<
                     .map(|param| services.query_workspace(search_path.clone(), param))
                     .collect();
 
-                let mut results = futures::future::try_join_all(futures).await?;
+                let mut results = futures::future::try_join_all(futures).await.map_err(|e| {
+                    if e.downcast_ref::<DomainError>().map_or(false, |err| matches!(err, DomainError::WorkspaceNotFound)) {
+                        anyhow::anyhow!(
+                            "Semantic search requires an indexed workspace. For directory '{}', use the regular search tool instead.",
+                            search_path.display(),
+                        )
+                    } else {
+                        e
+                    }
+                })?;
 
                 // Deduplicate results across queries
                 crate::search_dedup::deduplicate_results(&mut results);
