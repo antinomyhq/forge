@@ -65,7 +65,9 @@ pub struct Thinking {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum OutputFormat {
     #[serde(rename = "json_schema")]
-    JsonSchema { schema: schemars::schema::RootSchema },
+    JsonSchema {
+        schema: schemars::schema::RootSchema,
+    },
 }
 
 #[derive(Serialize, Default, Debug, Clone, Copy, PartialEq, Eq)]
@@ -124,15 +126,18 @@ impl TryFrom<forge_domain::Context> for Request {
                     }
                 })
             }),
-            output_format: request.response_format.map(|rf| match rf {
-                forge_domain::ResponseFormat::Text => {
-                    // Anthropic doesn't have a "text" output format, so we skip it
-                    None
-                }
-                forge_domain::ResponseFormat::JsonSchema(schema) => {
-                    Some(OutputFormat::JsonSchema { schema })
-                }
-            }).flatten(),
+            output_format: request
+                .response_format
+                .map(|rf| match rf {
+                    forge_domain::ResponseFormat::Text => {
+                        // Anthropic doesn't have a "text" output format, so we skip it
+                        None
+                    }
+                    forge_domain::ResponseFormat::JsonSchema(schema) => {
+                        Some(OutputFormat::JsonSchema { schema })
+                    }
+                })
+                .flatten(),
             ..Default::default()
         })
     }

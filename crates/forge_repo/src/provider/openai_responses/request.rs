@@ -59,11 +59,12 @@ impl FromDomain<ReasoningConfig> for oai::Reasoning {
     }
 }
 
-/// Converts a schemars RootSchema into codex tool parameters with OpenAI-compatible JSON Schema
+/// Converts a schemars RootSchema into codex tool parameters with
+/// OpenAI-compatible JSON Schema
 ///
-/// The Responses API performs strict JSON Schema validation for tools. This function
-/// normalizes schemars output into the subset OpenAI accepts by using the shared
-/// `normalize_json_schema` utility with strict mode enabled.
+/// The Responses API performs strict JSON Schema validation for tools. This
+/// function normalizes schemars output into the subset OpenAI accepts by using
+/// the shared `normalize_json_schema` utility with strict mode enabled.
 ///
 /// # Errors
 /// Returns an error if schema serialization fails
@@ -73,7 +74,8 @@ fn codex_tool_parameters(
     let mut params =
         serde_json::to_value(schema).with_context(|| "Failed to serialize tool schema")?;
 
-    // Use strict mode (true) for OpenAI - adds additionalProperties, properties, and required
+    // Use strict mode (true) for OpenAI - adds additionalProperties, properties,
+    // and required
     normalize_json_schema(&mut params, true);
 
     Ok(params)
@@ -242,9 +244,10 @@ impl FromDomain<ChatContext> for oai::CreateResponse {
 #[cfg(test)]
 mod tests {
     use async_openai::types::responses as oai;
-    use forge_app::{domain::{
+    use forge_app::domain::{
         Context as ChatContext, ContextMessage, ModelId, ToolCallId, ToolChoice,
-    }, utils::normalize_json_schema};
+    };
+    use forge_app::utils::normalize_json_schema;
 
     use crate::provider::FromDomain;
 

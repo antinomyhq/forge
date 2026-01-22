@@ -28,13 +28,13 @@ pub mod system_prompt;
 mod template_engine;
 mod title_generator;
 mod tool_executor;
-pub mod utils;
 mod tool_registry;
 mod tool_resolver;
 mod transformers;
 mod truncation;
 mod user;
 pub mod user_prompt;
+pub mod utils;
 mod walker;
 mod workspace_status;
 

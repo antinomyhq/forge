@@ -109,9 +109,9 @@ pub fn compute_hash(content: &str) -> String {
 
 /// Normalizes a JSON schema to meet LLM provider requirements
 ///
-/// Many LLM providers (OpenAI, Anthropic) require that all object types in JSON schemas
-/// explicitly set `additionalProperties: false`. This function recursively processes
-/// the schema to add this requirement.
+/// Many LLM providers (OpenAI, Anthropic) require that all object types in JSON
+/// schemas explicitly set `additionalProperties: false`. This function
+/// recursively processes the schema to add this requirement.
 ///
 /// Additionally, for OpenAI compatibility, it ensures:
 /// - All objects have a `properties` field (even if empty)
@@ -119,7 +119,8 @@ pub fn compute_hash(content: &str) -> String {
 ///
 /// # Arguments
 /// * `schema` - The JSON schema to normalize (will be modified in place)
-/// * `strict_mode` - If true, adds `properties` and `required` fields for OpenAI compatibility
+/// * `strict_mode` - If true, adds `properties` and `required` fields for
+///   OpenAI compatibility
 ///
 /// # Example
 ///
