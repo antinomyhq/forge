@@ -332,7 +332,19 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::Conversation;
+    use crate::{Agent, AgentId, Conversation, ModelId, ProviderId};
+
+    fn test_agent() -> Agent {
+        Agent::new(
+            AgentId::new("test_agent"),
+            ProviderId::FORGE,
+            ModelId::new("test-model"),
+        )
+    }
+
+    fn test_model_id() -> ModelId {
+        ModelId::new("test-model")
+    }
 
     #[test]
     fn test_no_op_handler() {
@@ -405,14 +417,26 @@ mod tests {
         let mut conversation = Conversation::generate();
 
         let step = hook
-            .handle(LifecycleEvent::Start, &mut conversation)
+            .handle(
+                LifecycleEvent::Start {
+                    agent: test_agent(),
+                    model_id: test_model_id(),
+                },
+                &mut conversation,
+            )
             .await
             .unwrap();
         assert!(step.should_proceed());
 
         let handled = events.lock().unwrap();
         assert_eq!(handled.len(), 1);
-        assert_eq!(handled[0], LifecycleEvent::Start);
+        assert_eq!(
+            handled[0],
+            LifecycleEvent::Start {
+                agent: test_agent(),
+                model_id: test_model_id(),
+            }
+        );
     }
 
     #[tokio::test]
@@ -455,7 +479,13 @@ mod tests {
 
         // Test Start event
         let _ = hook
-            .handle(LifecycleEvent::Start, &mut conversation)
+            .handle(
+                LifecycleEvent::Start {
+                    agent: test_agent(),
+                    model_id: test_model_id(),
+                },
+                &mut conversation,
+            )
             .await
             .unwrap();
         // Test End event
@@ -465,15 +495,35 @@ mod tests {
             .unwrap();
         // Test Request event
         let _ = hook
-            .handle(LifecycleEvent::Request, &mut conversation)
+            .handle(
+                LifecycleEvent::Request {
+                    agent: test_agent(),
+                    model_id: test_model_id(),
+                    request_count: 1,
+                },
+                &mut conversation,
+            )
             .await
             .unwrap();
 
         let handled = events.lock().unwrap();
         assert_eq!(handled.len(), 3);
-        assert_eq!(handled[0], LifecycleEvent::Start);
+        assert_eq!(
+            handled[0],
+            LifecycleEvent::Start {
+                agent: test_agent(),
+                model_id: test_model_id(),
+            }
+        );
         assert_eq!(handled[1], LifecycleEvent::End);
-        assert_eq!(handled[2], LifecycleEvent::Request);
+        assert_eq!(
+            handled[2],
+            LifecycleEvent::Request {
+                agent: test_agent(),
+                model_id: test_model_id(),
+                request_count: 1,
+            }
+        );
     }
 
     #[tokio::test]
@@ -546,12 +596,26 @@ mod tests {
         let mut conversation = Conversation::generate();
 
         let all_events = vec![
-            LifecycleEvent::Start,
+            LifecycleEvent::Start {
+                agent: test_agent(),
+                model_id: test_model_id(),
+            },
             LifecycleEvent::End,
-            LifecycleEvent::Request,
-            LifecycleEvent::Response,
-            LifecycleEvent::ToolcallStart,
-            LifecycleEvent::ToolcallEnd,
+            LifecycleEvent::Request {
+                agent: test_agent(),
+                model_id: test_model_id(),
+                request_count: 1,
+            },
+            LifecycleEvent::Response(ChatCompletionMessageFull {
+                content: "test".to_string(),
+                reasoning: None,
+                tool_calls: vec![],
+                reasoning_details: None,
+                usage: crate::Usage::default(),
+                finish_reason: None,
+            }),
+            LifecycleEvent::ToolcallStart(ToolCallFull::new("test_tool")),
+            LifecycleEvent::ToolcallEnd(ToolResult::new("test_tool")),
         ];
 
         for event in all_events {
@@ -580,7 +644,13 @@ mod tests {
         assert!(title.lock().unwrap().is_none());
 
         let step = hook
-            .handle(LifecycleEvent::Start, &mut conversation)
+            .handle(
+                LifecycleEvent::Start {
+                    agent: test_agent(),
+                    model_id: test_model_id(),
+                },
+                &mut conversation,
+            )
             .await
             .unwrap();
 
@@ -601,7 +671,13 @@ mod tests {
         let mut conversation = Conversation::generate();
 
         let step = hook
-            .handle(LifecycleEvent::Start, &mut conversation)
+            .handle(
+                LifecycleEvent::Start {
+                    agent: test_agent(),
+                    model_id: test_model_id(),
+                },
+                &mut conversation,
+            )
             .await
             .unwrap();
 
@@ -651,7 +727,13 @@ mod tests {
 
         let mut conversation = Conversation::generate();
         let _ = combined
-            .handle(LifecycleEvent::Start, &mut conversation)
+            .handle(
+                LifecycleEvent::Start {
+                    agent: test_agent(),
+                    model_id: test_model_id(),
+                },
+                &mut conversation,
+            )
             .await
             .unwrap();
 
@@ -700,15 +782,21 @@ mod tests {
 
         let mut conversation = Conversation::generate();
         let _ = combined
-            .handle(LifecycleEvent::Start, &mut conversation)
+            .handle(
+                LifecycleEvent::Start {
+                    agent: test_agent(),
+                    model_id: test_model_id(),
+                },
+                &mut conversation,
+            )
             .await
             .unwrap();
 
         let handled = events.lock().unwrap();
         assert_eq!(handled.len(), 3);
-        assert_eq!(handled[0], "h1:Start");
-        assert_eq!(handled[1], "h2:Start");
-        assert_eq!(handled[2], "h3:Start");
+        assert!(handled[0].starts_with("h1:Start"));
+        assert!(handled[1].starts_with("h2:Start"));
+        assert!(handled[2].starts_with("h3:Start"));
     }
 
     #[tokio::test]
@@ -745,7 +833,13 @@ mod tests {
 
         // Test Start event
         let _ = combined
-            .handle(LifecycleEvent::Start, &mut conversation)
+            .handle(
+                LifecycleEvent::Start {
+                    agent: test_agent(),
+                    model_id: test_model_id(),
+                },
+                &mut conversation,
+            )
             .await
             .unwrap();
         assert_eq!(*start_title.lock().unwrap(), Some("Start".to_string()));
@@ -789,7 +883,13 @@ mod tests {
 
         let mut conversation = Conversation::generate();
         let _ = combined
-            .handle(LifecycleEvent::Start, &mut conversation)
+            .handle(
+                LifecycleEvent::Start {
+                    agent: test_agent(),
+                    model_id: test_model_id(),
+                },
+                &mut conversation,
+            )
             .await
             .unwrap();
 
@@ -829,7 +929,13 @@ mod tests {
 
         let mut conversation = Conversation::generate();
         let _ = combined
-            .handle(LifecycleEvent::Start, &mut conversation)
+            .handle(
+                LifecycleEvent::Start {
+                    agent: test_agent(),
+                    model_id: test_model_id(),
+                },
+                &mut conversation,
+            )
             .await
             .unwrap();
 
@@ -880,15 +986,21 @@ mod tests {
 
         let mut conversation = Conversation::generate();
         let _ = combined
-            .handle(LifecycleEvent::Start, &mut conversation)
+            .handle(
+                LifecycleEvent::Start {
+                    agent: test_agent(),
+                    model_id: test_model_id(),
+                },
+                &mut conversation,
+            )
             .await
             .unwrap();
 
         let handled = events.lock().unwrap();
         assert_eq!(handled.len(), 3);
-        assert_eq!(handled[0], "h1:Start");
-        assert_eq!(handled[1], "h2:Start");
-        assert_eq!(handled[2], "h3:Start");
+        assert!(handled[0].starts_with("h1:Start"));
+        assert!(handled[1].starts_with("h2:Start"));
+        assert!(handled[2].starts_with("h3:Start"));
     }
 
     #[tokio::test]
@@ -925,12 +1037,18 @@ mod tests {
 
         let mut conversation = Conversation::generate();
         let _ = hook
-            .handle(LifecycleEvent::Start, &mut conversation)
+            .handle(
+                LifecycleEvent::Start {
+                    agent: test_agent(),
+                    model_id: test_model_id(),
+                },
+                &mut conversation,
+            )
             .await
             .unwrap();
 
         assert_eq!(events.lock().unwrap().len(), 1);
-        assert_eq!(events.lock().unwrap()[0], "Event: Start");
+        assert!(events.lock().unwrap()[0].starts_with("Event: Start"));
     }
 
     #[tokio::test]
@@ -963,7 +1081,13 @@ mod tests {
         // Test using handle() directly (EventHandle trait)
         let mut conversation = Conversation::generate();
         let step = hook
-            .handle(LifecycleEvent::Start, &mut conversation)
+            .handle(
+                LifecycleEvent::Start {
+                    agent: test_agent(),
+                    model_id: test_model_id(),
+                },
+                &mut conversation,
+            )
             .await
             .unwrap();
         assert_eq!(*start_title.lock().unwrap(), Some("Started".to_string()));
@@ -1008,7 +1132,13 @@ mod tests {
 
         let mut conversation = Conversation::generate();
         let _ = combined
-            .handle(LifecycleEvent::Start, &mut conversation)
+            .handle(
+                LifecycleEvent::Start {
+                    agent: test_agent(),
+                    model_id: test_model_id(),
+                },
+                &mut conversation,
+            )
             .await
             .unwrap();
 
