@@ -404,6 +404,78 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Sync>
     async fn migrate_env_credentials(&self) -> anyhow::Result<Option<MigrationResult>> {
         self.migrate_env_to_file().await
     }
+
+    async fn store_auth(&self, auth: &forge_domain::WorkspaceAuth) -> anyhow::Result<()> {
+        use std::collections::HashMap;
+
+        // Create URL params to store user_id and created_at
+        let mut url_params = HashMap::new();
+        url_params.insert(
+            forge_domain::URLParam::from("user_id".to_string()),
+            forge_domain::URLParamValue::from(auth.user_id.to_string()),
+        );
+        url_params.insert(
+            forge_domain::URLParam::from("created_at".to_string()),
+            forge_domain::URLParamValue::from(auth.created_at.to_rfc3339()),
+        );
+
+        // Create AuthCredential for FORGE_SERVICES
+        let credential = AuthCredential {
+            id: ProviderId::FORGE_SERVICES,
+            auth_details: forge_domain::AuthDetails::ApiKey(auth.token.clone()),
+            url_params,
+        };
+
+        // Store using provider repository's upsert_credential
+        self.upsert_credential(credential).await
+    }
+
+    async fn get_auth(&self) -> anyhow::Result<Option<forge_domain::WorkspaceAuth>> {
+        // Get credential from provider repository
+        let credential = self.get_credential(&ProviderId::FORGE_SERVICES).await?;
+
+        match credential {
+            Some(cred) => {
+                // Extract token from auth_details
+                let token = match &cred.auth_details {
+                    forge_domain::AuthDetails::ApiKey(key) => key.clone(),
+                    _ => {
+                        return Err(anyhow::anyhow!(
+                            "FORGE_SERVICES credential must be an API key"
+                        ))
+                    }
+                };
+
+                // Extract user_id from url_params
+                let user_id_str = cred
+                    .url_params
+                    .get(&forge_domain::URLParam::from("user_id".to_string()))
+                    .ok_or_else(|| anyhow::anyhow!("Missing user_id in FORGE_SERVICES credential"))?;
+                let user_id = forge_domain::UserId::from_string(user_id_str.as_str());
+
+                // Extract created_at from url_params
+                let created_at_str = cred
+                    .url_params
+                    .get(&forge_domain::URLParam::from("created_at".to_string()))
+                    .ok_or_else(|| {
+                        anyhow::anyhow!("Missing created_at in FORGE_SERVICES credential")
+                    })?;
+                let created_at = chrono::DateTime::parse_from_rfc3339(created_at_str.as_str())?
+                    .with_timezone(&chrono::Utc);
+
+                Ok(Some(forge_domain::WorkspaceAuth {
+                    user_id,
+                    token,
+                    created_at,
+                }))
+            }
+            None => Ok(None),
+        }
+    }
+
+    async fn clear_auth(&self) -> anyhow::Result<()> {
+        self.remove_credential(&ProviderId::FORGE_SERVICES).await
+    }
 }
 
 #[cfg(test)]
@@ -559,14 +631,14 @@ mod env_tests {
     use super::*;
 
     // Mock infrastructure that provides environment variables
-    struct MockInfra {
+    pub(super) struct MockInfra {
         env_vars: HashMap<String, String>,
         base_path: PathBuf,
         credentials: tokio::sync::Mutex<Option<Vec<AuthCredential>>>,
     }
 
     impl MockInfra {
-        fn new(env_vars: HashMap<String, String>) -> Self {
+        pub(super) fn new(env_vars: HashMap<String, String>) -> Self {
             use fake::{Fake, Faker};
             Self {
                 env_vars,
@@ -730,6 +802,21 @@ mod env_tests {
             &self,
         ) -> anyhow::Result<Option<forge_domain::MigrationResult>> {
             Ok(None)
+        }
+
+        async fn store_auth(
+            &self,
+            _auth: &forge_domain::WorkspaceAuth,
+        ) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn get_auth(&self) -> anyhow::Result<Option<forge_domain::WorkspaceAuth>> {
+            Ok(None)
+        }
+
+        async fn clear_auth(&self) -> anyhow::Result<()> {
+            Ok(())
         }
     }
 
@@ -1195,6 +1282,21 @@ mod env_tests {
             ) -> anyhow::Result<Option<forge_domain::MigrationResult>> {
                 Ok(None)
             }
+
+            async fn store_auth(
+                &self,
+                _auth: &forge_domain::WorkspaceAuth,
+            ) -> anyhow::Result<()> {
+                Ok(())
+            }
+
+            async fn get_auth(&self) -> anyhow::Result<Option<forge_domain::WorkspaceAuth>> {
+                Ok(None)
+            }
+
+            async fn clear_auth(&self) -> anyhow::Result<()> {
+                Ok(())
+            }
         }
 
         let infra = Arc::new(CustomMockInfra { env_vars, base_path });
@@ -1222,5 +1324,121 @@ mod env_tests {
             .iter()
             .find(|c| c.id == ProviderId::OPEN_ROUTER);
         assert!(openrouter_config.is_some());
+    }
+}
+
+#[cfg(test)]
+mod auth_storage_tests {
+    use super::env_tests::MockInfra;
+    use super::*;
+    use chrono::Utc;
+    use forge_domain::{UserId, WorkspaceAuth};
+    use pretty_assertions::assert_eq;
+    use std::collections::HashMap;
+
+    fn auth_fixture() -> WorkspaceAuth {
+        WorkspaceAuth {
+            user_id: UserId::generate(),
+            token: "test_token_abc123".to_string().into(),
+            created_at: Utc::now(),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_store_and_get_auth() {
+        let env_vars = HashMap::new();
+        let infra = Arc::new(MockInfra::new(env_vars));
+        let fixture = ForgeProviderRepository::new(infra.clone());
+        let expected = auth_fixture();
+
+        fixture.store_auth(&expected).await.unwrap();
+        let actual = fixture.get_auth().await.unwrap();
+
+        assert!(actual.is_some());
+        let actual = actual.unwrap();
+        assert_eq!(actual.user_id, expected.user_id);
+        assert_eq!(**&actual.token, **&expected.token);
+    }
+
+    #[tokio::test]
+    async fn test_get_auth_when_empty() {
+        let env_vars = HashMap::new();
+        let infra = Arc::new(MockInfra::new(env_vars));
+        let fixture = ForgeProviderRepository::new(infra.clone());
+
+        let actual = fixture.get_auth().await.unwrap();
+
+        assert!(actual.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_store_auth_updates_existing() {
+        let env_vars = HashMap::new();
+        let infra = Arc::new(MockInfra::new(env_vars));
+        let fixture = ForgeProviderRepository::new(infra.clone());
+        let auth1 = auth_fixture();
+
+        fixture.store_auth(&auth1).await.unwrap();
+
+        let auth2 = WorkspaceAuth {
+            user_id: auth1.user_id.clone(),
+            token: "new_token_xyz789".to_string().into(),
+            created_at: Utc::now(),
+        };
+
+        fixture.store_auth(&auth2).await.unwrap();
+        let actual = fixture.get_auth().await.unwrap().unwrap();
+
+        assert_eq!(actual.user_id, auth2.user_id);
+        assert_eq!(**&actual.token, "new_token_xyz789");
+    }
+
+    #[tokio::test]
+    async fn test_clear_auth() {
+        let env_vars = HashMap::new();
+        let infra = Arc::new(MockInfra::new(env_vars));
+        let fixture = ForgeProviderRepository::new(infra.clone());
+        let auth = auth_fixture();
+
+        fixture.store_auth(&auth).await.unwrap();
+        fixture.clear_auth().await.unwrap();
+        let actual = fixture.get_auth().await.unwrap();
+
+        assert!(actual.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_auth_stored_as_forge_services_credential() {
+        let env_vars = HashMap::new();
+        let infra = Arc::new(MockInfra::new(env_vars));
+        let fixture = ForgeProviderRepository::new(infra.clone());
+        let auth = auth_fixture();
+
+        fixture.store_auth(&auth).await.unwrap();
+
+        // Verify credential is stored under FORGE_SERVICES provider ID
+        let actual = fixture
+            .get_credential(&ProviderId::FORGE_SERVICES)
+            .await
+            .unwrap();
+
+        assert!(actual.is_some());
+        let credential = actual.unwrap();
+        assert_eq!(credential.id, ProviderId::FORGE_SERVICES);
+
+        // Verify it's an API key credential
+        match &credential.auth_details {
+            forge_domain::AuthDetails::ApiKey(key) => {
+                assert_eq!(**key, **&auth.token);
+            }
+            _ => panic!("Expected ApiKey auth details"),
+        }
+
+        // Verify user_id is in url_params
+        let user_id_param = credential
+            .url_params
+            .get(&forge_domain::URLParam::from("user_id".to_string()))
+            .unwrap();
+        assert_eq!(user_id_param.as_str(), auth.user_id.to_string());
     }
 }

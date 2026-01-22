@@ -6,7 +6,7 @@ use forge_app::{
     McpServerInfra, Services, StrategyFactory, UserInfra, WalkerInfra,
 };
 use forge_domain::{
-    AppConfigRepository, AuthFlowRepository, AuthStorage, ChatRepository, ConversationRepository,
+    AppConfigRepository, AuthFlowRepository, ChatRepository, ConversationRepository,
     FuzzySearchRepository, ProviderRepository, SkillRepository, SnapshotRepository,
     ValidationRepository, WorkspaceIndexRepository, WorkspaceRepository,
 };
@@ -209,7 +209,6 @@ impl<
         + WorkspaceIndexRepository
         + ValidationRepository
         + FuzzySearchRepository
-        + AuthStorage
         + AuthFlowRepository
         + Clone
         + 'static,

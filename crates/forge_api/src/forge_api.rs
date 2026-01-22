@@ -63,7 +63,7 @@ impl<
         + AppConfigRepository
         + GrpcInfra
         + AuthFlowRepository
-        + AuthStorage,
+        + ProviderRepository,
 > API for ForgeAPI<A, F>
 {
     async fn discover(&self) -> Result<Vec<File>> {

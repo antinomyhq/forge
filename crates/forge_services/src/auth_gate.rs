@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use forge_domain::{AuthFlowRepository, AuthStorage, WorkspaceAuth};
+use forge_domain::{AuthFlowRepository, ProviderRepository, WorkspaceAuth};
 
 /// Service that ensures user is authenticated before allowing operations
 ///
@@ -16,7 +16,7 @@ impl<R> AuthGateService<R> {
     }
 }
 
-impl<R: AuthStorage + AuthFlowRepository> AuthGateService<R> {
+impl<R: ProviderRepository + AuthFlowRepository> AuthGateService<R> {
     /// Ensure user is authenticated, returning stored auth or initiating flow
     ///
     /// # Errors
@@ -140,7 +140,42 @@ mod tests {
     }
 
     #[async_trait::async_trait]
-    impl AuthStorage for MockInfra {
+    impl ProviderRepository for MockInfra {
+        async fn get_all_providers(&self) -> anyhow::Result<Vec<forge_domain::AnyProvider>> {
+            Ok(vec![])
+        }
+
+        async fn get_provider(
+            &self,
+            _id: forge_domain::ProviderId,
+        ) -> anyhow::Result<forge_domain::ProviderTemplate> {
+            unimplemented!("Not needed for auth gate tests")
+        }
+
+        async fn upsert_credential(
+            &self,
+            _credential: forge_domain::AuthCredential,
+        ) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn get_credential(
+            &self,
+            _id: &forge_domain::ProviderId,
+        ) -> anyhow::Result<Option<forge_domain::AuthCredential>> {
+            Ok(None)
+        }
+
+        async fn remove_credential(&self, _id: &forge_domain::ProviderId) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn migrate_env_credentials(
+            &self,
+        ) -> anyhow::Result<Option<forge_domain::MigrationResult>> {
+            Ok(None)
+        }
+
         async fn store_auth(&self, auth: &WorkspaceAuth) -> anyhow::Result<()> {
             *self.stored_auth.lock().unwrap() = Some(auth.clone());
             Ok(())

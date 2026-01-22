@@ -237,6 +237,18 @@ mod tests {
         async fn migrate_env_credentials(&self) -> Result<Option<MigrationResult>> {
             Ok(None)
         }
+
+        async fn store_auth(&self, _auth: &forge_domain::WorkspaceAuth) -> Result<()> {
+            Ok(())
+        }
+
+        async fn get_auth(&self) -> Result<Option<forge_domain::WorkspaceAuth>> {
+            Ok(None)
+        }
+
+        async fn clear_auth(&self) -> Result<()> {
+            Ok(())
+        }
     }
 
     fn test_provider() -> Provider<Url> {

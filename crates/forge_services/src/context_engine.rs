@@ -501,7 +501,7 @@ impl<
         + WalkerInfra
         + FileReaderInfra
         + EnvironmentInfra
-        + forge_domain::AuthStorage
+        + ProviderRepository
         + 'static,
 > WorkspaceService for ForgeWorkspaceService<F>
 {
@@ -661,9 +661,9 @@ mod tests {
 
     use forge_app::{WalkedFile, WorkspaceService};
     use forge_domain::{
-        ApiKey, ChatRepository, CodeSearchQuery, FileDeletion, FileHash, FileInfo, FileUpload,
-        FileUploadInfo, Node, ProviderTemplate, UserId, Workspace, WorkspaceAuth, WorkspaceFiles,
-        WorkspaceId, WorkspaceInfo,
+        ApiKey, AuthCredential, ChatRepository, CodeSearchQuery, FileDeletion, FileHash, FileInfo,
+        FileUpload, FileUploadInfo, Node, ProviderTemplate, UserId, Workspace, WorkspaceAuth,
+        WorkspaceFiles, WorkspaceId, WorkspaceInfo,
     };
     use futures::StreamExt;
     use pretty_assertions::assert_eq;
@@ -833,6 +833,33 @@ mod tests {
 
         async fn migrate_env_credentials(&self) -> Result<Option<forge_domain::MigrationResult>> {
             Ok(None)
+        }
+
+        async fn store_auth(&self, _auth: &WorkspaceAuth) -> Result<()> {
+            Ok(())
+        }
+
+        async fn get_auth(&self) -> Result<Option<WorkspaceAuth>> {
+            if self.authenticated {
+                let user_id = self
+                    .workspace
+                    .as_ref()
+                    .or(self.ancestor_workspace.as_ref())
+                    .map(|w| w.user_id.clone())
+                    .unwrap_or_else(UserId::generate);
+
+                Ok(Some(WorkspaceAuth {
+                    user_id,
+                    token: "test_token".to_string().into(),
+                    created_at: chrono::Utc::now(),
+                }))
+            } else {
+                Ok(None)
+            }
+        }
+
+        async fn clear_auth(&self) -> Result<()> {
+            Ok(())
         }
     }
 

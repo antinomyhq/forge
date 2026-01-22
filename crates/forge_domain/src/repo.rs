@@ -114,6 +114,31 @@ pub trait ProviderRepository: Send + Sync {
     async fn get_credential(&self, id: &ProviderId) -> anyhow::Result<Option<AuthCredential>>;
     async fn remove_credential(&self, id: &ProviderId) -> anyhow::Result<()>;
     async fn migrate_env_credentials(&self) -> anyhow::Result<Option<MigrationResult>>;
+
+    /// Store authentication token for Forge services
+    ///
+    /// # Arguments
+    /// * `auth` - WorkspaceAuth containing user_id, token, and created_at
+    ///
+    /// # Errors
+    /// Returns an error if storage operation fails
+    async fn store_auth(&self, auth: &WorkspaceAuth) -> anyhow::Result<()>;
+
+    /// Retrieve stored authentication
+    ///
+    /// # Returns
+    /// * `Some(WorkspaceAuth)` - If user has authenticated before
+    /// * `None` - If never authenticated
+    ///
+    /// # Errors
+    /// Returns an error if storage operation fails
+    async fn get_auth(&self) -> anyhow::Result<Option<WorkspaceAuth>>;
+
+    /// Clear authentication (logout)
+    ///
+    /// # Errors
+    /// Returns an error if storage operation fails
+    async fn clear_auth(&self) -> anyhow::Result<()>;
 }
 
 /// Repository for managing workspace metadata in local database
@@ -337,36 +362,4 @@ pub trait AuthFlowRepository: Send + Sync {
     /// # Errors
     /// Returns an error if unauthorized, key not found, or gRPC call fails
     async fn delete_api_key(&self, token: &crate::ApiKey, key_id: &str) -> Result<()>;
-}
-
-/// Repository for storing authentication credentials locally
-///
-/// This repository provides operations for persisting user authentication
-/// in the local database. Tokens are user-global (not workspace-specific).
-#[async_trait::async_trait]
-pub trait AuthStorage: Send + Sync {
-    /// Store authentication token (user-global)
-    ///
-    /// # Arguments
-    /// * `auth` - WorkspaceAuth containing user_id, token, and created_at
-    ///
-    /// # Errors
-    /// Returns an error if database operation fails
-    async fn store_auth(&self, auth: &WorkspaceAuth) -> Result<()>;
-
-    /// Retrieve stored authentication
-    ///
-    /// # Returns
-    /// * `Some(WorkspaceAuth)` - If user has authenticated before
-    /// * `None` - If never authenticated
-    ///
-    /// # Errors
-    /// Returns an error if database operation fails
-    async fn get_auth(&self) -> Result<Option<WorkspaceAuth>>;
-
-    /// Clear authentication (logout)
-    ///
-    /// # Errors
-    /// Returns an error if database operation fails
-    async fn clear_auth(&self) -> Result<()>;
 }

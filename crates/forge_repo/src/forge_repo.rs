@@ -25,7 +25,6 @@ use url::Url;
 use crate::agent::ForgeAgentRepository;
 use crate::app_config::AppConfigRepositoryImpl;
 use crate::auth_flow::ForgeAuthFlowRepository;
-use crate::auth_storage::ForgeAuthStorage;
 use crate::context_engine::ForgeContextEngineRepository;
 use crate::conversation::ConversationRepositoryImpl;
 use crate::database::{DatabasePool, PoolConfig};
@@ -56,7 +55,6 @@ pub struct ForgeRepo<F> {
     validation_repository: Arc<ForgeValidationRepository<F>>,
     fuzzy_search_repository: Arc<ForgeFuzzySearchRepository<F>>,
     auth_flow_repository: Arc<ForgeAuthFlowRepository<F>>,
-    auth_storage: Arc<ForgeAuthStorage>,
 }
 
 impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpInfra> ForgeRepo<F> {
@@ -88,7 +86,6 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpI
         let validation_repository = Arc::new(ForgeValidationRepository::new(infra.clone()));
         let fuzzy_search_repository = Arc::new(ForgeFuzzySearchRepository::new(infra.clone()));
         let auth_flow_repository = Arc::new(ForgeAuthFlowRepository::new(infra.clone()));
-        let auth_storage = Arc::new(ForgeAuthStorage::new(db_pool.clone()));
         Self {
             infra,
             file_snapshot_service,
@@ -104,7 +101,6 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpI
             validation_repository,
             fuzzy_search_repository,
             auth_flow_repository,
-            auth_storage,
         }
     }
 }
@@ -203,6 +199,18 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Send 
 
     async fn migrate_env_credentials(&self) -> anyhow::Result<Option<MigrationResult>> {
         self.provider_repository.migrate_env_to_file().await
+    }
+
+    async fn store_auth(&self, auth: &forge_domain::WorkspaceAuth) -> anyhow::Result<()> {
+        self.provider_repository.store_auth(auth).await
+    }
+
+    async fn get_auth(&self) -> anyhow::Result<Option<forge_domain::WorkspaceAuth>> {
+        self.provider_repository.get_auth().await
+    }
+
+    async fn clear_auth(&self) -> anyhow::Result<()> {
+        self.provider_repository.clear_auth().await
     }
 }
 
@@ -692,20 +700,5 @@ impl<F: GrpcInfra + Send + Sync> AuthFlowRepository for ForgeRepo<F> {
         self.auth_flow_repository
             .delete_api_key(token, key_id)
             .await
-    }
-}
-
-#[async_trait::async_trait]
-impl<F: Send + Sync> forge_domain::AuthStorage for ForgeRepo<F> {
-    async fn store_auth(&self, auth: &forge_domain::WorkspaceAuth) -> anyhow::Result<()> {
-        self.auth_storage.store_auth(auth).await
-    }
-
-    async fn get_auth(&self) -> anyhow::Result<Option<forge_domain::WorkspaceAuth>> {
-        self.auth_storage.get_auth().await
-    }
-
-    async fn clear_auth(&self) -> anyhow::Result<()> {
-        self.auth_storage.clear_auth().await
     }
 }

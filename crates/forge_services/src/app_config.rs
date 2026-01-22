@@ -250,6 +250,18 @@ mod tests {
         async fn migrate_env_credentials(&self) -> anyhow::Result<Option<MigrationResult>> {
             Ok(None)
         }
+
+        async fn store_auth(&self, _auth: &forge_domain::WorkspaceAuth) -> anyhow::Result<()> {
+            Ok(())
+        }
+
+        async fn get_auth(&self) -> anyhow::Result<Option<forge_domain::WorkspaceAuth>> {
+            Ok(None)
+        }
+
+        async fn clear_auth(&self) -> anyhow::Result<()> {
+            Ok(())
+        }
     }
 
     #[tokio::test]
