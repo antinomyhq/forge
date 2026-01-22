@@ -2,13 +2,13 @@ use std::sync::Arc;
 
 use forge_domain::{TitleFormat, ToolCallContext, ToolCallFull, ToolName, ToolOutput};
 
-use crate::{EnvironmentService, McpService};
+use crate::McpService;
 
 pub struct McpExecutor<S> {
     services: Arc<S>,
 }
 
-impl<S: McpService + EnvironmentService> McpExecutor<S> {
+impl<S: McpService> McpExecutor<S> {
     pub fn new(services: Arc<S>) -> Self {
         Self { services }
     }
