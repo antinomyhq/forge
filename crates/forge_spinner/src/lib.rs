@@ -211,7 +211,7 @@ mod tests {
     use forge_domain::ConsoleWriter;
     use pretty_assertions::assert_eq;
 
-    use super::{format_elapsed_time, SpinnerManager};
+    use super::{SpinnerManager, format_elapsed_time};
 
     /// A simple printer that writes directly to stdout/stderr.
     /// Used for testing when synchronized output is not needed.
