@@ -21,7 +21,7 @@ use crate::error::Error;
 use crate::fmt::content::FormatContent;
 use crate::mcp_executor::McpExecutor;
 use crate::tool_executor::ToolExecutor;
-use crate::truncation::truncate_text_if_needed;
+use crate::truncation::truncate_fetch_content;
 use crate::{
     AgentRegistry, EnvironmentService, FsWriteService, McpService, PolicyService, ProviderService,
     Services, ToolResolver, WorkspaceService,
@@ -203,31 +203,36 @@ impl<S: Services> ToolRegistry<S> {
         for value in output.values {
             match value {
                 ToolValue::Text(text) => {
-                    match truncate_text_if_needed(&text, limit) {
-                        None => {
-                            // Not truncated, keep as-is
-                            new_values.push(ToolValue::Text(text));
-                        }
-                        Some(truncated) => {
-                            // Write full content to temp file
-                            let temp_path = self
-                                .create_temp_file("forge_mcp_", ".txt", truncated.full_text)
-                                .await?;
+                    let original_length = text.len();
+                    let is_truncated = original_length > limit;
 
-                            let reason = format!(
-                                "Output truncated due to exceeding the {} character limit. Full output saved in file_path",
-                                limit
-                            );
-                            // Wrap in XML with metadata
-                            let xml = Element::new("mcp_output")
-                                .attr("original_size", truncated.original_size)
-                                .attr("limit", limit)
-                                .attr("file_path", temp_path.display())
-                                .attr("reason", reason)
-                                .cdata(&truncated.content);
+                    if is_truncated {
+                        // Write full content to temp file
+                        let temp_path = self
+                            .create_temp_file("forge_mcp_", ".txt", &text)
+                            .await?;
 
-                            new_values.push(ToolValue::Text(xml.render()));
-                        }
+                        // Truncate content for display (same strategy as fetch)
+                        let truncated_content =
+                            truncate_fetch_content(&text, limit);
+
+                        let reason = format!(
+                            "Content is truncated to {} chars, remaining content can be read from path: {}",
+                            limit, temp_path.display()
+                        );
+
+                        // Wrap in XML with metadata (same pattern as fetch)
+                        let xml = Element::new("mcp_output")
+                            .attr("start_char", 0)
+                            .attr("end_char", limit.min(original_length))
+                            .attr("total_chars", original_length)
+                            .append(Element::new("body").cdata(truncated_content.content))
+                            .append(Element::new("truncated").text(reason));
+
+                        new_values.push(ToolValue::Text(xml.render()));
+                    } else {
+                        // Not truncated, keep as-is
+                        new_values.push(ToolValue::Text(text));
                     }
                 }
                 other => {
