@@ -6,10 +6,9 @@ use derive_setters::Setters;
 use forge_domain::{
     AgentId, AnyProvider, Attachment, AuthContextRequest, AuthContextResponse, AuthMethod,
     ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId, Environment, File,
-    FileStatus, Image, InitAuth, LoginInfo, McpConfig, McpServers, Model, ModelId, Node,
-    PatchOperation, Provider, ProviderId, ResultStream, Scope, SearchParams, SyncProgress,
-    SyntaxError, Template, ToolCallFull, ToolOutput, Workflow, WorkspaceAuth, WorkspaceId,
-    WorkspaceInfo,
+    FileStatus, Image, InitAuth, LoginInfo, McpConfig, McpServers, Model, ModelId, Node, Provider,
+    ProviderId, ResultStream, Scope, SearchParams, SyncProgress, SyntaxError, Template,
+    ToolCallFull, ToolOutput, Workflow, WorkspaceAuth, WorkspaceId, WorkspaceInfo,
 };
 use merge::Merge;
 use reqwest::Response;
@@ -377,9 +376,9 @@ pub trait FsPatchService: Send + Sync {
     async fn patch(
         &self,
         path: String,
-        search: Option<String>,
-        operation: PatchOperation,
+        search: String,
         content: String,
+        replace_all: bool,
     ) -> anyhow::Result<PatchOutput>;
 }
 
@@ -802,12 +801,12 @@ impl<I: Services> FsPatchService for I {
     async fn patch(
         &self,
         path: String,
-        search: Option<String>,
-        operation: PatchOperation,
+        search: String,
         content: String,
+        replace_all: bool,
     ) -> anyhow::Result<PatchOutput> {
         self.fs_patch_service()
-            .patch(path, search, operation, content)
+            .patch(path, search, content, replace_all)
             .await
     }
 }

@@ -365,6 +365,9 @@ pub enum ZshCommandGroup {
 
     /// Setup zsh integration by updating .zshrc with plugin and theme
     Setup,
+
+    /// Show keyboard shortcuts for ZSH line editor
+    Keyboard,
 }
 
 /// Command group for MCP server management.
@@ -1575,6 +1578,18 @@ mod tests {
         let actual = match fixture.subcommands {
             Some(TopLevelCommand::Zsh(terminal)) => {
                 matches!(terminal, ZshCommandGroup::Setup)
+            }
+            _ => false,
+        };
+        assert_eq!(actual, true);
+    }
+
+    #[test]
+    fn test_zsh_keyboard() {
+        let fixture = Cli::parse_from(["forge", "zsh", "keyboard"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::Zsh(terminal)) => {
+                matches!(terminal, ZshCommandGroup::Keyboard)
             }
             _ => false,
         };

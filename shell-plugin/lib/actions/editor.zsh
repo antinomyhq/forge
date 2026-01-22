@@ -55,6 +55,9 @@ function _forge_action_editor() {
     
     if [ -z "$content" ]; then
         _forge_log info "Editor closed with no content"
+        BUFFER=""
+        CURSOR=0
+        zle reset-prompt
         return 0
     fi
     

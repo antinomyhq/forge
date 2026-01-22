@@ -290,12 +290,19 @@ impl<F: FileWriterInfra + SnapshotRepository + ValidationRepository + FuzzySearc
     async fn patch(
         &self,
         input_path: String,
-        search: Option<String>,
-        operation: PatchOperation,
+        search: String,
         content: String,
+        replace_all: bool,
     ) -> anyhow::Result<PatchOutput> {
         let path = Path::new(&input_path);
         assert_absolute_path(path)?;
+
+        // Convert replace_all boolean to PatchOperation
+        let operation = if replace_all {
+            PatchOperation::ReplaceAll
+        } else {
+            PatchOperation::Replace
+        };
 
         // Read the original content once
         // TODO: use forge_fs
@@ -306,7 +313,7 @@ impl<F: FileWriterInfra + SnapshotRepository + ValidationRepository + FuzzySearc
         let old_content = current_content.clone();
 
         // Compute range from search if provided
-        let range = match compute_range(&current_content, search.as_deref(), &operation) {
+        let range = match compute_range(&current_content, Some(&search), &operation) {
             Ok(r) => r,
             Err(Error::NoMatch(search_text))
                 if matches!(

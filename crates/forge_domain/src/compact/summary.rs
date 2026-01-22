@@ -343,10 +343,7 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::{
-        ContextMessage, PatchOperation, TextMessage, ToolCallArguments, ToolCallId, ToolName,
-        ToolOutput,
-    };
+    use crate::{ContextMessage, TextMessage, ToolCallArguments, ToolCallId, ToolName, ToolOutput};
 
     type Block = SummaryMessage;
 
@@ -516,13 +513,8 @@ mod tests {
         let fixture = context(vec![assistant_with_tools(
             "Patching file",
             vec![
-                ToolCatalog::tool_call_patch(
-                    "/test/file.rs",
-                    "new",
-                    PatchOperation::Replace,
-                    Some("old"),
-                )
-                .call_id("call_1"),
+                ToolCatalog::tool_call_patch("/test/file.rs", "new", "old", false)
+                    .call_id("call_1"),
             ],
         )]);
 
