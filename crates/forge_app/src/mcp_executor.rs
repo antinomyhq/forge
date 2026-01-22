@@ -4,7 +4,7 @@ use std::sync::Arc;
 use forge_domain::{TitleFormat, ToolCallContext, ToolCallFull, ToolName, ToolOutput, ToolValue};
 use forge_template::Element;
 
-use crate::truncation::truncate_text;
+use crate::truncation::{truncate_mcp_output, TruncationResult};
 use crate::{EnvironmentService, FsWriteService, McpService};
 
 pub struct McpExecutor<S> {
@@ -67,55 +67,31 @@ impl<S: McpService + EnvironmentService + FsWriteService> McpExecutor<S> {
     async fn truncate_if_needed(&self, output: ToolOutput) -> anyhow::Result<ToolOutput> {
         let env = self.services.get_environment();
         let limit = env.mcp_truncation_limit;
+        match truncate_mcp_output(output, limit)? {
+            TruncationResult::Unchanged(output) => Ok(output),
+            TruncationResult::Truncated {
+                mut truncated_values,
+                full_json,
+                total_size,
+                limit,
+                is_error,
+            } => {
+                // Write full content to temp file
+                let temp_path = self
+                    .create_temp_file("forge_mcp_", ".json", &full_json)
+                    .await?;
 
-        // Calculate total text size
-        let total_size: usize = output
-            .values
-            .iter()
-            .filter_map(ToolValue::as_str)
-            .map(str::len)
-            .sum();
+                // Add truncation notice
+                let notice = Element::new("truncated").text(format!(
+                    "Content truncated to {} chars (total: {} chars).\n Full content:\n{}",
+                    limit,
+                    total_size,
+                    temp_path.display()
+                ));
+                truncated_values.push(ToolValue::Text(notice.render()));
 
-        // No truncation needed
-        if total_size <= limit {
-            return Ok(output);
+                Ok(ToolOutput { is_error, values: truncated_values })
+            }
         }
-
-        // Serialize full output to JSON for temp file
-        let full_json = serde_json::to_string_pretty(&output)?;
-
-        // Write to temp file
-        let temp_path = self
-            .create_temp_file("forge_mcp_", ".json", &full_json)
-            .await?;
-
-        // Truncate text values
-        let mut remaining = limit;
-        let truncated_values: Vec<ToolValue> = output
-            .values
-            .into_iter()
-            .filter_map(|value| match value {
-                ToolValue::Text(text) if remaining > 0 => {
-                    let truncated = truncate_text(&text, remaining);
-                    remaining = remaining.saturating_sub(text.len());
-                    Some(ToolValue::Text(truncated))
-                }
-                ToolValue::Text(_) => None,
-                other => Some(other),
-            })
-            .collect();
-
-        // Add notice
-        let notice = Element::new("truncated").text(format!(
-            "Content truncated to {} chars (total: {} chars). Full content: {}",
-            limit,
-            total_size,
-            temp_path.display()
-        ));
-
-        let mut values = truncated_values;
-        values.push(ToolValue::Text(notice.render()));
-
-        Ok(ToolOutput { is_error: output.is_error, values })
     }
 }
