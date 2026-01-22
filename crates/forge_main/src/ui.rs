@@ -3603,9 +3603,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         let input = input.trim().to_lowercase();
 
         if (input.is_empty() || input == "y" || input == "yes")
-            && let Err(e) = open::that(&full_url) {
-                self.writeln(format!("  Failed to open browser: {}", e))?;
-            }
+            && let Err(e) = open::that(&full_url)
+        {
+            self.writeln(format!("  Failed to open browser: {}", e))?;
+        }
 
         self.writeln("")?;
         self.spinner.start(Some("Waiting for authentication..."))?;
