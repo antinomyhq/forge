@@ -1,6 +1,7 @@
 use gh_workflow::*;
 
-/// Creates a benchmark evaluation job that runs when ci:benchmark label is applied
+/// Creates a benchmark evaluation job that runs when ci:benchmark label is
+/// applied
 ///
 /// This job:
 /// - Runs all evaluations in benchmarks/evals/
