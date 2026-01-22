@@ -212,7 +212,7 @@ impl<
                     .collect();
 
                 let mut results = futures::future::try_join_all(futures).await.map_err(|e| {
-                    if e.downcast_ref::<DomainError>().map_or(false, |err| matches!(err, DomainError::WorkspaceNotFound)) {
+                    if e.downcast_ref::<DomainError>().is_some_and(|err| matches!(err, DomainError::WorkspaceNotFound)) {
                         anyhow::anyhow!(
                             "Semantic search requires an indexed workspace. For directory '{}', use the regular search tool instead.",
                             search_path.display(),
