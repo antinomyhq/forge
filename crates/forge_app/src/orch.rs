@@ -91,14 +91,14 @@ impl<S: AgentService> Orchestrator<S> {
                 Step::Proceed => {}
                 Step::Interrupt { reason } => {
                     // Send the interrupt and continue to next tool call
-                    let _ = self.send(ChatResponse::Interrupt { reason: reason.clone() }).await;
+                    let _ = self
+                        .send(ChatResponse::Interrupt { reason: reason.clone() })
+                        .await;
                     tool_call_records.push((
                         tool_call.clone(),
-                        ToolResult::new(tool_call.name.clone())
-                            .output(Ok(ToolOutput::text(format!(
-                                "Interrupted by hook: {:?}",
-                                reason
-                            )))),
+                        ToolResult::new(tool_call.name.clone()).output(Ok(ToolOutput::text(
+                            format!("Interrupted by hook: {:?}", reason),
+                        ))),
                     ));
                     continue;
                 }
@@ -130,7 +130,9 @@ impl<S: AgentService> Orchestrator<S> {
                 Step::Proceed => {}
                 Step::Interrupt { reason } => {
                     // Send the interrupt and continue to next tool call
-                    let _ = self.send(ChatResponse::Interrupt { reason: reason.clone() }).await;
+                    let _ = self
+                        .send(ChatResponse::Interrupt { reason: reason.clone() })
+                        .await;
                     tool_call_records.push((tool_call.clone(), tool_result));
                     continue;
                 }
@@ -246,11 +248,13 @@ impl<S: AgentService> Orchestrator<S> {
         let mut context = self.conversation.context.clone().unwrap_or_default();
 
         // Fire the Start lifecycle event
-        let start_event = LifecycleEvent::Start {
-            agent: self.agent.clone(),
-            model_id: model_id.clone(),
-        };
-        match self.hook.handle(start_event, &mut self.conversation).await? {
+        let start_event =
+            LifecycleEvent::Start { agent: self.agent.clone(), model_id: model_id.clone() };
+        match self
+            .hook
+            .handle(start_event, &mut self.conversation)
+            .await?
+        {
             Step::Proceed => {}
             Step::Interrupt { reason } => {
                 self.send(ChatResponse::Interrupt { reason }).await?;

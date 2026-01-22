@@ -3,7 +3,10 @@ use std::fmt;
 use async_trait::async_trait;
 use derive_setters::Setters;
 
-use crate::{Agent, ChatCompletionMessageFull, Conversation, InterruptionReason, ModelId, ToolCallFull, ToolResult};
+use crate::{
+    Agent, ChatCompletionMessageFull, Conversation, InterruptionReason, ModelId, ToolCallFull,
+    ToolResult,
+};
 
 /// Lifecycle events that can occur during conversation processing
 #[derive(Debug, PartialEq, Clone)]
@@ -246,16 +249,16 @@ impl EventHandle for Hook {
                 self.on_start.handle(event, conversation).await
             }
             LifecycleEvent::End => self.on_end.handle(event, conversation).await,
-            LifecycleEvent::Request {
-                agent: _,
-                model_id: _,
-                request_count: _,
-            } => self.on_request.handle(event, conversation).await,
+            LifecycleEvent::Request { agent: _, model_id: _, request_count: _ } => {
+                self.on_request.handle(event, conversation).await
+            }
             LifecycleEvent::Response(_) => self.on_response.handle(event, conversation).await,
             LifecycleEvent::ToolcallStart(_) => {
                 self.on_toolcall_start.handle(event, conversation).await
             }
-            LifecycleEvent::ToolcallEnd(_) => self.on_toolcall_end.handle(event, conversation).await,
+            LifecycleEvent::ToolcallEnd(_) => {
+                self.on_toolcall_end.handle(event, conversation).await
+            }
         }
     }
 }
@@ -418,10 +421,7 @@ mod tests {
 
         let step = hook
             .handle(
-                LifecycleEvent::Start {
-                    agent: test_agent(),
-                    model_id: test_model_id(),
-                },
+                LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() },
                 &mut conversation,
             )
             .await
@@ -432,10 +432,7 @@ mod tests {
         assert_eq!(handled.len(), 1);
         assert_eq!(
             handled[0],
-            LifecycleEvent::Start {
-                agent: test_agent(),
-                model_id: test_model_id(),
-            }
+            LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() }
         );
     }
 
@@ -480,10 +477,7 @@ mod tests {
         // Test Start event
         let _ = hook
             .handle(
-                LifecycleEvent::Start {
-                    agent: test_agent(),
-                    model_id: test_model_id(),
-                },
+                LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() },
                 &mut conversation,
             )
             .await
@@ -510,10 +504,7 @@ mod tests {
         assert_eq!(handled.len(), 3);
         assert_eq!(
             handled[0],
-            LifecycleEvent::Start {
-                agent: test_agent(),
-                model_id: test_model_id(),
-            }
+            LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() }
         );
         assert_eq!(handled[1], LifecycleEvent::End);
         assert_eq!(
@@ -596,10 +587,7 @@ mod tests {
         let mut conversation = Conversation::generate();
 
         let all_events = vec![
-            LifecycleEvent::Start {
-                agent: test_agent(),
-                model_id: test_model_id(),
-            },
+            LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() },
             LifecycleEvent::End,
             LifecycleEvent::Request {
                 agent: test_agent(),
@@ -645,10 +633,7 @@ mod tests {
 
         let step = hook
             .handle(
-                LifecycleEvent::Start {
-                    agent: test_agent(),
-                    model_id: test_model_id(),
-                },
+                LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() },
                 &mut conversation,
             )
             .await
@@ -672,10 +657,7 @@ mod tests {
 
         let step = hook
             .handle(
-                LifecycleEvent::Start {
-                    agent: test_agent(),
-                    model_id: test_model_id(),
-                },
+                LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() },
                 &mut conversation,
             )
             .await
@@ -728,10 +710,7 @@ mod tests {
         let mut conversation = Conversation::generate();
         let _ = combined
             .handle(
-                LifecycleEvent::Start {
-                    agent: test_agent(),
-                    model_id: test_model_id(),
-                },
+                LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() },
                 &mut conversation,
             )
             .await
@@ -783,10 +762,7 @@ mod tests {
         let mut conversation = Conversation::generate();
         let _ = combined
             .handle(
-                LifecycleEvent::Start {
-                    agent: test_agent(),
-                    model_id: test_model_id(),
-                },
+                LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() },
                 &mut conversation,
             )
             .await
@@ -834,10 +810,7 @@ mod tests {
         // Test Start event
         let _ = combined
             .handle(
-                LifecycleEvent::Start {
-                    agent: test_agent(),
-                    model_id: test_model_id(),
-                },
+                LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() },
                 &mut conversation,
             )
             .await
@@ -884,10 +857,7 @@ mod tests {
         let mut conversation = Conversation::generate();
         let _ = combined
             .handle(
-                LifecycleEvent::Start {
-                    agent: test_agent(),
-                    model_id: test_model_id(),
-                },
+                LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() },
                 &mut conversation,
             )
             .await
@@ -930,10 +900,7 @@ mod tests {
         let mut conversation = Conversation::generate();
         let _ = combined
             .handle(
-                LifecycleEvent::Start {
-                    agent: test_agent(),
-                    model_id: test_model_id(),
-                },
+                LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() },
                 &mut conversation,
             )
             .await
@@ -987,10 +954,7 @@ mod tests {
         let mut conversation = Conversation::generate();
         let _ = combined
             .handle(
-                LifecycleEvent::Start {
-                    agent: test_agent(),
-                    model_id: test_model_id(),
-                },
+                LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() },
                 &mut conversation,
             )
             .await
@@ -1038,10 +1002,7 @@ mod tests {
         let mut conversation = Conversation::generate();
         let _ = hook
             .handle(
-                LifecycleEvent::Start {
-                    agent: test_agent(),
-                    model_id: test_model_id(),
-                },
+                LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() },
                 &mut conversation,
             )
             .await
@@ -1082,10 +1043,7 @@ mod tests {
         let mut conversation = Conversation::generate();
         let step = hook
             .handle(
-                LifecycleEvent::Start {
-                    agent: test_agent(),
-                    model_id: test_model_id(),
-                },
+                LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() },
                 &mut conversation,
             )
             .await
@@ -1133,10 +1091,7 @@ mod tests {
         let mut conversation = Conversation::generate();
         let _ = combined
             .handle(
-                LifecycleEvent::Start {
-                    agent: test_agent(),
-                    model_id: test_model_id(),
-                },
+                LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() },
                 &mut conversation,
             )
             .await
