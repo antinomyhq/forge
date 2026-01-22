@@ -7,7 +7,8 @@ use super::truncate_text;
 pub enum TruncationResult {
     /// Content was within limit, no truncation needed.
     Unchanged(ToolOutput),
-    /// Content was truncated, includes truncated output and full JSON for temp file.
+    /// Content was truncated, includes truncated output and full JSON for temp
+    /// file.
     Truncated {
         /// The truncated tool output values.
         truncated_values: Vec<ToolValue>,
@@ -71,8 +72,9 @@ pub fn truncate_mcp_output(output: ToolOutput, limit: usize) -> anyhow::Result<T
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use pretty_assertions::assert_eq;
+
+    use super::*;
 
     #[test]
     fn test_truncate_mcp_output_no_truncation_needed() {
@@ -96,17 +98,10 @@ mod tests {
         let actual = truncate_mcp_output(fixture, 50).unwrap();
         match actual {
             TruncationResult::Truncated {
-                truncated_values,
-                total_size,
-                limit,
-                is_error,
-                ..
+                truncated_values, total_size, limit, is_error, ..
             } => {
                 assert_eq!(truncated_values.len(), 1);
-                assert_eq!(
-                    truncated_values[0],
-                    ToolValue::Text("a".repeat(50))
-                );
+                assert_eq!(truncated_values[0], ToolValue::Text("a".repeat(50)));
                 assert_eq!(total_size, 100);
                 assert_eq!(limit, 50);
                 assert!(!is_error);
@@ -127,18 +122,10 @@ mod tests {
 
         let actual = truncate_mcp_output(fixture, 50).unwrap();
         match actual {
-            TruncationResult::Truncated {
-                truncated_values,
-                total_size,
-                limit,
-                ..
-            } => {
+            TruncationResult::Truncated { truncated_values, total_size, limit, .. } => {
                 // First text is truncated to 50, second is dropped (remaining=0)
                 assert_eq!(truncated_values.len(), 1);
-                assert_eq!(
-                    truncated_values[0],
-                    ToolValue::Text("a".repeat(50))
-                );
+                assert_eq!(truncated_values[0], ToolValue::Text("a".repeat(50)));
                 assert_eq!(total_size, 100);
                 assert_eq!(limit, 50);
             }
@@ -150,19 +137,13 @@ mod tests {
     fn test_truncate_mcp_output_preserves_non_text_values() {
         let fixture = ToolOutput {
             is_error: false,
-            values: vec![
-                ToolValue::Text("a".repeat(100)),
-                ToolValue::Empty,
-            ],
+            values: vec![ToolValue::Text("a".repeat(100)), ToolValue::Empty],
         };
         let actual = truncate_mcp_output(fixture, 50).unwrap();
         match actual {
             TruncationResult::Truncated { truncated_values, .. } => {
                 assert_eq!(truncated_values.len(), 2);
-                assert_eq!(
-                    truncated_values[0],
-                    ToolValue::Text("a".repeat(50))
-                );
+                assert_eq!(truncated_values[0], ToolValue::Text("a".repeat(50)));
                 assert_eq!(truncated_values[1], ToolValue::Empty);
             }
             TruncationResult::Unchanged(_) => panic!("Expected truncation"),

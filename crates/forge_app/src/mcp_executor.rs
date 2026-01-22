@@ -4,7 +4,7 @@ use std::sync::Arc;
 use forge_domain::{TitleFormat, ToolCallContext, ToolCallFull, ToolName, ToolOutput, ToolValue};
 use forge_template::Element;
 
-use crate::truncation::{truncate_mcp_output, TruncationResult};
+use crate::truncation::{TruncationResult, truncate_mcp_output};
 use crate::{EnvironmentService, FsWriteService, McpService};
 
 pub struct McpExecutor<S> {
