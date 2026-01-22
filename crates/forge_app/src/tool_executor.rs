@@ -182,14 +182,14 @@ impl<
             ToolCatalog::SemSearch(input) => {
                 let env = self.services.get_environment();
                 let services = self.services.clone();
-                
+
                 // Use provided dir_path or default to cwd
                 let search_path = if let Some(ref dir_path) = input.dir_path {
                     PathBuf::from(self.normalize_path(dir_path.clone()))
                 } else {
                     env.cwd.clone()
                 };
-                
+
                 let limit = env.sem_search_limit;
                 let top_k = env.sem_search_top_k as u32;
                 let params: Vec<_> = input
