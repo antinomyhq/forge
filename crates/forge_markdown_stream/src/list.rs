@@ -20,12 +20,14 @@ const BULLETS_PLUS: [&str; 4] = ["⊕", "⊙", "⊛", "⊜"];
 const CHECKBOX_UNCHECKED: &str = "☐";
 const CHECKBOX_CHECKED: &str = "☑";
 
-/// Strips checkbox prefix from content and returns (checkbox_char, remaining_content).
-/// Returns None if no checkbox is found at the start.
+/// Strips checkbox prefix from content and returns (checkbox_char,
+/// remaining_content). Returns None if no checkbox is found at the start.
 fn strip_checkbox_prefix(content: &str) -> Option<(&'static str, &str)> {
     if let Some(rest) = content.strip_prefix("[ ] ") {
         Some((CHECKBOX_UNCHECKED, rest))
-    } else if let Some(rest) = content.strip_prefix("[x] ").or_else(|| content.strip_prefix("[X] "))
+    } else if let Some(rest) = content
+        .strip_prefix("[x] ")
+        .or_else(|| content.strip_prefix("[X] "))
     {
         Some((CHECKBOX_CHECKED, rest))
     } else if content == "[ ]" {
@@ -413,13 +415,13 @@ mod tests {
             #[test]
             fn invalid_patterns() {
                 let cases = [
-                    "[] text",              // no space inside brackets
-                    "[y] text",             // wrong character
-                    "prefix [ ] suffix",    // not at start
-                    "array[x]",             // array index syntax
-                    "Just plain text",      // no brackets
-                    "  [ ] Task",           // leading whitespace
-                    "[X]Task",              // no space after checkbox
+                    "[] text",           // no space inside brackets
+                    "[y] text",          // wrong character
+                    "prefix [ ] suffix", // not at start
+                    "array[x]",          // array index syntax
+                    "Just plain text",   // no brackets
+                    "  [ ] Task",        // leading whitespace
+                    "[X]Task",           // no space after checkbox
                 ];
 
                 for input in cases {
