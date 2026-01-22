@@ -72,6 +72,7 @@ impl Default for TestContext {
                 tool_timeout: 300,
                 max_search_lines: 1000,
                 fetch_truncation_limit: 1024,
+                mcp_truncation_limit: 1024,
                 stdout_max_prefix_length: 256,
                 stdout_max_suffix_length: 256,
                 max_read_size: 4096,

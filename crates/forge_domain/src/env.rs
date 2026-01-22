@@ -41,6 +41,8 @@ pub struct Environment {
     pub max_search_result_bytes: usize,
     /// Maximum characters for fetch content
     pub fetch_truncation_limit: usize,
+    /// Maximum characters for MCP tool output
+    pub mcp_truncation_limit: usize,
     /// Maximum lines for shell output prefix
     pub stdout_max_prefix_length: usize,
     /// Maximum lines for shell output suffix
@@ -284,6 +286,7 @@ fn test_command_path() {
         max_search_lines: 1000,
         max_search_result_bytes: 10240,
         fetch_truncation_limit: 50000,
+        mcp_truncation_limit: 50000,
         stdout_max_prefix_length: 100,
         stdout_max_suffix_length: 100,
         stdout_max_line_length: 500,
@@ -324,6 +327,7 @@ fn test_command_cwd_path() {
         max_search_lines: 1000,
         max_search_result_bytes: 10240,
         fetch_truncation_limit: 50000,
+        mcp_truncation_limit: 50000,
         stdout_max_prefix_length: 100,
         stdout_max_suffix_length: 100,
         stdout_max_line_length: 500,
@@ -364,6 +368,7 @@ fn test_command_cwd_path_independent_from_command_path() {
         max_search_lines: 1000,
         max_search_result_bytes: 10240,
         fetch_truncation_limit: 50000,
+        mcp_truncation_limit: 50000,
         stdout_max_prefix_length: 100,
         stdout_max_suffix_length: 100,
         stdout_max_line_length: 500,
