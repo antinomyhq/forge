@@ -102,7 +102,7 @@ impl<S: McpService + EnvironmentService + FsWriteService> McpExecutor<S> {
                     Element::new("truncated")
                         .attr("limit", limit)
                         .attr("total_size", total_size)
-                        .text("Content is truncated. Full content is available at the specified path."),
+                        .text("Content is truncated. Full content is available at the specified file path."),
                 );
 
                 Ok(ToolOutput::text(elm).is_error(is_error))
