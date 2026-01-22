@@ -28,6 +28,46 @@ npm run eval ./evals/create_skill/task.yml
 LOG_LEVEL=debug npm run eval ./evals/create_skill/task.yml
 ```
 
+## CI Integration
+
+Benchmark evaluations can be run automatically on pull requests using GitHub Actions.
+
+### Triggering Benchmark Runs
+
+To run benchmarks on a PR:
+
+1. Apply the `ci:benchmark` label to your pull request
+2. GitHub Actions will automatically run all evaluations in `benchmarks/evals/`
+3. Results will be posted as a formatted table comment on the PR
+
+### Required Secrets
+
+The following secrets must be configured in the repository for evaluations that require external services:
+
+- `OPENROUTER_API_KEY` - Required for evaluations that use OpenRouter API
+- Additional API keys can be added as needed in the workflow configuration
+
+### CI Behavior
+
+- **Timeout**: The entire benchmark job has a 60-minute timeout
+- **Results**: A Markdown table with pass/fail statistics is posted as a comment
+- **Logs**: Full evaluation logs are uploaded as workflow artifacts for debugging
+- **Failure Handling**: The job continues running all evaluations even if some fail
+
+### Example Results Comment
+
+```markdown
+## ✅ Benchmark Evaluation Results
+
+**Overall:** 25/30 passed, 2 failed, 1 timeout, 2 validation failed (5m 23s)
+
+| Status | Eval | Total | ✅ Passed | ❌ Failed | ⏱️ Timeout | ⚠️ Val Failed | Duration |
+|--------|------|-------|-----------|-----------|-----------|---------------|----------|
+| ✅ | create_skill | 10 | 10 | 0 | 0 | 0 | 1m 15s |
+| ❌ | multi_file_patch | 5 | 3 | 2 | 0 | 0 | 45s |
+...
+```
+
 ## How It Works
 
 The evaluation system executes commands based on task definitions and validates their output. It supports:

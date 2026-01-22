@@ -76,6 +76,52 @@ jobs:
         toolchain: stable
     - name: Run performance benchmark
       run: './scripts/benchmark.sh --threshold 60 zsh rprompt'
+  benchmark:
+    if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:benchmark')
+    name: Run Benchmark Evaluations
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    timeout-minutes: 60
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v6
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    - name: Install Dependencies
+      run: npm ci
+    - name: Setup Protobuf Compiler
+      uses: arduino/setup-protoc@v3
+      with:
+        repo-token: ${{ secrets.GITHUB_TOKEN }}
+    - name: Setup Rust Toolchain
+      uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        toolchain: stable
+    - name: Build Forge Binary
+      run: cargo build
+    - name: Create forgee Symlink
+      run: mkdir -p ~/bin && ln -sf $(pwd)/target/debug/forge ~/bin/forgee && echo "$HOME/bin" >> $GITHUB_PATH
+    - id: run_evals
+      name: Run Evaluations
+      run: tsx scripts/run-all-evals.ts > benchmark-results.log 2>&1 || true
+      env:
+        OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+    - name: Format Results
+      run: tsx benchmarks/format-results.ts benchmark-results.log > benchmark-results.md
+    - name: Post Results to PR
+      if: always()
+      run: gh pr comment ${{ github.event.pull_request.number }} --body-file benchmark-results.md
+      env:
+        GH_TOKEN: ${{ github.token }}
+    - name: Upload Logs
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        path: benchmark-results.log
   draft_release:
     needs:
     - build

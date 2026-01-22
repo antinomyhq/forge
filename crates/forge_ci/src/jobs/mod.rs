@@ -1,5 +1,6 @@
 //! Jobs for CI workflows
 
+mod benchmark_job;
 mod draft_release_update_job;
 mod label_sync_job;
 mod lint;
@@ -9,6 +10,7 @@ mod release_draft_pr;
 mod release_homebrew;
 mod release_npm;
 
+pub use benchmark_job::*;
 pub use draft_release_update_job::*;
 pub use label_sync_job::*;
 pub use lint::*;

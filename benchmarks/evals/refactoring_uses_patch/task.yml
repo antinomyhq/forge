@@ -20,7 +20,7 @@ run:
         }
     }
     RUSTEOF
-  - FORGE_OVERRIDE_PROVIDER=zai_coding FORGE_OVERRIDE_MODEL={{model}} FORGE_DEBUG_REQUESTS='{{dir}}/context.json' forgee -p '{{task}}'
+  - FORGE_OVERRIDE_PROVIDER=open_router FORGE_OVERRIDE_MODEL={{model}} FORGE_DEBUG_REQUESTS='{{dir}}/context.json' forgee -p '{{task}}'
 
 parallelism: 5
 timeout: 120
@@ -39,7 +39,7 @@ validations:
 
 sources:
   - value:
-      - model: "glm-4.7"
+      - model: "z-ai/glm-4.7"
   - value:
       - task: "Refactor all methods in test_files/api.rs to add error handling by changing return type from String to Result<String, Error>"
       - task: "Update test_files/api.rs methods to return Result<String, Error> instead of String"
