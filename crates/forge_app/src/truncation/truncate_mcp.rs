@@ -53,7 +53,7 @@ pub fn truncate_mcp_output(output: ToolOutput, limit: usize) -> anyhow::Result<T
         .filter_map(|value| match value {
             ToolValue::Text(text) if remaining > 0 => {
                 let truncated = truncate_text(&text, remaining);
-                remaining = remaining.saturating_sub(text.len());
+                remaining = remaining.saturating_sub(truncated.len());
                 Some(ToolValue::Text(truncated))
             }
             ToolValue::Text(_) => None,
@@ -121,6 +121,7 @@ mod tests {
         };
 
         let actual = truncate_mcp_output(fixture, 50).unwrap();
+
         match actual {
             TruncationResult::Truncated { truncated_values, total_size, limit, .. } => {
                 // First text is truncated to 50, second is dropped (remaining=0)
@@ -128,6 +129,68 @@ mod tests {
                 assert_eq!(truncated_values[0], ToolValue::Text("a".repeat(50)));
                 assert_eq!(total_size, 100);
                 assert_eq!(limit, 50);
+            }
+            TruncationResult::Unchanged(_) => panic!("Expected truncation"),
+        }
+    }
+
+    #[test]
+    fn test_truncate_mcp_output_shares_limit_across_texts() {
+        let fixture = ToolOutput {
+            is_error: false,
+            values: vec![
+                ToolValue::Text("a".repeat(30)),
+                ToolValue::Text("b".repeat(40)),
+            ],
+        };
+
+        let actual = truncate_mcp_output(fixture, 50).unwrap();
+
+        match actual {
+            TruncationResult::Truncated { truncated_values, .. } => {
+                // First text: 30 chars, remaining = 20
+                // Second text: truncated to 20 chars, remaining = 0
+                assert_eq!(truncated_values.len(), 2);
+                assert_eq!(
+                    truncated_values[0],
+                    ToolValue::Text("a".repeat(30))
+                );
+                assert_eq!(
+                    truncated_values[1],
+                    ToolValue::Text("b".repeat(20))
+                );
+            }
+            TruncationResult::Unchanged(_) => panic!("Expected truncation"),
+        }
+    }
+
+    #[test]
+    fn test_truncate_mcp_output_truncates_multiple_partial_texts() {
+        let fixture = ToolOutput {
+            is_error: false,
+            values: vec![
+                ToolValue::Text("a".repeat(25)),
+                ToolValue::Text("b".repeat(25)),
+                ToolValue::Text("c".repeat(25)),
+            ],
+        };
+
+        let actual = truncate_mcp_output(fixture, 50).unwrap();
+
+        match actual {
+            TruncationResult::Truncated { truncated_values, .. } => {
+                // First text: 25 chars (fits), remaining = 25
+                // Second text: 25 chars (fits), remaining = 0
+                // Third text: dropped (remaining = 0)
+                assert_eq!(truncated_values.len(), 2);
+                assert_eq!(
+                    truncated_values[0],
+                    ToolValue::Text("a".repeat(25))
+                );
+                assert_eq!(
+                    truncated_values[1],
+                    ToolValue::Text("b".repeat(25))
+                );
             }
             TruncationResult::Unchanged(_) => panic!("Expected truncation"),
         }
