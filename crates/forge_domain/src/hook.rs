@@ -181,20 +181,20 @@ impl fmt::Debug for Hook {
 impl Hook {
     /// Creates a new hook with the provided event handlers
     pub fn new(
-        on_start: Box<dyn EventHandle>,
-        on_end: Box<dyn EventHandle>,
-        on_request: Box<dyn EventHandle>,
-        on_response: Box<dyn EventHandle>,
-        on_toolcall_start: Box<dyn EventHandle>,
-        on_toolcall_end: Box<dyn EventHandle>,
+        on_start: impl Into<Box<dyn EventHandle>>,
+        on_end: impl Into<Box<dyn EventHandle>>,
+        on_request: impl Into<Box<dyn EventHandle>>,
+        on_response: impl Into<Box<dyn EventHandle>>,
+        on_toolcall_start: impl Into<Box<dyn EventHandle>>,
+        on_toolcall_end: impl Into<Box<dyn EventHandle>>,
     ) -> Self {
         Self {
-            on_start,
-            on_end,
-            on_request,
-            on_response,
-            on_toolcall_start,
-            on_toolcall_end,
+            on_start: on_start.into(),
+            on_end: on_end.into(),
+            on_request: on_request.into(),
+            on_response: on_response.into(),
+            on_toolcall_start: on_toolcall_start.into(),
+            on_toolcall_end: on_toolcall_end.into(),
         }
     }
 
@@ -522,7 +522,7 @@ mod tests {
         let events = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
 
         let hook = Hook::new(
-            Box::new({
+            {
                 let events = events.clone();
                 move |event: LifecycleEvent, _conversation: &mut Conversation| {
                     let events = events.clone();
@@ -531,8 +531,8 @@ mod tests {
                         Ok(Step::proceed())
                     }
                 }
-            }),
-            Box::new({
+            },
+            {
                 let events = events.clone();
                 move |event: LifecycleEvent, _conversation: &mut Conversation| {
                     let events = events.clone();
@@ -541,8 +541,8 @@ mod tests {
                         Ok(Step::proceed())
                     }
                 }
-            }),
-            Box::new({
+            },
+            {
                 let events = events.clone();
                 move |event: LifecycleEvent, _conversation: &mut Conversation| {
                     let events = events.clone();
@@ -551,8 +551,8 @@ mod tests {
                         Ok(Step::proceed())
                     }
                 }
-            }),
-            Box::new({
+            },
+            {
                 let events = events.clone();
                 move |event: LifecycleEvent, _conversation: &mut Conversation| {
                     let events = events.clone();
@@ -561,8 +561,8 @@ mod tests {
                         Ok(Step::proceed())
                     }
                 }
-            }),
-            Box::new({
+            },
+            {
                 let events = events.clone();
                 move |event: LifecycleEvent, _conversation: &mut Conversation| {
                     let events = events.clone();
@@ -571,8 +571,8 @@ mod tests {
                         Ok(Step::proceed())
                     }
                 }
-            }),
-            Box::new({
+            },
+            {
                 let events = events.clone();
                 move |event: LifecycleEvent, _conversation: &mut Conversation| {
                     let events = events.clone();
@@ -581,7 +581,7 @@ mod tests {
                         Ok(Step::proceed())
                     }
                 }
-            }),
+            },
         );
 
         let mut conversation = Conversation::generate();
