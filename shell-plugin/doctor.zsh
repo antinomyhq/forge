@@ -298,7 +298,181 @@ else
     print_result warn "PATH may need common directories" "Ensure /usr/local/bin or /usr/bin is in PATH"
 fi
 
-# Check font and Nerd Font support
+# 7. Check keyboard configuration (Alt/Option key as Meta)
+print_section "Keyboard Configuration"
+
+local platform=$(uname)
+local meta_key_ok=false
+local check_performed=false
+
+if [[ "$platform" == "Darwin" ]]; then
+    # macOS checks
+    if [[ "$TERM_PROGRAM" == "vscode" ]]; then
+        check_performed=true
+        # Check VS Code settings
+        local vscode_settings="${HOME}/Library/Application Support/Code/User/settings.json"
+        if [[ -f "$vscode_settings" ]]; then
+            if grep -q '"terminal.integrated.macOptionIsMeta"[[:space:]]*:[[:space:]]*true' "$vscode_settings" 2>/dev/null; then
+                print_result pass "VS Code: Option key configured as Meta"
+                meta_key_ok=true
+            else
+                print_result fail "VS Code: Option key NOT configured as Meta"
+                print_result instruction "Option+F and Option+B shortcuts won't work for word navigation"
+                print_result instruction "Add to VS Code settings.json:"
+                print_result code '"terminal.integrated.macOptionIsMeta": true'
+                print_result instruction "Then reload VS Code: Cmd+Shift+P → Reload Window"
+            fi
+        else
+            print_result warn "VS Code settings file not found"
+            print_result info "Expected: ${vscode_settings}"
+        fi
+    elif [[ "$TERM_PROGRAM" == "iTerm.app" ]]; then
+        check_performed=true
+        # Check iTerm2 preferences
+        local iterm_prefs="${HOME}/Library/Preferences/com.googlecode.iterm2.plist"
+        if [[ -f "$iterm_prefs" ]]; then
+            # Check if either Left or Right Option key is set to Esc+ (value 2)
+            local option_setting=$(defaults read com.googlecode.iterm2 2>/dev/null | grep -E '"(Left |Right )?Option Key Sends"' | grep -o '[0-9]' | head -1)
+            if [[ "$option_setting" == "2" ]]; then
+                print_result pass "iTerm2: Option key configured as Esc+"
+                meta_key_ok=true
+            else
+                print_result fail "iTerm2: Option key NOT configured as Esc+"
+                print_result instruction "Option+F and Option+B shortcuts won't work for word navigation"
+                print_result instruction "Configure in iTerm2:"
+                print_result info "Preferences → Profiles → Keys → Left/Right Option Key → Esc+"
+            fi
+        else
+            print_result warn "iTerm2 preferences not found"
+            print_result info "Expected: ${iterm_prefs}"
+        fi
+    elif [[ "$TERM_PROGRAM" == "Apple_Terminal" ]]; then
+        check_performed=true
+        # Check Terminal.app preferences
+        local terminal_prefs="${HOME}/Library/Preferences/com.apple.Terminal.plist"
+        if [[ -f "$terminal_prefs" ]]; then
+            local use_option=$(defaults read com.apple.Terminal 2>/dev/null | grep -E 'useOptionAsMetaKey' | grep -o '[0-9]' | head -1)
+            if [[ "$use_option" == "1" ]]; then
+                print_result pass "Terminal.app: Option key configured as Meta"
+                meta_key_ok=true
+            else
+                print_result fail "Terminal.app: Option key NOT configured as Meta"
+                print_result instruction "Option+F and Option+B shortcuts won't work for word navigation"
+                print_result instruction "Configure in Terminal.app:"
+                print_result info "Preferences → Profiles → Keyboard → ✓ Use Option as Meta key"
+            fi
+        else
+            print_result warn "Terminal.app preferences not found"
+            print_result info "Expected: ${terminal_prefs}"
+        fi
+    fi
+    
+    # If no specific terminal detected, provide general guidance for macOS
+    if [[ "$check_performed" == "false" ]]; then
+        print_result info "Terminal: ${TERM_PROGRAM:-unknown}"
+        print_result info "For Option key shortcuts (word navigation) to work:"
+        print_result info "• VS Code: Settings → terminal.integrated.macOptionIsMeta → true"
+        print_result info "• iTerm2: Preferences → Profiles → Keys → Option Key → Esc+"
+        print_result info "• Terminal.app: Preferences → Profiles → Keyboard → Use Option as Meta"
+        print_result info "Run 'forge zsh keyboard' for detailed keyboard shortcuts"
+    fi
+    
+elif [[ "$platform" == "Linux" ]]; then
+    # Linux checks
+    if [[ "$TERM_PROGRAM" == "vscode" ]]; then
+        check_performed=true
+        # Check VS Code settings on Linux
+        local vscode_settings="${HOME}/.config/Code/User/settings.json"
+        if [[ -f "$vscode_settings" ]]; then
+            # On Linux, check for sendAltAsMetaKey (deprecated but still works) or macOptionIsMeta
+            if grep -q '"terminal.integrated.sendAltAsMetaKey"[[:space:]]*:[[:space:]]*true' "$vscode_settings" 2>/dev/null || \
+               grep -q '"terminal.integrated.macOptionIsMeta"[[:space:]]*:[[:space:]]*true' "$vscode_settings" 2>/dev/null; then
+                print_result pass "VS Code: Alt key configured as Meta"
+                meta_key_ok=true
+            else
+                print_result fail "VS Code: Alt key NOT configured as Meta"
+                print_result instruction "Alt+F and Alt+B shortcuts won't work for word navigation"
+                print_result instruction "Add to VS Code settings.json:"
+                print_result code '"terminal.integrated.sendAltAsMetaKey": true'
+                print_result instruction "Then reload VS Code: Ctrl+Shift+P → Reload Window"
+            fi
+        else
+            print_result warn "VS Code settings file not found"
+            print_result info "Expected: ${vscode_settings}"
+        fi
+    elif [[ -n "$GNOME_TERMINAL_SERVICE" ]] || [[ "$COLORTERM" == "gnome-terminal" ]]; then
+        check_performed=true
+        # GNOME Terminal check
+        local profile_id=$(gsettings get org.gnome.Terminal.ProfilesList default 2>/dev/null | tr -d "'")
+        if [[ -n "$profile_id" ]]; then
+            local alt_sends_escape=$(gsettings get org.gnome.Terminal.Legacy.Profile:/org/gnome/terminal/legacy/profiles:/:${profile_id}/ use-theme-colors 2>/dev/null)
+            # GNOME Terminal doesn't have a simple setting check - most distributions enable Alt by default
+            print_result pass "GNOME Terminal: Alt key typically works by default"
+            print_result info "If Alt+F/B don't work, check: Preferences → Profile → Keyboard"
+            meta_key_ok=true
+        else
+            print_result info "GNOME Terminal detected"
+            print_result info "Alt key typically works by default for word navigation"
+        fi
+    elif [[ "$COLORTERM" == "truecolor" ]] && command -v konsole &> /dev/null; then
+        check_performed=true
+        # Konsole (KDE) - Alt typically works by default
+        print_result pass "Konsole: Alt key typically works by default"
+        print_result info "If Alt+F/B don't work, check: Settings → Edit Profile → Keyboard"
+        meta_key_ok=true
+    elif [[ -n "$ALACRITTY_SOCKET" ]] || [[ "$TERM" == "alacritty" ]]; then
+        check_performed=true
+        # Alacritty check - look for config file
+        local alacritty_config="${HOME}/.config/alacritty/alacritty.yml"
+        local alacritty_config_toml="${HOME}/.config/alacritty/alacritty.toml"
+        
+        if [[ -f "$alacritty_config" ]] || [[ -f "$alacritty_config_toml" ]]; then
+            print_result pass "Alacritty: Alt key typically works by default"
+            print_result info "If Alt+F/B don't work, ensure no conflicting key bindings"
+            meta_key_ok=true
+        else
+            print_result pass "Alacritty: Alt key typically works by default"
+            print_result info "Config: ${alacritty_config} or ${alacritty_config_toml}"
+        fi
+    elif [[ "$TERM" == "xterm" ]] || [[ "$TERM" == "xterm-256color" ]]; then
+        check_performed=true
+        # xterm - check .Xresources
+        local xresources="${HOME}/.Xresources"
+        if [[ -f "$xresources" ]]; then
+            if grep -q "XTerm\*metaSendsEscape:[[:space:]]*true" "$xresources" 2>/dev/null || \
+               grep -q "XTerm\*eightBitInput:[[:space:]]*false" "$xresources" 2>/dev/null; then
+                print_result pass "xterm: Meta key configured"
+                meta_key_ok=true
+            else
+                print_result warn "xterm: Meta key may not be configured"
+                print_result instruction "Add to ~/.Xresources:"
+                print_result code "XTerm*metaSendsEscape: true"
+                print_result instruction "Then reload: xrdb ~/.Xresources"
+            fi
+        else
+            print_result info "xterm detected"
+            print_result info "To enable Alt as Meta, add to ~/.Xresources:"
+            print_result info "XTerm*metaSendsEscape: true"
+        fi
+    fi
+    
+    # If no specific terminal detected, provide general guidance for Linux
+    if [[ "$check_performed" == "false" ]]; then
+        print_result info "Terminal: ${TERM_PROGRAM:-$TERM}"
+        print_result info "For Alt key shortcuts (word navigation) to work:"
+        print_result info "• VS Code: Settings → terminal.integrated.sendAltAsMetaKey → true"
+        print_result info "• GNOME Terminal: Usually works by default"
+        print_result info "• Konsole: Usually works by default"
+        print_result info "• xterm: Add 'XTerm*metaSendsEscape: true' to ~/.Xresources"
+        print_result info "Run 'forge zsh keyboard' for detailed keyboard shortcuts"
+    fi
+else
+    # Other platforms (BSD, etc.)
+    print_result info "Keyboard check: Platform ${platform} - manual verification needed"
+    print_result info "Ensure Alt/Meta key is configured for word navigation shortcuts"
+fi
+
+# 8. Check font and Nerd Font support
 print_section "Nerd Font"
 
 # Check if Nerd Font is enabled via environment variables

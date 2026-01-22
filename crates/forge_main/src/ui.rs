@@ -440,6 +440,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     crate::cli::ZshCommandGroup::Setup => {
                         self.on_zsh_setup().await?;
                     }
+                    crate::cli::ZshCommandGroup::Keyboard => {
+                        self.on_zsh_keyboard().await?;
+                    }
                 }
                 return Ok(());
             }
@@ -1486,6 +1489,17 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Stream the diagnostic output in real-time
         crate::zsh::run_zsh_doctor()?;
+
+        Ok(())
+    }
+
+    /// Show ZSH keyboard shortcuts
+    async fn on_zsh_keyboard(&mut self) -> anyhow::Result<()> {
+        // Stop spinner before streaming output to avoid interference
+        self.spinner.stop(None)?;
+
+        // Stream the keyboard shortcuts output in real-time
+        crate::zsh::run_zsh_keyboard()?;
 
         Ok(())
     }
