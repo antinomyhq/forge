@@ -214,11 +214,16 @@ impl<S: Services> ToolRegistry<S> {
                                 .create_temp_file("forge_mcp_", ".txt", truncated.full_text)
                                 .await?;
 
+                            let reason = format!(
+                                "Output truncated due to exceeding the {} character limit. Full output saved in file_path",
+                                limit
+                            );
                             // Wrap in XML with metadata
                             let xml = Element::new("mcp_output")
                                 .attr("original_size", truncated.original_size)
                                 .attr("limit", limit)
                                 .attr("file_path", temp_path.display())
+                                .attr("reason", reason)
                                 .cdata(&truncated.content);
 
                             new_values.push(ToolValue::Text(xml.render()));
