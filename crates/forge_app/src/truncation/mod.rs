@@ -6,7 +6,8 @@ pub use truncate_fetch::*;
 pub use truncate_search::*;
 pub use truncate_shell::*;
 
-/// Truncates text content based on character limit, preserving Unicode boundaries.
+/// Truncates text content based on character limit, preserving Unicode
+/// boundaries.
 pub fn truncate_text(content: &str, limit: usize) -> String {
     if content.len() <= limit {
         content.to_string()
@@ -17,8 +18,9 @@ pub fn truncate_text(content: &str, limit: usize) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use pretty_assertions::assert_eq;
+
+    use super::*;
 
     #[test]
     fn test_truncate_text_no_truncation_needed() {
