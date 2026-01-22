@@ -293,12 +293,18 @@ pub fn setup_zsh_integration(
     let backup_path = if zshrc_path.exists() {
         // Generate timestamp for backup filename
         let timestamp = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
-        
+
         // Safe to unwrap: zshrc_path was constructed from a valid HOME/ZDOTDIR path
-        let parent = zshrc_path.parent().context("zshrc path has no parent directory")?;
-        let filename = zshrc_path.file_name().context("zshrc path has no filename")?;
-        let filename_str = filename.to_str().context("zshrc filename is not valid UTF-8")?;
-        
+        let parent = zshrc_path
+            .parent()
+            .context("zshrc path has no parent directory")?;
+        let filename = zshrc_path
+            .file_name()
+            .context("zshrc path has no filename")?;
+        let filename_str = filename
+            .to_str()
+            .context("zshrc filename is not valid UTF-8")?;
+
         let backup = parent.join(format!("{}.bak.{}", filename_str, timestamp));
         fs::copy(&zshrc_path, &backup)
             .context(format!("Failed to create backup at {}", backup.display()))?;
