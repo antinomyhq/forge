@@ -37,7 +37,7 @@ function print_shortcut() {
         echo "  $(dim "${key}")"
     else
         # Two arguments - pad the key and align descriptions
-        printf "  $(dim "%-16s%s")\n" "$key" "$description"
+        printf "  $(cyan "%-16s")%s\n" "$key" "$description"
     fi
 }
 
@@ -80,19 +80,13 @@ if [[ "$vi_mode" == "true" ]]; then
     print_shortcut "A" "Enter insert mode (end of line)"
     print_shortcut "I" "Enter insert mode (start of line)"
     
-    print_section "Navigation (Command Mode)"
-    print_shortcut "h / ←" "Move left one character"
-    print_shortcut "l / →" "Move right one character"
+    print_section "Navigation (Command Mode)"        
     print_shortcut "w" "Move forward one word"
     print_shortcut "b" "Move backward one word"
     print_shortcut "0 / ^" "Move to beginning of line"
-    print_shortcut "\$" "Move to end of line"
-    print_shortcut "f<char>" "Find character forward"
-    print_shortcut "F<char>" "Find character backward"
+    print_shortcut "\$" "Move to end of line"        
     
     print_section "Editing (Command Mode)"
-    print_shortcut "x" "Delete character under cursor"
-    print_shortcut "X" "Delete character before cursor"
     print_shortcut "dd" "Delete entire line"
     print_shortcut "D" "Delete from cursor to end of line"
     print_shortcut "cc" "Change entire line"
@@ -114,7 +108,6 @@ if [[ "$vi_mode" == "true" ]]; then
     print_section "Insert Mode"
     print_shortcut "Ctrl+W" "Delete word before cursor"
     print_shortcut "Ctrl+U" "Delete from cursor to start"
-    print_shortcut "Ctrl+H" "Delete character before cursor"
     
     print_section "Other"
     print_shortcut "v" "Edit command in \$EDITOR"
@@ -126,9 +119,7 @@ else
     # Emacs mode shortcuts (default)
     print_section "Line Navigation"
     print_shortcut "Ctrl+A" "Move to beginning of line"
-    print_shortcut "Ctrl+E" "Move to end of line"
-    print_shortcut "Ctrl+F" "Move forward one character"
-    print_shortcut "Ctrl+B" "Move backward one character"
+    print_shortcut "Ctrl+E" "Move to end of line"        
     print_shortcut "${alt_key}+F" "Move forward one word"
     print_shortcut "${alt_key}+B" "Move backward one word"
     
@@ -138,9 +129,7 @@ else
     print_shortcut "Ctrl+W" "Kill word before cursor"
     print_shortcut "${alt_key}+D" "Kill word after cursor"
     print_shortcut "Ctrl+Y" "Yank (paste) killed text"
-    print_shortcut "Ctrl+T" "Transpose characters"
-    print_shortcut "Ctrl+D" "Delete character or exit"
-    print_shortcut "Ctrl+H" "Delete character before cursor"
+    print_shortcut "Ctrl+_" "Undo last edit"            
     
     print_section "History"
     print_shortcut "Ctrl+R" "Search command history backward"
@@ -157,6 +146,11 @@ else
     print_shortcut "Tab" "Complete command/path"
     
     echo ""
+    if [[ "$platform" == "macOS" ]]; then
+        echo "  $(dim "If Option key shortcuts don't work, run: forge zsh doctor")"
+    elif [[ "$platform" == "Linux" ]]; then
+        echo "  $(dim "If Alt key shortcuts don't work, run: forge zsh doctor")"
+    fi
     echo "  $(dim "To enable Vi mode, add to ~/.zshrc: bindkey -v")"
 fi
 
