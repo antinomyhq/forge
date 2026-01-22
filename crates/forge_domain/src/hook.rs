@@ -110,14 +110,19 @@ pub trait EventHandle: Send + Sync {
 /// Extension trait for combining event handlers
 ///
 /// This trait provides methods to combine multiple event handlers into a single
-/// handler that executes them in sequence.
+/// handler that executes them in sequence with short-circuit behavior.
 pub trait EventHandleExt: EventHandle {
     /// Combines this handler with another handler, creating a new handler that
-    /// runs both in sequence
+    /// runs both in sequence with short-circuit behavior
     ///
-    /// When an event is handled, both handlers will be called in sequence.
-    /// This handler runs first, then the other handler.
-    /// The result from the other handler is returned.
+    /// When an event is handled, this handler runs first. If it returns
+    /// `Step::Proceed`, the other handler runs and its result is returned.
+    /// If this handler returns `Step::Interrupt`, the other handler is skipped
+    /// and the interrupt is returned immediately (short-circuit).
+    ///
+    /// **Important**: If you need the second handler to always execute (e.g., for
+    /// cleanup, logging, or metrics), do not rely on this method. Instead,
+    /// implement a single handler that performs both operations.
     ///
     /// # Arguments
     /// * `other` - Another handler to combine with this one
@@ -213,11 +218,16 @@ impl Hook {
     }
 
     /// Combines this hook with another hook, creating a new hook that runs both
-    /// handlers
+    /// handlers with short-circuit behavior
     ///
-    /// When an event is handled, both hooks' handlers will be called in
-    /// sequence. The first hook's handler runs first, then the second
-    /// hook's handler. The result from the second hook is returned.
+    /// When an event is handled, the first hook's handler runs first. If it returns
+    /// `Step::Proceed`, the second hook's handler runs and its result is returned.
+    /// If the first handler returns `Step::Interrupt`, the second handler is skipped
+    /// and the interrupt is returned immediately (short-circuit).
+    ///
+    /// **Important**: If you need the second hook's handlers to always execute (e.g.,
+    /// for cleanup, logging, or metrics), do not rely on this method. Instead,
+    /// implement a single hook that performs both operations.
     ///
     /// # Arguments
     /// * `other` - Another hook to combine with this one
@@ -263,9 +273,13 @@ impl EventHandle for Hook {
     }
 }
 
-/// A handler that combines two event handlers, running both in sequence
+/// A handler that combines two event handlers with short-circuit behavior
 ///
-/// This is used internally by the `Hook::zip` method to combine two hooks.
+/// Runs the first handler, and only runs the second handler if the first returns
+/// `Step::Proceed`. If the first handler returns `Step::Interrupt`, the second
+/// handler is skipped and the interrupt is returned immediately.
+///
+/// This is used internally by the `Hook::zip` and `EventHandleExt::and` methods.
 struct CombinedHandler(Box<dyn EventHandle>, Box<dyn EventHandle>);
 
 #[async_trait]
