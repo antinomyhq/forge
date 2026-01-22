@@ -407,14 +407,25 @@ mod tests {
         let actual = fixture.get_headers();
 
         // Should contain anthropic-version header
-        assert!(actual.iter().any(|(k, v)| k == "anthropic-version" && v == "2023-06-01"));
+        assert!(
+            actual
+                .iter()
+                .any(|(k, v)| k == "anthropic-version" && v == "2023-06-01")
+        );
 
         // Should contain x-api-key header (not authorization)
-        assert!(actual.iter().any(|(k, v)| k == "x-api-key" && v == "sk-test-key"));
+        assert!(
+            actual
+                .iter()
+                .any(|(k, v)| k == "x-api-key" && v == "sk-test-key")
+        );
 
         // Should contain anthropic-beta header with structured outputs support
         let beta_header = actual.iter().find(|(k, _)| k == "anthropic-beta");
-        assert!(beta_header.is_some(), "anthropic-beta header should be present for API key auth");
+        assert!(
+            beta_header.is_some(),
+            "anthropic-beta header should be present for API key auth"
+        );
 
         let (_, beta_value) = beta_header.unwrap();
         assert!(
@@ -443,14 +454,25 @@ mod tests {
         let actual = fixture.get_headers();
 
         // Should contain anthropic-version header
-        assert!(actual.iter().any(|(k, v)| k == "anthropic-version" && v == "2023-06-01"));
+        assert!(
+            actual
+                .iter()
+                .any(|(k, v)| k == "anthropic-version" && v == "2023-06-01")
+        );
 
         // Should contain authorization header (not x-api-key)
-        assert!(actual.iter().any(|(k, v)| k == "authorization" && v == "Bearer oauth-token"));
+        assert!(
+            actual
+                .iter()
+                .any(|(k, v)| k == "authorization" && v == "Bearer oauth-token")
+        );
 
         // Should contain anthropic-beta header with structured outputs support
         let beta_header = actual.iter().find(|(k, _)| k == "anthropic-beta");
-        assert!(beta_header.is_some(), "anthropic-beta header should be present for OAuth");
+        assert!(
+            beta_header.is_some(),
+            "anthropic-beta header should be present for OAuth"
+        );
 
         let (_, beta_value) = beta_header.unwrap();
         assert!(
