@@ -40,8 +40,8 @@ function _forge_action_editor() {
         echo "$initial_text" > "$temp_file"
     fi
     
-    # Open editor
-    eval "$editor_cmd '$temp_file'"
+    # Open editor in subshell with its own TTY session
+    (eval "$editor_cmd '$temp_file'" </dev/tty >/dev/tty 2>&1)
     local editor_exit_code=$?
     
     if [ $editor_exit_code -ne 0 ]; then
