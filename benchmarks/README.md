@@ -36,7 +36,7 @@ Benchmark evaluations can be run automatically on pull requests using GitHub Act
 
 To run benchmarks on a PR:
 
-1. Apply the `ci:benchmark` label to your pull request
+1. Apply the `ci: benchmark` label to your pull request
 2. GitHub Actions will automatically run all evaluations in `benchmarks/evals/`
 3. Results will be posted as a formatted table comment on the PR
 

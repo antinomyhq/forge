@@ -77,7 +77,7 @@ jobs:
     - name: Run performance benchmark
       run: './scripts/benchmark.sh --threshold 60 zsh rprompt'
   benchmark:
-    if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:benchmark')
+    if: 'github.event_name == ''pull_request'' && contains(github.event.pull_request.labels.*.name, ''ci: benchmark'')'
     name: Run Benchmark Evaluations
     runs-on: ubuntu-latest
     permissions:

@@ -1,6 +1,6 @@
 use gh_workflow::*;
 
-/// Creates a benchmark evaluation job that runs when ci:benchmark label is
+/// Creates a benchmark evaluation job that runs when ci: benchmark label is
 /// applied
 ///
 /// This job:
@@ -17,7 +17,7 @@ pub fn benchmark_job() -> Job {
                 .pull_requests(Level::Write),
         )
         .cond(Expression::new(
-            "github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:benchmark')",
+            "github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci: benchmark')",
         ))
         .timeout_minutes(60u32)
         // Checkout code
