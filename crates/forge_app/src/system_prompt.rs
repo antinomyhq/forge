@@ -201,9 +201,9 @@ mod tests {
         // Fixture - create system prompt with tool definitions
         let services = Arc::new(MockSkillFetchService);
         let env = create_test_environment();
-        let agent = create_test_agent().system_prompt(
-            Template::new("Tools: {{tool_names.todo_write}}, {{tool_names.read}}"),
-        );
+        let agent = create_test_agent().system_prompt(Template::new(
+            "Tools: {{tool_names.todo_write}}, {{tool_names.read}}",
+        ));
 
         let tool_definitions = vec![
             ToolDefinition::new("todo_write").description("Task tracking"),
@@ -211,8 +211,8 @@ mod tests {
             ToolDefinition::new("write").description("Write files"),
         ];
 
-        let system_prompt = SystemPrompt::new(services, env, agent)
-            .tool_definitions(tool_definitions);
+        let system_prompt =
+            SystemPrompt::new(services, env, agent).tool_definitions(tool_definitions);
 
         // Act
         let conversation = forge_domain::Conversation::generate();
@@ -250,12 +250,10 @@ mod tests {
         ));
 
         // Only include fs_search, not sem_search
-        let tool_definitions = vec![
-            ToolDefinition::new("fs_search").description("File search"),
-        ];
+        let tool_definitions = vec![ToolDefinition::new("fs_search").description("File search")];
 
-        let system_prompt = SystemPrompt::new(services, env, agent)
-            .tool_definitions(tool_definitions);
+        let system_prompt =
+            SystemPrompt::new(services, env, agent).tool_definitions(tool_definitions);
 
         // Act
         let conversation = forge_domain::Conversation::generate();
@@ -304,8 +302,8 @@ mod tests {
             ToolDefinition::new("fs_search").description("File search"),
         ];
 
-        let system_prompt = SystemPrompt::new(services, env, agent)
-            .tool_definitions(tool_definitions);
+        let system_prompt =
+            SystemPrompt::new(services, env, agent).tool_definitions(tool_definitions);
 
         // Act
         let conversation = forge_domain::Conversation::generate();
