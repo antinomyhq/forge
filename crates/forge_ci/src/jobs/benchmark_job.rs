@@ -50,15 +50,15 @@ pub fn benchmark_job() -> Job {
         // Run all evaluations with JSON logging
         .add_step(
             Step::new("Run Evaluations")
-                .run("tsx scripts/run-all-evals.ts > benchmark-results.log 2>&1 || true")
+                .run("npx tsx scripts/run-all-evals.ts > benchmark-results.log 2>&1 || true")
                 .id("run_evals")
-                .env(("LOG_JSON", "1"))
-                .env(("OPENROUTER_API_KEY", "${{ secrets.OPENROUTER_API_KEY }}")),
+                .add_env(("LOG_JSON", "1"))
+                .add_env(("OPENROUTER_API_KEY", "${{ secrets.OPENROUTER_API_KEY }}")),
         )
         // Format results into Markdown table
         .add_step(
             Step::new("Format Results")
-                .run("tsx benchmarks/format-results.ts benchmark-results.log > benchmark-results.md"),
+                .run("npx tsx benchmarks/format-results.ts benchmark-results.log > benchmark-results.md"),
         )
         // Post results as PR comment
         .add_step(

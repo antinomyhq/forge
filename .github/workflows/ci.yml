@@ -107,11 +107,12 @@ jobs:
       run: mkdir -p ~/bin && ln -sf $(pwd)/target/debug/forge ~/bin/forgee && echo "$HOME/bin" >> $GITHUB_PATH
     - id: run_evals
       name: Run Evaluations
-      run: tsx scripts/run-all-evals.ts > benchmark-results.log 2>&1 || true
+      run: npx tsx scripts/run-all-evals.ts > benchmark-results.log 2>&1 || true
       env:
+        LOG_JSON: '1'
         OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
     - name: Format Results
-      run: tsx benchmarks/format-results.ts benchmark-results.log > benchmark-results.md
+      run: npx tsx benchmarks/format-results.ts benchmark-results.log > benchmark-results.md
     - name: Post Results to PR
       if: always()
       run: gh pr comment ${{ github.event.pull_request.number }} --body-file benchmark-results.md
