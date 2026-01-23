@@ -1,4 +1,3 @@
-use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -392,7 +391,13 @@ impl<S: FsWriteService> ToolRegistry<S> {
 
                     if is_truncated {
                         // Write full content to temp file
-                        let temp_path = self.create_temp_file("forge_mcp_", ".txt", &text).await?;
+                        let temp_path = crate::utils::create_temp_file(
+                            &*self.services,
+                            "forge_mcp_",
+                            ".txt",
+                            &text,
+                        )
+                        .await?;
 
                         // Truncate content for display (same strategy as fetch)
                         let truncated_content = truncate_fetch_content(&text, limit);
@@ -424,30 +429,6 @@ impl<S: FsWriteService> ToolRegistry<S> {
             }
         }
         Ok(ToolOutput { values: new_values, is_error: output.is_error })
-    }
-
-    /// Creates a temporary file with the given content.
-    async fn create_temp_file(
-        &self,
-        prefix: &str,
-        ext: &str,
-        content: &str,
-    ) -> anyhow::Result<PathBuf> {
-        let path = tempfile::Builder::new()
-            .disable_cleanup(true)
-            .prefix(prefix)
-            .suffix(ext)
-            .tempfile()?
-            .into_temp_path()
-            .to_path_buf();
-        self.services
-            .write(
-                path.to_string_lossy().to_string(),
-                content.to_string(),
-                true,
-            )
-            .await?;
-        Ok(path)
     }
 }
 

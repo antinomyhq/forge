@@ -74,8 +74,13 @@ impl<
 
                 if is_truncated {
                     files = files.stdout(
-                        self.create_temp_file("forge_fetch_", ".txt", &output.content)
-                            .await?,
+                        crate::utils::create_temp_file(
+                            &*self.services,
+                            "forge_fetch_",
+                            ".txt",
+                            &output.content,
+                        )
+                        .await?,
                     );
                 }
 
@@ -94,14 +99,24 @@ impl<
 
                 if stdout_truncated {
                     files = files.stdout(
-                        self.create_temp_file("forge_shell_stdout_", ".txt", &output.output.stdout)
-                            .await?,
+                        crate::utils::create_temp_file(
+                            &*self.services,
+                            "forge_shell_stdout_",
+                            ".txt",
+                            &output.output.stdout,
+                        )
+                        .await?,
                     );
                 }
                 if stderr_truncated {
                     files = files.stderr(
-                        self.create_temp_file("forge_shell_stderr_", ".txt", &output.output.stderr)
-                            .await?,
+                        crate::utils::create_temp_file(
+                            &*self.services,
+                            "forge_shell_stderr_",
+                            ".txt",
+                            &output.output.stderr,
+                        )
+                        .await?,
                     );
                 }
 
@@ -122,29 +137,6 @@ impl<
         } else {
             PathBuf::from(&env.cwd).join(path_buf).display().to_string()
         }
-    }
-
-    async fn create_temp_file(
-        &self,
-        prefix: &str,
-        ext: &str,
-        content: &str,
-    ) -> anyhow::Result<std::path::PathBuf> {
-        let path = tempfile::Builder::new()
-            .disable_cleanup(true)
-            .prefix(prefix)
-            .suffix(ext)
-            .tempfile()?
-            .into_temp_path()
-            .to_path_buf();
-        self.services
-            .write(
-                path.to_string_lossy().to_string(),
-                content.to_string(),
-                true,
-            )
-            .await?;
-        Ok(path)
     }
 
     async fn call_internal(&self, input: ToolCatalog) -> anyhow::Result<ToolOperation> {
