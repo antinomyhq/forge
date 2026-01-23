@@ -1,5 +1,11 @@
 /// Clips text content based on line count and optionally truncates long lines
-fn clip_by_lines(
+///
+/// # Returns
+/// A tuple containing:
+/// - Vec<String>: The truncated lines
+/// - Option<(usize, usize)>: Truncation info (prefix_lines, hidden_lines) if truncated
+/// - usize: Count of lines that had their length truncated
+pub(super) fn clip_by_lines(
     content: &str,
     prefix_lines: usize,
     suffix_lines: usize,

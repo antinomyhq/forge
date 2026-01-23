@@ -3,11 +3,13 @@ source: crates/forge_app/src/tool_registry.rs
 expression: format_tool_output(actual)
 ---
 <mcp_output
-  start_char="0"
-  end_char="100"
-  total_chars="150"
+  start_line="1"
+  end_line="3"
+  total_lines="10"
   file_path="[TEMP_FILE]"
 >
-<body><![CDATA[xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx]]></body>
-<truncated>Content is truncated to 100 chars, remaining content can be read from path: [TEMP_FILE]</truncated>
+<body><![CDATA[Line 1 with some content
+Line 2 with some content
+Line 3 with some content]]></body>
+<truncated>Content truncated to first 3 of 10 lines. Full content available at: [TEMP_FILE]</truncated>
 </mcp_output>

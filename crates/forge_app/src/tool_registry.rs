@@ -169,8 +169,14 @@ impl<S: Services> ToolRegistry<S> {
                     .await?;
             }
 
-            let limit = self.services.get_environment().mcp_truncation_limit;
-            Ok(truncate_mcp_output(self.services.clone(), output, limit).await)
+            let env = self.services.get_environment();
+            Ok(truncate_mcp_output(
+                self.services.clone(),
+                output,
+                env.mcp_truncation_limit,
+                env.max_line_length,
+            )
+            .await)
         } else {
             Err(Error::NotFound(input.name).into())
         }
@@ -370,72 +376,59 @@ impl<S> ToolRegistry<S> {
     }
 }
 
-/// Truncates MCP output if any text value exceeds the limit.
+/// Truncates MCP output using line-based truncation strategy.
 async fn truncate_mcp_output<S: FsWriteService>(
     services: Arc<S>,
     output: ToolOutput,
-    limit: usize,
+    line_limit: usize,
+    max_line_length: usize,
 ) -> ToolOutput {
-    // MCP tools can only return two variants: ToolValue::Text and ToolValue::Image
-    // image we return as is, text we truncate and then return.
+    let mut remaining_lines = line_limit;
     let mut new_values = Vec::with_capacity(output.values.len());
-    let mut remaining = limit;
     for value in output.values {
-        match value {
-            ToolValue::Text(text) => {
-                let original_length = text.chars().count();
-                let is_truncated = original_length > remaining;
-                if is_truncated {
-                    // Write full content to temp file - if this fails, return original output
-                    let temp_path = match crate::utils::create_temp_file(
-                        &*services,
-                        "forge_mcp_",
-                        ".txt",
-                        &text,
-                    )
-                    .await
-                    {
-                        Ok(path) => path,
-                        Err(_) => {
-                            new_values.push(ToolValue::Text(text));
-                            continue;
-                        }
-                    };
-
-                    // Truncate content using shared utility
-                    let truncated_output =
-                        crate::truncation::truncate_fetch_content(&text, remaining);
-
-                    // Build XML wrapper
-                    let temp_path = temp_path.display().to_string();
-                    let reason = format!(
-                        "Content is truncated to {} chars, remaining content can be read from path: {}",
-                        remaining, temp_path
-                    );
-                    let xml = Element::new("mcp_output")
-                        .attr("start_char", 0)
-                        .attr("end_char", remaining.min(original_length))
-                        .attr("total_chars", original_length)
-                        .attr("file_path", temp_path)
-                        .append(Element::new("body").cdata(truncated_output.content))
-                        .append(Element::new("truncated").text(reason))
-                        .render();
-
-                    remaining = 0; // After truncation, no more space left
-                    new_values.push(ToolValue::Text(xml));
-                } else {
-                    // Not truncated, keep as-is and decrease remaining
-                    remaining -= original_length;
-                    new_values.push(ToolValue::Text(text));
+        let new_value = match value {
+            ToolValue::Text(text) if text.lines().count() > remaining_lines => {
+                // Content exceeds limit - truncate and wrap in XML
+                match truncate_text_value(&*services, &text, remaining_lines, max_line_length).await
+                {
+                    Ok(xml) => {
+                        remaining_lines = 0;
+                        ToolValue::Text(xml)
+                    }
+                    Err(_) => ToolValue::Text(text), // On error, return original
                 }
             }
-            other => {
-                // Non-text values pass through unchanged
-                new_values.push(other);
+            ToolValue::Text(text) => {
+                // Content fits within limit
+                remaining_lines = remaining_lines.saturating_sub(text.lines().count());
+                ToolValue::Text(text)
             }
-        }
+            other => other, // Non-text values pass through
+        };
+        new_values.push(new_value);
     }
+
     ToolOutput { values: new_values, is_error: output.is_error }
+}
+
+/// Truncates a text value and returns XML-wrapped result
+///
+/// # Errors
+/// Returns error if temp file creation fails
+async fn truncate_text_value<S: FsWriteService>(
+    services: &S,
+    text: &str,
+    line_limit: usize,
+    max_line_length: usize,
+) -> anyhow::Result<String> {
+    // Write full content to temp file
+    let temp_path = crate::utils::create_temp_file(services, "forge_mcp_", ".txt", text).await?;
+
+    // Truncate content
+    let truncated = crate::truncation::truncate_mcp_content(text, line_limit, max_line_length);
+
+    // Convert to XML with temp file path
+    Ok(truncated.to_xml(&temp_path.display().to_string()))
 }
 
 #[cfg(test)]
@@ -1065,31 +1058,54 @@ mod mcp_truncation_tests {
     async fn test_text_below_limit_passes_through() {
         let services = Arc::new(MockFsWriteService::new());
         let fixture = ToolOutput::text("Short text");
-        let actual = truncate_mcp_output(services, fixture, 100).await;
+        let actual = truncate_mcp_output(services, fixture, 100, 2000).await;
         let expected = ToolOutput::text("Short text");
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_multiline_text_below_limit_passes_through() {
+        let services = Arc::new(MockFsWriteService::new());
+        let text = (1..=3).map(|i| format!("Line {}", i)).collect::<Vec<_>>().join("\n");
+        let fixture = ToolOutput::text(text.clone());
+        // Limit is 10 lines, content has only 3 lines - should pass through unchanged
+        let actual = truncate_mcp_output(services, fixture, 10, 2000).await;
+        let expected = ToolOutput::text(text);
         assert_eq!(actual, expected);
     }
 
     #[tokio::test]
     async fn test_multiple_text_values_with_limit_across_all() {
         let services = Arc::new(MockFsWriteService::new());
+        // Create multi-line content: 3 lines in first value, 2 lines in second value
+        let first_text = (1..=3).map(|i| format!("Line {}", i)).collect::<Vec<_>>().join("\n");
+        let second_text = (4..=5).map(|i| format!("Line {}", i)).collect::<Vec<_>>().join("\n");
+        
         let fixture = ToolOutput {
             values: vec![
-                ToolValue::Text("a".repeat(60)),
-                ToolValue::Text("b".repeat(60)),
+                ToolValue::Text(first_text),
+                ToolValue::Text(second_text),
             ],
             is_error: false,
         };
 
-        let actual = truncate_mcp_output(services, fixture, 100).await;
+        // Limit to 2 lines total - should keep first 2 lines and truncate the rest
+        let actual = truncate_mcp_output(services, fixture, 2, 2000).await;
         insta::assert_snapshot!(format_tool_output(actual));
     }
 
     #[tokio::test]
     async fn test_single_value_truncation() {
         let services = Arc::new(MockFsWriteService::new());
-        let fixture = ToolOutput::text("x".repeat(150));
-        let actual = truncate_mcp_output(services, fixture, 100).await;
+        // Create content with 10 lines
+        let fixture_text = (1..=10)
+            .map(|i| format!("Line {} with some content", i))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let fixture = ToolOutput::text(fixture_text);
+        
+        // Limit to 3 lines - should keep first 3 lines and truncate the rest
+        let actual = truncate_mcp_output(services, fixture, 3, 2000).await;
         insta::assert_snapshot!(format_tool_output(actual));
     }
 }
