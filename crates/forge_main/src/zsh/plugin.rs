@@ -65,15 +65,18 @@ pub fn generate_zsh_theme() -> Result<String> {
     Ok(content)
 }
 
-/// Runs diagnostics on the ZSH shell environment with streaming output
+/// Executes a ZSH script with streaming output
+///
+/// # Arguments
+///
+/// * `script_content` - The ZSH script content to execute
+/// * `script_name` - Descriptive name for the script (used in error messages)
 ///
 /// # Errors
 ///
-/// Returns error if the doctor script cannot be executed
-pub fn run_zsh_doctor() -> Result<()> {
-    // Get the embedded doctor script
-    let script_content = include_str!("../../../../shell-plugin/doctor.zsh");
-
+/// Returns error if the script cannot be executed, if output streaming fails,
+/// or if the script exits with a non-zero status code
+fn execute_zsh_script_with_streaming(script_content: &str, script_name: &str) -> Result<()> {
     // Execute the script in a zsh subprocess with piped output
     let mut child = std::process::Command::new("zsh")
         .arg("-c")
@@ -81,53 +84,71 @@ pub fn run_zsh_doctor() -> Result<()> {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
-        .context("Failed to execute zsh doctor script")?;
+        .context(format!("Failed to execute zsh {} script", script_name))?;
 
     // Get stdout and stderr handles
     let stdout = child.stdout.take().context("Failed to capture stdout")?;
     let stderr = child.stderr.take().context("Failed to capture stderr")?;
 
-    // Create buffered readers for streaming
-    let stdout_reader = BufReader::new(stdout);
-    let stderr_reader = BufReader::new(stderr);
-
-    // Stream stdout line by line
-    let stdout_handle = std::thread::spawn(move || {
-        for line in stdout_reader.lines() {
-            match line {
-                Ok(line) => println!("{}", line),
-                Err(e) => eprintln!("Error reading stdout: {}", e),
+    // Use scoped threads for safer streaming with automatic joining
+    std::thread::scope(|s| {
+        // Stream stdout line by line
+        s.spawn(|| {
+            let stdout_reader = BufReader::new(stdout);
+            for line in stdout_reader.lines() {
+                match line {
+                    Ok(line) => println!("{}", line),
+                    Err(e) => eprintln!("Error reading stdout: {}", e),
+                }
             }
-        }
-    });
+        });
 
-    // Stream stderr line by line
-    let stderr_handle = std::thread::spawn(move || {
-        for line in stderr_reader.lines() {
-            match line {
-                Ok(line) => eprintln!("{}", line),
-                Err(e) => eprintln!("Error reading stderr: {}", e),
+        // Stream stderr line by line
+        s.spawn(|| {
+            let stderr_reader = BufReader::new(stderr);
+            for line in stderr_reader.lines() {
+                match line {
+                    Ok(line) => eprintln!("{}", line),
+                    Err(e) => eprintln!("Error reading stderr: {}", e),
+                }
             }
-        }
+        });
     });
-
-    // Wait for both threads to complete
-    stdout_handle.join().expect("stdout thread panicked");
-    stderr_handle.join().expect("stderr thread panicked");
 
     // Wait for the child process to complete
     let status = child
         .wait()
-        .context("Failed to wait for zsh doctor script")?;
+        .context(format!("Failed to wait for zsh {} script", script_name))?;
 
     if !status.success() {
         anyhow::bail!(
-            "ZSH doctor script failed with exit code: {:?}",
+            "ZSH {} script failed with exit code: {:?}",
+            script_name,
             status.code()
         );
     }
 
     Ok(())
+}
+
+/// Runs diagnostics on the ZSH shell environment with streaming output
+///
+/// # Errors
+///
+/// Returns error if the doctor script cannot be executed
+pub fn run_zsh_doctor() -> Result<()> {
+    let script_content = include_str!("../../../../shell-plugin/doctor.zsh");
+    execute_zsh_script_with_streaming(script_content, "doctor")
+}
+
+/// Shows ZSH keyboard shortcuts with streaming output
+///
+/// # Errors
+///
+/// Returns error if the keyboard script cannot be executed
+pub fn run_zsh_keyboard() -> Result<()> {
+    let script_content = include_str!("../../../../shell-plugin/keyboard.zsh");
+    execute_zsh_script_with_streaming(script_content, "keyboard")
 }
 
 /// Represents the state of markers in a file
@@ -272,11 +293,19 @@ pub fn setup_zsh_integration(
     let backup_path = if zshrc_path.exists() {
         // Generate timestamp for backup filename
         let timestamp = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
-        let backup = zshrc_path.parent().unwrap().join(format!(
-            "{}.bak.{}",
-            zshrc_path.file_name().unwrap().to_str().unwrap(),
-            timestamp
-        ));
+
+        // Safe to unwrap: zshrc_path was constructed from a valid HOME/ZDOTDIR path
+        let parent = zshrc_path
+            .parent()
+            .context("zshrc path has no parent directory")?;
+        let filename = zshrc_path
+            .file_name()
+            .context("zshrc path has no filename")?;
+        let filename_str = filename
+            .to_str()
+            .context("zshrc filename is not valid UTF-8")?;
+
+        let backup = parent.join(format!("{}.bak.{}", filename_str, timestamp));
         fs::copy(&zshrc_path, &backup)
             .context(format!("Failed to create backup at {}", backup.display()))?;
         Some(backup)
@@ -308,7 +337,7 @@ mod tests {
     /// (e.g., plugin not loaded), or zsh may not be available in CI
     #[test]
     fn test_run_zsh_doctor_streaming() {
-        // Set environment variable to skip interactive prompts in tests
+        // SAFETY: No mutex needed for single test - setting env var for test isolation
         unsafe {
             std::env::set_var("FORGE_SKIP_INTERACTIVE", "1");
         }
@@ -316,6 +345,7 @@ mod tests {
         let actual = run_zsh_doctor();
 
         // Clean up
+        // SAFETY: No mutex needed for single test - removing env var after test
         unsafe {
             std::env::remove_var("FORGE_SKIP_INTERACTIVE");
         }
@@ -355,6 +385,7 @@ mod tests {
         let original_home = std::env::var("HOME").ok();
         let original_zdotdir = std::env::var("ZDOTDIR").ok();
 
+        // SAFETY: We hold ENV_LOCK to prevent concurrent environment modifications
         unsafe {
             std::env::set_var("HOME", temp_dir.path());
             std::env::remove_var("ZDOTDIR");
@@ -364,6 +395,7 @@ mod tests {
         let actual = setup_zsh_integration(false, None);
 
         // Restore environment first
+        // SAFETY: We hold ENV_LOCK to prevent concurrent environment modifications
         unsafe {
             if let Some(home) = original_home {
                 std::env::set_var("HOME", home);
@@ -410,6 +442,7 @@ mod tests {
         let original_home = std::env::var("HOME").ok();
         let original_zdotdir = std::env::var("ZDOTDIR").ok();
 
+        // SAFETY: We hold ENV_LOCK to prevent concurrent environment modifications
         unsafe {
             std::env::set_var("HOME", temp_dir.path());
             std::env::set_var("ZDOTDIR", temp_dir.path());
@@ -442,6 +475,7 @@ mod tests {
         assert!(content.contains("# <<< forge initialize <<<"));
 
         // Restore environment
+        // SAFETY: We hold ENV_LOCK to prevent concurrent environment modifications
         unsafe {
             if let Some(home) = original_home {
                 std::env::set_var("HOME", home);
@@ -467,6 +501,7 @@ mod tests {
         let original_home = std::env::var("HOME").ok();
         let original_zdotdir = std::env::var("ZDOTDIR").ok();
 
+        // SAFETY: We hold ENV_LOCK to prevent concurrent environment modifications
         unsafe {
             std::env::set_var("HOME", temp_dir.path());
             std::env::remove_var("ZDOTDIR");
@@ -501,6 +536,7 @@ mod tests {
         assert!(content.contains("# <<< forge initialize <<<"));
 
         // Restore environment
+        // SAFETY: We hold ENV_LOCK to prevent concurrent environment modifications
         unsafe {
             if let Some(home) = original_home {
                 std::env::set_var("HOME", home);
@@ -530,6 +566,7 @@ mod tests {
         let original_home = std::env::var("HOME").ok();
         let original_zdotdir = std::env::var("ZDOTDIR").ok();
 
+        // SAFETY: We hold ENV_LOCK to prevent concurrent environment modifications
         unsafe {
             std::env::set_var("HOME", temp_dir.path());
             std::env::set_var("ZDOTDIR", temp_dir.path());
@@ -560,6 +597,7 @@ mod tests {
         assert!(content.contains("# <<< forge initialize <<<"));
 
         // Restore environment
+        // SAFETY: We hold ENV_LOCK to prevent concurrent environment modifications
         unsafe {
             if let Some(home) = original_home {
                 std::env::set_var("HOME", home);
@@ -585,6 +623,7 @@ mod tests {
         let original_home = std::env::var("HOME").ok();
         let original_zdotdir = std::env::var("ZDOTDIR").ok();
 
+        // SAFETY: We hold ENV_LOCK to prevent concurrent environment modifications
         unsafe {
             std::env::set_var("HOME", temp_dir.path());
             std::env::remove_var("ZDOTDIR");
@@ -666,6 +705,7 @@ mod tests {
         );
 
         // Restore environment
+        // SAFETY: We hold ENV_LOCK to prevent concurrent environment modifications
         unsafe {
             if let Some(home) = original_home {
                 std::env::set_var("HOME", home);

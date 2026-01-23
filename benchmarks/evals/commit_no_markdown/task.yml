@@ -1,0 +1,52 @@
+run:
+  - mkdir -p test_repo
+  - cd test_repo && git init
+  - cd test_repo && git config user.email "test@example.com"
+  - cd test_repo && git config user.name "Test User"
+  - |
+    cat > test_repo/example.js << 'EOF'
+    function hello() {
+      console.log("Hello World");
+    }
+    EOF
+  - cd test_repo && git add example.js
+  - cd test_repo && git commit -m "initial commit"
+  - |
+    cat > test_repo/example.js << 'EOF'
+    function hello(name) {
+      console.log(`Hello ${name}!`);
+    }
+
+    function goodbye(name) {
+      console.log(`Goodbye ${name}!`);
+    }
+    EOF
+  - cd test_repo && git add example.js
+  - cd test_repo && FORGE_OVERRIDE_PROVIDER={{provider}} FORGE_OVERRIDE_MODEL={{model}} forgee commit --preview
+  
+parallelism: 2
+timeout: 120
+
+validations:
+  - name: "Should generate conventional commit message"
+    type: regex
+    regex: "(feat|fix|refactor|chore|docs|style|test|perf)(\\(|:)"
+    
+  - name: "Should NOT contain markdown code block with json"
+    type: shell
+    command: "! grep -qE '```json'"
+    
+  - name: "Should NOT contain plain code block markers"
+    type: shell
+    command: "! grep -qE '^```$'"
+    
+  - name: "Should NOT contain backticks wrapping commit message"
+    type: shell
+    command: "! grep -qE '`(feat|fix|refactor|chore|docs|style|test|perf)\\('"
+
+sources:
+  - value:
+      - provider: "anthropic"
+        model: "claude-sonnet-4-5-20250929"
+      - provider: "open_router"
+        model: "z-ai/glm-4.7"

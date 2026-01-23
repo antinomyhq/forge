@@ -40,12 +40,13 @@ function _forge_action_editor() {
         echo "$initial_text" > "$temp_file"
     fi
     
-    # Open editor
-    eval "$editor_cmd '$temp_file'"
+    # Open editor in subshell with its own TTY session
+    (eval "$editor_cmd '$temp_file'" </dev/tty >/dev/tty 2>&1)
     local editor_exit_code=$?
     
     if [ $editor_exit_code -ne 0 ]; then
         _forge_log error "Editor exited with error code $editor_exit_code"
+        _forge_reset
         return 1
     fi
     
@@ -55,6 +56,9 @@ function _forge_action_editor() {
     
     if [ -z "$content" ]; then
         _forge_log info "Editor closed with no content"
+        BUFFER=""
+        CURSOR=0
+        zle reset-prompt
         return 0
     fi
     

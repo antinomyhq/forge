@@ -7,8 +7,8 @@ use forge_app::domain::{
     ChatCompletionMessage, Context, Model, ModelId, ResultStream, RetryConfig, Transformer,
 };
 use forge_app::dto::anthropic::{
-    AuthSystemMessage, CapitalizeToolNames, DropInvalidToolUse, EventData, ListModelResponse,
-    ReasoningTransform, Request, SetCache,
+    AuthSystemMessage, CapitalizeToolNames, DropInvalidToolUse, EnforceStrictObjectSchema,
+    EventData, ListModelResponse, ReasoningTransform, Request, SetCache,
 };
 use forge_domain::{ChatRepository, Provider};
 use reqwest::Url;
@@ -60,13 +60,18 @@ impl<H: HttpInfra> Anthropic<H> {
                 "authorization".to_string(),
                 format!("Bearer {}", self.api_key),
             ));
-            // OAuth requires multiple beta flags
+            // OAuth requires multiple beta flags including structured outputs
             headers.push((
                 "anthropic-beta".to_string(),
-                "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14".to_string(),
+                "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,structured-outputs-2025-11-13".to_string(),
             ));
         } else {
             headers.push(("x-api-key".to_string(), self.api_key.clone()));
+            // API key auth also needs beta flags for structured outputs and thinking
+            headers.push((
+                "anthropic-beta".to_string(),
+                "interleaved-thinking-2025-05-14,structured-outputs-2025-11-13".to_string(),
+            ));
         }
 
         headers
@@ -91,6 +96,7 @@ impl<T: HttpInfra> Anthropic<T> {
             .when(|_| self.use_oauth)
             .pipe(CapitalizeToolNames)
             .pipe(DropInvalidToolUse)
+            .pipe(EnforceStrictObjectSchema)
             .pipe(SetCache)
             .transform(request);
         let url = &self.chat_url;
@@ -383,6 +389,100 @@ mod tests {
         mock.assert_async().await;
         assert!(actual.is_empty());
         Ok(())
+    }
+
+    #[test]
+    fn test_get_headers_with_api_key_includes_beta_flags() {
+        let chat_url = Url::parse("https://api.anthropic.com/v1/messages").unwrap();
+        let model_url = Url::parse("https://api.anthropic.com/v1/models").unwrap();
+        let fixture = Anthropic::new(
+            Arc::new(MockHttpClient::new()),
+            "sk-test-key".to_string(),
+            chat_url,
+            forge_domain::ModelSource::Url(model_url),
+            "2023-06-01".to_string(),
+            false, // API key auth (not OAuth)
+        );
+
+        let actual = fixture.get_headers();
+
+        // Should contain anthropic-version header
+        assert!(
+            actual
+                .iter()
+                .any(|(k, v)| k == "anthropic-version" && v == "2023-06-01")
+        );
+
+        // Should contain x-api-key header (not authorization)
+        assert!(
+            actual
+                .iter()
+                .any(|(k, v)| k == "x-api-key" && v == "sk-test-key")
+        );
+
+        // Should contain anthropic-beta header with structured outputs support
+        let beta_header = actual.iter().find(|(k, _)| k == "anthropic-beta");
+        assert!(
+            beta_header.is_some(),
+            "anthropic-beta header should be present for API key auth"
+        );
+
+        let (_, beta_value) = beta_header.unwrap();
+        assert!(
+            beta_value.contains("structured-outputs-2025-11-13"),
+            "Beta header should include structured-outputs flag"
+        );
+        assert!(
+            beta_value.contains("interleaved-thinking-2025-05-14"),
+            "Beta header should include interleaved-thinking flag"
+        );
+    }
+
+    #[test]
+    fn test_get_headers_with_oauth_includes_beta_flags() {
+        let chat_url = Url::parse("https://api.anthropic.com/v1/messages").unwrap();
+        let model_url = Url::parse("https://api.anthropic.com/v1/models").unwrap();
+        let fixture = Anthropic::new(
+            Arc::new(MockHttpClient::new()),
+            "oauth-token".to_string(),
+            chat_url,
+            forge_domain::ModelSource::Url(model_url),
+            "2023-06-01".to_string(),
+            true, // OAuth auth
+        );
+
+        let actual = fixture.get_headers();
+
+        // Should contain anthropic-version header
+        assert!(
+            actual
+                .iter()
+                .any(|(k, v)| k == "anthropic-version" && v == "2023-06-01")
+        );
+
+        // Should contain authorization header (not x-api-key)
+        assert!(
+            actual
+                .iter()
+                .any(|(k, v)| k == "authorization" && v == "Bearer oauth-token")
+        );
+
+        // Should contain anthropic-beta header with structured outputs support
+        let beta_header = actual.iter().find(|(k, _)| k == "anthropic-beta");
+        assert!(
+            beta_header.is_some(),
+            "anthropic-beta header should be present for OAuth"
+        );
+
+        let (_, beta_value) = beta_header.unwrap();
+        assert!(
+            beta_value.contains("structured-outputs-2025-11-13"),
+            "Beta header should include structured-outputs flag"
+        );
+        assert!(
+            beta_value.contains("oauth-2025-04-20"),
+            "Beta header should include oauth flag for OAuth auth"
+        );
     }
 }
 
