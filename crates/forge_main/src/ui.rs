@@ -2456,20 +2456,20 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             let file_content = ForgeFS::read_utf8(path.as_os_str()).await?;
 
             // Try to parse as a dump file first (with wrapper object)
-            let conversation: Conversation = if let Ok(dump) = serde_json::from_str::<serde_json::Value>(&file_content) {
+            let conversation: Conversation = if let Ok(dump) =
+                serde_json::from_str::<serde_json::Value>(&file_content)
+            {
                 if let Some(conv) = dump.get("conversation") {
                     // It's a dump file with wrapper
                     serde_json::from_value(conv.clone())
                         .context("Failed to parse Conversation from dump file")?
                 } else {
                     // Try parsing as direct Conversation
-                    serde_json::from_str(&file_content)
-                        .context("Failed to parse Conversation")?
+                    serde_json::from_str(&file_content).context("Failed to parse Conversation")?
                 }
             } else {
                 // Fallback to parsing as direct Conversation
-                serde_json::from_str(&file_content)
-                    .context("Failed to parse Conversation")?
+                serde_json::from_str(&file_content).context("Failed to parse Conversation")?
             };
 
             let id = conversation.id;

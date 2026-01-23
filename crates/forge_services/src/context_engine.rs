@@ -164,7 +164,7 @@ impl<F> ForgeWorkspaceService<F> {
 
         let (token, user_id_opt) = self.get_workspace_credentials().await?;
         let user_id = self.get_or_generate_user_id(&token, user_id_opt).await?;
-        
+
         let path = path
             .canonicalize()
             .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
@@ -343,7 +343,11 @@ impl<F> ForgeWorkspaceService<F> {
     ///
     /// For OAuth, if user_id is not stored locally, generates a new one
     /// since the server will identify the user from the JWT token.
-    async fn get_or_generate_user_id(&self, _token: &forge_domain::ApiKey, user_id_opt: Option<UserId>) -> Result<UserId>
+    async fn get_or_generate_user_id(
+        &self,
+        _token: &forge_domain::ApiKey,
+        user_id_opt: Option<UserId>,
+    ) -> Result<UserId>
     where
         F: WorkspaceIndexRepository + EnvironmentInfra,
     {
