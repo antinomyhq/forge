@@ -48,7 +48,12 @@ Usage:
 
 ### sem_search
 
-AI-powered semantic code search. YOUR DEFAULT TOOL for code discovery tasks. Use this when you need to find code locations, understand implementations, or explore functionality - it works with natural language about behavior and concepts, not just keyword matching.
+AI-powered semantic code search. YOUR DEFAULT TOOL for code discovery tasks when searching within the current working directory (/home/user/project). Use this when you need to find code locations, understand implementations, or explore functionality - it works with natural language about behavior and concepts, not just keyword matching.
+
+IMPORTANT: Only searches within the current working directory (/home/user/project) and its subdirectories. To search outside this scope, use fs_search instead.
+Examples:
+- Can search: /home/user/project/src, /home/user/project/lib, any subdirectory of /home/user/project
+- Cannot search: /other/path, /tmp, or paths outside /home/user/project (use fs_search with path parameter)
 
 Start with sem_search when: locating code to modify, understanding how features work, finding patterns/examples, or exploring unfamiliar areas. Understands queries like "authentication flow" (finds login), "retry logic" (finds backoff), "validation" (finds checking/sanitization).
 
@@ -83,7 +88,7 @@ Reverts the most recent file operation (create/modify/delete) on a specific file
 
 ### shell
 
-Executes shell commands. The `cwd` parameter sets the working directory for command execution. If not specified, defaults to `/Users/amit/code-forge`.
+Executes shell commands. The `cwd` parameter sets the working directory for command execution. If not specified, defaults to `/home/user/project`.
 
 CRITICAL: Do NOT use `cd` commands in the command string. This is FORBIDDEN. Always use the `cwd` parameter to set the working directory instead. Any use of `cd` in the command is redundant, incorrect, and violates the tool contract.
 

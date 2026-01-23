@@ -15,7 +15,6 @@ impl ForgeWalkerService {
             && config.max_file_size.is_none()
             && config.max_files.is_none()
             && config.max_total_size.is_none()
-            && !config.skip_binary
         {
             forge_walker::Walker::max_all()
         } else {

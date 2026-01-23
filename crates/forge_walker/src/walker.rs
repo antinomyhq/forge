@@ -116,6 +116,8 @@ impl Walker {
         let walk = WalkBuilder::new(&self.cwd)
             .standard_filters(true) // use standard ignore filters.
             .max_depth(Some(self.max_depth))
+            // Skip files that exceed size limit
+            .max_filesize(Some(self.max_file_size))
             // TODO: use build_parallel() for better performance
             .build();
 
@@ -156,11 +158,6 @@ impl Walker {
             };
 
             let file_size = metadata.len();
-
-            // Skip files that exceed size limit
-            if !is_dir && file_size > self.max_file_size {
-                continue;
-            }
 
             // Check total size limit
             if total_size + file_size > self.max_total_size {

@@ -11,6 +11,9 @@ mod progress_bar;
 
 pub use progress_bar::*;
 
+const TICK_DURATION_MS: u64 = 60;
+const TICKS: &[&str; 10] = &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+
 /// Formats elapsed time into a compact string representation.
 ///
 /// # Arguments
@@ -43,7 +46,8 @@ fn format_elapsed_time(duration: Duration) -> String {
 /// Uses indicatif's built-in `{elapsed}` template for time display,
 /// eliminating the need for a background task to update the message.
 /// Accumulated time is preserved across start/stop cycles using
-/// `with_elapsed()`.
+/// `with_elapsed()`. Spinner tick position is also preserved to maintain
+/// smooth animation continuity.
 pub struct SpinnerManager<P: ConsoleWriter> {
     spinner: Option<ProgressBar>,
     accumulated_elapsed: Duration,
@@ -98,7 +102,7 @@ impl<P: ConsoleWriter> SpinnerManager<P> {
             .with_elapsed(self.accumulated_elapsed)
             .with_style(
                 ProgressStyle::default_spinner()
-                    .tick_strings(&["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"])
+                    .tick_strings(TICKS)
                     .template("{spinner:.green} {msg} {elapsed_custom:.white} {prefix:.white.dim}")
                     .unwrap()
                     .with_key(
@@ -110,7 +114,18 @@ impl<P: ConsoleWriter> SpinnerManager<P> {
             )
             .with_message(word.green().bold().to_string())
             .with_prefix("· Ctrl+C to interrupt");
-        pb.enable_steady_tick(Duration::from_millis(60));
+
+        // Preserve spinner tick position for visual continuity
+        // The spinner has 10 tick positions cycling every 600ms (60ms per tick)
+        let tick_count: usize = TICKS.len();
+        let elapsed_ms = self.accumulated_elapsed.as_millis() as u64;
+        let cycle_ms = TICK_DURATION_MS * tick_count as u64;
+        let ticks_to_advance = (elapsed_ms % cycle_ms) / TICK_DURATION_MS;
+
+        // Advance to the correct tick position
+        (0..ticks_to_advance).for_each(|_| pb.tick());
+
+        pb.enable_steady_tick(Duration::from_millis(TICK_DURATION_MS));
 
         self.spinner = Some(pb);
 
