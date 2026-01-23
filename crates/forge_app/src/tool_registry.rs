@@ -945,7 +945,7 @@ fn test_all_rendered_tool_descriptions() {
     use fake::{Fake, Faker};
 
     let mut env: Environment = Faker.fake();
-    env.cwd = "/Users/amit/code-forge".into();
+    env.cwd = "/home/user/project".into();
     env.max_read_size = 2000;
     env.max_line_length = 2000;
     env.max_image_size = 5000;
