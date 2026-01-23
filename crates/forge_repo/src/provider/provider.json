@@ -489,7 +489,7 @@
   {
     "id": "forge_services",
     "provider_type": "context_engine",
-    "url_param_vars": ["FORGE_WORKSPACE_SERVER_URL"],
+    "url_param_vars": ["FORGE_WORKSPACE_SERVER_URL", "FORGE_FE_URL"],
     "url": "{{FORGE_WORKSPACE_SERVER_URL}}",
     "auth_methods": [
       {
@@ -502,7 +502,7 @@
             "profile",
             "email"
           ],
-          "redirect_uri": "http://localhost:3000/oauth/callback",
+          "redirect_uri": "{{FORGE_FE_URL}}/oauth/callback",
           "use_pkce": true
         }
       }
