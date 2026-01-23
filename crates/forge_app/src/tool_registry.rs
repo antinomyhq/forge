@@ -20,7 +20,6 @@ use crate::error::Error;
 use crate::fmt::content::FormatContent;
 use crate::mcp_executor::McpExecutor;
 use crate::tool_executor::ToolExecutor;
-
 use crate::{
     AgentRegistry, EnvironmentService, FsWriteService, McpService, PolicyService, ProviderService,
     Services, ToolResolver, WorkspaceService,
@@ -388,16 +387,20 @@ async fn truncate_mcp_output<S: FsWriteService>(
                 let is_truncated = original_length > remaining;
                 if is_truncated {
                     // Write full content to temp file - if this fails, return original output
-                    let temp_path =
-                        match crate::utils::create_temp_file(&*services, "forge_mcp_", ".txt", &text)
-                            .await
-                        {
-                            Ok(path) => path,
-                            Err(_) => {
-                                new_values.push(ToolValue::Text(text));
-                                continue;
-                            }
-                        };
+                    let temp_path = match crate::utils::create_temp_file(
+                        &*services,
+                        "forge_mcp_",
+                        ".txt",
+                        &text,
+                    )
+                    .await
+                    {
+                        Ok(path) => path,
+                        Err(_) => {
+                            new_values.push(ToolValue::Text(text));
+                            continue;
+                        }
+                    };
 
                     // Truncate content using shared utility
                     let truncated_output =
@@ -984,10 +987,10 @@ mod mcp_truncation_tests {
     use std::collections::HashMap;
     use std::sync::{Arc, Mutex};
 
-    use crate::{FsWriteOutput, FsWriteService};
     use forge_domain::{ToolOutput, ToolValue};
 
     use super::*;
+    use crate::{FsWriteOutput, FsWriteService};
 
     #[derive(Clone)]
     struct MockFsWriteService {
@@ -1013,7 +1016,7 @@ mod mcp_truncation_tests {
                 .unwrap()
                 .insert(path.clone(), content);
             Ok(FsWriteOutput {
-                path: path,
+                path,
                 before: None,
                 errors: vec![],
                 content_hash: "mock_hash".to_string(),
@@ -1021,10 +1024,11 @@ mod mcp_truncation_tests {
         }
     }
 
-    /// Formats ToolOutput for snapshot testing by extracting and formatting text values
+    /// Formats ToolOutput for snapshot testing by extracting and formatting
+    /// text values
     fn format_tool_output(output: ToolOutput) -> String {
         let mut result = String::new();
-        
+
         for (i, value) in output.values.iter().enumerate() {
             if i > 0 {
                 result.push_str("\n---\n");
@@ -1045,7 +1049,7 @@ mod mcp_truncation_tests {
                 }
             }
         }
-        
+
         result
     }
 
@@ -1053,8 +1057,8 @@ mod mcp_truncation_tests {
     fn redact_temp_path(xml: &str) -> String {
         // Replace the temp file path with a placeholder
         // Matches: /var/folders/.../T/forge_mcp_*.txt or /tmp/forge_mcp_*.txt
-        let re = regex::Regex::new(r"(?:/var/folders/[^/]+/[^/]+/T|/tmp)/forge_mcp_\w+\.txt")
-            .unwrap();
+        let re =
+            regex::Regex::new(r"(?:/var/folders/[^/]+/[^/]+/T|/tmp)/forge_mcp_\w+\.txt").unwrap();
         re.replace_all(xml, "[TEMP_FILE]").to_string()
     }
 
@@ -1085,7 +1089,7 @@ mod mcp_truncation_tests {
     #[tokio::test]
     async fn test_single_value_truncation() {
         let services = Arc::new(MockFsWriteService::new());
-        let fixture = ToolOutput::text(&"x".repeat(150));
+        let fixture = ToolOutput::text("x".repeat(150));
         let actual = truncate_mcp_output(services, fixture, 100).await;
         insta::assert_snapshot!(format_tool_output(actual));
     }
