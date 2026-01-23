@@ -162,7 +162,9 @@ impl<F> ForgeWorkspaceService<F> {
 
         emit(SyncProgress::Starting).await;
 
-        let (token, user_id) = self.get_workspace_credentials().await?;
+        let (token, user_id_opt) = self.get_workspace_credentials().await?;
+        let user_id = self.get_or_generate_user_id(&token, user_id_opt).await?;
+        
         let path = path
             .canonicalize()
             .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
@@ -337,13 +339,34 @@ impl<F> ForgeWorkspaceService<F> {
         Ok(())
     }
 
+    /// Gets or generates a user_id for local database operations
+    ///
+    /// For OAuth, if user_id is not stored locally, generates a new one
+    /// since the server will identify the user from the JWT token.
+    async fn get_or_generate_user_id(&self, _token: &forge_domain::ApiKey, user_id_opt: Option<UserId>) -> Result<UserId>
+    where
+        F: WorkspaceIndexRepository + EnvironmentInfra,
+    {
+        if let Some(user_id) = user_id_opt {
+            return Ok(user_id);
+        }
+
+        // For OAuth without local user_id, generate one for local database operations
+        // The server will identify the user from the JWT token in API calls
+        Ok(UserId::generate())
+    }
+
     /// Gets the forge services credential and extracts workspace auth
     /// components
+    ///
+    /// For OAuth, user_id is optional since the JWT token already contains it
+    /// and the server will extract it. The user_id is only needed for local
+    /// database operations.
     ///
     /// # Errors
     /// Returns an error if the credential is not found, if there's a database
     /// error, or if the credential format is invalid
-    async fn get_workspace_credentials(&self) -> Result<(forge_domain::ApiKey, UserId)>
+    async fn get_workspace_credentials(&self) -> Result<(forge_domain::ApiKey, Option<UserId>)>
     where
         F: ProviderRepository,
     {
@@ -355,7 +378,7 @@ impl<F> ForgeWorkspaceService<F> {
 
         match &credential.auth_details {
             AuthDetails::ApiKey(token) => {
-                // Extract user_id from URL params
+                // For API key, user_id is required in URL params
                 let user_id_str = credential
                     .url_params
                     .get(&"user_id".to_string().into())
@@ -364,9 +387,32 @@ impl<F> ForgeWorkspaceService<F> {
                     })?;
                 let user_id = UserId::from_string(user_id_str.as_str())?;
 
-                Ok((token.clone(), user_id))
+                Ok((token.clone(), Some(user_id)))
             }
-            _ => anyhow::bail!("ForgeServices credential must be an API key"),
+            AuthDetails::OAuth { tokens, .. } => {
+                // For OAuth, user_id is optional (JWT contains it)
+                // Try to get from URL params if available (for local database operations)
+                let user_id = credential
+                    .url_params
+                    .get(&"user_id".to_string().into())
+                    .and_then(|s| UserId::from_string(s.as_str()).ok());
+
+                // Use OAuth access token as the API key
+                let token: forge_domain::ApiKey = tokens.access_token.to_string().into();
+
+                Ok((token, user_id))
+            }
+            AuthDetails::OAuthWithApiKey { tokens: _, api_key, .. } => {
+                // For OAuthWithApiKey, user_id is optional (JWT contains it)
+                // Try to get from URL params if available (for local database operations)
+                let user_id = credential
+                    .url_params
+                    .get(&"user_id".to_string().into())
+                    .and_then(|s| UserId::from_string(s.as_str()).ok());
+
+                // Use the dedicated API key
+                Ok((api_key.clone(), user_id))
+            }
         }
     }
 
@@ -533,7 +579,8 @@ impl<
         path: PathBuf,
         params: forge_domain::SearchParams<'_>,
     ) -> Result<Vec<forge_domain::Node>> {
-        let (token, user_id) = self.get_workspace_credentials().await?;
+        let (token, user_id_opt) = self.get_workspace_credentials().await?;
+        let user_id = self.get_or_generate_user_id(&token, user_id_opt).await?;
 
         let workspace = self
             .find_workspace_by_path(path, &user_id)
@@ -566,9 +613,10 @@ impl<
     /// Retrieves workspace information for a specific path.
     async fn get_workspace_info(&self, path: PathBuf) -> Result<Option<forge_domain::WorkspaceInfo>>
     where
-        F: WorkspaceRepository + WorkspaceIndexRepository + ProviderRepository,
+        F: WorkspaceRepository + WorkspaceIndexRepository + ProviderRepository + EnvironmentInfra,
     {
-        let (token, user_id) = self.get_workspace_credentials().await?;
+        let (token, user_id_opt) = self.get_workspace_credentials().await?;
+        let user_id = self.get_or_generate_user_id(&token, user_id_opt).await?;
         let workspace = self.find_workspace_by_path(path, &user_id).await?;
 
         if let Some(workspace) = workspace {
@@ -602,7 +650,8 @@ impl<
     }
 
     async fn is_indexed(&self, path: &std::path::Path) -> Result<bool> {
-        let (_, user_id) = self.get_workspace_credentials().await?;
+        let (token, user_id_opt) = self.get_workspace_credentials().await?;
+        let user_id = self.get_or_generate_user_id(&token, user_id_opt).await?;
         match self
             .find_workspace_by_path(path.to_path_buf(), &user_id)
             .await
@@ -613,7 +662,8 @@ impl<
     }
 
     async fn get_workspace_status(&self, path: PathBuf) -> Result<Vec<forge_domain::FileStatus>> {
-        let (token, user_id) = self.get_workspace_credentials().await?;
+        let (token, user_id_opt) = self.get_workspace_credentials().await?;
+        let user_id = self.get_or_generate_user_id(&token, user_id_opt).await?;
 
         let workspace = self
             .find_workspace_by_path(path, &user_id)
