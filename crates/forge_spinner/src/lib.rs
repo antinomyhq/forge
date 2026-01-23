@@ -121,10 +121,10 @@ impl<P: ConsoleWriter> SpinnerManager<P> {
         let elapsed_ms = self.accumulated_elapsed.as_millis() as u64;
         let cycle_ms = TICK_DURATION_MS * tick_count as u64;
         let ticks_to_advance = (elapsed_ms % cycle_ms) / TICK_DURATION_MS;
-        
+
         // Advance to the correct tick position
         (0..ticks_to_advance).for_each(|_| pb.tick());
-        
+
         pb.enable_steady_tick(Duration::from_millis(TICK_DURATION_MS));
 
         self.spinner = Some(pb);
