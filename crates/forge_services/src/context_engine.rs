@@ -2,6 +2,7 @@ use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
+use std::u64;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
@@ -425,14 +426,9 @@ impl<F> ForgeWorkspaceService<F> {
         F: WalkerInfra + FileReaderInfra,
     {
         info!("Walking directory to discover files");
-        let mut walker_config = Walker::conservative()
+        let walker_config = Walker::unlimited()
             .cwd(dir_path.to_path_buf())
-            .max_depth(usize::MAX)
-            .max_breadth(usize::MAX)
-            .max_files(usize::MAX)
             .skip_binary(true); // Walker filters binary files
-        walker_config.max_file_size = None;
-        walker_config.max_total_size = None;
 
         let walked_files = self
             .infra
