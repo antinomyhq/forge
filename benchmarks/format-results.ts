@@ -86,14 +86,8 @@ function parseLogFile(filePath: string): EvalSummary[] {
       
       // Look for "Evaluation completed" messages
       if (entry.msg === "Evaluation completed" && entry.total !== undefined) {
-        // Extract eval name from directory path if available
-        let evalName = "Unknown";
-        if (entry.dir) {
-          // Try to extract eval name from temp directory path
-          // This is a best-effort extraction
-          const match = entry.dir.match(/forge-setup-[^/]+/);
-          evalName = match ? match[0] : "eval";
-        }
+        // Use eval_name from log entry, fallback to "Unknown"
+        const evalName = entry.eval_name || "Unknown";
         
         summaries.push({
           evalName,
