@@ -14,7 +14,6 @@ pub use progress_bar::*;
 const TICK_DURATION_MS: u64 = 60;
 const TICKS: &[&str; 10] = &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 
-
 /// Formats elapsed time into a compact string representation.
 ///
 /// # Arguments
