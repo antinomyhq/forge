@@ -3,21 +3,16 @@
 # ZSH Keyboard Shortcuts - Display ZLE keyboard shortcuts
 # Shows platform-specific keyboard shortcuts for ZSH Line Editor
 
-# Source user's .zshrc to get their environment (suppress errors from non-interactive mode)
-if [[ -f "${ZDOTDIR:-$HOME}/.zshrc" ]]; then
-    source "${ZDOTDIR:-$HOME}/.zshrc" 2>/dev/null
-fi
-
 # ANSI codes
-local RESET='\033[0m'
-local _BOLD='\033[1m'
-local _DIM='\033[2m'
-local _CYAN='\033[0;36m'
+RESET='\033[0m'
+BOLD='\033[1m'
+DIM='\033[2m'
+CYAN='\033[0;36m'
 
 # Text formatting helpers - auto-reset
-function bold() { echo "${_BOLD}${1}${RESET}"; }
-function dim() { echo "${_DIM}${1}${RESET}"; }
-function cyan() { echo "${_CYAN}${1}${RESET}"; }
+function bold() { echo "${BOLD}${1}${RESET}"; }
+function dim() { echo "${DIM}${1}${RESET}"; }
+function cyan() { echo "${CYAN}${1}${RESET}"; }
 
 # Helper function to print section headers
 function print_section() {
@@ -31,19 +26,27 @@ function print_section() {
 function print_shortcut() {
     local key=$1
     local description=$2
-    
+
     if [[ -z "$description" ]]; then
         # Single argument - print as-is (for configuration lines)
         echo "  $(dim "${key}")"
     else
         # Two arguments - pad the key and align descriptions
-        printf "  $(cyan "%-16s")%s\n" "$key" "$description"
+        # Calculate padding based on key length (max 20 chars for alignment)
+        local padding=20
+        local key_len=${#key}
+        local pad_len=$((padding - key_len))
+        local pad=""
+        if [[ $pad_len -gt 0 ]]; then
+            printf -v pad "%${pad_len}s" ""
+        fi
+        printf "  $(cyan "%s")%s%s\n" "$key" "$pad" "$description"
     fi
 }
 
 # Detect platform
-local platform="unknown"
-local alt_key="Alt"
+platform="unknown"
+alt_key="Alt"
 if [[ "$(uname)" == "Darwin" ]]; then
     platform="macOS"
     alt_key="Option"
@@ -54,7 +57,7 @@ elif [[ "$(uname)" =~ "MINGW" ]] || [[ "$(uname)" =~ "MSYS" ]] || [[ "$(uname)" 
 fi
 
 # Detect if vi/vim mode is enabled
-local vi_mode=false
+vi_mode=false
 # Check if main keymap is bound to viins or vicmd
 if bindkey -lL main 2>/dev/null | grep -q "bindkey -A viins main\|bindkey -A vicmd main"; then
     vi_mode=true
