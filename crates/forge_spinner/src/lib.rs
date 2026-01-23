@@ -11,6 +11,10 @@ mod progress_bar;
 
 pub use progress_bar::*;
 
+const TICK_DURATION_MS: u64 = 60;
+const TICKS: &[&str; 10] = &["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+
+
 /// Formats elapsed time into a compact string representation.
 ///
 /// # Arguments
@@ -95,12 +99,11 @@ impl<P: ConsoleWriter> SpinnerManager<P> {
 
         // Create the spinner with accumulated elapsed time
         // Use custom elapsed formatter for "01s", "1:01m", "1:01h" format
-        let ticks = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
         let pb = ProgressBar::new_spinner()
             .with_elapsed(self.accumulated_elapsed)
             .with_style(
                 ProgressStyle::default_spinner()
-                    .tick_strings(&ticks)
+                    .tick_strings(TICKS)
                     .template("{spinner:.green} {msg} {elapsed_custom:.white} {prefix:.white.dim}")
                     .unwrap()
                     .with_key(
@@ -115,9 +118,7 @@ impl<P: ConsoleWriter> SpinnerManager<P> {
 
         // Preserve spinner tick position for visual continuity
         // The spinner has 10 tick positions cycling every 600ms (60ms per tick)
-        const TICK_DURATION_MS: u64 = 60;
-        let tick_count: usize = ticks.len();
-
+        let tick_count: usize = TICKS.len();
         let elapsed_ms = self.accumulated_elapsed.as_millis() as u64;
         let cycle_ms = TICK_DURATION_MS * tick_count as u64;
         let ticks_to_advance = (elapsed_ms % cycle_ms) / TICK_DURATION_MS;
