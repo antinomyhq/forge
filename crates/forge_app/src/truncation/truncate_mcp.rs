@@ -1,43 +1,50 @@
-use derive_setters::Setters;
+use std::path::Path;
+
 use forge_template::Element;
 
-/// Output structure for MCP truncation with metadata
-#[derive(Debug, Clone, PartialEq, Eq, Default, Setters)]
-#[setters(strip_option, into)]
+/// MCP output that was actually truncated (compile-time guarantee)
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TruncatedMcpOutput {
     pub content: String,
     pub total_lines: usize,
     pub display_start_line: usize,
     pub display_end_line: usize,
-    pub is_truncated: bool,
 }
 
 impl TruncatedMcpOutput {
-    /// Converts the truncated output into an XML representation
+    /// Converts truncated output into XML representation with temp file reference
     ///
     /// # Arguments
     /// * `temp_file_path` - Path to the file containing the full content
-    ///
-    /// # Returns
-    /// XML string with truncation metadata and content
-    pub fn to_xml(&self, temp_file_path: &str) -> String {
-        let mut element = Element::new("mcp_output")
+    pub fn into_xml(self, temp_file_path: impl AsRef<Path>) -> String {
+        let temp_file_path = temp_file_path.as_ref().display().to_string();
+        let reason = format!(
+            "Content truncated to first {} of {} lines. Full content available at: {}",
+            self.display_end_line, self.total_lines, temp_file_path
+        );
+
+        Element::new("mcp_output")
             .attr("start_line", self.display_start_line)
             .attr("end_line", self.display_end_line)
             .attr("total_lines", self.total_lines)
-            .append(Element::new("body").cdata(&self.content));
-
-        if self.is_truncated {
-            element = element.attr("file_path", temp_file_path);
-            let reason = format!(
-                "Content truncated to first {} of {} lines. Full content available at: {}",
-                self.display_end_line, self.total_lines, temp_file_path
-            );
-            element = element.append(Element::new("truncated").text(reason));
-        }
-
-        element.render()
+            .attr("file_path", temp_file_path)
+            .append(Element::new("body").cdata(&self.content))
+            .append(Element::new("truncated").text(reason))
+            .render()
     }
+}
+
+/// MCP output that fits within the limit (no truncation needed)
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CompleteMcpOutput {
+    pub content: String,
+}
+
+/// Result of MCP truncation - either truncated or complete
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum McpTruncationResult {
+    Truncated(TruncatedMcpOutput),
+    Complete(CompleteMcpOutput),
 }
 
 /// Truncates MCP content based on line limit with prefix-only strategy
@@ -52,42 +59,26 @@ impl TruncatedMcpOutput {
 ///   truncated)
 ///
 /// # Returns
-/// `TruncatedMcpOutput` containing the truncated content and metadata
+/// `McpTruncationResult` - either `Truncated` or `Complete`
 pub fn truncate_mcp_content(
     content: &str,
     prefix_lines: usize,
     max_line_length: usize,
-) -> TruncatedMcpOutput {
-    // Handle empty content
-    if content.is_empty() {
-        return TruncatedMcpOutput {
-            content: String::new(),
-            total_lines: 0,
-            display_start_line: 1,
-            display_end_line: 0,
-            is_truncated: false,
-        };
-    }
-
+) -> McpTruncationResult {
     let total_lines = content.lines().count();
-
     // Reuse shell truncation logic with suffix=0 (prefix only)
     let (result_lines, truncation_info, _truncated_lines_count) =
         super::clip_by_lines(content, prefix_lines, 0, max_line_length);
-
-    let is_truncated = truncation_info.is_some();
-    let display_end_line = if is_truncated {
-        prefix_lines
+    let content = result_lines.join("\n");
+    if truncation_info.is_some() {
+        McpTruncationResult::Truncated(TruncatedMcpOutput {
+            content,
+            total_lines,
+            display_start_line: 1,
+            display_end_line: prefix_lines,
+        })
     } else {
-        total_lines
-    };
-
-    TruncatedMcpOutput {
-        content: result_lines.join("\n"),
-        total_lines,
-        display_start_line: 1,
-        display_end_line,
-        is_truncated,
+        McpTruncationResult::Complete(CompleteMcpOutput { content })
     }
 }
 
@@ -98,15 +89,14 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_to_xml() {
+    fn test_into_xml() {
         let truncated = TruncatedMcpOutput {
             content: "Line 1\nLine 2".to_string(),
             total_lines: 5,
             display_start_line: 1,
             display_end_line: 2,
-            is_truncated: true,
         };
-        let actual = truncated.to_xml("/tmp/test.txt");
+        let actual = truncated.into_xml("/tmp/test.txt");
         assert!(actual.contains("start_line=\"1\""));
         assert!(actual.contains("end_line=\"2\""));
         assert!(actual.contains("total_lines=\"5\""));
@@ -117,36 +107,12 @@ mod tests {
     }
 
     #[test]
-    fn test_to_xml_not_truncated() {
-        let not_truncated = TruncatedMcpOutput {
-            content: "Line 1\nLine 2\nLine 3".to_string(),
-            total_lines: 3,
-            display_start_line: 1,
-            display_end_line: 3,
-            is_truncated: false,
-        };
-        let actual = not_truncated.to_xml("/tmp/test.txt");
-        assert!(actual.contains("start_line=\"1\""));
-        assert!(actual.contains("end_line=\"3\""));
-        assert!(actual.contains("total_lines=\"3\""));
-        assert!(actual.contains("Line 1\nLine 2\nLine 3"));
-        // Should NOT contain file_path, truncated element, or truncation message
-        assert!(!actual.contains("file_path"));
-        assert!(!actual.contains("<truncated>"));
-        assert!(!actual.contains("Content truncated"));
-    }
-
-    #[test]
     fn test_empty_content() {
         let fixture = "";
         let actual = truncate_mcp_content(fixture, 10, 2000);
-        let expected = TruncatedMcpOutput {
+        let expected = McpTruncationResult::Complete(CompleteMcpOutput {
             content: String::new(),
-            total_lines: 0,
-            display_start_line: 1,
-            display_end_line: 0,
-            is_truncated: false,
-        };
+        });
         assert_eq!(actual, expected);
     }
 
@@ -157,27 +123,22 @@ mod tests {
         ]
         .join("\n");
         let actual = truncate_mcp_content(&fixture, 3, 2000);
-        let expected = TruncatedMcpOutput {
+        let expected = McpTruncationResult::Truncated(TruncatedMcpOutput {
             content: "line 1\nline 2\nline 3".to_string(),
             total_lines: 7,
             display_start_line: 1,
             display_end_line: 3,
-            is_truncated: true,
-        };
+        });
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn test_no_truncation_when_content_fits() {
-        let fixture = ["line 1", "line 2", "line 3"].join("\n");
+        let fixture = ["line 1", "line 2"].join("\n");
         let actual = truncate_mcp_content(&fixture, 10, 2000);
-        let expected = TruncatedMcpOutput {
-            content: "line 1\nline 2\nline 3".to_string(),
-            total_lines: 3,
-            display_start_line: 1,
-            display_end_line: 3,
-            is_truncated: false,
-        };
+        let expected = McpTruncationResult::Complete(CompleteMcpOutput {
+            content: "line 1\nline 2".to_string(),
+        });
         assert_eq!(actual, expected);
     }
 
@@ -185,13 +146,12 @@ mod tests {
     fn test_prefix_only() {
         let fixture = ["line 1", "line 2", "line 3", "line 4", "line 5"].join("\n");
         let actual = truncate_mcp_content(&fixture, 2, 2000);
-        let expected = TruncatedMcpOutput {
+        let expected = McpTruncationResult::Truncated(TruncatedMcpOutput {
             content: "line 1\nline 2".to_string(),
             total_lines: 5,
             display_start_line: 1,
             display_end_line: 2,
-            is_truncated: true,
-        };
+        });
         assert_eq!(actual, expected);
     }
 
@@ -199,13 +159,9 @@ mod tests {
     fn test_exact_match() {
         let fixture = ["line 1", "line 2", "line 3"].join("\n");
         let actual = truncate_mcp_content(&fixture, 3, 2000);
-        let expected = TruncatedMcpOutput {
+        let expected = McpTruncationResult::Complete(CompleteMcpOutput {
             content: "line 1\nline 2\nline 3".to_string(),
-            total_lines: 3,
-            display_start_line: 1,
-            display_end_line: 3,
-            is_truncated: false,
-        };
+        });
         assert_eq!(actual, expected);
     }
 
@@ -218,14 +174,10 @@ mod tests {
         ]
         .join("\n");
         let actual = truncate_mcp_content(&fixture, 10, 15);
-        let expected = TruncatedMcpOutput {
+        let expected = McpTruncationResult::Complete(CompleteMcpOutput {
             content: "short line\nthis is a very ...[41 more chars truncated]\nanother short l...[3 more chars truncated]"
                 .to_string(),
-            total_lines: 3,
-            display_start_line: 1,
-            display_end_line: 3,
-            is_truncated: false,
-        };
+        });
         assert_eq!(actual, expected);
     }
 
@@ -242,13 +194,12 @@ mod tests {
         ]
         .join("\n");
         let actual = truncate_mcp_content(&fixture, 2, 10);
-        let expected = TruncatedMcpOutput {
+        let expected = McpTruncationResult::Truncated(TruncatedMcpOutput {
             content: "line 1\nvery long ...[46 more chars truncated]".to_string(),
             total_lines: 7,
             display_start_line: 1,
             display_end_line: 2,
-            is_truncated: true,
-        };
+        });
         assert_eq!(actual, expected);
     }
 }

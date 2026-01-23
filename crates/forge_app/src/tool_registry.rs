@@ -388,18 +388,42 @@ async fn truncate_mcp_output<S: FsWriteService>(
     for value in output.values {
         let new_value = match value {
             ToolValue::Text(text) if text.lines().count() > remaining_lines => {
-                // Content exceeds limit - truncate and wrap in XML
-                match truncate_text_value(&*services, &text, remaining_lines, max_line_length).await
-                {
-                    Ok(xml) => {
-                        remaining_lines = 0;
-                        ToolValue::Text(xml)
+                match crate::truncation::truncate_mcp_content(
+                    &text,
+                    remaining_lines,
+                    max_line_length,
+                ) {
+                    crate::truncation::McpTruncationResult::Truncated(truncated) => {
+                        // Create temp file and convert to XML
+                        match crate::utils::create_temp_file(
+                            &*services,
+                            "forge_mcp_",
+                            ".txt",
+                            &text,
+                        )
+                        .await
+                        {
+                            Ok(temp_path) => {
+                                remaining_lines = 0;
+                                ToolValue::Text(truncated.into_xml(temp_path))
+                            }
+                            Err(_) => {
+                                // Fallback: return original text on error
+                                remaining_lines =
+                                    remaining_lines.saturating_sub(text.lines().count());
+                                ToolValue::Text(text)
+                            }
+                        }
                     }
-                    Err(_) => ToolValue::Text(text), // On error, return original
+                    crate::truncation::McpTruncationResult::Complete(complete) => {
+                        // Not actually truncated, pass through
+                        remaining_lines = remaining_lines.saturating_sub(text.lines().count());
+                        ToolValue::Text(complete.content)
+                    }
                 }
             }
             ToolValue::Text(text) => {
-                // Content fits within limit
+                // Content fits within limit, pass through
                 remaining_lines = remaining_lines.saturating_sub(text.lines().count());
                 ToolValue::Text(text)
             }
@@ -409,26 +433,6 @@ async fn truncate_mcp_output<S: FsWriteService>(
     }
 
     ToolOutput { values: new_values, is_error: output.is_error }
-}
-
-/// Truncates a text value and returns XML-wrapped result
-///
-/// # Errors
-/// Returns error if temp file creation fails
-async fn truncate_text_value<S: FsWriteService>(
-    services: &S,
-    text: &str,
-    line_limit: usize,
-    max_line_length: usize,
-) -> anyhow::Result<String> {
-    // Write full content to temp file
-    let temp_path = crate::utils::create_temp_file(services, "forge_mcp_", ".txt", text).await?;
-
-    // Truncate content
-    let truncated = crate::truncation::truncate_mcp_content(text, line_limit, max_line_length);
-
-    // Convert to XML with temp file path
-    Ok(truncated.to_xml(&temp_path.display().to_string()))
 }
 
 #[cfg(test)]
