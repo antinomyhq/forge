@@ -782,4 +782,35 @@ class ForgeAgent(BaseInstalledAgent):
                 ),
                 env=env,
             ),
+            ExecInput(
+                command=(
+                    f"/usr/local/bin/forge "
+                    f"conversation "
+                    f"dump "
+                    f"{self._conversation_id}"
+                ),
+                env=env,
+            ),
+            ExecInput(
+                command=(
+                    f"/usr/local/bin/forge "
+                    f"conversation "
+                    f"dump "
+                    f"{self._conversation_id} "
+                    f"--html"
+                ),
+                env=env,
+            ),
+            ExecInput(
+                command=(
+                    f"cat *-dump.json"
+                ),
+                env=env,
+            ),
+            ExecInput(
+                command=(
+                    f"cat *-dump.html"
+                ),
+                env=env,
+            ),
         ]
