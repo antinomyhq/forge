@@ -97,13 +97,17 @@ mod tests {
             display_end_line: 2,
         };
         let actual = truncated.into_xml("/tmp/test.txt");
-        assert!(actual.contains("start_line=\"1\""));
-        assert!(actual.contains("end_line=\"2\""));
-        assert!(actual.contains("total_lines=\"5\""));
-        assert!(actual.contains("file_path=\"/tmp/test.txt\""));
-        assert!(actual.contains("Line 1\nLine 2"));
-        assert!(actual.contains("Content truncated to first 2 of 5 lines"));
-        assert!(actual.contains("<truncated>"));
+        let expected = r#"<mcp_output
+  start_line="1"
+  end_line="2"
+  total_lines="5"
+  file_path="/tmp/test.txt"
+>
+<body><![CDATA[Line 1
+Line 2]]></body>
+<truncated>Content truncated to first 2 of 5 lines. Full content available at: /tmp/test.txt</truncated>
+</mcp_output>"#;
+        assert_eq!(actual, expected);
     }
 
     #[test]
