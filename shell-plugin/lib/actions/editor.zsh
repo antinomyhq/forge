@@ -46,6 +46,7 @@ function _forge_action_editor() {
     
     if [ $editor_exit_code -ne 0 ]; then
         _forge_log error "Editor exited with error code $editor_exit_code"
+        _forge_reset
         return 1
     fi
     
