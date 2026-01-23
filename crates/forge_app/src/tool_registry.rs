@@ -1066,7 +1066,10 @@ mod mcp_truncation_tests {
     #[tokio::test]
     async fn test_multiline_text_below_limit_passes_through() {
         let services = Arc::new(MockFsWriteService::new());
-        let text = (1..=3).map(|i| format!("Line {}", i)).collect::<Vec<_>>().join("\n");
+        let text = (1..=3)
+            .map(|i| format!("Line {}", i))
+            .collect::<Vec<_>>()
+            .join("\n");
         let fixture = ToolOutput::text(text.clone());
         // Limit is 10 lines, content has only 3 lines - should pass through unchanged
         let actual = truncate_mcp_output(services, fixture, 10, 2000).await;
@@ -1078,14 +1081,17 @@ mod mcp_truncation_tests {
     async fn test_multiple_text_values_with_limit_across_all() {
         let services = Arc::new(MockFsWriteService::new());
         // Create multi-line content: 3 lines in first value, 2 lines in second value
-        let first_text = (1..=3).map(|i| format!("Line {}", i)).collect::<Vec<_>>().join("\n");
-        let second_text = (4..=5).map(|i| format!("Line {}", i)).collect::<Vec<_>>().join("\n");
-        
+        let first_text = (1..=3)
+            .map(|i| format!("Line {}", i))
+            .collect::<Vec<_>>()
+            .join("\n");
+        let second_text = (4..=5)
+            .map(|i| format!("Line {}", i))
+            .collect::<Vec<_>>()
+            .join("\n");
+
         let fixture = ToolOutput {
-            values: vec![
-                ToolValue::Text(first_text),
-                ToolValue::Text(second_text),
-            ],
+            values: vec![ToolValue::Text(first_text), ToolValue::Text(second_text)],
             is_error: false,
         };
 
@@ -1103,7 +1109,7 @@ mod mcp_truncation_tests {
             .collect::<Vec<_>>()
             .join("\n");
         let fixture = ToolOutput::text(fixture_text);
-        
+
         // Limit to 3 lines - should keep first 3 lines and truncate the rest
         let actual = truncate_mcp_output(services, fixture, 3, 2000).await;
         insta::assert_snapshot!(format_tool_output(actual));

@@ -70,7 +70,7 @@ pub fn truncate_mcp_content(
     }
 
     let total_lines = content.lines().count();
-    
+
     // Reuse shell truncation logic with suffix=0 (prefix only)
     let (result_lines, truncation_info, _truncated_lines_count) =
         super::clip_by_lines(content, prefix_lines, 0, max_line_length);
@@ -93,8 +93,9 @@ pub fn truncate_mcp_content(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use pretty_assertions::assert_eq;
+
+    use super::*;
 
     #[test]
     fn test_to_xml() {
