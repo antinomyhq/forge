@@ -407,15 +407,16 @@ async fn truncate_mcp_output<S: FsWriteService>(
                         crate::truncation::truncate_fetch_content(&text, remaining);
 
                     // Build XML wrapper
+                    let temp_path = temp_path.display().to_string();
                     let reason = format!(
                         "Content is truncated to {} chars, remaining content can be read from path: {}",
-                        remaining,
-                        temp_path.display()
+                        remaining, temp_path
                     );
                     let xml = Element::new("mcp_output")
                         .attr("start_char", 0)
                         .attr("end_char", remaining.min(original_length))
                         .attr("total_chars", original_length)
+                        .attr("file_path", temp_path)
                         .append(Element::new("body").cdata(truncated_output.content))
                         .append(Element::new("truncated").text(reason))
                         .render();
