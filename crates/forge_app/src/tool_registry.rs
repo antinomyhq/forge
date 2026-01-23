@@ -1056,8 +1056,6 @@ mod mcp_truncation_tests {
 
     /// Redacts temp file paths from XML output for deterministic snapshots
     fn redact_temp_path(xml: &str) -> String {
-        // Replace the temp file path with a placeholder
-        // Matches: /var/folders/.../T/forge_mcp_*.txt or /tmp/forge_mcp_*.txt
         let re =
             regex::Regex::new(r"(?:/var/folders/[^/]+/[^/]+/T|/tmp)/forge_mcp_\w+\.txt").unwrap();
         re.replace_all(xml, "[TEMP_FILE]").to_string()
