@@ -669,6 +669,9 @@ class ForgeAgent(BaseInstalledAgent):
         elif self.model_name:
             env["FORGE_OVERRIDE_MODEL"] = self.model_name
 
+        # Tool timeout configuration (30 minutes for long-running benchmark tasks)
+        env["FORGE_TOOL_TIMEOUT"] = "1800"  # 30 minutes in seconds
+
         # Pass through API keys
         api_key_vars = [
             "FORGE_API_KEY",
@@ -770,10 +773,6 @@ class ForgeAgent(BaseInstalledAgent):
 
 
         return [
-            ExecInput(
-                command="/usr/local/bin/forge workspace sync",
-                env=env,
-            ),
             ExecInput(
                 command=(
                     f"/usr/local/bin/forge --verbose "

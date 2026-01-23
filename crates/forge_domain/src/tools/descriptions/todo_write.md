@@ -150,10 +150,6 @@ The assistant did not use the todo list because this is a single command executi
    - in_progress: Currently working on (limit to ONE task at a time)
    - completed: Task finished successfully
 
-   **IMPORTANT**: Task descriptions must have two forms:
-   - content: The imperative form describing what needs to be done (e.g., "Run tests", "Build the project")
-   - activeForm: The present continuous form shown during execution (e.g., "Running tests", "Building the project")
-
 2. **Task Management**:
    - Update task status in real-time as you work
    - Mark tasks complete IMMEDIATELY after finishing (don't batch completions)
@@ -174,9 +170,6 @@ The assistant did not use the todo list because this is a single command executi
 4. **Task Breakdown**:
    - Create specific, actionable items
    - Break complex tasks into smaller, manageable steps
-   - Use clear, descriptive task names
-   - Always provide both forms:
-     - content: "Fix authentication bug"
-     - activeForm: "Fixing authentication bug"
+   - Use clear, descriptive task names (e.g., "Fix authentication bug", "Run tests", "Build the project")
 
 When in doubt, use this tool. Being proactive with task management demonstrates attentiveness and ensures you complete all requirements successfully.
