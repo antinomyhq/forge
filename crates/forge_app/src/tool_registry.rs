@@ -20,7 +20,7 @@ use crate::error::Error;
 use crate::fmt::content::FormatContent;
 use crate::mcp_executor::McpExecutor;
 use crate::tool_executor::ToolExecutor;
-use crate::truncation::truncate_fetch_content;
+
 use crate::{
     AgentRegistry, EnvironmentService, FsWriteService, McpService, PolicyService, ProviderService,
     Services, ToolResolver, WorkspaceService,
@@ -171,10 +171,7 @@ impl<S: Services> ToolRegistry<S> {
             }
 
             let limit = self.services.get_environment().mcp_truncation_limit;
-            Ok(self
-                .truncate_mcp_output_if_needed(output.clone(), limit)
-                .await
-                .unwrap_or(output))
+            Ok(truncate_mcp_output(self.services.clone(), output, limit).await)
         } else {
             Err(Error::NotFound(input.name).into())
         }
@@ -374,69 +371,67 @@ impl<S> ToolRegistry<S> {
     }
 }
 
-// what out mcp output is following.
-// <text>
-// <image>
-// <text>
-// we need to preserve the order as well while truncating.
-impl<S: FsWriteService> ToolRegistry<S> {
-    /// Truncates MCP output if any text value exceeds the limit.
-    /// Each truncated value gets its own temp file and XML wrapper.
-    async fn truncate_mcp_output_if_needed(
-        &self,
-        output: ToolOutput,
-        limit: usize,
-    ) -> anyhow::Result<ToolOutput> {
-        // MCP tools can only return two variants: ToolValue::Text and ToolValue::Image
-        // image we return as is, text we truncate and then return.
-        let mut new_values = Vec::with_capacity(output.values.len());
-        let mut remaining = limit;
-        for value in output.values {
-            match value {
-                ToolValue::Text(text) => {
-                    let original_length = text.chars().count();
-                    let is_truncated = original_length > remaining;
-                    if is_truncated {
-                        // Write full content to temp file
-                        let temp_path = crate::utils::create_temp_file(
-                            &*self.services,
-                            "forge_mcp_",
-                            ".txt",
-                            &text,
-                        )
-                        .await?;
+/// Truncates MCP output if any text value exceeds the limit.
+async fn truncate_mcp_output<S: FsWriteService>(
+    services: Arc<S>,
+    output: ToolOutput,
+    limit: usize,
+) -> ToolOutput {
+    // MCP tools can only return two variants: ToolValue::Text and ToolValue::Image
+    // image we return as is, text we truncate and then return.
+    let mut new_values = Vec::with_capacity(output.values.len());
+    let mut remaining = limit;
+    for value in output.values {
+        match value {
+            ToolValue::Text(text) => {
+                let original_length = text.chars().count();
+                let is_truncated = original_length > remaining;
+                if is_truncated {
+                    // Write full content to temp file - if this fails, return original output
+                    let temp_path =
+                        match crate::utils::create_temp_file(&*services, "forge_mcp_", ".txt", &text)
+                            .await
+                        {
+                            Ok(path) => path,
+                            Err(_) => {
+                                new_values.push(ToolValue::Text(text));
+                                continue;
+                            }
+                        };
 
-                        // Truncate content for display (same strategy as fetch)
-                        let truncated_content = truncate_fetch_content(&text, remaining);
+                    // Truncate content using shared utility
+                    let truncated_output =
+                        crate::truncation::truncate_fetch_content(&text, remaining);
 
-                        let reason = format!(
-                            "Content is truncated to {} chars, remaining content can be read from path: {}",
-                            remaining,
-                            temp_path.display()
-                        );
+                    // Build XML wrapper
+                    let reason = format!(
+                        "Content is truncated to {} chars, remaining content can be read from path: {}",
+                        remaining,
+                        temp_path.display()
+                    );
+                    let xml = Element::new("mcp_output")
+                        .attr("start_char", 0)
+                        .attr("end_char", remaining.min(original_length))
+                        .attr("total_chars", original_length)
+                        .append(Element::new("body").cdata(truncated_output.content))
+                        .append(Element::new("truncated").text(reason))
+                        .render();
 
-                        // Wrap in XML with metadata (same pattern as fetch)
-                        let xml = Element::new("mcp_output")
-                            .attr("start_char", 0)
-                            .attr("end_char", remaining.min(original_length))
-                            .attr("total_chars", original_length)
-                            .append(Element::new("body").cdata(truncated_content.content))
-                            .append(Element::new("truncated").text(reason));
-                        remaining -= original_length;
-                        new_values.push(ToolValue::Text(xml.render()));
-                    } else {
-                        // Not truncated, keep as-is
-                        new_values.push(ToolValue::Text(text));
-                    }
-                }
-                other => {
-                    // Non-text values pass through unchanged
-                    new_values.push(other);
+                    remaining = 0; // After truncation, no more space left
+                    new_values.push(ToolValue::Text(xml));
+                } else {
+                    // Not truncated, keep as-is and decrease remaining
+                    remaining -= original_length;
+                    new_values.push(ToolValue::Text(text));
                 }
             }
+            other => {
+                // Non-text values pass through unchanged
+                new_values.push(other);
+            }
         }
-        Ok(ToolOutput { values: new_values, is_error: output.is_error })
     }
+    ToolOutput { values: new_values, is_error: output.is_error }
 }
 
 #[cfg(test)]
@@ -981,4 +976,117 @@ fn test_all_rendered_tool_descriptions() {
         "all_rendered_tool_descriptions",
         all_descriptions.join("\n---\n\n")
     );
+}
+
+// Tests for MCP truncation
+#[cfg(test)]
+mod mcp_truncation_tests {
+    use std::collections::HashMap;
+    use std::sync::{Arc, Mutex};
+
+    use crate::{FsWriteOutput, FsWriteService};
+    use forge_domain::{ToolOutput, ToolValue};
+
+    use super::*;
+
+    #[derive(Clone)]
+    struct MockFsWriteService {
+        written_files: Arc<Mutex<HashMap<String, String>>>,
+    }
+
+    impl MockFsWriteService {
+        fn new() -> Self {
+            Self { written_files: Arc::new(Mutex::new(HashMap::new())) }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl FsWriteService for MockFsWriteService {
+        async fn write(
+            &self,
+            path: String,
+            content: String,
+            _overwrite: bool,
+        ) -> anyhow::Result<FsWriteOutput> {
+            self.written_files
+                .lock()
+                .unwrap()
+                .insert(path.clone(), content);
+            Ok(FsWriteOutput {
+                path: path,
+                before: None,
+                errors: vec![],
+                content_hash: "mock_hash".to_string(),
+            })
+        }
+    }
+
+    /// Formats ToolOutput for snapshot testing by extracting and formatting text values
+    fn format_tool_output(output: ToolOutput) -> String {
+        let mut result = String::new();
+        
+        for (i, value) in output.values.iter().enumerate() {
+            if i > 0 {
+                result.push_str("\n---\n");
+            }
+            match value {
+                ToolValue::Text(text) => {
+                    let redacted = redact_temp_path(text);
+                    result.push_str(&redacted);
+                }
+                ToolValue::Image(img) => {
+                    result.push_str(&format!("[Image: {}]", img.mime_type()));
+                }
+                ToolValue::Empty => {
+                    result.push_str("[Empty]");
+                }
+                ToolValue::AI { value, .. } => {
+                    result.push_str(&redact_temp_path(value));
+                }
+            }
+        }
+        
+        result
+    }
+
+    /// Redacts temp file paths from XML output for deterministic snapshots
+    fn redact_temp_path(xml: &str) -> String {
+        // Replace the temp file path with a placeholder
+        // Matches: /var/folders/.../T/forge_mcp_*.txt or /tmp/forge_mcp_*.txt
+        let re = regex::Regex::new(r"(?:/var/folders/[^/]+/[^/]+/T|/tmp)/forge_mcp_\w+\.txt")
+            .unwrap();
+        re.replace_all(xml, "[TEMP_FILE]").to_string()
+    }
+
+    #[tokio::test]
+    async fn test_text_below_limit_passes_through() {
+        let services = Arc::new(MockFsWriteService::new());
+        let fixture = ToolOutput::text("Short text");
+        let actual = truncate_mcp_output(services, fixture, 100).await;
+        let expected = ToolOutput::text("Short text");
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_multiple_text_values_with_limit_across_all() {
+        let services = Arc::new(MockFsWriteService::new());
+        let fixture = ToolOutput {
+            values: vec![
+                ToolValue::Text("a".repeat(60)),
+                ToolValue::Text("b".repeat(60)),
+            ],
+            is_error: false,
+        };
+
+        let actual = truncate_mcp_output(services, fixture, 100).await;
+        insta::assert_snapshot!(format_tool_output(actual));
+    }
+
+    #[tokio::test]
+    async fn test_single_value_truncation() {
+        let services = Arc::new(MockFsWriteService::new());
+        let fixture = ToolOutput::text(&"x".repeat(150));
+        let actual = truncate_mcp_output(services, fixture, 100).await;
+        insta::assert_snapshot!(format_tool_output(actual));
+    }
 }

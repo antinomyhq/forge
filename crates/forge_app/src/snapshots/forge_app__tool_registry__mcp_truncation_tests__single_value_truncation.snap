@@ -1,0 +1,12 @@
+---
+source: crates/forge_app/src/tool_registry.rs
+expression: format_tool_output(actual)
+---
+<mcp_output
+  start_char="0"
+  end_char="100"
+  total_chars="150"
+>
+<body><![CDATA[xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx]]></body>
+<truncated>Content is truncated to 100 chars, remaining content can be read from path: [TEMP_FILE]</truncated>
+</mcp_output>
