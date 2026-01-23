@@ -1,28 +1,55 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use std::time::Duration;
 
 use anyhow::Result;
 use colored::Colorize;
 use forge_domain::ConsoleWriter;
-use indicatif::{ProgressBar, ProgressStyle};
+use indicatif::{ProgressBar, ProgressState, ProgressStyle};
 use rand::Rng;
-use tokio::task::JoinHandle;
 
 mod progress_bar;
-mod stopwatch;
 
 pub use progress_bar::*;
-use stopwatch::Stopwatch;
+
+/// Formats elapsed time into a compact string representation.
+///
+/// # Arguments
+///
+/// * `duration` - The elapsed time duration
+///
+/// # Returns
+///
+/// A formatted string:
+/// - Less than 1 minute: "01s", "02s", etc.
+/// - Less than 1 hour: "1:01m", "1:59m", etc.
+/// - 1 hour or more: "1:01h", "2:30h", etc.
+fn format_elapsed_time(duration: Duration) -> String {
+    let total_seconds = duration.as_secs();
+    if total_seconds < 60 {
+        format!("{:02}s", total_seconds)
+    } else if total_seconds < 3600 {
+        let minutes = total_seconds / 60;
+        let seconds = total_seconds % 60;
+        format!("{}:{:02}m", minutes, seconds)
+    } else {
+        let hours = total_seconds / 3600;
+        let minutes = (total_seconds % 3600) / 60;
+        format!("{}:{:02}h", hours, minutes)
+    }
+}
 
 /// Manages spinner functionality for the UI.
+///
+/// Uses indicatif's built-in `{elapsed}` template for time display,
+/// eliminating the need for a background task to update the message.
+/// Accumulated time is preserved across start/stop cycles using
+/// `with_elapsed()`.
 pub struct SpinnerManager<P: ConsoleWriter> {
     spinner: Option<ProgressBar>,
-    stopwatch: Stopwatch,
-    message: Option<String>,
-    tracker: Arc<Mutex<Option<JoinHandle<()>>>>,
+    accumulated_elapsed: Duration,
     word_index: Option<usize>,
+    message: Option<String>,
     printer: Arc<P>,
-    #[cfg(test)]
-    tick_counter: Option<std::sync::Arc<std::sync::atomic::AtomicU64>>,
 }
 
 impl<P: ConsoleWriter> SpinnerManager<P> {
@@ -30,13 +57,10 @@ impl<P: ConsoleWriter> SpinnerManager<P> {
     pub fn new(printer: Arc<P>) -> Self {
         Self {
             spinner: None,
-            stopwatch: Stopwatch::default(),
-            message: None,
-            tracker: Arc::new(Mutex::new(None)),
+            accumulated_elapsed: Duration::ZERO,
             word_index: None,
+            message: None,
             printer,
-            #[cfg(test)]
-            tick_counter: None,
         }
     }
 
@@ -57,82 +81,47 @@ impl<P: ConsoleWriter> SpinnerManager<P> {
 
         // Use a random word from the list, caching the index for consistency
         let word = match message {
-            Some(msg) => msg,
+            Some(msg) => msg.to_string(),
             None => {
                 let idx = *self
                     .word_index
                     .get_or_insert_with(|| rand::rng().random_range(0..words.len()));
-                words[idx]
+                words[idx].to_string()
             }
         };
 
-        // Store the base message without styling for later use with the timer
-        self.message = Some(word.to_string());
+        self.message = Some(word.clone());
 
-        // Start the stopwatch
-        self.stopwatch.start();
-
-        // Create the spinner with a better style that respects terminal width
-        let pb = ProgressBar::new_spinner();
-
-        pb.set_style(
-            ProgressStyle::default_spinner()
-                .tick_strings(&["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"])
-                .template("{spinner:.green} {msg}")
-                .unwrap(),
-        );
-
-        // Setting to 60ms for a smooth yet fast animation
-        pb.enable_steady_tick(std::time::Duration::from_millis(60));
-
-        // Set the initial message
-        let message = format!(
-            "{} {} {}",
-            word.green().bold(),
-            self.stopwatch,
-            "· Ctrl+C to interrupt".white().dimmed()
-        );
-        pb.set_message(message);
+        // Create the spinner with accumulated elapsed time
+        // Use custom elapsed formatter for "01s", "1:01m", "1:01h" format
+        let pb = ProgressBar::new_spinner()
+            .with_elapsed(self.accumulated_elapsed)
+            .with_style(
+                ProgressStyle::default_spinner()
+                    .tick_strings(&["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"])
+                    .template("{spinner:.green} {msg} {elapsed_custom:.white} {prefix:.white.dim}")
+                    .unwrap()
+                    .with_key(
+                        "elapsed_custom",
+                        |state: &ProgressState, w: &mut dyn std::fmt::Write| {
+                            let _ = write!(w, "{}", format_elapsed_time(state.elapsed()));
+                        },
+                    ),
+            )
+            .with_message(word.green().bold().to_string())
+            .with_prefix("· Ctrl+C to interrupt");
+        pb.enable_steady_tick(Duration::from_millis(60));
 
         self.spinner = Some(pb);
-
-        // Clone the necessary components for the tracker task
-        let spinner_clone = self.spinner.clone();
-        let message_clone = self.message.clone();
-        let stopwatch = self.stopwatch;
-        #[cfg(test)]
-        let tick_counter_clone = self.tick_counter.clone();
-
-        // Spawn tracker to keep track of time in seconds
-        let handle = tokio::spawn(async move {
-            let mut interval = tokio::time::interval(tokio::time::Duration::from_millis(500));
-            loop {
-                interval.tick().await;
-                #[cfg(test)]
-                if let Some(counter) = &tick_counter_clone {
-                    counter.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-                }
-                if let (Some(spinner), Some(message)) = (&spinner_clone, &message_clone) {
-                    let updated_message = format!(
-                        "{} {} {}",
-                        message.green().bold(),
-                        stopwatch,
-                        "· Ctrl+C to interrupt".white().dimmed()
-                    );
-                    spinner.set_message(updated_message);
-                }
-            }
-        });
-        *self.tracker.lock().unwrap_or_else(|e| e.into_inner()) = Some(handle);
 
         Ok(())
     }
 
     /// Stop the active spinner if any
     pub fn stop(&mut self, message: Option<String>) -> Result<()> {
-        self.stopwatch.stop();
-
         if let Some(spinner) = self.spinner.take() {
+            // Capture elapsed time before finishing
+            self.accumulated_elapsed = spinner.elapsed();
             spinner.finish_and_clear();
             if let Some(msg) = message {
                 self.println(&msg);
@@ -141,23 +130,26 @@ impl<P: ConsoleWriter> SpinnerManager<P> {
             self.println(&message);
         }
 
-        if let Some(handle) = self
-            .tracker
-            .lock()
-            .unwrap_or_else(|e| e.into_inner())
-            .take()
-        {
-            handle.abort();
-        }
         self.message = None;
+
         Ok(())
     }
 
-    /// Resets the stopwatch to zero.
+    /// Updates the spinner's displayed message.
+    pub fn set_message(&mut self, message: &str) -> Result<()> {
+        self.message = Some(message.to_owned());
+        if let Some(spinner) = &self.spinner {
+            spinner.set_message(message.green().bold().to_string());
+        }
+        Ok(())
+    }
+
+    /// Resets the elapsed time to zero.
     /// Call this when starting a completely new task/conversation.
     pub fn reset(&mut self) {
-        self.stopwatch.reset();
+        self.accumulated_elapsed = Duration::ZERO;
         self.word_index = None;
+        self.message = None;
     }
 
     /// Writes a line to stdout, suspending the spinner if active.
@@ -214,12 +206,12 @@ impl<P: ConsoleWriter> Drop for SpinnerManager<P> {
 mod tests {
     use std::io::Write;
     use std::sync::Arc;
-    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::time::Duration;
 
     use forge_domain::ConsoleWriter;
     use pretty_assertions::assert_eq;
 
-    use super::SpinnerManager;
+    use super::{SpinnerManager, format_elapsed_time};
 
     /// A simple printer that writes directly to stdout/stderr.
     /// Used for testing when synchronized output is not needed.
@@ -248,62 +240,49 @@ mod tests {
         SpinnerManager::new(Arc::new(DirectPrinter))
     }
 
-    fn fixture_spinner_with_counter(counter: Arc<AtomicU64>) -> SpinnerManager<DirectPrinter> {
-        SpinnerManager {
-            spinner: None,
-            stopwatch: Default::default(),
-            message: None,
-            tracker: Arc::new(std::sync::Mutex::new(None)),
-            word_index: None,
-            printer: Arc::new(DirectPrinter),
-            tick_counter: Some(counter),
-        }
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn test_spinner_tracker_task_is_stopped_on_stop() {
-        let fixture_counter = Arc::new(AtomicU64::new(0));
-        let mut fixture_spinner = fixture_spinner_with_counter(fixture_counter.clone());
-
-        fixture_spinner.start(Some("Test")).unwrap();
-        tokio::time::advance(std::time::Duration::from_millis(100)).await;
-        tokio::task::yield_now().await;
-
-        let actual_before_stop = fixture_counter.load(Ordering::SeqCst);
-        assert!(actual_before_stop > 0);
-
-        fixture_spinner.stop(None).unwrap();
-        tokio::time::advance(std::time::Duration::from_millis(100)).await;
-        tokio::task::yield_now().await;
-
-        let actual_after_stop = fixture_counter.load(Ordering::SeqCst);
-        let expected = actual_before_stop;
-        assert_eq!(actual_after_stop, expected);
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn test_spinner_time_accumulates_and_resets() {
+    #[test]
+    fn test_spinner_reset_clears_accumulated_time() {
         let mut fixture_spinner = fixture_spinner();
 
-        // First session
-        fixture_spinner.start(Some("Test")).unwrap();
-        tokio::time::advance(std::time::Duration::from_millis(100)).await;
-        fixture_spinner.stop(None).unwrap();
-
-        // Second session - time should accumulate
-        fixture_spinner.start(Some("Test")).unwrap();
-        tokio::time::advance(std::time::Duration::from_millis(100)).await;
-        fixture_spinner.stop(None).unwrap();
-
-        let actual_accumulated = fixture_spinner.stopwatch.elapsed();
-        assert!(actual_accumulated.as_millis() >= 200);
+        // Simulate some accumulated time
+        fixture_spinner.accumulated_elapsed = std::time::Duration::from_secs(100);
 
         // Reset should clear accumulated time
         fixture_spinner.reset();
 
-        let actual_after_reset = fixture_spinner.stopwatch.elapsed();
+        let actual = fixture_spinner.accumulated_elapsed;
         let expected = std::time::Duration::ZERO;
-        assert_eq!(actual_after_reset, expected);
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_spinner_reset_clears_word_index() {
+        let mut fixture_spinner = fixture_spinner();
+
+        // Set a word index
+        fixture_spinner.word_index = Some(3);
+
+        // Reset should clear it
+        fixture_spinner.reset();
+
+        let actual = fixture_spinner.word_index;
+        let expected = None;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_spinner_reset_clears_message() {
+        let mut fixture_spinner = fixture_spinner();
+
+        // Set a message
+        fixture_spinner.message = Some("Test".to_string());
+
+        // Reset should clear it
+        fixture_spinner.reset();
+
+        let actual = fixture_spinner.message.clone();
+        let expected = None;
+        assert_eq!(actual, expected);
     }
 
     #[tokio::test]
@@ -312,14 +291,66 @@ mod tests {
 
         // Start spinner without message multiple times
         fixture_spinner.start(None).unwrap();
-        let first_message = fixture_spinner.message.clone();
+        let first_index = fixture_spinner.word_index;
         fixture_spinner.stop(None).unwrap();
 
         fixture_spinner.start(None).unwrap();
-        let second_message = fixture_spinner.message.clone();
+        let second_index = fixture_spinner.word_index;
         fixture_spinner.stop(None).unwrap();
 
-        // Messages should be identical because word_index is cached
-        assert_eq!(first_message, second_message);
+        // Word index should be identical because it's cached
+        assert_eq!(first_index, second_index);
+    }
+
+    #[test]
+    fn test_format_elapsed_time_seconds_only() {
+        let actual = format_elapsed_time(Duration::from_secs(5));
+        let expected = "05s";
+        assert_eq!(actual, expected);
+
+        let actual = format_elapsed_time(Duration::from_secs(59));
+        let expected = "59s";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_format_elapsed_time_minutes_and_seconds() {
+        let actual = format_elapsed_time(Duration::from_secs(60));
+        let expected = "1:00m";
+        assert_eq!(actual, expected);
+
+        let actual = format_elapsed_time(Duration::from_secs(125));
+        let expected = "2:05m";
+        assert_eq!(actual, expected);
+
+        let actual = format_elapsed_time(Duration::from_secs(3599));
+        let expected = "59:59m";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_format_elapsed_time_hours_and_minutes() {
+        let actual = format_elapsed_time(Duration::from_secs(3600));
+        let expected = "1:00h";
+        assert_eq!(actual, expected);
+
+        let actual = format_elapsed_time(Duration::from_secs(3661));
+        let expected = "1:01h";
+        assert_eq!(actual, expected);
+
+        let actual = format_elapsed_time(Duration::from_secs(7200));
+        let expected = "2:00h";
+        assert_eq!(actual, expected);
+
+        let actual = format_elapsed_time(Duration::from_secs(9000));
+        let expected = "2:30h";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_format_elapsed_time_zero() {
+        let actual = format_elapsed_time(Duration::ZERO);
+        let expected = "00s";
+        assert_eq!(actual, expected);
     }
 }
