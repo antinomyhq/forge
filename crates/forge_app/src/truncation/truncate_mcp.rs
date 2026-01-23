@@ -12,7 +12,8 @@ pub struct TruncatedMcpOutput {
 }
 
 impl TruncatedMcpOutput {
-    /// Converts truncated output into XML representation with temp file reference
+    /// Converts truncated output into XML representation with temp file
+    /// reference
     ///
     /// # Arguments
     /// * `temp_file_path` - Path to the file containing the full content
@@ -114,9 +115,7 @@ Line 2]]></body>
     fn test_empty_content() {
         let fixture = "";
         let actual = truncate_mcp_content(fixture, 10, 2000);
-        let expected = McpTruncationResult::Complete(CompleteMcpOutput {
-            content: String::new(),
-        });
+        let expected = McpTruncationResult::Complete(CompleteMcpOutput { content: String::new() });
         assert_eq!(actual, expected);
     }
 
