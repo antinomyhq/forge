@@ -374,6 +374,11 @@ impl<S> ToolRegistry<S> {
     }
 }
 
+// what out mcp output is following.
+// <text>
+// <image>
+// <text>
+// we need to preserve the order as well while truncating.
 impl<S: FsWriteService> ToolRegistry<S> {
     /// Truncates MCP output if any text value exceeds the limit.
     /// Each truncated value gets its own temp file and XML wrapper.
@@ -382,13 +387,15 @@ impl<S: FsWriteService> ToolRegistry<S> {
         output: ToolOutput,
         limit: usize,
     ) -> anyhow::Result<ToolOutput> {
+        // MCP tools can only return two variants: ToolValue::Text and ToolValue::Image
+        // image we return as is, text we truncate and then return.
         let mut new_values = Vec::with_capacity(output.values.len());
+        let mut remaining = limit;
         for value in output.values {
             match value {
                 ToolValue::Text(text) => {
-                    let original_length = text.len();
-                    let is_truncated = original_length > limit;
-
+                    let original_length = text.chars().count();
+                    let is_truncated = original_length > remaining;
                     if is_truncated {
                         // Write full content to temp file
                         let temp_path = crate::utils::create_temp_file(
@@ -400,22 +407,22 @@ impl<S: FsWriteService> ToolRegistry<S> {
                         .await?;
 
                         // Truncate content for display (same strategy as fetch)
-                        let truncated_content = truncate_fetch_content(&text, limit);
+                        let truncated_content = truncate_fetch_content(&text, remaining);
 
                         let reason = format!(
                             "Content is truncated to {} chars, remaining content can be read from path: {}",
-                            limit,
+                            remaining,
                             temp_path.display()
                         );
 
                         // Wrap in XML with metadata (same pattern as fetch)
                         let xml = Element::new("mcp_output")
                             .attr("start_char", 0)
-                            .attr("end_char", limit.min(original_length))
+                            .attr("end_char", remaining.min(original_length))
                             .attr("total_chars", original_length)
                             .append(Element::new("body").cdata(truncated_content.content))
                             .append(Element::new("truncated").text(reason));
-
+                        remaining -= original_length;
                         new_values.push(ToolValue::Text(xml.render()));
                     } else {
                         // Not truncated, keep as-is
