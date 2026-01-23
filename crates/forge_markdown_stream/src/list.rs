@@ -17,8 +17,8 @@ const BULLETS_ASTERISK: [&str; 4] = ["∗", "⁎", "✱", "✳"];
 const BULLETS_PLUS: [&str; 4] = ["⊕", "⊙", "⊛", "⊜"];
 
 /// Checkbox characters for task list items.
-const CHECKBOX_UNCHECKED: &str = "☐";
-const CHECKBOX_CHECKED: &str = "☑";
+const CHECKBOX_UNCHECKED: &str = "";
+const CHECKBOX_CHECKED: &str = "";
 
 /// Strips checkbox prefix from content and returns (checkbox_char,
 /// remaining_content). Returns None if no checkbox is found at the start.
