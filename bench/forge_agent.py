@@ -3,6 +3,7 @@
 import json
 import os
 import shlex
+import tempfile
 import uuid
 from pathlib import Path
 from typing import Any
@@ -22,6 +23,28 @@ from harbor.models.trajectories import (
     FinalMetrics,
     Trajectory,
 )
+
+
+# Resolve template path at module import time and cache the content
+# This ensures the template survives git branch switches during benchmark runs
+_MODULE_DIR = Path(__file__).resolve().parent
+_INSTALL_TEMPLATE_PATH = _MODULE_DIR / "install-forge.sh.j2"
+
+# Read and cache template content at import time
+try:
+    _INSTALL_TEMPLATE_CONTENT = _INSTALL_TEMPLATE_PATH.read_text()
+except FileNotFoundError:
+    raise FileNotFoundError(
+        f"Install agent template file not found: {_INSTALL_TEMPLATE_PATH}\n"
+        f"This usually means:\n"
+        f"  1. The bench/ directory is incomplete or not properly installed\n"
+        f"  2. The file was deleted or moved\n"
+        f"Make sure bench/install-forge.sh.j2 exists before importing this module."
+    )
+except Exception as e:
+    raise RuntimeError(
+        f"Failed to read install agent template from {_INSTALL_TEMPLATE_PATH}: {e}"
+    )
 
 
 class ForgeAgent(BaseInstalledAgent):
@@ -63,6 +86,17 @@ class ForgeAgent(BaseInstalledAgent):
         super().__init__(*args, **kwargs)
         self._max_thinking_tokens = max_thinking_tokens
         self._conversation_id: str | None = None
+        self._cached_template_path: Path | None = None
+
+    def __del__(self):
+        """Clean up temporary template file if it was created."""
+        if self._cached_template_path is not None:
+            try:
+                if self._cached_template_path.exists():
+                    self._cached_template_path.unlink()
+            except Exception:
+                # Ignore cleanup errors
+                pass
 
     @staticmethod
     def name() -> str:
@@ -70,7 +104,27 @@ class ForgeAgent(BaseInstalledAgent):
 
     @property
     def _install_agent_template_path(self) -> Path:
-        return Path(__file__).parent / "install-forge.sh.j2"
+        """Return path to install template, creating a temporary file if needed.
+        
+        The template content is cached at module import time, so this works even
+        if the original file is deleted (e.g., by switching git branches).
+        """
+        if self._cached_template_path is None or not self._cached_template_path.exists():
+            # Create a temporary file with the cached template content
+            fd, temp_path = tempfile.mkstemp(suffix=".j2", prefix="forge-install-")
+            try:
+                with os.fdopen(fd, 'w') as f:
+                    f.write(_INSTALL_TEMPLATE_CONTENT)
+                self._cached_template_path = Path(temp_path)
+            except Exception:
+                # Clean up on failure
+                try:
+                    os.unlink(temp_path)
+                except Exception:
+                    pass
+                raise
+        
+        return self._cached_template_path
 
     def _convert_event_to_step(self, event: dict[str, Any], step_id: int) -> Step:
         """Convert a normalized Forge event dictionary into an ATIF step."""
