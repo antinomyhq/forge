@@ -280,9 +280,10 @@ impl<S: AgentService> Orchestrator<S> {
             // completion (e.g. `stop`). Some providers do not send a finish reason at all;
             // in that case we treat the end of the stream as completion.
             //
-            // IMPORTANT: Only update is_complete if we haven't already determined completion.
-            // This prevents the flag from being reset to false by subsequent messages
-            // (e.g., usage-only messages) that may not have a finish_reason.
+            // IMPORTANT: Only update is_complete if we haven't already determined
+            // completion. This prevents the flag from being reset to false by
+            // subsequent messages (e.g., usage-only messages) that may not have
+            // a finish_reason.
             if !is_complete {
                 is_complete = match message.finish_reason {
                     Some(FinishReason::Length) => false,
