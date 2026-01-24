@@ -276,10 +276,22 @@ impl<S: AgentService> Orchestrator<S> {
 
             debug!(agent_id = %agent.id, tool_call_count = message.tool_calls.len(), "Tool call count");
 
-            // Turn is completed, if finish_reason is 'stop'. Gemini models return stop as
-            // finish reason with tool calls.
-            is_complete =
-                message.finish_reason == Some(FinishReason::Stop) && message.tool_calls.is_empty();
+            // Turn is completed if we do not have tool calls and the provider signals
+            // completion (e.g. `stop`). Some providers do not send a finish reason at all;
+            // in that case we treat the end of the stream as completion.
+            //
+            // IMPORTANT: Only update is_complete if we haven't already determined completion.
+            // This prevents the flag from being reset to false by subsequent messages
+            // (e.g., usage-only messages) that may not have a finish_reason.
+            if !is_complete {
+                is_complete = match message.finish_reason {
+                    Some(FinishReason::Length) => false,
+                    Some(FinishReason::ToolCalls) => false,
+                    Some(FinishReason::ContentFilter) | Some(FinishReason::Stop) | None => {
+                        message.tool_calls.is_empty()
+                    }
+                };
+            }
 
             // Should yield if a tool is asking for a follow-up
             should_yield = is_complete

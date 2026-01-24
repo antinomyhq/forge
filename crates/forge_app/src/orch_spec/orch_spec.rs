@@ -393,25 +393,38 @@ async fn test_multiple_consecutive_tool_calls() {
 }
 
 #[tokio::test]
-async fn test_multi_turn_conversation_stops_only_on_finish_reason() {
+async fn test_turn_completes_without_finish_reason() {
     let mut ctx = TestContext::default().mock_assistant_responses(vec![
         ChatCompletionMessage::assistant("Foo"),
-        ChatCompletionMessage::assistant("Bar"),
-        ChatCompletionMessage::assistant("Baz").finish_reason(FinishReason::Stop),
+        // If the orchestrator incorrectly loops without finish_reason, it would consume this.
+        ChatCompletionMessage::assistant("Bar").finish_reason(FinishReason::Stop),
     ]);
 
     ctx.run("test").await.unwrap();
 
     let messages = ctx.output.context_messages();
 
-    // Verify we have exactly 3 assistant messages (one for each turn)
+    // Verify we only have one assistant message (the first response)
     let assistant_message_count = messages
         .iter()
         .filter(|message| message.has_role(Role::Assistant))
         .count();
     assert_eq!(
-        assistant_message_count, 3,
-        "Should have exactly 3 assistant messages, confirming the orchestrator continued until FinishReason::Stop"
+        assistant_message_count, 1,
+        "Should have exactly 1 assistant message, confirming the orchestrator treated missing finish_reason as completion"
+    );
+
+    // Verify TaskComplete is sent (which happens when is_complete is true)
+    let has_task_complete = ctx
+        .output
+        .chat_responses
+        .iter()
+        .filter_map(|r| r.as_ref().ok())
+        .any(|response| matches!(response, ChatResponse::TaskComplete));
+
+    assert!(
+        has_task_complete,
+        "Should have TaskComplete when finish_reason is missing with no tool calls"
     );
 }
 
