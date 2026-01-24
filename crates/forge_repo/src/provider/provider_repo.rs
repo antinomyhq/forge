@@ -239,19 +239,11 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
         let mut url_params = std::collections::HashMap::new();
 
         for env_var in &config.url_param_vars {
-            let value = if let Some(value) = self.infra.get_env_var(env_var) {
-                value
+            if let Some(value) = self.infra.get_env_var(env_var) {
+                url_params.insert(URLParam::from(env_var.clone()), URLParamValue::from(value));
             } else {
-                // Apply fallback defaults for specific environment variables
-                match env_var.as_str() {
-                    "FORGE_WORKSPACE_SERVER_URL" => "https://api.forgecode.dev/".to_string(),
-                    "FORGE_FE_URL" => "https://app.forgecode.dev".to_string(),
-                    _ => {
-                        return Err(Error::env_var_not_found(config.id.clone(), env_var).into());
-                    }
-                }
-            };
-            url_params.insert(URLParam::from(env_var.clone()), URLParamValue::from(value));
+                return Err(Error::env_var_not_found(config.id.clone(), env_var).into());
+            }
         }
 
         // Create AuthCredential
