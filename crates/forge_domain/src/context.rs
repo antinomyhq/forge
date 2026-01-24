@@ -30,7 +30,7 @@ pub enum ResponseFormat {
     #[default]
     Text,
     /// JSON response with schema
-    JsonSchema(schemars::schema::RootSchema),
+    JsonSchema(Box<schemars::schema::RootSchema>),
 }
 
 /// Represents a message being sent to the LLM provider

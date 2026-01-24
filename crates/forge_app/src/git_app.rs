@@ -315,7 +315,7 @@ where
                 serde_json::to_string(&user_data)?,
                 Some(model.clone()),
             ))
-            .response_format(ResponseFormat::JsonSchema(schema));
+            .response_format(ResponseFormat::JsonSchema(Box::new(schema)));
 
         // Send message to LLM
         let stream = self.services.chat(&model, context, provider).await?;
