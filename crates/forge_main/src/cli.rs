@@ -1599,10 +1599,10 @@ mod tests {
     #[test]
     fn test_install_vscode_extension() {
         let fixture = Cli::parse_from(["forge", "vscode", "install-extension"]);
-        let actual = match fixture.subcommands {
-            Some(TopLevelCommand::Vscode(VscodeCommand::InstallExtension)) => true,
-            _ => false,
-        };
+        let actual = matches!(
+            fixture.subcommands,
+            Some(TopLevelCommand::Vscode(VscodeCommand::InstallExtension))
+        );
         assert_eq!(actual, true);
     }
 }

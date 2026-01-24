@@ -506,6 +506,7 @@ mod tests {
             ReasoningFull {
                 text: Some("Partial reasoning".to_string()),
                 signature: Some("signature2".to_string()),
+                type_of: Some("reasoning.text".to_string()),
                 ..Default::default()
             },
         ];

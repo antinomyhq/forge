@@ -413,7 +413,7 @@ impl ToolOperation {
                         // Process each file path
                         for (path, mut chunks) in grouped_chunks {
                             // Sort chunks by start line
-                            chunks.sort_by(|a, b| a.start_line.cmp(&b.start_line));
+                            chunks.sort_by_key(|a| a.start_line);
 
                             let mut content_parts = Vec::new();
                             for chunk in chunks {
