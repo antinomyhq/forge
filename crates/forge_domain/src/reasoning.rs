@@ -49,8 +49,8 @@ impl Reasoning {
             for part in part_vec {
                 // According to OpenRouter SDK:
                 // 1. Only 'reasoning.text' blocks are merged when consecutive.
-                // 2. IMPORTANT: Blocks with signatures or IDs must NEVER be merged,
-                //    as this invalidates the cryptographic signature (e.g., for Gemini).
+                // 2. IMPORTANT: Blocks with signatures or IDs must NEVER be merged, as this
+                //    invalidates the cryptographic signature (e.g., for Gemini).
                 let is_text = part.type_of.as_deref() == Some("reasoning.text")
                     || (part.type_of.is_none() && part.text.is_some());
 
