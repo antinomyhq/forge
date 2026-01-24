@@ -15,21 +15,50 @@ A powerful ZSH plugin that provides intelligent command transformation, file tag
 
 Before using this plugin, ensure you have the following tools installed:
 
-- **fzf** - Command-line fuzzy finder
+- **fzf** (>= 0.36.0) - Command-line fuzzy finder
 - **fd** - Fast file finder (alternative to find)
 - **forge** - The Forge CLI tool
 
 ### Installation of Prerequisites
 
+#### fzf (minimum version 0.36.0 required)
+
+The plugin requires fzf version 0.36.0 or later for the `--no-scrollbar` option. Check your version:
+
+```bash
+fzf --version
+```
+
+If you have an older version, install the latest fzf:
+
 ```bash
 # macOS (using Homebrew)
-brew install fzf fd
+brew install fzf
 
-# Ubuntu/Debian
-sudo apt install fzf fd-find
+# Ubuntu/Debian - Install from GitHub releases (apt version may be outdated)
+curl -Lo /tmp/fzf.tar.gz https://github.com/junegunn/fzf/releases/latest/download/fzf-$(curl -s https://api.github.com/repos/junegunn/fzf/releases/latest | grep -oP '"tag_name": "\K(.*)(?=")')-linux_amd64.tar.gz
+sudo tar -xzf /tmp/fzf.tar.gz -C /usr/local/bin/
+rm /tmp/fzf.tar.gz
+
+# Or use the official install script
+git clone --depth 1 https://github.com/junegunn/fzf.git ~/.fzf
+~/.fzf/install
 
 # Arch Linux
-sudo pacman -S fzf fd
+sudo pacman -S fzf
+```
+
+#### fd (file finder)
+
+```bash
+# macOS (using Homebrew)
+brew install fd
+
+# Ubuntu/Debian
+sudo apt install fd-find
+
+# Arch Linux
+sudo pacman -S fd
 ```
 
 ## Usage
@@ -196,6 +225,38 @@ The plugin provides visual feedback through syntax highlighting:
 - **Command Text**: Remaining text in **white bold**
 
 ## Configuration
+
+### Using Local Development Plugin
+
+If you're developing or testing changes to the plugin, you can configure your `.zshrc` to use the local plugin files instead of the installed version:
+
+```bash
+# In ~/.zshrc, replace:
+eval "$(forge zsh plugin)"
+eval "$(forge zsh theme)"
+
+# With:
+# Load Forge ZSH plugin - prefer local development version if available
+if [[ -f "$HOME/forge/shell-plugin/forge.plugin.zsh" ]]; then
+    source "$HOME/forge/shell-plugin/forge.plugin.zsh"
+elif command -v forge &> /dev/null; then
+    eval "$(forge zsh plugin)"
+fi
+
+# Load Forge theme - prefer local development version if available
+if [[ -f "$HOME/forge/shell-plugin/forge.theme.zsh" ]]; then
+    source "$HOME/forge/shell-plugin/forge.theme.zsh"
+elif command -v forge &> /dev/null; then
+    eval "$(forge zsh theme)"
+fi
+```
+
+This configuration:
+1. **First** tries to load the local plugin from `~/forge/shell-plugin/` (for development)
+2. **Falls back** to `eval "$(forge zsh plugin)"` if the local files don't exist (for production)
+3. Allows you to test plugin changes immediately without reinstalling forge
+
+### Custom Configuration
 
 Customize the plugin behavior by setting these variables before loading the plugin:
 
