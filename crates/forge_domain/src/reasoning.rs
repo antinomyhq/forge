@@ -49,16 +49,17 @@ impl Reasoning {
             for part in part_vec {
                 // According to OpenRouter SDK:
                 // 1. Only 'reasoning.text' blocks are merged when consecutive.
-                // 2. All other types (summary, encrypted, etc.) are appended as-is.
-                // 3. IMPORTANT: If 'type_of' is None, but 'text' is present, it's treated as
-                //    'reasoning.text'.
+                // 2. IMPORTANT: Blocks with signatures or IDs must NEVER be merged,
+                //    as this invalidates the cryptographic signature (e.g., for Gemini).
                 let is_text = part.type_of.as_deref() == Some("reasoning.text")
                     || (part.type_of.is_none() && part.text.is_some());
 
-                if is_text {
+                let is_mergeable = is_text && part.signature.is_none() && part.id.is_none();
+
+                if is_mergeable {
                     current_text_parts.push(part);
                 } else {
-                    // Non-text type encountered. Flush any pending text parts first.
+                    // Non-mergeable type or has signature/id. Flush any pending text parts first.
                     if !current_text_parts.is_empty() {
                         if let Some(merged) = Self::merge_parts(
                             Some("reasoning.text".to_string()),
@@ -69,7 +70,7 @@ impl Reasoning {
                         current_text_parts.clear();
                     }
 
-                    // Add this non-text part as a separate block
+                    // Add this part as a separate block to preserve signature integrity
                     result.push(ReasoningFull {
                         text: part.text,
                         signature: part.signature,
@@ -352,5 +353,32 @@ mod tests {
         assert_eq!(actual[1].data, Some("complete-data".to_string()));
         assert_eq!(actual[2].text, Some("more-text".to_string()));
         assert_eq!(actual[3].data, Some("more-data2".to_string()));
+    }
+
+    #[test]
+    fn test_reasoning_detail_does_not_merge_parts_with_signatures() {
+        let fixture = vec![vec![
+            ReasoningPart {
+                type_of: Some("reasoning.text".to_string()),
+                text: Some("Part 1".to_string()),
+                signature: Some("sig1".to_string()),
+                ..Default::default()
+            },
+            ReasoningPart {
+                type_of: Some("reasoning.text".to_string()),
+                text: Some("Part 2".to_string()),
+                signature: Some("sig2".to_string()),
+                ..Default::default()
+            },
+        ]];
+
+        let actual = Reasoning::from_parts(fixture);
+
+        // Blocks with signatures should NOT be merged
+        assert_eq!(actual.len(), 2);
+        assert_eq!(actual[0].text, Some("Part 1".to_string()));
+        assert_eq!(actual[0].signature, Some("sig1".to_string()));
+        assert_eq!(actual[1].text, Some("Part 2".to_string()));
+        assert_eq!(actual[1].signature, Some("sig2".to_string()));
     }
 }

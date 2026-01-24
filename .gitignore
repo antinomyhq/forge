@@ -46,5 +46,5 @@ Cargo.lock
 *.map
 **/.forge/request.body.json
 node_modules/
-/jobs
-/bench
+jobs/
+__pycache__/
