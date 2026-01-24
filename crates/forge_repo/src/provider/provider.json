@@ -502,7 +502,7 @@
             "profile",
             "email"
           ],
-          "redirect_uri": "{{FORGE_FE_URL}}/oauth/callback",
+          "redirect_uri": "http://localhost:5175/app/oauth/callback",
           "use_pkce": true
         }
       }
