@@ -1,0 +1,9 @@
+#!/bin/bash
+set -e
+
+# Forge binary is uploaded by harbor's setup process
+# Just ensure it's executable
+chmod +x /usr/local/bin/forge
+
+# Verify forge is installed
+/usr/local/bin/forge --version || echo "Forge installed (version check may not be supported)"

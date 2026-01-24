@@ -13,7 +13,7 @@ use forge_domain::{
     ChatRepository, CommandOutput, Context, Conversation, ConversationId, ConversationRepository,
     Environment, FileInfo, FuzzySearchRepository, McpServerConfig, MigrationResult, Model, ModelId,
     Provider, ProviderId, ProviderRepository, ResultStream, SearchMatch, Skill, SkillRepository,
-    Snapshot, SnapshotRepository,
+    Snapshot, SnapshotRepository, Todo,
 };
 // Re-export CacacheStorage from forge_infra
 pub use forge_infra::CacacheStorage;
@@ -620,6 +620,58 @@ impl<F: GrpcInfra + Send + Sync> FuzzySearchRepository for ForgeRepo<F> {
         self.fuzzy_search_repository
             .fuzzy_search(needle, haystack, search_all)
             .await
+    }
+}
+
+#[async_trait::async_trait]
+impl<F: FileReaderInfra + FileWriterInfra + EnvironmentInfra + Send + Sync>
+    forge_domain::TodoRepository for ForgeRepo<F>
+{
+    async fn save_todos(
+        &self,
+        conversation_id: &ConversationId,
+        todos: Vec<Todo>,
+    ) -> anyhow::Result<()> {
+        let env = self.infra.get_environment();
+        let path = env
+            .base_path
+            .join("todos")
+            .join(format!("{}.json", conversation_id));
+
+        // Serialize todos to JSON with pretty printing for readability
+        let content = serde_json::to_string_pretty(&todos)?;
+
+        // Write using file infrastructure
+        self.infra.write(&path, Bytes::from(content)).await?;
+
+        Ok(())
+    }
+
+    async fn get_todos(&self, conversation_id: &ConversationId) -> anyhow::Result<Vec<Todo>> {
+        let env = self.infra.get_environment();
+        let path = env
+            .base_path
+            .join("todos")
+            .join(format!("{}.json", conversation_id));
+
+        // Try to read the file using file infrastructure
+        match self.infra.read_utf8(&path).await {
+            Ok(content) => {
+                // Parse JSON content
+                let todos: Vec<Todo> = serde_json::from_str(&content)?;
+                Ok(todos)
+            }
+            Err(e) => {
+                // Check if the error is because the file doesn't exist
+                if let Some(io_err) = e.downcast_ref::<std::io::Error>()
+                    && io_err.kind() == std::io::ErrorKind::NotFound
+                {
+                    // File doesn't exist yet, return empty list
+                    return Ok(Vec::new());
+                }
+                Err(e)
+            }
+        }
     }
 }
 

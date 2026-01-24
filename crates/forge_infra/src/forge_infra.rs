@@ -65,6 +65,7 @@ impl ForgeInfra {
         let file_read_service = Arc::new(ForgeFileReadService::new());
         let file_meta_service = Arc::new(ForgeFileMetaService);
         let directory_reader_service = Arc::new(ForgeDirectoryReaderService);
+        let walker_service = Arc::new(ForgeWalkerService::new());
         let grpc_client = Arc::new(ForgeGrpcClient::new(env.workspace_server_url.clone()));
         let output_printer = Arc::new(StdConsoleWriter::default());
 
@@ -83,7 +84,7 @@ impl ForgeInfra {
             )),
             inquire_service: Arc::new(ForgeInquire::new()),
             mcp_server: ForgeMcpServer,
-            walker_service: Arc::new(ForgeWalkerService::new()),
+            walker_service: walker_service.clone(),
             strategy_factory: Arc::new(ForgeAuthStrategyFactory::new()),
             http_service,
             grpc_client,
@@ -274,9 +275,29 @@ impl DirectoryReaderInfra for ForgeInfra {
         &self,
         directory: &Path,
     ) -> anyhow::Result<Vec<(PathBuf, bool)>> {
-        self.directory_reader_service
-            .list_directory_entries(directory)
-            .await
+        // Use walker to respect .gitignore and .ignore files
+        let walker = forge_app::Walker {
+            cwd: directory.to_path_buf(),
+            max_depth: Some(1),
+            max_breadth: None,
+            max_file_size: None,
+            max_files: None,
+            max_total_size: None,
+            skip_binary: false,
+        };
+
+        let entries = self
+            .walker_service
+            .walk(walker)
+            .await?
+            .into_iter()
+            .map(|walked_file| {
+                let is_dir = walked_file.is_dir();
+                let path = directory.join(&walked_file.path);
+                (path, is_dir)
+            })
+            .collect();
+        Ok(entries)
     }
 
     async fn read_directory_files(

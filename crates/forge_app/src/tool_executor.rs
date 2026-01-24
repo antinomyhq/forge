@@ -6,12 +6,12 @@ use forge_domain::{CodebaseQueryResult, ToolCallContext, ToolCatalog, ToolOutput
 
 use crate::fmt::content::FormatContent;
 use crate::operation::{TempContentFiles, ToolOperation};
-use crate::services::ShellService;
+use crate::services::{Services, ShellService};
 use crate::{
     AgentRegistry, ConversationService, EnvironmentService, FollowUpService, FsPatchService,
     FsReadService, FsRemoveService, FsSearchService, FsUndoService, FsWriteService,
     ImageReadService, NetFetchService, PlanCreateService, ProviderService, SkillFetchService,
-    WorkspaceService,
+    TodoService, WorkspaceService,
 };
 
 pub struct ToolExecutor<S> {
@@ -34,8 +34,10 @@ impl<
         + EnvironmentService
         + PlanCreateService
         + SkillFetchService
+        + TodoService
         + AgentRegistry
-        + ProviderService,
+        + ProviderService
+        + Services,
 > ToolExecutor<S>
 {
     pub fn new(services: Arc<S>) -> Self {
@@ -147,7 +149,11 @@ impl<
         Ok(path)
     }
 
-    async fn call_internal(&self, input: ToolCatalog) -> anyhow::Result<ToolOperation> {
+    async fn call_internal(
+        &self,
+        input: ToolCatalog,
+        context: &ToolCallContext,
+    ) -> anyhow::Result<ToolOperation> {
         Ok(match input {
             ToolCatalog::Read(input) => {
                 let normalized_path = self.normalize_path(input.file_path.clone());
@@ -301,6 +307,21 @@ impl<
                 let skill = self.services.fetch_skill(input.name.clone()).await?;
                 ToolOperation::Skill { output: skill }
             }
+            ToolCatalog::TodoWrite(input) => {
+                // Get conversation ID from context
+                let conversation_id = context.get_conversation_id();
+
+                // Call the todo service to update/create todos
+                let todos = self
+                    .services
+                    .todo_service()
+                    .update_todos(&conversation_id, input.todos.clone())
+                    .await?;
+
+                let output = crate::TodoWriteOutput { todos };
+
+                ToolOperation::TodoWrite { output }
+            }
         })
     }
 
@@ -324,7 +345,7 @@ impl<
             self.require_prior_read(context, &input.file_path, "overwrite it")?;
         }
 
-        let execution_result = self.call_internal(tool_input.clone()).await;
+        let execution_result = self.call_internal(tool_input.clone(), context).await;
 
         if let Err(ref error) = execution_result {
             tracing::error!(error = ?error, "Tool execution failed");

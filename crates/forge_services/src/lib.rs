@@ -18,6 +18,7 @@ mod provider_auth;
 mod provider_service;
 mod range;
 mod template;
+mod todo_service;
 mod tool_services;
 mod utils;
 mod workflow;
@@ -32,6 +33,7 @@ pub use forge_services::*;
 pub use instructions::*;
 pub use policy::*;
 pub use provider_auth::*;
+pub use todo_service::*;
 
 /// Converts a type from its external representation into its domain model
 /// representation.

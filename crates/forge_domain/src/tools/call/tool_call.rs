@@ -29,7 +29,10 @@ impl ToolCallId {
     }
 
     fn generate() -> Self {
-        let id = format!("forge_call_id_{}", uuid::Uuid::new_v4());
+        // Generate ID in Anthropic/Bedrock compatible format: toolu_<alphanumeric>
+        // Use UUID but strip hyphens to ensure alphanumeric-only format
+        let uuid = uuid::Uuid::new_v4().to_string().replace("-", "");
+        let id = format!("toolu_{}", &uuid[..22]); // Use first 22 chars to match Anthropic's format
         ToolCallId(id)
     }
 }
@@ -121,11 +124,11 @@ impl ToolCallFull {
                             ToolCallArguments::from_json(current_arguments.as_str())
                         };
 
-                        tool_calls.push(ToolCallFull {
-                            name: tool_name,
-                            call_id: Some(existing_call_id.clone()),
-                            arguments,
-                        });
+                        // Ensure call_id is always present - generate one if the provider didn't
+                        // send it
+                        let call_id = Some(existing_call_id.clone());
+
+                        tool_calls.push(ToolCallFull { name: tool_name, call_id, arguments });
                     }
                     current_arguments.clear();
                 }
@@ -149,7 +152,12 @@ impl ToolCallFull {
                 ToolCallArguments::from_json(current_arguments.as_str())
             };
 
-            tool_calls.push(ToolCallFull { name: tool_name, call_id: current_call_id, arguments });
+            // Ensure call_id is always present - generate one if the provider didn't send
+            // it This is critical for providers like Bedrock that require
+            // tool_use_id in results
+            let call_id = current_call_id.or_else(|| Some(ToolCallId::generate()));
+
+            tool_calls.push(ToolCallFull { name: tool_name, call_id, arguments });
         }
 
         Ok(tool_calls)
@@ -513,7 +521,7 @@ mod tests {
 
         let tool_call = ToolCallFull::try_from_xml(&message).unwrap();
         let actual = tool_call.first().unwrap().call_id.as_ref().unwrap();
-        assert!(actual.as_str().starts_with("forge_call_id_"));
+        assert!(actual.as_str().starts_with("toolu_"));
     }
     #[test]
     fn test_try_from_parts_handles_empty_tool_names() {
@@ -546,6 +554,75 @@ mod tests {
         }];
 
         assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_try_from_parts_generates_call_id_when_missing() {
+        // Fixture: Streaming tool call parts where call_id is missing from all chunks
+        // This can happen when:
+        // 1. Provider doesn't include call_id in streaming responses
+        // 2. Stream processing loses initial chunk with call_id
+        // 3. Model/provider doesn't support call_id
+        let input = [
+            ToolCallPart {
+                call_id: None, // Missing call_id
+                name: Some(ToolName::new("read")),
+                arguments_part: "{\"path\":".to_string(),
+            },
+            ToolCallPart {
+                call_id: None, // Continuation chunks often don't have call_id
+                name: None,
+                arguments_part: "\"/test/file.rs\"}".to_string(),
+            },
+        ];
+
+        let actual = ToolCallFull::try_from_parts(&input).unwrap();
+
+        // Should have exactly one tool call
+        assert_eq!(actual.len(), 1);
+
+        let tool_call = &actual[0];
+        assert_eq!(tool_call.name, ToolName::new("read"));
+
+        // call_id should be generated (not None)
+        assert!(tool_call.call_id.is_some());
+
+        // Generated call_id should have the expected prefix
+        assert!(
+            tool_call
+                .call_id
+                .as_ref()
+                .unwrap()
+                .as_str()
+                .starts_with("toolu_")
+        );
+    }
+
+    #[test]
+    fn test_try_from_parts_uses_late_arriving_call_id() {
+        // Fixture: call_id arrives in a later chunk after we've started accumulating
+        // This is common in streaming where the ID comes after the name/arguments start
+        let input = [
+            ToolCallPart {
+                call_id: None, // First chunk has no ID
+                name: Some(ToolName::new("read")),
+                arguments_part: "{\"path\":".to_string(),
+            },
+            ToolCallPart {
+                call_id: Some(ToolCallId::new("call_abc123")), // ID arrives late!
+                name: None,
+                arguments_part: "\"/test/file.rs\"}".to_string(),
+            },
+        ];
+
+        let actual = ToolCallFull::try_from_parts(&input).unwrap();
+
+        assert_eq!(actual.len(), 1);
+        let tool_call = &actual[0];
+
+        // Should use the provider's ID, not generate one
+        assert_eq!(tool_call.call_id.as_ref().unwrap().as_str(), "call_abc123");
+        assert_eq!(tool_call.name, ToolName::new("read"));
     }
 
     #[test]
