@@ -165,7 +165,7 @@ pub enum ResponseFormat {
     #[serde(rename = "json_schema")]
     JsonSchema {
         name: String,
-        schema: Box<schemars::schema::RootSchema>,
+        schema: schemars::schema::RootSchema,
     },
 }
 
@@ -848,7 +848,7 @@ mod tests {
 
         let schema = schemars::schema_for!(TestResponse);
         let fixture = forge_domain::Context::default()
-            .response_format(forge_domain::ResponseFormat::JsonSchema(Box::new(schema)));
+            .response_format(forge_domain::ResponseFormat::JsonSchema(schema));
 
         let actual = Request::from(fixture);
 

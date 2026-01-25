@@ -132,7 +132,7 @@ impl TryFrom<forge_domain::Context> for Request {
                     None
                 }
                 forge_domain::ResponseFormat::JsonSchema(schema) => {
-                    Some(OutputFormat::JsonSchema { schema: *schema })
+                    Some(OutputFormat::JsonSchema { schema })
                 }
             }),
             ..Default::default()
