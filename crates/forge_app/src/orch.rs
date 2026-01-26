@@ -90,10 +90,6 @@ impl<S: AgentService> Orchestrator<S> {
             {
                 Step::Proceed => {}
                 Step::Interrupt { reason } => {
-                    // Send the interrupt and continue to next tool call
-                    let _ = self
-                        .send(ChatResponse::Interrupt { reason: reason.clone() })
-                        .await;
                     tool_call_records.push((
                         tool_call.clone(),
                         ToolResult::new(tool_call.name.clone()).output(Ok(ToolOutput::text(
@@ -128,11 +124,7 @@ impl<S: AgentService> Orchestrator<S> {
                 .await?
             {
                 Step::Proceed => {}
-                Step::Interrupt { reason } => {
-                    // Send the interrupt and continue to next tool call
-                    let _ = self
-                        .send(ChatResponse::Interrupt { reason: reason.clone() })
-                        .await;
+                Step::Interrupt { .. } => {
                     tool_call_records.push((tool_call.clone(), tool_result));
                     continue;
                 }
@@ -296,8 +288,7 @@ impl<S: AgentService> Orchestrator<S> {
                 .await?
             {
                 Step::Proceed => {}
-                Step::Interrupt { reason } => {
-                    self.send(ChatResponse::Interrupt { reason }).await?;
+                Step::Interrupt { .. } => {
                     break;
                 }
             }
@@ -329,8 +320,7 @@ impl<S: AgentService> Orchestrator<S> {
                 .await?
             {
                 Step::Proceed => {}
-                Step::Interrupt { reason } => {
-                    self.send(ChatResponse::Interrupt { reason }).await?;
+                Step::Interrupt { .. } => {
                     break;
                 }
             }
@@ -461,8 +451,7 @@ impl<S: AgentService> Orchestrator<S> {
             .await?
         {
             Step::Proceed => {}
-            Step::Interrupt { reason } => {
-                self.send(ChatResponse::Interrupt { reason }).await?;
+            Step::Interrupt { .. } => {
                 return Ok(());
             }
         }
