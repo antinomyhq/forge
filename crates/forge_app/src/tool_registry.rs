@@ -78,7 +78,7 @@ impl<S: Services> ToolRegistry<S> {
 
                 use crate::utils::format_display_path;
                 context
-                    .send_title(
+                    .send_tool_input(
                         TitleFormat::debug("Permissions Update")
                             .sub_title(format_display_path(policy_path.as_path(), &cwd)),
                     )

@@ -42,7 +42,7 @@ impl<S: Services> AgentExecutor<S> {
         task: String,
         ctx: &ToolCallContext,
     ) -> anyhow::Result<ToolOutput> {
-        ctx.send_title(
+        ctx.send_tool_input(
             TitleFormat::debug(format!(
                 "{} [Agent]",
                 agent_id.as_str().to_case(Case::UpperSnake)

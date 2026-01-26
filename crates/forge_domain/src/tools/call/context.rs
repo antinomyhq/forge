@@ -25,10 +25,14 @@ impl ToolCallContext {
         Ok(())
     }
 
-    /// Send tool input title - MUST ONLY be used for presenting tool input
-    /// information
-    pub async fn send_title(&self, title: impl Into<TitleFormat>) -> anyhow::Result<()> {
-        self.send(title.into()).await
+    /// Send tool input title - MUST ONLY be used for presenting tool input information
+    pub async fn send_tool_input(&self, title: impl Into<TitleFormat>) -> anyhow::Result<()> {
+        let title = title.into();
+        self.send(ChatResponse::TaskMessage {
+            content: crate::ChatResponseContent::ToolInput(title.into()),
+            partial: false,
+        })
+        .await
     }
 
     /// Execute a closure with access to the metrics
