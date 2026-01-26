@@ -10,7 +10,7 @@ use futures::StreamExt;
 use tokio::sync::RwLock;
 
 use crate::error::Error;
-use crate::{AgentRegistry, ConversationService, Services};
+use crate::{AgentRegistry, ConversationService, EnvironmentService, Services};
 
 #[derive(Clone)]
 pub struct AgentExecutor<S> {
@@ -59,8 +59,9 @@ impl<S: Services> AgentExecutor<S> {
             .await?;
 
         // Execute the request through the ForgeApp
+        let env = self.services.get_environment();
         let (hook, captured_output) = if agent_id.is_codebase_search() {
-            let hook = CodebaseSearchAgentHook::new();
+            let hook = CodebaseSearchAgentHook::new(env.codebase_search_max_iterations);
             (Some(Arc::new(hook.hook)), hook.captured_output)
         } else {
             (None, Arc::new(Mutex::new(None)))
@@ -132,20 +133,42 @@ struct CodebaseSearchAgentHook {
 }
 
 impl CodebaseSearchAgentHook {
-    fn new() -> Self {
+    fn new(max_iterations: usize) -> Self {
         let captured_output = Arc::new(Mutex::new(None));
-        let hook = Hook::default().on_toolcall_end({
-            let captured_output = captured_output.clone();
-            move |_event: LifecycleEvent, _conversation: &mut forge_domain::Conversation| {
-                let captured_output = captured_output.clone();
-                async move {
-                    if let LifecycleEvent::ToolcallEnd(result) = _event {
-                        *captured_output.lock().unwrap() = Some(result);
+        let hook = Hook::default()
+            .on_request({
+                move |_event: LifecycleEvent, conversation: &mut forge_domain::Conversation| {
+                    let request_count = match _event {
+                        LifecycleEvent::Request { request_count, .. } => request_count,
+                        _ => 0,
+                    };
+
+                    // After reaching max_iterations, force the agent to call search_report
+                    if request_count == max_iterations + 1 {
+                        if let Some(ctx) = conversation.context.take() {
+                            conversation.context = Some(
+                                ctx.tool_choice(forge_domain::ToolChoice::Call(
+                                    forge_domain::ToolName::new("search_report"),
+                                )),
+                            );
+                        }
                     }
-                    Ok(())
+
+                    async move { Ok(()) }
                 }
-            }
-        });
+            })
+            .on_toolcall_end({
+                let captured_output = captured_output.clone();
+                move |_event: LifecycleEvent, _conversation: &mut forge_domain::Conversation| {
+                    let captured_output = captured_output.clone();
+                    async move {
+                        if let LifecycleEvent::ToolcallEnd(result) = _event {
+                            *captured_output.lock().unwrap() = Some(result);
+                        }
+                        Ok(())
+                    }
+                }
+            });
 
         Self { hook, captured_output }
     }
