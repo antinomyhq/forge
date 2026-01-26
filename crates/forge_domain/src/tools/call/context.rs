@@ -25,7 +25,8 @@ impl ToolCallContext {
         Ok(())
     }
 
-    /// Send tool input title - MUST ONLY be used for presenting tool input information
+    /// Send tool input title - MUST ONLY be used for presenting tool input
+    /// information
     pub async fn send_title(&self, title: impl Into<TitleFormat>) -> anyhow::Result<()> {
         self.send(title.into()).await
     }
