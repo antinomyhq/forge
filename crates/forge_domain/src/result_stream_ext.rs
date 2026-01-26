@@ -83,7 +83,10 @@ impl ResultStreamExt<anyhow::Error> for crate::BoxStream<ChatCompletionMessage, 
                             // Ignore send errors - the receiver may have been dropped
                             let _ = sender
                                 .send(Ok(ChatResponse::TaskMessage {
-                                    content: ChatResponseContent::Markdown(delta.to_string()),
+                                    content: ChatResponseContent::Markdown {
+                                        text: delta.to_string(),
+                                        partial: true,
+                                    },
                                 }))
                                 .await;
                         }
@@ -311,11 +314,11 @@ mod tests {
         assert_eq!(deltas.len(), 2);
         assert!(matches!(
             &deltas[0],
-            ChatResponse::TaskMessage { content: ChatResponseContent::Markdown(text) } if text == "Hello "
+            ChatResponse::TaskMessage { content: ChatResponseContent::Markdown { text, partial: true }, .. } if text == "Hello "
         ));
         assert!(matches!(
             &deltas[1],
-            ChatResponse::TaskMessage { content: ChatResponseContent::Markdown(text) } if text == "world!"
+            ChatResponse::TaskMessage { content: ChatResponseContent::Markdown { text, partial: true }, .. } if text == "world!"
         ));
 
         // Expected: Full content is still correct
@@ -351,9 +354,10 @@ mod tests {
         let mut reasoning_deltas = Vec::new();
         while let Ok(msg) = rx.try_recv() {
             match msg.unwrap() {
-                ChatResponse::TaskMessage { content: ChatResponseContent::Markdown(text) } => {
-                    content_deltas.push(text)
-                }
+                ChatResponse::TaskMessage {
+                    content: ChatResponseContent::Markdown { text, partial: true },
+                    ..
+                } => content_deltas.push(text),
                 ChatResponse::TaskReasoning { content } => reasoning_deltas.push(content),
                 _ => {}
             }

@@ -7,9 +7,11 @@ use crate::{ToolCallFull, ToolName, ToolResult};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ChatResponseContent {
-    Title(TitleFormat),
-    PlainText(String),
-    Markdown(String),
+    // Should be only used to send tool input events.
+    ToolInput(TitleFormat),
+    // Should be only used to send tool outputs.
+    ToolOutput(String),
+    Markdown { text: String, partial: bool },
 }
 
 impl From<ChatResponseContent> for ChatResponse {
@@ -20,15 +22,16 @@ impl From<ChatResponseContent> for ChatResponse {
 
 impl From<TitleFormat> for ChatResponse {
     fn from(title: TitleFormat) -> Self {
-        ChatResponse::TaskMessage { content: ChatResponseContent::Title(title) }
+        ChatResponse::TaskMessage { content: ChatResponseContent::ToolInput(title) }
     }
 }
 
 impl From<TitleFormat> for ChatResponseContent {
     fn from(title: TitleFormat) -> Self {
-        ChatResponseContent::Title(title)
+        ChatResponseContent::ToolInput(title)
     }
 }
+
 impl ChatResponseContent {
     pub fn contains(&self, needle: &str) -> bool {
         self.as_str().contains(needle)
@@ -36,8 +39,10 @@ impl ChatResponseContent {
 
     pub fn as_str(&self) -> &str {
         match self {
-            ChatResponseContent::PlainText(text) | ChatResponseContent::Markdown(text) => text,
-            ChatResponseContent::Title(_) => "",
+            ChatResponseContent::ToolOutput(text) | ChatResponseContent::Markdown { text, .. } => {
+                text
+            }
+            ChatResponseContent::ToolInput(_) => "",
         }
     }
 }
@@ -63,10 +68,10 @@ impl ChatResponse {
     /// considered non-empty.
     pub fn is_empty(&self) -> bool {
         match self {
-            ChatResponse::TaskMessage { content } => match content {
-                ChatResponseContent::Title(_) => false,
-                ChatResponseContent::PlainText(content) => content.is_empty(),
-                ChatResponseContent::Markdown(content) => content.is_empty(),
+            ChatResponse::TaskMessage { content, .. } => match content {
+                ChatResponseContent::ToolInput(_) => false,
+                ChatResponseContent::ToolOutput(content) => content.is_empty(),
+                ChatResponseContent::Markdown { text, .. } => text.is_empty(),
             },
             ChatResponse::TaskReasoning { content } => content.is_empty(),
             _ => false,

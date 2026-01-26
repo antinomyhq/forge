@@ -42,7 +42,7 @@ impl<S: Services> AgentExecutor<S> {
         task: String,
         ctx: &ToolCallContext,
     ) -> anyhow::Result<ToolOutput> {
-        ctx.send_title(
+        ctx.send_tool_input(
             TitleFormat::debug(format!(
                 "{} [Agent]",
                 agent_id.as_str().to_case(Case::UpperSnake)
@@ -67,14 +67,26 @@ impl<S: Services> AgentExecutor<S> {
             .await?;
 
         // Collect responses from the agent
-        let mut output = None;
+        let mut output = String::new();
         while let Some(message) = response_stream.next().await {
             let message = message?;
+            if matches!(
+                &message,
+                ChatResponse::ToolCallStart(_) | ChatResponse::ToolCallEnd(_)
+            ) {
+                output.clear();
+            }
             match message {
                 ChatResponse::TaskMessage { ref content } => match content {
-                    ChatResponseContent::Title(_) => ctx.send(message).await?,
-                    ChatResponseContent::PlainText(text) => output = Some(text.to_owned()),
-                    ChatResponseContent::Markdown(text) => output = Some(text.to_owned()),
+                    ChatResponseContent::ToolInput(_) => ctx.send(message).await?,
+                    ChatResponseContent::ToolOutput(_) => {}
+                    ChatResponseContent::Markdown { text, partial } => {
+                        if *partial {
+                            output.push_str(text);
+                        } else {
+                            output = text.to_string();
+                        }
+                    }
                 },
                 ChatResponse::TaskReasoning { .. } => {}
                 ChatResponse::TaskComplete => {}
@@ -84,8 +96,7 @@ impl<S: Services> AgentExecutor<S> {
                 ChatResponse::Interrupt { .. } => ctx.send(message).await?,
             }
         }
-
-        if let Some(output) = output {
+        if !output.is_empty() {
             // Create tool output
             Ok(ToolOutput::ai(
                 conversation.id,
