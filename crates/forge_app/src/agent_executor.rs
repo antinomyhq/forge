@@ -75,6 +75,7 @@ impl<S: Services> AgentExecutor<S> {
                 &message,
                 ChatResponse::TaskMessage { content: ChatResponseContent::ToolOutput(_), .. }
                     | ChatResponse::TaskMessage { content: ChatResponseContent::Markdown(_), .. }
+                    | ChatResponse::TaskComplete
             ) {
                 // if there's change in event than what we expected then reset the output.
                 output = output.reset();
