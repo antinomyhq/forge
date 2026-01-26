@@ -14,13 +14,19 @@ pub enum ChatResponseContent {
 
 impl From<ChatResponseContent> for ChatResponse {
     fn from(content: ChatResponseContent) -> Self {
-        ChatResponse::TaskMessage { content }
+        ChatResponse::TaskMessage {
+            content,
+            partial: false,
+        }
     }
 }
 
 impl From<TitleFormat> for ChatResponse {
     fn from(title: TitleFormat) -> Self {
-        ChatResponse::TaskMessage { content: ChatResponseContent::ToolInput(title) }
+        ChatResponse::TaskMessage {
+            content: ChatResponseContent::ToolInput(title),
+            partial: false,
+        }
     }
 }
 
@@ -46,13 +52,23 @@ impl ChatResponseContent {
 /// events for all internal state changes.
 #[derive(Debug, Clone)]
 pub enum ChatResponse {
-    TaskMessage { content: ChatResponseContent },
-    TaskReasoning { content: String },
+    TaskMessage {
+        content: ChatResponseContent,
+        partial: bool,
+    },
+    TaskReasoning {
+        content: String,
+    },
     TaskComplete,
     ToolCallStart(ToolCallFull),
     ToolCallEnd(ToolResult),
-    RetryAttempt { cause: Cause, duration: Duration },
-    Interrupt { reason: InterruptionReason },
+    RetryAttempt {
+        cause: Cause,
+        duration: Duration,
+    },
+    Interrupt {
+        reason: InterruptionReason,
+    },
 }
 
 impl ChatResponse {
@@ -63,7 +79,7 @@ impl ChatResponse {
     /// considered non-empty.
     pub fn is_empty(&self) -> bool {
         match self {
-            ChatResponse::TaskMessage { content } => match content {
+            ChatResponse::TaskMessage { content, .. } => match content {
                 ChatResponseContent::ToolInput(_) => false,
                 ChatResponseContent::ToolOutput(content) => content.is_empty(),
                 ChatResponseContent::Markdown(content) => content.is_empty(),

@@ -73,21 +73,29 @@ impl<S: Services> AgentExecutor<S> {
 
             if !matches!(
                 &message,
-                ChatResponse::TaskMessage { content: ChatResponseContent::ToolOutput(_) }
-                    | ChatResponse::TaskMessage { content: ChatResponseContent::Markdown(_) }
+                ChatResponse::TaskMessage { content: ChatResponseContent::ToolOutput(_), .. }
+                    | ChatResponse::TaskMessage { content: ChatResponseContent::Markdown(_), .. }
             ) {
                 // if there's change in event than what we expected then reset the output.
                 output = output.reset();
             }
 
             match message {
-                ChatResponse::TaskMessage { ref content } => match content {
+                ChatResponse::TaskMessage { ref content, partial } => match content {
                     ChatResponseContent::ToolInput(_) => ctx.send(message).await?,
                     ChatResponseContent::ToolOutput(text) => {
-                        output = output.append_plain_text(text);
+                        if partial {
+                            output = output.append_plain_text(text);
+                        } else {
+                            output = AccumulatedContent::tool_input(text);
+                        }
                     }
                     ChatResponseContent::Markdown(text) => {
-                        output = output.append_markdown(text);
+                        if partial {
+                            output = output.append_markdown(text);
+                        } else {
+                            output = AccumulatedContent::markdown(text);
+                        }
                     }
                 },
                 ChatResponse::TaskReasoning { .. } => {}
@@ -119,27 +127,35 @@ impl<S: Services> AgentExecutor<S> {
 
 #[derive(Debug, PartialEq)]
 enum AccumulatedContent {
-    PlainText(String),
+    ToolInput(String),
     Markdown(String),
 }
 
 impl Default for AccumulatedContent {
     fn default() -> Self {
-        Self::PlainText(String::new())
+        Self::ToolInput(String::new())
     }
 }
 
 impl AccumulatedContent {
+    fn markdown(text: &str) -> Self {
+        Self::Markdown(text.into())
+    }
+
+    fn tool_input(text: &str) -> Self {
+        Self::ToolInput(text.into())
+    }
+
     /// Appends plain text to the output.
     /// If currently in Markdown mode, switches to PlainText and replaces
     /// content.
     fn append_plain_text(self, text: &str) -> Self {
         match self {
-            Self::PlainText(mut content) => {
+            Self::ToolInput(mut content) => {
                 content.push_str(text);
-                Self::PlainText(content)
+                Self::ToolInput(content)
             }
-            Self::Markdown(_) => Self::PlainText(text.to_string()),
+            Self::Markdown(_) => Self::ToolInput(text.to_string()),
         }
     }
 
@@ -152,7 +168,7 @@ impl AccumulatedContent {
                 content.push_str(text);
                 Self::Markdown(content)
             }
-            Self::PlainText(_) => Self::Markdown(text.to_string()),
+            Self::ToolInput(_) => Self::Markdown(text.to_string()),
         }
     }
 
@@ -163,7 +179,7 @@ impl AccumulatedContent {
     /// Returns the accumulated text, or None if empty.
     fn into_text(self) -> Option<String> {
         match self {
-            Self::PlainText(text) | Self::Markdown(text) if !text.is_empty() => Some(text),
+            Self::ToolInput(text) | Self::Markdown(text) if !text.is_empty() => Some(text),
             _ => None,
         }
     }
@@ -179,12 +195,12 @@ mod tests {
     fn test_default_and_empty_content() {
         // Default creates empty PlainText
         let default = AccumulatedContent::default();
-        assert_eq!(default, AccumulatedContent::PlainText(String::new()));
+        assert_eq!(default, AccumulatedContent::ToolInput(String::new()));
 
         // Empty content of both types returns None
         assert_eq!(AccumulatedContent::default().into_text(), None);
         assert_eq!(
-            AccumulatedContent::PlainText(String::new()).into_text(),
+            AccumulatedContent::ToolInput(String::new()).into_text(),
             None
         );
         assert_eq!(
@@ -197,7 +213,7 @@ mod tests {
     fn test_plain_text_accumulation() {
         // Single append
         let actual = AccumulatedContent::default().append_plain_text("Hello");
-        assert_eq!(actual, AccumulatedContent::PlainText("Hello".to_string()));
+        assert_eq!(actual, AccumulatedContent::ToolInput("Hello".to_string()));
 
         // Multiple appends accumulate
         let actual = AccumulatedContent::default()
@@ -206,7 +222,7 @@ mod tests {
             .append_plain_text("World");
         assert_eq!(
             actual,
-            AccumulatedContent::PlainText("Hello World".to_string())
+            AccumulatedContent::ToolInput("Hello World".to_string())
         );
 
         // Non-empty content is extractable
@@ -253,7 +269,7 @@ mod tests {
             .append_plain_text("New content");
         assert_eq!(
             actual,
-            AccumulatedContent::PlainText("New content".to_string())
+            AccumulatedContent::ToolInput("New content".to_string())
         );
 
         // Multiple switches only keep last content
@@ -281,7 +297,7 @@ mod tests {
         // Only the last mode's content is kept
         assert_eq!(
             content,
-            AccumulatedContent::PlainText("\nBack to plain text".to_string())
+            AccumulatedContent::ToolInput("\nBack to plain text".to_string())
         );
 
         // Extract the final content

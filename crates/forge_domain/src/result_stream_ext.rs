@@ -84,6 +84,7 @@ impl ResultStreamExt<anyhow::Error> for crate::BoxStream<ChatCompletionMessage, 
                             let _ = sender
                                 .send(Ok(ChatResponse::TaskMessage {
                                     content: ChatResponseContent::Markdown(delta.to_string()),
+                                    partial: true,
                                 }))
                                 .await;
                         }

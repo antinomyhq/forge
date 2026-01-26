@@ -2752,7 +2752,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             return Ok(());
         }
         match message {
-            ChatResponse::TaskMessage { content } => match content {
+            ChatResponse::TaskMessage { content, partial: _} => match content {
                 ChatResponseContent::ToolInput(title) => {
                     writer.finish()?;
                     self.writeln(title.display())?;
