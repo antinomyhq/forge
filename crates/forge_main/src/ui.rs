@@ -1259,7 +1259,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         if porcelain {
-            let porcelain = Porcelain::from(&info).truncate(3, 60).uppercase_headers();
+            let porcelain = Porcelain::from(&info)
+                .drop_col(0)
+                .truncate(2, 60)
+                .uppercase_headers();
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
@@ -2754,15 +2757,15 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
         match message {
             ChatResponse::TaskMessage { content } => match content {
-                ChatResponseContent::Title(title) => {
+                ChatResponseContent::ToolInput(title) => {
                     writer.finish()?;
                     self.writeln(title.display())?;
                 }
-                ChatResponseContent::PlainText(text) => {
+                ChatResponseContent::ToolOutput(text) => {
                     writer.finish()?;
                     self.writeln(text)?;
                 }
-                ChatResponseContent::Markdown(text) => {
+                ChatResponseContent::Markdown { text, partial: _ } => {
                     tracing::info!(message = %text, "Agent Response");
                     writer.write(&text)?;
                 }
