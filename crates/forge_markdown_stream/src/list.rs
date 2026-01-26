@@ -438,7 +438,7 @@ mod tests {
             fn checkbox_unchecked() {
                 insta::assert_snapshot!(
                     render(0, ListBullet::Dash, "[ ] Task to do"),
-                    @"  <dash>•</dash> <unchecked>☐</unchecked> Task to do"
+                    @"  <dash>•</dash> <unchecked></unchecked> Task to do"
                 );
             }
 
@@ -446,7 +446,7 @@ mod tests {
             fn checkbox_checked_lowercase() {
                 insta::assert_snapshot!(
                     render(0, ListBullet::Dash, "[x] Completed task"),
-                    @"  <dash>•</dash> <checked>☑</checked> Completed task"
+                    @"  <dash>•</dash> <checked></checked> Completed task"
                 );
             }
 
@@ -454,7 +454,7 @@ mod tests {
             fn checkbox_checked_uppercase() {
                 insta::assert_snapshot!(
                     render(0, ListBullet::Dash, "[X] Another completed task"),
-                    @"  <dash>•</dash> <checked>☑</checked> Another completed task"
+                    @"  <dash>•</dash> <checked></checked> Another completed task"
                 );
             }
 
@@ -462,7 +462,7 @@ mod tests {
             fn checkbox_unchecked_empty_content() {
                 insta::assert_snapshot!(
                     render(0, ListBullet::Dash, "[ ]"),
-                    @"  <dash>•</dash> <unchecked>☐</unchecked>"
+                    @"  <dash>•</dash> <unchecked></unchecked>"
                 );
             }
 
@@ -470,7 +470,7 @@ mod tests {
             fn checkbox_checked_empty_content() {
                 insta::assert_snapshot!(
                     render(0, ListBullet::Dash, "[x]"),
-                    @"  <dash>•</dash> <checked>☑</checked>"
+                    @"  <dash>•</dash> <checked></checked>"
                 );
             }
 
@@ -478,7 +478,7 @@ mod tests {
             fn checkbox_with_ordered_list() {
                 insta::assert_snapshot!(
                     render(0, ListBullet::Ordered(1), "[ ] Ordered task"),
-                    @"  <num>1.</num> <unchecked>☐</unchecked> Ordered task"
+                    @"  <num>1.</num> <unchecked></unchecked> Ordered task"
                 );
             }
         }
