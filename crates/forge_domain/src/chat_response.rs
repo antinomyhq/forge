@@ -22,9 +22,7 @@ impl From<ChatResponseContent> for ChatResponse {
 
 impl From<TitleFormat> for ChatResponse {
     fn from(title: TitleFormat) -> Self {
-        ChatResponse::TaskMessage {
-            content: ChatResponseContent::ToolInput(title),
-        }
+        ChatResponse::TaskMessage { content: ChatResponseContent::ToolInput(title) }
     }
 }
 
@@ -41,7 +39,9 @@ impl ChatResponseContent {
 
     pub fn as_str(&self) -> &str {
         match self {
-            ChatResponseContent::ToolOutput(text) | ChatResponseContent::Markdown { text, .. } => text,
+            ChatResponseContent::ToolOutput(text) | ChatResponseContent::Markdown { text, .. } => {
+                text
+            }
             ChatResponseContent::ToolInput(_) => "",
         }
     }
@@ -51,22 +51,13 @@ impl ChatResponseContent {
 /// events for all internal state changes.
 #[derive(Debug, Clone)]
 pub enum ChatResponse {
-    TaskMessage {
-        content: ChatResponseContent,
-    },
-    TaskReasoning {
-        content: String,
-    },
+    TaskMessage { content: ChatResponseContent },
+    TaskReasoning { content: String },
     TaskComplete,
     ToolCallStart(ToolCallFull),
     ToolCallEnd(ToolResult),
-    RetryAttempt {
-        cause: Cause,
-        duration: Duration,
-    },
-    Interrupt {
-        reason: InterruptionReason,
-    },
+    RetryAttempt { cause: Cause, duration: Duration },
+    Interrupt { reason: InterruptionReason },
 }
 
 impl ChatResponse {
