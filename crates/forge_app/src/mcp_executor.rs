@@ -19,7 +19,7 @@ impl<S: McpService> McpExecutor<S> {
         context: &ToolCallContext,
     ) -> anyhow::Result<ToolOutput> {
         context
-            .send_title(TitleFormat::info("MCP").sub_title(input.name.as_str()))
+            .send_tool_input(TitleFormat::info("MCP").sub_title(input.name.as_str()))
             .await?;
 
         self.services.execute_mcp(input).await
