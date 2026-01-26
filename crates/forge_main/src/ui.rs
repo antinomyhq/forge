@@ -375,7 +375,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             TopLevelCommand::Agent(agent_group) => {
                 match agent_group.command {
                     crate::cli::AgentCommand::List => {
-                        self.on_show_agents(agent_group.porcelain).await?;
+                        self.on_show_agents(agent_group.porcelain, false).await?;
                     }
                 }
                 return Ok(());
@@ -383,8 +383,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             TopLevelCommand::List(list_group) => {
                 let porcelain = list_group.porcelain;
                 match list_group.command {
-                    ListCommand::Agent => {
-                        self.on_show_agents(porcelain).await?;
+                    ListCommand::Agent { custom } => {
+                        self.on_show_agents(porcelain, custom).await?;
                     }
                     ListCommand::Provider { types } => {
                         self.on_show_providers(porcelain, types).await?;
@@ -414,8 +414,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     ListCommand::Cmd => {
                         self.on_show_custom_commands(porcelain).await?;
                     }
-                    ListCommand::Skill => {
-                        self.on_show_skills(porcelain).await?;
+                    ListCommand::Skill { custom } => {
+                        self.on_show_skills(porcelain, custom).await?;
                     }
                 }
                 return Ok(());
@@ -934,10 +934,16 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     }
 
     /// Builds an Info structure for agents with their details
-    async fn build_agents_info(&self) -> anyhow::Result<Info> {
+    async fn build_agents_info(&self, custom: bool) -> anyhow::Result<Info> {
         let mut agents = self.api.get_agents().await?;
         // Sort agents alphabetically by ID
         agents.sort_by(|a, b| a.id.as_str().cmp(b.id.as_str()));
+
+        // Filter agents based on custom flag
+        if custom {
+            agents.retain(|agent| agent.path.is_some());
+        }
+
         let mut info = Info::new();
 
         for agent in agents.iter() {
@@ -985,14 +991,14 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(info)
     }
 
-    async fn on_show_agents(&mut self, porcelain: bool) -> anyhow::Result<()> {
+    async fn on_show_agents(&mut self, porcelain: bool, custom: bool) -> anyhow::Result<()> {
         let agents = self.api.get_agents().await?;
 
         if agents.is_empty() {
             return Ok(());
         }
 
-        let info = self.build_agents_info().await?;
+        let info = self.build_agents_info(custom).await?;
 
         if porcelain {
             let porcelain = Porcelain::from(&info)
@@ -1224,8 +1230,16 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     }
 
     /// Lists available skills
-    async fn on_show_skills(&mut self, porcelain: bool) -> anyhow::Result<()> {
+    async fn on_show_skills(&mut self, porcelain: bool, custom: bool) -> anyhow::Result<()> {
         let skills = self.api.get_skills().await?;
+
+        // Filter skills based on custom flag
+        let skills = if custom {
+            skills.into_iter().filter(|skill| skill.path.is_some()).collect()
+        } else {
+            skills
+        };
+
         let mut info = Info::new();
         let env = self.api.environment();
 
@@ -1834,7 +1848,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
 
                 // Reuse the same Info building logic as list agents
-                let info = self.build_agents_info().await?;
+                let info = self.build_agents_info(false).await?;
 
                 // Convert to porcelain format (same as list agents --porcelain)
                 let porcelain_output = Porcelain::from(&info)
