@@ -5,8 +5,7 @@ use forge_domain::{
     ApiKey, ApiKeyRequest, AuthContextRequest, AuthContextResponse, AuthCredential, CodeRequest,
     DeviceCodeRequest, OAuthConfig, OAuthTokenResponse, OAuthTokens, ProviderId, URLParam,
 };
-use google_cloud_auth::token::DefaultTokenSourceProvider;
-use google_cloud_token::TokenSourceProvider;
+use google_cloud_auth::credentials::Builder;
 use oauth2::basic::BasicClient;
 use oauth2::{ClientId, DeviceAuthorizationUrl, Scope, TokenUrl};
 use reqwest::header::{HeaderMap, HeaderValue};
@@ -396,25 +395,22 @@ impl AuthStrategy for GoogleAdcStrategy {
 
     async fn refresh(&self, _credential: &AuthCredential) -> anyhow::Result<AuthCredential> {
         // Google ADC handles token refresh automatically
-        // We just need to get a fresh token
-        use google_cloud_auth::project::Config;
-        let provider = DefaultTokenSourceProvider::new(Config::default())
-            .await
+        // We just need to get a fresh token using the Builder API
+        let credentials = Builder::default()
+            .build_access_token_credentials()
             .map_err(|e| {
                 AuthError::RefreshFailed(format!(
-                    "Failed to create Google token source provider: {e}"
+                    "Failed to create Google credentials builder: {e}"
                 ))
             })?;
 
-        let token_source = provider.token_source();
-
-        let token: String = token_source.token().await.map_err(|e| {
+        let access_token = credentials.access_token().await.map_err(|e| {
             AuthError::RefreshFailed(format!("Failed to refresh Google access token: {e}"))
         })?;
 
         Ok(AuthCredential::new_api_key(
             self.provider_id.clone(),
-            ApiKey::from(token),
+            ApiKey::from(access_token.token),
         ))
     }
 }

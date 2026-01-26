@@ -324,38 +324,29 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
         &self,
         original_credential: &forge_domain::AuthCredential,
     ) -> anyhow::Result<forge_domain::AuthCredential> {
-        use google_cloud_auth::project::Config;
-        use google_cloud_auth::token::DefaultTokenSourceProvider;
-        use google_cloud_token::TokenSourceProvider;
+        use google_cloud_auth::credentials::Builder;
 
         // Vertex AI requires cloud-platform scope
         const VERTEX_AI_SCOPES: &[&str] = &["https://www.googleapis.com/auth/cloud-platform"];
 
-        // Try to create token source provider with proper scopes
-        let provider = DefaultTokenSourceProvider::new(
-            Config::default().with_scopes(VERTEX_AI_SCOPES),
-        )
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to create Google token source provider: {e}. Please run 'gcloud auth application-default login' to set up credentials."))?;
-
-        let token_source = provider.token_source();
+        // Create credentials with proper scopes using the Builder API
+        let credentials = Builder::default()
+            .with_scopes(VERTEX_AI_SCOPES.iter().map(|s| s.to_string()))
+            .build_access_token_credentials()
+            .map_err(|e| anyhow::anyhow!("Failed to create Google credentials builder: {e}. Please run 'gcloud auth application-default login' to set up credentials."))?;
 
         // Get fresh token
-        let token: String = token_source.token().await.map_err(|e| {
+        let access_token = credentials.access_token().await.map_err(|e| {
             anyhow::anyhow!("Failed to fetch Google access token: {e}. Please run 'gcloud auth application-default login' to set up credentials.")
         })?;
 
-        // The google-cloud-auth library returns tokens with "Bearer " prefix
-        // We need to strip it since we add "Bearer " in the Authorization header
-        let token = token.strip_prefix("Bearer ").unwrap_or(&token).to_string();
-
-        tracing::debug!("Fetched Google ADC token (length: {})", token.len());
-        tracing::debug!("Token starts with: {}", &token[..token.len().min(20)]);
+        tracing::debug!("Fetched Google ADC token (length: {})", access_token.token.len());
+        tracing::debug!("Token starts with: {}", &access_token.token[..access_token.token.len().min(20)]);
 
         // Create new credential with fresh token, preserving url_params
         Ok(forge_domain::AuthCredential::new_api_key(
             forge_domain::ProviderId::VERTEX_AI,
-            forge_domain::ApiKey::from(token),
+            forge_domain::ApiKey::from(access_token.token),
         )
         .url_params(original_credential.url_params.clone()))
     }

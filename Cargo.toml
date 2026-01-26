@@ -129,8 +129,7 @@ num-format = "0.4"
 humantime = "2.1.0"
 dashmap = "7.0.0-rc2"
 async-openai = { version = "0.31.1", default-features = false, features = ["response-types"] } # Using only types, not the API client - reduces dependencies
-google-cloud-auth = "0.17.1" # Google Cloud authentication with automatic token refresh
-google-cloud-token = "0.1.1" # Token management for Google Cloud
+google-cloud-auth = "1.4.0" # Google Cloud authentication with automatic token refresh
 
 # Internal crates
 forge_api = { path = "crates/forge_api" }
