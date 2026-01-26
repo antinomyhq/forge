@@ -70,6 +70,12 @@ impl<S: Services> AgentExecutor<S> {
         let mut output = AccumulatedContent::default();
         while let Some(message) = response_stream.next().await {
             let message = message?;
+
+            if !matches!(&message, ChatResponse::TaskMessage { content: ChatResponseContent::ToolOutput(_) } | ChatResponse::TaskMessage { content: ChatResponseContent::Markdown(_) }) {
+                // if there's change in event than what we expected then reset the output.
+                output = output.reset();
+            }
+
             match message {
                 ChatResponse::TaskMessage { ref content } => match content {
                     ChatResponseContent::ToolInput(_) => ctx.send(message).await?,
@@ -88,7 +94,6 @@ impl<S: Services> AgentExecutor<S> {
                 ChatResponse::Interrupt { .. } => ctx.send(message).await?,
             }
         }
-
         if let Some(text) = output.into_text() {
             // Create tool output
             Ok(ToolOutput::ai(
@@ -145,6 +150,10 @@ impl AccumulatedContent {
             }
             Self::PlainText(_) => Self::Markdown(text.to_string()),
         }
+    }
+
+    fn reset(self) -> Self {
+        Self::default()
     }
 
     /// Returns the accumulated text, or None if empty.
