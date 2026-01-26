@@ -36,9 +36,6 @@ service ForgeService {
   // Deletes a workspace
   rpc DeleteWorkspace(DeleteWorkspaceRequest) returns (DeleteWorkspaceResponse);
 
-  // Creates a new API key for a user
-  rpc CreateApiKey(CreateApiKeyRequest) returns (CreateApiKeyResponse);
-
   // Validates syntax for a batch of files
   rpc ValidateFiles(ValidateFilesRequest) returns (ValidateFilesResponse);
 
@@ -84,10 +81,6 @@ message WorkspaceId {
 }
 
 message RelationId {
-  string id = 1;
-}
-
-message UserId {
   string id = 1;
 }
 
@@ -280,16 +273,6 @@ message DeleteWorkspaceRequest {
 
 message DeleteWorkspaceResponse {
   WorkspaceId workspace_id = 1;
-}
-
-
-message CreateApiKeyRequest {
-  optional UserId user_id = 1;
-}
-
-message CreateApiKeyResponse {
-  UserId user_id = 1;
-  string key     = 2;
 }
 
 message ValidateFilesRequest {

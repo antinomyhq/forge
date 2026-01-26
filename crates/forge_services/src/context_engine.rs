@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, OnceLock};
 use std::time::Duration;
@@ -11,8 +11,8 @@ use forge_app::{
     WorkspaceStatus, compute_hash,
 };
 use forge_domain::{
-    AuthCredential, AuthDetails, FileHash, FileNode, ProviderId, ProviderRepository, SyncProgress,
-    WorkspaceId, WorkspaceIndexRepository, WorkspaceRepository,
+    AuthDetails, FileHash, FileNode, ProviderId, ProviderRepository, SyncProgress, WorkspaceId,
+    WorkspaceIndexRepository, WorkspaceRepository,
 };
 use forge_stream::MpscStream;
 use futures::future::join_all;
@@ -603,28 +603,6 @@ impl<
             .await?
             .is_some())
     }
-
-    async fn init_auth_credentials(&self) -> Result<forge_domain::WorkspaceAuth> {
-        // Authenticate with the indexing service
-        let auth = self
-            .with_retry(|| self.infra.authenticate())
-            .await
-            .context("Failed to authenticate with indexing service")?;
-
-        // Convert to AuthCredential and store
-        let credential = AuthCredential {
-            id: ProviderId::FORGE_SERVICES,
-            auth_details: auth.clone().into(),
-            url_params: HashMap::new(),
-        };
-
-        self.infra
-            .upsert_credential(credential)
-            .await
-            .context("Failed to store authentication credentials")?;
-
-        Ok(auth)
-    }
 }
 
 #[cfg(test)]
@@ -635,9 +613,9 @@ mod tests {
 
     use forge_app::{WalkedFile, WorkspaceService};
     use forge_domain::{
-        ApiKey, ChatRepository, CodeSearchQuery, FileDeletion, FileHash, FileInfo, FileUpload,
-        FileUploadInfo, Node, ProviderTemplate, Workspace, WorkspaceAuth, WorkspaceFiles,
-        WorkspaceId, WorkspaceInfo,
+        ApiKey, AuthCredential, ChatRepository, CodeSearchQuery, FileDeletion, FileHash, FileInfo,
+        FileUpload, FileUploadInfo, Node, ProviderTemplate, Workspace, WorkspaceFiles, WorkspaceId,
+        WorkspaceInfo,
     };
     use futures::StreamExt;
     use pretty_assertions::assert_eq;
@@ -825,10 +803,6 @@ mod tests {
 
     #[async_trait]
     impl WorkspaceIndexRepository for MockInfra {
-        async fn authenticate(&self) -> Result<WorkspaceAuth> {
-            Ok(WorkspaceAuth::new("test_token".to_string().into()))
-        }
-
         async fn create_workspace(&self, _: &Path, _: &ApiKey) -> Result<WorkspaceId> {
             Ok(WorkspaceId::generate())
         }

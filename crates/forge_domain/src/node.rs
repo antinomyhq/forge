@@ -76,31 +76,6 @@ impl SyncProgress {
     }
 }
 
-/// Stored authentication token for the indexing service (no expiry)
-/// Authentication for workspace indexing service
-///
-/// Contains the authentication token obtained from the remote authentication
-/// API. User ID is extracted from the JWT token by the server.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-pub struct WorkspaceAuth {
-    /// Authentication token (obtained from HTTP API)
-    pub token: crate::ApiKey,
-    /// When this token was stored locally
-    pub created_at: chrono::DateTime<chrono::Utc>,
-}
-
-impl From<WorkspaceAuth> for crate::AuthDetails {
-    fn from(auth: WorkspaceAuth) -> Self {
-        crate::AuthDetails::ApiKey(auth.token)
-    }
-}
-
-impl WorkspaceAuth {
-    /// Create a new indexing auth record
-    pub fn new(token: crate::ApiKey) -> Self {
-        Self { token, created_at: chrono::Utc::now() }
-    }
-}
 /// File content for upload to workspace server
 ///
 /// Contains the file path (relative to workspace root) and its textual content

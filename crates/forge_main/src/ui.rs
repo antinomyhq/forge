@@ -3168,12 +3168,15 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         use forge_domain::SyncProgress;
         use forge_spinner::ProgressBarManager;
 
-        // Check if auth already exists and create if needed
+        // Ensure user is authenticated, trigger login if not
         if !self.api.is_authenticated().await? {
-            let auth = self.api.create_auth_credentials().await?;
-            self.writeln_title(
-                TitleFormat::info("Forge API key created").sub_title(auth.token.as_str()),
-            )?;
+            self.writeln_title(TitleFormat::info("Authentication required for workspace sync"))?;
+            self.handle_provider_login(Some(&ProviderId::FORGE_SERVICES)).await?;
+            
+            // Verify authentication succeeded
+            if !self.api.is_authenticated().await? {
+                anyhow::bail!("Authentication failed or cancelled. Please try again.");
+            }
         }
 
         let mut stream = self.api.sync_workspace(path.clone(), batch_size).await?;

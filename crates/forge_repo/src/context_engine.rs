@@ -2,26 +2,15 @@ use std::sync::Arc;
 
 use anyhow::{Context, Result};
 use async_trait::async_trait;
-use chrono::Utc;
 use forge_app::GrpcInfra;
 use forge_domain::{
-    ApiKey, FileUploadInfo, Node, WorkspaceAuth, WorkspaceId, WorkspaceIndexRepository,
-    WorkspaceInfo,
+    ApiKey, FileUploadInfo, Node, WorkspaceId, WorkspaceIndexRepository, WorkspaceInfo,
 };
 
 use crate::proto_generated::forge_service_client::ForgeServiceClient;
 use crate::proto_generated::{self, *};
 
 // TryFrom implementations for converting proto types to domain types
-
-impl TryFrom<CreateApiKeyResponse> for WorkspaceAuth {
-    type Error = anyhow::Error;
-
-    fn try_from(response: CreateApiKeyResponse) -> Result<Self> {
-        let token: ApiKey = response.key.into();
-        Ok(WorkspaceAuth { token, created_at: Utc::now() })
-    }
-}
 
 impl TryFrom<CreateWorkspaceResponse> for WorkspaceId {
     type Error = anyhow::Error;
@@ -112,20 +101,6 @@ impl<I> ForgeContextEngineRepository<I> {
 
 #[async_trait]
 impl<I: GrpcInfra> WorkspaceIndexRepository for ForgeContextEngineRepository<I> {
-    async fn authenticate(&self) -> Result<WorkspaceAuth> {
-        let channel = self.infra.channel();
-        let mut client = ForgeServiceClient::new(channel);
-        let request = tonic::Request::new(CreateApiKeyRequest { user_id: None });
-
-        let response = client
-            .create_api_key(request)
-            .await
-            .context("Failed to call CreateApiKey gRPC")?
-            .into_inner();
-
-        response.try_into()
-    }
-
     async fn create_workspace(
         &self,
         working_dir: &std::path::Path,

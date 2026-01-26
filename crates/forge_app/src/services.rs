@@ -8,7 +8,7 @@ use forge_domain::{
     ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId, Environment, File,
     FileStatus, Image, InitAuth, LoginInfo, McpConfig, McpServers, Model, ModelId, Node, Provider,
     ProviderId, ResultStream, Scope, SearchParams, SyncProgress, SyntaxError, Template,
-    ToolCallFull, ToolOutput, Workflow, WorkspaceAuth, WorkspaceId, WorkspaceInfo,
+    ToolCallFull, ToolOutput, Workflow, WorkspaceId, WorkspaceInfo,
 };
 use merge::Merge;
 use reqwest::Response;
@@ -312,9 +312,6 @@ pub trait WorkspaceService: Send + Sync {
 
     /// Check if authentication credentials exist
     async fn is_authenticated(&self) -> anyhow::Result<bool>;
-
-    /// Create new authentication credentials
-    async fn init_auth_credentials(&self) -> anyhow::Result<WorkspaceAuth>;
 }
 
 #[async_trait::async_trait]
@@ -1107,9 +1104,5 @@ impl<I: Services> WorkspaceService for I {
 
     async fn is_authenticated(&self) -> anyhow::Result<bool> {
         self.workspace_service().is_authenticated().await
-    }
-
-    async fn init_auth_credentials(&self) -> anyhow::Result<WorkspaceAuth> {
-        self.workspace_service().init_auth_credentials().await
     }
 }
