@@ -1235,7 +1235,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Filter skills based on custom flag
         let skills = if custom {
-            skills.into_iter().filter(|skill| skill.path.is_some()).collect()
+            skills
+                .into_iter()
+                .filter(|skill| skill.path.is_some())
+                .collect()
         } else {
             skills
         };
