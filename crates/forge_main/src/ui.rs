@@ -3170,9 +3170,12 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Ensure user is authenticated, trigger login if not
         if !self.api.is_authenticated().await? {
-            self.writeln_title(TitleFormat::info("Authentication required for workspace sync"))?;
-            self.handle_provider_login(Some(&ProviderId::FORGE_SERVICES)).await?;
-            
+            self.writeln_title(TitleFormat::info(
+                "Authentication required for workspace sync",
+            ))?;
+            self.handle_provider_login(Some(&ProviderId::FORGE_SERVICES))
+                .await?;
+
             // Verify authentication succeeded
             if !self.api.is_authenticated().await? {
                 anyhow::bail!("Authentication failed or cancelled. Please try again.");
