@@ -1,6 +1,6 @@
 ---
 name: create-agent
-description: Create new agents for the code-forge application. Agents are stored as .md files in crates/forge_repo/src/agents directory with YAML frontmatter (id, title, description, reasoning, tools, user_prompt) and markdown body containing agent instructions. Use when users need to add new agents, modify existing agents, or understand the agent file structure.
+description: Create new agents for the code-forge application. Agents are stored as .md files in the agents directory with YAML frontmatter (id, title, description, reasoning, tools, user_prompt) and markdown body containing agent instructions. Use when users need to add new agents, modify existing agents, or understand the agent file structure.
 ---
 {{{{raw}}}}
 # Create Agents
@@ -51,7 +51,7 @@ tools:
   - mcp_*
 user_prompt: |-
   <{{event.name}}>{{event.value}}</{{event.name}}>
-  <system_date>{{current_date}}</system_date>  
+  <system_date>{{current_date}}</system_date>
 ---
 
 You are Forge, an expert software engineering assistant...
@@ -145,7 +145,7 @@ Use descriptive IDs and titles:
 
 ### Step 3: Write the Agent File
 
-Create the file in `crates/forge_repo/src/agents/` directory with the format: `{agent-id}.md`
+Create the file in the agents directory with the format: `{agent-id}.md`
 
 #### Frontmatter
 
@@ -733,7 +733,7 @@ When agents reference code, use this format:
 - `filepath:startLine-endLine` for ranges
 - `filepath:startLine` for single lines
 
-Example: `crates/forge_main/src/cli.rs:305-322`
+Example: `src/cli.rs:305-322`
 
 ### Agent Handoff
 
@@ -759,7 +759,7 @@ Organize agent responses with clear sections:
 Use this checklist to verify your agent is complete and correct:
 
 ### File Structure
-- [ ] File is in `crates/forge_repo/src/agents/` directory
+- [ ] File is in the agents directory
 - [ ] Filename matches agent ID (e.g., `forge.md` for `id: "forge"`)
 - [ ] File has `.md` extension
 - [ ] YAML frontmatter uses `---` delimiters
@@ -1032,9 +1032,8 @@ Good: **Correct**:
 - Use bullet points for lists of items
 
 ### File Location
-- Path: `crates/forge_repo/src/agents/`
+- Path: Agents directory
 - Format: `{agent-id}.md`
-- Example: `crates/forge_repo/src/agents/forge.md`
 
 ## Testing Your Agent
 
@@ -1043,7 +1042,7 @@ After creating an agent, test it by:
 1. **Syntax Check**: Verify YAML is valid
    ```bash
    # If you have yamllint installed
-   yamllint crates/forge_repo/src/agents/your-agent.md
+   yamllint path/to/your-agent.md
    ```
 
 2. **Manual Review**: Read through the agent
@@ -1071,7 +1070,7 @@ After creating an agent, test it by:
 ## Verification
 
 After creating an agent:
-1. Verify the file is in `crates/forge_repo/src/agents/` directory
+1. Verify the file is in the agents directory
 2. Check YAML frontmatter is valid (use `---` delimiters)
 3. Ensure the agent ID matches the filename (without .md)
 4. Verify all required fields are present (id, title, description, reasoning, tools, user_prompt)
@@ -1082,7 +1081,6 @@ After creating an agent:
 ## Getting Help
 
 If you're unsure about something:
-- Check existing agents in `crates/forge_repo/src/agents/`
 - Review the templates in this skill
 - Follow the validation checklist
 - Compare with similar existing agents

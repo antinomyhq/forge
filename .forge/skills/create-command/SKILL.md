@@ -1,6 +1,6 @@
 ---
 name: create-command
-description: Create new commands for the code-forge application. Commands are stored as .md files in .forge/commands directory with YAML frontmatter (name, description) and markdown body containing command steps. Use when users need to add new commands, modify existing commands, or understand the command file structure. Supports special command tags like <lint> and <test> for automated workflows.
+description: Create new commands for the code-forge application. Commands are stored as .md files in the commands directory with YAML frontmatter (name, description) and markdown body containing command steps. Use when users need to add new commands, modify existing commands, or understand the command file structure. Supports special command tags like <lint> and <test> for automated workflows.
 ---
 
 # Create Commands
@@ -75,7 +75,7 @@ Use verb-based names with hyphens for multi-word commands:
 
 ### Step 3: Write the Command File
 
-Create the file in `.forge/commands/` directory with the format: `{command-name}.md`
+Create the file in the commands directory with the format: `{command-name}.md`
 
 #### Frontmatter
 
@@ -347,7 +347,7 @@ Use this checklist to verify your command is complete and correct:
 
 ### File Structure
 
-- [ ] File is in `.forge/commands/` directory
+- [ ] File is in the commands directory
 - [ ] Filename matches command name (e.g., `check.md` for `name: check`)
 - [ ] File has `.md` extension
 - [ ] YAML frontmatter uses `---` delimiters
@@ -616,7 +616,7 @@ After creating a command, test it by:
 
    ```bash
    # If you have yamllint installed
-   yamllint .forge/commands/your-command.md
+   yamllint path/to/your-command.md
    ```
 
 2. **Manual Review**: Read through the command
@@ -655,7 +655,7 @@ After creating a command, test it by:
 
 After creating a command:
 
-1. Verify the file is in `.forge/commands/` directory
+1. Verify the file is in the commands directory
 2. Check YAML frontmatter is valid (use `---` delimiters)
 3. Ensure the command name matches the filename (without .md)
 4. **Verify the command is recognized by forge**:
@@ -678,7 +678,7 @@ After creating a command:
 
 If your command doesn't appear in the list, check:
 
-- File is in `.forge/commands/` directory
+- File is in the commands directory
 - Filename matches the `name` field in frontmatter
 - YAML frontmatter is properly formatted with `---` delimiters
 - Both `name` and `description` fields are present
@@ -687,7 +687,6 @@ If your command doesn't appear in the list, check:
 
 If you're unsure about something:
 
-- Check existing commands in `.forge/commands/`
 - Review the examples in this skill
 - Follow the validation checklist
 - Test your command before finalizing
