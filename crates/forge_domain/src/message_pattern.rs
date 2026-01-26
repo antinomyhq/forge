@@ -67,6 +67,7 @@ impl MessagePattern {
             name: ToolName::new("read"),
             call_id: Some(ToolCallId::new("call_123")),
             arguments: json!({"path": "/test/path"}).into(),
+            thought_signature: None,
         };
 
         let tool_result = ToolResult::new(ToolName::new("read"))

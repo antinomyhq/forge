@@ -823,6 +823,7 @@ mod tests {
             name: ToolName::new("mcp_github_create_issue"),
             call_id: Some(ToolCallId::new("call_1")),
             arguments: ToolCallArguments::from_json(r#"{"title": "Bug report"}"#),
+            thought_signature: None,
         };
 
         let actual = extract_tool_info(&fixture);
@@ -914,7 +915,8 @@ mod tests {
                 arguments: ToolCallArguments::from_json(
                     r#"{"path": "/test", "pattern": "pattern"}"#,
                 ),
-            }],
+            thought_signature: None,
+        }],
         )]);
 
         let actual = ContextSummary::from(&fixture);
@@ -1390,7 +1392,8 @@ mod tests {
                 arguments: ToolCallArguments::from_json(
                     r#"{"title": "Bug report", "body": "Description"}"#,
                 ),
-            }],
+            thought_signature: None,
+        }],
         )]);
 
         let actual = ContextSummary::from(&fixture);
@@ -1418,6 +1421,7 @@ mod tests {
                     name: ToolName::new("mcp_github_create_issue"),
                     call_id: Some(ToolCallId::new("call_1")),
                     arguments: ToolCallArguments::from_json(r#"{"title": "Bug"}"#),
+            thought_signature: None,
                 }],
             ),
             tool_result("mcp_github_create_issue", "call_1", false),
@@ -1447,6 +1451,7 @@ mod tests {
                     name: ToolName::new("mcp_github_create_issue"),
                     call_id: Some(ToolCallId::new("call_1")),
                     arguments: ToolCallArguments::from_json(r#"{"title": "Bug"}"#),
+            thought_signature: None,
                 },
                 ToolCallFull {
                     name: ToolName::new("mcp_slack_post_message"),
@@ -1454,7 +1459,8 @@ mod tests {
                     arguments: ToolCallArguments::from_json(
                         r##"{"channel": "#dev", "text": "Hello"}"##,
                     ),
-                },
+            thought_signature: None,
+        },
             ],
         )]);
 
@@ -1488,6 +1494,7 @@ mod tests {
                     name: ToolName::new("mcp_github_create_issue"),
                     call_id: Some(ToolCallId::new("call_2")),
                     arguments: ToolCallArguments::from_json(r#"{"title": "Bug"}"#),
+            thought_signature: None,
                 },
                 ToolCatalog::tool_call_write("/test/output.txt", "result").call_id("call_3"),
             ],

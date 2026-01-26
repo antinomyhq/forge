@@ -151,11 +151,25 @@ impl From<ReasoningDetail> for forge_domain::ReasoningDetail {
     }
 }
 
+/// Google-specific metadata for Vertex AI thought signatures
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct GoogleMetadata {
+    pub thought_signature: Option<String>,
+}
+
+/// Extra content that may be included by certain providers (e.g., Vertex AI)
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct ExtraContent {
+    pub google: Option<GoogleMetadata>,
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ToolCall {
     pub id: Option<ToolCallId>,
     pub r#type: FunctionType,
     pub function: FunctionCall,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extra_content: Option<ExtraContent>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -302,17 +316,27 @@ impl TryFrom<Response> for ChatCompletionMessage {
 
                             if let Some(tool_calls) = &message.tool_calls {
                                 for tool_call in tool_calls {
-                                    resp = resp.add_tool_call(ToolCallFull {
-                                        call_id: tool_call.id.clone(),
-                                        name: tool_call
-                                            .function
-                                            .name
-                                            .clone()
-                                            .ok_or(forge_domain::Error::ToolCallMissingName)?,
-                                        arguments: serde_json::from_str(
-                                            &tool_call.function.arguments,
-                                        )?,
-                                    });
+                                    // Extract thought_signature from extra_content if present
+                                    let thought_signature = tool_call
+                                        .extra_content
+                                        .as_ref()
+                                        .and_then(|ec| ec.google.as_ref())
+                                        .and_then(|g| g.thought_signature.clone());
+
+                                    resp = resp.add_tool_call(
+                                        ToolCallFull {
+                                            call_id: tool_call.id.clone(),
+                                            name: tool_call
+                                                .function
+                                                .name
+                                                .clone()
+                                                .ok_or(forge_domain::Error::ToolCallMissingName)?,
+                                            arguments: serde_json::from_str(
+                                                &tool_call.function.arguments,
+                                            )?,
+                                            thought_signature,
+                                        },
+                                    );
                                 }
                             }
                             resp
@@ -355,10 +379,18 @@ impl TryFrom<Response> for ChatCompletionMessage {
 
                             if let Some(tool_calls) = &delta.tool_calls {
                                 for tool_call in tool_calls {
+                                    // Extract thought_signature from extra_content if present
+                                    let thought_signature = tool_call
+                                        .extra_content
+                                        .as_ref()
+                                        .and_then(|ec| ec.google.as_ref())
+                                        .and_then(|g| g.thought_signature.clone());
+
                                     resp = resp.add_tool_call(ToolCallPart {
                                         call_id: tool_call.id.clone(),
                                         name: tool_call.function.name.clone(),
                                         arguments_part: tool_call.function.arguments.clone(),
+                                        thought_signature,
                                     });
                                 }
                             }

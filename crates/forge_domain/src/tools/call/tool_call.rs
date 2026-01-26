@@ -47,6 +47,10 @@ pub struct ToolCallPart {
     /// Arguments that need to be passed to the tool. NOTE: Not all tools
     /// require input
     pub arguments_part: String,
+    
+    /// Optional thought signature from Gemini3
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thought_signature: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize, From)]
@@ -80,6 +84,8 @@ pub struct ToolCallFull {
     pub name: ToolName,
     pub call_id: Option<ToolCallId>,
     pub arguments: ToolCallArguments,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thought_signature: Option<String>,
 }
 
 impl ToolCallFull {
@@ -88,6 +94,7 @@ impl ToolCallFull {
             name: tool_name.into(),
             call_id: None,
             arguments: ToolCallArguments::default(),
+            thought_signature: None,
         }
     }
 
@@ -105,6 +112,7 @@ impl ToolCallFull {
         let mut current_call_id: Option<ToolCallId> = None;
         let mut current_tool_name: Option<ToolName> = None;
         let mut current_arguments = String::new();
+        let mut current_thought_signature: Option<String> = None;
 
         for part in parts.iter() {
             // If we encounter a new call_id that's different from the current one,
@@ -125,9 +133,11 @@ impl ToolCallFull {
                             name: tool_name,
                             call_id: Some(existing_call_id.clone()),
                             arguments,
+                            thought_signature: current_thought_signature.take(),
                         });
                     }
                     current_arguments.clear();
+                    current_thought_signature = None;
                 }
                 current_call_id = Some(new_call_id.clone());
             }
@@ -136,6 +146,11 @@ impl ToolCallFull {
                 && !name.as_str().is_empty()
             {
                 current_tool_name = Some(name.clone());
+            }
+
+            // Capture thought_signature from the first part that has it
+            if current_thought_signature.is_none() && part.thought_signature.is_some() {
+                current_thought_signature = part.thought_signature.clone();
             }
 
             current_arguments.push_str(&part.arguments_part);
@@ -149,7 +164,12 @@ impl ToolCallFull {
                 ToolCallArguments::from_json(current_arguments.as_str())
             };
 
-            tool_calls.push(ToolCallFull { name: tool_name, call_id: current_call_id, arguments });
+            tool_calls.push(ToolCallFull {
+                name: tool_name,
+                call_id: current_call_id,
+                arguments,
+                thought_signature: current_thought_signature,
+            });
         }
 
         Ok(tool_calls)
@@ -296,32 +316,38 @@ mod tests {
                 call_id: Some(ToolCallId("call_1".to_string())),
                 name: Some(ToolName::new("read")),
                 arguments_part: "{\"path\": \"crates/forge_services/src/fixtures/".to_string(),
+                thought_signature: None,
             },
             ToolCallPart {
                 call_id: None,
                 name: None,
                 arguments_part: "mascot.md\"}".to_string(),
+                thought_signature: None,
             },
             ToolCallPart {
                 call_id: Some(ToolCallId("call_2".to_string())),
                 name: Some(ToolName::new("read")),
                 arguments_part: "{\"path\": \"docs/".to_string(),
+                thought_signature: None,
             },
             ToolCallPart {
                 // NOTE: Call ID can be repeated with each message
                 call_id: Some(ToolCallId("call_2".to_string())),
                 name: None,
                 arguments_part: "onboarding.md\"}".to_string(),
+                thought_signature: None,
             },
             ToolCallPart {
                 call_id: Some(ToolCallId("call_3".to_string())),
                 name: Some(ToolName::new("read")),
                 arguments_part: "{\"path\": \"crates/forge_services/src/service/".to_string(),
+                thought_signature: None,
             },
             ToolCallPart {
                 call_id: None,
                 name: None,
                 arguments_part: "service.md\"}".to_string(),
+                thought_signature: None,
             },
         ];
 
@@ -334,11 +360,13 @@ mod tests {
                 arguments: ToolCallArguments::from_json(
                     r#"{"path": "crates/forge_services/src/fixtures/mascot.md"}"#,
                 ),
+                thought_signature: None,
             },
             ToolCallFull {
                 name: ToolName::new("read"),
                 call_id: Some(ToolCallId("call_2".to_string())),
                 arguments: ToolCallArguments::from_json(r#"{"path": "docs/onboarding.md"}"#),
+                thought_signature: None,
             },
             ToolCallFull {
                 name: ToolName::new("read"),
@@ -346,6 +374,7 @@ mod tests {
                 arguments: ToolCallArguments::from_json(
                     r#"{"path": "crates/forge_services/src/service/service.md"}"#,
                 ),
+                thought_signature: None,
             },
         ];
 
@@ -459,6 +488,7 @@ mod tests {
             call_id: Some(ToolCallId("call_1".to_string())),
             name: Some(ToolName::new("read")),
             arguments_part: "{\"path\": \"docs/onboarding.md\"}".to_string(),
+            thought_signature: None,
         }];
 
         let actual = ToolCallFull::try_from_parts(&input).unwrap();
@@ -466,6 +496,7 @@ mod tests {
             call_id: Some(ToolCallId("call_1".to_string())),
             name: ToolName::new("read"),
             arguments: ToolCallArguments::from_json(r#"{"path": "docs/onboarding.md"}"#),
+            thought_signature: None,
         }];
 
         assert_eq!(actual, expected);
@@ -485,6 +516,7 @@ mod tests {
             call_id: Some(ToolCallId("call_1".to_string())),
             name: Some(ToolName::new("screenshot")),
             arguments_part: "".to_string(),
+            thought_signature: None,
         }];
 
         let actual = ToolCallFull::try_from_parts(&input).unwrap();
@@ -492,6 +524,7 @@ mod tests {
             call_id: Some(ToolCallId("call_1".to_string())),
             name: ToolName::new("screenshot"),
             arguments: ToolCallArguments::default(),
+            thought_signature: None,
         }];
 
         assert_eq!(actual, expected);
@@ -524,30 +557,32 @@ mod tests {
                 call_id: Some(ToolCallId("0".to_string())),
                 name: Some(ToolName::new("read")),
                 arguments_part: "".to_string(),
+                thought_signature: None,
             },
             ToolCallPart {
                 call_id: Some(ToolCallId("0".to_string())),
                 name: Some(ToolName::new("")), // Empty name should not override valid name
                 arguments_part: "{\"path\"".to_string(),
+                thought_signature: None,
             },
             ToolCallPart {
                 call_id: Some(ToolCallId("0".to_string())),
                 name: Some(ToolName::new("")), // Empty name should not override valid name
                 arguments_part: ": \"/test/file.md\"}".to_string(),
+                thought_signature: None,
             },
         ];
 
         let actual = ToolCallFull::try_from_parts(&input).unwrap();
-
         let expected = vec![ToolCallFull {
-            name: ToolName::new("read"),
             call_id: Some(ToolCallId("0".to_string())),
+            name: ToolName::new("read"),
             arguments: ToolCallArguments::from_json(r#"{"path": "/test/file.md"}"#),
+            thought_signature: None,
         }];
 
         assert_eq!(actual, expected);
     }
-
     #[test]
     fn test_consecutive_failures_max_out_tool() {
         let read = &ToolName::new("READ");
@@ -624,6 +659,72 @@ mod tests {
 
         let actual = counter.maxed_out_tools();
         let expected: Vec<&ToolName> = vec![];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_try_from_parts_preserves_thought_signature() {
+        // Fixture: Tool call parts where first part has thought_signature
+        let input = [
+            ToolCallPart {
+                call_id: Some(ToolCallId("call_1".to_string())),
+                name: Some(ToolName::new("shell")),
+                arguments_part: "{\"command\": \"date\"".to_string(),
+                thought_signature: Some("signature_abc123".to_string()),
+            },
+            ToolCallPart {
+                call_id: None,
+                name: None,
+                arguments_part: "}".to_string(),
+                thought_signature: None, // Later parts typically don't have signature
+            },
+        ];
+
+        let actual = ToolCallFull::try_from_parts(&input).unwrap();
+        let expected = vec![ToolCallFull {
+            call_id: Some(ToolCallId("call_1".to_string())),
+            name: ToolName::new("shell"),
+            arguments: ToolCallArguments::from_json(r#"{"command": "date"}"#),
+            thought_signature: Some("signature_abc123".to_string()),
+        }];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_try_from_parts_multiple_calls_with_thought_signatures() {
+        // Fixture: Multiple tool calls where each has its own thought_signature
+        let input = [
+            ToolCallPart {
+                call_id: Some(ToolCallId("call_1".to_string())),
+                name: Some(ToolName::new("read")),
+                arguments_part: "{\"path\": \"file1.txt\"}".to_string(),
+                thought_signature: Some("sig_1".to_string()),
+            },
+            ToolCallPart {
+                call_id: Some(ToolCallId("call_2".to_string())),
+                name: Some(ToolName::new("read")),
+                arguments_part: "{\"path\": \"file2.txt\"}".to_string(),
+                thought_signature: Some("sig_2".to_string()),
+            },
+        ];
+
+        let actual = ToolCallFull::try_from_parts(&input).unwrap();
+        let expected = vec![
+            ToolCallFull {
+                call_id: Some(ToolCallId("call_1".to_string())),
+                name: ToolName::new("read"),
+                arguments: ToolCallArguments::from_json(r#"{"path": "file1.txt"}"#),
+                thought_signature: Some("sig_1".to_string()),
+            },
+            ToolCallFull {
+                call_id: Some(ToolCallId("call_2".to_string())),
+                name: ToolName::new("read"),
+                arguments: ToolCallArguments::from_json(r#"{"path": "file2.txt"}"#),
+                thought_signature: Some("sig_2".to_string()),
+            },
+        ];
 
         assert_eq!(actual, expected);
     }

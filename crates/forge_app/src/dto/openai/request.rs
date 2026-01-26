@@ -4,7 +4,7 @@ use derive_more::derive::Display;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 
-use super::response::{FunctionCall, ToolCall};
+use super::response::{ExtraContent, FunctionCall, GoogleMetadata, ToolCall};
 use super::tool_choice::{FunctionType, ToolChoice};
 use crate::domain::{
     Context, ContextMessage, ModelId, ToolCallFull, ToolCallId, ToolDefinition, ToolName,
@@ -399,6 +399,11 @@ impl From<Context> for Request {
 
 impl From<ToolCallFull> for ToolCall {
     fn from(value: ToolCallFull) -> Self {
+        // Build extra_content if thought_signature exists
+        let extra_content = value.thought_signature.as_ref().map(|sig| ExtraContent {
+            google: Some(GoogleMetadata { thought_signature: Some(sig.clone()) }),
+        });
+
         Self {
             id: value.call_id,
             r#type: FunctionType,
@@ -406,6 +411,7 @@ impl From<ToolCallFull> for ToolCall {
                 arguments: serde_json::to_string(&value.arguments).unwrap(),
                 name: Some(value.name),
             },
+            extra_content,
         }
     }
 }
@@ -701,6 +707,7 @@ mod tests {
             call_id: Some(ToolCallId::new("123")),
             name: ToolName::new("test_tool"),
             arguments: serde_json::json!({"key": "value"}).into(),
+            thought_signature: None,
         };
 
         let assistant_message = ContextMessage::Text(
