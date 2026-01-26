@@ -146,7 +146,7 @@ impl IterationLimiter {
     fn apply_reminder_if_needed(
         &self,
         request_count: usize,
-        conversation: &mut forge_domain::Conversation,
+        conversation: &mut Conversation,
     ) {
         let Some(ctx) = conversation.context.take() else {
             return;
@@ -198,6 +198,9 @@ impl IterationLimiter {
 }
 
 /// Creates a hook for the codebase search agent with iteration limiting and output capture.
+///
+/// This hook only applies its behavior when used with the codebase_search agent.
+/// For other agents, it operates as a no-op.
 fn codebase_search_hook(
     max_iterations: usize,
     captured_output: Arc<Mutex<Option<ToolResult>>>,
@@ -207,8 +210,11 @@ fn codebase_search_hook(
     Hook::default()
         .on_request({
             move |event: LifecycleEvent, conversation: &mut Conversation| {
-                if let LifecycleEvent::Request { request_count, .. } = event {
-                    limiter.apply_reminder_if_needed(request_count, conversation);
+                if let LifecycleEvent::Request { agent, request_count, .. } = event {
+                    // Only apply iteration limiting for codebase_search agent
+                    if agent.id.is_codebase_search() {
+                        limiter.apply_reminder_if_needed(request_count, conversation);
+                    }
                 }
                 async move { Ok(()) }
             }
@@ -218,6 +224,7 @@ fn codebase_search_hook(
                 let captured_output = captured_output.clone();
                 async move {
                     if let LifecycleEvent::ToolcallEnd(result) = event {
+                        // Only capture search_report for codebase_search agent
                         if result.name.as_str() == "search_report" {
                             *captured_output.lock().await = Some(result);
                         }
@@ -226,4 +233,162 @@ fn codebase_search_hook(
                 }
             }
         })
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use forge_domain::{Agent, ModelId, ProviderId, ToolOutput};
+
+    #[test]
+    fn test_halfway_reminder() {
+        let limiter = IterationLimiter::new(10);
+        let mut conversation = Conversation::generate()
+            .title(Some("test".to_string()))
+            .context(forge_domain::Context::default());
+
+        limiter.apply_reminder_if_needed(5, &mut conversation);
+
+        let ctx = conversation.context.as_ref().unwrap();
+        assert_eq!(ctx.messages.len(), 1);
+        let msg = ctx.messages[0].to_text();
+        assert!(msg.contains("You have used 5 of 10 requests"));
+        assert!(msg.contains("5 requests remaining"));
+        assert!(ctx.tool_choice.is_none());
+    }
+
+    #[test]
+    fn test_urgent_reminder() {
+        let limiter = IterationLimiter::new(10);
+        let mut conversation = Conversation::generate()
+            .title(Some("test".to_string()))
+            .context(forge_domain::Context::default());
+
+        limiter.apply_reminder_if_needed(8, &mut conversation);
+
+        let ctx = conversation.context.as_ref().unwrap();
+        let msg = ctx.messages[0].to_text();
+        assert!(msg.contains("URGENT"));
+        assert!(msg.contains("You have used 8 of 10 requests"));
+        assert!(msg.contains("2 request(s) remaining"));
+        assert!(ctx.tool_choice.is_none());
+    }
+
+    #[test]
+    fn test_final_reminder_forces_tool_choice() {
+        let limiter = IterationLimiter::new(10);
+        let mut conversation = Conversation::generate()
+            .title(Some("test".to_string()))
+            .context(forge_domain::Context::default());
+
+        limiter.apply_reminder_if_needed(11, &mut conversation);
+
+        let ctx = conversation.context.as_ref().unwrap();
+        let msg = ctx.messages[0].to_text();
+        assert!(msg.contains("FINAL REMINDER"));
+        assert!(msg.contains("reached the maximum number of requests"));
+        assert!(matches!(
+            ctx.tool_choice.as_ref().unwrap(),
+            forge_domain::ToolChoice::Call(name) if name.as_str() == "search_report"
+        ));
+    }
+
+    #[test]
+    fn test_no_reminder_without_context() {
+        let limiter = IterationLimiter::new(10);
+        let mut conversation = Conversation::generate().title(Some("test".to_string()));
+
+        limiter.apply_reminder_if_needed(5, &mut conversation);
+
+        assert!(conversation.context.is_none());
+    }
+
+    #[test]
+    fn test_reminder_preserves_existing_messages() {
+        let limiter = IterationLimiter::new(10);
+        let mut conversation = Conversation::generate()
+            .title(Some("test".to_string()))
+            .context(forge_domain::Context::default());
+
+        // Add an existing message
+        conversation.context = Some(
+            conversation.context.unwrap()
+                .add_message(ContextMessage::Text(TextMessage::new(
+                    Role::User,
+                    "existing message".to_string(),
+                )))
+        );
+
+        limiter.apply_reminder_if_needed(5, &mut conversation);
+
+        let ctx = conversation.context.as_ref().unwrap();
+        assert_eq!(ctx.messages.len(), 2);
+        assert!(ctx.messages[0].to_text().contains("existing message"));
+        assert!(ctx.messages[1].to_text().contains("You have used 5"));
+    }
+
+    #[tokio::test]
+    async fn test_codebase_search_hook_request_handler_applies_limiting() {
+        use forge_domain::EventHandle;
+
+        let captured_output = Arc::new(Mutex::new(None));
+        let hook = codebase_search_hook(10, captured_output);
+
+        let mut conversation = Conversation::generate()
+            .title(Some("test".to_string()))
+            .context(forge_domain::Context::default());
+
+        // Simulate request from codebase_search agent at halfway point
+        hook
+            .handle(
+                LifecycleEvent::Request {
+                    agent: Agent::new(
+                        AgentId::new("codebase_search"),
+                        ProviderId::FORGE,
+                        ModelId::new("test-model"),
+                    ),
+                    model_id: ModelId::new("test-model"),
+                    request_count: 5,
+                },
+                &mut conversation,
+            )
+            .await
+            .unwrap();
+
+        // Verify reminder was added
+        let ctx = conversation.context.as_ref().unwrap();
+        assert_eq!(ctx.messages.len(), 1);
+        assert!(ctx.messages[0].to_text().contains("You have used 5 of 10 requests"));
+    }
+
+    #[tokio::test]
+    async fn test_codebase_search_hook_captures_search_report() {
+        use forge_domain::EventHandle;
+
+        let captured_output = Arc::new(Mutex::new(None));
+        let hook = codebase_search_hook(10, captured_output.clone());
+
+        let mut conversation = Conversation::generate()
+            .title(Some("test".to_string()))
+            .context(forge_domain::Context::default());
+
+        // Create a mock ToolResult
+        let result = ToolResult {
+            call_id: Some(forge_domain::ToolCallId::new("test_call")),
+            name: ToolName::new("search_report"),
+            output: ToolOutput::text("Found 3 files"),
+        };
+
+        // Simulate toolcall_end event
+        hook
+            .handle(LifecycleEvent::ToolcallEnd(result), &mut conversation)
+            .await
+            .unwrap();
+
+        // Verify output was captured
+        let captured = captured_output.lock().await.take();
+        assert!(captured.is_some());
+        assert_eq!(captured.unwrap().name.as_str(), "search_report");
+    }
 }
