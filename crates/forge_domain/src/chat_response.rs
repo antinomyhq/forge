@@ -46,8 +46,12 @@ impl ChatResponseContent {
 /// events for all internal state changes.
 #[derive(Debug, Clone)]
 pub enum ChatResponse {
-    TaskMessage { content: ChatResponseContent },
-    TaskReasoning { content: String },
+    TaskMessage {
+        content: ChatResponseContent,
+    },
+    TaskReasoning {
+        content: String,
+    },
     TaskComplete,
     ToolCallStart(ToolCallFull),
     ToolCallEnd(ToolResult),
