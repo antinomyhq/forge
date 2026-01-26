@@ -4,7 +4,7 @@ use convert_case::{Case, Casing};
 use forge_domain::{
     AgentId, ChatRequest, ChatResponse, ChatResponseContent, ContextMessage, Conversation, Event,
     Hook, LifecycleEvent, Role, TextMessage, TitleFormat, ToolCallContext, ToolDefinition,
-    ToolName, ToolOutput,
+    ToolName, ToolOutput, ToolResult,
 };
 use forge_template::Element;
 use futures::StreamExt;
@@ -61,18 +61,18 @@ impl<S: Services> AgentExecutor<S> {
 
         // Execute the request through the ForgeApp
         let env = self.services.get_environment();
-        let (hook, captured_output) = if agent_id.is_codebase_search() {
-            let (hook, captured) = codebase_search_hook(env.codebase_search_max_iterations);
-            (Some(Arc::new(hook)), captured)
+        let captured_output = Arc::new(Mutex::new(None));
+        let app = crate::ForgeApp::<S>::new(self.services.clone());
+        let app = if agent_id.is_codebase_search() {
+            let hook = codebase_search_hook(
+                env.codebase_search_max_iterations,
+                captured_output.clone(),
+            );
+            app.with_hook(Arc::new(hook))
         } else {
-            (None, Arc::new(Mutex::new(None)))
+            app
         };
 
-        let app = crate::ForgeApp::<S>::new(self.services.clone());
-        let app = match hook {
-            Some(h) => app.with_hook(h),
-            None => app,
-        };
         let request = ChatRequest::new(Event::new(task.clone()), conversation.id);
         let mut response_stream = app.chat(agent_id.clone(), request).await?;
 
@@ -107,7 +107,7 @@ impl<S: Services> AgentExecutor<S> {
             }
         }
 
-        // Prefer the last tool result output, fall back to text output
+        // Prefer the captured tool result output, fall back to text output
         if let Some(result) = captured_output.lock().await.take() {
             Ok(ToolOutput::ai(
                 conversation.id,
@@ -197,13 +197,16 @@ impl IterationLimiter {
     }
 }
 
-/// Builds a hook for the codebase search agent with iteration limiting.
-fn codebase_search_hook(max_iters: usize) -> (Hook, Arc<Mutex<Option<forge_domain::ToolResult>>>) {
-    let captured_output = Arc::new(Mutex::new(None));
-    let limiter = IterationLimiter::new(max_iters);
-    let hook = Hook::default()
+/// Creates a hook for the codebase search agent with iteration limiting and output capture.
+fn codebase_search_hook(
+    max_iterations: usize,
+    captured_output: Arc<Mutex<Option<ToolResult>>>,
+) -> Hook {
+    let limiter = IterationLimiter::new(max_iterations);
+
+    Hook::default()
         .on_request({
-            move |event: LifecycleEvent, conversation: &mut forge_domain::Conversation| {
+            move |event: LifecycleEvent, conversation: &mut Conversation| {
                 if let LifecycleEvent::Request { request_count, .. } = event {
                     limiter.apply_reminder_if_needed(request_count, conversation);
                 }
@@ -211,12 +214,10 @@ fn codebase_search_hook(max_iters: usize) -> (Hook, Arc<Mutex<Option<forge_domai
             }
         })
         .on_toolcall_end({
-            let captured_output = captured_output.clone();
-            move |event: LifecycleEvent, _conversation: &mut forge_domain::Conversation| {
+            move |event: LifecycleEvent, _conversation: &mut Conversation| {
                 let captured_output = captured_output.clone();
                 async move {
                     if let LifecycleEvent::ToolcallEnd(result) = event {
-                        // Only capture search_report tool output
                         if result.name.as_str() == "search_report" {
                             *captured_output.lock().await = Some(result);
                         }
@@ -224,7 +225,5 @@ fn codebase_search_hook(max_iters: usize) -> (Hook, Arc<Mutex<Option<forge_domai
                     Ok(())
                 }
             }
-        });
-
-    (hook, captured_output)
+        })
 }
