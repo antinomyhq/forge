@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use chrono::Local;
 
-use crate::{ToolCallFull, ToolName, ToolResult};
+use crate::{ConversationId, ToolCallFull, ToolName, ToolResult};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ChatResponseContent {
@@ -46,13 +46,23 @@ impl ChatResponseContent {
 /// events for all internal state changes.
 #[derive(Debug, Clone)]
 pub enum ChatResponse {
-    TaskMessage { content: ChatResponseContent },
-    TaskReasoning { content: String },
+    TaskMessage {
+        content: ChatResponseContent,
+    },
+    TaskReasoning {
+        content: String,
+    },
     TaskComplete,
     ToolCallStart(ToolCallFull),
     ToolCallEnd(ToolResult),
-    RetryAttempt { cause: Cause, duration: Duration },
-    Interrupt { reason: InterruptionReason },
+    RetryAttempt {
+        cause: Cause,
+        duration: Duration,
+    },
+    Interrupt {
+        reason: InterruptionReason,
+        conversation_id: ConversationId,
+    },
 }
 
 impl ChatResponse {

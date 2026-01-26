@@ -324,6 +324,7 @@ impl<S: AgentService> Orchestrator<S> {
                         limit: *self.error_tracker.limit() as u64,
                         errors: self.error_tracker.errors().clone(),
                     },
+                    conversation_id: self.conversation.id,
                 })
                 .await?;
                 // Should yield if too many errors are produced
@@ -351,6 +352,7 @@ impl<S: AgentService> Orchestrator<S> {
                         reason: InterruptionReason::MaxRequestPerTurnLimitReached {
                             limit: max_request_allowed as u64,
                         },
+                        conversation_id: self.conversation.id,
                     })
                     .await?;
                     // force completion
