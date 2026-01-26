@@ -70,7 +70,10 @@ impl<S: Services> AgentExecutor<S> {
         let mut output = AccumulatedContent::default();
         while let Some(message) = response_stream.next().await {
             let message = message?;
-            if matches!(&message, ChatResponse::ToolCallStart(_) | ChatResponse::ToolCallEnd(_)) {
+            if matches!(
+                &message,
+                ChatResponse::ToolCallStart(_) | ChatResponse::ToolCallEnd(_)
+            ) {
                 output = output.reset();
             }
             match message {
