@@ -352,9 +352,10 @@ mod tests {
         let mut reasoning_deltas = Vec::new();
         while let Ok(msg) = rx.try_recv() {
             match msg.unwrap() {
-                ChatResponse::TaskMessage { content: ChatResponseContent::Markdown(text), partial: true } => {
-                    content_deltas.push(text)
-                }
+                ChatResponse::TaskMessage {
+                    content: ChatResponseContent::Markdown(text),
+                    partial: true,
+                } => content_deltas.push(text),
                 ChatResponse::TaskReasoning { content } => reasoning_deltas.push(content),
                 _ => {}
             }

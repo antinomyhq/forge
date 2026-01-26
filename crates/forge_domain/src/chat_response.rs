@@ -14,10 +14,7 @@ pub enum ChatResponseContent {
 
 impl From<ChatResponseContent> for ChatResponse {
     fn from(content: ChatResponseContent) -> Self {
-        ChatResponse::TaskMessage {
-            content,
-            partial: false,
-        }
+        ChatResponse::TaskMessage { content, partial: false }
     }
 }
 
