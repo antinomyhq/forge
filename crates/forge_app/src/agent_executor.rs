@@ -79,7 +79,7 @@ impl<S: Services> AgentExecutor<S> {
             match message {
                 ChatResponse::TaskMessage { ref content } => match content {
                     ChatResponseContent::ToolInput(_) => ctx.send(message).await?,
-                    ChatResponseContent::ToolOutput(_) => {},
+                    ChatResponseContent::ToolOutput(_) => {}
                     ChatResponseContent::Markdown { text, partial } => {
                         if *partial {
                             output.push_str(text);
