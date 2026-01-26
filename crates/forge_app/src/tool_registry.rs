@@ -164,7 +164,7 @@ impl<S: Services> ToolRegistry<S> {
                 let text = style(text).cyan().dim().to_string();
                 context
                     .send(ChatResponse::TaskMessage {
-                        content: ChatResponseContent::PlainText(text),
+                        content: ChatResponseContent::ToolOutput(text),
                     })
                     .await?;
             }

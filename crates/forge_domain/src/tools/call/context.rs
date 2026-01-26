@@ -27,7 +27,7 @@ impl ToolCallContext {
 
     pub async fn send_text(&self, content: impl ToString) -> anyhow::Result<()> {
         self.send(ChatResponse::TaskMessage {
-            content: ChatResponseContent::PlainText(content.to_string()),
+            content: ChatResponseContent::ToolOutput(content.to_string()),
         })
         .await
     }

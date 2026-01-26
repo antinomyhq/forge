@@ -2757,7 +2757,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     writer.finish()?;
                     self.writeln(title.display())?;
                 }
-                ChatResponseContent::PlainText(text) => {
+                ChatResponseContent::ToolOutput(text) => {
                     writer.finish()?;
                     self.writeln(text)?;
                 }
