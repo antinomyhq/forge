@@ -46,6 +46,9 @@ Cargo.lock
 *.map
 **/.forge/request.body.json
 node_modules/
+jobs/
+bench/__pycache__
+
 /bench
 /jobs
 /gpt2bench
