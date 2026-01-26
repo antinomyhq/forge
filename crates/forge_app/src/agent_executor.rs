@@ -70,17 +70,9 @@ impl<S: Services> AgentExecutor<S> {
         let mut output = AccumulatedContent::default();
         while let Some(message) = response_stream.next().await {
             let message = message?;
-
-            if !matches!(
-                &message,
-                ChatResponse::TaskMessage { content: ChatResponseContent::ToolOutput(_), .. }
-                    | ChatResponse::TaskMessage { content: ChatResponseContent::Markdown(_), .. }
-                    | ChatResponse::TaskComplete
-            ) {
-                // if there's change in event than what we expected then reset the output.
+            if matches!(&message, ChatResponse::ToolCallStart(_) | ChatResponse::ToolCallEnd(_)) {
                 output = output.reset();
             }
-
             match message {
                 ChatResponse::TaskMessage { ref content, partial } => match content {
                     ChatResponseContent::ToolInput(_) => ctx.send(message).await?,
