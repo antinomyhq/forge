@@ -2,7 +2,7 @@
 name: create-agent
 description: Create new agents for the code-forge application. Agents are stored as .md files in the <cwd>/.forge/agents directory with YAML frontmatter (id, title, description, reasoning, tools, user_prompt) and markdown body containing agent instructions. Use when users need to add new agents, modify existing agents, or understand the agent file structure.
 ---
-{{raw}}
+{{{{raw}}}}
 # Create Agents
 
 Create and manage agents for the code-forge application. Agents are specialized AI assistants with specific capabilities, tools, and behaviors.
@@ -1102,4 +1102,4 @@ If you're unsure about something:
 - Follow the validation checklist
 - Compare with similar existing agents
 - Test your agent before finalizing
-{{/raw}}
+{{{{/raw}}}}
