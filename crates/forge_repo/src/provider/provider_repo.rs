@@ -268,9 +268,9 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
 
         // Check if this is a Google ADC credential and refresh it
         // Google ADC tokens expire quickly, so we refresh them on every load
-        if credential.id == forge_domain::ProviderId::VERTEX_AI {
-            if let forge_domain::AuthDetails::ApiKey(ref api_key) = credential.auth_details {
-                if api_key.as_ref() == "google_adc_marker" {
+        if credential.id == forge_domain::ProviderId::VERTEX_AI
+            && let forge_domain::AuthDetails::ApiKey(ref api_key) = credential.auth_details
+                && api_key.as_ref() == "google_adc_marker" {
                     // Refresh the Google ADC credential, preserving url_params
                     match self.refresh_google_adc_credential(&credential).await {
                         Ok(refreshed) => {
@@ -283,8 +283,6 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
                         }
                     }
                 }
-            }
-        }
 
         // Handle models - keep as templates
         let models = config.models.as_ref().map(|m| match m {

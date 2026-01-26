@@ -385,7 +385,8 @@ impl AuthStrategy for GoogleAdcStrategy {
                 // But we still need to save the url_params (PROJECT_ID, LOCATION)
                 Ok(AuthCredential::new_api_key(
                     self.provider_id.clone(),
-                    ApiKey::from("google_adc_marker".to_string()), // Marker that will trigger refresh
+                    ApiKey::from("google_adc_marker".to_string()), /* Marker that will trigger
+                                                                    * refresh */
                 )
                 .url_params(ctx.response.url_params))
             }
@@ -400,17 +401,16 @@ impl AuthStrategy for GoogleAdcStrategy {
         let provider = DefaultTokenSourceProvider::new(Config::default())
             .await
             .map_err(|e| {
-                AuthError::RefreshFailed(format!("Failed to create Google token source provider: {e}"))
+                AuthError::RefreshFailed(format!(
+                    "Failed to create Google token source provider: {e}"
+                ))
             })?;
 
         let token_source = provider.token_source();
 
-        let token: String = token_source
-            .token()
-            .await
-            .map_err(|e| {
-                AuthError::RefreshFailed(format!("Failed to refresh Google access token: {e}"))
-            })?;
+        let token: String = token_source.token().await.map_err(|e| {
+            AuthError::RefreshFailed(format!("Failed to refresh Google access token: {e}"))
+        })?;
 
         Ok(AuthCredential::new_api_key(
             self.provider_id.clone(),
@@ -776,12 +776,9 @@ impl StrategyFactory for ForgeAuthStrategyFactory {
                     )))
                 }
             }
-            forge_domain::AuthMethod::GoogleAdc => {
-                Ok(AnyAuthStrategy::GoogleAdc(GoogleAdcStrategy::new(
-                    provider_id,
-                    required_params,
-                )))
-            }
+            forge_domain::AuthMethod::GoogleAdc => Ok(AnyAuthStrategy::GoogleAdc(
+                GoogleAdcStrategy::new(provider_id, required_params),
+            )),
         }
     }
 }
