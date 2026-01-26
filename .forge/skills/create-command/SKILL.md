@@ -1,11 +1,21 @@
 ---
 name: create-command
-description: Create new commands for the code-forge application. Commands are stored as .md files in the commands directory with YAML frontmatter (name, description) and markdown body containing command steps. Use when users need to add new commands, modify existing commands, or understand the command file structure. Supports special command tags like <lint> and <test> for automated workflows.
+description: Create new commands for the code-forge application. Commands are stored as .md files in the <cwd>/.forge/commands directory with YAML frontmatter (name, description) and markdown body containing command steps. Use when users need to add new commands, modify existing commands, or understand the command file structure. Supports special command tags like <lint> and <test> for automated workflows.
 ---
 
 # Create Commands
 
 Create and manage commands for the code-forge application. Commands are modular workflows that can be invoked to perform specific tasks.
+
+## File Location
+
+**CRITICAL**: All command files must be created in the `<cwd>/.forge/commands` directory, where `<cwd>` is the current working directory of your code-forge project.
+
+- **Directory**: `<cwd>/.forge/commands`
+- **File format**: `{command-name}.md`
+- **Example**: If your project is at `/home/user/my-project`, commands go in `/home/user/my-project/.forge/commands/`
+
+This is the only location where forge will discover and load custom commands.
 
 ## Command File Structure
 
@@ -75,7 +85,9 @@ Use verb-based names with hyphens for multi-word commands:
 
 ### Step 3: Write the Command File
 
-Create the file in the commands directory with the format: `{command-name}.md`
+Create the file in the `<cwd>/.forge/commands` directory with the format: `{command-name}.md`
+
+**IMPORTANT**: The file MUST be in `<cwd>/.forge/commands` where `<cwd>` is your current working directory. Commands placed anywhere else will not be discovered by forge.
 
 #### Frontmatter
 
@@ -347,7 +359,7 @@ Use this checklist to verify your command is complete and correct:
 
 ### File Structure
 
-- [ ] File is in the commands directory
+- [ ] File is in the `<cwd>/.forge/commands` directory (CRITICAL)
 - [ ] Filename matches command name (e.g., `check.md` for `name: check`)
 - [ ] File has `.md` extension
 - [ ] YAML frontmatter uses `---` delimiters
@@ -579,6 +591,12 @@ Good: **Correct**:
 
 ## Quick Reference
 
+### File Location
+
+- **Directory**: `<cwd>/.forge/commands` (where `<cwd>` is current working directory)
+- **Format**: `{command-name}.md`
+- **CRITICAL**: Commands MUST be in this exact location to be discovered by forge
+
 ### Valid Tags
 
 - `<lint>` - For linting/formatting commands
@@ -655,7 +673,7 @@ After creating a command, test it by:
 
 After creating a command:
 
-1. Verify the file is in the commands directory
+1. **Verify the file location**: Ensure the file is in `<cwd>/.forge/commands` directory (CRITICAL - commands anywhere else will not be found)
 2. Check YAML frontmatter is valid (use `---` delimiters)
 3. Ensure the command name matches the filename (without .md)
 4. **Verify the command is recognized by forge**:
@@ -678,7 +696,7 @@ After creating a command:
 
 If your command doesn't appear in the list, check:
 
-- File is in the commands directory
+- **File location**: File MUST be in `<cwd>/.forge/commands` directory (this is the most common issue)
 - Filename matches the `name` field in frontmatter
 - YAML frontmatter is properly formatted with `---` delimiters
 - Both `name` and `description` fields are present
