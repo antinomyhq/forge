@@ -25,21 +25,14 @@ function _forge_exec() {
     eval "$_FORGE_BIN --agent $(printf '%q' "$agent_id") $(printf '%q ' "$@")"
 }
 
-# Helper function to clear buffer and reset prompt
 function _forge_reset() {
-    # Invoke precmd hooks to ensure prompt customizations (starship, oh-my-zsh themes, etc.) refresh properly
-    for precmd in $precmd_functions; do
-        if typeset -f "$precmd" >/dev/null 2>&1; then
-            "$precmd"
-        fi
-    done
-
-   BUFFER=""
-   CURSOR=0
-
-   zle reset-prompt 
-    
+  zle -I
+  BUFFER=""
+  CURSOR=0
+  zle -R
+  zle reset-prompt
 }
+
 
 # Helper function to find the index of a value in a list (1-based)
 # Returns the index if found, 1 otherwise

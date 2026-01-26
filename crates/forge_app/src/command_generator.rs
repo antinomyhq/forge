@@ -85,7 +85,7 @@ where
         Context::default()
             .add_message(ContextMessage::system(system_prompt))
             .add_message(ContextMessage::user(user_content, Some(model.clone())))
-            .response_format(ResponseFormat::JsonSchema(schema))
+            .response_format(ResponseFormat::JsonSchema(Box::new(schema)))
     }
 }
 
