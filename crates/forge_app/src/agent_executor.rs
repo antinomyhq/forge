@@ -67,14 +67,18 @@ impl<S: Services> AgentExecutor<S> {
             .await?;
 
         // Collect responses from the agent
-        let mut output = None;
+        let mut output = AccumulatedContent::default();
         while let Some(message) = response_stream.next().await {
             let message = message?;
             match message {
                 ChatResponse::TaskMessage { ref content } => match content {
                     ChatResponseContent::Title(_) => ctx.send(message).await?,
-                    ChatResponseContent::PlainText(text) => output = Some(text.to_owned()),
-                    ChatResponseContent::Markdown(text) => output = Some(text.to_owned()),
+                    ChatResponseContent::PlainText(text) => {
+                        output = output.append_plain_text(text);
+                    }
+                    ChatResponseContent::Markdown(text) => {
+                        output = output.append_markdown(text);
+                    }
                 },
                 ChatResponse::TaskReasoning { .. } => {}
                 ChatResponse::TaskComplete => {}
@@ -85,13 +89,13 @@ impl<S: Services> AgentExecutor<S> {
             }
         }
 
-        if let Some(output) = output {
+        if let Some(text) = output.into_text() {
             // Create tool output
             Ok(ToolOutput::ai(
                 conversation.id,
                 Element::new("task_completed")
                     .attr("task", &task)
-                    .append(Element::new("output").text(output)),
+                    .append(Element::new("output").text(text)),
             ))
         } else {
             Err(Error::EmptyToolResponse.into())
@@ -101,5 +105,50 @@ impl<S: Services> AgentExecutor<S> {
     pub async fn contains_tool(&self, tool_name: &ToolName) -> anyhow::Result<bool> {
         let agent_tools = self.agent_definitions().await?;
         Ok(agent_tools.iter().any(|tool| tool.name == *tool_name))
+    }
+}
+
+enum AccumulatedContent {
+    PlainText(String),
+    Markdown(String),
+}
+
+impl Default for AccumulatedContent {
+    fn default() -> Self {
+        Self::PlainText(String::new())
+    }
+}
+
+impl AccumulatedContent {
+    /// Appends plain text to the output.
+    /// If currently in Markdown mode, switches to PlainText and replaces content.
+    fn append_plain_text(self, text: &str) -> Self {
+        match self {
+            Self::PlainText(mut content) => {
+                content.push_str(text);
+                Self::PlainText(content)
+            }
+            Self::Markdown(_) => Self::PlainText(text.to_string()),
+        }
+    }
+
+    /// Appends markdown to the output.
+    /// If currently in PlainText mode, switches to Markdown and replaces content.
+    fn append_markdown(self, text: &str) -> Self {
+        match self {
+            Self::Markdown(mut content) => {
+                content.push_str(text);
+                Self::Markdown(content)
+            }
+            Self::PlainText(_) => Self::Markdown(text.to_string()),
+        }
+    }
+
+    /// Returns the accumulated text, or None if empty.
+    fn into_text(self) -> Option<String> {
+        match self {
+            Self::PlainText(text) | Self::Markdown(text) if !text.is_empty() => Some(text),
+            _ => None,
+        }
     }
 }
