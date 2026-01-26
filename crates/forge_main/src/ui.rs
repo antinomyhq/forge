@@ -2574,7 +2574,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(workflow)
     }
 
-    async fn on_message(&mut self, content: Option<String>, conversation_id: Option<ConversationId>) -> Result<()> {
+    async fn on_message(
+        &mut self,
+        content: Option<String>,
+        conversation_id: Option<ConversationId>,
+    ) -> Result<()> {
         let conversation_id = conversation_id.unwrap_or(self.init_conversation().await?);
 
         self.install_vscode_extension();
