@@ -119,6 +119,7 @@ impl FormatContent for ToolCatalog {
                     .sub_title(input.name.to_lowercase())
                     .into(),
             ),
+            ToolCatalog::SearchReport(_) => None,
         }
     }
 }

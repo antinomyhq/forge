@@ -140,6 +140,29 @@ pub struct PlanCreateOutput {
     pub before: Option<String>,
 }
 
+/// A file chunk with its content read from disk
+#[derive(Debug, Clone)]
+pub struct ReadChunk {
+    /// File path
+    pub file_path: String,
+    /// Code content
+    pub content: String,
+    /// Start line in the file
+    pub start_line: u64,
+    /// End line in the file
+    pub end_line: u64,
+    /// Reason for selecting this chunk
+    pub reason: String,
+    /// Relevance score of the chunk
+    pub relevance: String,
+}
+
+/// Output for SearchReport containing read file chunks
+#[derive(Debug, Default)]
+pub struct SearchReportOutput {
+    pub chunks: Vec<ReadChunk>,
+}
+
 #[derive(Default, Debug, derive_more::From)]
 pub struct FsUndoOutput {
     pub before_undo: Option<String>,

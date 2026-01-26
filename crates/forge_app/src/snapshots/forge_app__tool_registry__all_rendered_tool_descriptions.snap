@@ -61,6 +61,18 @@ Returns the topK most relevant file:line locations with code context. Use multip
 
 ---
 
+### search_report
+
+Returns structured codebase search results. Call this tool at the end of search operations to report findings with selected code chunks.
+
+Usage:
+- Include only code chunks that directly answer the search query
+- Prefer fewer high-relevance results over many low-relevance ones
+- Reasons should explain *why* the code matters for the query, not describe what the code does
+- Narrow line ranges to the specific relevant section rather than entire files
+
+---
+
 ### remove
 
 Request to remove a file at the specified path. Use when you need to delete an existing file. The path must be absolute. This operation can be undone using the `undo` tool.

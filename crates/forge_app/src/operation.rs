@@ -18,7 +18,7 @@ use crate::truncation::{
 use crate::utils::{compute_hash, format_display_path};
 use crate::{
     FsRemoveOutput, FsUndoOutput, FsWriteOutput, HttpResponse, PatchOutput, PlanCreateOutput,
-    ReadOutput, ResponseContext, SearchResult, ShellOutput,
+    ReadOutput, ResponseContext, SearchReportOutput, SearchResult, ShellOutput,
 };
 
 #[derive(Debug, Default, Setters)]
@@ -48,6 +48,9 @@ pub enum ToolOperation {
     },
     CodebaseSearch {
         output: CodebaseSearchResults,
+    },
+    SearchReport {
+        output: SearchReportOutput,
     },
     FsPatch {
         input: FSPatch,
@@ -429,6 +432,60 @@ impl ToolOperation {
                 }
 
                 forge_domain::ToolOutput::text(root)
+            }
+            ToolOperation::SearchReport { output } => {
+                // Handle empty chunks case
+                if output.chunks.is_empty() {
+                    return forge_domain::ToolOutput::text("No code sections were retrieved.\n");
+                }
+
+                let mut markdown = String::from("The following code sections were retrieved:\n\n");
+
+                // Group chunks by file path
+                let mut chunks_by_file: std::collections::HashMap<String, Vec<&_>> =
+                    std::collections::HashMap::new();
+
+                for chunk in &output.chunks {
+                    chunks_by_file
+                        .entry(chunk.file_path.clone())
+                        .or_default()
+                        .push(chunk);
+                }
+
+                // Output merged chunks per file (sorted by file path for consistent ordering)
+                let mut sorted_files: Vec<_> = chunks_by_file.into_iter().collect();
+                sorted_files.sort_by(|a, b| a.0.cmp(&b.0));
+
+                for (file_path, chunks) in sorted_files {
+                    markdown.push_str(&format!("File Path: {}\n", file_path));
+                    let first_chunk = chunks.first().map(|c| c.start_line).unwrap_or_default();
+                    if first_chunk > 1 {
+                        // if chunk starts from position 1 then don't add ... separator.
+                        markdown.push_str("...\n");
+                    }
+                    for (i, chunk) in chunks.iter().enumerate() {
+                        // Format content with line numbers (5-character wide, right-aligned)
+                        let numbered_content = chunk
+                            .content
+                            .lines()
+                            .enumerate()
+                            .map(|(i, line)| {
+                                let line_num = chunk.start_line + i as u64;
+                                format!("{:5} {}", line_num, line)
+                            })
+                            .collect::<Vec<_>>()
+                            .join("\n");
+
+                        markdown.push_str(&numbered_content);
+                        // Add separator between chunks, but not after the last one
+                        if i < chunks.len() - 1 {
+                            markdown.push_str("\n...\n");
+                        }
+                    }
+                    markdown.push_str("\n...\n\n");
+                }
+
+                forge_domain::ToolOutput::text(markdown)
             }
             ToolOperation::FsPatch { input, output } => {
                 let diff_result = DiffFormat::format(&output.before, &output.after);

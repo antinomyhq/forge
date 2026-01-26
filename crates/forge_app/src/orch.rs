@@ -52,6 +52,12 @@ impl<S: AgentService> Orchestrator<S> {
         }
     }
 
+    /// Sets a custom hook for this orchestrator
+    pub fn with_hook(mut self, hook: Arc<Hook>) -> Self {
+        self.hook = hook;
+        self
+    }
+
     /// Get a reference to the internal conversation
     pub fn get_conversation(&self) -> &Conversation {
         &self.conversation

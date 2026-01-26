@@ -182,6 +182,62 @@ expression: tools
   }
 }
 {
+  "title": "SearchReport",
+  "type": "object",
+  "required": [
+    "chunks"
+  ],
+  "properties": {
+    "chunks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "file",
+          "reason",
+          "relevance"
+        ],
+        "properties": {
+          "file": {
+            "type": "object",
+            "required": [
+              "file_path"
+            ],
+            "properties": {
+              "end": {
+                "type": "integer",
+                "format": "uint",
+                "minimum": 0.0,
+                "nullable": true
+              },
+              "file_path": {
+                "type": "string"
+              },
+              "start": {
+                "type": "integer",
+                "format": "uint",
+                "minimum": 0.0,
+                "nullable": true
+              }
+            }
+          },
+          "reason": {
+            "type": "string"
+          },
+          "relevance": {
+            "type": "string",
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+{
   "title": "FSRemove",
   "type": "object",
   "required": [

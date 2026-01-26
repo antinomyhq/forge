@@ -80,6 +80,11 @@ pub struct Environment {
     /// Controls the number of nearest neighbors to consider.
     /// Controlled by FORGE_SEM_SEARCH_TOP_K environment variable.
     pub sem_search_top_k: usize,
+    /// Maximum number of iterations for codebase search agent before forcing
+    /// a search_report call. Controls how many search iterations the agent can
+    /// perform before returning results.
+    /// Controlled by FORGE_CODEBASE_SEARCH_MAX_ITERATIONS environment variable.
+    pub codebase_search_max_iterations: usize,
     /// URL for the indexing server.
     /// Controlled by FORGE_WORKSPACE_SERVER_URL environment variable.
     #[dummy(expr = "url::Url::parse(\"http://localhost:8080\").unwrap()")]
@@ -298,6 +303,7 @@ fn test_command_path() {
         max_conversations: 100,
         sem_search_limit: 100,
         sem_search_top_k: 10,
+        codebase_search_max_iterations: 10,
         max_image_size: 262144,
         workspace_server_url: "http://localhost:8080".parse().unwrap(),
         override_model: None,
@@ -338,6 +344,7 @@ fn test_command_cwd_path() {
         max_conversations: 100,
         sem_search_limit: 100,
         sem_search_top_k: 10,
+        codebase_search_max_iterations: 10,
         max_image_size: 262144,
         workspace_server_url: "http://localhost:8080".parse().unwrap(),
         override_model: None,
@@ -378,6 +385,7 @@ fn test_command_cwd_path_independent_from_command_path() {
         max_conversations: 100,
         sem_search_limit: 100,
         sem_search_top_k: 10,
+        codebase_search_max_iterations: 10,
         max_image_size: 262144,
         workspace_server_url: "http://localhost:8080".parse().unwrap(),
         override_model: None,

@@ -36,6 +36,8 @@ enum Operation<'a> {
     Skill(&'a str),
     /// MCP tool call by name
     Mcp(&'a str),
+    /// Search result reporting
+    SearchReport(usize),
 }
 
 /// Converts the tool call to its operation type for comparison.
@@ -58,6 +60,9 @@ fn to_op(tool: &SummaryTool) -> Operation<'_> {
         SummaryTool::Plan { plan_name } => Operation::Plan(plan_name),
         SummaryTool::Skill { name } => Operation::Skill(name),
         SummaryTool::Mcp { name } => Operation::Mcp(name),
+        SummaryTool::SearchReport { chunks_count } => {
+            Operation::SearchReport(chunks_count.to_owned())
+        }
     }
 }
 

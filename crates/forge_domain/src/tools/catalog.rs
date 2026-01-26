@@ -32,7 +32,7 @@ use crate::{ToolCallArguments, ToolCallFull, ToolDefinition, ToolDescription, To
     PartialEq,
     EnumDiscriminants,
 )]
-#[strum_discriminants(derive(Display, Serialize, Deserialize, Hash))]
+#[strum_discriminants(derive(Display, Serialize, Deserialize, Hash, EnumIter))]
 #[strum_discriminants(serde(rename_all = "snake_case"))]
 #[serde(tag = "name", content = "arguments", rename_all = "snake_case")]
 #[strum_discriminants(name(ToolKind))]
@@ -44,6 +44,7 @@ pub enum ToolCatalog {
     Write(FSWrite),
     FsSearch(FSSearch),
     SemSearch(SemanticSearch),
+    SearchReport(SearchReport),
     Remove(FSRemove),
     Patch(FSPatch),
     Undo(FSUndo),
@@ -566,6 +567,7 @@ impl ToolDescription for ToolCatalog {
             ToolCatalog::Write(v) => v.description(),
             ToolCatalog::Plan(v) => v.description(),
             ToolCatalog::Skill(v) => v.description(),
+            ToolCatalog::SearchReport(v) => v.description(),
         }
     }
 }
@@ -584,6 +586,45 @@ fn normalize_tool_name(name: &ToolName) -> ToolName {
         "Write" => ToolName::new("write"),
         _ => name.clone(),
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct ChunkFileRef {
+    pub file_path: PathBuf,
+    pub start: Option<usize>,
+    pub end: Option<usize>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, AsRefStr, EnumIter)]
+#[serde(rename_all = "lowercase")]
+#[strum(serialize_all = "lowercase")]
+pub enum ChunkRelevance {
+    High,
+    Medium,
+    Low,
+}
+
+impl JsonSchema for ChunkRelevance {
+    fn schema_name() -> String {
+        <Self as SimpleEnumSchema>::simple_enum_schema_name()
+    }
+
+    fn json_schema(r#gen: &mut schemars::r#gen::SchemaGenerator) -> schemars::schema::Schema {
+        <Self as SimpleEnumSchema>::simple_enum_schema(r#gen)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct ChunkSelection {
+    pub file: ChunkFileRef,
+    pub reason: String,
+    pub relevance: ChunkRelevance,
+}
+
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+#[tool_description_file = "crates/forge_domain/src/tools/descriptions/search_report.md"]
+pub struct SearchReport {
+    pub chunks: Vec<ChunkSelection>,
 }
 
 impl ToolCatalog {
@@ -612,6 +653,7 @@ impl ToolCatalog {
             ToolCatalog::Write(_) => r#gen.into_root_schema_for::<FSWrite>(),
             ToolCatalog::Plan(_) => r#gen.into_root_schema_for::<PlanCreate>(),
             ToolCatalog::Skill(_) => r#gen.into_root_schema_for::<SkillFetch>(),
+            ToolCatalog::SearchReport(_) => r#gen.into_root_schema_for::<SearchReport>(),
         }
     }
 
@@ -720,7 +762,8 @@ impl ToolCatalog {
             | ToolCatalog::Undo(_)
             | ToolCatalog::Followup(_)
             | ToolCatalog::Plan(_)
-            | ToolCatalog::Skill(_) => None,
+            | ToolCatalog::Skill(_)
+            | ToolCatalog::SearchReport(_) => None,
         }
     }
 
@@ -892,6 +935,13 @@ impl ToolKind {
             .find(|tool| tool.definition().name == self.name())
             .map(|tool| tool.definition())
             .expect("Forge tool definition not found")
+    }
+
+    /// Attempts to parse a tool name into a ToolKind.
+    ///
+    /// Returns None if the name doesn't match any known tool kind.
+    pub fn from_name(name: &ToolName) -> Option<Self> {
+        ToolKind::iter().find(|kind| kind.name() == *name)
     }
 }
 
