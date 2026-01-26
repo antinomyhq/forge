@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex};
 
 use derive_setters::Setters;
 
-use crate::{ArcSender, ChatResponse, ChatResponseContent, Metrics, TitleFormat};
+use crate::{ArcSender, ChatResponse, Metrics, TitleFormat};
 
 /// Provides additional context for tool calls.
 #[derive(Debug, Clone, Setters)]
@@ -25,14 +25,7 @@ impl ToolCallContext {
         Ok(())
     }
 
-    pub async fn send_text(&self, content: impl ToString) -> anyhow::Result<()> {
-        self.send(ChatResponse::TaskMessage {
-            content: ChatResponseContent::ToolOutput(content.to_string()),
-            partial: false,
-        })
-        .await
-    }
-
+    /// Send tool input title - MUST ONLY be used for presenting tool input information
     pub async fn send_title(&self, title: impl Into<TitleFormat>) -> anyhow::Result<()> {
         self.send(title.into()).await
     }
