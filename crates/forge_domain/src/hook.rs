@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use derive_setters::Setters;
 
 use crate::{
-    Agent, ChatCompletionMessageFull, Conversation, InterruptionReason, ModelId, ToolCallFull,
+    Agent, ChatCompletionMessageFull, Conversation, ModelId, ToolCallFull,
     ToolResult,
 };
 
@@ -40,49 +40,6 @@ pub enum LifecycleEvent {
     ToolcallEnd(ToolResult),
 }
 
-/// Represents a step in the conversation processing pipeline
-///
-/// This enum is open for extension - new variants can be added to represent
-/// different control flow decisions in the processing pipeline.
-#[derive(Default, Debug, Clone, PartialEq, Eq)]
-pub enum Step {
-    /// Continue processing
-    #[default]
-    Proceed,
-    /// Halt processing with a reason
-    Interrupt { reason: InterruptionReason },
-}
-
-impl Step {
-    /// Creates a Continue step
-    pub fn proceed() -> Self {
-        Self::Proceed
-    }
-
-    /// Creates a Halt step with a reason
-    pub fn interrupt(reason: impl Into<InterruptionReason>) -> Self {
-        Self::Interrupt { reason: reason.into() }
-    }
-
-    /// Returns true if this step indicates processing should continue
-    pub fn should_proceed(&self) -> bool {
-        matches!(self, Self::Proceed)
-    }
-
-    /// Returns true if this step indicates processing should halt
-    pub fn should_interrupt(&self) -> bool {
-        matches!(self, Self::Interrupt { .. })
-    }
-
-    /// Returns the reason if this is a interrupt step
-    pub fn reason(&self) -> Option<&InterruptionReason> {
-        match self {
-            Self::Interrupt { reason } => Some(reason),
-            Self::Proceed => None,
-        }
-    }
-}
-
 /// Trait for handling lifecycle events
 ///
 /// Implementations of this trait can be used to react to different
@@ -95,34 +52,24 @@ pub trait EventHandle: Send + Sync {
     /// * `event` - The lifecycle event that occurred
     /// * `conversation` - The current conversation state (mutable)
     ///
-    /// # Returns
-    /// A step indicating how to proceed
-    ///
     /// # Errors
     /// Returns an error if the event handling fails
     async fn handle(
         &self,
         event: LifecycleEvent,
         conversation: &mut Conversation,
-    ) -> anyhow::Result<Step>;
+    ) -> anyhow::Result<()>;
 }
 
 /// Extension trait for combining event handlers
 ///
 /// This trait provides methods to combine multiple event handlers into a single
-/// handler that executes them in sequence with short-circuit behavior.
+/// handler that executes them in sequence.
 pub trait EventHandleExt: EventHandle {
     /// Combines this handler with another handler, creating a new handler that
-    /// runs both in sequence with short-circuit behavior
+    /// runs both in sequence
     ///
-    /// When an event is handled, this handler runs first. If it returns
-    /// `Step::Proceed`, the other handler runs and its result is returned.
-    /// If this handler returns `Step::Interrupt`, the other handler is skipped
-    /// and the interrupt is returned immediately (short-circuit).
-    ///
-    /// **Important**: If you need the second handler to always execute (e.g.,
-    /// for cleanup, logging, or metrics), do not rely on this method.
-    /// Instead, implement a single handler that performs both operations.
+    /// When an event is handled, both handlers run in sequence.
     ///
     /// # Arguments
     /// * `other` - Another handler to combine with this one
@@ -150,7 +97,7 @@ impl EventHandle for Box<dyn EventHandle> {
         &self,
         event: LifecycleEvent,
         conversation: &mut Conversation,
-    ) -> anyhow::Result<Step> {
+    ) -> anyhow::Result<()> {
         (**self).handle(event, conversation).await
     }
 }
@@ -218,18 +165,10 @@ impl Hook {
     }
 
     /// Combines this hook with another hook, creating a new hook that runs both
-    /// handlers with short-circuit behavior
+    /// handlers in sequence
     ///
-    /// When an event is handled, the first hook's handler runs first. If it
-    /// returns `Step::Proceed`, the second hook's handler runs and its
-    /// result is returned. If the first handler returns `Step::Interrupt`,
-    /// the second handler is skipped and the interrupt is returned
-    /// immediately (short-circuit).
-    ///
-    /// **Important**: If you need the second hook's handlers to always execute
-    /// (e.g., for cleanup, logging, or metrics), do not rely on this
-    /// method. Instead, implement a single hook that performs both
-    /// operations.
+    /// When an event is handled, the first hook's handler runs first, then the
+    /// second hook's handler runs.
     ///
     /// # Arguments
     /// * `other` - Another hook to combine with this one
@@ -255,7 +194,7 @@ impl EventHandle for Hook {
         &self,
         event: LifecycleEvent,
         conversation: &mut Conversation,
-    ) -> anyhow::Result<Step> {
+    ) -> anyhow::Result<()> {
         match event {
             LifecycleEvent::Start { agent: _, model_id: _ } => {
                 self.on_start.handle(event, conversation).await
@@ -275,11 +214,9 @@ impl EventHandle for Hook {
     }
 }
 
-/// A handler that combines two event handlers with short-circuit behavior
+/// A handler that combines two event handlers with sequential execution
 ///
-/// Runs the first handler, and only runs the second handler if the first
-/// returns `Step::Proceed`. If the first handler returns `Step::Interrupt`, the
-/// second handler is skipped and the interrupt is returned immediately.
+/// Runs the first handler, then runs the second handler.
 ///
 /// This is used internally by the `Hook::zip` and `EventHandleExt::and`
 /// methods.
@@ -291,16 +228,11 @@ impl EventHandle for CombinedHandler {
         &self,
         event: LifecycleEvent,
         conversation: &mut Conversation,
-    ) -> anyhow::Result<Step> {
+    ) -> anyhow::Result<()> {
         // Run the first handler
-        let step = self.0.handle(event.clone(), conversation).await?;
-        match step {
-            Step::Proceed => {
-                // Run the second handler with the cloned event
-                self.1.handle(event, conversation).await
-            }
-            Step::Interrupt { .. } => Ok(step),
-        }
+        self.0.handle(event.clone(), conversation).await?;
+        // Run the second handler with the cloned event
+        self.1.handle(event, conversation).await
     }
 }
 
@@ -317,8 +249,8 @@ impl EventHandle for NoOpHandler {
         &self,
         _event: LifecycleEvent,
         _conversation: &mut Conversation,
-    ) -> anyhow::Result<Step> {
-        Ok(Step::proceed())
+    ) -> anyhow::Result<()> {
+        Ok(())
     }
 }
 
@@ -326,13 +258,13 @@ impl EventHandle for NoOpHandler {
 impl<F, Fut> EventHandle for F
 where
     F: Fn(LifecycleEvent, &mut Conversation) -> Fut + Send + Sync,
-    Fut: std::future::Future<Output = anyhow::Result<Step>> + Send,
+    Fut: std::future::Future<Output = anyhow::Result<()>> + Send,
 {
     async fn handle(
         &self,
         event: LifecycleEvent,
         conversation: &mut Conversation,
-    ) -> anyhow::Result<Step> {
+    ) -> anyhow::Result<()> {
         (self)(event, conversation).await
     }
 }
@@ -340,7 +272,7 @@ where
 impl<F, Fut> From<F> for Box<dyn EventHandle>
 where
     F: Fn(LifecycleEvent, &mut Conversation) -> Fut + Send + Sync + 'static,
-    Fut: std::future::Future<Output = anyhow::Result<Step>> + Send + 'static,
+    Fut: std::future::Future<Output = anyhow::Result<()>> + Send + 'static,
 {
     fn from(handler: F) -> Self {
         Box::new(handler)
@@ -376,49 +308,6 @@ mod tests {
         let _ = conversation;
     }
 
-    #[test]
-    fn test_step_continue() {
-        let step = Step::proceed();
-
-        assert!(step.should_proceed());
-        assert!(!step.should_interrupt());
-    }
-
-    #[test]
-    fn test_step_halt() {
-        let step = Step::interrupt(InterruptionReason::MaxRequestPerTurnLimitReached { limit: 10 });
-
-        assert!(!step.should_proceed());
-        assert!(step.should_interrupt());
-        assert_eq!(
-            step.reason(),
-            Some(&InterruptionReason::MaxRequestPerTurnLimitReached { limit: 10 })
-        );
-    }
-
-    #[test]
-    fn test_step_from_conversation() {
-        let step = Step::proceed();
-
-        assert!(step.should_proceed());
-    }
-
-    #[test]
-    fn test_step_into_conversation() {
-        let step = Step::proceed();
-
-        // Just verify it's a Continue step
-        assert!(step.should_proceed());
-    }
-
-    #[test]
-    fn test_step_conversation_mut() {
-        let step = Step::proceed();
-
-        // Just verify it's a Continue step
-        assert!(step.should_proceed());
-    }
-
     #[tokio::test]
     async fn test_hook_on_start() {
         let events = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
@@ -429,21 +318,20 @@ mod tests {
                 let events = events_clone.clone();
                 async move {
                     events.lock().unwrap().push(event);
-                    Ok(Step::proceed())
+                    Ok(())
                 }
             },
         );
 
         let mut conversation = Conversation::generate();
 
-        let step = hook
+        hook
             .handle(
                 LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() },
                 &mut conversation,
             )
             .await
             .unwrap();
-        assert!(step.should_proceed());
 
         let handled = events.lock().unwrap();
         assert_eq!(handled.len(), 1);
@@ -464,7 +352,7 @@ mod tests {
                     let events = events.clone();
                     async move {
                         events.lock().unwrap().push(event);
-                        Ok(Step::proceed())
+                        Ok(())
                     }
                 }
             })
@@ -474,7 +362,7 @@ mod tests {
                     let events = events.clone();
                     async move {
                         events.lock().unwrap().push(event);
-                        Ok(Step::proceed())
+                        Ok(())
                     }
                 }
             })
@@ -484,7 +372,7 @@ mod tests {
                     let events = events.clone();
                     async move {
                         events.lock().unwrap().push(event);
-                        Ok(Step::proceed())
+                        Ok(())
                     }
                 }
             });
@@ -492,7 +380,7 @@ mod tests {
         let mut conversation = Conversation::generate();
 
         // Test Start event
-        let _ = hook
+        hook
             .handle(
                 LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() },
                 &mut conversation,
@@ -500,12 +388,12 @@ mod tests {
             .await
             .unwrap();
         // Test End event
-        let _ = hook
+        hook
             .handle(LifecycleEvent::End, &mut conversation)
             .await
             .unwrap();
         // Test Request event
-        let _ = hook
+        hook
             .handle(
                 LifecycleEvent::Request {
                     agent: test_agent(),
@@ -545,7 +433,7 @@ mod tests {
                     let events = events.clone();
                     async move {
                         events.lock().unwrap().push(event);
-                        Ok(Step::proceed())
+                        Ok(())
                     }
                 }
             },
@@ -555,7 +443,7 @@ mod tests {
                     let events = events.clone();
                     async move {
                         events.lock().unwrap().push(event);
-                        Ok(Step::proceed())
+                        Ok(())
                     }
                 }
             },
@@ -565,7 +453,7 @@ mod tests {
                     let events = events.clone();
                     async move {
                         events.lock().unwrap().push(event);
-                        Ok(Step::proceed())
+                        Ok(())
                     }
                 }
             },
@@ -575,7 +463,7 @@ mod tests {
                     let events = events.clone();
                     async move {
                         events.lock().unwrap().push(event);
-                        Ok(Step::proceed())
+                        Ok(())
                     }
                 }
             },
@@ -585,7 +473,7 @@ mod tests {
                     let events = events.clone();
                     async move {
                         events.lock().unwrap().push(event);
-                        Ok(Step::proceed())
+                        Ok(())
                     }
                 }
             },
@@ -595,7 +483,7 @@ mod tests {
                     let events = events.clone();
                     async move {
                         events.lock().unwrap().push(event);
-                        Ok(Step::proceed())
+                        Ok(())
                     }
                 }
             },
@@ -624,7 +512,7 @@ mod tests {
         ];
 
         for event in all_events {
-            let _ = hook.handle(event, &mut conversation).await.unwrap();
+            hook.handle(event, &mut conversation).await.unwrap();
         }
 
         let handled = events.lock().unwrap();
@@ -640,7 +528,7 @@ mod tests {
                 let title = title.clone();
                 async move {
                     *title.lock().unwrap() = Some("Modified title".to_string());
-                    Ok(Step::proceed())
+                    Ok(())
                 }
             }
         });
@@ -648,7 +536,7 @@ mod tests {
 
         assert!(title.lock().unwrap().is_none());
 
-        let step = hook
+        hook
             .handle(
                 LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() },
                 &mut conversation,
@@ -656,36 +544,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert!(step.should_proceed());
         assert_eq!(*title.lock().unwrap(), Some("Modified title".to_string()));
-    }
-
-    #[tokio::test]
-    async fn test_step_halt_variant() {
-        let hook = Hook::default().on_start(
-            |_event: LifecycleEvent, _conversation: &mut Conversation| async move {
-                Ok(Step::interrupt(
-                    InterruptionReason::MaxRequestPerTurnLimitReached { limit: 5 },
-                ))
-            },
-        );
-
-        let mut conversation = Conversation::generate();
-
-        let step = hook
-            .handle(
-                LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() },
-                &mut conversation,
-            )
-            .await
-            .unwrap();
-
-        assert!(step.should_interrupt());
-        assert!(!step.should_proceed());
-        assert_eq!(
-            step.reason(),
-            Some(&InterruptionReason::MaxRequestPerTurnLimitReached { limit: 5 })
-        );
     }
 
     #[test]
@@ -707,7 +566,7 @@ mod tests {
                 let counter = counter.clone();
                 async move {
                     *counter.lock().unwrap() += 1;
-                    Ok(Step::proceed())
+                    Ok(())
                 }
             }
         });
@@ -718,14 +577,14 @@ mod tests {
                 let counter = counter.clone();
                 async move {
                     *counter.lock().unwrap() += 1;
-                    Ok(Step::proceed())
+                    Ok(())
                 }
             }
         });
         let combined: Hook = hook1.zip(hook2);
 
         let mut conversation = Conversation::generate();
-        let _ = combined
+        combined
             .handle(
                 LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() },
                 &mut conversation,
@@ -748,7 +607,7 @@ mod tests {
                 let events = events.clone();
                 async move {
                     events.lock().unwrap().push(format!("h1:{:?}", event));
-                    Ok(Step::proceed())
+                    Ok(())
                 }
             }
         });
@@ -759,7 +618,7 @@ mod tests {
                 let events = events.clone();
                 async move {
                     events.lock().unwrap().push(format!("h2:{:?}", event));
-                    Ok(Step::proceed())
+                    Ok(())
                 }
             }
         });
@@ -770,14 +629,14 @@ mod tests {
                 let events = events.clone();
                 async move {
                     events.lock().unwrap().push(format!("h3:{:?}", event));
-                    Ok(Step::proceed())
+                    Ok(())
                 }
             }
         });
         let combined: Hook = hook1.zip(hook2).zip(hook3);
 
         let mut conversation = Conversation::generate();
-        let _ = combined
+        combined
             .handle(
                 LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() },
                 &mut conversation,
@@ -804,7 +663,7 @@ mod tests {
                     let start_title = start_title.clone();
                     async move {
                         *start_title.lock().unwrap() = Some("Start".to_string());
-                        Ok(Step::proceed())
+                        Ok(())
                     }
                 }
             })
@@ -814,7 +673,7 @@ mod tests {
                     let end_title = end_title.clone();
                     async move {
                         *end_title.lock().unwrap() = Some("End".to_string());
-                        Ok(Step::proceed())
+                        Ok(())
                     }
                 }
             });
@@ -825,7 +684,7 @@ mod tests {
         let mut conversation = Conversation::generate();
 
         // Test Start event
-        let _ = combined
+        combined
             .handle(
                 LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() },
                 &mut conversation,
@@ -835,7 +694,7 @@ mod tests {
         assert_eq!(*start_title.lock().unwrap(), Some("Start".to_string()));
 
         // Test End event
-        let _ = combined
+        combined
             .handle(LifecycleEvent::End, &mut conversation)
             .await
             .unwrap();
@@ -853,7 +712,7 @@ mod tests {
                 let counter = counter.clone();
                 async move {
                     *counter.lock().unwrap() += 1;
-                    Ok(Step::proceed())
+                    Ok(())
                 }
             }
         };
@@ -864,7 +723,7 @@ mod tests {
                 let counter = counter.clone();
                 async move {
                     *counter.lock().unwrap() += 1;
-                    Ok(Step::proceed())
+                    Ok(())
                 }
             }
         };
@@ -872,7 +731,7 @@ mod tests {
         let combined: Box<dyn EventHandle> = handler1.and(handler2);
 
         let mut conversation = Conversation::generate();
-        let _ = combined
+        combined
             .handle(
                 LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() },
                 &mut conversation,
@@ -896,7 +755,7 @@ mod tests {
                 let counter = counter.clone();
                 async move {
                     *counter.lock().unwrap() += 1;
-                    Ok(Step::proceed())
+                    Ok(())
                 }
             }
         };
@@ -907,7 +766,7 @@ mod tests {
                 let counter = counter.clone();
                 async move {
                     *counter.lock().unwrap() += 1;
-                    Ok(Step::proceed())
+                    Ok(())
                 }
             }
         };
@@ -915,7 +774,7 @@ mod tests {
         let combined: Box<dyn EventHandle> = handler1.and(handler2);
 
         let mut conversation = Conversation::generate();
-        let _ = combined
+        combined
             .handle(
                 LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() },
                 &mut conversation,
@@ -938,7 +797,7 @@ mod tests {
                 let events = events.clone();
                 async move {
                     events.lock().unwrap().push(format!("h1:{:?}", event));
-                    Ok(Step::proceed())
+                    Ok(())
                 }
             }
         };
@@ -949,7 +808,7 @@ mod tests {
                 let events = events.clone();
                 async move {
                     events.lock().unwrap().push(format!("h2:{:?}", event));
-                    Ok(Step::proceed())
+                    Ok(())
                 }
             }
         };
@@ -960,7 +819,7 @@ mod tests {
                 let events = events.clone();
                 async move {
                     events.lock().unwrap().push(format!("h3:{:?}", event));
-                    Ok(Step::proceed())
+                    Ok(())
                 }
             }
         };
@@ -969,7 +828,7 @@ mod tests {
         let combined: Box<dyn EventHandle> = handler1.and(handler2).and(handler3);
 
         let mut conversation = Conversation::generate();
-        let _ = combined
+        combined
             .handle(
                 LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() },
                 &mut conversation,
@@ -995,7 +854,7 @@ mod tests {
                 let start_title = start_title.clone();
                 async move {
                     *start_title.lock().unwrap() = Some("Started".to_string());
-                    Ok(Step::proceed())
+                    Ok(())
                 }
             }
         };
@@ -1006,7 +865,7 @@ mod tests {
                 let events = events.clone();
                 async move {
                     events.lock().unwrap().push(format!("Event: {:?}", event));
-                    Ok(Step::proceed())
+                    Ok(())
                 }
             }
         };
@@ -1017,7 +876,7 @@ mod tests {
         let hook = Hook::default().on_start(combined_handler);
 
         let mut conversation = Conversation::generate();
-        let _ = hook
+        hook
             .handle(
                 LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() },
                 &mut conversation,
@@ -1041,7 +900,7 @@ mod tests {
                     let start_title = start_title.clone();
                     async move {
                         *start_title.lock().unwrap() = Some("Started".to_string());
-                        Ok(Step::proceed())
+                        Ok(())
                     }
                 }
             })
@@ -1051,14 +910,14 @@ mod tests {
                     let end_title = end_title.clone();
                     async move {
                         *end_title.lock().unwrap() = Some("Ended".to_string());
-                        Ok(Step::proceed())
+                        Ok(())
                     }
                 }
             });
 
         // Test using handle() directly (EventHandle trait)
         let mut conversation = Conversation::generate();
-        let step = hook
+        hook
             .handle(
                 LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() },
                 &mut conversation,
@@ -1066,14 +925,12 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(*start_title.lock().unwrap(), Some("Started".to_string()));
-        assert!(step.should_proceed());
 
-        let step = hook
+        hook
             .handle(LifecycleEvent::End, &mut conversation)
             .await
             .unwrap();
         assert_eq!(*end_title.lock().unwrap(), Some("Ended".to_string()));
-        assert!(step.should_proceed());
     }
 
     #[tokio::test]
@@ -1087,7 +944,7 @@ mod tests {
                 let hook1_title = hook1_title.clone();
                 async move {
                     *hook1_title.lock().unwrap() = Some("Started".to_string());
-                    Ok(Step::proceed())
+                    Ok(())
                 }
             }
         });
@@ -1097,7 +954,7 @@ mod tests {
                 let hook2_title = hook2_title.clone();
                 async move {
                     *hook2_title.lock().unwrap() = Some("Ended".to_string());
-                    Ok(Step::proceed())
+                    Ok(())
                 }
             }
         });
@@ -1106,7 +963,7 @@ mod tests {
         let combined: Box<dyn EventHandle> = hook1.and(hook2);
 
         let mut conversation = Conversation::generate();
-        let _ = combined
+        combined
             .handle(
                 LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() },
                 &mut conversation,
