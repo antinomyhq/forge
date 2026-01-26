@@ -2,8 +2,9 @@ use std::sync::{Arc, Mutex};
 
 use convert_case::{Case, Casing};
 use forge_domain::{
-    AgentId, ChatRequest, ChatResponse, ChatResponseContent, Conversation, Event, Hook,
-    LifecycleEvent, TitleFormat, ToolCallContext, ToolDefinition, ToolName, ToolOutput,
+    AgentId, ChatRequest, ChatResponse, ChatResponseContent, Conversation,
+    ContextMessage, Event, Hook, LifecycleEvent, Role, TextMessage, TitleFormat,
+    ToolCallContext, ToolDefinition, ToolName, ToolOutput,
 };
 use forge_template::Element;
 use futures::StreamExt;
@@ -126,6 +127,63 @@ impl<S: Services> AgentExecutor<S> {
     }
 }
 
+/// Represents a reminder action to be applied to the conversation.
+enum ReminderAction {
+    /// A soft reminder with a message (no tool forcing).
+    Message(String),
+    /// A final reminder that forces the agent to call search_report.
+    ForceToolCall(String),
+}
+
+/// Builds a reminder action based on the current request count and max iterations.
+fn build_iteration_reminder(request_count: usize, max_iterations: usize) -> Option<ReminderAction> {
+    let remaining = max_iterations.saturating_sub(request_count);
+    let halfway = max_iterations / 2;
+    let urgent_threshold = max_iterations.saturating_sub(2);
+
+    match request_count {
+        0 => None,
+        n if n == halfway => Some(ReminderAction::Message(format!(
+            "<system-reminder>You have used {n} of {max_iterations} requests. \
+             You have {remaining} requests remaining before you must call \
+             search_report to report your findings.</system-reminder>"
+        ))),
+        n if n >= urgent_threshold && n < max_iterations => Some(ReminderAction::Message(format!(
+            "<system-reminder>URGENT: You have used {n} of {max_iterations} requests. \
+             Only {remaining} request(s) remaining! You MUST call search_report on your \
+             next turn to report your findings.</system-reminder>"
+        ))),
+        n if n == max_iterations + 1 => Some(ReminderAction::ForceToolCall(
+            "<system-reminder>FINAL REMINDER: You have reached the maximum number of requests. \
+             You MUST call the search_report tool now to report your findings. \
+             Do not make any more search requests.</system-reminder>"
+                .to_string(),
+        )),
+        _ => None,
+    }
+}
+
+/// Applies a reminder action to the conversation context.
+fn apply_reminder(conversation: &mut forge_domain::Conversation, action: ReminderAction) {
+    let Some(ctx) = conversation.context.take() else {
+        return;
+    };
+
+    conversation.context = Some(match action {
+        ReminderAction::Message(msg) => {
+            let message = TextMessage::new(Role::User, msg);
+            ctx.add_message(ContextMessage::Text(message))
+        }
+        ReminderAction::ForceToolCall(msg) => {
+            let message = TextMessage::new(Role::User, msg);
+            ctx.add_message(ContextMessage::Text(message))
+                .tool_choice(forge_domain::ToolChoice::Call(
+                    forge_domain::ToolName::new("search_report"),
+                ))
+        }
+    });
+}
+
 #[derive(Debug)]
 struct CodebaseSearchAgentHook {
     hook: Hook,
@@ -137,32 +195,22 @@ impl CodebaseSearchAgentHook {
         let captured_output = Arc::new(Mutex::new(None));
         let hook = Hook::default()
             .on_request({
-                move |_event: LifecycleEvent, conversation: &mut forge_domain::Conversation| {
-                    let request_count = match _event {
-                        LifecycleEvent::Request { request_count, .. } => request_count,
-                        _ => 0,
-                    };
-
-                    // After reaching max_iterations, force the agent to call search_report
-                    if request_count == max_iterations + 1 {
-                        if let Some(ctx) = conversation.context.take() {
-                            conversation.context = Some(
-                                ctx.tool_choice(forge_domain::ToolChoice::Call(
-                                    forge_domain::ToolName::new("search_report"),
-                                )),
-                            );
+                move |event: LifecycleEvent, conversation: &mut forge_domain::Conversation| {
+                    if let LifecycleEvent::Request { request_count, .. } = event {
+                        if let Some(action) = build_iteration_reminder(request_count, max_iterations)
+                        {
+                            apply_reminder(conversation, action);
                         }
                     }
-
                     async move { Ok(()) }
                 }
             })
             .on_toolcall_end({
                 let captured_output = captured_output.clone();
-                move |_event: LifecycleEvent, _conversation: &mut forge_domain::Conversation| {
+                move |event: LifecycleEvent, _conversation: &mut forge_domain::Conversation| {
                     let captured_output = captured_output.clone();
                     async move {
-                        if let LifecycleEvent::ToolcallEnd(result) = _event {
+                        if let LifecycleEvent::ToolcallEnd(result) = event {
                             *captured_output.lock().unwrap() = Some(result);
                         }
                         Ok(())
