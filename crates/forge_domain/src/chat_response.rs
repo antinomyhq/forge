@@ -11,12 +11,12 @@ pub enum ChatResponseContent {
     ToolInput(TitleFormat),
     // Should be only used to send tool outputs.
     ToolOutput(String),
-    Markdown(String),
+    Markdown { text: String, partial: bool },
 }
 
 impl From<ChatResponseContent> for ChatResponse {
     fn from(content: ChatResponseContent) -> Self {
-        ChatResponse::TaskMessage { content, partial: false }
+        ChatResponse::TaskMessage { content }
     }
 }
 
@@ -24,7 +24,6 @@ impl From<TitleFormat> for ChatResponse {
     fn from(title: TitleFormat) -> Self {
         ChatResponse::TaskMessage {
             content: ChatResponseContent::ToolInput(title),
-            partial: false,
         }
     }
 }
@@ -42,7 +41,7 @@ impl ChatResponseContent {
 
     pub fn as_str(&self) -> &str {
         match self {
-            ChatResponseContent::ToolOutput(text) | ChatResponseContent::Markdown(text) => text,
+            ChatResponseContent::ToolOutput(text) | ChatResponseContent::Markdown { text, .. } => text,
             ChatResponseContent::ToolInput(_) => "",
         }
     }
@@ -54,7 +53,6 @@ impl ChatResponseContent {
 pub enum ChatResponse {
     TaskMessage {
         content: ChatResponseContent,
-        partial: bool,
     },
     TaskReasoning {
         content: String,
@@ -82,7 +80,7 @@ impl ChatResponse {
             ChatResponse::TaskMessage { content, .. } => match content {
                 ChatResponseContent::ToolInput(_) => false,
                 ChatResponseContent::ToolOutput(content) => content.is_empty(),
-                ChatResponseContent::Markdown(content) => content.is_empty(),
+                ChatResponseContent::Markdown { text, .. } => text.is_empty(),
             },
             ChatResponse::TaskReasoning { content } => content.is_empty(),
             _ => false,

@@ -31,7 +31,6 @@ impl ToolCallContext {
         let title = title.into();
         self.send(ChatResponse::TaskMessage {
             content: crate::ChatResponseContent::ToolInput(title),
-            partial: false,
         })
         .await
     }

@@ -2752,7 +2752,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             return Ok(());
         }
         match message {
-            ChatResponse::TaskMessage { content, partial: _ } => match content {
+            ChatResponse::TaskMessage { content } => match content {
                 ChatResponseContent::ToolInput(title) => {
                     writer.finish()?;
                     self.writeln(title.display())?;
@@ -2761,9 +2761,16 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     writer.finish()?;
                     self.writeln(text)?;
                 }
-                ChatResponseContent::Markdown(text) => {
+                ChatResponseContent::Markdown { text, partial } => {
                     tracing::info!(message = %text, "Agent Response");
-                    writer.write(&text)?;
+                    if partial {
+                        // Streaming content - use writer for incremental rendering
+                        writer.write(&text)?;
+                    } else {
+                        // Complete message - use markdown renderer
+                        writer.finish()?;
+                        self.writeln(self.markdown.render(&text))?;
+                    }
                 }
             },
             ChatResponse::ToolCallStart(tool_call) => {

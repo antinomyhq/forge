@@ -165,7 +165,6 @@ impl<S: Services> ToolRegistry<S> {
                 context
                     .send(ChatResponse::TaskMessage {
                         content: ChatResponseContent::ToolOutput(text),
-                        partial: false,
                     })
                     .await?;
             }

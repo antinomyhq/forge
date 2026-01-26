@@ -77,17 +77,13 @@ impl<S: Services> AgentExecutor<S> {
                 output = output.reset();
             }
             match message {
-                ChatResponse::TaskMessage { ref content, partial } => match content {
+                ChatResponse::TaskMessage { ref content } => match content {
                     ChatResponseContent::ToolInput(_) => ctx.send(message).await?,
                     ChatResponseContent::ToolOutput(text) => {
-                        if partial {
-                            output = output.append_tool_output(text);
-                        } else {
-                            output = AccumulatedContent::tool_output(text);
-                        }
+                        output = AccumulatedContent::tool_output(text);
                     }
-                    ChatResponseContent::Markdown(text) => {
-                        if partial {
+                    ChatResponseContent::Markdown { text, partial } => {
+                        if *partial {
                             output = output.append_markdown(text);
                         } else {
                             output = AccumulatedContent::markdown(text);
@@ -145,6 +141,7 @@ impl AccumulatedContent {
     /// Appends tool output text to the output.
     /// If currently in Markdown mode, switches to ToolOutput and replaces
     /// content.
+    #[allow(dead_code)]
     fn append_tool_output(self, text: &str) -> Self {
         match self {
             Self::ToolOutput(mut content) => {
