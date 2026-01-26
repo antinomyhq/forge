@@ -71,7 +71,11 @@ impl<S: Services> AgentExecutor<S> {
         while let Some(message) = response_stream.next().await {
             let message = message?;
 
-            if !matches!(&message, ChatResponse::TaskMessage { content: ChatResponseContent::ToolOutput(_) } | ChatResponse::TaskMessage { content: ChatResponseContent::Markdown(_) }) {
+            if !matches!(
+                &message,
+                ChatResponse::TaskMessage { content: ChatResponseContent::ToolOutput(_) }
+                    | ChatResponse::TaskMessage { content: ChatResponseContent::Markdown(_) }
+            ) {
                 // if there's change in event than what we expected then reset the output.
                 output = output.reset();
             }
