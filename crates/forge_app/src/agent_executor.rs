@@ -3,15 +3,14 @@ use std::sync::{Arc, Mutex};
 use convert_case::{Case, Casing};
 use forge_domain::{
     AgentId, ChatRequest, ChatResponse, ChatResponseContent, Conversation, Event, Hook,
-    LifecycleEvent, Step, TitleFormat, ToolCallContext, ToolDefinition, ToolName,
-    ToolOutput,
+    LifecycleEvent, TitleFormat, ToolCallContext, ToolDefinition, ToolName, ToolOutput,
 };
 use forge_template::Element;
 use futures::StreamExt;
 use tokio::sync::RwLock;
 
 use crate::error::Error;
-use crate::{AgentRegistry, ConversationService, EnvironmentService, Services};
+use crate::{AgentRegistry, ConversationService, Services};
 
 #[derive(Clone)]
 pub struct AgentExecutor<S> {
@@ -60,9 +59,8 @@ impl<S: Services> AgentExecutor<S> {
             .await?;
 
         // Execute the request through the ForgeApp
-        let env = self.services.get_environment();
         let (hook, captured_output) = if agent_id.is_codebase_search() {
-            let hook = CodebaseSearchAgentHook::new(env.codebase_search_max_iterations);
+            let hook = CodebaseSearchAgentHook::new();
             (Some(Arc::new(hook.hook)), hook.captured_output)
         } else {
             (None, Arc::new(Mutex::new(None)))
@@ -134,50 +132,20 @@ struct CodebaseSearchAgentHook {
 }
 
 impl CodebaseSearchAgentHook {
-    fn new(max_iterations: usize) -> Self {
+    fn new() -> Self {
         let captured_output = Arc::new(Mutex::new(None));
-        let hook = Hook::default()
-            .on_request({
-                move |event: LifecycleEvent, conversation: &mut forge_domain::Conversation| {
-                    let request_count = match event {
-                        LifecycleEvent::Request { request_count, .. } => request_count,
-                        _ => 0,
-                    };
-
-                    let step = match request_count {
-                        n if n == max_iterations => Step::Interrupt {
-                            reason: forge_domain::InterruptionReason::MaxRequestPerTurnLimitReached {
-                                limit: max_iterations as u64,
-                            }
-                        },
-                        n if n == max_iterations + 1 => {
-                            if let Some(ctx) = conversation.context.take() {
-                                conversation.context = Some(ctx.tool_choice(
-                                    forge_domain::ToolChoice::Call(
-                                        forge_domain::ToolName::new("search_report")
-                                    )
-                                ));
-                            }
-                            Step::proceed()
-                        }
-                        _ => Step::proceed(),
-                    };
-
-                    async move { Ok(step) }
-                }
-            })
-            .on_toolcall_end({
+        let hook = Hook::default().on_toolcall_end({
+            let captured_output = captured_output.clone();
+            move |_event: LifecycleEvent, _conversation: &mut forge_domain::Conversation| {
                 let captured_output = captured_output.clone();
-                move |event: LifecycleEvent, _conversation: &mut forge_domain::Conversation| {
-                    let captured_output = captured_output.clone();
-                    async move {
-                        if let LifecycleEvent::ToolcallEnd(result) = event {
-                            *captured_output.lock().unwrap() = Some(result);
-                        }
-                        Ok(Step::proceed())
+                async move {
+                    if let LifecycleEvent::ToolcallEnd(result) = _event {
+                        *captured_output.lock().unwrap() = Some(result);
                     }
+                    Ok(())
                 }
-            });
+            }
+        });
 
         Self { hook, captured_output }
     }
