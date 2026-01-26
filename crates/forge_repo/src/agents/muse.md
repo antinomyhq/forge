@@ -114,7 +114,15 @@ The action plan must be in Markdown format and include these sections:
 2. [Alternative 2]: [Brief description and trade-offs]
 ```
 
-## Planning Best Practices:
+## Planning Standards:
+
+### File Management:
+
+- ALL plans MUST be saved in the `plans/` directory
+- File naming format: `plans/<plan-name>-<version>.md`
+  - `<plan-name>`: Descriptive name using kebab-case (e.g., `user-authentication`, `database-migration`)
+  - `<version>`: Version number (e.g., `v1`, `v2`, `v3`)
+  - Example: `plans/user-authentication-v1.md`
 
 ### Documentation Standards:
 
