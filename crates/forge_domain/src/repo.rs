@@ -129,7 +129,8 @@ pub trait WorkspaceRepository: Send + Sync {
     /// Find all workspaces
     ///
     /// Returns all workspaces stored in the local database.
-    /// Path matching and selection logic should be handled in the service layer.
+    /// Path matching and selection logic should be handled in the service
+    /// layer.
     ///
     /// # Returns
     /// A vector of all workspaces (may be empty)

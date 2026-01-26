@@ -121,7 +121,8 @@ impl FileRead {
 
 /// Generic wrapper for workspace operations
 ///
-/// User ID is not stored here as it's extracted from the JWT token by the server.
+/// User ID is not stored here as it's extracted from the JWT token by the
+/// server.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CodeBase<T> {
     pub workspace_id: WorkspaceId,
