@@ -171,7 +171,7 @@ mod tests {
                 name: ToolName::new(&self.name),
                 call_id: None,
                 arguments: ToolCallArguments::from_parameters(self.args.clone()),
-            thought_signature: None,
+                thought_signature: None,
             }
         }
     }

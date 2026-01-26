@@ -323,20 +323,18 @@ impl TryFrom<Response> for ChatCompletionMessage {
                                         .and_then(|ec| ec.google.as_ref())
                                         .and_then(|g| g.thought_signature.clone());
 
-                                    resp = resp.add_tool_call(
-                                        ToolCallFull {
-                                            call_id: tool_call.id.clone(),
-                                            name: tool_call
-                                                .function
-                                                .name
-                                                .clone()
-                                                .ok_or(forge_domain::Error::ToolCallMissingName)?,
-                                            arguments: serde_json::from_str(
-                                                &tool_call.function.arguments,
-                                            )?,
-                                            thought_signature,
-                                        },
-                                    );
+                                    resp = resp.add_tool_call(ToolCallFull {
+                                        call_id: tool_call.id.clone(),
+                                        name: tool_call
+                                            .function
+                                            .name
+                                            .clone()
+                                            .ok_or(forge_domain::Error::ToolCallMissingName)?,
+                                        arguments: serde_json::from_str(
+                                            &tool_call.function.arguments,
+                                        )?,
+                                        thought_signature,
+                                    });
                                 }
                             }
                             resp

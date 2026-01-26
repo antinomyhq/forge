@@ -47,7 +47,7 @@ pub struct ToolCallPart {
     /// Arguments that need to be passed to the tool. NOTE: Not all tools
     /// require input
     pub arguments_part: String,
-    
+
     /// Optional thought signature from Gemini3
     #[serde(skip_serializing_if = "Option::is_none")]
     pub thought_signature: Option<String>,

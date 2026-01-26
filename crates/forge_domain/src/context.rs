@@ -1221,13 +1221,13 @@ mod tests {
                         call_id: Some(crate::ToolCallId::new("call1")),
                         name: crate::ToolName::new("tool1"),
                         arguments: serde_json::json!({"arg": "value"}).into(),
-            thought_signature: None,
+                        thought_signature: None,
                     },
                     ToolCallFull {
                         call_id: Some(crate::ToolCallId::new("call2")),
                         name: crate::ToolName::new("tool2"),
                         arguments: serde_json::json!({"arg": "value"}).into(),
-            thought_signature: None,
+                        thought_signature: None,
                     },
                 ]),
             ))
@@ -1341,13 +1341,13 @@ mod tests {
                 call_id: Some(crate::ToolCallId::new("call1")),
                 name: crate::ToolName::new("fs_search"),
                 arguments: serde_json::json!({"query": "test"}).into(),
-            thought_signature: None,
+                thought_signature: None,
             },
             ToolCallFull {
                 call_id: Some(crate::ToolCallId::new("call2")),
                 name: crate::ToolName::new("calculate"),
                 arguments: serde_json::json!({"expression": "2+2"}).into(),
-            thought_signature: None,
+                thought_signature: None,
             },
         ];
         let fixture = ContextMessage::assistant("Let me help", None, Some(fixture_tool_calls));
