@@ -81,9 +81,9 @@ impl<S: Services> AgentExecutor<S> {
                     ChatResponseContent::ToolInput(_) => ctx.send(message).await?,
                     ChatResponseContent::ToolOutput(text) => {
                         if partial {
-                            output = output.append_tool_input(text);
+                            output = output.append_tool_output(text);
                         } else {
-                            output = AccumulatedContent::tool_input(text);
+                            output = AccumulatedContent::tool_output(text);
                         }
                     }
                     ChatResponseContent::Markdown(text) => {
@@ -123,13 +123,13 @@ impl<S: Services> AgentExecutor<S> {
 
 #[derive(Debug, PartialEq)]
 enum AccumulatedContent {
-    ToolInput(String),
+    ToolOutput(String),
     Markdown(String),
 }
 
 impl Default for AccumulatedContent {
     fn default() -> Self {
-        Self::ToolInput(String::new())
+        Self::ToolOutput(String::new())
     }
 }
 
@@ -138,25 +138,25 @@ impl AccumulatedContent {
         Self::Markdown(text.into())
     }
 
-    fn tool_input(text: &str) -> Self {
-        Self::ToolInput(text.into())
+    fn tool_output(text: &str) -> Self {
+        Self::ToolOutput(text.into())
     }
 
-    /// Appends tool input text to the output.
-    /// If currently in Markdown mode, switches to ToolInput and replaces
+    /// Appends tool output text to the output.
+    /// If currently in Markdown mode, switches to ToolOutput and replaces
     /// content.
-    fn append_tool_input(self, text: &str) -> Self {
+    fn append_tool_output(self, text: &str) -> Self {
         match self {
-            Self::ToolInput(mut content) => {
+            Self::ToolOutput(mut content) => {
                 content.push_str(text);
-                Self::ToolInput(content)
+                Self::ToolOutput(content)
             }
-            Self::Markdown(_) => Self::ToolInput(text.to_string()),
+            Self::Markdown(_) => Self::ToolOutput(text.to_string()),
         }
     }
 
     /// Appends markdown to the output.
-    /// If currently in ToolInput mode, switches to Markdown and replaces
+    /// If currently in ToolOutput mode, switches to Markdown and replaces
     /// content.
     fn append_markdown(self, text: &str) -> Self {
         match self {
@@ -164,7 +164,7 @@ impl AccumulatedContent {
                 content.push_str(text);
                 Self::Markdown(content)
             }
-            Self::ToolInput(_) => Self::Markdown(text.to_string()),
+            Self::ToolOutput(_) => Self::Markdown(text.to_string()),
         }
     }
 
@@ -175,7 +175,7 @@ impl AccumulatedContent {
     /// Returns the accumulated text, or None if empty.
     fn into_text(self) -> Option<String> {
         match self {
-            Self::ToolInput(text) | Self::Markdown(text) if !text.is_empty() => Some(text),
+            Self::ToolOutput(text) | Self::Markdown(text) if !text.is_empty() => Some(text),
             _ => None,
         }
     }
@@ -189,14 +189,14 @@ mod tests {
 
     #[test]
     fn test_default_and_empty_content() {
-        // Default creates empty ToolInput
+        // Default creates empty ToolOutput
         let default = AccumulatedContent::default();
-        assert_eq!(default, AccumulatedContent::ToolInput(String::new()));
+        assert_eq!(default, AccumulatedContent::ToolOutput(String::new()));
 
         // Empty content of both types returns None
         assert_eq!(AccumulatedContent::default().into_text(), None);
         assert_eq!(
-            AccumulatedContent::ToolInput(String::new()).into_text(),
+            AccumulatedContent::ToolOutput(String::new()).into_text(),
             None
         );
         assert_eq!(
@@ -206,35 +206,35 @@ mod tests {
 
         // Reset from empty content returns empty content
         let reset_empty = AccumulatedContent::default().reset();
-        assert_eq!(reset_empty, AccumulatedContent::ToolInput(String::new()));
+        assert_eq!(reset_empty, AccumulatedContent::ToolOutput(String::new()));
         assert_eq!(reset_empty.into_text(), None);
     }
 
     #[test]
     fn test_plain_text_accumulation() {
         // Single append
-        let actual = AccumulatedContent::default().append_tool_input("Hello");
-        assert_eq!(actual, AccumulatedContent::ToolInput("Hello".to_string()));
+        let actual = AccumulatedContent::default().append_tool_output("Hello");
+        assert_eq!(actual, AccumulatedContent::ToolOutput("Hello".to_string()));
 
         // Multiple appends accumulate
         let actual = AccumulatedContent::default()
-            .append_tool_input("Hello")
-            .append_tool_input(" ")
-            .append_tool_input("World");
+            .append_tool_output("Hello")
+            .append_tool_output(" ")
+            .append_tool_output("World");
         assert_eq!(
             actual,
-            AccumulatedContent::ToolInput("Hello World".to_string())
+            AccumulatedContent::ToolOutput("Hello World".to_string())
         );
 
         // Non-empty content is extractable
         assert_eq!(actual.into_text(), Some("Hello World".to_string()));
 
-        // Reset from ToolInput with content returns empty ToolInput
+        // Reset from ToolOutput with content returns empty ToolOutput
         let content = AccumulatedContent::default()
-            .append_tool_input("Some text")
-            .append_tool_input(" more text");
+            .append_tool_output("Some text")
+            .append_tool_output(" more text");
         let reset_content = content.reset();
-        assert_eq!(reset_content, AccumulatedContent::ToolInput(String::new()));
+        assert_eq!(reset_content, AccumulatedContent::ToolOutput(String::new()));
         assert_eq!(reset_content.into_text(), None);
     }
 
@@ -260,53 +260,53 @@ mod tests {
             Some("**Bold** and *italic*".to_string())
         );
 
-        // Reset from Markdown with content returns empty ToolInput
+        // Reset from Markdown with content returns empty ToolOutput
         let content = AccumulatedContent::default()
             .append_markdown("**Bold**")
             .append_markdown(" and *italic*");
         let reset_content = content.reset();
-        assert_eq!(reset_content, AccumulatedContent::ToolInput(String::new()));
+        assert_eq!(reset_content, AccumulatedContent::ToolOutput(String::new()));
         assert_eq!(reset_content.into_text(), None);
     }
 
     #[test]
     fn test_mode_switching() {
-        // Switching from ToolInput to Markdown replaces content
+        // Switching from ToolOutput to Markdown replaces content
         let actual = AccumulatedContent::default()
-            .append_tool_input("Old text")
+            .append_tool_output("Old text")
             .append_markdown("**New content**");
         assert_eq!(
             actual,
             AccumulatedContent::Markdown("**New content**".to_string())
         );
 
-        // Switching from Markdown to ToolInput replaces content
+        // Switching from Markdown to ToolOutput replaces content
         let actual = AccumulatedContent::default()
             .append_markdown("**Old**")
-            .append_tool_input("New content");
+            .append_tool_output("New content");
         assert_eq!(
             actual,
-            AccumulatedContent::ToolInput("New content".to_string())
+            AccumulatedContent::ToolOutput("New content".to_string())
         );
 
         // Multiple switches only keep last content
         let actual = AccumulatedContent::default()
-            .append_tool_input("First")
+            .append_tool_output("First")
             .append_markdown("**Second**")
-            .append_tool_input("Third")
+            .append_tool_output("Third")
             .append_markdown("**Fourth**");
         assert_eq!(
             actual,
             AccumulatedContent::Markdown("**Fourth**".to_string())
         );
 
-        // Reset after mode switches returns empty ToolInput
+        // Reset after mode switches returns empty ToolOutput
         let content = AccumulatedContent::default()
-            .append_tool_input("First")
+            .append_tool_output("First")
             .append_markdown("**Second**")
-            .append_tool_input("Third");
+            .append_tool_output("Third");
         let reset_content = content.reset();
-        assert_eq!(reset_content, AccumulatedContent::ToolInput(String::new()));
+        assert_eq!(reset_content, AccumulatedContent::ToolOutput(String::new()));
         assert_eq!(reset_content.into_text(), None);
     }
 
@@ -314,16 +314,16 @@ mod tests {
     fn test_comprehensive_workflow() {
         // Realistic workflow: accumulate, switch, extract
         let content = AccumulatedContent::default()
-            .append_tool_input("Start with plain text")
-            .append_tool_input(" and continue")
+            .append_tool_output("Start with plain text")
+            .append_tool_output(" and continue")
             .append_markdown("\n\n**Switch to markdown**")
             .append_markdown(" with more content")
-            .append_tool_input("\nBack to plain text");
+            .append_tool_output("\nBack to plain text");
 
         // Only the last mode's content is kept
         assert_eq!(
             content,
-            AccumulatedContent::ToolInput("\nBack to plain text".to_string())
+            AccumulatedContent::ToolOutput("\nBack to plain text".to_string())
         );
 
         // Extract the final content
@@ -334,12 +334,12 @@ mod tests {
 
         // Multiple resets work correctly in workflow
         let content = AccumulatedContent::default()
-            .append_tool_input("Test")
+            .append_tool_output("Test")
             .reset()
             .append_markdown("**Test**")
             .reset()
-            .append_tool_input("Final");
-        assert_eq!(content, AccumulatedContent::ToolInput("Final".to_string()));
+            .append_tool_output("Final");
+        assert_eq!(content, AccumulatedContent::ToolOutput("Final".to_string()));
         assert_eq!(content.into_text(), Some("Final".to_string()));
     }
 }
