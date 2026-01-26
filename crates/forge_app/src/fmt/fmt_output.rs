@@ -524,7 +524,7 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.to_content(&env);
-        if let Some(ChatResponseContent::Title(title)) = actual {
+        if let Some(ChatResponseContent::ToolInput(title)) = actual {
             assert_eq!(title.title, "Create plans/2024-08-11-test-plan-v1.md");
             assert_eq!(title.category, forge_domain::Category::Debug);
             assert_eq!(title.sub_title, None);

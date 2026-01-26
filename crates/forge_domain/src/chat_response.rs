@@ -7,7 +7,7 @@ use crate::{ToolCallFull, ToolName, ToolResult};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ChatResponseContent {
-    Title(TitleFormat),
+    ToolInput(TitleFormat),
     ToolOutput(String),
     Markdown(String),
 }
@@ -20,13 +20,13 @@ impl From<ChatResponseContent> for ChatResponse {
 
 impl From<TitleFormat> for ChatResponse {
     fn from(title: TitleFormat) -> Self {
-        ChatResponse::TaskMessage { content: ChatResponseContent::Title(title) }
+        ChatResponse::TaskMessage { content: ChatResponseContent::ToolInput(title) }
     }
 }
 
 impl From<TitleFormat> for ChatResponseContent {
     fn from(title: TitleFormat) -> Self {
-        ChatResponseContent::Title(title)
+        ChatResponseContent::ToolInput(title)
     }
 }
 impl ChatResponseContent {
@@ -37,7 +37,7 @@ impl ChatResponseContent {
     pub fn as_str(&self) -> &str {
         match self {
             ChatResponseContent::ToolOutput(text) | ChatResponseContent::Markdown(text) => text,
-            ChatResponseContent::Title(_) => "",
+            ChatResponseContent::ToolInput(_) => "",
         }
     }
 }
@@ -64,7 +64,7 @@ impl ChatResponse {
     pub fn is_empty(&self) -> bool {
         match self {
             ChatResponse::TaskMessage { content } => match content {
-                ChatResponseContent::Title(_) => false,
+                ChatResponseContent::ToolInput(_) => false,
                 ChatResponseContent::ToolOutput(content) => content.is_empty(),
                 ChatResponseContent::Markdown(content) => content.is_empty(),
             },
