@@ -3,10 +3,7 @@ use std::fmt;
 use async_trait::async_trait;
 use derive_setters::Setters;
 
-use crate::{
-    Agent, ChatCompletionMessageFull, Conversation, ModelId, ToolCallFull,
-    ToolResult,
-};
+use crate::{Agent, ChatCompletionMessageFull, Conversation, ModelId, ToolCallFull, ToolResult};
 
 /// Lifecycle events that can occur during conversation processing
 #[derive(Debug, PartialEq, Clone)]
@@ -325,13 +322,12 @@ mod tests {
 
         let mut conversation = Conversation::generate();
 
-        hook
-            .handle(
-                LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() },
-                &mut conversation,
-            )
-            .await
-            .unwrap();
+        hook.handle(
+            LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() },
+            &mut conversation,
+        )
+        .await
+        .unwrap();
 
         let handled = events.lock().unwrap();
         assert_eq!(handled.len(), 1);
@@ -380,30 +376,27 @@ mod tests {
         let mut conversation = Conversation::generate();
 
         // Test Start event
-        hook
-            .handle(
-                LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() },
-                &mut conversation,
-            )
-            .await
-            .unwrap();
+        hook.handle(
+            LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() },
+            &mut conversation,
+        )
+        .await
+        .unwrap();
         // Test End event
-        hook
-            .handle(LifecycleEvent::End, &mut conversation)
+        hook.handle(LifecycleEvent::End, &mut conversation)
             .await
             .unwrap();
         // Test Request event
-        hook
-            .handle(
-                LifecycleEvent::Request {
-                    agent: test_agent(),
-                    model_id: test_model_id(),
-                    request_count: 1,
-                },
-                &mut conversation,
-            )
-            .await
-            .unwrap();
+        hook.handle(
+            LifecycleEvent::Request {
+                agent: test_agent(),
+                model_id: test_model_id(),
+                request_count: 1,
+            },
+            &mut conversation,
+        )
+        .await
+        .unwrap();
 
         let handled = events.lock().unwrap();
         assert_eq!(handled.len(), 3);
@@ -536,13 +529,12 @@ mod tests {
 
         assert!(title.lock().unwrap().is_none());
 
-        hook
-            .handle(
-                LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() },
-                &mut conversation,
-            )
-            .await
-            .unwrap();
+        hook.handle(
+            LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() },
+            &mut conversation,
+        )
+        .await
+        .unwrap();
 
         assert_eq!(*title.lock().unwrap(), Some("Modified title".to_string()));
     }
@@ -876,13 +868,12 @@ mod tests {
         let hook = Hook::default().on_start(combined_handler);
 
         let mut conversation = Conversation::generate();
-        hook
-            .handle(
-                LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() },
-                &mut conversation,
-            )
-            .await
-            .unwrap();
+        hook.handle(
+            LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() },
+            &mut conversation,
+        )
+        .await
+        .unwrap();
 
         assert_eq!(events.lock().unwrap().len(), 1);
         assert!(events.lock().unwrap()[0].starts_with("Event: Start"));
@@ -917,17 +908,15 @@ mod tests {
 
         // Test using handle() directly (EventHandle trait)
         let mut conversation = Conversation::generate();
-        hook
-            .handle(
-                LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() },
-                &mut conversation,
-            )
-            .await
-            .unwrap();
+        hook.handle(
+            LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() },
+            &mut conversation,
+        )
+        .await
+        .unwrap();
         assert_eq!(*start_title.lock().unwrap(), Some("Started".to_string()));
 
-        hook
-            .handle(LifecycleEvent::End, &mut conversation)
+        hook.handle(LifecycleEvent::End, &mut conversation)
             .await
             .unwrap();
         assert_eq!(*end_title.lock().unwrap(), Some("Ended".to_string()));
