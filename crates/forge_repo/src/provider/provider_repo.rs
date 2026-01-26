@@ -340,8 +340,14 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
             anyhow::anyhow!("Failed to fetch Google access token: {e}. Please run 'gcloud auth application-default login' to set up credentials.")
         })?;
 
-        tracing::debug!("Fetched Google ADC token (length: {})", access_token.token.len());
-        tracing::debug!("Token starts with: {}", &access_token.token[..access_token.token.len().min(20)]);
+        tracing::debug!(
+            "Fetched Google ADC token (length: {})",
+            access_token.token.len()
+        );
+        tracing::debug!(
+            "Token starts with: {}",
+            &access_token.token[..access_token.token.len().min(20)]
+        );
 
         // Create new credential with fresh token, preserving url_params
         Ok(forge_domain::AuthCredential::new_api_key(
