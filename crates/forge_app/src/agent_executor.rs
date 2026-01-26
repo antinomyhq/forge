@@ -158,8 +158,9 @@ impl AccumulatedContent {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use pretty_assertions::assert_eq;
+
+    use super::*;
 
     #[test]
     fn test_default_and_empty_content() {
@@ -169,8 +170,14 @@ mod tests {
 
         // Empty content of both types returns None
         assert_eq!(AccumulatedContent::default().into_text(), None);
-        assert_eq!(AccumulatedContent::PlainText(String::new()).into_text(), None);
-        assert_eq!(AccumulatedContent::Markdown(String::new()).into_text(), None);
+        assert_eq!(
+            AccumulatedContent::PlainText(String::new()).into_text(),
+            None
+        );
+        assert_eq!(
+            AccumulatedContent::Markdown(String::new()).into_text(),
+            None
+        );
     }
 
     #[test]
@@ -184,7 +191,10 @@ mod tests {
             .append_plain_text("Hello")
             .append_plain_text(" ")
             .append_plain_text("World");
-        assert_eq!(actual, AccumulatedContent::PlainText("Hello World".to_string()));
+        assert_eq!(
+            actual,
+            AccumulatedContent::PlainText("Hello World".to_string())
+        );
 
         // Non-empty content is extractable
         assert_eq!(actual.into_text(), Some("Hello World".to_string()));
@@ -201,10 +211,16 @@ mod tests {
             .append_markdown("**Bold**")
             .append_markdown(" and ")
             .append_markdown("*italic*");
-        assert_eq!(actual, AccumulatedContent::Markdown("**Bold** and *italic*".to_string()));
+        assert_eq!(
+            actual,
+            AccumulatedContent::Markdown("**Bold** and *italic*".to_string())
+        );
 
         // Non-empty content is extractable
-        assert_eq!(actual.into_text(), Some("**Bold** and *italic*".to_string()));
+        assert_eq!(
+            actual.into_text(),
+            Some("**Bold** and *italic*".to_string())
+        );
     }
 
     #[test]
@@ -213,13 +229,19 @@ mod tests {
         let actual = AccumulatedContent::default()
             .append_plain_text("Old text")
             .append_markdown("**New content**");
-        assert_eq!(actual, AccumulatedContent::Markdown("**New content**".to_string()));
+        assert_eq!(
+            actual,
+            AccumulatedContent::Markdown("**New content**".to_string())
+        );
 
         // Switching from Markdown to PlainText replaces content
         let actual = AccumulatedContent::default()
             .append_markdown("**Old**")
             .append_plain_text("New content");
-        assert_eq!(actual, AccumulatedContent::PlainText("New content".to_string()));
+        assert_eq!(
+            actual,
+            AccumulatedContent::PlainText("New content".to_string())
+        );
 
         // Multiple switches only keep last content
         let actual = AccumulatedContent::default()
@@ -227,7 +249,10 @@ mod tests {
             .append_markdown("**Second**")
             .append_plain_text("Third")
             .append_markdown("**Fourth**");
-        assert_eq!(actual, AccumulatedContent::Markdown("**Fourth**".to_string()));
+        assert_eq!(
+            actual,
+            AccumulatedContent::Markdown("**Fourth**".to_string())
+        );
     }
 
     #[test]
