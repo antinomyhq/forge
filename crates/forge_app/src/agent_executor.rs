@@ -108,6 +108,7 @@ impl<S: Services> AgentExecutor<S> {
     }
 }
 
+#[derive(Debug, PartialEq)]
 enum AccumulatedContent {
     PlainText(String),
     Markdown(String),
@@ -152,5 +153,103 @@ impl AccumulatedContent {
             Self::PlainText(text) | Self::Markdown(text) if !text.is_empty() => Some(text),
             _ => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pretty_assertions::assert_eq;
+
+    #[test]
+    fn test_default_and_empty_content() {
+        // Default creates empty PlainText
+        let default = AccumulatedContent::default();
+        assert_eq!(default, AccumulatedContent::PlainText(String::new()));
+
+        // Empty content of both types returns None
+        assert_eq!(AccumulatedContent::default().into_text(), None);
+        assert_eq!(AccumulatedContent::PlainText(String::new()).into_text(), None);
+        assert_eq!(AccumulatedContent::Markdown(String::new()).into_text(), None);
+    }
+
+    #[test]
+    fn test_plain_text_accumulation() {
+        // Single append
+        let actual = AccumulatedContent::default().append_plain_text("Hello");
+        assert_eq!(actual, AccumulatedContent::PlainText("Hello".to_string()));
+
+        // Multiple appends accumulate
+        let actual = AccumulatedContent::default()
+            .append_plain_text("Hello")
+            .append_plain_text(" ")
+            .append_plain_text("World");
+        assert_eq!(actual, AccumulatedContent::PlainText("Hello World".to_string()));
+
+        // Non-empty content is extractable
+        assert_eq!(actual.into_text(), Some("Hello World".to_string()));
+    }
+
+    #[test]
+    fn test_markdown_accumulation() {
+        // Single append
+        let actual = AccumulatedContent::default().append_markdown("**Bold**");
+        assert_eq!(actual, AccumulatedContent::Markdown("**Bold**".to_string()));
+
+        // Multiple appends accumulate
+        let actual = AccumulatedContent::default()
+            .append_markdown("**Bold**")
+            .append_markdown(" and ")
+            .append_markdown("*italic*");
+        assert_eq!(actual, AccumulatedContent::Markdown("**Bold** and *italic*".to_string()));
+
+        // Non-empty content is extractable
+        assert_eq!(actual.into_text(), Some("**Bold** and *italic*".to_string()));
+    }
+
+    #[test]
+    fn test_mode_switching() {
+        // Switching from PlainText to Markdown replaces content
+        let actual = AccumulatedContent::default()
+            .append_plain_text("Old text")
+            .append_markdown("**New content**");
+        assert_eq!(actual, AccumulatedContent::Markdown("**New content**".to_string()));
+
+        // Switching from Markdown to PlainText replaces content
+        let actual = AccumulatedContent::default()
+            .append_markdown("**Old**")
+            .append_plain_text("New content");
+        assert_eq!(actual, AccumulatedContent::PlainText("New content".to_string()));
+
+        // Multiple switches only keep last content
+        let actual = AccumulatedContent::default()
+            .append_plain_text("First")
+            .append_markdown("**Second**")
+            .append_plain_text("Third")
+            .append_markdown("**Fourth**");
+        assert_eq!(actual, AccumulatedContent::Markdown("**Fourth**".to_string()));
+    }
+
+    #[test]
+    fn test_comprehensive_workflow() {
+        // Realistic workflow: accumulate, switch, extract
+        let content = AccumulatedContent::default()
+            .append_plain_text("Start with plain text")
+            .append_plain_text(" and continue")
+            .append_markdown("\n\n**Switch to markdown**")
+            .append_markdown(" with more content")
+            .append_plain_text("\nBack to plain text");
+
+        // Only the last mode's content is kept
+        assert_eq!(
+            content,
+            AccumulatedContent::PlainText("\nBack to plain text".to_string())
+        );
+
+        // Extract the final content
+        assert_eq!(
+            content.into_text(),
+            Some("\nBack to plain text".to_string())
+        );
     }
 }
