@@ -72,6 +72,7 @@ impl<H: HttpInfra> OpenAIResponsesProvider<H> {
                         });
                     }
                 }
+                forge_domain::AuthMethod::GoogleAdc => {}
             });
         headers
     }

@@ -261,10 +261,30 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
         config: &ProviderConfig,
     ) -> anyhow::Result<forge_domain::ProviderTemplate> {
         // Get credential from file
-        let credential = self
+        let mut credential = self
             .get_credential(&config.id)
             .await?
             .ok_or_else(|| Error::provider_not_available(config.id.clone()))?;
+
+        // Check if this is a Google ADC credential and refresh it
+        // Google ADC tokens expire quickly, so we refresh them on every load
+        if credential.id == forge_domain::ProviderId::VERTEX_AI {
+            if let forge_domain::AuthDetails::ApiKey(ref api_key) = credential.auth_details {
+                if api_key.as_ref() == "google_adc_marker" {
+                    // Refresh the Google ADC credential, preserving url_params
+                    match self.refresh_google_adc_credential(&credential).await {
+                        Ok(refreshed) => {
+                            credential = refreshed;
+                            tracing::info!("Successfully refreshed Google ADC token");
+                        }
+                        Err(e) => {
+                            tracing::error!("Failed to refresh Google ADC token: {e}");
+                            return Err(e.context("Failed to refresh Google ADC token. Please run 'gcloud auth application-default login' to set up credentials."));
+                        }
+                    }
+                }
+            }
+        }
 
         // Handle models - keep as templates
         let models = config.models.as_ref().map(|m| match m {
@@ -298,6 +318,47 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
         config: &ProviderConfig,
     ) -> anyhow::Result<forge_domain::ProviderTemplate> {
         Ok(config.into())
+    }
+
+    /// Refreshes a Google ADC credential by fetching a fresh token
+    async fn refresh_google_adc_credential(
+        &self,
+        original_credential: &forge_domain::AuthCredential,
+    ) -> anyhow::Result<forge_domain::AuthCredential> {
+        use google_cloud_auth::project::Config;
+        use google_cloud_auth::token::DefaultTokenSourceProvider;
+        use google_cloud_token::TokenSourceProvider;
+
+        // Vertex AI requires cloud-platform scope
+        const VERTEX_AI_SCOPES: &[&str] = &["https://www.googleapis.com/auth/cloud-platform"];
+
+        // Try to create token source provider with proper scopes
+        let provider = DefaultTokenSourceProvider::new(
+            Config::default().with_scopes(VERTEX_AI_SCOPES),
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to create Google token source provider: {e}. Please run 'gcloud auth application-default login' to set up credentials."))?;
+
+        let token_source = provider.token_source();
+
+        // Get fresh token
+        let token: String = token_source.token().await.map_err(|e| {
+            anyhow::anyhow!("Failed to fetch Google access token: {e}. Please run 'gcloud auth application-default login' to set up credentials.")
+        })?;
+
+        // The google-cloud-auth library returns tokens with "Bearer " prefix
+        // We need to strip it since we add "Bearer " in the Authorization header
+        let token = token.strip_prefix("Bearer ").unwrap_or(&token).to_string();
+
+        tracing::debug!("Fetched Google ADC token (length: {})", token.len());
+        tracing::debug!("Token starts with: {}", &token[..token.len().min(20)]);
+
+        // Create new credential with fresh token, preserving url_params
+        Ok(forge_domain::AuthCredential::new_api_key(
+            forge_domain::ProviderId::VERTEX_AI,
+            forge_domain::ApiKey::from(token),
+        )
+        .url_params(original_credential.url_params.clone()))
     }
 
     async fn provider_from_id(

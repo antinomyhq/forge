@@ -30,8 +30,8 @@ where
         provider_id: ProviderId,
         auth_method: AuthMethod,
     ) -> anyhow::Result<AuthContextRequest> {
-        // Get required URL parameters for API key flow
-        let required_params = if matches!(auth_method, AuthMethod::ApiKey) {
+        // Get required URL parameters for API key flow and Google ADC
+        let required_params = if matches!(auth_method, AuthMethod::ApiKey | AuthMethod::GoogleAdc) {
             // Get URL params from provider entry (works for both configured and
             // unconfigured)
             let providers = self.infra.get_all_providers().await?;
@@ -50,7 +50,7 @@ where
                 .create_auth_strategy(provider_id.clone(), auth_method, required_params)?;
         let mut request = strategy.init().await?;
 
-        // For API key flow, attach existing credential if available
+        // For API key flow and Google ADC, attach existing credential if available
         if let AuthContextRequest::ApiKey(ref mut api_key_request) = request
             && let Ok(Some(existing_credential)) = self.infra.get_credential(&provider_id).await
         {

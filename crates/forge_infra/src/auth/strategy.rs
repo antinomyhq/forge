@@ -5,6 +5,8 @@ use forge_domain::{
     ApiKey, ApiKeyRequest, AuthContextRequest, AuthContextResponse, AuthCredential, CodeRequest,
     DeviceCodeRequest, OAuthConfig, OAuthTokenResponse, OAuthTokens, ProviderId, URLParam,
 };
+use google_cloud_auth::token::DefaultTokenSourceProvider;
+use google_cloud_token::TokenSourceProvider;
 use oauth2::basic::BasicClient;
 use oauth2::{ClientId, DeviceAuthorizationUrl, Scope, TokenUrl};
 use reqwest::header::{HeaderMap, HeaderValue};
@@ -343,6 +345,80 @@ impl AuthStrategy for OAuthWithApiKeyStrategy {
     }
 }
 
+/// Google Application Default Credentials (ADC) Strategy
+/// Uses Google Cloud SDK's ADC mechanism with automatic token refresh
+pub struct GoogleAdcStrategy {
+    provider_id: ProviderId,
+    required_params: Vec<URLParam>,
+}
+
+impl GoogleAdcStrategy {
+    pub fn new(provider_id: ProviderId, required_params: Vec<URLParam>) -> Self {
+        Self { provider_id, required_params }
+    }
+}
+
+#[async_trait::async_trait]
+impl AuthStrategy for GoogleAdcStrategy {
+    async fn init(&self) -> anyhow::Result<AuthContextRequest> {
+        // For Google ADC, we don't need any user interaction for the API key
+        // The credentials are automatically discovered from:
+        // 1. GOOGLE_APPLICATION_CREDENTIALS env var (service account)
+        // 2. gcloud ADC credentials (user credentials)
+        // 3. Metadata server (GCP environment)
+        // However, we still need to collect URL params like PROJECT_ID and LOCATION
+        Ok(AuthContextRequest::ApiKey(ApiKeyRequest {
+            required_params: self.required_params.clone(),
+            existing_params: None,
+            api_key: Some("google_adc_marker".to_string().into()), // Marker to indicate ADC usage
+        }))
+    }
+
+    async fn complete(
+        &self,
+        context_response: AuthContextResponse,
+    ) -> anyhow::Result<AuthCredential> {
+        match context_response {
+            AuthContextResponse::ApiKey(ctx) => {
+                // For Google ADC, we save a marker instead of the actual token
+                // The token will be refreshed on every use
+                // But we still need to save the url_params (PROJECT_ID, LOCATION)
+                Ok(AuthCredential::new_api_key(
+                    self.provider_id.clone(),
+                    ApiKey::from("google_adc_marker".to_string()), // Marker that will trigger refresh
+                )
+                .url_params(ctx.response.url_params))
+            }
+            _ => Err(AuthError::InvalidContext("Expected ApiKey context".to_string()).into()),
+        }
+    }
+
+    async fn refresh(&self, _credential: &AuthCredential) -> anyhow::Result<AuthCredential> {
+        // Google ADC handles token refresh automatically
+        // We just need to get a fresh token
+        use google_cloud_auth::project::Config;
+        let provider = DefaultTokenSourceProvider::new(Config::default())
+            .await
+            .map_err(|e| {
+                AuthError::RefreshFailed(format!("Failed to create Google token source provider: {e}"))
+            })?;
+
+        let token_source = provider.token_source();
+
+        let token: String = token_source
+            .token()
+            .await
+            .map_err(|e| {
+                AuthError::RefreshFailed(format!("Failed to refresh Google access token: {e}"))
+            })?;
+
+        Ok(AuthCredential::new_api_key(
+            self.provider_id.clone(),
+            ApiKey::from(token),
+        ))
+    }
+}
+
 /// Refresh OAuth credential - handles all OAuth flows
 async fn refresh_oauth_credential(
     credential: &AuthCredential,
@@ -590,6 +666,7 @@ pub enum AnyAuthStrategy {
     OAuthCodeGithub(OAuthCodeStrategy<GithubHttpProvider>),
     OAuthDevice(OAuthDeviceStrategy),
     OAuthWithApiKey(OAuthWithApiKeyStrategy),
+    GoogleAdc(GoogleAdcStrategy),
 }
 
 #[async_trait::async_trait]
@@ -602,6 +679,7 @@ impl AuthStrategy for AnyAuthStrategy {
             Self::OAuthCodeGithub(s) => s.init().await,
             Self::OAuthDevice(s) => s.init().await,
             Self::OAuthWithApiKey(s) => s.init().await,
+            Self::GoogleAdc(s) => s.init().await,
         }
     }
 
@@ -616,6 +694,7 @@ impl AuthStrategy for AnyAuthStrategy {
             Self::OAuthCodeGithub(s) => s.complete(context_response).await,
             Self::OAuthDevice(s) => s.complete(context_response).await,
             Self::OAuthWithApiKey(s) => s.complete(context_response).await,
+            Self::GoogleAdc(s) => s.complete(context_response).await,
         }
     }
 
@@ -627,6 +706,7 @@ impl AuthStrategy for AnyAuthStrategy {
             Self::OAuthCodeGithub(s) => s.refresh(credential).await,
             Self::OAuthDevice(s) => s.refresh(credential).await,
             Self::OAuthWithApiKey(s) => s.refresh(credential).await,
+            Self::GoogleAdc(s) => s.refresh(credential).await,
         }
     }
 }
@@ -695,6 +775,12 @@ impl StrategyFactory for ForgeAuthStrategyFactory {
                         config,
                     )))
                 }
+            }
+            forge_domain::AuthMethod::GoogleAdc => {
+                Ok(AnyAuthStrategy::GoogleAdc(GoogleAdcStrategy::new(
+                    provider_id,
+                    required_params,
+                )))
             }
         }
     }
