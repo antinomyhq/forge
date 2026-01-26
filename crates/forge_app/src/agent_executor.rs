@@ -121,7 +121,8 @@ impl Default for AccumulatedContent {
 
 impl AccumulatedContent {
     /// Appends plain text to the output.
-    /// If currently in Markdown mode, switches to PlainText and replaces content.
+    /// If currently in Markdown mode, switches to PlainText and replaces
+    /// content.
     fn append_plain_text(self, text: &str) -> Self {
         match self {
             Self::PlainText(mut content) => {
@@ -133,7 +134,8 @@ impl AccumulatedContent {
     }
 
     /// Appends markdown to the output.
-    /// If currently in PlainText mode, switches to Markdown and replaces content.
+    /// If currently in PlainText mode, switches to Markdown and replaces
+    /// content.
     fn append_markdown(self, text: &str) -> Self {
         match self {
             Self::Markdown(mut content) => {
