@@ -218,9 +218,12 @@ fn build_codebase_search_hook(
                 let captured_output = captured_output.clone();
                 async move {
                     if let LifecycleEvent::ToolcallEnd(result) = event {
-                        // Note: Using std::sync::Mutex here is safe because we don't hold
-                        // the lock across await points within this closure
-                        *captured_output.lock().await = Some(result);
+                        // Only capture search_report tool output
+                        if result.name.as_str() == "search_report" {
+                            // Note: Using std::sync::Mutex here is safe because we don't hold
+                            // the lock across await points within this closure
+                            *captured_output.lock().await = Some(result);
+                        }
                     }
                     Ok(())
                 }
