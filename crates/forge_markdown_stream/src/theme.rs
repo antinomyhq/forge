@@ -247,6 +247,14 @@ impl ListStyler for Theme {
     fn number(&self, text: &str) -> String {
         self.list_number.apply(text).to_string()
     }
+
+    fn checkbox_checked(&self, text: &str) -> String {
+        self.checkbox_checked.apply(text).to_string()
+    }
+
+    fn checkbox_unchecked(&self, text: &str) -> String {
+        self.checkbox_unchecked.apply(text).to_string()
+    }
 }
 
 impl TableStyler for Theme {
@@ -464,6 +472,14 @@ impl ListStyler for TagStyler {
 
     fn number(&self, text: &str) -> String {
         format!("<num>{}</num>", text)
+    }
+
+    fn checkbox_checked(&self, text: &str) -> String {
+        format!("<checked>{}</checked>", text)
+    }
+
+    fn checkbox_unchecked(&self, text: &str) -> String {
+        format!("<unchecked>{}</unchecked>", text)
     }
 }
 
