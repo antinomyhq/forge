@@ -2761,16 +2761,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     writer.finish()?;
                     self.writeln(text)?;
                 }
-                ChatResponseContent::Markdown { text, partial } => {
+                ChatResponseContent::Markdown { text, partial: _ } => {
                     tracing::info!(message = %text, "Agent Response");
-                    if partial {
-                        // Streaming content - use writer for incremental rendering
-                        writer.write(&text)?;
-                    } else {
-                        // Complete message - use markdown renderer
-                        writer.finish()?;
-                        self.writeln(self.markdown.render(&text))?;
-                    }
+                    writer.write(&text)?;
                 }
             },
             ChatResponse::ToolCallStart(tool_call) => {
