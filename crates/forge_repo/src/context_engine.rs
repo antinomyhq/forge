@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use chrono::Utc;
 use forge_app::GrpcInfra;
 use forge_domain::{
-    ApiKey, FileUploadInfo, Node, UserId, WorkspaceAuth, WorkspaceId, WorkspaceIndexRepository,
+    ApiKey, FileUploadInfo, Node, WorkspaceAuth, WorkspaceId, WorkspaceIndexRepository,
     WorkspaceInfo,
 };
 
@@ -18,11 +18,8 @@ impl TryFrom<CreateApiKeyResponse> for WorkspaceAuth {
     type Error = anyhow::Error;
 
     fn try_from(response: CreateApiKeyResponse) -> Result<Self> {
-        let user_id = response.user_id.context("Missing user_id in response")?.id;
-        let user_id = UserId::from_string(&user_id).context("Invalid user_id returned from API")?;
         let token: ApiKey = response.key.into();
-
-        Ok(WorkspaceAuth { user_id, token, created_at: Utc::now() })
+        Ok(WorkspaceAuth { token, created_at: Utc::now() })
     }
 }
 

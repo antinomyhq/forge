@@ -497,20 +497,13 @@ impl<F: Send + Sync> forge_domain::WorkspaceRepository for ForgeRepo<F> {
     async fn upsert(
         &self,
         workspace_id: &forge_domain::WorkspaceId,
-        user_id: &forge_domain::UserId,
         path: &std::path::Path,
     ) -> anyhow::Result<()> {
-        self.indexing_repository
-            .upsert(workspace_id, user_id, path)
-            .await
+        self.indexing_repository.upsert(workspace_id, path).await
     }
 
     async fn list(&self) -> anyhow::Result<Vec<forge_domain::Workspace>> {
         self.indexing_repository.list().await
-    }
-
-    async fn get_user_id(&self) -> anyhow::Result<Option<forge_domain::UserId>> {
-        self.indexing_repository.get_user_id().await
     }
 
     async fn delete(&self, workspace_id: &forge_domain::WorkspaceId) -> anyhow::Result<()> {

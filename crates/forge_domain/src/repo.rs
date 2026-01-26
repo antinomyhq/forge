@@ -6,7 +6,7 @@ use url::Url;
 use crate::{
     AnyProvider, AppConfig, AuthCredential, ChatCompletionMessage, Context, Conversation,
     ConversationId, MigrationResult, Model, ModelId, Provider, ProviderId, ProviderTemplate,
-    ResultStream, SearchMatch, Skill, Snapshot, UserId, Workspace, WorkspaceAuth, WorkspaceId,
+    ResultStream, SearchMatch, Skill, Snapshot, Workspace, WorkspaceAuth, WorkspaceId,
 };
 
 /// Repository for managing file snapshots
@@ -123,28 +123,20 @@ pub trait WorkspaceRepository: Send + Sync {
     async fn upsert(
         &self,
         workspace_id: &WorkspaceId,
-        user_id: &UserId,
         path: &std::path::Path,
     ) -> anyhow::Result<()>;
 
-    /// Find all workspaces for a user
+    /// Find all workspaces
     ///
-    /// Returns all workspaces belonging to the specified user.
-    /// Path matching and selection logic should be handled in the service
-    /// layer.
-    ///
-    /// # Arguments
-    /// * `user_id` - Only return workspaces belonging to this user
+    /// Returns all workspaces stored in the local database.
+    /// Path matching and selection logic should be handled in the service layer.
     ///
     /// # Returns
-    /// A vector of all workspaces for the user (may be empty)
+    /// A vector of all workspaces (may be empty)
     ///
     /// # Errors
     /// Returns an error if there's a database error
     async fn list(&self) -> anyhow::Result<Vec<Workspace>>;
-
-    /// Get user ID from any workspace, or None if no workspaces exist
-    async fn get_user_id(&self) -> anyhow::Result<Option<UserId>>;
 
     /// Delete workspace from local database
     async fn delete(&self, workspace_id: &WorkspaceId) -> anyhow::Result<()>;

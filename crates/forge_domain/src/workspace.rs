@@ -2,8 +2,6 @@ use derive_more::Display;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::UserId;
-
 /// Workspace identifier (UUID) from workspace server.
 ///
 /// Generated locally and sent to server during CreateWorkspace.
@@ -35,7 +33,6 @@ impl WorkspaceId {
 #[derive(Debug, Clone)]
 pub struct Workspace {
     pub workspace_id: WorkspaceId,
-    pub user_id: UserId,
     pub path: std::path::PathBuf,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: Option<chrono::DateTime<chrono::Utc>>,

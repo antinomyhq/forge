@@ -77,13 +77,12 @@ impl SyncProgress {
 }
 
 /// Stored authentication token for the indexing service (no expiry)
+/// Authentication for workspace indexing service
 ///
-/// Associates a user with their indexing service authentication token
-/// obtained from the remote authentication API.
+/// Contains the authentication token obtained from the remote authentication
+/// API. User ID is extracted from the JWT token by the server.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WorkspaceAuth {
-    /// User ID that owns this authentication
-    pub user_id: UserId,
     /// Authentication token (obtained from HTTP API)
     pub token: crate::ApiKey,
     /// When this token was stored locally
@@ -98,11 +97,10 @@ impl From<WorkspaceAuth> for crate::AuthDetails {
 
 impl WorkspaceAuth {
     /// Create a new indexing auth record
-    pub fn new(user_id: UserId, token: crate::ApiKey) -> Self {
-        Self { user_id, token, created_at: chrono::Utc::now() }
+    pub fn new(token: crate::ApiKey) -> Self {
+        Self { token, created_at: chrono::Utc::now() }
     }
 }
-
 /// File content for upload to workspace server
 ///
 /// Contains the file path (relative to workspace root) and its textual content
@@ -122,16 +120,17 @@ impl FileRead {
 }
 
 /// Generic wrapper for workspace operations
+///
+/// User ID is not stored here as it's extracted from the JWT token by the server.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CodeBase<T> {
-    pub user_id: UserId,
     pub workspace_id: WorkspaceId,
     pub data: T,
 }
 
 impl<T> CodeBase<T> {
-    pub fn new(user_id: UserId, workspace_id: WorkspaceId, data: T) -> Self {
-        Self { user_id, workspace_id, data }
+    pub fn new(workspace_id: WorkspaceId, data: T) -> Self {
+        Self { workspace_id, data }
     }
 }
 

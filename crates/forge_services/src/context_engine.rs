@@ -12,7 +12,7 @@ use forge_app::{
 };
 use forge_domain::{
     AuthCredential, AuthDetails, FileHash, FileNode, ProviderId, ProviderRepository, SyncProgress,
-    UserId, WorkspaceId, WorkspaceIndexRepository, WorkspaceRepository,
+    WorkspaceId, WorkspaceIndexRepository, WorkspaceRepository,
 };
 use forge_stream::MpscStream;
 use futures::future::join_all;
@@ -85,7 +85,6 @@ impl<F> ForgeWorkspaceService<F> {
     /// Fetches remote file hashes from the server.
     async fn fetch_remote_hashes(
         &self,
-        user_id: &UserId,
         workspace_id: &WorkspaceId,
         auth_token: &forge_domain::ApiKey,
     ) -> Vec<FileHash>
@@ -93,8 +92,7 @@ impl<F> ForgeWorkspaceService<F> {
         F: WorkspaceIndexRepository + EnvironmentInfra,
     {
         info!("Fetching existing file hashes from server to detect changes...");
-        let workspace_files =
-            forge_domain::CodeBase::new(user_id.clone(), workspace_id.clone(), ());
+        let workspace_files = forge_domain::CodeBase::new(workspace_id.clone(), ());
 
         self.with_retry(|| {
             self.infra
@@ -107,7 +105,6 @@ impl<F> ForgeWorkspaceService<F> {
     /// Deletes a batch of files from the server.
     async fn delete(
         &self,
-        user_id: &UserId,
         workspace_id: &WorkspaceId,
         token: &forge_domain::ApiKey,
         paths: Vec<String>,
@@ -115,7 +112,7 @@ impl<F> ForgeWorkspaceService<F> {
     where
         F: WorkspaceIndexRepository + EnvironmentInfra,
     {
-        let deletion = forge_domain::CodeBase::new(user_id.clone(), workspace_id.clone(), paths);
+        let deletion = forge_domain::CodeBase::new(workspace_id.clone(), paths);
 
         self.with_retry(|| self.infra.delete_files(&deletion, token))
             .await
@@ -125,7 +122,6 @@ impl<F> ForgeWorkspaceService<F> {
     /// Uploads a batch of files to the server.
     async fn upload(
         &self,
-        user_id: &UserId,
         workspace_id: &WorkspaceId,
         token: &forge_domain::ApiKey,
         files: Vec<forge_domain::FileRead>,
@@ -133,7 +129,7 @@ impl<F> ForgeWorkspaceService<F> {
     where
         F: WorkspaceIndexRepository + EnvironmentInfra,
     {
-        let upload = forge_domain::CodeBase::new(user_id.clone(), workspace_id.clone(), files);
+        let upload = forge_domain::CodeBase::new(workspace_id.clone(), files);
 
         self.with_retry(|| self.infra.upload_files(&upload, token))
             .await
@@ -162,27 +158,17 @@ impl<F> ForgeWorkspaceService<F> {
 
         emit(SyncProgress::Starting).await;
 
-        let (token, user_id_opt) = self.get_workspace_credentials().await?;
-        let user_id = self.get_or_generate_user_id(&token, user_id_opt).await?;
+        let token = self.get_workspace_credentials().await?;
 
         let path = path
             .canonicalize()
             .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
 
         // Find workspace by exact match or ancestor
-        let workspace = self.find_workspace_by_path(path.clone(), &user_id).await?;
+        let workspace = self.find_workspace_by_path(path.clone()).await?;
 
         let (workspace_id, workspace_path, is_new_workspace) = match workspace {
-            Some(workspace) if workspace.user_id == user_id => {
-                (workspace.workspace_id, workspace.path, false)
-            }
-            Some(workspace) => {
-                // Found workspace but different user - delete and create new
-                if let Err(e) = self.infra.delete(&workspace.workspace_id).await {
-                    warn!(error = %e, "Failed to delete old workspace entry from local database");
-                }
-                (WorkspaceId::generate(), path.clone(), true)
-            }
+            Some(workspace) => (workspace.workspace_id, workspace.path, false),
             None => {
                 // No workspace found - create new
                 (WorkspaceId::generate(), path.clone(), true)
@@ -198,7 +184,7 @@ impl<F> ForgeWorkspaceService<F> {
 
             // Save workspace in database to avoid creating multiple workspaces
             self.infra
-                .upsert(&id, &user_id, &workspace_path)
+                .upsert(&id, &workspace_path)
                 .await
                 .context("Failed to save workspace")?;
 
@@ -217,8 +203,7 @@ impl<F> ForgeWorkspaceService<F> {
         let remote_files = if is_new_workspace {
             Vec::new()
         } else {
-            self.fetch_remote_hashes(&user_id, &workspace_id, &token)
-                .await
+            self.fetch_remote_hashes(&workspace_id, &token).await
         };
 
         emit(SyncProgress::ComparingFiles {
@@ -262,12 +247,10 @@ impl<F> ForgeWorkspaceService<F> {
 
         let mut delete_stream = futures::stream::iter(files_to_delete)
             .map(|path| {
-                let user_id = user_id.clone();
                 let workspace_id = workspace_id.clone();
                 let token = token.clone();
                 async move {
-                    self.delete(&user_id, &workspace_id, &token, vec![path])
-                        .await?;
+                    self.delete(&workspace_id, &token, vec![path]).await?;
                     Ok::<_, anyhow::Error>(1)
                 }
             })
@@ -291,12 +274,10 @@ impl<F> ForgeWorkspaceService<F> {
         // Upload new/changed files with concurrency limit
         let mut upload_stream = futures::stream::iter(files_to_upload)
             .map(|file| {
-                let user_id = user_id.clone();
                 let workspace_id = workspace_id.clone();
                 let token = token.clone();
                 async move {
-                    self.upload(&user_id, &workspace_id, &token, vec![file])
-                        .await?;
+                    self.upload(&workspace_id, &token, vec![file]).await?;
                     Ok::<_, anyhow::Error>(1)
                 }
             })
@@ -319,7 +300,7 @@ impl<F> ForgeWorkspaceService<F> {
 
         // Save workspace metadata
         self.infra
-            .upsert(&workspace_id, &user_id, &path)
+            .upsert(&workspace_id, &path)
             .await
             .context("Failed to save workspace")?;
 
@@ -339,38 +320,14 @@ impl<F> ForgeWorkspaceService<F> {
         Ok(())
     }
 
-    /// Gets or generates a user_id for local database operations
+    /// Gets the forge services credential and extracts the API key
     ///
-    /// For OAuth, if user_id is not stored locally, generates a new one
-    /// since the server will identify the user from the JWT token.
-    async fn get_or_generate_user_id(
-        &self,
-        _token: &forge_domain::ApiKey,
-        user_id_opt: Option<UserId>,
-    ) -> Result<UserId>
-    where
-        F: WorkspaceIndexRepository + EnvironmentInfra,
-    {
-        if let Some(user_id) = user_id_opt {
-            return Ok(user_id);
-        }
-
-        // For OAuth without local user_id, generate one for local database operations
-        // The server will identify the user from the JWT token in API calls
-        Ok(UserId::generate())
-    }
-
-    /// Gets the forge services credential and extracts workspace auth
-    /// components
-    ///
-    /// For OAuth, user_id is optional since the JWT token already contains it
-    /// and the server will extract it. The user_id is only needed for local
-    /// database operations.
+    /// The JWT token contains the user_id, so it's not needed locally.
     ///
     /// # Errors
-    /// Returns an error if the credential is not found, if there's a database
-    /// error, or if the credential format is invalid
-    async fn get_workspace_credentials(&self) -> Result<(forge_domain::ApiKey, Option<UserId>)>
+    /// Returns an error if the credential is not found or if the credential
+    /// format is invalid
+    async fn get_workspace_credentials(&self) -> Result<forge_domain::ApiKey>
     where
         F: ProviderRepository,
     {
@@ -381,41 +338,15 @@ impl<F> ForgeWorkspaceService<F> {
             .context("No authentication credentials found. Please authenticate first.")?;
 
         match &credential.auth_details {
-            AuthDetails::ApiKey(token) => {
-                // For API key, user_id is required in URL params
-                let user_id_str = credential
-                    .url_params
-                    .get(&"user_id".to_string().into())
-                    .ok_or_else(|| {
-                        anyhow::anyhow!("Missing user_id in ForgeServices credential")
-                    })?;
-                let user_id = UserId::from_string(user_id_str.as_str())?;
-
-                Ok((token.clone(), Some(user_id)))
-            }
+            AuthDetails::ApiKey(token) => Ok(token.clone()),
             AuthDetails::OAuth { tokens, .. } => {
-                // For OAuth, user_id is optional (JWT contains it)
-                // Try to get from URL params if available (for local database operations)
-                let user_id = credential
-                    .url_params
-                    .get(&"user_id".to_string().into())
-                    .and_then(|s| UserId::from_string(s.as_str()).ok());
-
                 // Use OAuth access token as the API key
                 let token: forge_domain::ApiKey = tokens.access_token.to_string().into();
-
-                Ok((token, user_id))
+                Ok(token)
             }
-            AuthDetails::OAuthWithApiKey { tokens: _, api_key, .. } => {
-                // For OAuthWithApiKey, user_id is optional (JWT contains it)
-                // Try to get from URL params if available (for local database operations)
-                let user_id = credential
-                    .url_params
-                    .get(&"user_id".to_string().into())
-                    .and_then(|s| UserId::from_string(s.as_str()).ok());
-
+            AuthDetails::OAuthWithApiKey { api_key, .. } => {
                 // Use the dedicated API key
-                Ok((api_key.clone(), user_id))
+                Ok(api_key.clone())
             }
         }
     }
@@ -430,11 +361,7 @@ impl<F> ForgeWorkspaceService<F> {
     /// # Errors
     /// Returns an error if the path cannot be canonicalized or if there's a
     /// database error. Returns Ok(None) if no workspace is found.
-    async fn find_workspace_by_path(
-        &self,
-        path: PathBuf,
-        user_id: &forge_domain::UserId,
-    ) -> Result<Option<forge_domain::Workspace>>
+    async fn find_workspace_by_path(&self, path: PathBuf) -> Result<Option<forge_domain::Workspace>>
     where
         F: WorkspaceRepository,
     {
@@ -442,15 +369,12 @@ impl<F> ForgeWorkspaceService<F> {
             .canonicalize()
             .with_context(|| format!("Failed to resolve path: {}", path.display()))?;
 
-        // Get all workspaces for the user - let the service handle filtering
+        // Get all workspaces - let the service handle filtering
         let workspaces = self.infra.list().await?;
 
         // Business logic: choose which workspace to use
         // 1. First check for exact match
-        if let Some(exact_match) = workspaces
-            .iter()
-            .find(|w| w.path == canonical_path && w.user_id == *user_id)
-        {
+        if let Some(exact_match) = workspaces.iter().find(|w| w.path == canonical_path) {
             return Ok(Some(exact_match.clone()));
         }
 
@@ -583,19 +507,14 @@ impl<
         path: PathBuf,
         params: forge_domain::SearchParams<'_>,
     ) -> Result<Vec<forge_domain::Node>> {
-        let (token, user_id_opt) = self.get_workspace_credentials().await?;
-        let user_id = self.get_or_generate_user_id(&token, user_id_opt).await?;
+        let token = self.get_workspace_credentials().await?;
 
         let workspace = self
-            .find_workspace_by_path(path, &user_id)
+            .find_workspace_by_path(path)
             .await?
             .ok_or(forge_domain::Error::WorkspaceNotFound)?;
 
-        let search_query = forge_domain::CodeBase::new(
-            workspace.user_id.clone(),
-            workspace.workspace_id.clone(),
-            params,
-        );
+        let search_query = forge_domain::CodeBase::new(workspace.workspace_id.clone(), params);
 
         let results = self
             .with_retry(|| self.infra.search(&search_query, &token))
@@ -607,7 +526,7 @@ impl<
 
     /// Lists all workspaces.
     async fn list_workspaces(&self) -> Result<Vec<forge_domain::WorkspaceInfo>> {
-        let (token, _) = self.get_workspace_credentials().await?;
+        let token = self.get_workspace_credentials().await?;
 
         self.with_retry(|| self.infra.as_ref().list_workspaces(&token))
             .await
@@ -619,9 +538,8 @@ impl<
     where
         F: WorkspaceRepository + WorkspaceIndexRepository + ProviderRepository + EnvironmentInfra,
     {
-        let (token, user_id_opt) = self.get_workspace_credentials().await?;
-        let user_id = self.get_or_generate_user_id(&token, user_id_opt).await?;
-        let workspace = self.find_workspace_by_path(path, &user_id).await?;
+        let token = self.get_workspace_credentials().await?;
+        let workspace = self.find_workspace_by_path(path).await?;
 
         if let Some(workspace) = workspace {
             self.with_retry(|| {
@@ -638,7 +556,7 @@ impl<
 
     /// Deletes a workspace from both the server and local database.
     async fn delete_workspace(&self, workspace_id: &forge_domain::WorkspaceId) -> Result<()> {
-        let (token, _) = self.get_workspace_credentials().await?;
+        let token = self.get_workspace_credentials().await?;
 
         self.with_retry(|| self.infra.as_ref().delete_workspace(workspace_id, &token))
             .await
@@ -654,30 +572,24 @@ impl<
     }
 
     async fn is_indexed(&self, path: &std::path::Path) -> Result<bool> {
-        let (token, user_id_opt) = self.get_workspace_credentials().await?;
-        let user_id = self.get_or_generate_user_id(&token, user_id_opt).await?;
-        match self
-            .find_workspace_by_path(path.to_path_buf(), &user_id)
-            .await
-        {
+        match self.find_workspace_by_path(path.to_path_buf()).await {
             Ok(workspace) => Ok(workspace.is_some()),
             Err(_) => Ok(false), // Path doesn't exist or other error, so it can't be indexed
         }
     }
 
     async fn get_workspace_status(&self, path: PathBuf) -> Result<Vec<forge_domain::FileStatus>> {
-        let (token, user_id_opt) = self.get_workspace_credentials().await?;
-        let user_id = self.get_or_generate_user_id(&token, user_id_opt).await?;
+        let token = self.get_workspace_credentials().await?;
 
         let workspace = self
-            .find_workspace_by_path(path, &user_id)
+            .find_workspace_by_path(path)
             .await?
             .context("Workspace not indexed. Please run `workspace sync` first.")?;
 
         let local_files = self.read_files(&workspace.path).await?;
 
         let remote_files = self
-            .fetch_remote_hashes(&user_id, &workspace.workspace_id, &token)
+            .fetch_remote_hashes(&workspace.workspace_id, &token)
             .await;
 
         let plan = WorkspaceStatus::new(local_files, remote_files);
@@ -700,16 +612,10 @@ impl<
             .context("Failed to authenticate with indexing service")?;
 
         // Convert to AuthCredential and store
-        let mut url_params = HashMap::new();
-        url_params.insert(
-            "user_id".to_string().into(),
-            auth.user_id.to_string().into(),
-        );
-
         let credential = AuthCredential {
             id: ProviderId::FORGE_SERVICES,
             auth_details: auth.clone().into(),
-            url_params,
+            url_params: HashMap::new(),
         };
 
         self.infra
@@ -730,7 +636,7 @@ mod tests {
     use forge_app::{WalkedFile, WorkspaceService};
     use forge_domain::{
         ApiKey, ChatRepository, CodeSearchQuery, FileDeletion, FileHash, FileInfo, FileUpload,
-        FileUploadInfo, Node, ProviderTemplate, UserId, Workspace, WorkspaceAuth, WorkspaceFiles,
+        FileUploadInfo, Node, ProviderTemplate, Workspace, WorkspaceAuth, WorkspaceFiles,
         WorkspaceId, WorkspaceInfo,
     };
     use futures::StreamExt;
@@ -816,7 +722,6 @@ mod tests {
         let current_dir = std::env::current_dir().unwrap();
         Workspace {
             workspace_id: WorkspaceId::generate(),
-            user_id: UserId::generate(),
             path: current_dir,
             created_at: chrono::Utc::now(),
             updated_at: None,
@@ -873,22 +778,12 @@ mod tests {
 
         async fn get_credential(&self, id: &ProviderId) -> Result<Option<AuthCredential>> {
             if *id == ProviderId::FORGE_SERVICES && self.authenticated {
-                let user_id = self
-                    .workspace
-                    .as_ref()
-                    .or(self.ancestor_workspace.as_ref())
-                    .map(|w| w.user_id.clone())
-                    .unwrap_or_else(UserId::generate);
-
-                let mut url_params = std::collections::HashMap::new();
-                url_params.insert("user_id".to_string().into(), user_id.to_string().into());
-
                 Ok(Some(AuthCredential {
                     id: ProviderId::FORGE_SERVICES,
                     auth_details: forge_domain::AuthDetails::ApiKey(
                         "test_token".to_string().into(),
                     ),
-                    url_params,
+                    url_params: std::collections::HashMap::new(),
                 }))
             } else {
                 Ok(None)
@@ -906,13 +801,13 @@ mod tests {
 
     #[async_trait]
     impl WorkspaceRepository for MockInfra {
-        async fn upsert(&self, _: &WorkspaceId, _: &UserId, _: &Path) -> Result<()> {
+        async fn upsert(&self, _: &WorkspaceId, _: &Path) -> Result<()> {
             Ok(())
         }
         async fn list(&self) -> Result<Vec<Workspace>> {
             let mut workspaces = Vec::new();
 
-            // Return all workspaces for the user (repository doesn't filter by path)
+            // Return all workspaces (repository doesn't filter by path)
             if let Some(workspace) = &self.workspace {
                 workspaces.push(workspace.clone());
             }
@@ -923,14 +818,6 @@ mod tests {
 
             Ok(workspaces)
         }
-        async fn get_user_id(&self) -> Result<Option<UserId>> {
-            // Return user_id from either workspace or ancestor_workspace
-            Ok(self
-                .workspace
-                .as_ref()
-                .or(self.ancestor_workspace.as_ref())
-                .map(|w| w.user_id.clone()))
-        }
         async fn delete(&self, _: &WorkspaceId) -> Result<()> {
             Ok(())
         }
@@ -939,15 +826,7 @@ mod tests {
     #[async_trait]
     impl WorkspaceIndexRepository for MockInfra {
         async fn authenticate(&self) -> Result<WorkspaceAuth> {
-            // Mock authentication - return user_id from workspace or ancestor_workspace
-            let user_id = self
-                .workspace
-                .as_ref()
-                .or(self.ancestor_workspace.as_ref())
-                .map(|w| w.user_id.clone())
-                .unwrap_or_else(UserId::generate);
-
-            Ok(WorkspaceAuth::new(user_id, "test_token".to_string().into()))
+            Ok(WorkspaceAuth::new("test_token".to_string().into()))
         }
 
         async fn create_workspace(&self, _: &Path, _: &ApiKey) -> Result<WorkspaceId> {
@@ -1423,7 +1302,6 @@ mod tests {
 
         let parent_workspace = Workspace {
             workspace_id: WorkspaceId::generate(),
-            user_id: UserId::generate(),
             path: current_dir.clone(),
             created_at: chrono::Utc::now(),
             updated_at: None,
@@ -1507,11 +1385,9 @@ mod tests {
     async fn test_sync_prefers_exact_match_over_ancestor() {
         // Use current directory as exact match
         let current_dir = std::env::current_dir().unwrap();
-        let user_id = UserId::generate();
 
         let exact_workspace = Workspace {
             workspace_id: WorkspaceId::generate(),
-            user_id: user_id.clone(),
             path: current_dir.clone(),
             created_at: chrono::Utc::now(),
             updated_at: None,
@@ -1519,7 +1395,6 @@ mod tests {
 
         let ancestor_workspace = Workspace {
             workspace_id: WorkspaceId::generate(),
-            user_id: user_id.clone(),
             path: current_dir.parent().unwrap().to_path_buf(),
             created_at: chrono::Utc::now(),
             updated_at: None,
@@ -1572,12 +1447,12 @@ mod tests {
         std::fs::create_dir_all(&subdirectory).unwrap();
 
         // Canonicalize paths for consistency
+        // Canonicalize paths for consistency
         let temp_dir_canonical = temp_dir.canonicalize().unwrap();
         let subdirectory_canonical = subdirectory.canonicalize().unwrap();
 
         let parent_workspace = Workspace {
             workspace_id: WorkspaceId::generate(),
-            user_id: UserId::generate(),
             path: temp_dir_canonical.clone(),
             created_at: chrono::Utc::now(),
             updated_at: None,
@@ -1624,7 +1499,6 @@ mod tests {
 
         let parent_workspace = Workspace {
             workspace_id: WorkspaceId::generate(),
-            user_id: UserId::generate(),
             path: temp_dir_canonical.clone(),
             created_at: chrono::Utc::now(),
             updated_at: None,
@@ -1685,7 +1559,6 @@ mod tests {
 
         let parent_workspace = Workspace {
             workspace_id: WorkspaceId::generate(),
-            user_id: UserId::generate(),
             path: temp_dir_canonical.clone(),
             created_at: chrono::Utc::now(),
             updated_at: None,
@@ -1723,11 +1596,9 @@ mod tests {
     async fn test_find_workspace_by_path_returns_exact_match() {
         let temp_dir = tempfile::tempdir().unwrap();
         let workspace_path = temp_dir.path().canonicalize().unwrap();
-        let user_id = UserId::generate();
 
         let workspace = Workspace {
             workspace_id: WorkspaceId::generate(),
-            user_id: user_id.clone(),
             path: workspace_path.clone(),
             created_at: chrono::Utc::now(),
             updated_at: None,
@@ -1742,7 +1613,7 @@ mod tests {
         let service = ForgeWorkspaceService::new(Arc::new(mock));
 
         let actual = service
-            .find_workspace_by_path(workspace_path.clone(), &user_id)
+            .find_workspace_by_path(workspace_path.clone())
             .await
             .unwrap();
 
@@ -1754,7 +1625,6 @@ mod tests {
     async fn test_find_workspace_by_path_returns_ancestor_for_subdirectory() {
         let temp_dir = tempfile::tempdir().unwrap();
         let parent_path = temp_dir.path().canonicalize().unwrap();
-        let user_id = UserId::generate();
 
         // Create actual subdirectory
         let child_dir = parent_path.join("src");
@@ -1763,7 +1633,6 @@ mod tests {
 
         let parent_workspace = Workspace {
             workspace_id: WorkspaceId::generate(),
-            user_id: user_id.clone(),
             path: parent_path.clone(),
             created_at: chrono::Utc::now(),
             updated_at: None,
@@ -1778,10 +1647,7 @@ mod tests {
         let service = ForgeWorkspaceService::new(Arc::new(mock));
 
         // Query from child directory - should find parent
-        let actual = service
-            .find_workspace_by_path(child_path, &user_id)
-            .await
-            .unwrap();
+        let actual = service.find_workspace_by_path(child_path).await.unwrap();
 
         assert!(actual.is_some());
         assert_eq!(actual.unwrap().workspace_id, parent_workspace.workspace_id);
@@ -1791,7 +1657,6 @@ mod tests {
     async fn test_find_workspace_by_path_deep_nesting_finds_ancestor() {
         let temp_dir = tempfile::tempdir().unwrap();
         let root_path = temp_dir.path().canonicalize().unwrap();
-        let user_id = UserId::generate();
 
         // Create deep nested directory
         let deep_child = root_path.join("src").join("components").join("ui");
@@ -1800,7 +1665,6 @@ mod tests {
 
         let root_workspace = Workspace {
             workspace_id: WorkspaceId::generate(),
-            user_id: user_id.clone(),
             path: root_path.clone(),
             created_at: chrono::Utc::now(),
             updated_at: None,
@@ -1816,7 +1680,7 @@ mod tests {
 
         // Query from deeply nested directory - should find root ancestor
         let actual = service
-            .find_workspace_by_path(deep_child_path, &user_id)
+            .find_workspace_by_path(deep_child_path)
             .await
             .unwrap();
 
@@ -1828,7 +1692,6 @@ mod tests {
     async fn test_find_workspace_by_path_prefers_exact_match_over_ancestor() {
         let temp_dir = tempfile::tempdir().unwrap();
         let parent_path = temp_dir.path().canonicalize().unwrap();
-        let user_id = UserId::generate();
 
         // Create subdirectory
         let child_dir = parent_path.join("src");
@@ -1837,7 +1700,6 @@ mod tests {
 
         let parent_workspace = Workspace {
             workspace_id: WorkspaceId::generate(),
-            user_id: user_id.clone(),
             path: parent_path.clone(),
             created_at: chrono::Utc::now(),
             updated_at: None,
@@ -1845,7 +1707,6 @@ mod tests {
 
         let child_workspace = Workspace {
             workspace_id: WorkspaceId::generate(),
-            user_id: user_id.clone(),
             path: child_path.clone(),
             created_at: chrono::Utc::now(),
             updated_at: None,
@@ -1861,10 +1722,7 @@ mod tests {
         let service = ForgeWorkspaceService::new(Arc::new(mock));
 
         // Query from child - should prefer exact match over ancestor
-        let actual = service
-            .find_workspace_by_path(child_path, &user_id)
-            .await
-            .unwrap();
+        let actual = service.find_workspace_by_path(child_path).await.unwrap();
 
         assert!(actual.is_some());
         assert_eq!(actual.unwrap().workspace_id, child_workspace.workspace_id);
@@ -1874,7 +1732,6 @@ mod tests {
     async fn test_find_workspace_by_path_returns_closest_ancestor() {
         let temp_dir = tempfile::tempdir().unwrap();
         let grandparent_path = temp_dir.path().canonicalize().unwrap();
-        let user_id = UserId::generate();
 
         // Create nested directories
         let parent_dir = grandparent_path.join("src");
@@ -1885,7 +1742,6 @@ mod tests {
 
         let grandparent_workspace = Workspace {
             workspace_id: WorkspaceId::generate(),
-            user_id: user_id.clone(),
             path: grandparent_path.clone(),
             created_at: chrono::Utc::now(),
             updated_at: None,
@@ -1893,7 +1749,6 @@ mod tests {
 
         let parent_workspace = Workspace {
             workspace_id: WorkspaceId::generate(),
-            user_id: user_id.clone(),
             path: parent_path.clone(),
             created_at: chrono::Utc::now(),
             updated_at: None,
@@ -1909,10 +1764,7 @@ mod tests {
         let service = ForgeWorkspaceService::new(Arc::new(mock));
 
         // Query from child - should find closest ancestor (parent, not grandparent)
-        let actual = service
-            .find_workspace_by_path(child_path, &user_id)
-            .await
-            .unwrap();
+        let actual = service.find_workspace_by_path(child_path).await.unwrap();
 
         assert!(actual.is_some());
         assert_eq!(actual.unwrap().workspace_id, parent_workspace.workspace_id);
@@ -1922,7 +1774,6 @@ mod tests {
     async fn test_find_workspace_by_path_no_match_for_sibling() {
         let temp_dir = tempfile::tempdir().unwrap();
         let root_path = temp_dir.path().canonicalize().unwrap();
-        let user_id = UserId::generate();
 
         // Create sibling directories
         let workspace_dir = root_path.join("project1");
@@ -1934,7 +1785,6 @@ mod tests {
 
         let workspace = Workspace {
             workspace_id: WorkspaceId::generate(),
-            user_id: user_id.clone(),
             path: workspace_path,
             created_at: chrono::Utc::now(),
             updated_at: None,
@@ -1949,10 +1799,7 @@ mod tests {
         let service = ForgeWorkspaceService::new(Arc::new(mock));
 
         // Query sibling directory - should not match
-        let actual = service
-            .find_workspace_by_path(sibling_path, &user_id)
-            .await
-            .unwrap();
+        let actual = service.find_workspace_by_path(sibling_path).await.unwrap();
 
         assert!(actual.is_none());
     }
@@ -1961,7 +1808,6 @@ mod tests {
     async fn test_find_workspace_by_path_similar_prefix_no_match() {
         let temp_dir = tempfile::tempdir().unwrap();
         let root_path = temp_dir.path().canonicalize().unwrap();
-        let user_id = UserId::generate();
 
         // Create directories with similar prefixes
         let short_dir = root_path.join("pro");
@@ -1973,7 +1819,6 @@ mod tests {
 
         let workspace = Workspace {
             workspace_id: WorkspaceId::generate(),
-            user_id: user_id.clone(),
             path: short_path,
             created_at: chrono::Utc::now(),
             updated_at: None,
@@ -1988,10 +1833,7 @@ mod tests {
         let service = ForgeWorkspaceService::new(Arc::new(mock));
 
         // Query directory with similar prefix - should not match (pro vs project)
-        let actual = service
-            .find_workspace_by_path(long_path, &user_id)
-            .await
-            .unwrap();
+        let actual = service.find_workspace_by_path(long_path).await.unwrap();
 
         assert!(actual.is_none());
     }

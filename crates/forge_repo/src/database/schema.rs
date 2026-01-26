@@ -15,7 +15,6 @@ diesel::table! {
 diesel::table! {
     workspace (remote_workspace_id) {
         remote_workspace_id -> Text,
-        user_id -> Text,
         path -> Text,
         created_at -> Timestamp,
         updated_at -> Nullable<Timestamp>,
