@@ -270,19 +270,20 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
         // Google ADC tokens expire quickly, so we refresh them on every load
         if credential.id == forge_domain::ProviderId::VERTEX_AI
             && let forge_domain::AuthDetails::ApiKey(ref api_key) = credential.auth_details
-                && api_key.as_ref() == "google_adc_marker" {
-                    // Refresh the Google ADC credential, preserving url_params
-                    match self.refresh_google_adc_credential(&credential).await {
-                        Ok(refreshed) => {
-                            credential = refreshed;
-                            tracing::info!("Successfully refreshed Google ADC token");
-                        }
-                        Err(e) => {
-                            tracing::error!("Failed to refresh Google ADC token: {e}");
-                            return Err(e.context("Failed to refresh Google ADC token. Please run 'gcloud auth application-default login' to set up credentials."));
-                        }
-                    }
+            && api_key.as_ref() == "google_adc_marker"
+        {
+            // Refresh the Google ADC credential, preserving url_params
+            match self.refresh_google_adc_credential(&credential).await {
+                Ok(refreshed) => {
+                    credential = refreshed;
+                    tracing::info!("Successfully refreshed Google ADC token");
                 }
+                Err(e) => {
+                    tracing::error!("Failed to refresh Google ADC token: {e}");
+                    return Err(e.context("Failed to refresh Google ADC token. Please run 'gcloud auth application-default login' to set up credentials."));
+                }
+            }
+        }
 
         // Handle models - keep as templates
         let models = config.models.as_ref().map(|m| match m {
