@@ -211,7 +211,10 @@ impl CodebaseSearchAgentHook {
                     let captured_output = captured_output.clone();
                     async move {
                         if let LifecycleEvent::ToolcallEnd(result) = event {
-                            *captured_output.lock().unwrap() = Some(result);
+                            // Only capture search_report tool output
+                            if result.name.as_str() == "search_report" {
+                                *captured_output.lock().unwrap() = Some(result);
+                            }
                         }
                         Ok(())
                     }
