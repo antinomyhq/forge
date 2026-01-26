@@ -7,7 +7,9 @@ use crate::{ToolCallFull, ToolName, ToolResult};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ChatResponseContent {
+    // Should be only used to send tool input events.
     ToolInput(TitleFormat),
+    // Should be only used to send tool outputs.
     ToolOutput(String),
     Markdown(String),
 }
@@ -32,6 +34,7 @@ impl From<TitleFormat> for ChatResponseContent {
         ChatResponseContent::ToolInput(title)
     }
 }
+
 impl ChatResponseContent {
     pub fn contains(&self, needle: &str) -> bool {
         self.as_str().contains(needle)
