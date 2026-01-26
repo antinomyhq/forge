@@ -298,7 +298,11 @@ pub struct ListCommandGroup {
 pub enum ListCommand {
     /// List available agents.
     #[command(alias = "agents")]
-    Agent,
+    Agent {
+        /// Shows only custom agents
+        #[arg(long)]
+        custom: bool,
+    },
 
     /// List available API providers.
     #[command(alias = "providers")]
@@ -346,7 +350,11 @@ pub enum ListCommand {
 
     /// List available skills.
     #[command(alias = "skills")]
-    Skill,
+    Skill {
+        /// Shows only custom skills
+        #[arg(long)]
+        custom: bool,
+    },
 }
 
 /// Shell extension commands.
@@ -1474,7 +1482,7 @@ mod tests {
     fn test_list_skill_command() {
         let fixture = Cli::parse_from(["forge", "list", "skill"]);
         let is_skill_list = match fixture.subcommands {
-            Some(TopLevelCommand::List(list)) => matches!(list.command, ListCommand::Skill),
+            Some(TopLevelCommand::List(list)) => matches!(list.command, ListCommand::Skill { .. }),
             _ => false,
         };
         assert_eq!(is_skill_list, true);
@@ -1484,7 +1492,7 @@ mod tests {
     fn test_list_skills_alias_command() {
         let fixture = Cli::parse_from(["forge", "list", "skills"]);
         let is_skill_list = match fixture.subcommands {
-            Some(TopLevelCommand::List(list)) => matches!(list.command, ListCommand::Skill),
+            Some(TopLevelCommand::List(list)) => matches!(list.command, ListCommand::Skill { .. }),
             _ => false,
         };
         assert_eq!(is_skill_list, true);
@@ -1604,5 +1612,61 @@ mod tests {
             Some(TopLevelCommand::Vscode(VscodeCommand::InstallExtension))
         );
         assert_eq!(actual, true);
+    }
+
+    #[test]
+    fn test_list_agent_with_custom_flag() {
+        let fixture = Cli::parse_from(["forge", "list", "agent", "--custom"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::List(list)) => match list.command {
+                ListCommand::Agent { custom } => custom,
+                _ => false,
+            },
+            _ => false,
+        };
+        let expected = true;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_list_agent_without_custom_flag() {
+        let fixture = Cli::parse_from(["forge", "list", "agent"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::List(list)) => match list.command {
+                ListCommand::Agent { custom } => custom,
+                _ => true,
+            },
+            _ => true,
+        };
+        let expected = false;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_list_skill_with_custom_flag() {
+        let fixture = Cli::parse_from(["forge", "list", "skill", "--custom"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::List(list)) => match list.command {
+                ListCommand::Skill { custom } => custom,
+                _ => false,
+            },
+            _ => false,
+        };
+        let expected = true;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_list_skill_without_custom_flag() {
+        let fixture = Cli::parse_from(["forge", "list", "skill"]);
+        let actual = match fixture.subcommands {
+            Some(TopLevelCommand::List(list)) => match list.command {
+                ListCommand::Skill { custom } => custom,
+                _ => true,
+            },
+            _ => true,
+        };
+        let expected = false;
+        assert_eq!(actual, expected);
     }
 }
