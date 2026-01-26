@@ -139,7 +139,6 @@ forge_domain = { path = "crates/forge_domain" }
 forge_fs = { path = "crates/forge_fs" }
 forge_infra = { path = "crates/forge_infra" }
 forge_repo = { path = "crates/forge_repo" }
-forge_inte = { path = "crates/forge_inte" }
 forge_main = { path = "crates/forge_main" }
 forge_services = { path = "crates/forge_services" }
 forge_snaps = { path = "crates/forge_snaps" }

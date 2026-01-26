@@ -1,6 +1,7 @@
 use anyhow::Context as _;
 use async_openai::types::responses as oai;
 use forge_app::domain::{Context as ChatContext, ContextMessage, Role, ToolChoice};
+use forge_app::utils::enforce_strict_schema;
 use forge_domain::{Effort, ReasoningConfig};
 
 use crate::provider::FromDomain;
@@ -58,73 +59,24 @@ impl FromDomain<ReasoningConfig> for oai::Reasoning {
     }
 }
 
-fn normalize_openai_json_schema(schema: &mut serde_json::Value) {
-    match schema {
-        serde_json::Value::Object(map) => {
-            let is_object = map
-                .get("type")
-                .and_then(|value| value.as_str())
-                .is_some_and(|ty| ty == "object")
-                || map.contains_key("properties");
-
-            if is_object {
-                if !map.contains_key("properties") {
-                    map.insert(
-                        "properties".to_string(),
-                        serde_json::Value::Object(serde_json::Map::new()),
-                    );
-                }
-
-                // OpenAI requires this field to exist and be `false` for objects.
-                map.insert(
-                    "additionalProperties".to_string(),
-                    serde_json::Value::Bool(false),
-                );
-
-                // OpenAI requires `required` to exist and include every property key.
-                let required_keys = map
-                    .get("properties")
-                    .and_then(|value| value.as_object())
-                    .map(|props| {
-                        let mut keys = props.keys().cloned().collect::<Vec<_>>();
-                        keys.sort();
-                        keys
-                    })
-                    .unwrap_or_default();
-
-                let required_values = required_keys
-                    .into_iter()
-                    .map(serde_json::Value::String)
-                    .collect::<Vec<_>>();
-
-                map.insert(
-                    "required".to_string(),
-                    serde_json::Value::Array(required_values),
-                );
-            }
-
-            for value in map.values_mut() {
-                normalize_openai_json_schema(value);
-            }
-        }
-        serde_json::Value::Array(items) => {
-            for value in items {
-                normalize_openai_json_schema(value);
-            }
-        }
-        _ => {}
-    }
-}
-
+/// Converts a schemars RootSchema into codex tool parameters with
+/// OpenAI-compatible JSON Schema
+///
+/// The Responses API performs strict JSON Schema validation for tools. This
+/// function normalizes schemars output into the subset OpenAI accepts by using
+/// the shared `normalize_json_schema` utility with strict mode enabled.
+///
+/// # Errors
+/// Returns an error if schema serialization fails
 fn codex_tool_parameters(
     schema: &schemars::schema::RootSchema,
 ) -> anyhow::Result<serde_json::Value> {
     let mut params =
         serde_json::to_value(schema).with_context(|| "Failed to serialize tool schema")?;
 
-    // The Responses API performs strict JSON Schema validation for tools; normalize
-    // schemars output into the subset OpenAI accepts.
-    normalize_openai_json_schema(&mut params);
+    // Use strict mode (true) for OpenAI - adds additionalProperties, properties,
+    // and required
+    enforce_strict_schema(&mut params, true);
 
     Ok(params)
 }
@@ -295,6 +247,7 @@ mod tests {
     use forge_app::domain::{
         Context as ChatContext, ContextMessage, ModelId, ToolCallId, ToolChoice,
     };
+    use forge_app::utils::enforce_strict_schema;
 
     use crate::provider::FromDomain;
 
@@ -578,7 +531,7 @@ mod tests {
             }
         });
 
-        super::normalize_openai_json_schema(&mut schema);
+        enforce_strict_schema(&mut schema, true);
 
         assert_eq!(
             schema["additionalProperties"],
@@ -595,7 +548,7 @@ mod tests {
             }
         });
 
-        super::normalize_openai_json_schema(&mut schema);
+        enforce_strict_schema(&mut schema, true);
 
         assert_eq!(
             schema["additionalProperties"],
@@ -610,7 +563,7 @@ mod tests {
             "type": "object"
         });
 
-        super::normalize_openai_json_schema(&mut schema);
+        enforce_strict_schema(&mut schema, true);
 
         assert_eq!(
             schema["properties"],
@@ -637,7 +590,7 @@ mod tests {
             }
         });
 
-        super::normalize_openai_json_schema(&mut schema);
+        enforce_strict_schema(&mut schema, true);
 
         // Top level should have additionalProperties
         assert_eq!(
@@ -669,7 +622,7 @@ mod tests {
             }
         });
 
-        super::normalize_openai_json_schema(&mut schema);
+        enforce_strict_schema(&mut schema, true);
 
         // Array items should be normalized
         assert_eq!(
@@ -685,9 +638,9 @@ mod tests {
             "type": "string"
         });
 
-        super::normalize_openai_json_schema(&mut schema);
+        enforce_strict_schema(&mut schema, true);
 
-        // String type should remain unchanged
+        // Should not modify non-object types
         assert_eq!(schema, serde_json::json!({"type": "string"}));
     }
 
@@ -702,14 +655,13 @@ mod tests {
             }
         });
 
-        super::normalize_openai_json_schema(&mut schema);
+        enforce_strict_schema(&mut schema, true);
 
         assert_eq!(
             schema["required"],
             serde_json::json!(["alpha", "beta", "zebra"])
         );
     }
-
     #[test]
     fn test_codex_request_with_temperature() -> anyhow::Result<()> {
         use forge_app::domain::Temperature;

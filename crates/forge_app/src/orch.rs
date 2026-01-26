@@ -89,26 +89,9 @@ impl<S: AgentService> Orchestrator<S> {
 
             // Fire the ToolcallStart lifecycle event
             let toolcall_start_event = LifecycleEvent::ToolcallStart(tool_call.clone());
-            match self
-                .hook
+            self.hook
                 .handle(toolcall_start_event, &mut self.conversation)
-                .await?
-            {
-                Step::Proceed => {}
-                Step::Interrupt { reason } => {
-                    // Send the interrupt and continue to next tool call
-                    let _ = self.send(ChatResponse::Interrupt { reason: reason.clone() }).await;
-                    tool_call_records.push((
-                        tool_call.clone(),
-                        ToolResult::new(tool_call.name.clone())
-                            .output(Ok(ToolOutput::text(format!(
-                                "Interrupted by hook: {:?}",
-                                reason
-                            )))),
-                    ));
-                    continue;
-                }
-            }
+                .await?;
 
             // Execute the tool
             let tool_result = self
@@ -128,19 +111,9 @@ impl<S: AgentService> Orchestrator<S> {
 
             // Fire the ToolcallEnd lifecycle event
             let toolcall_end_event = LifecycleEvent::ToolcallEnd(tool_result.clone());
-            match self
-                .hook
+            self.hook
                 .handle(toolcall_end_event, &mut self.conversation)
-                .await?
-            {
-                Step::Proceed => {}
-                Step::Interrupt { reason } => {
-                    // Send the interrupt and continue to next tool call
-                    let _ = self.send(ChatResponse::Interrupt { reason: reason.clone() }).await;
-                    tool_call_records.push((tool_call.clone(), tool_result));
-                    continue;
-                }
-            }
+                .await?;
 
             // Send the end notification for system tools and not agent as a tool
             if is_system_tool {
@@ -252,17 +225,11 @@ impl<S: AgentService> Orchestrator<S> {
         let mut context = self.conversation.context.clone().unwrap_or_default();
 
         // Fire the Start lifecycle event
-        let start_event = LifecycleEvent::Start {
-            agent: self.agent.clone(),
-            model_id: model_id.clone(),
-        };
-        match self.hook.handle(start_event, &mut self.conversation).await? {
-            Step::Proceed => {}
-            Step::Interrupt { reason } => {
-                self.send(ChatResponse::Interrupt { reason }).await?;
-                return Ok(());
-            }
-        }
+        let start_event =
+            LifecycleEvent::Start { agent: self.agent.clone(), model_id: model_id.clone() };
+        self.hook
+            .handle(start_event, &mut self.conversation)
+            .await?;
 
         // Signals that the loop should suspend (task may or may not be completed)
         let mut should_yield = false;
@@ -292,17 +259,9 @@ impl<S: AgentService> Orchestrator<S> {
                 model_id: model_id.clone(),
                 request_count,
             };
-            match self
-                .hook
+            self.hook
                 .handle(request_event, &mut self.conversation)
-                .await?
-            {
-                Step::Proceed => {}
-                Step::Interrupt { reason } => {
-                    self.send(ChatResponse::Interrupt { reason }).await?;
-                    break;
-                }
-            }
+                .await?;
 
             let message = crate::retry::retry_with_config(
                 &self.environment.retry_config,
@@ -325,17 +284,9 @@ impl<S: AgentService> Orchestrator<S> {
 
             // Fire the Response lifecycle event
             let response_event = LifecycleEvent::Response(message.clone());
-            match self
-                .hook
+            self.hook
                 .handle(response_event, &mut self.conversation)
-                .await?
-            {
-                Step::Proceed => {}
-                Step::Interrupt { reason } => {
-                    self.send(ChatResponse::Interrupt { reason }).await?;
-                    break;
-                }
-            }
+                .await?;
 
             // TODO: Add a unit test in orch spec, to guarantee that compaction is
             // triggered after receiving the response
@@ -457,17 +408,9 @@ impl<S: AgentService> Orchestrator<S> {
         self.services.update(self.conversation.clone()).await?;
 
         // Fire the End lifecycle event
-        match self
-            .hook
+        self.hook
             .handle(LifecycleEvent::End, &mut self.conversation)
-            .await?
-        {
-            Step::Proceed => {}
-            Step::Interrupt { reason } => {
-                self.send(ChatResponse::Interrupt { reason }).await?;
-                return Ok(());
-            }
-        }
+            .await?;
 
         // Signal Task Completion
         if is_complete {

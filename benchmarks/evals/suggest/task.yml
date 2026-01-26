@@ -1,0 +1,47 @@
+run:
+  - mkdir -p test_dir
+  - cd test_dir && touch file1.txt file2.py README.md
+  - cd test_dir && FORGE_OVERRIDE_PROVIDER={{provider}} FORGE_OVERRIDE_MODEL={{model}} forgee suggest "{{prompt}}"
+
+parallelism: 2
+timeout: 60
+early_exit: true
+
+validations:
+  - name: "Should generate output (non-empty)"
+    type: shell
+    command: "test $(wc -c | awk '{print $1}') -gt 0"
+    
+  - name: "Should NOT contain markdown code blocks"
+    type: shell
+    command: "! grep -qE '^```'"
+    
+  - name: "Should NOT contain JSON formatting tags"
+    type: shell
+    command: "! grep -qE '\\{\\s*\"command\"\\s*:'"
+
+sources:
+  - value:
+      - provider: "anthropic"
+        model: "claude-sonnet-4-5-20250929"
+      - provider: "open_router"
+        model: "z-ai/glm-4.7"
+      - provider: "open_router"
+        model: "minimax/minimax-m2.1"
+
+  - value:
+      - prompt: "list all files"
+      - prompt: "find all python files"
+      - prompt: "show disk usage"
+      - prompt: "git status"
+      - prompt: "count lines in all files"
+      - prompt: "search for TODO in code"
+      - prompt: "check running processes"
+      - prompt: "compress this directory"
+      - prompt: "show last 20 commits"
+      - prompt: "find files larger than 1MB"
+      - prompt: "kill process on port 3000"
+      - prompt: "show system memory usage"
+      - prompt: "download file from url"
+      - prompt: "create git branch"
+      - prompt: "watch log file changes"
