@@ -1242,7 +1242,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         if porcelain {
-            let porcelain = Porcelain::from(&info).drop_col(0).truncate(2, 60).uppercase_headers();
+            let porcelain = Porcelain::from(&info)
+                .drop_col(0)
+                .truncate(2, 60)
+                .uppercase_headers();
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
