@@ -204,6 +204,39 @@ else
     print_result code "eval \"\$(forge zsh theme)\""
 fi
 
+# Helper function to compare versions
+# Returns 0 if version1 >= version2, 1 otherwise
+function version_gte() {
+    local version1=$1
+    local version2=$2
+    
+    # Remove 'v' prefix if present
+    version1=${version1#v}
+    version2=${version2#v}
+    
+    # Split versions into arrays
+    local -a ver1_parts=(${(s:.:)version1})
+    local -a ver2_parts=(${(s:.:)version2})
+    
+    # Compare each part
+    for i in {1..3}; do
+        local v1=${ver1_parts[$i]:-0}
+        local v2=${ver2_parts[$i]:-0}
+        
+        # Remove any non-numeric suffix (e.g., "0-rc1" -> "0")
+        v1=${v1%%[^0-9]*}
+        v2=${v2%%[^0-9]*}
+        
+        if [[ $v1 -gt $v2 ]]; then
+            return 0
+        elif [[ $v1 -lt $v2 ]]; then
+            return 1
+        fi
+    done
+    
+    return 0  # versions are equal
+}
+
 # 5. Check dependencies
 print_section "Dependencies"
 
@@ -211,7 +244,11 @@ print_section "Dependencies"
 if command -v fzf &> /dev/null; then
     local fzf_version=$(fzf --version 2>&1 | head -n1 | awk '{print $1}')
     if [[ -n "$fzf_version" ]]; then
-        print_result pass "fzf: ${fzf_version}"
+        if version_gte "$fzf_version" "0.36.0"; then
+            print_result pass "fzf: ${fzf_version}"
+        else
+            print_result fail "fzf: ${fzf_version}" "Version 0.36.0 or higher required. Update: https://github.com/junegunn/fzf#installation"
+        fi
     else
         print_result pass "fzf: installed"
     fi
@@ -223,14 +260,22 @@ fi
 if command -v fd &> /dev/null; then
     local fd_version=$(fd --version 2>&1 | awk '{print $2}')
     if [[ -n "$fd_version" ]]; then
-        print_result pass "fd: ${fd_version}"
+        if version_gte "$fd_version" "10.0.0"; then
+            print_result pass "fd: ${fd_version}"
+        else
+            print_result fail "fd: ${fd_version}" "Version 10.0.0 or higher required. Update: https://github.com/sharkdp/fd#installation"
+        fi
     else
         print_result pass "fd: installed"
     fi
 elif command -v fdfind &> /dev/null; then
     local fd_version=$(fdfind --version 2>&1 | awk '{print $2}')
     if [[ -n "$fd_version" ]]; then
-        print_result pass "fdfind: ${fd_version}"
+        if version_gte "$fd_version" "10.0.0"; then
+            print_result pass "fdfind: ${fd_version}"
+        else
+            print_result fail "fdfind: ${fd_version}" "Version 10.0.0 or higher required. Update: https://github.com/sharkdp/fd#installation"
+        fi
     else
         print_result pass "fdfind: installed"
     fi
@@ -242,7 +287,11 @@ fi
 if command -v bat &> /dev/null; then
     local bat_version=$(bat --version 2>&1 | awk '{print $2}')
     if [[ -n "$bat_version" ]]; then
-        print_result pass "bat: ${bat_version}"
+        if version_gte "$bat_version" "0.20.0"; then
+            print_result pass "bat: ${bat_version}"
+        else
+            print_result fail "bat: ${bat_version}" "Version 0.20.0 or higher required. Update: https://github.com/sharkdp/bat#installation"
+        fi
     else
         print_result pass "bat: installed"
     fi
