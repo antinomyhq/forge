@@ -1,0 +1,36 @@
+[package]
+name = "forge_acp"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+# Internal dependencies
+forge_app.workspace = true
+forge_domain.workspace = true
+forge_services.workspace = true
+forge_stream.workspace = true
+
+# ACP SDK
+agent-client-protocol = "0.9"
+
+# Async runtime
+tokio.workspace = true
+tokio-util = { workspace = true, features = ["compat"] }
+async-trait.workspace = true
+futures.workspace = true
+
+# Error handling
+anyhow.workspace = true
+thiserror.workspace = true
+
+# Logging
+tracing.workspace = true
+
+# Serialization
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+forge_test_kit.workspace = true
+pretty_assertions.workspace = true
