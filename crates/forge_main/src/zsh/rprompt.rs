@@ -79,12 +79,11 @@ impl Display for ZshRPrompt {
         }
 
         // Add cost
-        if let Some(cost) = self.cost {
-            if active {
+        if let Some(cost) = self.cost
+            && active {
                 let cost_str = format!("{:.2}", cost);
                 write!(f, " {}", cost_str.zsh().fg(ZshColor::GREEN).bold())?;
             }
-        }
 
         // Add model
         if let Some(ref model_id) = self.model {
@@ -144,8 +143,7 @@ mod tests {
             .cost(Some(0.0123))
             .to_string();
 
-        let expected =
-            " %B%F{15}\u{f167a} FORGE%f%b %B%F{15}1.5k%f%b %B%F{2}\u{f155}0.01%f%b %F{134}\u{ec19} gpt-4%f";
+        let expected = " %B%F{15}\u{f167a} FORGE%f%b %B%F{15}1.5k%f%b %B%F{2}\u{f155}0.01%f%b %F{134}\u{ec19} gpt-4%f";
         assert_eq!(actual, expected);
     }
 

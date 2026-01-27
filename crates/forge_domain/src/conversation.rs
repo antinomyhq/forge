@@ -145,7 +145,8 @@ impl Conversation {
     ///
     /// # Arguments
     ///
-    /// * `conversations` - A slice of conversations to include in cost calculation
+    /// * `conversations` - A slice of conversations to include in cost
+    ///   calculation
     pub fn total_cost(conversations: &[Conversation]) -> Option<f64> {
         let costs: Vec<f64> = conversations
             .iter()
