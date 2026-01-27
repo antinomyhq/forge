@@ -76,7 +76,7 @@ Usage:
 
 ### report_search
 
-Returns structured codebase search results. Call this tool at the end of search operations to report findings with selected code chunks.
+Report search results to the user. Returns code chunks ordered by relevance (most relevant first). Line ranges should contain only the relevant code, not entire files.
 
 Usage:
 - Include only code chunks that directly answer the search query

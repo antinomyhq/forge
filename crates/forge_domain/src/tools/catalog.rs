@@ -626,15 +626,23 @@ impl JsonSchema for ChunkRelevance {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct ChunkSelection {
+    /// Absolute path to the file containing the code chunk
     pub file_path: PathBuf,
+    /// Starting line number (1-indexed). Narrow to the specific relevant
+    /// section.
     pub start: Option<usize>,
+    /// Ending line number (1-indexed, inclusive). Narrow to the specific
+    /// relevant section.
     pub end: Option<usize>,
+    /// How relevant this chunk is to the search query
     pub relevance: ChunkRelevance,
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
 #[tool_description_file = "crates/forge_domain/src/tools/descriptions/report_search.md"]
 pub struct ReportSearch {
+    /// Code chunks ordered by relevance (most relevant first). Each chunk
+    /// includes file path, line range, and relevance rating.
     pub chunks: Vec<ChunkSelection>,
 }
 

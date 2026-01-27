@@ -35,7 +35,7 @@ Guidelines:
 - Use `sem_search` for conceptual queries with multiple varied phrasings (behavioral, technical, domain-specific)
 - Use `search` for exact patterns (specific symbols, function names, error codes, TODO comments, string literals)
 - Combine both tools strategically: semantic search to discover relevant areas, regex search to find specific usages
-- Use `search_report` at the end to report findings in structured JSON format
+- Use `report_search` at the end to report findings in structured JSON format
 - Order by relevance, provide clear explanations for each selection
 - Ambiguous queries benefit from searching multiple interpretations
 

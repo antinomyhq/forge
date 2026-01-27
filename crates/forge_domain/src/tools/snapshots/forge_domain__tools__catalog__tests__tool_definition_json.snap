@@ -201,6 +201,7 @@ expression: tools
   ],
   "properties": {
     "chunks": {
+      "description": "Code chunks ordered by relevance (most relevant first). Each chunk includes file path, line range, and relevance rating.",
       "type": "array",
       "items": {
         "type": "object",
@@ -210,15 +211,18 @@ expression: tools
         ],
         "properties": {
           "end": {
+            "description": "Ending line number (1-indexed, inclusive). Narrow to the specific relevant section.",
             "type": "integer",
             "format": "uint",
             "minimum": 0.0,
             "nullable": true
           },
           "file_path": {
+            "description": "Absolute path to the file containing the code chunk",
             "type": "string"
           },
           "relevance": {
+            "description": "How relevant this chunk is to the search query",
             "type": "string",
             "enum": [
               "high",
@@ -227,6 +231,7 @@ expression: tools
             ]
           },
           "start": {
+            "description": "Starting line number (1-indexed). Narrow to the specific relevant section.",
             "type": "integer",
             "format": "uint",
             "minimum": 0.0,
