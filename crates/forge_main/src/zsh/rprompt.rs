@@ -78,6 +78,14 @@ impl Display for ZshRPrompt {
             }
         }
 
+        // Add cost
+        if let Some(cost) = self.cost {
+            if active {
+                let cost_str = format!("{:.2}", cost);
+                write!(f, " {}", cost_str.zsh().fg(ZshColor::GREEN).bold())?;
+            }
+        }
+
         // Add model
         if let Some(ref model_id) = self.model {
             let model_id = if self.use_nerd_font {
@@ -93,13 +101,6 @@ impl Display for ZshRPrompt {
             write!(f, " {}", styled)?;
         }
 
-        // Add cost
-        if let Some(cost) = self.cost {
-            if active {
-                let cost_str = format!("${:.2}", cost);
-                write!(f, " {}", cost_str.zsh().fg(ZshColor::GREEN))?;
-            }
-        }
         Ok(())
     }
 }
