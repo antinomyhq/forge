@@ -61,7 +61,7 @@ Returns the topK most relevant file:line locations with code context. Use multip
 
 ---
 
-### search_report
+### report_search
 
 Returns structured codebase search results. Call this tool at the end of search operations to report findings with selected code chunks.
 

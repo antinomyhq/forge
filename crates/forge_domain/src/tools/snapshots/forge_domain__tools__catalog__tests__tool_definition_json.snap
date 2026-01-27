@@ -182,7 +182,7 @@ expression: tools
   }
 }
 {
-  "title": "SearchReport",
+  "title": "ReportSearch",
   "type": "object",
   "required": [
     "chunks"

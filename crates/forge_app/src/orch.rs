@@ -93,7 +93,8 @@ impl<S: AgentService> Orchestrator<S> {
                 self.agent.model.clone(),
                 ToolcallStartPayload::new(tool_call.clone()),
             ));
-            self.hook
+            let _start_result = self
+                .hook
                 .handle(&toolcall_start_event, &mut self.conversation)
                 .await?;
 
@@ -119,7 +120,8 @@ impl<S: AgentService> Orchestrator<S> {
                 self.agent.model.clone(),
                 ToolcallEndPayload::new(tool_result.clone()),
             ));
-            self.hook
+            let _end_result = self
+                .hook
                 .handle(&toolcall_end_event, &mut self.conversation)
                 .await?;
 
@@ -238,9 +240,13 @@ impl<S: AgentService> Orchestrator<S> {
             model_id.clone(),
             StartPayload,
         ));
-        self.hook
+        let start_result = self
+            .hook
             .handle(&start_event, &mut self.conversation)
             .await?;
+        if matches!(start_result, EventResult::Exit) {
+            return Ok(());
+        }
 
         // Signals that the loop should suspend (task may or may not be completed)
         let mut should_yield = false;
@@ -270,11 +276,15 @@ impl<S: AgentService> Orchestrator<S> {
                 model_id.clone(),
                 RequestPayload::new(request_count),
             ));
-            self.hook
+            let request_result = self
+                .hook
                 .handle(&request_event, &mut self.conversation)
                 .await?;
             // it's possible that context may have been modified by the hook.
             context = self.conversation.context.clone().unwrap_or(context);
+            if matches!(request_result, EventResult::Exit) {
+                break;
+            }
 
             let message = crate::retry::retry_with_config(
                 &self.environment.retry_config,
@@ -302,11 +312,15 @@ impl<S: AgentService> Orchestrator<S> {
                 ResponsePayload::new(message.clone()),
             ));
 
-            self.hook
+            let response_result = self
+                .hook
                 .handle(&response_event, &mut self.conversation)
                 .await?;
             // it's possible that context may have been modified by the hook.
             context = self.conversation.context.clone().unwrap_or(context);
+            if matches!(response_result, EventResult::Exit) {
+                break;
+            }
 
             // TODO: Add a unit test in orch spec, to guarantee that compaction is
             // triggered after receiving the response

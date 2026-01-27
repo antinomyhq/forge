@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use forge_domain::{
-    AgentId, ContextMessage, Conversation, EventData, Hook, RequestPayload, Role, TextMessage,
-    ToolName, ToolResult, ToolcallEndPayload,
+    AgentId, ContextMessage, Conversation, EventData, EventResult, Hook, RequestPayload, Role,
+    TextMessage, ToolName, ToolResult, ToolcallEndPayload,
 };
 use tokio::sync::Mutex;
 
@@ -92,7 +92,7 @@ pub fn tool_call_reminder(agent_id: AgentId, tool_name: ToolName, max_iterations
             if event.agent.id == agent_id {
                 reminder.apply(event.payload.request_count, conversation);
             }
-            async move { Ok(()) }
+            async move { Ok(EventResult::Continue) }
         }
     })
 }
@@ -106,21 +106,35 @@ pub fn tool_output_capture(
     tool_name: ToolName,
     captured_output: Arc<Mutex<Option<ToolResult>>>,
 ) -> Hook {
-    Hook::default().on_toolcall_end({
-        move |event: &EventData<ToolcallEndPayload>, _conversation: &mut Conversation| {
+    Hook::default()
+        .on_request({
             let captured_output = captured_output.clone();
-            let event_agent_id = event.agent.id.clone();
-            let result = event.payload.result.clone();
-            let expected_agent = agent_id.clone();
-            let expected_tool = tool_name.clone();
-            async move {
-                if event_agent_id == expected_agent && result.name == expected_tool {
-                    *captured_output.lock().await = Some(result);
+            move |_event: &EventData<RequestPayload>, _conversation: &mut Conversation| {
+                let captured_output = captured_output.clone();
+                async move {
+                    if captured_output.lock().await.is_some() {
+                        Ok(EventResult::Exit)
+                    } else {
+                        Ok(EventResult::Continue)
+                    }
                 }
-                Ok(())
             }
-        }
-    })
+        })
+        .on_toolcall_end({
+            move |event: &EventData<ToolcallEndPayload>, _conversation: &mut Conversation| {
+                let captured_output = captured_output.clone();
+                let event_agent_id = event.agent.id.clone();
+                let result = event.payload.result.clone();
+                let expected_agent = agent_id.clone();
+                let expected_tool = tool_name.clone();
+                async move {
+                    if event_agent_id == expected_agent && result.name == expected_tool {
+                        *captured_output.lock().await = Some(result);
+                    }
+                    Ok(EventResult::Continue)
+                }
+            }
+        })
 }
 
 #[cfg(test)]

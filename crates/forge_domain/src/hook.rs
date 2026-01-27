@@ -115,6 +115,11 @@ pub enum LifecycleEvent {
     ToolcallEnd(EventData<ToolcallEndPayload>),
 }
 
+pub enum EventResult {
+    Continue,
+    Exit,
+}
+
 /// Trait for handling lifecycle events
 ///
 /// Implementations of this trait can be used to react to different
@@ -129,7 +134,7 @@ pub trait EventHandle<T: Send + Sync>: Send + Sync {
     ///
     /// # Errors
     /// Returns an error if the event handling fails
-    async fn handle(&self, event: &T, conversation: &mut Conversation) -> anyhow::Result<()>;
+    async fn handle(&self, event: &T, conversation: &mut Conversation) -> anyhow::Result<EventResult>;
 }
 
 /// Extension trait for combining event handlers
@@ -164,7 +169,7 @@ impl<T: Send + Sync + 'static, A: EventHandle<T> + 'static> EventHandleExt<T> fo
 // Implement EventHandle for Box<dyn EventHandle> to allow using boxed handlers
 #[async_trait]
 impl<T: Send + Sync> EventHandle<T> for Box<dyn EventHandle<T>> {
-    async fn handle(&self, event: &T, conversation: &mut Conversation) -> anyhow::Result<()> {
+    async fn handle(&self, event: &T, conversation: &mut Conversation) -> anyhow::Result<EventResult> {
         (**self).handle(event, conversation).await
     }
 }
@@ -257,7 +262,7 @@ impl EventHandle<LifecycleEvent> for Hook {
         &self,
         event: &LifecycleEvent,
         conversation: &mut Conversation,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<EventResult> {
         match &event {
             LifecycleEvent::Start(data) => self.on_start.handle(data, conversation).await,
             LifecycleEvent::End(data) => self.on_end.handle(data, conversation).await,
@@ -283,10 +288,14 @@ struct CombinedHandler<T: Send + Sync>(Box<dyn EventHandle<T>>, Box<dyn EventHan
 
 #[async_trait]
 impl<T: Send + Sync> EventHandle<T> for CombinedHandler<T> {
-    async fn handle(&self, event: &T, conversation: &mut Conversation) -> anyhow::Result<()> {
+    async fn handle(&self, event: &T, conversation: &mut Conversation) -> anyhow::Result<EventResult> {
         // Run the first handler
-        self.0.handle(event, conversation).await?;
-        // Run the second handler with the cloned event
+        let result = self.0.handle(event, conversation).await?;
+        // If the first handler returns Exit, exit immediately
+        if matches!(result, EventResult::Exit) {
+            return Ok(result);
+        }
+        // Run the second handler and return its result
         self.1.handle(event, conversation).await
     }
 }
@@ -300,8 +309,8 @@ pub struct NoOpHandler;
 
 #[async_trait]
 impl<T: Send + Sync> EventHandle<T> for NoOpHandler {
-    async fn handle(&self, _: &T, _: &mut Conversation) -> anyhow::Result<()> {
-        Ok(())
+    async fn handle(&self, _: &T, _: &mut Conversation) -> anyhow::Result<EventResult> {
+        Ok(EventResult::Continue)
     }
 }
 
@@ -309,9 +318,9 @@ impl<T: Send + Sync> EventHandle<T> for NoOpHandler {
 impl<T: Send + Sync, F, Fut> EventHandle<T> for F
 where
     F: Fn(&T, &mut Conversation) -> Fut + Send + Sync,
-    Fut: std::future::Future<Output = anyhow::Result<()>> + Send,
+    Fut: std::future::Future<Output = anyhow::Result<EventResult>> + Send,
 {
-    async fn handle(&self, event: &T, conversation: &mut Conversation) -> anyhow::Result<()> {
+    async fn handle(&self, event: &T, conversation: &mut Conversation) -> anyhow::Result<EventResult> {
         (self)(event, conversation).await
     }
 }
@@ -319,7 +328,7 @@ where
 impl<T: Send + Sync, F, Fut> From<F> for Box<dyn EventHandle<T>>
 where
     F: Fn(&T, &mut Conversation) -> Fut + Send + Sync + 'static,
-    Fut: std::future::Future<Output = anyhow::Result<()>> + Send + 'static,
+    Fut: std::future::Future<Output = anyhow::Result<EventResult>> + Send + 'static,
 {
     fn from(handler: F) -> Self {
         Box::new(handler)
@@ -366,7 +375,7 @@ mod tests {
                 let event = event.clone();
                 async move {
                     events.lock().unwrap().push(event);
-                    Ok(())
+                    Ok(EventResult::Continue)
                 }
             },
         );
@@ -400,7 +409,7 @@ mod tests {
                     let event = LifecycleEvent::Start(event.clone());
                     async move {
                         events.lock().unwrap().push(event);
-                        Ok(())
+                        Ok(EventResult::Continue)
                     }
                 }
             })
@@ -411,7 +420,7 @@ mod tests {
                     let event = LifecycleEvent::End(event.clone());
                     async move {
                         events.lock().unwrap().push(event);
-                        Ok(())
+                        Ok(EventResult::Continue)
                     }
                 }
             })
@@ -422,7 +431,7 @@ mod tests {
                     let event = LifecycleEvent::Request(event.clone());
                     async move {
                         events.lock().unwrap().push(event);
-                        Ok(())
+                        Ok(EventResult::Continue)
                     }
                 }
             });
@@ -487,7 +496,7 @@ mod tests {
                     let event = LifecycleEvent::Start(event.clone());
                     async move {
                         events.lock().unwrap().push(event);
-                        Ok(())
+                        Ok(EventResult::Continue)
                     }
                 }
             },
@@ -498,7 +507,7 @@ mod tests {
                     let event = LifecycleEvent::End(event.clone());
                     async move {
                         events.lock().unwrap().push(event);
-                        Ok(())
+                        Ok(EventResult::Continue)
                     }
                 }
             },
@@ -509,7 +518,7 @@ mod tests {
                     let event = LifecycleEvent::Request(event.clone());
                     async move {
                         events.lock().unwrap().push(event);
-                        Ok(())
+                        Ok(EventResult::Continue)
                     }
                 }
             },
@@ -520,7 +529,7 @@ mod tests {
                     let event = LifecycleEvent::Response(event.clone());
                     async move {
                         events.lock().unwrap().push(event);
-                        Ok(())
+                        Ok(EventResult::Continue)
                     }
                 }
             },
@@ -531,7 +540,7 @@ mod tests {
                     let event = LifecycleEvent::ToolcallStart(event.clone());
                     async move {
                         events.lock().unwrap().push(event);
-                        Ok(())
+                        Ok(EventResult::Continue)
                     }
                 }
             },
@@ -542,7 +551,7 @@ mod tests {
                     let event = LifecycleEvent::ToolcallEnd(event.clone());
                     async move {
                         events.lock().unwrap().push(event);
-                        Ok(())
+                        Ok(EventResult::Continue)
                     }
                 }
             },
@@ -599,7 +608,7 @@ mod tests {
                 let title = title.clone();
                 async move {
                     *title.lock().unwrap() = Some("Modified title".to_string());
-                    Ok(())
+                    Ok(EventResult::Continue)
                 }
             }
         });
@@ -636,7 +645,7 @@ mod tests {
                 let counter = counter.clone();
                 async move {
                     *counter.lock().unwrap() += 1;
-                    Ok(())
+                    Ok(EventResult::Continue)
                 }
             }
         });
@@ -647,7 +656,7 @@ mod tests {
                 let counter = counter.clone();
                 async move {
                     *counter.lock().unwrap() += 1;
-                    Ok(())
+                    Ok(EventResult::Continue)
                 }
             }
         });
@@ -678,7 +687,7 @@ mod tests {
                 let event = event.clone();
                 async move {
                     events.lock().unwrap().push(format!("h1:{:?}", event));
-                    Ok(())
+                    Ok(EventResult::Continue)
                 }
             }
         });
@@ -690,7 +699,7 @@ mod tests {
                 let event = event.clone();
                 async move {
                     events.lock().unwrap().push(format!("h2:{:?}", event));
-                    Ok(())
+                    Ok(EventResult::Continue)
                 }
             }
         });
@@ -702,7 +711,7 @@ mod tests {
                 let event = event.clone();
                 async move {
                     events.lock().unwrap().push(format!("h3:{:?}", event));
-                    Ok(())
+                    Ok(EventResult::Continue)
                 }
             }
         });
@@ -736,7 +745,7 @@ mod tests {
                     let start_title = start_title.clone();
                     async move {
                         *start_title.lock().unwrap() = Some("Start".to_string());
-                        Ok(())
+                        Ok(EventResult::Continue)
                     }
                 }
             })
@@ -746,7 +755,7 @@ mod tests {
                     let end_title = end_title.clone();
                     async move {
                         *end_title.lock().unwrap() = Some("End".to_string());
-                        Ok(())
+                        Ok(EventResult::Continue)
                     }
                 }
             });
@@ -788,7 +797,7 @@ mod tests {
                 let counter = counter.clone();
                 async move {
                     *counter.lock().unwrap() += 1;
-                    Ok(())
+                    Ok(EventResult::Continue)
                 }
             }
         };
@@ -799,7 +808,7 @@ mod tests {
                 let counter = counter.clone();
                 async move {
                     *counter.lock().unwrap() += 1;
-                    Ok(())
+                    Ok(EventResult::Continue)
                 }
             }
         };
@@ -831,7 +840,7 @@ mod tests {
                 let counter = counter.clone();
                 async move {
                     *counter.lock().unwrap() += 1;
-                    Ok(())
+                    Ok(EventResult::Continue)
                 }
             }
         };
@@ -842,7 +851,7 @@ mod tests {
                 let counter = counter.clone();
                 async move {
                     *counter.lock().unwrap() += 1;
-                    Ok(())
+                    Ok(EventResult::Continue)
                 }
             }
         };
@@ -874,7 +883,7 @@ mod tests {
                 let event = event.clone();
                 async move {
                     events.lock().unwrap().push(format!("h1:{:?}", event));
-                    Ok(())
+                    Ok(EventResult::Continue)
                 }
             }
         };
@@ -886,7 +895,7 @@ mod tests {
                 let event = event.clone();
                 async move {
                     events.lock().unwrap().push(format!("h2:{:?}", event));
-                    Ok(())
+                    Ok(EventResult::Continue)
                 }
             }
         };
@@ -898,7 +907,7 @@ mod tests {
                 let event = event.clone();
                 async move {
                     events.lock().unwrap().push(format!("h3:{:?}", event));
-                    Ok(())
+                    Ok(EventResult::Continue)
                 }
             }
         };
@@ -934,7 +943,7 @@ mod tests {
                 let start_title = start_title.clone();
                 async move {
                     *start_title.lock().unwrap() = Some("Started".to_string());
-                    Ok(())
+                    Ok(EventResult::Continue)
                 }
             }
         };
@@ -946,7 +955,7 @@ mod tests {
                 let event = event.clone();
                 async move {
                     events.lock().unwrap().push(format!("Event: {:?}", event));
-                    Ok(())
+                    Ok(EventResult::Continue)
                 }
             }
         };
@@ -981,7 +990,7 @@ mod tests {
                     let start_title = start_title.clone();
                     async move {
                         *start_title.lock().unwrap() = Some("Started".to_string());
-                        Ok(())
+                        Ok(EventResult::Continue)
                     }
                 }
             })
@@ -991,7 +1000,7 @@ mod tests {
                     let end_title = end_title.clone();
                     async move {
                         *end_title.lock().unwrap() = Some("Ended".to_string());
-                        Ok(())
+                        Ok(EventResult::Continue)
                     }
                 }
             });
@@ -1026,7 +1035,7 @@ mod tests {
                 let hook1_title = hook1_title.clone();
                 async move {
                     *hook1_title.lock().unwrap() = Some("Started".to_string());
-                    Ok(())
+                    Ok(EventResult::Continue)
                 }
             }
         };
@@ -1036,7 +1045,7 @@ mod tests {
                 let hook2_title = hook2_title.clone();
                 async move {
                     *hook2_title.lock().unwrap() = Some("Ended".to_string());
-                    Ok(())
+                    Ok(EventResult::Continue)
                 }
             }
         };
