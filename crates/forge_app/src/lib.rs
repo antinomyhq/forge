@@ -1,5 +1,7 @@
 mod agent;
 mod agent_executor;
+mod hooks;
+mod codebase_search_executor;
 mod agent_provider_resolver;
 mod app;
 mod apply_tunable_parameters;

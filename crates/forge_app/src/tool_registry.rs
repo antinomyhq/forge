@@ -15,6 +15,7 @@ use strum::IntoEnumIterator;
 use tokio::time::timeout;
 
 use crate::agent_executor::AgentExecutor;
+use crate::codebase_search_executor::CodebaseSearchExecutor;
 use crate::dto::ToolsOverview;
 use crate::error::Error;
 use crate::fmt::content::FormatContent;
@@ -28,6 +29,7 @@ use crate::{
 pub struct ToolRegistry<S> {
     tool_executor: ToolExecutor<S>,
     agent_executor: AgentExecutor<S>,
+    codebase_search_executor: CodebaseSearchExecutor<S>,
     mcp_executor: McpExecutor<S>,
     tool_timeout: Duration,
     services: Arc<S>,
@@ -39,6 +41,7 @@ impl<S: Services> ToolRegistry<S> {
             services: services.clone(),
             tool_executor: ToolExecutor::new(services.clone()),
             agent_executor: AgentExecutor::new(services.clone()),
+            codebase_search_executor: CodebaseSearchExecutor::new(services.clone()),
             mcp_executor: McpExecutor::new(services.clone()),
             tool_timeout: Duration::from_secs(services.get_environment().tool_timeout),
         }
@@ -134,6 +137,19 @@ impl<S: Services> ToolRegistry<S> {
                 self.tool_executor.execute(tool_input, context)
             })
             .await
+        } else if AgentId::new(input.name.as_str()).is_codebase_search() {
+            // Handle codebase_search with specialized executor
+            let agent_input = AgentInput::try_from(&input)?;
+            let executor = self.codebase_search_executor.clone();
+            // NOTE: Agents should not timeout
+            let outputs =
+                join_all(agent_input.tasks.into_iter().map(|task| {
+                    executor.execute(AgentId::new(input.name.as_str()), task, context)
+                }))
+                .await
+                .into_iter()
+                .collect::<anyhow::Result<Vec<_>>>()?;
+            Ok(ToolOutput::from(outputs.into_iter()))
         } else if self.agent_executor.contains_tool(&input.name).await? {
             // Handle agent delegation tool calls
             let agent_input = AgentInput::try_from(&input)?;
