@@ -376,8 +376,12 @@ impl<S: AgentService> Orchestrator<S> {
                     })
                     .await?;
                 } else {
-                    // For sub-agents, send the interrupt message as Markdown so the caller knows why it stopped
-                    let error_info = self.error_tracker.errors().iter()
+                    // For sub-agents, send the interrupt message as Markdown so the caller knows
+                    // why it stopped
+                    let error_info = self
+                        .error_tracker
+                        .errors()
+                        .iter()
                         .map(|(name, count)| format!("  - {} failed {} time(s)", name, count))
                         .collect::<Vec<_>>()
                         .join("\n");
@@ -395,7 +399,10 @@ impl<S: AgentService> Orchestrator<S> {
                         self.error_tracker.limit(),
                         error_info
                     );
-                    context = context.add_entry(ContextMessage::user(interrupt_message.clone(), Some(model_id.clone())));
+                    context = context.add_entry(ContextMessage::user(
+                        interrupt_message.clone(),
+                        Some(model_id.clone()),
+                    ));
                     self.send(ChatResponse::TaskMessage {
                         content: ChatResponseContent::Markdown {
                             text: interrupt_message,
@@ -433,7 +440,8 @@ impl<S: AgentService> Orchestrator<S> {
                         })
                         .await?;
                     } else {
-                        // For sub-agents, send the interrupt message as Markdown so the caller knows why it stopped
+                        // For sub-agents, send the interrupt message as Markdown so the caller
+                        // knows why it stopped
                         let interrupt_message = format!(
                             "**Sub-agent Execution Interrupted**\n\n\
                             **Reason:** Maximum request per turn limit reached\n\
@@ -448,10 +456,12 @@ impl<S: AgentService> Orchestrator<S> {
                             - Breaking the task into smaller, more focused sub-tasks\n\
                             - Simplifying the task requirements\n\
                             - Providing more specific instructions to reduce trial-and-error",
-                            max_request_allowed,
-                            request_count
+                            max_request_allowed, request_count
                         );
-                        context = context.add_entry(ContextMessage::user(interrupt_message.clone(), Some(model_id.clone())));
+                        context = context.add_entry(ContextMessage::user(
+                            interrupt_message.clone(),
+                            Some(model_id.clone()),
+                        ));
                         self.send(ChatResponse::TaskMessage {
                             content: ChatResponseContent::Markdown {
                                 text: interrupt_message,

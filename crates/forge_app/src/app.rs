@@ -50,7 +50,8 @@ impl<S: Services> ForgeApp<S> {
     /// # Arguments
     /// * `agent_id` - The ID of the agent to execute
     /// * `chat` - The chat request containing event and conversation ID
-    /// * `is_sub_agent` - Whether this agent is running as a sub-agent (executed as a tool)
+    /// * `is_sub_agent` - Whether this agent is running as a sub-agent
+    ///   (executed as a tool)
     pub async fn chat(
         &self,
         agent_id: AgentId,
