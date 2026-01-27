@@ -80,10 +80,11 @@ impl Display for ZshRPrompt {
 
         // Add cost
         if let Some(cost) = self.cost
-            && active {
-                let cost_str = format!("{:.2}", cost);
-                write!(f, " {}", cost_str.zsh().fg(ZshColor::GREEN).bold())?;
-            }
+            && active
+        {
+            let cost_str = format!("{:.2}", cost);
+            write!(f, " {}", cost_str.zsh().fg(ZshColor::GREEN).bold())?;
+        }
 
         // Add model
         if let Some(ref model_id) = self.model {
