@@ -8,6 +8,7 @@ use std::time::Duration;
 use anyhow::{Context, Result};
 use colored::Colorize;
 use convert_case::{Case, Casing};
+use futures::future;
 use forge_api::{
     API, AgentId, AnyProvider, ApiKeyRequest, AuthContextRequest, AuthContextResponse, ChatRequest,
     ChatResponse, CodeRequest, Conversation, ConversationId, DeviceCodeRequest, Event,
@@ -3102,6 +3103,32 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
         });
 
+        // Calculate total cost including related conversations
+        let cost = if let Some(ref conv) = conversation {
+            // Collect related conversations from agent tool calls in parallel
+            let related_ids = conv.related_conversation_ids();
+            
+            // Fetch all related conversations in parallel
+            let related_futures: Vec<_> = related_ids
+                .iter()
+                .map(|id| {
+                    let api = self.api.clone();
+                    let id = *id;
+                    async move { api.conversation(&id).await }
+                })
+                .collect();
+
+            let related_conversations: Vec<_> = future::join_all(related_futures)
+                .await
+                .into_iter()
+                .filter_map(|result| result.ok().flatten())
+                .collect();
+
+            conv.total_cost_with_related(&related_conversations)
+        } else {
+            None
+        };
+
         // Check if nerd fonts should be used (NERD_FONT or USE_NERD_FONT set to "1")
         let use_nerd_font = std::env::var("NERD_FONT")
             .or_else(|_| std::env::var("USE_NERD_FONT"))
@@ -3117,6 +3144,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             )
             .model(model_id)
             .token_count(conversation.and_then(|conversation| conversation.token_count()))
+            .cost(cost)
             .use_nerd_font(use_nerd_font);
 
         Some(rprompt.to_string())

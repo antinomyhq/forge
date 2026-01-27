@@ -22,6 +22,7 @@ pub struct ZshRPrompt {
     agent: Option<AgentId>,
     model: Option<ModelId>,
     token_count: Option<TokenCount>,
+    cost: Option<f64>,
     /// Controls whether to render nerd font symbols. Defaults to `true`.
     #[setters(into)]
     use_nerd_font: bool,
@@ -33,6 +34,7 @@ impl Default for ZshRPrompt {
             agent: None,
             model: None,
             token_count: None,
+            cost: None,
             use_nerd_font: true,
         }
     }
@@ -73,6 +75,14 @@ impl Display for ZshRPrompt {
 
             if active {
                 write!(f, " {}{}", prefix, num.zsh().fg(ZshColor::WHITE).bold())?;
+            }
+        }
+
+        // Add cost
+        if let Some(cost) = self.cost {
+            if active {
+                let cost_str = format!("${:.1}", cost);
+                write!(f, " {}", cost_str.zsh().fg(ZshColor::GREEN).bold())?;
             }
         }
 
@@ -120,6 +130,21 @@ mod tests {
             .to_string();
 
         let expected = " %B%F{15}\u{f167a} FORGE%f%b %B%F{15}1.5k%f%b %F{134}\u{ec19} gpt-4%f";
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_rprompt_with_tokens_and_cost() {
+        // Tokens > 0 with cost = active/bright state with cost display
+        let actual = ZshRPrompt::default()
+            .agent(Some(AgentId::new("forge")))
+            .model(Some(ModelId::new("gpt-4")))
+            .token_count(Some(TokenCount::Actual(1500)))
+            .cost(Some(0.0123))
+            .to_string();
+
+        let expected =
+            " %B%F{15}\u{f167a} FORGE%f%b %B%F{15}1.5k%f%b %B%F{2}$0.0%f%b %F{134}\u{ec19} gpt-4%f";
         assert_eq!(actual, expected);
     }
 
