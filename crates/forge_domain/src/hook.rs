@@ -1,5 +1,3 @@
-use std::fmt;
-
 use async_trait::async_trait;
 use derive_setters::Setters;
 
@@ -10,15 +8,17 @@ use crate::{Agent, ChatCompletionMessageFull, Conversation, ModelId, ToolCallFul
 pub enum LifecycleEvent {
     /// Event fired when conversation processing starts
     ///
-    /// Contains the model ID being used
+    /// Contains the agent and model ID being used
     Start { agent: Agent, model_id: ModelId },
 
     /// Event fired when conversation processing ends
-    End,
+    ///
+    /// Contains the agent and model ID
+    End { agent: Agent, model_id: ModelId },
 
     /// Event fired when a request is made to the LLM
     ///
-    /// Contains the model ID and request count
+    /// Contains the agent, model ID, and request count
     Request {
         agent: Agent,
         model_id: ModelId,
@@ -27,14 +27,30 @@ pub enum LifecycleEvent {
 
     /// Event fired when a response is received from the LLM
     ///
-    /// Contains the full response message
-    Response(ChatCompletionMessageFull),
+    /// Contains the agent, model ID, and full response message
+    Response {
+        agent: Agent,
+        model_id: ModelId,
+        message: ChatCompletionMessageFull,
+    },
 
     /// Event fired when a tool call starts
-    ToolcallStart(ToolCallFull),
+    ///
+    /// Contains the agent, model ID, and tool call details
+    ToolcallStart {
+        agent: Agent,
+        model_id: ModelId,
+        tool_call: ToolCallFull,
+    },
 
     /// Event fired when a tool call ends
-    ToolcallEnd(ToolResult),
+    ///
+    /// Contains the agent, model ID, and tool result
+    ToolcallEnd {
+        agent: Agent,
+        model_id: ModelId,
+        result: ToolResult,
+    },
 }
 
 /// Trait for handling lifecycle events
@@ -114,16 +130,16 @@ pub struct Hook {
     on_toolcall_end: Box<dyn EventHandle>,
 }
 
-impl fmt::Debug for Hook {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Hook")
-            .field("on_start", &"<handler>")
-            .field("on_end", &"<handler>")
-            .field("on_request", &"<handler>")
-            .field("on_response", &"<handler>")
-            .field("on_toolcall_start", &"<handler>")
-            .field("on_toolcall_end", &"<handler>")
-            .finish()
+impl Default for Hook {
+    fn default() -> Self {
+        Self {
+            on_start: Box::new(NoOpHandler),
+            on_end: Box::new(NoOpHandler),
+            on_request: Box::new(NoOpHandler),
+            on_response: Box::new(NoOpHandler),
+            on_toolcall_start: Box::new(NoOpHandler),
+            on_toolcall_end: Box::new(NoOpHandler),
+        }
     }
 }
 
@@ -144,20 +160,6 @@ impl Hook {
             on_response: on_response.into(),
             on_toolcall_start: on_toolcall_start.into(),
             on_toolcall_end: on_toolcall_end.into(),
-        }
-    }
-
-    /// Creates a new hook with all no-op handlers
-    ///
-    /// This is useful when you need a hook but don't want to handle any events.
-    pub fn default() -> Self {
-        Self {
-            on_start: Box::new(NoOpHandler),
-            on_end: Box::new(NoOpHandler),
-            on_request: Box::new(NoOpHandler),
-            on_response: Box::new(NoOpHandler),
-            on_toolcall_start: Box::new(NoOpHandler),
-            on_toolcall_end: Box::new(NoOpHandler),
         }
     }
 
@@ -193,18 +195,14 @@ impl EventHandle for Hook {
         conversation: &mut Conversation,
     ) -> anyhow::Result<()> {
         match event {
-            LifecycleEvent::Start { agent: _, model_id: _ } => {
-                self.on_start.handle(event, conversation).await
-            }
-            LifecycleEvent::End => self.on_end.handle(event, conversation).await,
-            LifecycleEvent::Request { agent: _, model_id: _, request_count: _ } => {
-                self.on_request.handle(event, conversation).await
-            }
-            LifecycleEvent::Response(_) => self.on_response.handle(event, conversation).await,
-            LifecycleEvent::ToolcallStart(_) => {
+            LifecycleEvent::Start { .. } => self.on_start.handle(event, conversation).await,
+            LifecycleEvent::End { .. } => self.on_end.handle(event, conversation).await,
+            LifecycleEvent::Request { .. } => self.on_request.handle(event, conversation).await,
+            LifecycleEvent::Response { .. } => self.on_response.handle(event, conversation).await,
+            LifecycleEvent::ToolcallStart { .. } => {
                 self.on_toolcall_start.handle(event, conversation).await
             }
-            LifecycleEvent::ToolcallEnd(_) => {
+            LifecycleEvent::ToolcallEnd { .. } => {
                 self.on_toolcall_end.handle(event, conversation).await
             }
         }
@@ -383,9 +381,12 @@ mod tests {
         .await
         .unwrap();
         // Test End event
-        hook.handle(LifecycleEvent::End, &mut conversation)
-            .await
-            .unwrap();
+        hook.handle(
+            LifecycleEvent::End { agent: test_agent(), model_id: test_model_id() },
+            &mut conversation,
+        )
+        .await
+        .unwrap();
         // Test Request event
         hook.handle(
             LifecycleEvent::Request {
@@ -404,7 +405,10 @@ mod tests {
             handled[0],
             LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() }
         );
-        assert_eq!(handled[1], LifecycleEvent::End);
+        assert_eq!(
+            handled[1],
+            LifecycleEvent::End { agent: test_agent(), model_id: test_model_id() }
+        );
         assert_eq!(
             handled[2],
             LifecycleEvent::Request {
@@ -486,22 +490,34 @@ mod tests {
 
         let all_events = vec![
             LifecycleEvent::Start { agent: test_agent(), model_id: test_model_id() },
-            LifecycleEvent::End,
+            LifecycleEvent::End { agent: test_agent(), model_id: test_model_id() },
             LifecycleEvent::Request {
                 agent: test_agent(),
                 model_id: test_model_id(),
                 request_count: 1,
             },
-            LifecycleEvent::Response(ChatCompletionMessageFull {
-                content: "test".to_string(),
-                reasoning: None,
-                tool_calls: vec![],
-                reasoning_details: None,
-                usage: crate::Usage::default(),
-                finish_reason: None,
-            }),
-            LifecycleEvent::ToolcallStart(ToolCallFull::new("test_tool")),
-            LifecycleEvent::ToolcallEnd(ToolResult::new("test_tool")),
+            LifecycleEvent::Response {
+                agent: test_agent(),
+                model_id: test_model_id(),
+                message: ChatCompletionMessageFull {
+                    content: "test".to_string(),
+                    reasoning: None,
+                    tool_calls: vec![],
+                    reasoning_details: None,
+                    usage: crate::Usage::default(),
+                    finish_reason: None,
+                },
+            },
+            LifecycleEvent::ToolcallStart {
+                agent: test_agent(),
+                model_id: test_model_id(),
+                tool_call: ToolCallFull::new("test_tool"),
+            },
+            LifecycleEvent::ToolcallEnd {
+                agent: test_agent(),
+                model_id: test_model_id(),
+                result: ToolResult::new("test_tool"),
+            },
         ];
 
         for event in all_events {
@@ -687,7 +703,10 @@ mod tests {
 
         // Test End event
         combined
-            .handle(LifecycleEvent::End, &mut conversation)
+            .handle(
+                LifecycleEvent::End { agent: test_agent(), model_id: test_model_id() },
+                &mut conversation,
+            )
             .await
             .unwrap();
         assert_eq!(*end_title.lock().unwrap(), Some("End".to_string()));
@@ -916,9 +935,12 @@ mod tests {
         .unwrap();
         assert_eq!(*start_title.lock().unwrap(), Some("Started".to_string()));
 
-        hook.handle(LifecycleEvent::End, &mut conversation)
-            .await
-            .unwrap();
+        hook.handle(
+            LifecycleEvent::End { agent: test_agent(), model_id: test_model_id() },
+            &mut conversation,
+        )
+        .await
+        .unwrap();
         assert_eq!(*end_title.lock().unwrap(), Some("Ended".to_string()));
     }
 
