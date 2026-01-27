@@ -588,12 +588,6 @@ fn normalize_tool_name(name: &ToolName) -> ToolName {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
-pub struct ChunkFileRef {
-    pub file_path: PathBuf,
-    pub start: Option<usize>,
-    pub end: Option<usize>,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, AsRefStr, EnumIter)]
 #[serde(rename_all = "lowercase")]
@@ -616,8 +610,9 @@ impl JsonSchema for ChunkRelevance {
 
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
 pub struct ChunkSelection {
-    pub file: ChunkFileRef,
-    pub reason: String,
+    pub file_path: PathBuf,
+    pub start: Option<usize>,
+    pub end: Option<usize>,
     pub relevance: ChunkRelevance,
 }
 
