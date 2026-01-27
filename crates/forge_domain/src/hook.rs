@@ -134,7 +134,11 @@ pub trait EventHandle<T: Send + Sync>: Send + Sync {
     ///
     /// # Errors
     /// Returns an error if the event handling fails
-    async fn handle(&self, event: &T, conversation: &mut Conversation) -> anyhow::Result<EventResult>;
+    async fn handle(
+        &self,
+        event: &T,
+        conversation: &mut Conversation,
+    ) -> anyhow::Result<EventResult>;
 }
 
 /// Extension trait for combining event handlers
@@ -169,7 +173,11 @@ impl<T: Send + Sync + 'static, A: EventHandle<T> + 'static> EventHandleExt<T> fo
 // Implement EventHandle for Box<dyn EventHandle> to allow using boxed handlers
 #[async_trait]
 impl<T: Send + Sync> EventHandle<T> for Box<dyn EventHandle<T>> {
-    async fn handle(&self, event: &T, conversation: &mut Conversation) -> anyhow::Result<EventResult> {
+    async fn handle(
+        &self,
+        event: &T,
+        conversation: &mut Conversation,
+    ) -> anyhow::Result<EventResult> {
         (**self).handle(event, conversation).await
     }
 }
@@ -288,7 +296,11 @@ struct CombinedHandler<T: Send + Sync>(Box<dyn EventHandle<T>>, Box<dyn EventHan
 
 #[async_trait]
 impl<T: Send + Sync> EventHandle<T> for CombinedHandler<T> {
-    async fn handle(&self, event: &T, conversation: &mut Conversation) -> anyhow::Result<EventResult> {
+    async fn handle(
+        &self,
+        event: &T,
+        conversation: &mut Conversation,
+    ) -> anyhow::Result<EventResult> {
         // Run the first handler
         let result = self.0.handle(event, conversation).await?;
         // If the first handler returns Exit, exit immediately
@@ -320,7 +332,11 @@ where
     F: Fn(&T, &mut Conversation) -> Fut + Send + Sync,
     Fut: std::future::Future<Output = anyhow::Result<EventResult>> + Send,
 {
-    async fn handle(&self, event: &T, conversation: &mut Conversation) -> anyhow::Result<EventResult> {
+    async fn handle(
+        &self,
+        event: &T,
+        conversation: &mut Conversation,
+    ) -> anyhow::Result<EventResult> {
         (self)(event, conversation).await
     }
 }

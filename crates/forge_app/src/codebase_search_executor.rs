@@ -51,12 +51,16 @@ impl<S: Services> CodebaseSearchExecutor<S> {
         let captured_output = Arc::new(Mutex::new(None));
         let tool_name = forge_domain::ToolName::new("report_search");
 
-        let hook = hooks::tool_output_capture(agent_id.clone(), tool_name.clone(), captured_output.clone())
-            .zip(hooks::tool_call_reminder(
-                agent_id.clone(),
-                tool_name,
-                env.codebase_search_max_iterations,
-            ));
+        let hook = hooks::tool_output_capture(
+            agent_id.clone(),
+            tool_name.clone(),
+            captured_output.clone(),
+        )
+        .zip(hooks::tool_call_reminder(
+            agent_id.clone(),
+            tool_name,
+            env.codebase_search_max_iterations,
+        ));
 
         // Execute the request through ForgeApp with both hooks merged
         let app = crate::ForgeApp::<S>::new(self.services.clone()).with_hook(Arc::new(hook));
