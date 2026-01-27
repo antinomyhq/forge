@@ -237,7 +237,10 @@ fn codebase_search_hook(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use forge_domain::{Agent, ModelId, ProviderId, ToolOutput};
+    use forge_domain::{
+        Agent, AgentId, EventData, LifecycleEvent, ModelId, ProviderId, RequestPayload,
+        ToolcallEndPayload, ToolOutput,
+    };
 
     #[test]
     fn test_halfway_reminder() {
@@ -334,20 +337,17 @@ mod tests {
             .context(forge_domain::Context::default());
 
         // Simulate request from codebase_search agent at halfway point
-        hook.handle(
-            LifecycleEvent::Request {
-                agent: Agent::new(
-                    AgentId::new("codebase_search"),
-                    ProviderId::FORGE,
-                    ModelId::new("test-model"),
-                ),
-                model_id: ModelId::new("test-model"),
-                request_count: 5,
-            },
-            &mut conversation,
-        )
-        .await
-        .unwrap();
+        let agent = Agent::new(
+            AgentId::new("codebase_search"),
+            ProviderId::FORGE,
+            ModelId::new("test-model"),
+        );
+        let event = LifecycleEvent::Request(EventData::new(
+            agent,
+            ModelId::new("test-model"),
+            RequestPayload::new(5),
+        ));
+        hook.handle(&event, &mut conversation).await.unwrap();
 
         // Verify reminder was added
         let ctx = conversation.context.as_ref().unwrap();
@@ -378,9 +378,17 @@ mod tests {
         };
 
         // Simulate toolcall_end event
-        hook.handle(LifecycleEvent::ToolcallEnd(result), &mut conversation)
-            .await
-            .unwrap();
+        let agent = Agent::new(
+            AgentId::new("codebase_search"),
+            ProviderId::FORGE,
+            ModelId::new("test-model"),
+        );
+        let event = LifecycleEvent::ToolcallEnd(EventData::new(
+            agent,
+            ModelId::new("test-model"),
+            ToolcallEndPayload::new(result.clone()),
+        ));
+        hook.handle(&event, &mut conversation).await.unwrap();
 
         // Verify output was captured
         let captured = captured_output.lock().await.take();

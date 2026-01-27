@@ -228,10 +228,9 @@ impl<
                     .into_iter()
                     .map(|chunk| {
                         let normalized_path =
-                            self.normalize_path(chunk.file.file_path.display().to_string());
-                        let start_line = chunk.file.start.map(|s| s as u64);
-                        let end_line = chunk.file.end.map(|e| e as u64);
-                        let reason = chunk.reason;
+                            self.normalize_path(chunk.file_path.display().to_string());
+                        let start_line = chunk.start.map(|s| s as u64);
+                        let end_line = chunk.end.map(|e| e as u64);
                         let relevance = chunk.relevance.as_ref().to_string();
                         let services = self.services.clone();
 
@@ -250,7 +249,6 @@ impl<
                                 content,
                                 start_line: read_output.start_line,
                                 end_line: read_output.end_line,
-                                reason,
                                 relevance,
                             }))
                         }

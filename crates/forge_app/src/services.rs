@@ -151,8 +151,6 @@ pub struct ReadChunk {
     pub start_line: u64,
     /// End line in the file
     pub end_line: u64,
-    /// Reason for selecting this chunk
-    pub reason: String,
     /// Relevance score of the chunk
     pub relevance: String,
 }

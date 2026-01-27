@@ -193,35 +193,17 @@ expression: tools
       "items": {
         "type": "object",
         "required": [
-          "file",
-          "reason",
+          "file_path",
           "relevance"
         ],
         "properties": {
-          "file": {
-            "type": "object",
-            "required": [
-              "file_path"
-            ],
-            "properties": {
-              "end": {
-                "type": "integer",
-                "format": "uint",
-                "minimum": 0.0,
-                "nullable": true
-              },
-              "file_path": {
-                "type": "string"
-              },
-              "start": {
-                "type": "integer",
-                "format": "uint",
-                "minimum": 0.0,
-                "nullable": true
-              }
-            }
+          "end": {
+            "type": "integer",
+            "format": "uint",
+            "minimum": 0.0,
+            "nullable": true
           },
-          "reason": {
+          "file_path": {
             "type": "string"
           },
           "relevance": {
@@ -231,6 +213,12 @@ expression: tools
               "medium",
               "low"
             ]
+          },
+          "start": {
+            "type": "integer",
+            "format": "uint",
+            "minimum": 0.0,
+            "nullable": true
           }
         }
       }
