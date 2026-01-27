@@ -24,8 +24,8 @@ impl<F: FsReadService + Send + Sync> SearchReportService for ForgeSearchReport<F
             .into_iter()
             .map(|chunk| {
                 let normalized_path = chunk.file_path.display().to_string();
-                let start_line = chunk.start.map(|s| s as u64);
-                let end_line = chunk.end.map(|e| e as u64);
+                let start_line = chunk.start_line.map(|s| s as u64);
+                let end_line = chunk.end_line.map(|e| e as u64);
                 let relevance = chunk.relevance.as_ref().to_string();
                 let fs_read_service = self.fs_read_service.clone();
 

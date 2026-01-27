@@ -630,10 +630,10 @@ pub struct ChunkSelection {
     pub file_path: PathBuf,
     /// Starting line number (1-indexed). Narrow to the specific relevant
     /// section.
-    pub start: Option<usize>,
+    pub start_line: Option<usize>,
     /// Ending line number (1-indexed, inclusive). Narrow to the specific
     /// relevant section.
-    pub end: Option<usize>,
+    pub end_line: Option<usize>,
     /// How relevant this chunk is to the search query
     pub relevance: ChunkRelevance,
 }
