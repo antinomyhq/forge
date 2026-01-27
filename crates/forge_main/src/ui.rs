@@ -300,7 +300,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     self.spinner.reset();
                     return Ok(());
                 }
-                result = self.on_message(Some(input)) => {
+                result = self.on_message(Some(input), None) => {
                     result?;
                 }
             }
@@ -713,7 +713,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 self.state.conversation_id = Some(id);
 
                 self.spinner.start(None)?;
-                self.on_message(None).await?;
+                self.on_message(None, None).await?;
 
                 self.state.conversation_id = original_id;
             }
@@ -1784,7 +1784,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
             SlashCommand::Message(ref content) => {
                 self.spinner.start(None)?;
-                self.on_message(Some(content.clone())).await?;
+                self.on_message(Some(content.clone()), None).await?;
             }
             SlashCommand::Forge => {
                 self.on_agent_change(AgentId::FORGE).await?;
@@ -1896,7 +1896,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
             SlashCommand::Retry => {
                 self.spinner.start(None)?;
-                self.on_message(None).await?;
+                self.on_message(None, None).await?;
             }
             SlashCommand::Index => {
                 let working_dir = self.state.cwd.clone();
@@ -2595,8 +2595,12 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(workflow)
     }
 
-    async fn on_message(&mut self, content: Option<String>) -> Result<()> {
-        let conversation_id = self.init_conversation().await?;
+    async fn on_message(
+        &mut self,
+        content: Option<String>,
+        conversation_id: Option<ConversationId>,
+    ) -> Result<()> {
+        let conversation_id = conversation_id.unwrap_or(self.init_conversation().await?);
 
         self.install_vscode_extension();
 
@@ -2818,7 +2822,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     self.writeln_title(TitleFormat::error(cause.as_str()))?;
                 }
             }
-            ChatResponse::Interrupt { reason } => {
+            ChatResponse::Interrupt { reason, conversation_id } => {
                 writer.finish()?;
                 self.spinner.stop(None)?;
 
@@ -2832,7 +2836,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 };
 
                 self.writeln_title(TitleFormat::action(title))?;
-                self.should_continue().await?;
+                self.should_continue(conversation_id).await?;
             }
             ChatResponse::TaskReasoning { content } => {
                 writer.write_dimmed(&content)?;
@@ -2849,14 +2853,14 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(())
     }
 
-    async fn should_continue(&mut self) -> anyhow::Result<()> {
+    async fn should_continue(&mut self, conversation_id: ConversationId) -> anyhow::Result<()> {
         let should_continue = ForgeSelect::confirm("Do you want to continue anyway?")
             .with_default(true)
             .prompt()?;
 
         if should_continue.unwrap_or(false) {
             self.spinner.start(None)?;
-            Box::pin(self.on_message(None)).await?;
+            Box::pin(self.on_message(None, Some(conversation_id))).await?;
         }
 
         Ok(())
