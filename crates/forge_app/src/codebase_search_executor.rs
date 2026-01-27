@@ -34,7 +34,7 @@ impl<S: Services> CodebaseSearchExecutor<S> {
         ctx: &ToolCallContext,
     ) -> anyhow::Result<ToolOutput> {
         ctx.send_tool_input(
-            TitleFormat::debug(format!("Codebase Search"))
+            TitleFormat::debug("Codebase Search".to_string())
                 .sub_title(format!("[{}]", task.as_str())),
         )
         .await?;
