@@ -6,7 +6,10 @@ description: |-
   Usage:
   - Use for locating code to modify, understanding how features work, finding patterns/examples
   - Returns topK most relevant file:line locations with code snippets inline
-  - Provide detailed queries: specify WHAT you're looking for and WHY you need it. Good: 'Find where user sessions are validated - need to add expiry check'. Bad: 'sessions' (too vague)
+  - QUERY QUALITY MATTERS: Provide detailed, structured queries for better results.
+    - WHAT: Numbered list of specific aspects to find
+    - WHY: The purpose or goal driving the search
+    - Good: 'WHAT: 1. How user credentials are validated 2. Where tokens are refreshed 3. How auth headers are applied. WHY: Need to add session expiry checks'. Bad: 'authentication' (too vague).
 reasoning:
   enabled: true
 tools:
