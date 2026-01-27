@@ -376,33 +376,14 @@ impl<S: AgentService> Orchestrator<S> {
                     })
                     .await?;
                 } else {
-                    // For sub-agents, send the interrupt message as Markdown so the caller knows
-                    // why it stopped
-                    let error_info = self
-                        .error_tracker
-                        .errors()
-                        .iter()
-                        .map(|(name, count)| format!("  - {} failed {} time(s)", name, count))
-                        .collect::<Vec<_>>()
-                        .join("\n");
-                    let interrupt_message = format!(
-                        "**Sub-agent Execution Interrupted**\n\n\
-                        **Reason:** Maximum tool failure limit reached\n\
-                        **Limit:** {} failures per turn\n\
-                        **Failed Tools:**\n{}\n\n\
-                        The sub-agent was unable to complete the task due to repeated tool failures. \
-                        Consider:\n\
-                        - Simplifying the task or breaking it into smaller steps\n\
-                        - Checking if the required resources or permissions are available\n\
-                        - Trying a different approach or using different tools\n\
-                        - Reviewing the error messages above for specific issues",
-                        self.error_tracker.limit(),
-                        error_info
-                    );
-                    context = context.add_entry(ContextMessage::user(
-                        interrupt_message.clone(),
-                        Some(model_id.clone()),
-                    ));
+                    // For sub-agents, send the interrupt message as Markdown so the caller knows why it stopped
+                    let template_context = serde_json::json!({
+                        "limit": self.error_tracker.limit(),
+                        "errors": self.error_tracker.errors(),
+                    });
+                    let interrupt_message = TemplateEngine::default()
+                        .render("forge-sub-agent-interrupt-message.md", &template_context)?;
+                    context = context.add_entry(ContextMessage::user(interrupt_message.clone(), Some(model_id.clone())));
                     self.send(ChatResponse::TaskMessage {
                         content: ChatResponseContent::Markdown {
                             text: interrupt_message,
@@ -440,28 +421,14 @@ impl<S: AgentService> Orchestrator<S> {
                         })
                         .await?;
                     } else {
-                        // For sub-agents, send the interrupt message as Markdown so the caller
-                        // knows why it stopped
-                        let interrupt_message = format!(
-                            "**Sub-agent Execution Interrupted**\n\n\
-                            **Reason:** Maximum request per turn limit reached\n\
-                            **Limit:** {} requests per turn\n\
-                            **Requests Made:** {}\n\n\
-                            The sub-agent was unable to complete the task within the allowed number of requests. \
-                            This typically happens when:\n\
-                            - The task is too complex and requires many iterations\n\
-                            - The agent is stuck in a loop or making repeated unsuccessful attempts\n\
-                            - Multiple tool calls are needed that exceed the limit\n\n\
-                            Consider:\n\
-                            - Breaking the task into smaller, more focused sub-tasks\n\
-                            - Simplifying the task requirements\n\
-                            - Providing more specific instructions to reduce trial-and-error",
-                            max_request_allowed, request_count
-                        );
-                        context = context.add_entry(ContextMessage::user(
-                            interrupt_message.clone(),
-                            Some(model_id.clone()),
-                        ));
+                        // For sub-agents, send the interrupt message as Markdown so the caller knows why it stopped
+                        let template_context = serde_json::json!({
+                            "limit": max_request_allowed,
+                            "request_count": request_count,
+                        });
+                        let interrupt_message = TemplateEngine::default()
+                            .render("forge-sub-agent-request-limit-message.md", &template_context)?;
+                        context = context.add_entry(ContextMessage::user(interrupt_message.clone(), Some(model_id.clone())));
                         self.send(ChatResponse::TaskMessage {
                             content: ChatResponseContent::Markdown {
                                 text: interrupt_message,
