@@ -251,8 +251,9 @@ pub struct SemanticSearch {
 #[tool_description_file = "crates/forge_domain/src/tools/descriptions/codebase_search.md"]
 pub struct CodebaseSearch {
     /// A detailed query specifying exactly what to find and why.
-    /// Include: which part of the codebase, what specific things to find, why you need them.
-    /// Example: "Find the OpenAI API client retry logic: 1. backoff strategy
+    /// Include: which part of the codebase, what specific things to find, why
+    /// you need them. Example: "Find the OpenAI API client retry logic: 1.
+    /// backoff strategy
     /// 2. max retry count 3. which errors trigger retry. Need to add
     /// rate limit handling."
     #[serde(default)]
