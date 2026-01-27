@@ -2598,7 +2598,8 @@ mod tests {
 
     #[test]
     fn test_search_report_mixed_files_with_sorting() {
-        // Test multiple files with multiple chunks each, testing both file sorting and chunk sorting
+        // Test multiple files with multiple chunks each, testing both file sorting and
+        // chunk sorting
         let fixture = ToolOperation::SearchReport {
             output: SearchReportOutput {
                 chunks: vec![
