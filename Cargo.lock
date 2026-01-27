@@ -1839,6 +1839,7 @@ dependencies = [
  "forge_spinner",
  "forge_tracker",
  "forge_walker",
+ "futures",
  "humantime",
  "indexmap",
  "insta",

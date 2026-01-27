@@ -23,6 +23,7 @@ use forge_fs::ForgeFS;
 use forge_select::ForgeSelect;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
+use futures::future;
 use merge::Merge;
 use tokio_stream::StreamExt;
 use tracing::debug;
@@ -375,7 +376,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             TopLevelCommand::Agent(agent_group) => {
                 match agent_group.command {
                     crate::cli::AgentCommand::List => {
-                        self.on_show_agents(agent_group.porcelain).await?;
+                        self.on_show_agents(agent_group.porcelain, false).await?;
                     }
                 }
                 return Ok(());
@@ -383,8 +384,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             TopLevelCommand::List(list_group) => {
                 let porcelain = list_group.porcelain;
                 match list_group.command {
-                    ListCommand::Agent => {
-                        self.on_show_agents(porcelain).await?;
+                    ListCommand::Agent { custom } => {
+                        self.on_show_agents(porcelain, custom).await?;
                     }
                     ListCommand::Provider { types } => {
                         self.on_show_providers(porcelain, types).await?;
@@ -414,8 +415,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     ListCommand::Cmd => {
                         self.on_show_custom_commands(porcelain).await?;
                     }
-                    ListCommand::Skill => {
-                        self.on_show_skills(porcelain).await?;
+                    ListCommand::Skill { custom } => {
+                        self.on_show_skills(porcelain, custom).await?;
                     }
                 }
                 return Ok(());
@@ -934,10 +935,16 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     }
 
     /// Builds an Info structure for agents with their details
-    async fn build_agents_info(&self) -> anyhow::Result<Info> {
+    async fn build_agents_info(&self, custom: bool) -> anyhow::Result<Info> {
         let mut agents = self.api.get_agents().await?;
         // Sort agents alphabetically by ID
         agents.sort_by(|a, b| a.id.as_str().cmp(b.id.as_str()));
+
+        // Filter agents based on custom flag
+        if custom {
+            agents.retain(|agent| agent.path.is_some());
+        }
+
         let mut info = Info::new();
 
         for agent in agents.iter() {
@@ -985,14 +992,14 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(info)
     }
 
-    async fn on_show_agents(&mut self, porcelain: bool) -> anyhow::Result<()> {
+    async fn on_show_agents(&mut self, porcelain: bool, custom: bool) -> anyhow::Result<()> {
         let agents = self.api.get_agents().await?;
 
         if agents.is_empty() {
             return Ok(());
         }
 
-        let info = self.build_agents_info().await?;
+        let info = self.build_agents_info(custom).await?;
 
         if porcelain {
             let porcelain = Porcelain::from(&info)
@@ -1224,8 +1231,19 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
     }
 
     /// Lists available skills
-    async fn on_show_skills(&mut self, porcelain: bool) -> anyhow::Result<()> {
+    async fn on_show_skills(&mut self, porcelain: bool, custom: bool) -> anyhow::Result<()> {
         let skills = self.api.get_skills().await?;
+
+        // Filter skills based on custom flag
+        let skills = if custom {
+            skills
+                .into_iter()
+                .filter(|skill| skill.path.is_some())
+                .collect()
+        } else {
+            skills
+        };
+
         let mut info = Info::new();
         let env = self.api.environment();
 
@@ -1242,7 +1260,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
 
         if porcelain {
-            let porcelain = Porcelain::from(&info).truncate(3, 60).uppercase_headers();
+            let porcelain = Porcelain::from(&info)
+                .drop_col(0)
+                .truncate(2, 60)
+                .uppercase_headers();
             self.writeln(porcelain)?;
         } else {
             self.writeln(info)?;
@@ -1834,7 +1855,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
 
                 // Reuse the same Info building logic as list agents
-                let info = self.build_agents_info().await?;
+                let info = self.build_agents_info(false).await?;
 
                 // Convert to porcelain format (same as list agents --porcelain)
                 let porcelain_output = Porcelain::from(&info)
@@ -2649,6 +2670,30 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(())
     }
 
+    /// Fetches related conversations for a given conversation in parallel.
+    ///
+    /// Returns a vector of related conversations that could be successfully
+    /// fetched.
+    async fn fetch_related_conversations(&self, conversation: &Conversation) -> Vec<Conversation> {
+        let related_ids = conversation.related_conversation_ids();
+
+        // Fetch all related conversations in parallel
+        let related_futures: Vec<_> = related_ids
+            .iter()
+            .map(|id| {
+                let api = self.api.clone();
+                let id = *id;
+                async move { api.conversation(&id).await }
+            })
+            .collect();
+
+        future::join_all(related_futures)
+            .await
+            .into_iter()
+            .filter_map(|result| result.ok().flatten())
+            .collect()
+    }
+
     /// Modified version of handle_dump that supports HTML format
     async fn on_dump(&mut self, html: bool) -> Result<()> {
         if let Some(conversation_id) = self.state.conversation_id {
@@ -2657,13 +2702,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 let timestamp = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
 
                 // Collect related conversations from agent tool calls
-                let related_ids = conversation.related_conversation_ids();
-                let mut related_conversations = Vec::new();
-                for id in related_ids {
-                    if let Ok(Some(related)) = self.api.conversation(&id).await {
-                        related_conversations.push(related);
-                    }
-                }
+                let related_conversations = self.fetch_related_conversations(&conversation).await;
 
                 if html {
                     // Create a single HTML with all conversations
@@ -2742,15 +2781,15 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
         match message {
             ChatResponse::TaskMessage { content } => match content {
-                ChatResponseContent::Title(title) => {
+                ChatResponseContent::ToolInput(title) => {
                     writer.finish()?;
                     self.writeln(title.display())?;
                 }
-                ChatResponseContent::PlainText(text) => {
+                ChatResponseContent::ToolOutput(text) => {
                     writer.finish()?;
                     self.writeln(text)?;
                 }
-                ChatResponseContent::Markdown(text) => {
+                ChatResponseContent::Markdown { text, partial: _ } => {
                     tracing::info!(message = %text, "Agent Response");
                     writer.write(&text)?;
                 }
@@ -3091,6 +3130,18 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
         });
 
+        // Calculate total cost including related conversations
+        let cost = if let Some(ref conv) = conversation {
+            let related_conversations = self.fetch_related_conversations(conv).await;
+            let all_conversations: Vec<_> = std::iter::once(conv)
+                .chain(related_conversations.iter())
+                .cloned()
+                .collect();
+            Conversation::total_cost(&all_conversations)
+        } else {
+            None
+        };
+
         // Check if nerd fonts should be used (NERD_FONT or USE_NERD_FONT set to "1")
         let use_nerd_font = std::env::var("NERD_FONT")
             .or_else(|_| std::env::var("USE_NERD_FONT"))
@@ -3106,6 +3157,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             )
             .model(model_id)
             .token_count(conversation.and_then(|conversation| conversation.token_count()))
+            .cost(cost)
             .use_nerd_font(use_nerd_font);
 
         Some(rprompt.to_string())

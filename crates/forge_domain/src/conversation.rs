@@ -137,6 +137,29 @@ impl Conversation {
         self.accumulated_usage().and_then(|usage| usage.cost)
     }
 
+    /// Calculates the total cost including related conversations.
+    ///
+    /// This method sums the costs of the current conversation and all related
+    /// conversations provided. It's useful for computing the total cost of a
+    /// conversation tree when agent tools spawn child conversations.
+    ///
+    /// # Arguments
+    ///
+    /// * `conversations` - A slice of conversations to include in cost
+    ///   calculation
+    pub fn total_cost(conversations: &[Conversation]) -> Option<f64> {
+        let costs: Vec<f64> = conversations
+            .iter()
+            .filter_map(|conv| conv.accumulated_cost())
+            .collect();
+
+        if costs.is_empty() {
+            return None;
+        }
+
+        Some(costs.iter().sum())
+    }
+
     /// Extracts all related conversation IDs from agent tool calls.
     ///
     /// This method scans through all tool results in the conversation's context
@@ -241,5 +264,78 @@ mod tests {
         let actual = conversation.related_conversation_ids();
 
         assert_eq!(actual, vec![agent_conv_id]);
+    }
+
+    #[test]
+    fn test_total_cost() {
+        use crate::{MessageEntry, Usage};
+
+        // Create main conversation with cost
+        let main_usage = Usage { cost: Some(0.01), ..Usage::default() };
+        let main_entry: MessageEntry = ContextMessage::assistant("Response", None, None).into();
+        let main_context = Context::default()
+            .add_message(ContextMessage::user("Test", None))
+            .add_entry(main_entry.usage(main_usage));
+
+        let main_conv = Conversation::generate().context(main_context);
+
+        // Create related conversations with costs
+        let related_usage_1 = Usage { cost: Some(0.02), ..Usage::default() };
+        let related_entry_1: MessageEntry =
+            ContextMessage::assistant("Result 1", None, None).into();
+        let related_context_1 = Context::default()
+            .add_message(ContextMessage::user("Task 1", None))
+            .add_entry(related_entry_1.usage(related_usage_1));
+
+        let related_conv_1 = Conversation::generate().context(related_context_1);
+
+        let related_usage_2 = Usage { cost: Some(0.03), ..Usage::default() };
+        let related_entry_2: MessageEntry =
+            ContextMessage::assistant("Result 2", None, None).into();
+        let related_context_2 = Context::default()
+            .add_message(ContextMessage::user("Task 2", None))
+            .add_entry(related_entry_2.usage(related_usage_2));
+
+        let related_conv_2 = Conversation::generate().context(related_context_2);
+
+        let actual = Conversation::total_cost(&[main_conv, related_conv_1, related_conv_2]);
+
+        // Check that cost is approximately 0.06 (accounting for floating point
+        // precision)
+        assert!(actual.is_some());
+        assert!((actual.unwrap() - 0.06).abs() < 0.0001);
+    }
+
+    #[test]
+    fn test_total_cost_no_costs() {
+        let main_conv = Conversation::generate();
+        let related_conv = Conversation::generate();
+
+        let actual = Conversation::total_cost(&[main_conv, related_conv]);
+        let expected = None;
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_total_cost_partial_costs() {
+        use crate::{MessageEntry, Usage};
+
+        // Main conversation has no cost
+        let main_conv = Conversation::generate();
+
+        // Related conversation has cost
+        let related_usage = Usage { cost: Some(0.05), ..Usage::default() };
+        let related_entry: MessageEntry = ContextMessage::assistant("Result", None, None).into();
+        let related_context = Context::default()
+            .add_message(ContextMessage::user("Task", None))
+            .add_entry(related_entry.usage(related_usage));
+
+        let related_conv = Conversation::generate().context(related_context);
+
+        let actual = Conversation::total_cost(&[main_conv, related_conv]);
+        let expected = Some(0.05);
+
+        assert_eq!(actual, expected);
     }
 }
