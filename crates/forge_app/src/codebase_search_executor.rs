@@ -13,7 +13,7 @@ use futures::StreamExt;
 use tokio::sync::Mutex;
 
 use crate::error::Error;
-use crate::{hooks, ConversationService, EnvironmentService, Services};
+use crate::{ConversationService, EnvironmentService, Services, hooks};
 
 #[derive(Clone)]
 pub struct CodebaseSearchExecutor<S> {
@@ -34,7 +34,7 @@ impl<S: Services> CodebaseSearchExecutor<S> {
         ctx: &ToolCallContext,
     ) -> anyhow::Result<ToolOutput> {
         ctx.send_tool_input(
-            TitleFormat::debug(format!("Codebase Search",)).sub_title(task.as_str()),
+            TitleFormat::debug("Codebase Search".to_string()).sub_title(task.as_str()),
         )
         .await?;
 

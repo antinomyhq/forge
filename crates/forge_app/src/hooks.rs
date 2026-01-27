@@ -17,10 +17,7 @@ struct ToolCallReminder {
 
 impl ToolCallReminder {
     fn new(tool_name: ToolName, max_iterations: usize) -> Self {
-        Self {
-            tool_name,
-            max_iterations,
-        }
+        Self { tool_name, max_iterations }
     }
 
     /// Applies a reminder message to the conversation if needed based on the
@@ -83,15 +80,12 @@ impl ToolCallReminder {
     }
 }
 
-/// Creates a hook that reminds the agent to call a tool before exceeding iteration limits.
+/// Creates a hook that reminds the agent to call a tool before exceeding
+/// iteration limits.
 ///
 /// Adds reminder messages at key milestones (halfway, urgent, final) and forces
 /// the tool call when max iterations is reached.
-pub fn tool_call_reminder(
-    agent_id: AgentId,
-    tool_name: ToolName,
-    max_iterations: usize,
-) -> Hook {
+pub fn tool_call_reminder(agent_id: AgentId, tool_name: ToolName, max_iterations: usize) -> Hook {
     let reminder = ToolCallReminder::new(tool_name, max_iterations);
     Hook::default().on_request({
         move |event: &EventData<RequestPayload>, conversation: &mut Conversation| {
@@ -198,15 +192,9 @@ mod tests {
             .context(forge_domain::Context::default());
 
         // Add an existing message
-        conversation.context = Some(
-            conversation
-                .context
-                .unwrap()
-                .add_message(ContextMessage::Text(TextMessage::new(
-                    Role::User,
-                    "existing message".to_string(),
-                ))),
-        );
+        conversation.context = Some(conversation.context.unwrap().add_message(
+            ContextMessage::Text(TextMessage::new(Role::User, "existing message".to_string())),
+        ));
 
         reminder.apply(5, &mut conversation);
 
@@ -249,7 +237,8 @@ mod tests {
         let agent_id = AgentId::new("codebase_search");
         let tool_name = ToolName::new("report_search");
         let captured_output = Arc::new(Mutex::new(None));
-        let hook = tool_output_capture(agent_id.clone(), tool_name.clone(), captured_output.clone());
+        let hook =
+            tool_output_capture(agent_id.clone(), tool_name.clone(), captured_output.clone());
 
         let mut conversation = Conversation::generate()
             .title(Some("test".to_string()))
