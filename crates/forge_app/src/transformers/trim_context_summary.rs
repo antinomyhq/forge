@@ -37,7 +37,7 @@ enum Operation<'a> {
     /// MCP tool call by name
     Mcp(&'a str),
     /// Search result reporting
-    SearchReport(Vec<String>),
+    SearchReport(&'a [String]),
 }
 
 /// Converts the tool call to its operation type for comparison.
@@ -61,8 +61,8 @@ fn to_op(tool: &SummaryTool) -> Operation<'_> {
         SummaryTool::Skill { name } => Operation::Skill(name),
         SummaryTool::Mcp { name } => Operation::Mcp(name),
         SummaryTool::ReportSearch { paths } => {
-            Operation::SearchReport(paths.to_owned())
-        }
+            Operation::SearchReport(paths)
+        },
     }
 }
 
