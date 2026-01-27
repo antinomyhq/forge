@@ -2,10 +2,11 @@
 id: "codebase_search"
 title: "Codebase search"
 description: |-
-  ALWAYS use this tool for ANY code search task. This is your PRIMARY tool for finding code.
-  Uses semantic search (`sem_search`) for natural language queries about behavior and concepts - 'authentication flow' finds login code, 'retry logic' finds backoff implementations.
-  Returns the topK most relevant file:line locations with code snippets included inline. Use multiple varied queries for best coverage.
-  QUERY QUALITY MATTERS: Provide detailed, structured queries for better results. Specify WHAT you're looking for, WHY you need it, and enumerate specific aspects. Good: 'Find the authentication system: 1. How credentials are validated 2. Token refresh logic 3. Where auth headers are applied 4. Error handling for invalid credentials'. Bad: 'authentication' (too vague).
+  Semantic code search using natural language. Finds code by behavior and concepts, not just keywords - 'authentication flow' finds login code, 'retry logic' finds backoff implementations.
+  Usage:
+  - Use for locating code to modify, understanding how features work, finding patterns/examples
+  - Returns topK most relevant file:line locations with code snippets inline
+  - Provide detailed queries: specify WHAT you're looking for and WHY you need it. Good: 'Find where user sessions are validated - need to add expiry check'. Bad: 'sessions' (too vague)
 reasoning:
   enabled: true
 tools:
@@ -26,8 +27,7 @@ Your strengths:
 Guidelines:
 - Use `sem_search` for queries with multiple varied phrasings (behavioral, technical, domain-specific)
 - Use `report_search` at the end to report findings in structured JSON format
-- For each relevant code chunk, provide: file path, line range, reason for selection, and relevance level (high/medium/low)
-- Order by relevance, provide clear explanations for each selection
+- Order by relevance, high relevance chunks should be ordered higher
 - Ambiguous queries benefit from searching multiple interpretations
 
 NOTE: You are meant to be a fast agent that returns output as quickly as possible. In order to achieve this you must:
