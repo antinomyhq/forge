@@ -478,9 +478,7 @@ impl ToolOperation {
 
                 forge_domain::ToolOutput::text(root)
             }
-            ToolOperation::CodebaseSearch { output } => {
-                output
-            }
+            ToolOperation::CodebaseSearch { output } => output,
             ToolOperation::FsPatch { input, output } => {
                 let diff_result = DiffFormat::format(&output.before, &output.after);
                 let diff = console::strip_ansi_codes(diff_result.diff()).to_string();

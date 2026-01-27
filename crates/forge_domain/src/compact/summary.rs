@@ -126,7 +126,7 @@ impl SummaryToolCall {
         }
     }
 
-     /// Creates a CodebaseSearch tool call with default values (id: None,
+    /// Creates a CodebaseSearch tool call with default values (id: None,
     /// is_success: true)
     pub fn sem_search(queries: Vec<SearchQuery>, file_extensions: Vec<String>) -> Self {
         Self {
@@ -355,9 +355,9 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
             }
             ToolCatalog::Plan(input) => Some(SummaryTool::Plan { plan_name: input.plan_name }),
             ToolCatalog::Skill(input) => Some(SummaryTool::Skill { name: input.name }),
-            ToolCatalog::CodebaseSearch(input) => Some(SummaryTool::CodebaseSearch {
-                query: input.query,
-            }),
+            ToolCatalog::CodebaseSearch(input) => {
+                Some(SummaryTool::CodebaseSearch { query: input.query })
+            }
         };
     }
 

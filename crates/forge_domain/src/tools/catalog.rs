@@ -245,13 +245,14 @@ pub struct SemanticSearch {
     pub extensions: Vec<String>,
 }
 
-/// Semantic code search using natural language. Finds code by behavior and concepts.
+/// Semantic code search using natural language. Finds code by behavior and
+/// concepts.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq, Default)]
 #[tool_description_file = "crates/forge_domain/src/tools/descriptions/codebase_search.md"]
 pub struct CodebaseSearch {
-    /// A detailed search query specifying WHAT you're looking for and WHY you need it.
-    /// Good: 'Find where user sessions are validated - need to add expiry check'.
-    /// Bad: 'sessions' (too vague).
+    /// A detailed search query specifying WHAT you're looking for and WHY you
+    /// need it. Good: 'Find where user sessions are validated - need to add
+    /// expiry check'. Bad: 'sessions' (too vague).
     #[serde(default)]
     pub query: String,
 }
