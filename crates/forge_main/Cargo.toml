@@ -31,6 +31,7 @@ merge.workspace = true
 forge_fs.workspace = true
 tokio.workspace = true
 tokio-stream.workspace = true
+futures.workspace = true
 colored.workspace = true
 
 anyhow.workspace = true
