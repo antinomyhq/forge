@@ -522,6 +522,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     self.writeln_title(TitleFormat::info("MCP reloaded"))?;
                 }
             },
+            TopLevelCommand::Acp(acp_command) => {
+                self.handle_acp_command(acp_command).await?;
+                return Ok(());
+            }
             TopLevelCommand::Info { porcelain, conversation_id } => {
                 // Make sure to init model
                 self.on_new().await?;
@@ -931,6 +935,42 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 Err(e)
             }
         }
+    }
+
+    async fn handle_acp_command(
+        &mut self,
+        acp_command: crate::cli::AcpCommandGroup,
+    ) -> anyhow::Result<()> {
+        use crate::cli::AcpCommand;
+
+        match acp_command.command {
+            AcpCommand::Start { http, port } => {
+                if http {
+                    self.writeln_title(TitleFormat::info(format!(
+                        "Starting ACP server with HTTP transport on port {}",
+                        port
+                    )))?;
+                    self.writeln_title(TitleFormat::warning(
+                        "HTTP transport is not yet implemented. Use stdio mode instead.",
+                    ))?;
+                    return Err(anyhow::anyhow!("HTTP transport not yet implemented"));
+                } else {
+                    // Start the ACP server with stdio transport
+                    self.api.acp_start_stdio().await?;
+                }
+            }
+            AcpCommand::Info => {
+                let info = self.api.acp_info();
+                self.writeln_title(TitleFormat::info(format!("Agent: {}", info.name)))?;
+                self.writeln_title(TitleFormat::info(format!("Version: {}", info.version)))?;
+                self.writeln_title(TitleFormat::info(format!(
+                    "Capabilities: {}",
+                    info.capabilities
+                )))?;
+            }
+        }
+
+        Ok(())
     }
 
     /// Builds an Info structure for agents with their details

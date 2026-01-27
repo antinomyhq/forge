@@ -22,15 +22,74 @@ pub fn run_acp_stdio_server(cwd: PathBuf) -> Result<()> {
         .build()?;
 
     rt.block_on(async move {
-        // Initialize Forge infrastructure
-        let infra = Arc::new(ForgeInfra::new(false, cwd));
-        let repo = Arc::new(ForgeRepo::new(infra.clone()));
-        let services = Arc::new(ForgeServices::new(repo.clone()));
-        let app = Arc::new(ForgeApp::new(services));
-
-        // Start the ACP server
-        acp::start_stdio_server(app).await?;
+        let local_set = tokio::task::LocalSet::new();
         
-        Ok(())
+        local_set.run_until(async move {
+            // Initialize Forge infrastructure
+            let infra = Arc::new(ForgeInfra::new(false, cwd));
+            let repo = Arc::new(ForgeRepo::new(infra.clone()));
+            let services = Arc::new(ForgeServices::new(repo.clone()));
+            let app = Arc::new(ForgeApp::new(services));
+
+            // Set up signal handling for graceful shutdown
+            let mut server_task = tokio::task::spawn_local(async move {
+                acp::start_stdio_server(app).await
+            });
+
+            // Wait for either the server to exit or a signal
+            #[cfg(unix)]
+            {
+                let mut sigterm = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())?;
+                let mut sigint = tokio::signal::unix::signal(tokio::signal::unix::SignalKind::interrupt())?;
+                
+                tokio::select! {
+                    result = &mut server_task => {
+                        match result {
+                            Ok(Ok(())) => {
+                                tracing::info!("ACP server exited normally");
+                                Ok(())
+                            }
+                            Ok(Err(e)) => {
+                                tracing::error!("ACP server error: {}", e);
+                                Err(e.into())
+                            }
+                            Err(e) => {
+                                tracing::error!("Server task panicked: {}", e);
+                                Err(e.into())
+                            }
+                        }
+                    }
+                    _ = sigterm.recv() => {
+                        tracing::info!("Received SIGTERM, shutting down gracefully");
+                        server_task.abort();
+                        Ok(())
+                    }
+                    _ = sigint.recv() => {
+                        tracing::info!("Received SIGINT, shutting down gracefully");
+                        server_task.abort();
+                        Ok(())
+                    }
+                }
+            }
+
+            #[cfg(not(unix))]
+            {
+                // On non-Unix systems, just wait for the server task
+                match server_task.await {
+                    Ok(Ok(())) => {
+                        tracing::info!("ACP server exited normally");
+                        Ok(())
+                    }
+                    Ok(Err(e)) => {
+                        tracing::error!("ACP server error: {}", e);
+                        Err(e.into())
+                    }
+                    Err(e) => {
+                        tracing::error!("Server task panicked: {}", e);
+                        Err(e.into())
+                    }
+                }
+            }
+        }).await
     })
 }

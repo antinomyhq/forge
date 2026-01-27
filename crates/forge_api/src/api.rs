@@ -229,4 +229,19 @@ pub trait API: Sync + Send {
         &self,
         data_parameters: DataGenerationParameters,
     ) -> Result<BoxStream<'static, Result<serde_json::Value, anyhow::Error>>>;
+
+    /// Starts an ACP server using stdio transport.
+    ///
+    /// This allows Forge to be used as an agent in ACP-compatible IDEs.
+    async fn acp_start_stdio(&self) -> Result<()>;
+
+    /// Starts an ACP server using HTTP transport.
+    ///
+    /// # Arguments
+    ///
+    /// * `port` - The port to listen on
+    async fn acp_start_http(&self, port: u16) -> Result<()>;
+
+    /// Returns information about the ACP agent capabilities.
+    fn acp_info(&self) -> forge_repo::acp::AgentInfo;
 }

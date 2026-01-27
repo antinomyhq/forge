@@ -70,7 +70,7 @@ pub async fn start_stdio_server<S: Services + 'static>(app: Arc<ForgeApp<S>>) ->
                         });
 
                     // Kick off a background task to send session notifications to the client
-                    tokio::task::spawn_local(async move {
+                    let notification_task = tokio::task::spawn_local(async move {
                         while let Some(session_notification) = rx.recv().await {
                             if let Err(e) = conn.session_notification(session_notification).await {
                                 tracing::error!("Failed to send session notification: {}", e);
@@ -79,8 +79,13 @@ pub async fn start_stdio_server<S: Services + 'static>(app: Arc<ForgeApp<S>>) ->
                         }
                     });
 
-                    // Run until stdin/stdout are closed
-                    handle_io.await
+                    // Run until stdin/stdout are closed or an error occurs
+                    let io_result = handle_io.await;
+                    
+                    // Cancel the notification task
+                    notification_task.abort();
+                    
+                    io_result
                 })
                 .await;
 
@@ -89,9 +94,14 @@ pub async fn start_stdio_server<S: Services + 'static>(app: Arc<ForgeApp<S>>) ->
     });
 
     // Wait for the blocking task to complete
-    handle
-        .await
-        .map_err(|e| crate::acp::Error::Application(anyhow::anyhow!("Task join error: {}", e)))?
+    match handle.await {
+        Ok(result) => result,
+        Err(e) if e.is_cancelled() => {
+            tracing::info!("ACP server task was cancelled");
+            Ok(())
+        }
+        Err(e) => Err(crate::acp::Error::Application(anyhow::anyhow!("Task join error: {}", e))),
+    }
 }
 
 /// Starts an ACP server using HTTP/WebSocket transport (for remote agent mode).

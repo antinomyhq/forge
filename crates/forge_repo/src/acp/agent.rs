@@ -221,14 +221,18 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
                             let content = match response {
                                 forge_domain::ChatResponse::TaskMessage { content } => {
                                     let text = match content {
-                                        forge_domain::ChatResponseContent::PlainText(s) => format!("{s}\n"),
-                                        forge_domain::ChatResponseContent::Markdown(s) => format!("{s}\n"),
-                                        forge_domain::ChatResponseContent::Title(title) => {
+                                        forge_domain::ChatResponseContent::ToolOutput(s) => {
+                                            format!("{}\n", s)
+                                        }
+                                        forge_domain::ChatResponseContent::Markdown { text, .. } => {
+                                            format!("{}\n", text)
+                                        }
+                                        forge_domain::ChatResponseContent::ToolInput(title) => {
                                             // Format title properly: "Title: subtitle"
                                             if let Some(sub_title) = &title.sub_title {
                                                 format!("{}: {}\n", title.title, sub_title)
                                             } else {
-                                                format!("{}\n", title.title.clone())
+                                                format!("{}\n", title.title)
                                             }
                                         }
                                     };

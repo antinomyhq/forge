@@ -45,6 +45,11 @@ derive_more.workspace = true
 gray_matter = { workspace = true }
 dirs.workspace = true
 async-openai.workspace = true
+uuid.workspace = true
+
+# Agent Client Protocol
+agent-client-protocol.workspace = true
+tokio-util = { workspace = true, features = ["compat"] }
 
 # gRPC for codebase client
 tonic.workspace = true
