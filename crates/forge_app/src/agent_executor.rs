@@ -3,8 +3,8 @@ use std::sync::Arc;
 use convert_case::{Case, Casing};
 use forge_domain::{
     AgentId, ChatRequest, ChatResponse, ChatResponseContent, ContextMessage, Conversation, Event,
-    Hook, LifecycleEvent, Role, TextMessage, TitleFormat, ToolCallContext, ToolDefinition,
-    ToolName, ToolOutput, ToolResult,
+    EventData, Hook, RequestPayload, Role, TextMessage, TitleFormat,
+    ToolCallContext, ToolcallEndPayload, ToolDefinition, ToolName, ToolOutput, ToolResult,
 };
 use forge_template::Element;
 use futures::StreamExt;
@@ -209,22 +209,22 @@ fn codebase_search_hook(
 
     Hook::default()
         .on_request({
-            move |event: LifecycleEvent, conversation: &mut Conversation| {
-                if let LifecycleEvent::Request { agent, request_count, .. } = event {
-                    // Only apply iteration limiting for codebase_search agent
-                    if agent.id.is_codebase_search() {
-                        limiter.apply_reminder_if_needed(request_count, conversation);
-                    }
+            move |event: &EventData<RequestPayload>, conversation: &mut Conversation| {
+                // Only apply iteration limiting for codebase_search agent
+                if event.agent.id.is_codebase_search() {
+                    limiter.apply_reminder_if_needed(event.payload.request_count, conversation);
                 }
                 async move { Ok(()) }
             }
         })
         .on_toolcall_end({
-            move |event: LifecycleEvent, _conversation: &mut Conversation| {
+            move |event: &EventData<ToolcallEndPayload>, _conversation: &mut Conversation| {
                 let captured_output = captured_output.clone();
+                let agent_id = event.agent.id.clone();
+                let result = event.payload.result.clone();
                 async move {
-                    if let LifecycleEvent::ToolcallEnd(result) = event {
-                        // Only capture search_report for codebase_search agent
+                    // Only capture search_report for codebase_search agent
+                    if agent_id.is_codebase_search() {
                         if result.name.as_str() == "search_report" {
                             *captured_output.lock().await = Some(result);
                         }
