@@ -8,7 +8,6 @@ use std::time::Duration;
 use anyhow::{Context, Result};
 use colored::Colorize;
 use convert_case::{Case, Casing};
-use futures::future;
 use forge_api::{
     API, AgentId, AnyProvider, ApiKeyRequest, AuthContextRequest, AuthContextResponse, ChatRequest,
     ChatResponse, CodeRequest, Conversation, ConversationId, DeviceCodeRequest, Event,
@@ -24,6 +23,7 @@ use forge_fs::ForgeFS;
 use forge_select::ForgeSelect;
 use forge_spinner::SpinnerManager;
 use forge_tracker::ToolCallPayload;
+use futures::future;
 use merge::Merge;
 use tokio_stream::StreamExt;
 use tracing::debug;
@@ -2663,11 +2663,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
     /// Fetches related conversations for a given conversation in parallel.
     ///
-    /// Returns a vector of related conversations that could be successfully fetched.
-    async fn fetch_related_conversations(
-        &self,
-        conversation: &Conversation,
-    ) -> Vec<Conversation> {
+    /// Returns a vector of related conversations that could be successfully
+    /// fetched.
+    async fn fetch_related_conversations(&self, conversation: &Conversation) -> Vec<Conversation> {
         let related_ids = conversation.related_conversation_ids();
 
         // Fetch all related conversations in parallel

@@ -149,8 +149,10 @@ impl Conversation {
     ///   calculation
     pub fn total_cost_with_related(&self, related: &[Conversation]) -> Option<f64> {
         let main_cost = self.accumulated_cost();
-        let related_costs: Vec<f64> =
-            related.iter().filter_map(|conv| conv.accumulated_cost()).collect();
+        let related_costs: Vec<f64> = related
+            .iter()
+            .filter_map(|conv| conv.accumulated_cost())
+            .collect();
 
         if main_cost.is_none() && related_costs.is_empty() {
             return None;
@@ -271,8 +273,7 @@ mod tests {
 
         // Create main conversation with cost
         let main_usage = Usage { cost: Some(0.01), ..Usage::default() };
-        let main_entry: MessageEntry =
-            ContextMessage::assistant("Response", None, None).into();
+        let main_entry: MessageEntry = ContextMessage::assistant("Response", None, None).into();
         let main_context = Context::default()
             .add_message(ContextMessage::user("Test", None))
             .add_entry(main_entry.usage(main_usage));
@@ -300,7 +301,8 @@ mod tests {
 
         let actual = main_conv.total_cost_with_related(&[related_conv_1, related_conv_2]);
 
-        // Check that cost is approximately 0.06 (accounting for floating point precision)
+        // Check that cost is approximately 0.06 (accounting for floating point
+        // precision)
         assert!(actual.is_some());
         assert!((actual.unwrap() - 0.06).abs() < 0.0001);
     }
