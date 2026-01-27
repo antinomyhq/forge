@@ -28,6 +28,8 @@ pub struct Orchestrator<S> {
     event: Event,
     error_tracker: ToolErrorTracker,
     hook: Arc<Hook>,
+    /// Whether this orchestrator is running as a sub-agent (executed as a tool)
+    is_sub_agent: bool,
 }
 
 impl<S: AgentService> Orchestrator<S> {
@@ -49,6 +51,7 @@ impl<S: AgentService> Orchestrator<S> {
             models: Default::default(),
             error_tracker: Default::default(),
             hook: Arc::new(Hook::default()),
+            is_sub_agent: false,
         }
     }
 
@@ -363,13 +366,44 @@ impl<S: AgentService> Orchestrator<S> {
             );
 
             if self.error_tracker.limit_reached() {
-                self.send(ChatResponse::Interrupt {
-                    reason: InterruptionReason::MaxToolFailurePerTurnLimitReached {
-                        limit: *self.error_tracker.limit() as u64,
-                        errors: self.error_tracker.errors().clone(),
-                    },
-                })
-                .await?;
+                // Only send interrupts if not a sub-agent
+                if !self.is_sub_agent {
+                    self.send(ChatResponse::Interrupt {
+                        reason: InterruptionReason::MaxToolFailurePerTurnLimitReached {
+                            limit: *self.error_tracker.limit() as u64,
+                            errors: self.error_tracker.errors().clone(),
+                        },
+                    })
+                    .await?;
+                } else {
+                    // For sub-agents, send the interrupt message as Markdown so the caller knows why it stopped
+                    let error_info = self.error_tracker.errors().iter()
+                        .map(|(name, count)| format!("  - {} failed {} time(s)", name, count))
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                    let interrupt_message = format!(
+                        "**Sub-agent Execution Interrupted**\n\n\
+                        **Reason:** Maximum tool failure limit reached\n\
+                        **Limit:** {} failures per turn\n\
+                        **Failed Tools:**\n{}\n\n\
+                        The sub-agent was unable to complete the task due to repeated tool failures. \
+                        Consider:\n\
+                        - Simplifying the task or breaking it into smaller steps\n\
+                        - Checking if the required resources or permissions are available\n\
+                        - Trying a different approach or using different tools\n\
+                        - Reviewing the error messages above for specific issues",
+                        self.error_tracker.limit(),
+                        error_info
+                    );
+                    context = context.add_entry(ContextMessage::user(interrupt_message.clone(), Some(model_id.clone())));
+                    self.send(ChatResponse::TaskMessage {
+                        content: ChatResponseContent::Markdown {
+                            text: interrupt_message,
+                            partial: false,
+                        },
+                    })
+                    .await?;
+                }
                 // Should yield if too many errors are produced
                 should_yield = true;
             }
@@ -390,13 +424,42 @@ impl<S: AgentService> Orchestrator<S> {
                         max_request_allowed,
                         "Agent has reached the maximum request per turn limit"
                     );
-                    // raise an interrupt event to notify the UI
-                    self.send(ChatResponse::Interrupt {
-                        reason: InterruptionReason::MaxRequestPerTurnLimitReached {
-                            limit: max_request_allowed as u64,
-                        },
-                    })
-                    .await?;
+                    // Only raise an interrupt event if not a sub-agent
+                    if !self.is_sub_agent {
+                        self.send(ChatResponse::Interrupt {
+                            reason: InterruptionReason::MaxRequestPerTurnLimitReached {
+                                limit: max_request_allowed as u64,
+                            },
+                        })
+                        .await?;
+                    } else {
+                        // For sub-agents, send the interrupt message as Markdown so the caller knows why it stopped
+                        let interrupt_message = format!(
+                            "**Sub-agent Execution Interrupted**\n\n\
+                            **Reason:** Maximum request per turn limit reached\n\
+                            **Limit:** {} requests per turn\n\
+                            **Requests Made:** {}\n\n\
+                            The sub-agent was unable to complete the task within the allowed number of requests. \
+                            This typically happens when:\n\
+                            - The task is too complex and requires many iterations\n\
+                            - The agent is stuck in a loop or making repeated unsuccessful attempts\n\
+                            - Multiple tool calls are needed that exceed the limit\n\n\
+                            Consider:\n\
+                            - Breaking the task into smaller, more focused sub-tasks\n\
+                            - Simplifying the task requirements\n\
+                            - Providing more specific instructions to reduce trial-and-error",
+                            max_request_allowed,
+                            request_count
+                        );
+                        context = context.add_entry(ContextMessage::user(interrupt_message.clone(), Some(model_id.clone())));
+                        self.send(ChatResponse::TaskMessage {
+                            content: ChatResponseContent::Markdown {
+                                text: interrupt_message,
+                                partial: false,
+                            },
+                        })
+                        .await?;
+                    }
                     // force completion
                     should_yield = true;
                 }

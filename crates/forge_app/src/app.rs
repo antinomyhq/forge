@@ -46,10 +46,16 @@ impl<S: Services> ForgeApp<S> {
 
     /// Executes a chat request and returns a stream of responses.
     /// This method contains the core chat logic extracted from ForgeAPI.
+    ///
+    /// # Arguments
+    /// * `agent_id` - The ID of the agent to execute
+    /// * `chat` - The chat request containing event and conversation ID
+    /// * `is_sub_agent` - Whether this agent is running as a sub-agent (executed as a tool)
     pub async fn chat(
         &self,
         agent_id: AgentId,
         chat: ChatRequest,
+        is_sub_agent: bool,
     ) -> Result<MpscStream<Result<ChatResponse, anyhow::Error>>> {
         let services = self.services.clone();
 
@@ -150,7 +156,8 @@ impl<S: Services> ForgeApp<S> {
         )
         .error_tracker(ToolErrorTracker::new(max_tool_failure_per_turn))
         .tool_definitions(tool_definitions)
-        .models(models);
+        .models(models)
+        .is_sub_agent(is_sub_agent);
 
         // Create and return the stream
         let stream = MpscStream::spawn(
