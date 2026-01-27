@@ -622,7 +622,7 @@ pub struct ChunkSelection {
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
-#[tool_description_file = "crates/forge_domain/src/tools/descriptions/search_report.md"]
+#[tool_description_file = "crates/forge_domain/src/tools/descriptions/report_search.md"]
 pub struct SearchReport {
     pub chunks: Vec<ChunkSelection>,
 }

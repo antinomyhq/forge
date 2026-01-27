@@ -81,7 +81,7 @@ pub struct Environment {
     /// Controlled by FORGE_SEM_SEARCH_TOP_K environment variable.
     pub sem_search_top_k: usize,
     /// Maximum number of iterations for codebase search agent before forcing
-    /// a search_report call. Controls how many search iterations the agent can
+    /// a report_search call. Controls how many search iterations the agent can
     /// perform before returning results.
     /// Controlled by FORGE_CODEBASE_SEARCH_MAX_ITERATIONS environment variable.
     pub codebase_search_max_iterations: usize,

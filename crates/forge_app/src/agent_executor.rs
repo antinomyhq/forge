@@ -156,31 +156,34 @@ impl IterationLimiter {
         let halfway = self.max_iterations / 2;
         let urgent_threshold = self.max_iterations.saturating_sub(2);
 
+        let tool = forge_domain::ToolName::new("report_search")
         let (message, force_tool) = match request_count {
             0 => return,
             n if n == halfway => (
                 format!(
                     "<system-reminder>You have used {n} of {} requests. \
                      You have {remaining} requests remaining before you must call \
-                     search_report to report your findings.</system-reminder>",
-                    self.max_iterations
+                {} to report your findings.</system-reminder>",
+                    self.max_iterations,
+                    tool.as_str(),
                 ),
                 false,
             ),
             n if n >= urgent_threshold && n < self.max_iterations => (
                 format!(
                     "<system-reminder>URGENT: You have used {n} of {} requests. \
-                     Only {remaining} request(s) remaining! You MUST call search_report on your \
+                     Only {remaining} request(s) remaining! You MUST call {} on your \
                      next turn to report your findings.</system-reminder>",
-                    self.max_iterations
+                    self.max_iterations,
+                    tool.as_str()
                 ),
                 false,
             ),
             n if n == self.max_iterations + 1 => (
-                "<system-reminder>FINAL REMINDER: You have reached the maximum number of requests. \
-                 You MUST call the search_report tool now to report your findings. \
-                 Do not make any more search requests.</system-reminder>"
-                    .to_string(),
+                format!("<system-reminder>FINAL REMINDER: You have reached the maximum number of requests. \
+                 You MUST call the {} tool now to report your findings. \
+                 Do not make any more search requests.</system-reminder>", tool.as_str()
+            ),
                 true,
             ),
             _ => return,
@@ -189,7 +192,7 @@ impl IterationLimiter {
         let text_msg = TextMessage::new(Role::User, message);
         conversation.context = Some(if force_tool {
             ctx.add_message(ContextMessage::Text(text_msg)).tool_choice(
-                forge_domain::ToolChoice::Call(forge_domain::ToolName::new("search_report")),
+                forge_domain::ToolChoice::Call(tool),
             )
         } else {
             ctx.add_message(ContextMessage::Text(text_msg))
@@ -223,9 +226,9 @@ fn codebase_search_hook(
                 let agent_id = event.agent.id.clone();
                 let result = event.payload.result.clone();
                 async move {
-                    // Only capture search_report for codebase_search agent
+                    // Only capture report_search for codebase_search agent
                     if agent_id.is_codebase_search() {
-                        if result.name.as_str() == "search_report" {
+                        if result.name.as_str() == tool{
                             *captured_output.lock().await = Some(result);
                         }
                     }
@@ -290,7 +293,7 @@ mod tests {
         assert!(msg.contains("reached the maximum number of requests"));
         assert!(matches!(
             ctx.tool_choice.as_ref().unwrap(),
-            forge_domain::ToolChoice::Call(name) if name.as_str() == "search_report"
+            forge_domain::ToolChoice::Call(name) if name.as_str() == "report_search"
         ));
     }
 
@@ -363,7 +366,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_codebase_search_hook_captures_search_report() {
+    async fn test_codebase_search_hook_captures_report_search() {
         use forge_domain::EventHandle;
 
         let captured_output = Arc::new(Mutex::new(None));
@@ -376,7 +379,7 @@ mod tests {
         // Create a mock ToolResult
         let result = ToolResult {
             call_id: Some(forge_domain::ToolCallId::new("test_call")),
-            name: ToolName::new("search_report"),
+            name: ToolName::new("report_search"),
             output: ToolOutput::text("Found 3 files"),
         };
 
@@ -389,6 +392,6 @@ mod tests {
         // Verify output was captured
         let captured = captured_output.lock().await.take();
         assert!(captured.is_some());
-        assert_eq!(captured.unwrap().name.as_str(), "search_report");
+        assert_eq!(captured.unwrap().name.as_str(), "report_search");
     }
 }

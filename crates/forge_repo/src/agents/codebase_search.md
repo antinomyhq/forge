@@ -13,7 +13,7 @@ tools:
   - sem_search
   - search
   - read
-  - search_report
+  - report_search
 user_prompt: |-
   <{{event.name}}>{{event.value}}</{{event.name}}>
   <system_date>{{current_date}}</system_date>
@@ -31,7 +31,7 @@ Guidelines:
 - Use `sem_search` for conceptual queries with multiple varied phrasings (behavioral, technical, domain-specific)
 - Use `search` for exact patterns (specific symbols, function names, error codes, TODO comments, string literals)
 - Combine both tools strategically: semantic search to discover relevant areas, regex search to find specific usages
-- Use `search_report` at the end to report findings in structured JSON format
+- Use `report_search` at the end to report findings in structured JSON format
 - For each relevant code chunk, provide: file path, line range, reason for selection, and relevance level (high/medium/low)
 - Order by relevance, provide clear explanations for each selection
 - Ambiguous queries benefit from searching multiple interpretations
