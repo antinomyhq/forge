@@ -2661,6 +2661,32 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         Ok(())
     }
 
+    /// Fetches related conversations for a given conversation in parallel.
+    ///
+    /// Returns a vector of related conversations that could be successfully fetched.
+    async fn fetch_related_conversations(
+        &self,
+        conversation: &Conversation,
+    ) -> Vec<Conversation> {
+        let related_ids = conversation.related_conversation_ids();
+
+        // Fetch all related conversations in parallel
+        let related_futures: Vec<_> = related_ids
+            .iter()
+            .map(|id| {
+                let api = self.api.clone();
+                let id = *id;
+                async move { api.conversation(&id).await }
+            })
+            .collect();
+
+        future::join_all(related_futures)
+            .await
+            .into_iter()
+            .filter_map(|result| result.ok().flatten())
+            .collect()
+    }
+
     /// Modified version of handle_dump that supports HTML format
     async fn on_dump(&mut self, html: bool) -> Result<()> {
         if let Some(conversation_id) = self.state.conversation_id {
@@ -2669,13 +2695,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 let timestamp = chrono::Local::now().format("%Y-%m-%d_%H-%M-%S");
 
                 // Collect related conversations from agent tool calls
-                let related_ids = conversation.related_conversation_ids();
-                let mut related_conversations = Vec::new();
-                for id in related_ids {
-                    if let Ok(Some(related)) = self.api.conversation(&id).await {
-                        related_conversations.push(related);
-                    }
-                }
+                let related_conversations = self.fetch_related_conversations(&conversation).await;
 
                 if html {
                     // Create a single HTML with all conversations
@@ -3105,25 +3125,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
 
         // Calculate total cost including related conversations
         let cost = if let Some(ref conv) = conversation {
-            // Collect related conversations from agent tool calls in parallel
-            let related_ids = conv.related_conversation_ids();
-            
-            // Fetch all related conversations in parallel
-            let related_futures: Vec<_> = related_ids
-                .iter()
-                .map(|id| {
-                    let api = self.api.clone();
-                    let id = *id;
-                    async move { api.conversation(&id).await }
-                })
-                .collect();
-
-            let related_conversations: Vec<_> = future::join_all(related_futures)
-                .await
-                .into_iter()
-                .filter_map(|result| result.ok().flatten())
-                .collect();
-
+            let related_conversations = self.fetch_related_conversations(conv).await;
             conv.total_cost_with_related(&related_conversations)
         } else {
             None
