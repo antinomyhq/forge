@@ -376,14 +376,18 @@ impl<S: AgentService> Orchestrator<S> {
                     })
                     .await?;
                 } else {
-                    // For sub-agents, send the interrupt message as Markdown so the caller knows why it stopped
+                    // For sub-agents, send the interrupt message as Markdown so the caller knows
+                    // why it stopped
                     let template_context = serde_json::json!({
                         "limit": self.error_tracker.limit(),
                         "errors": self.error_tracker.errors(),
                     });
                     let interrupt_message = TemplateEngine::default()
                         .render("forge-sub-agent-interrupt-message.md", &template_context)?;
-                    context = context.add_entry(ContextMessage::user(interrupt_message.clone(), Some(model_id.clone())));
+                    context = context.add_entry(ContextMessage::user(
+                        interrupt_message.clone(),
+                        Some(model_id.clone()),
+                    ));
                     self.send(ChatResponse::TaskMessage {
                         content: ChatResponseContent::Markdown {
                             text: interrupt_message,
@@ -421,14 +425,20 @@ impl<S: AgentService> Orchestrator<S> {
                         })
                         .await?;
                     } else {
-                        // For sub-agents, send the interrupt message as Markdown so the caller knows why it stopped
+                        // For sub-agents, send the interrupt message as Markdown so the caller
+                        // knows why it stopped
                         let template_context = serde_json::json!({
                             "limit": max_request_allowed,
                             "request_count": request_count,
                         });
-                        let interrupt_message = TemplateEngine::default()
-                            .render("forge-sub-agent-request-limit-message.md", &template_context)?;
-                        context = context.add_entry(ContextMessage::user(interrupt_message.clone(), Some(model_id.clone())));
+                        let interrupt_message = TemplateEngine::default().render(
+                            "forge-sub-agent-request-limit-message.md",
+                            &template_context,
+                        )?;
+                        context = context.add_entry(ContextMessage::user(
+                            interrupt_message.clone(),
+                            Some(model_id.clone()),
+                        ));
                         self.send(ChatResponse::TaskMessage {
                             content: ChatResponseContent::Markdown {
                                 text: interrupt_message,
