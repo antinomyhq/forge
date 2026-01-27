@@ -224,6 +224,102 @@ impl Hook {
             on_toolcall_end: on_toolcall_end.into(),
         }
     }
+
+    /// Adds a handler for start events using a simple function closure
+    ///
+    /// # Arguments
+    /// * `f` - A function that takes event data and conversation, returns a future
+    ///
+    /// # Returns
+    /// Self with the new handler combined with the existing one
+    pub fn on_start_fn<Fut, F>(mut self, f: F) -> Self
+    where
+        F: Fn(&EventData<StartPayload>, &mut Conversation) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = anyhow::Result<()>> + Send + 'static,
+    {
+        self.on_start = self.on_start.and(f);
+        self
+    }
+
+    /// Adds a handler for end events using a simple function closure
+    ///
+    /// # Arguments
+    /// * `f` - A function that takes event data and conversation, returns a future
+    ///
+    /// # Returns
+    /// Self with the new handler combined with the existing one
+    pub fn on_end_fn<Fut, F>(mut self, f: F) -> Self
+    where
+        F: Fn(&EventData<EndPayload>, &mut Conversation) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = anyhow::Result<()>> + Send + 'static,
+    {
+        self.on_end = self.on_end.and(f);
+        self
+    }
+
+    /// Adds a handler for request events using a simple function closure
+    ///
+    /// # Arguments
+    /// * `f` - A function that takes event data and conversation, returns a future
+    ///
+    /// # Returns
+    /// Self with the new handler combined with the existing one
+    pub fn on_request_fn<Fut, F>(mut self, f: F) -> Self
+    where
+        F: Fn(&EventData<RequestPayload>, &mut Conversation) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = anyhow::Result<()>> + Send + 'static,
+    {
+        self.on_request = self.on_request.and(f);
+        self
+    }
+
+    /// Adds a handler for response events using a simple function closure
+    ///
+    /// # Arguments
+    /// * `f` - A function that takes event data and conversation, returns a future
+    ///
+    /// # Returns
+    /// Self with the new handler combined with the existing one
+    pub fn on_response_fn<Fut, F>(mut self, f: F) -> Self
+    where
+        F: Fn(&EventData<ResponsePayload>, &mut Conversation) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = anyhow::Result<()>> + Send + 'static,
+    {
+        self.on_response = self.on_response.and(f);
+        self
+    }
+
+    /// Adds a handler for tool call start events using a simple function closure
+    ///
+    /// # Arguments
+    /// * `f` - A function that takes event data and conversation, returns a future
+    ///
+    /// # Returns
+    /// Self with the new handler combined with the existing one
+    pub fn on_toolcall_start_fn<Fut, F>(mut self, f: F) -> Self
+    where
+        F: Fn(&EventData<ToolcallStartPayload>, &mut Conversation) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = anyhow::Result<()>> + Send + 'static,
+    {
+        self.on_toolcall_start = self.on_toolcall_start.and(f);
+        self
+    }
+
+    /// Adds a handler for tool call end events using a simple function closure
+    ///
+    /// # Arguments
+    /// * `f` - A function that takes event data and conversation, returns a future
+    ///
+    /// # Returns
+    /// Self with the new handler combined with the existing one
+    pub fn on_toolcall_end_fn<Fut, F>(mut self, f: F) -> Self
+    where
+        F: Fn(&EventData<ToolcallEndPayload>, &mut Conversation) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = anyhow::Result<()>> + Send + 'static,
+    {
+        self.on_toolcall_end = self.on_toolcall_end.and(f);
+        self
+    }
 }
 
 impl Hook {
@@ -360,16 +456,16 @@ mod tests {
         let events = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
         let events_clone = events.clone();
 
-        let hook = Hook::default().on_start(
-            move |event: &EventData<StartPayload>, _conversation: &mut Conversation| {
+        let hook = Hook::default().on_start_fn({
+            move |event, _| {
                 let events = events_clone.clone();
                 let event = event.clone();
                 async move {
                     events.lock().unwrap().push(event);
                     Ok(())
                 }
-            },
-        );
+            }
+        });
 
         let mut conversation = Conversation::generate();
 
@@ -393,9 +489,9 @@ mod tests {
         let events = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
 
         let hook = Hook::default()
-            .on_start({
+            .on_start_fn({
                 let events = events.clone();
-                move |event: &EventData<StartPayload>, _conversation: &mut Conversation| {
+                move |event, _| {
                     let events = events.clone();
                     let event = LifecycleEvent::Start(event.clone());
                     async move {
@@ -404,9 +500,9 @@ mod tests {
                     }
                 }
             })
-            .on_end({
+            .on_end_fn({
                 let events = events.clone();
-                move |event: &EventData<EndPayload>, _conversation: &mut Conversation| {
+                move |event, _| {
                     let events = events.clone();
                     let event = LifecycleEvent::End(event.clone());
                     async move {
@@ -415,9 +511,9 @@ mod tests {
                     }
                 }
             })
-            .on_request({
+            .on_request_fn({
                 let events = events.clone();
-                move |event: &EventData<RequestPayload>, _conversation: &mut Conversation| {
+                move |event, _| {
                     let events = events.clone();
                     let event = LifecycleEvent::Request(event.clone());
                     async move {
@@ -477,76 +573,75 @@ mod tests {
 
     #[tokio::test]
     async fn test_hook_all_events() {
-        let events = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let events = std::sync::Arc::new(std::sync::Mutex::new(Vec::<LifecycleEvent>::new()));
 
-        let hook = Hook::new(
-            {
+        let hook = Hook::default()
+            .on_start_fn({
                 let events = events.clone();
-                move |event: &EventData<StartPayload>, _conversation: &mut Conversation| {
+                move |event, _| {
                     let events = events.clone();
-                    let event = LifecycleEvent::Start(event.clone());
+                    let event = event.clone().into();
                     async move {
                         events.lock().unwrap().push(event);
                         Ok(())
                     }
                 }
-            },
-            {
+            })
+            .on_end_fn({
                 let events = events.clone();
-                move |event: &EventData<EndPayload>, _conversation: &mut Conversation| {
+                move |event, _| {
                     let events = events.clone();
-                    let event = LifecycleEvent::End(event.clone());
+                    let event = event.clone().into();
                     async move {
                         events.lock().unwrap().push(event);
                         Ok(())
                     }
                 }
-            },
-            {
+            })
+            .on_request_fn({
                 let events = events.clone();
-                move |event: &EventData<RequestPayload>, _conversation: &mut Conversation| {
+                move |event, _| {
                     let events = events.clone();
-                    let event = LifecycleEvent::Request(event.clone());
+                    let event = event.clone().into();
                     async move {
                         events.lock().unwrap().push(event);
                         Ok(())
                     }
                 }
-            },
-            {
+            })
+            .on_response_fn({
                 let events = events.clone();
-                move |event: &EventData<ResponsePayload>, _conversation: &mut Conversation| {
+                move |event, _| {
                     let events = events.clone();
-                    let event = LifecycleEvent::Response(event.clone());
+                    let event = event.clone().into();
                     async move {
                         events.lock().unwrap().push(event);
                         Ok(())
                     }
                 }
-            },
-            {
+            })
+            .on_toolcall_start_fn({
                 let events = events.clone();
-                move |event: &EventData<ToolcallStartPayload>, _conversation: &mut Conversation| {
+                move |event, _| {
                     let events = events.clone();
-                    let event = LifecycleEvent::ToolcallStart(event.clone());
+                    let event = event.clone().into();
                     async move {
                         events.lock().unwrap().push(event);
                         Ok(())
                     }
                 }
-            },
-            {
+            })
+            .on_toolcall_end_fn({
                 let events = events.clone();
-                move |event: &EventData<ToolcallEndPayload>, _conversation: &mut Conversation| {
+                move |event, _| {
                     let events = events.clone();
-                    let event = LifecycleEvent::ToolcallEnd(event.clone());
+                    let event = event.clone().into();
                     async move {
                         events.lock().unwrap().push(event);
                         Ok(())
                     }
                 }
-            },
-        );
+            });
 
         let mut conversation = Conversation::generate();
 
@@ -593,9 +688,9 @@ mod tests {
     #[tokio::test]
     async fn test_step_mutable_conversation() {
         let title = std::sync::Arc::new(std::sync::Mutex::new(None));
-        let hook = Hook::default().on_start({
+        let hook = Hook::default().on_start_fn({
             let title = title.clone();
-            move |_event: &EventData<StartPayload>, _conversation: &mut Conversation| {
+            move |_, _| {
                 let title = title.clone();
                 async move {
                     *title.lock().unwrap() = Some("Modified title".to_string());
@@ -630,9 +725,9 @@ mod tests {
         let counter1 = std::sync::Arc::new(std::sync::Mutex::new(0));
         let counter2 = std::sync::Arc::new(std::sync::Mutex::new(0));
 
-        let hook1 = Hook::default().on_start({
+        let hook1 = Hook::default().on_start_fn({
             let counter = counter1.clone();
-            move |_event: &EventData<StartPayload>, _conversation: &mut Conversation| {
+            move |_, _| {
                 let counter = counter.clone();
                 async move {
                     *counter.lock().unwrap() += 1;
@@ -641,9 +736,9 @@ mod tests {
             }
         });
 
-        let hook2 = Hook::default().on_start({
+        let hook2 = Hook::default().on_start_fn({
             let counter = counter2.clone();
-            move |_event: &EventData<StartPayload>, _conversation: &mut Conversation| {
+            move |_, _| {
                 let counter = counter.clone();
                 async move {
                     *counter.lock().unwrap() += 1;
@@ -671,9 +766,9 @@ mod tests {
     async fn test_hook_zip_multiple() {
         let events = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
 
-        let hook1 = Hook::default().on_start({
+        let hook1 = Hook::default().on_start_fn({
             let events = events.clone();
-            move |event: &EventData<StartPayload>, _conversation: &mut Conversation| {
+            move |event, _| {
                 let events = events.clone();
                 let event = event.clone();
                 async move {
@@ -683,9 +778,9 @@ mod tests {
             }
         });
 
-        let hook2 = Hook::default().on_start({
+        let hook2 = Hook::default().on_start_fn({
             let events = events.clone();
-            move |event: &EventData<StartPayload>, _conversation: &mut Conversation| {
+            move |event, _| {
                 let events = events.clone();
                 let event = event.clone();
                 async move {
@@ -695,9 +790,9 @@ mod tests {
             }
         });
 
-        let hook3 = Hook::default().on_start({
+        let hook3 = Hook::default().on_start_fn({
             let events = events.clone();
-            move |event: &EventData<StartPayload>, _conversation: &mut Conversation| {
+            move |event, _| {
                 let events = events.clone();
                 let event = event.clone();
                 async move {
@@ -729,10 +824,11 @@ mod tests {
         let start_title = std::sync::Arc::new(std::sync::Mutex::new(None));
         let end_title = std::sync::Arc::new(std::sync::Mutex::new(None));
 
+        let start_title_clone = start_title.clone();
         let hook1 = Hook::default()
-            .on_start({
-                let start_title = start_title.clone();
-                move |_event: &EventData<StartPayload>, _conversation: &mut Conversation| {
+            .on_start_fn({
+                let start_title = start_title_clone.clone();
+                move |_, _| {
                     let start_title = start_title.clone();
                     async move {
                         *start_title.lock().unwrap() = Some("Start".to_string());
@@ -740,9 +836,9 @@ mod tests {
                     }
                 }
             })
-            .on_end({
+            .on_end_fn({
                 let end_title = end_title.clone();
-                move |_event: &EventData<EndPayload>, _conversation: &mut Conversation| {
+                move |_, _| {
                     let end_title = end_title.clone();
                     async move {
                         *end_title.lock().unwrap() = Some("End".to_string());
@@ -975,9 +1071,9 @@ mod tests {
         let end_title = std::sync::Arc::new(std::sync::Mutex::new(None));
 
         let hook = Hook::default()
-            .on_start({
+            .on_start_fn({
                 let start_title = start_title.clone();
-                move |_event: &EventData<StartPayload>, _conversation: &mut Conversation| {
+                move |_, _| {
                     let start_title = start_title.clone();
                     async move {
                         *start_title.lock().unwrap() = Some("Started".to_string());
@@ -985,9 +1081,9 @@ mod tests {
                     }
                 }
             })
-            .on_end({
+            .on_end_fn({
                 let end_title = end_title.clone();
-                move |_event: &EventData<EndPayload>, _conversation: &mut Conversation| {
+                move |_, _| {
                     let end_title = end_title.clone();
                     async move {
                         *end_title.lock().unwrap() = Some("Ended".to_string());
