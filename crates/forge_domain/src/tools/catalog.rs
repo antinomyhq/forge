@@ -588,7 +588,6 @@ fn normalize_tool_name(name: &ToolName) -> ToolName {
     }
 }
 
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, AsRefStr, EnumIter)]
 #[serde(rename_all = "lowercase")]
 #[strum(serialize_all = "lowercase")]

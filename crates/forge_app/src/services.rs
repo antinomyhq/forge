@@ -444,7 +444,8 @@ pub trait FsSearchService: Send + Sync {
 /// Service for generating search reports by reading file chunks in parallel
 #[async_trait::async_trait]
 pub trait SearchReportService: Send + Sync {
-    /// Generates a search report by reading the specified file chunks in parallel
+    /// Generates a search report by reading the specified file chunks in
+    /// parallel
     ///
     /// # Arguments
     /// * `chunks` - File chunks to read with paths and line ranges
@@ -891,9 +892,7 @@ impl<I: Services> SearchReportService for I {
         &self,
         chunks: Vec<forge_domain::ChunkSelection>,
     ) -> anyhow::Result<SearchReportOutput> {
-        self.search_report_service()
-            .generate_report(chunks)
-            .await
+        self.search_report_service().generate_report(chunks).await
     }
 }
 

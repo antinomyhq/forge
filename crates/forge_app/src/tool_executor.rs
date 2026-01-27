@@ -229,7 +229,9 @@ impl<
                     .into_iter()
                     .map(|chunk| {
                         let mut normalized = chunk.clone();
-                        normalized.file_path = PathBuf::from(self.normalize_path(chunk.file_path.display().to_string()));
+                        normalized.file_path = PathBuf::from(
+                            self.normalize_path(chunk.file_path.display().to_string()),
+                        );
                         normalized
                     })
                     .collect();

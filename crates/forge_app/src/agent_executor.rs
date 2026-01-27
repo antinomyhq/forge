@@ -130,7 +130,8 @@ impl<S: Services> AgentExecutor<S> {
     }
 }
 
-/// Manages iteration limiting and reminder messages for the codebase search agent.
+/// Manages iteration limiting and reminder messages for the codebase search
+/// agent.
 struct IterationLimiter {
     max_iterations: usize,
 }
@@ -140,7 +141,8 @@ impl IterationLimiter {
         Self { max_iterations }
     }
 
-    /// Applies a reminder message to the conversation if needed based on the current request count.
+    /// Applies a reminder message to the conversation if needed based on the
+    /// current request count.
     fn apply_reminder_if_needed(&self, request_count: usize, conversation: &mut Conversation) {
         let Some(ctx) = conversation.context.take() else {
             return;
@@ -195,10 +197,11 @@ impl IterationLimiter {
     }
 }
 
-/// Creates a hook for the codebase search agent with iteration limiting and output capture.
+/// Creates a hook for the codebase search agent with iteration limiting and
+/// output capture.
 ///
-/// This hook only applies its behavior when used with the codebase_search agent.
-/// For other agents, it operates as a no-op.
+/// This hook only applies its behavior when used with the codebase_search
+/// agent. For other agents, it operates as a no-op.
 fn codebase_search_hook(
     max_iterations: usize,
     captured_output: Arc<Mutex<Option<ToolResult>>>,
@@ -223,11 +226,10 @@ fn codebase_search_hook(
                 let tool = forge_domain::ToolName::new("report_search");
                 async move {
                     // Only capture report_search for codebase_search agent
-                    if agent_id.is_codebase_search() {
-                        if result.name.as_str() == tool.as_str() {
+                    if agent_id.is_codebase_search()
+                        && result.name.as_str() == tool.as_str() {
                             *captured_output.lock().await = Some(result);
                         }
-                    }
                     Ok(())
                 }
             }
@@ -236,11 +238,12 @@ fn codebase_search_hook(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use forge_domain::{
-        Agent, AgentId, EventData, LifecycleEvent, ModelId, ProviderId, RequestPayload,
-        ToolcallEndPayload, ToolOutput,
+        Agent, AgentId, EventData, LifecycleEvent, ModelId, ProviderId, RequestPayload, ToolOutput,
+        ToolcallEndPayload,
     };
+
+    use super::*;
 
     #[test]
     fn test_halfway_reminder() {
