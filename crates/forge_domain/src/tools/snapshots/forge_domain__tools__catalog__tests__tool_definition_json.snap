@@ -182,6 +182,18 @@ expression: tools
   }
 }
 {
+  "title": "CodebaseSearch",
+  "description": "Semantic code search using natural language. Finds code by behavior and concepts.",
+  "type": "object",
+  "properties": {
+    "query": {
+      "description": "A detailed search query specifying WHAT you're looking for and WHY you need it. Good: 'Find where user sessions are validated - need to add expiry check'. Bad: 'sessions' (too vague).",
+      "default": "",
+      "type": "string"
+    }
+  }
+}
+{
   "title": "ReportSearch",
   "type": "object",
   "required": [

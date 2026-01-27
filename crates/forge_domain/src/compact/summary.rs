@@ -118,7 +118,17 @@ impl SummaryToolCall {
 
     /// Creates a CodebaseSearch tool call with default values (id: None,
     /// is_success: true)
-    pub fn codebase_search(queries: Vec<SearchQuery>, file_extensions: Vec<String>) -> Self {
+    pub fn codebase_search(query: impl Into<String>) -> Self {
+        Self {
+            id: None,
+            tool: SummaryTool::CodebaseSearch { query: query.into() },
+            is_success: true,
+        }
+    }
+
+     /// Creates a CodebaseSearch tool call with default values (id: None,
+    /// is_success: true)
+    pub fn sem_search(queries: Vec<SearchQuery>, file_extensions: Vec<String>) -> Self {
         Self {
             id: None,
             tool: SummaryTool::SemSearch { queries, file_extensions },
@@ -198,6 +208,9 @@ pub enum SummaryTool {
     SemSearch {
         queries: Vec<SearchQuery>,
         file_extensions: Vec<String>,
+    },
+    CodebaseSearch {
+        query: String,
     },
     ReportSearch {
         paths: Vec<String>,
@@ -342,6 +355,9 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
             }
             ToolCatalog::Plan(input) => Some(SummaryTool::Plan { plan_name: input.plan_name }),
             ToolCatalog::Skill(input) => Some(SummaryTool::Skill { name: input.name }),
+            ToolCatalog::CodebaseSearch(input) => Some(SummaryTool::CodebaseSearch {
+                query: input.query,
+            }),
         };
     }
 
@@ -999,7 +1015,7 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Searching codebase"),
-                SummaryToolCall::codebase_search(
+                SummaryToolCall::sem_search(
                     vec![SearchQuery::new("retry mechanism", "find retry logic")],
                     vec![".rs".to_string()],
                 )

@@ -80,6 +80,7 @@ impl Transformer for StripWorkingDir {
                         SummaryTool::Shell { .. }
                         | SummaryTool::Search { .. }
                         | SummaryTool::SemSearch { .. }
+                        | SummaryTool::CodebaseSearch { .. }
                         | SummaryTool::Fetch { .. }
                         | SummaryTool::Followup { .. }
                         | SummaryTool::Plan { .. }

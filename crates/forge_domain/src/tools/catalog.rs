@@ -44,6 +44,7 @@ pub enum ToolCatalog {
     Write(FSWrite),
     FsSearch(FSSearch),
     SemSearch(SemanticSearch),
+    CodebaseSearch(CodebaseSearch),
     ReportSearch(ReportSearch),
     Remove(FSRemove),
     Patch(FSPatch),
@@ -242,6 +243,17 @@ pub struct SemanticSearch {
     /// these extensions will be included in the search results. At least one
     /// extension must be provided.
     pub extensions: Vec<String>,
+}
+
+/// Semantic code search using natural language. Finds code by behavior and concepts.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq, Default)]
+#[tool_description_file = "crates/forge_domain/src/tools/descriptions/codebase_search.md"]
+pub struct CodebaseSearch {
+    /// A detailed search query specifying WHAT you're looking for and WHY you need it.
+    /// Good: 'Find where user sessions are validated - need to add expiry check'.
+    /// Bad: 'sessions' (too vague).
+    #[serde(default)]
+    pub query: String,
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
@@ -568,6 +580,7 @@ impl ToolDescription for ToolCatalog {
             ToolCatalog::Plan(v) => v.description(),
             ToolCatalog::Skill(v) => v.description(),
             ToolCatalog::ReportSearch(v) => v.description(),
+            ToolCatalog::CodebaseSearch(v) => v.description(),
         }
     }
 }
@@ -648,6 +661,7 @@ impl ToolCatalog {
             ToolCatalog::Plan(_) => r#gen.into_root_schema_for::<PlanCreate>(),
             ToolCatalog::Skill(_) => r#gen.into_root_schema_for::<SkillFetch>(),
             ToolCatalog::ReportSearch(_) => r#gen.into_root_schema_for::<ReportSearch>(),
+            ToolCatalog::CodebaseSearch(_) => r#gen.into_root_schema_for::<CodebaseSearch>(),
         }
     }
 
@@ -757,7 +771,8 @@ impl ToolCatalog {
             | ToolCatalog::Followup(_)
             | ToolCatalog::Plan(_)
             | ToolCatalog::Skill(_)
-            | ToolCatalog::ReportSearch(_) => None,
+            | ToolCatalog::ReportSearch(_)
+            | ToolCatalog::CodebaseSearch(_) => None,
         }
     }
 

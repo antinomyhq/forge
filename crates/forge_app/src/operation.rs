@@ -7,7 +7,7 @@ use derive_setters::Setters;
 use forge_display::DiffFormat;
 use forge_domain::{
     CodebaseSearchResults, Environment, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite,
-    FileOperation, LineNumbers, Metrics, NetFetch, PlanCreate, ToolKind,
+    FileOperation, LineNumbers, Metrics, NetFetch, PlanCreate, ToolKind, ToolOutput,
 };
 use forge_template::Element;
 
@@ -46,11 +46,14 @@ pub enum ToolOperation {
         input: FSSearch,
         output: Option<SearchResult>,
     },
-    CodebaseSearch {
+    SemSearch {
         output: CodebaseSearchResults,
     },
     SearchReport {
         output: SearchReportOutput,
+    },
+    CodebaseSearch {
+        output: ToolOutput,
     },
     FsPatch {
         input: FSPatch,
@@ -381,7 +384,7 @@ impl ToolOperation {
                     forge_domain::ToolOutput::text(elm)
                 }
             },
-            ToolOperation::CodebaseSearch { output } => {
+            ToolOperation::SemSearch { output } => {
                 let total_results: usize = output.queries.iter().map(|q| q.results.len()).sum();
                 let mut root = Element::new("sem_search_results");
 
@@ -474,6 +477,9 @@ impl ToolOperation {
                 }
 
                 forge_domain::ToolOutput::text(root)
+            }
+            ToolOperation::CodebaseSearch { output } => {
+                output
             }
             ToolOperation::FsPatch { input, output } => {
                 let diff_result = DiffFormat::format(&output.before, &output.after);
@@ -2296,7 +2302,7 @@ mod tests {
     fn test_sem_search_with_results() {
         use sem_search_helpers::{chunk_node, search_results};
 
-        let fixture = ToolOperation::CodebaseSearch {
+        let fixture = ToolOperation::SemSearch {
             output: search_results(
                 "retry mechanism with exponential backoff",
                 "where is the retrying logic written",
@@ -2330,7 +2336,7 @@ mod tests {
     fn test_sem_search_with_usecase() {
         use sem_search_helpers::{chunk_node, search_results};
 
-        let fixture = ToolOperation::CodebaseSearch {
+        let fixture = ToolOperation::SemSearch {
             output: search_results(
                 "authentication logic",
                 "need to add similar auth to my endpoint",
@@ -2375,7 +2381,7 @@ mod tests {
 
         // Test that multiple chunks from the same file are sorted by start_line
         // Chunks are provided in non-sequential order: 100, 10, 50
-        let fixture = ToolOperation::CodebaseSearch {
+        let fixture = ToolOperation::SemSearch {
             output: search_results(
                 "database operations",
                 "finding all database query implementations",

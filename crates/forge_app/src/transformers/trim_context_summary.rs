@@ -22,7 +22,7 @@ enum Operation<'a> {
     /// Search operation with a specific pattern
     Search(&'a str),
     /// Codebase search operation with queries
-    CodebaseSearch {
+    SemSearch {
         queries: &'a [forge_domain::SearchQuery],
         file_extensions: &'a [String],
     },
@@ -53,8 +53,9 @@ fn to_op(tool: &SummaryTool) -> Operation<'_> {
         SummaryTool::Shell { command } => Operation::Shell(command),
         SummaryTool::Search { pattern } => Operation::Search(pattern),
         SummaryTool::SemSearch { queries, file_extensions } => {
-            Operation::CodebaseSearch { queries, file_extensions }
+            Operation::SemSearch { queries, file_extensions }
         }
+        SummaryTool::CodebaseSearch { query } => Operation::Search(query),
         SummaryTool::Fetch { url } => Operation::Fetch(url),
         SummaryTool::Followup { question } => Operation::Followup(question),
         SummaryTool::Plan { plan_name } => Operation::Plan(plan_name),

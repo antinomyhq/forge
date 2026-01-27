@@ -6,8 +6,8 @@
 use std::sync::Arc;
 
 use forge_domain::{
-    AgentId, ChatRequest, ChatResponse, ChatResponseContent, Conversation, Event, TitleFormat,
-    ToolCallContext, ToolOutput,
+    AgentId, ChatRequest, ChatResponse, ChatResponseContent, Conversation, Event, ToolCallContext,
+    ToolOutput,
 };
 use futures::StreamExt;
 use tokio::sync::Mutex;
@@ -16,29 +16,18 @@ use crate::error::Error;
 use crate::{ConversationService, EnvironmentService, Services, hooks};
 
 #[derive(Clone)]
-pub struct CodebaseSearchExecutor<S> {
+pub struct CodebaseSearchService<S> {
     services: Arc<S>,
 }
 
-impl<S: Services> CodebaseSearchExecutor<S> {
+impl<S: Services> CodebaseSearchService<S> {
     pub fn new(services: Arc<S>) -> Self {
         Self { services }
     }
 
     /// Executes the codebase_search agent with iteration limiting and output
     /// capture.
-    pub async fn execute(
-        &self,
-        agent_id: AgentId,
-        task: String,
-        ctx: &ToolCallContext,
-    ) -> anyhow::Result<ToolOutput> {
-        ctx.send_tool_input(
-            TitleFormat::debug("Codebase Search".to_string())
-                .sub_title(format!("[{}]", task.as_str())),
-        )
-        .await?;
-
+    pub async fn execute(&self, task: String, ctx: &ToolCallContext) -> anyhow::Result<ToolOutput> {
         // Create a new conversation for agent execution
         let conversation = Conversation::generate().title(task.clone());
         self.services
@@ -50,6 +39,7 @@ impl<S: Services> CodebaseSearchExecutor<S> {
         let env = self.services.get_environment();
         let captured_output = Arc::new(Mutex::new(None));
         let tool_name = forge_domain::ToolName::new("report_search");
+        let agent_id = AgentId::new("codebase_search");
 
         let hook = hooks::tool_output_capture(
             agent_id.clone(),

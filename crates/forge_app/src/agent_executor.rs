@@ -24,12 +24,17 @@ impl<S: Services> AgentExecutor<S> {
     }
 
     /// Returns a list of tool definitions for all available agents.
+    /// Skips agents with is_tool: false.
     pub async fn agent_definitions(&self) -> anyhow::Result<Vec<ToolDefinition>> {
         if let Some(tool_agents) = self.tool_agents.read().await.clone() {
             return Ok(tool_agents);
         }
         let agents = self.services.get_agents().await?;
-        let tools: Vec<ToolDefinition> = agents.into_iter().map(Into::into).collect();
+        let tools: Vec<ToolDefinition> = agents
+            .into_iter()
+            .filter(|agent| agent.is_tool)
+            .map(Into::into)
+            .collect();
         *self.tool_agents.write().await = Some(tools.clone());
         Ok(tools)
     }

@@ -4,41 +4,21 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use forge_domain::{CodebaseQueryResult, ToolCallContext, ToolCatalog, ToolOutput};
 
+use crate::codebase_search_executor::CodebaseSearchService;
 use crate::fmt::content::FormatContent;
 use crate::operation::{TempContentFiles, ToolOperation};
 use crate::services::{SearchReportService, ShellService};
 use crate::{
-    AgentRegistry, ConversationService, EnvironmentService, FollowUpService, FsPatchService,
-    FsReadService, FsRemoveService, FsSearchService, FsUndoService, FsWriteService,
-    ImageReadService, NetFetchService, PlanCreateService, ProviderService, SkillFetchService,
-    WorkspaceService,
+    EnvironmentService, FollowUpService, FsPatchService, FsReadService, FsRemoveService,
+    FsSearchService, FsUndoService, FsWriteService, NetFetchService, PlanCreateService, Services,
+    SkillFetchService, WorkspaceService,
 };
 
 pub struct ToolExecutor<S> {
     services: Arc<S>,
 }
 
-impl<
-    S: FsReadService
-        + ImageReadService
-        + FsWriteService
-        + FsSearchService
-        + WorkspaceService
-        + NetFetchService
-        + FsRemoveService
-        + FsPatchService
-        + FsUndoService
-        + ShellService
-        + FollowUpService
-        + ConversationService
-        + EnvironmentService
-        + PlanCreateService
-        + SkillFetchService
-        + AgentRegistry
-        + ProviderService
-        + SearchReportService,
-> ToolExecutor<S>
-{
+impl<S: Services> ToolExecutor<S> {
     pub fn new(services: Arc<S>) -> Self {
         Self { services }
     }
@@ -148,7 +128,11 @@ impl<
         Ok(path)
     }
 
-    async fn call_internal(&self, input: ToolCatalog) -> anyhow::Result<ToolOperation> {
+    async fn call_internal(
+        &self,
+        input: ToolCatalog,
+        ctx: &ToolCallContext,
+    ) -> anyhow::Result<ToolOperation> {
         Ok(match input {
             ToolCatalog::Read(input) => {
                 let normalized_path = self.normalize_path(input.file_path.clone());
@@ -220,7 +204,7 @@ impl<
                     .collect::<Vec<_>>();
 
                 let output = forge_domain::CodebaseSearchResults { queries: output };
-                ToolOperation::CodebaseSearch { output }
+                ToolOperation::SemSearch { output }
             }
             ToolCatalog::ReportSearch(input) => {
                 // Normalize file paths before passing to service
@@ -237,6 +221,11 @@ impl<
                     .collect();
                 let output = self.services.generate_report(normalized_chunks).await?;
                 ToolOperation::SearchReport { output }
+            }
+            ToolCatalog::CodebaseSearch(input) => {
+                let executor = CodebaseSearchService::new(self.services.clone());
+                let output = executor.execute(input.query, ctx).await?;
+                ToolOperation::CodebaseSearch { output }
             }
             ToolCatalog::Remove(input) => {
                 let normalized_path = self.normalize_path(input.path.clone());
@@ -341,7 +330,7 @@ impl<
             self.require_prior_read(context, &input.file_path, "overwrite it")?;
         }
 
-        let execution_result = self.call_internal(tool_input.clone()).await;
+        let execution_result = self.call_internal(tool_input.clone(), context).await;
 
         if let Err(ref error) = execution_result {
             tracing::error!(error = ?error, "Tool execution failed");

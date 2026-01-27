@@ -120,6 +120,11 @@ impl FormatContent for ToolCatalog {
                     .into(),
             ),
             ToolCatalog::ReportSearch(_) => None,
+            ToolCatalog::CodebaseSearch(input) => Some(
+                TitleFormat::debug("Codebase Search")
+                    .sub_title(format!("[{}]", input.query))
+                    .into(),
+            ),
         }
     }
 }
