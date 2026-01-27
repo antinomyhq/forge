@@ -199,8 +199,8 @@ pub enum SummaryTool {
         queries: Vec<SearchQuery>,
         file_extensions: Vec<String>,
     },
-    SearchReport {
-        chunks_count: usize,
+    ReportSearch {
+        paths: Vec<String>
     },
     Undo {
         path: String,
@@ -221,6 +221,7 @@ pub enum SummaryTool {
         name: String,
     },
 }
+
 
 impl From<&Context> for ContextSummary {
     fn from(value: &Context) -> Self {
@@ -328,7 +329,10 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
                 file_extensions: input.extensions,
             }),
             ToolCatalog::SearchReport(input) => {
-                Some(SummaryTool::SearchReport { chunks_count: input.chunks.len() })
+                let paths: Vec<String> = input.chunks.iter()
+                    .map(|chunk| chunk.file_path.display().to_string())
+                    .collect();
+                Some(SummaryTool::ReportSearch { paths })
             }
             ToolCatalog::Undo(input) => Some(SummaryTool::Undo { path: input.path }),
             ToolCatalog::Fetch(input) => Some(SummaryTool::Fetch { url: input.url }),
