@@ -222,7 +222,7 @@ impl<
                 let output = forge_domain::CodebaseSearchResults { queries: output };
                 ToolOperation::CodebaseSearch { output }
             }
-            ToolCatalog::SearchReport(input) => {
+            ToolCatalog::ReportSearch(input) => {
                 // Normalize file paths before passing to service
                 let normalized_chunks = input
                     .chunks

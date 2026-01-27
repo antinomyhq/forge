@@ -2485,7 +2485,7 @@ mod tests {
 
         let env = fixture_environment();
         let actual = fixture.into_tool_output(
-            ToolKind::SearchReport,
+            ToolKind::ReportSearch,
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
@@ -2510,7 +2510,7 @@ mod tests {
 
         let env = fixture_environment();
         let actual = fixture.into_tool_output(
-            ToolKind::SearchReport,
+            ToolKind::ReportSearch,
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
@@ -2544,7 +2544,7 @@ mod tests {
 
         let env = fixture_environment();
         let actual = fixture.into_tool_output(
-            ToolKind::SearchReport,
+            ToolKind::ReportSearch,
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
@@ -2587,7 +2587,7 @@ mod tests {
 
         let env = fixture_environment();
         let actual = fixture.into_tool_output(
-            ToolKind::SearchReport,
+            ToolKind::ReportSearch,
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),
@@ -2637,7 +2637,7 @@ mod tests {
 
         let env = fixture_environment();
         let actual = fixture.into_tool_output(
-            ToolKind::SearchReport,
+            ToolKind::ReportSearch,
             TempContentFiles::default(),
             &env,
             &mut Metrics::default(),

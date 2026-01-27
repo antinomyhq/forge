@@ -327,7 +327,7 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
                 queries: input.queries,
                 file_extensions: input.extensions,
             }),
-            ToolCatalog::SearchReport(input) => {
+            ToolCatalog::ReportSearch(input) => {
                 let paths: Vec<String> = input
                     .chunks
                     .iter()
