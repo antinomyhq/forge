@@ -226,10 +226,9 @@ fn codebase_search_hook(
                 let tool = forge_domain::ToolName::new("report_search");
                 async move {
                     // Only capture report_search for codebase_search agent
-                    if agent_id.is_codebase_search()
-                        && result.name.as_str() == tool.as_str() {
-                            *captured_output.lock().await = Some(result);
-                        }
+                    if agent_id.is_codebase_search() && result.name.as_str() == tool.as_str() {
+                        *captured_output.lock().await = Some(result);
+                    }
                     Ok(())
                 }
             }
