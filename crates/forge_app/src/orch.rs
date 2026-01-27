@@ -88,9 +88,13 @@ impl<S: AgentService> Orchestrator<S> {
             }
 
             // Fire the ToolcallStart lifecycle event
-            let toolcall_start_event = LifecycleEvent::ToolcallStart(tool_call.clone());
+            let toolcall_start_event = LifecycleEvent::ToolcallStart(EventData::new(
+                self.agent.clone(),
+                self.agent.model.clone(),
+                ToolcallStartPayload::new(tool_call.clone()),
+            ));
             self.hook
-                .handle(toolcall_start_event, &mut self.conversation)
+                .handle(&toolcall_start_event, &mut self.conversation)
                 .await?;
 
             // Execute the tool
@@ -110,9 +114,13 @@ impl<S: AgentService> Orchestrator<S> {
             }
 
             // Fire the ToolcallEnd lifecycle event
-            let toolcall_end_event = LifecycleEvent::ToolcallEnd(tool_result.clone());
+            let toolcall_end_event = LifecycleEvent::ToolcallEnd(EventData::new(
+                self.agent.clone(),
+                self.agent.model.clone(),
+                ToolcallEndPayload::new(tool_result.clone()),
+            ));
             self.hook
-                .handle(toolcall_end_event, &mut self.conversation)
+                .handle(&toolcall_end_event, &mut self.conversation)
                 .await?;
 
             // Send the end notification for system tools and not agent as a tool
@@ -225,10 +233,13 @@ impl<S: AgentService> Orchestrator<S> {
         let mut context = self.conversation.context.clone().unwrap_or_default();
 
         // Fire the Start lifecycle event
-        let start_event =
-            LifecycleEvent::Start { agent: self.agent.clone(), model_id: model_id.clone() };
+        let start_event = LifecycleEvent::Start(EventData::new(
+            self.agent.clone(),
+            model_id.clone(),
+            StartPayload,
+        ));
         self.hook
-            .handle(start_event, &mut self.conversation)
+            .handle(&start_event, &mut self.conversation)
             .await?;
 
         // Signals that the loop should suspend (task may or may not be completed)
@@ -254,13 +265,13 @@ impl<S: AgentService> Orchestrator<S> {
             self.services.update(self.conversation.clone()).await?;
 
             // Fire the Request lifecycle event
-            let request_event = LifecycleEvent::Request {
-                agent: self.agent.clone(),
-                model_id: model_id.clone(),
-                request_count,
-            };
+            let request_event = LifecycleEvent::Request(EventData::new(
+                self.agent.clone(),
+                model_id.clone(),
+                RequestPayload::new(request_count),
+            ));
             self.hook
-                .handle(request_event, &mut self.conversation)
+                .handle(&request_event, &mut self.conversation)
                 .await?;
 
             let message = crate::retry::retry_with_config(
@@ -283,9 +294,13 @@ impl<S: AgentService> Orchestrator<S> {
             ).await?;
 
             // Fire the Response lifecycle event
-            let response_event = LifecycleEvent::Response(message.clone());
+            let response_event = LifecycleEvent::Response(EventData::new(
+                self.agent.clone(),
+                model_id.clone(),
+                ResponsePayload::new(message.clone()),
+            ));
             self.hook
-                .handle(response_event, &mut self.conversation)
+                .handle(&response_event, &mut self.conversation)
                 .await?;
 
             // TODO: Add a unit test in orch spec, to guarantee that compaction is
@@ -409,7 +424,14 @@ impl<S: AgentService> Orchestrator<S> {
 
         // Fire the End lifecycle event
         self.hook
-            .handle(LifecycleEvent::End, &mut self.conversation)
+            .handle(
+                &LifecycleEvent::End(EventData::new(
+                    self.agent.clone(),
+                    model_id.clone(),
+                    EndPayload,
+                )),
+                &mut self.conversation,
+            )
             .await?;
 
         // Signal Task Completion
