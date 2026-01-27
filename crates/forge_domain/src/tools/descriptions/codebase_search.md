@@ -2,7 +2,7 @@ Semantic code search using natural language. Finds code by behavior and concepts
 Usage:
 - Use for locating code to modify, understanding how features work, finding patterns/examples
 - Returns topK most relevant file:line locations with code snippets inline
-- QUERY QUALITY MATTERS: Provide detailed, structured queries for better results.
-  - WHAT: Numbered list of specific aspects to find
-  - WHY: The purpose or goal driving the search
-  - Good: 'WHAT: 1. How user credentials are validated 2. Where tokens are refreshed 3. How auth headers are applied. WHY: Need to add session expiry checks'. Bad: 'authentication' (too vague).
+- QUERY FORMAT: Specify exactly what you're looking for and why.
+  - Include: which part of the codebase, what specific things to find, why you need them.
+  - Good: "Find the GitHub API client authentication: 1. How tokens are stored 2. Token refresh logic 3. Header injection. Need to add support for GitHub App tokens."
+  - Bad: "authentication" - too vague, doesn't say which part of codebase, no specific aspects, no reason.
