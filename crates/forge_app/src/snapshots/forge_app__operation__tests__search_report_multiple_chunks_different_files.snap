@@ -1,0 +1,18 @@
+---
+source: crates/forge_app/src/operation.rs
+expression: to_value(actual)
+---
+<search_report_results>
+<file
+  path="src/main.rs"
+><![CDATA[1:fn main() {
+2:    println!("Hello, world!");
+3:}]]>
+</file>
+<file
+  path="src/utils.rs"
+><![CDATA[10:pub fn helper() -> i32 {
+11:    42
+12:}]]>
+</file>
+</search_report_results>
