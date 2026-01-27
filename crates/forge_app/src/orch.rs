@@ -273,6 +273,8 @@ impl<S: AgentService> Orchestrator<S> {
             self.hook
                 .handle(&request_event, &mut self.conversation)
                 .await?;
+            // it's possible that context may have been modified by the hook.
+            context = self.conversation.context.clone().unwrap_or(context);
 
             let message = crate::retry::retry_with_config(
                 &self.environment.retry_config,
@@ -299,9 +301,12 @@ impl<S: AgentService> Orchestrator<S> {
                 model_id.clone(),
                 ResponsePayload::new(message.clone()),
             ));
+
             self.hook
                 .handle(&response_event, &mut self.conversation)
                 .await?;
+            // it's possible that context may have been modified by the hook.
+            context = self.conversation.context.clone().unwrap_or(context);
 
             // TODO: Add a unit test in orch spec, to guarantee that compaction is
             // triggered after receiving the response
