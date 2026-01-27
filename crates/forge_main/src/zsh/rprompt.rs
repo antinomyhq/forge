@@ -145,7 +145,7 @@ mod tests {
             .to_string();
 
         let expected =
-            " %B%F{15}\u{f167a} FORGE%f%b %B%F{15}1.5k%f%b %B%F{2}$0.0%f%b %F{134}\u{ec19} gpt-4%f";
+            " %B%F{15}\u{f167a} FORGE%f%b %B%F{15}1.5k%f%b %B%F{2}\u{f155}0.01%f%b %F{134}\u{ec19} gpt-4%f";
         assert_eq!(actual, expected);
     }
 
