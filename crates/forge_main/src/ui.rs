@@ -3124,7 +3124,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         // Calculate total cost including related conversations
         let cost = if let Some(ref conv) = conversation {
             let related_conversations = self.fetch_related_conversations(conv).await;
-            conv.total_cost_with_related(&related_conversations)
+            let all_conversations: Vec<_> = std::iter::once(conv)
+                .chain(related_conversations.iter())
+                .cloned()
+                .collect();
+            Conversation::total_cost(&all_conversations)
         } else {
             None
         };

@@ -145,20 +145,18 @@ impl Conversation {
     ///
     /// # Arguments
     ///
-    /// * `related` - A slice of related conversations to include in cost
-    ///   calculation
-    pub fn total_cost_with_related(&self, related: &[Conversation]) -> Option<f64> {
-        let main_cost = self.accumulated_cost();
-        let related_costs: Vec<f64> = related
+    /// * `conversations` - A slice of conversations to include in cost calculation
+    pub fn total_cost(conversations: &[Conversation]) -> Option<f64> {
+        let costs: Vec<f64> = conversations
             .iter()
             .filter_map(|conv| conv.accumulated_cost())
             .collect();
 
-        if main_cost.is_none() && related_costs.is_empty() {
+        if costs.is_empty() {
             return None;
         }
 
-        Some(main_cost.unwrap_or(0.0) + related_costs.iter().sum::<f64>())
+        Some(costs.iter().sum())
     }
 
     /// Extracts all related conversation IDs from agent tool calls.
@@ -268,7 +266,7 @@ mod tests {
     }
 
     #[test]
-    fn test_total_cost_with_related() {
+    fn test_total_cost() {
         use crate::{MessageEntry, Usage};
 
         // Create main conversation with cost
@@ -299,7 +297,7 @@ mod tests {
 
         let related_conv_2 = Conversation::generate().context(related_context_2);
 
-        let actual = main_conv.total_cost_with_related(&[related_conv_1, related_conv_2]);
+        let actual = Conversation::total_cost(&[main_conv, related_conv_1, related_conv_2]);
 
         // Check that cost is approximately 0.06 (accounting for floating point
         // precision)
@@ -308,18 +306,18 @@ mod tests {
     }
 
     #[test]
-    fn test_total_cost_with_related_no_costs() {
+    fn test_total_cost_no_costs() {
         let main_conv = Conversation::generate();
         let related_conv = Conversation::generate();
 
-        let actual = main_conv.total_cost_with_related(&[related_conv]);
+        let actual = Conversation::total_cost(&[main_conv, related_conv]);
         let expected = None;
 
         assert_eq!(actual, expected);
     }
 
     #[test]
-    fn test_total_cost_with_related_partial_costs() {
+    fn test_total_cost_partial_costs() {
         use crate::{MessageEntry, Usage};
 
         // Main conversation has no cost
@@ -334,7 +332,7 @@ mod tests {
 
         let related_conv = Conversation::generate().context(related_context);
 
-        let actual = main_conv.total_cost_with_related(&[related_conv]);
+        let actual = Conversation::total_cost(&[main_conv, related_conv]);
         let expected = Some(0.05);
 
         assert_eq!(actual, expected);
