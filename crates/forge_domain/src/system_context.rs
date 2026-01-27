@@ -4,7 +4,7 @@ use serde_json::{Map, Value};
 
 use crate::{Environment, File, Model, Skill};
 
-#[derive(Debug, Setters, Clone, Serialize, Deserialize)]
+#[derive(Debug, Setters, Clone, PartialEq, Serialize, Deserialize)]
 #[setters(strip_option)]
 #[derive(Default)]
 pub struct SystemContext {
