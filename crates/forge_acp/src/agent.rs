@@ -14,6 +14,7 @@ use forge_domain::{
     AgentId, ChatRequest, ConversationId, Event, EventValue, ToolCallFull, ToolName, ToolValue,
 };
 use tokio::sync::mpsc;
+use tokio_util::sync::CancellationToken;
 
 use crate::{Error, Result};
 
@@ -32,6 +33,9 @@ pub struct ForgeAgent<S> {
     next_session_id: Cell<u64>,
     /// Mapping from ACP session IDs to Forge conversation IDs.
     session_to_conversation: RefCell<HashMap<String, ConversationId>>,
+    /// Cancellation tokens for active sessions.
+    /// Allows clients to interrupt long-running operations.
+    cancellation_tokens: RefCell<HashMap<String, CancellationToken>>,
 }
 
 impl<S: Services> ForgeAgent<S> {
@@ -53,6 +57,7 @@ impl<S: Services> ForgeAgent<S> {
             session_update_tx,
             next_session_id: Cell::new(0),
             session_to_conversation: RefCell::new(HashMap::new()),
+            cancellation_tokens: RefCell::new(HashMap::new()),
         }
     }
 
@@ -293,6 +298,14 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
             arguments.prompt.len()
         );
 
+        let session_key = arguments.session_id.0.as_ref().to_string();
+
+        // Create a new cancellation token for this prompt
+        let cancellation_token = CancellationToken::new();
+        self.cancellation_tokens
+            .borrow_mut()
+            .insert(session_key.clone(), cancellation_token.clone());
+
         let conversation_id = self
             .to_conversation_id(&arguments.session_id)
             .map_err(acp::Error::from)?;
@@ -330,9 +343,22 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
                 use futures::StreamExt;
 
                 // Stream responses back to the client as session notifications
-                while let Some(response_result) = stream.next().await {
-                    match response_result {
-                        Ok(response) => {
+                loop {
+                    tokio::select! {
+                        // Check for cancellation
+                        _ = cancellation_token.cancelled() => {
+                            tracing::info!("Session {} cancelled by client", session_key);
+                            
+                            // Clean up the cancellation token
+                            self.cancellation_tokens.borrow_mut().remove(&session_key);
+                            
+                            return Ok(acp::PromptResponse::new(acp::StopReason::Cancelled));
+                        }
+                        
+                        // Process next stream item
+                        response_result = stream.next() => {
+                            match response_result {
+                                Some(Ok(response)) => {
                             match response {
                                 forge_domain::ChatResponse::TaskMessage { content } => {
                                     match content {
@@ -434,25 +460,45 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
                                 }
                                 forge_domain::ChatResponse::Interrupt { .. } => {
                                     // Interrupted, return cancelled
+                                    // Clean up cancellation token
+                                    self.cancellation_tokens.borrow_mut().remove(&session_key);
+                                    
                                     return Ok(acp::PromptResponse::new(
                                         acp::StopReason::Cancelled,
                                     ));
                                 }
                             }
                         }
-                        Err(e) => {
+                        Some(Err(e)) => {
                             tracing::error!("Error in chat stream: {}", e);
+                            
+                            // Clean up cancellation token
+                            self.cancellation_tokens.borrow_mut().remove(&session_key);
+                            
                             return Err(acp::Error::into_internal_error(
                                 e.as_ref() as &dyn std::error::Error
                             ));
                         }
+                        None => {
+                            // Stream ended normally
+                            break;
+                        }
                     }
                 }
+            }
+        }
+
+                // Clean up cancellation token
+                self.cancellation_tokens.borrow_mut().remove(&session_key);
 
                 Ok(acp::PromptResponse::new(acp::StopReason::EndTurn))
             }
             Err(e) => {
                 tracing::error!("Failed to execute chat: {}", e);
+                
+                // Clean up cancellation token
+                self.cancellation_tokens.borrow_mut().remove(&session_key);
+                
                 Err(acp::Error::into_internal_error(
                     e.as_ref() as &dyn std::error::Error
                 ))
@@ -461,12 +507,22 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
     }
 
     /// Handles cancellation requests.
+    ///
+    /// Cancels the active prompt execution for the specified session by
+    /// triggering the associated cancellation token.
     async fn cancel(&self, args: acp::CancelNotification) -> std::result::Result<(), acp::Error> {
-        tracing::info!(
-            "Received cancel request for session: {}",
-            args.session_id.0.as_ref()
-        );
-        // TODO: Implement cancellation logic
+        let session_key = args.session_id.0.as_ref().to_string();
+        
+        tracing::info!("Received cancel request for session: {}", session_key);
+
+        // Trigger the cancellation token if it exists
+        if let Some(token) = self.cancellation_tokens.borrow().get(&session_key) {
+            token.cancel();
+            tracing::info!("Cancelled session: {}", session_key);
+        } else {
+            tracing::warn!("No active prompt for session: {}", session_key);
+        }
+
         Ok(())
     }
 
