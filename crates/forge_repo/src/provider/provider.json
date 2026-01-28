@@ -494,9 +494,9 @@
     "auth_methods": [
       {
         "oauth_code": {
-          "auth_url": "https://one-chamois-64.clerk.accounts.dev/oauth/authorize",
-          "token_url": "https://one-chamois-64.clerk.accounts.dev/oauth/token",
-          "client_id": "S3hUteGnA1cZDoCM",
+          "auth_url": "https://clerk.forgecode.dev/oauth/authorize",
+          "token_url": "https://clerk.forgecode.dev/oauth/token",
+          "client_id": "wmVgjvoQ3hUcGbk8",
           "scopes": [
             "openid",
             "profile",
