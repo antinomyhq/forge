@@ -15,7 +15,7 @@ function _forge_action_new() {
     # If input_text is provided, send it to the new conversation
     if [[ -n "$input_text" ]]; then
         # Generate new conversation ID and switch to it
-        local new_id=$($_FORGE_BIN conversation new)
+        local new_id=$(_forge_bin conversation new)
         _forge_switch_conversation "$new_id"
         
         # Execute the forge command with the input text

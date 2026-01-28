@@ -12,12 +12,11 @@ function _forge_select_provider() {
     local output
     
     # Build the command with type filter if specified
-    local cmd="$_FORGE_BIN list provider --porcelain"
     if [[ -n "$filter_type" ]]; then
-        cmd="$cmd --type=$filter_type"
+        output=$(_forge_bin list provider --porcelain --type="$filter_type" 2>/dev/null)
+    else
+        output=$(_forge_bin list provider --porcelain 2>/dev/null)
     fi
-    
-    output=$(eval "$cmd" 2>/dev/null)
     
     if [[ -z "$output" ]]; then
         _forge_log error "No providers available"
@@ -38,7 +37,7 @@ function _forge_select_provider() {
     
     # Get current provider if not provided
     if [[ -z "$current_provider" ]]; then
-        current_provider=$($_FORGE_BIN config get provider --porcelain 2>/dev/null)
+        current_provider=$(_forge_bin config get provider --porcelain 2>/dev/null)
     fi
     
     local fzf_args=(

@@ -93,7 +93,7 @@ function _forge_action_conversation() {
     
     # Get conversations list
     local conversations_output
-    conversations_output=$($_FORGE_BIN conversation list --porcelain 2>/dev/null)
+    conversations_output=$(_forge_bin conversation list --porcelain 2>/dev/null)
     
     if [[ -n "$conversations_output" ]]; then
         # Get current conversation ID if set
@@ -105,7 +105,7 @@ function _forge_action_conversation() {
             --prompt="$prompt_text"
             --delimiter="$_FORGE_DELIMITER"
             --with-nth="2,3"
-            --preview="CLICOLOR_FORCE=1 $_FORGE_BIN conversation info {1}; echo; CLICOLOR_FORCE=1 $_FORGE_BIN conversation show {1}"
+            --preview="CLICOLOR_FORCE=1 _forge_bin conversation info {1}; echo; CLICOLOR_FORCE=1 _forge_bin conversation show {1}"
             $_FORGE_PREVIEW_WINDOW
         )
 
@@ -158,7 +158,7 @@ function _forge_action_clone() {
     
     # Get conversations list for fzf selection
     local conversations_output
-    conversations_output=$($_FORGE_BIN conversation list --porcelain 2>/dev/null)
+    conversations_output=$(_forge_bin conversation list --porcelain 2>/dev/null)
     
     if [[ -z "$conversations_output" ]]; then
         _forge_log error "No conversations found"
@@ -204,7 +204,7 @@ function _forge_clone_and_switch() {
     # Execute clone command
     _forge_log info "Cloning conversation \033[1m${clone_target}\033[0m"
     local clone_output
-    clone_output=$($_FORGE_BIN conversation clone "$clone_target" 2>&1)
+    clone_output=$(_forge_bin conversation clone "$clone_target" 2>&1)
     local clone_exit_code=$?
     
     if [[ $clone_exit_code -eq 0 ]]; then

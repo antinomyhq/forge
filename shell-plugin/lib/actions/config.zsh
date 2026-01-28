@@ -13,7 +13,7 @@ function _forge_action_agent() {
         local agent_id="$input_text"
         
         # Validate that the agent exists (skip header line)
-        local agent_exists=$($_FORGE_BIN list agents --porcelain 2>/dev/null | tail -n +2 | grep -q "^${agent_id}\b" && echo "true" || echo "false")
+        local agent_exists=$(_forge_bin list agents --porcelain 2>/dev/null | tail -n +2 | grep -q "^${agent_id}\b" && echo "true" || echo "false")
         if [[ "$agent_exists" == "false" ]]; then
             _forge_log error "Agent '\033[1m${agent_id}\033[0m' not found"
             return 0
@@ -30,7 +30,7 @@ function _forge_action_agent() {
     
     # Get agents list
     local agents_output
-    agents_output=$($_FORGE_BIN list agents --porcelain 2>/dev/null)
+    agents_output=$(_forge_bin list agents --porcelain 2>/dev/null)
     
     if [[ -n "$agents_output" ]]; then
         # Get current agent ID
@@ -90,7 +90,7 @@ function _forge_action_provider() {
 
 # Action handler: Select model
 function _forge_action_model() {
-    _forge_select_and_set_config "list models" "model" "Model" "$($_FORGE_BIN config get model --porcelain)" "2,3.."
+    _forge_select_and_set_config "list models" "model" "Model" "$(_forge_bin config get model --porcelain)" "2,3.."
 }
 
 # Action handler: Sync workspace for codebase search
@@ -113,9 +113,9 @@ function _forge_select_and_set_config() {
         if [[ "$show_command" == *" "* ]]; then
             # Split the command into words and execute with --porcelain
             local cmd_parts=(${=show_command})
-            output=$($_FORGE_BIN "${cmd_parts[@]}" --porcelain 2>/dev/null)
+            output=$(_forge_bin "${cmd_parts[@]}" --porcelain 2>/dev/null)
         else
-            output=$($_FORGE_BIN "$show_command" --porcelain 2>/dev/null)
+            output=$(_forge_bin "$show_command" --porcelain 2>/dev/null)
         fi
         
         if [[ -n "$output" ]]; then
