@@ -285,11 +285,11 @@ impl<S: Services> ForgeAgent<S> {
             }
             acp::EmbeddedResourceResource::BlobResourceContents(blob) => {
                 // Blob is base64 encoded
-                let bytes = base64::Engine::decode(
-                    &base64::engine::general_purpose::STANDARD,
-                    &blob.blob,
-                )
-                .map_err(|e| Error::Application(anyhow::anyhow!("Invalid base64: {}", e)))?;
+                let bytes =
+                    base64::Engine::decode(&base64::engine::general_purpose::STANDARD, &blob.blob)
+                        .map_err(|e| {
+                            Error::Application(anyhow::anyhow!("Invalid base64: {}", e))
+                        })?;
 
                 let mime_type = blob
                     .mime_type
