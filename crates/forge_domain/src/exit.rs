@@ -52,6 +52,13 @@ impl Exit {
         }
     }
 
+    pub fn as_interrupt_reason(&self) -> Option<&InterruptionReason> {
+        match self {
+            Exit::Tool { .. } | Exit::Text {  .. } => None,
+            Exit::Interrupt { reason, .. } => Some(reason),
+        }
+    }
+
     /// Returns the tool result if this was a tool capture exit.
     pub fn as_tool_result(&self) -> Option<&ToolResult> {
         match self {
