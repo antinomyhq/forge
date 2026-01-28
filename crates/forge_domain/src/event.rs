@@ -84,7 +84,7 @@ impl EventValue {
 #[serde(transparent)]
 pub struct UserPrompt(String);
 
-#[derive(Clone, Serialize, Deserialize, Debug, Setters)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Setters)]
 pub struct EventContext {
     event: EventContextValue,
     suggestions: Vec<String>,
@@ -92,7 +92,7 @@ pub struct EventContext {
     current_date: String,
 }
 
-#[derive(Clone, Serialize, Deserialize, Debug, Setters)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Setters)]
 pub struct EventContextValue {
     pub name: String,
     pub value: String,
