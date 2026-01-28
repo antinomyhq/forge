@@ -18,101 +18,85 @@ impl ToolCallReminder {
         Self { tool_name, max_iterations }
     }
 
-    /// Applies a reminder message to the conversation if needed based on the
-    /// current request count.
-    ///
-    /// Reminders are sent at:
-    /// - Halfway point: Informational reminder
-    /// - Urgent threshold (max - 2): Urgent warning
-    /// - Final (max + 1): Forces the tool call
-    ///
-    /// Does not add a reminder if the target tool is already being called in
-    /// the current iteration.
+    /// Applies a reminder message to the conversation if needed.
     fn apply(&self, request_count: usize, conversation: &mut Conversation) {
-        let Some(ctx) = conversation.context.take() else {
-            return;
-        };
+        conversation.context = conversation
+            .context
+            .take()
+            .map(|ctx| self.transform(request_count, ctx));
+    }
 
-        // Check if the target tool was called or already executed in the last message
-        if let Some(last_entry) = ctx.messages.last() {
-            match &last_entry.message {
-                ContextMessage::Text(text_msg) => {
-                    if let Some(tool_calls) = &text_msg.tool_calls
-                        && tool_calls.iter().any(|call| call.name == self.tool_name)
-                    {
-                        // Tool is already being called, don't add reminder
-                        conversation.context = Some(ctx);
-                        return;
-                    }
-                }
-                ContextMessage::Tool(tool_result) => {
-                    if tool_result.name == self.tool_name {
-                        // Tool is already being called, don't add reminder
-                        conversation.context = Some(ctx);
-                        return;
-                    }
-                }
-                ContextMessage::Image(_) => {}
-            }
+    /// Transforms context by adding a reminder if conditions are met.
+    fn transform(&self, request_count: usize, ctx: forge_domain::Context) -> forge_domain::Context {
+        // If tool call was already made then there's no need of reminder.
+        if self.has_pending_tool_call(&ctx) {
+            return ctx;
         }
 
-        let remaining = self.max_iterations.saturating_sub(request_count);
-        let halfway = self.max_iterations / 2;
-        let urgent_threshold = self.max_iterations.saturating_sub(2);
-
-        let (message, force_tool) = match request_count {
-            0 => {
-                conversation.context = Some(ctx);
-                return;
-            }
-            n if n == halfway => (
-                Element::new("system-reminder")
-                    .text(format!(
-                        "You have used {n} of {} requests. \
-                         You have {remaining} requests remaining before you must call \
-{} to report your findings.",
-                        self.max_iterations,
-                        self.tool_name.as_str(),
-                    ))
-                    .render(),
-                false,
-            ),
-            n if n >= urgent_threshold && n < self.max_iterations => (
-                Element::new("system-reminder")
-                    .text(format!(
-                        "URGENT: You have used {n} of {} requests. \
-                         Only {remaining} request(s) remaining! You MUST call {} on your \
-                         next turn to report your findings.",
-                        self.max_iterations,
-                        self.tool_name.as_str()
-                    ))
-                    .render(),
-                false,
-            ),
-            n if n == self.max_iterations + 1 => (
-                Element::new("system-reminder")
-                    .text(format!(
-                        "FINAL REMINDER: You have reached the maximum number of requests. \
-                     You MUST call the {} tool now to report your findings. \
-                     Do not make any more search requests.",
-                        self.tool_name.as_str()
-                    ))
-                    .render(),
-                true,
-            ),
-            _ => {
-                conversation.context = Some(ctx);
-                return;
-            }
+        let Some((message, force_tool)) = self.create_reminder(request_count) else {
+            return ctx;
         };
 
-        let text_msg = TextMessage::new(Role::User, message);
-        conversation.context = Some(if force_tool {
-            ctx.add_message(ContextMessage::Text(text_msg))
-                .tool_choice(forge_domain::ToolChoice::Call(self.tool_name.clone()))
+        let ctx = ctx.add_message(ContextMessage::Text(TextMessage::new(Role::User, message)));
+        if force_tool {
+            ctx.tool_choice(forge_domain::ToolChoice::Call(self.tool_name.clone()))
         } else {
-            ctx.add_message(ContextMessage::Text(text_msg))
-        });
+            ctx
+        }
+    }
+
+    /// Returns a reminder message and whether to force the tool call.
+    fn create_reminder(&self, request_count: usize) -> Option<(String, bool)> {
+        let remaining = self.max_iterations.saturating_sub(request_count);
+        let halfway = self.max_iterations / 2;
+        let urgent = self.max_iterations.saturating_sub(2);
+        let tool = self.tool_name.as_str();
+        let max = self.max_iterations;
+
+        let (text, force) = match request_count {
+            0 => return None,
+            n if n == halfway => (
+                format!(
+                    "You have used {n} of {max} requests. \
+                     You have {remaining} requests remaining before you must call {tool} \
+                     to report your findings."
+                ),
+                false,
+            ),
+            n if n >= urgent && n < max => (
+                format!(
+                    "URGENT: You have used {n} of {max} requests. \
+                     Only {remaining} request(s) remaining! \
+                     You MUST call {tool} on your next turn to report your findings."
+                ),
+                false,
+            ),
+            n if n == max + 1 => (
+                format!(
+                    "FINAL REMINDER: You have reached the maximum number of requests. \
+                     You MUST call the {tool} tool now to report your findings. \
+                     Do not make any more search requests."
+                ),
+                true,
+            ),
+            _ => return None,
+        };
+
+        Some((Element::new("system-reminder").text(text).render(), force))
+    }
+
+    /// Checks if the target tool has a pending call in the last message.
+    fn has_pending_tool_call(&self, ctx: &forge_domain::Context) -> bool {
+        ctx.messages
+            .last()
+            .is_some_and(|entry| match &entry.message {
+                ContextMessage::Text(msg) => msg
+                    .tool_calls
+                    .as_ref()
+                    .is_some_and(|calls| calls.iter().any(|c| c.name == self.tool_name)),
+                ContextMessage::Tool(result) => result.name == self.tool_name,
+                ContextMessage::Image(_) => false,
+            })
     }
 }
 
