@@ -31,9 +31,10 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use agent_client_protocol as acp;
+use agent_client_protocol::{SetSessionModelRequest, SetSessionModelResponse};
 use forge_app::{
-    AgentProviderResolver, AgentRegistry, AttachmentService, ConversationService, ForgeApp,
-    ProviderAuthService, ProviderService, Services,
+    AgentProviderResolver, AgentRegistry, AppConfigService, AttachmentService, ConversationService,
+    ForgeApp, ProviderAuthService, ProviderService, Services,
 };
 use forge_domain::{
     Agent, AgentId, ChatRequest, ConversationId, Event, EventValue, ModelId, ToolCallFull,
@@ -1318,5 +1319,18 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
             args.params
         );
         Ok(())
+    }
+    async fn set_session_model(
+        &self,
+        args: SetSessionModelRequest,
+    ) -> agent_client_protocol::Result<SetSessionModelResponse> {
+        tracing::debug!("got args while changing model: {:?}", args);
+        // TODO: Need review, if we should use existing
+        // model selection algo or we should actually set model for a session
+        self.services
+            .set_default_model(ModelId::new(args.model_id.0.to_string()))
+            .await?;
+
+        Ok(SetSessionModelResponse::default())
     }
 }
