@@ -205,8 +205,8 @@ pub trait API: Sync + Send {
         path: PathBuf,
     ) -> Result<Option<forge_domain::WorkspaceInfo>>;
 
-    /// Delete a workspace
-    async fn delete_workspace(&self, workspace_id: forge_domain::WorkspaceId) -> Result<()>;
+    /// Delete one or more workspaces in parallel
+    async fn delete_workspaces(&self, workspace_ids: Vec<forge_domain::WorkspaceId>) -> Result<()>;
 
     /// Get sync status for all files in workspace
     async fn get_workspace_status(&self, path: PathBuf) -> Result<Vec<forge_domain::FileStatus>>;

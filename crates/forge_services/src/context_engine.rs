@@ -425,14 +425,9 @@ impl<F> ForgeWorkspaceService<F> {
         F: WalkerInfra + FileReaderInfra,
     {
         info!("Walking directory to discover files");
-        let mut walker_config = Walker::conservative()
+        let walker_config = Walker::unlimited()
             .cwd(dir_path.to_path_buf())
-            .max_depth(usize::MAX)
-            .max_breadth(usize::MAX)
-            .max_files(usize::MAX)
             .skip_binary(true); // Walker filters binary files
-        walker_config.max_file_size = None;
-        walker_config.max_total_size = None;
 
         let walked_files = self
             .infra
@@ -602,6 +597,35 @@ impl<
             .delete(workspace_id)
             .await
             .context("Failed to delete workspace from local database")?;
+
+        Ok(())
+    }
+
+    /// Deletes multiple workspaces in parallel from both the server and local
+    /// database.
+    async fn delete_workspaces(&self, workspace_ids: &[forge_domain::WorkspaceId]) -> Result<()> {
+        // Delete all workspaces in parallel by calling delete_workspace for each
+        let delete_tasks: Vec<_> = workspace_ids
+            .iter()
+            .map(|workspace_id| self.delete_workspace(workspace_id))
+            .collect();
+
+        let results = join_all(delete_tasks).await;
+
+        // Collect all errors
+        let errors: Vec<_> = results.into_iter().filter_map(|r| r.err()).collect();
+
+        if !errors.is_empty() {
+            return Err(anyhow::anyhow!(
+                "Failed to delete {} workspace(s): [{}]",
+                errors.len(),
+                errors
+                    .iter()
+                    .map(|e| e.to_string())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ));
+        }
 
         Ok(())
     }
@@ -1154,6 +1178,49 @@ mod tests {
             .iter()
             .any(|e| matches!(e, forge_domain::SyncProgress::Completed { .. }));
         assert!(has_completion, "Expected a completion event");
+    }
+
+    #[tokio::test]
+    async fn test_delete_multiple_workspaces() {
+        let ws1 = workspace();
+        let ws2 = Workspace {
+            workspace_id: WorkspaceId::generate(),
+            user_id: ws1.user_id.clone(),
+            path: PathBuf::from("/project2"),
+            created_at: chrono::Utc::now(),
+            updated_at: None,
+        };
+
+        let mock = MockInfra::synced(&["main.rs"]);
+        mock.workspaces.lock().await.push(WorkspaceInfo {
+            workspace_id: ws1.workspace_id.clone(),
+            working_dir: "/project".into(),
+            node_count: Some(0),
+            relation_count: Some(0),
+            last_updated: None,
+            created_at: chrono::Utc::now(),
+        });
+        mock.workspaces.lock().await.push(WorkspaceInfo {
+            workspace_id: ws2.workspace_id.clone(),
+            working_dir: "/project2".into(),
+            node_count: Some(0),
+            relation_count: Some(0),
+            last_updated: None,
+            created_at: chrono::Utc::now(),
+        });
+
+        let service = ForgeWorkspaceService::new(Arc::new(mock));
+
+        // Delete both workspaces
+        service
+            .delete_workspaces(&[ws1.workspace_id.clone(), ws2.workspace_id.clone()])
+            .await
+            .unwrap();
+
+        // Verify both workspaces are deleted
+        let actual = service.list_workspaces().await.unwrap();
+        assert!(!actual.iter().any(|w| w.workspace_id == ws1.workspace_id));
+        assert!(!actual.iter().any(|w| w.workspace_id == ws2.workspace_id));
     }
 
     #[tokio::test]

@@ -30,6 +30,8 @@ pub trait ListStyler {
     fn bullet_plus(&self, text: &str) -> String;
     fn bullet_plus_expand(&self, text: &str) -> String;
     fn number(&self, text: &str) -> String;
+    fn checkbox_checked(&self, text: &str) -> String;
+    fn checkbox_unchecked(&self, text: &str) -> String;
 }
 
 /// Trait for styling table elements.

@@ -19,27 +19,20 @@ function _forge_fzf() {
 # Helper function to execute forge commands consistently
 # This ensures proper handling of special characters and consistent output
 function _forge_exec() {
-    # Ensure FORGE_ACTIVE_AGENT always has a value, default to "forge"
     local agent_id="${_FORGE_ACTIVE_AGENT:-forge}"
-    
-    eval "$_FORGE_BIN --agent $(printf '%q' "$agent_id") $(printf '%q ' "$@")"
+    local -a cmd
+    cmd=($_FORGE_BIN --agent "$agent_id" "$@")
+    "${cmd[@]}"
 }
 
-# Helper function to clear buffer and reset prompt
 function _forge_reset() {
-    # Invoke precmd hooks to ensure prompt customizations (starship, oh-my-zsh themes, etc.) refresh properly
-    for precmd in $precmd_functions; do
-        if typeset -f "$precmd" >/dev/null 2>&1; then
-            "$precmd"
-        fi
-    done
-
-   BUFFER=""
-   CURSOR=0
-
-   zle reset-prompt 
-    
+  zle -I
+  BUFFER=""
+  CURSOR=0
+  zle -R
+  zle reset-prompt
 }
+
 
 # Helper function to find the index of a value in a list (1-based)
 # Returns the index if found, 1 otherwise
@@ -137,8 +130,9 @@ function _forge_start_background_sync() {
     
     # Run sync once in background
     # Close all output streams immediately to prevent any flashing
+    # Redirect stdin to /dev/null to prevent hanging if sync tries to read input
     {
-        exec >/dev/null 2>&1
+        exec >/dev/null 2>&1 </dev/null
         setopt NO_NOTIFY NO_MONITOR
         $_FORGE_BIN workspace sync "$workspace_path"
     } &!

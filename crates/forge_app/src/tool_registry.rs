@@ -78,7 +78,7 @@ impl<S: Services> ToolRegistry<S> {
 
                 use crate::utils::format_display_path;
                 context
-                    .send_title(
+                    .send_tool_input(
                         TitleFormat::debug("Permissions Update")
                             .sub_title(format_display_path(policy_path.as_path(), &cwd)),
                     )
@@ -164,7 +164,7 @@ impl<S: Services> ToolRegistry<S> {
                 let text = style(text).cyan().dim().to_string();
                 context
                     .send(ChatResponse::TaskMessage {
-                        content: ChatResponseContent::PlainText(text),
+                        content: ChatResponseContent::ToolOutput(text),
                     })
                     .await?;
             }
@@ -879,7 +879,7 @@ fn test_all_rendered_tool_descriptions() {
     use fake::{Fake, Faker};
 
     let mut env: Environment = Faker.fake();
-    env.cwd = "/Users/amit/code-forge".into();
+    env.cwd = "/home/user/project".into();
     env.max_read_size = 2000;
     env.max_line_length = 2000;
     env.max_image_size = 5000;
