@@ -128,7 +128,7 @@ pub fn tool_call_reminder(agent_id: AgentId, tool_name: ToolName, max_iterations
             if event.agent.id == agent_id {
                 reminder.apply(event.payload.request_count, conversation);
             }
-            async move { None }
+            async { None }
         }
     })
 }
@@ -247,9 +247,7 @@ mod tests {
         text_msg.tool_calls = Some(vec![forge_domain::ToolCallFull {
             name: tool_name,
             call_id: Some(forge_domain::ToolCallId::new("test_call")),
-            arguments: forge_domain::ToolCallArguments::from_json(
-                r#"{"tasks": ["search task"]}"#,
-            ),
+            arguments: forge_domain::ToolCallArguments::from_json(r#"{"tasks": ["search task"]}"#),
         }]);
 
         conversation.context = Some(
