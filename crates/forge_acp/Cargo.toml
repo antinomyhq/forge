@@ -10,6 +10,7 @@ forge_domain.workspace = true
 
 anyhow.workspace = true
 async-trait.workspace = true
+base64.workspace = true
 futures.workspace = true
 tokio.workspace = true
 tokio-util = { workspace = true, features = ["compat"] }

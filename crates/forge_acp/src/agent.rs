@@ -9,7 +9,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use agent_client_protocol as acp;
-use forge_app::{AgentRegistry, ConversationService, ForgeApp, Services};
+use forge_app::{AgentRegistry, AttachmentService, ConversationService, ForgeApp, Services};
 use forge_domain::{
     Agent, AgentId, ChatRequest, ConversationId, Event, EventValue, ToolCallFull, ToolName,
     ToolValue,
@@ -243,6 +243,71 @@ impl<S: Services> ForgeAgent<S> {
             })
             .collect()
     }
+
+    /// Converts an ACP URI to a file path.
+    ///
+    /// Handles file:// URIs and converts them to absolute paths.
+    fn uri_to_path(uri: &str) -> String {
+        // Handle file:// URIs
+        if let Some(path) = uri.strip_prefix("file://") {
+            // Remove any leading slash for Windows paths (file:///C:/path -> C:/path)
+            if path.len() > 2 && path.chars().nth(2) == Some(':') {
+                path.trim_start_matches('/').to_string()
+            } else {
+                path.to_string()
+            }
+        } else {
+            // Return as-is if not a file:// URI
+            uri.to_string()
+        }
+    }
+
+    /// Converts an ACP EmbeddedResource to a Forge Attachment.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the resource cannot be converted.
+    fn acp_resource_to_attachment(
+        resource: &acp::EmbeddedResource,
+    ) -> Result<forge_domain::Attachment> {
+        use forge_domain::{AttachmentContent, Image};
+
+        match &resource.resource {
+            acp::EmbeddedResourceResource::TextResourceContents(text) => {
+                let content = AttachmentContent::FileContent {
+                    content: text.text.clone(),
+                    start_line: 1,
+                    end_line: text.text.lines().count() as u64,
+                    total_lines: text.text.lines().count() as u64,
+                };
+                let path = Self::uri_to_path(&text.uri);
+                Ok(forge_domain::Attachment { content, path })
+            }
+            acp::EmbeddedResourceResource::BlobResourceContents(blob) => {
+                // Blob is base64 encoded
+                let bytes = base64::Engine::decode(
+                    &base64::engine::general_purpose::STANDARD,
+                    &blob.blob,
+                )
+                .map_err(|e| Error::Application(anyhow::anyhow!("Invalid base64: {}", e)))?;
+
+                let mime_type = blob
+                    .mime_type
+                    .clone()
+                    .unwrap_or_else(|| "application/octet-stream".to_string());
+
+                let content = AttachmentContent::Image(Image::new_bytes(bytes, mime_type));
+                let path = Self::uri_to_path(&blob.uri);
+                Ok(forge_domain::Attachment { content, path })
+            }
+            _ => {
+                // Handle unknown resource types
+                Err(Error::Application(anyhow::anyhow!(
+                    "Unsupported resource type"
+                )))
+            }
+        }
+    }
 }
 
 #[async_trait::async_trait(?Send)]
@@ -388,24 +453,53 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
             .map_err(acp::Error::from)?;
 
         // Convert ACP prompt content to Forge Event
-        let prompt_text = arguments
-            .prompt
-            .iter()
-            .filter_map(|content_block| {
-                // Extract text from content blocks
-                match content_block {
-                    acp::ContentBlock::Text(text_content) => Some(text_content.text.as_str()),
-                    _ => None,
+        let mut prompt_text_parts = Vec::new();
+        let mut acp_attachments = Vec::new();
+
+        for content_block in &arguments.prompt {
+            match content_block {
+                acp::ContentBlock::Text(text_content) => {
+                    prompt_text_parts.push(text_content.text.clone());
                 }
-            })
-            .collect::<Vec<_>>()
-            .join("\n");
+                acp::ContentBlock::ResourceLink(resource_link) => {
+                    // IDE sent a resource link - convert URI to @[path] syntax
+                    // so our attachment service can process it
+                    let path = Self::uri_to_path(&resource_link.uri);
+                    prompt_text_parts.push(format!("@[{}]", path));
+                }
+                acp::ContentBlock::Resource(embedded_resource) => {
+                    // IDE sent embedded resource content - convert to Forge attachment
+                    match Self::acp_resource_to_attachment(embedded_resource) {
+                        Ok(attachment) => acp_attachments.push(attachment),
+                        Err(e) => {
+                            tracing::warn!("Failed to convert embedded resource: {}", e);
+                        }
+                    }
+                }
+                _ => {
+                    // Ignore other content types for now
+                }
+            }
+        }
+
+        let prompt_text = prompt_text_parts.join("\n");
+
+        // Process file tags (@[filename]) from text and ResourceLinks
+        let mut attachments = self
+            .services
+            .attachment_service()
+            .attachments(&prompt_text)
+            .await
+            .map_err(|e| acp::Error::into_internal_error(&*e))?;
+
+        // Add embedded resources from IDE
+        attachments.extend(acp_attachments);
 
         let event = Event {
             id: uuid::Uuid::new_v4().to_string(),
             value: Some(EventValue::text(prompt_text)),
             timestamp: chrono::Utc::now().to_rfc3339(),
-            attachments: Vec::new(),
+            attachments,
             additional_context: None,
         };
 

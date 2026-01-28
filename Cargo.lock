@@ -1690,6 +1690,7 @@ dependencies = [
  "agent-client-protocol",
  "anyhow",
  "async-trait",
+ "base64 0.22.1",
  "chrono",
  "forge_app",
  "forge_domain",
