@@ -25,17 +25,46 @@ impl ToolCallReminder {
     /// - Halfway point: Informational reminder
     /// - Urgent threshold (max - 2): Urgent warning
     /// - Final (max + 1): Forces the tool call
+    ///
+    /// Does not add a reminder if the target tool is already being called in
+    /// the current iteration.
     fn apply(&self, request_count: usize, conversation: &mut Conversation) {
         let Some(ctx) = conversation.context.take() else {
             return;
         };
+
+        // Check if the target tool was called or already executed in the last message
+        if let Some(last_entry) = ctx.messages.last() {
+            match &last_entry.message {
+                ContextMessage::Text(text_msg) => {
+                    if let Some(tool_calls) = &text_msg.tool_calls {
+                        if tool_calls.iter().any(|call| call.name == self.tool_name) {
+                            // Tool is already being called, don't add reminder
+                            conversation.context = Some(ctx);
+                            return;
+                        }
+                    }
+                }
+                ContextMessage::Tool(tool_result) => {
+                    if tool_result.name == self.tool_name {
+                        // Tool is already being called, don't add reminder
+                        conversation.context = Some(ctx);
+                        return;
+                    }
+                }
+                ContextMessage::Image(_) => {}
+            }
+        }
 
         let remaining = self.max_iterations.saturating_sub(request_count);
         let halfway = self.max_iterations / 2;
         let urgent_threshold = self.max_iterations.saturating_sub(2);
 
         let (message, force_tool) = match request_count {
-            0 => return,
+            0 => {
+                conversation.context = Some(ctx);
+                return;
+            }
             n if n == halfway => (
                 Element::new("system-reminder")
                     .text(format!(
@@ -71,7 +100,10 @@ impl ToolCallReminder {
                     .render(),
                 true,
             ),
-            _ => return,
+            _ => {
+                conversation.context = Some(ctx);
+                return;
+            }
         };
 
         let text_msg = TextMessage::new(Role::User, message);
@@ -200,6 +232,40 @@ mod tests {
         reminder.apply(5, &mut conversation);
 
         insta::assert_snapshot!(conversation.context.unwrap().to_text());
+    }
+
+    #[test]
+    fn test_no_reminder_when_tool_already_called() {
+        let tool_name = ToolName::new("report_search");
+        let reminder = ToolCallReminder::new(tool_name.clone(), 10);
+        let mut conversation = Conversation::generate()
+            .title(Some("test".to_string()))
+            .context(forge_domain::Context::default());
+
+        // Add a message with a tool call to the target tool
+        let mut text_msg = TextMessage::new(Role::Assistant, "I'll search for you.".to_string());
+        text_msg.tool_calls = Some(vec![forge_domain::ToolCallFull {
+            name: tool_name,
+            call_id: Some(forge_domain::ToolCallId::new("test_call")),
+            arguments: forge_domain::ToolCallArguments::from_json(
+                r#"{"tasks": ["search task"]}"#,
+            ),
+        }]);
+
+        conversation.context = Some(
+            conversation
+                .context
+                .unwrap()
+                .add_message(ContextMessage::Text(text_msg)),
+        );
+
+        // Apply reminder at halfway point - should not add reminder
+        reminder.apply(5, &mut conversation);
+
+        // Verify no reminder was added (should still have only 1 message)
+        let ctx = conversation.context.as_ref().unwrap();
+        assert_eq!(ctx.messages.len(), 1);
+        assert!(!ctx.messages[0].to_text().contains("You have used"));
     }
 
     // Tests for hooks
