@@ -220,51 +220,62 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
                 while let Some(response_result) = stream.next().await {
                     match response_result {
                         Ok(response) => {
-                            // Convert ChatResponse to ACP session notification
-                            let content = match response {
+                            match response {
                                 forge_domain::ChatResponse::TaskMessage { content } => {
-                                    let text = match content {
-                                        forge_domain::ChatResponseContent::ToolOutput(s) => {
-                                            format!("{}\n", s)
+                                    match content {
+                                        forge_domain::ChatResponseContent::ToolOutput(_) => {
+                                            // Skip tool outputs in ACP - they're too verbose
+                                            continue;
                                         }
                                         forge_domain::ChatResponseContent::Markdown {
                                             text,
                                             ..
                                         } => {
-                                            format!("{}\n", text)
-                                        }
-                                        forge_domain::ChatResponseContent::ToolInput(title) => {
-                                            // Format title properly: "Title: subtitle"
-                                            if let Some(sub_title) = &title.sub_title {
-                                                format!("{}: {}\n", title.title, sub_title)
-                                            } else {
-                                                format!("{}\n", title.title)
+                                            // Only send non-empty markdown text
+                                            if !text.is_empty() {
+                                                let notification = acp::SessionNotification::new(
+                                                    arguments.session_id.clone(),
+                                                    acp::SessionUpdate::AgentMessageChunk(
+                                                        acp::ContentChunk::new(
+                                                            acp::ContentBlock::Text(
+                                                                acp::TextContent::new(text),
+                                                            ),
+                                                        ),
+                                                    ),
+                                                );
+                                                self.send_notification(notification)
+                                                    .map_err(|e| acp::Error::from(e))?;
                                             }
                                         }
-                                    };
-                                    acp::ContentBlock::Text(acp::TextContent::new(text))
+                                        forge_domain::ChatResponseContent::ToolInput(_) => {
+                                            // Skip tool input notifications - too verbose for ACP
+                                            continue;
+                                        }
+                                    }
                                 }
                                 forge_domain::ChatResponse::TaskReasoning { content } => {
-                                    // Send as agent thought
-                                    let notification = acp::SessionNotification::new(
-                                        arguments.session_id.clone(),
-                                        acp::SessionUpdate::AgentThoughtChunk(
-                                            acp::ContentChunk::new(acp::ContentBlock::Text(
-                                                acp::TextContent::new(content),
-                                            )),
-                                        ),
-                                    );
+                                    // Send as agent thought, only if non-empty
+                                    if !content.is_empty() {
+                                        let notification = acp::SessionNotification::new(
+                                            arguments.session_id.clone(),
+                                            acp::SessionUpdate::AgentThoughtChunk(
+                                                acp::ContentChunk::new(acp::ContentBlock::Text(
+                                                    acp::TextContent::new(content),
+                                                )),
+                                            ),
+                                        );
 
-                                    self.send_notification(notification)
-                                        .map_err(acp::Error::from)?;
-                                    continue;
+                                        self.send_notification(notification)
+                                            .map_err(acp::Error::from)?;
+                                    }
                                 }
                                 forge_domain::ChatResponse::ToolCallStart(_) => {
-                                    // For now, skip tool calls in the stream
-                                    // TODO: Map to ACP tool calls when supported
+                                    // Skip tool call starts - not needed in ACP output
+                                    // TODO: Map to ACP tool calls if possible
                                     continue;
                                 }
                                 forge_domain::ChatResponse::ToolCallEnd(_) => {
+                                    // Skip tool call ends - not needed in ACP output
                                     continue;
                                 }
                                 forge_domain::ChatResponse::TaskComplete => {
@@ -272,6 +283,7 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
                                     break;
                                 }
                                 forge_domain::ChatResponse::RetryAttempt { .. } => {
+                                    // Skip retry attempts in ACP output
                                     continue;
                                 }
                                 forge_domain::ChatResponse::Interrupt { .. } => {
@@ -280,17 +292,7 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
                                         acp::StopReason::Cancelled,
                                     ));
                                 }
-                            };
-
-                            let notification = acp::SessionNotification::new(
-                                arguments.session_id.clone(),
-                                acp::SessionUpdate::AgentMessageChunk(acp::ContentChunk::new(
-                                    content,
-                                )),
-                            );
-
-                            self.send_notification(notification)
-                                .map_err(acp::Error::from)?;
+                            }
                         }
                         Err(e) => {
                             tracing::error!("Error in chat stream: {}", e);
