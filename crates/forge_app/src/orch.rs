@@ -247,15 +247,16 @@ impl<S: AgentService> Orchestrator<S> {
         let mut context = self.conversation.context.clone().unwrap_or_default();
 
         // Fire the Start lifecycle event
-        let start_event = LifecycleEvent::Start(EventData::new(
-            self.agent.clone(),
-            model_id.clone(),
-            StartPayload,
-        ));
-        if let Some(exit) = self.hook.handle(&start_event, &mut self.conversation).await {
-            self.send(ChatResponse::Exit(exit.clone())).await?;
+        if let Some(exit) = self
+            .process_hooks(EventData::new(
+                self.agent.clone(),
+                model_id.clone(),
+                StartPayload,
+            ))
+            .await?
+        {
             return Ok(exit);
-        }
+        };
 
         // Signals that the loop should suspend (task may or may not be completed)
         let mut should_yield = false;
@@ -282,19 +283,17 @@ impl<S: AgentService> Orchestrator<S> {
             self.services.update(self.conversation.clone()).await?;
 
             // Fire the Request lifecycle event
-            let request_event = LifecycleEvent::Request(EventData::new(
-                self.agent.clone(),
-                model_id.clone(),
-                RequestPayload::new(request_count),
-            ));
             if let Some(exit) = self
-                .hook
-                .handle(&request_event, &mut self.conversation)
-                .await
+                .process_hooks(EventData::new(
+                    self.agent.clone(),
+                    model_id.clone(),
+                    RequestPayload::new(request_count),
+                ))
+                .await?
             {
-                self.send(ChatResponse::Exit(exit.clone())).await?;
                 return Ok(exit);
-            }
+            };
+
             // it's possible that context may have been modified by the hook.
             context = self.conversation.context.clone().unwrap_or(context);
 
@@ -318,20 +317,16 @@ impl<S: AgentService> Orchestrator<S> {
             ).await?;
 
             // Fire the Response lifecycle event
-            let response_event = LifecycleEvent::Response(EventData::new(
-                self.agent.clone(),
-                model_id.clone(),
-                ResponsePayload::new(message.clone()),
-            ));
-
             if let Some(exit) = self
-                .hook
-                .handle(&response_event, &mut self.conversation)
-                .await
+                .process_hooks(EventData::new(
+                    self.agent.clone(),
+                    model_id.clone(),
+                    ResponsePayload::new(message.clone()),
+                ))
+                .await?
             {
-                self.send(ChatResponse::Exit(exit.clone())).await?;
                 return Ok(exit);
-            }
+            };
             // it's possible that context may have been modified by the hook.
             context = self.conversation.context.clone().unwrap_or(context);
 
@@ -464,20 +459,15 @@ impl<S: AgentService> Orchestrator<S> {
 
         // Fire the End lifecycle event
         if let Some(exit) = self
-            .hook
-            .handle(
-                &LifecycleEvent::End(EventData::new(
-                    self.agent.clone(),
-                    model_id.clone(),
-                    EndPayload,
-                )),
-                &mut self.conversation,
-            )
-            .await
+            .process_hooks(EventData::new(
+                self.agent.clone(),
+                model_id.clone(),
+                EndPayload,
+            ))
+            .await?
         {
-            self.send(ChatResponse::Exit(exit.clone())).await?;
             return Ok(exit);
-        }
+        };
 
         // Signal Task Completion
         if is_complete {
@@ -535,5 +525,21 @@ impl<S: AgentService> Orchestrator<S> {
         } else {
             tokio::spawn(async { None })
         }
+    }
+
+    async fn process_hooks(
+        &mut self,
+        event: impl Into<LifecycleEvent>,
+    ) -> anyhow::Result<Option<Exit>> {
+        if let Some(exit) = self
+            .hook
+            .handle(&event.into(), &mut self.conversation)
+            .await
+        {
+            self.send(ChatResponse::Exit(exit.clone())).await?;
+            return Ok(Some(exit));
+        }
+
+        Ok(None)
     }
 }
