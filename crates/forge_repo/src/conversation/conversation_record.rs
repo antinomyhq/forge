@@ -380,6 +380,11 @@ impl From<&forge_domain::ToolValue> for ToolValueRecord {
                 conversation_id: conversation_id.into_string(),
             },
             forge_domain::ToolValue::Image(img) => Self::Image(ImageRecord::from(img)),
+            forge_domain::ToolValue::FileDiff(_) => {
+                // FileDiff is for IDE integration, not persisted
+                // The text diff is already included as Text variant
+                Self::Empty
+            }
             forge_domain::ToolValue::Empty => Self::Empty,
         }
     }

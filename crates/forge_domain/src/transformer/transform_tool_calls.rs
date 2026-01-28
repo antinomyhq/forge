@@ -57,6 +57,10 @@ impl Transformer for TransformToolCalls {
                             crate::ToolValue::Image(image) => {
                                 new_messages.push(ContextMessage::Image(image).into());
                             }
+                            crate::ToolValue::FileDiff(_) => {
+                                // FileDiff is for IDE integration, not sent to LLM
+                                // The text diff is already included as Text variant
+                            }
                             crate::ToolValue::Empty => {}
                             crate::ToolValue::AI { value, .. } => new_messages
                                 .push(ContextMessage::user(value, self.model.clone()).into()),

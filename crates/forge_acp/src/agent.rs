@@ -221,13 +221,23 @@ impl<S: Services> ForgeAgent<S> {
 
     /// Maps a Forge ToolOutput to ACP ToolCallContent.
     fn map_tool_output_to_content(output: &forge_domain::ToolOutput) -> Vec<acp::ToolCallContent> {
+        // Check if there's a FileDiff - if so, only show that and skip text diffs
+        let has_file_diff = output.values.iter().any(|v| matches!(v, ToolValue::FileDiff(_)));
+        
         output
             .values
             .iter()
             .filter_map(|value| match value {
-                ToolValue::Text(text) => Some(acp::ToolCallContent::Content(acp::Content::new(
-                    acp::ContentBlock::Text(acp::TextContent::new(text.clone())),
-                ))),
+                ToolValue::Text(text) => {
+                    // Skip text content if we have a FileDiff (text is the formatted diff for CLI)
+                    if has_file_diff {
+                        None
+                    } else {
+                        Some(acp::ToolCallContent::Content(acp::Content::new(
+                            acp::ContentBlock::Text(acp::TextContent::new(text.clone())),
+                        )))
+                    }
+                }
                 ToolValue::Image(image) => Some(acp::ToolCallContent::Content(acp::Content::new(
                     acp::ContentBlock::Image(acp::ImageContent::new(
                         image.data(),
@@ -238,6 +248,13 @@ impl<S: Services> ForgeAgent<S> {
                     Some(acp::ToolCallContent::Content(acp::Content::new(
                         acp::ContentBlock::Text(acp::TextContent::new(value.clone())),
                     )))
+                }
+                ToolValue::FileDiff(file_diff) => {
+                    // Convert Forge FileDiff to ACP Diff
+                    Some(acp::ToolCallContent::Diff(
+                        acp::Diff::new(PathBuf::from(&file_diff.path), &file_diff.new_text)
+                            .old_text(file_diff.old_text.clone()),
+                    ))
                 }
                 ToolValue::Empty => None,
             })
@@ -542,7 +559,7 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
                                         forge_domain::ChatResponse::TaskMessage { content } => {
                                             match content {
                                                 forge_domain::ChatResponseContent::ToolOutput(_) => {
-                                                    // Skip tool outputs in ACP - they're too verbose
+                                                    // Skip tool outputs in ACP - diffs are shown via ToolCallEnd
                                                     continue;
                                                 }
                                                 forge_domain::ChatResponseContent::Markdown {

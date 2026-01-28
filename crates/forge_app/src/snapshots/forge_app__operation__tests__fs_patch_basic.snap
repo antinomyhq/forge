@@ -10,3 +10,4 @@ expression: to_value(actual)
 2 2 | This is a test
 ]]>
 </file_diff>
+File diff for: /home/user/test.txt

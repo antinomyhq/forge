@@ -10,3 +10,4 @@ expression: to_value(actual)
   1 |+New content for the file
 ]]></file_diff>
 </file_overwritten>
+File diff for: /home/user/existing_file.txt

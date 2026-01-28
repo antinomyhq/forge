@@ -24,3 +24,4 @@ expression: to_value(actual)
 <suggestion>Review and fix the syntax issues</suggestion>
 </warning>
 </file_diff>
+File diff for: /home/user/large_file.txt

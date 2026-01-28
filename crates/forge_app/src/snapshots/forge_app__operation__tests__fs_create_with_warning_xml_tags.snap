@@ -26,3 +26,4 @@ expression: to_value(actual)
 <suggestion>Review and fix the syntax issues</suggestion>
 </warning>
 </file_created>
+File diff for: /home/user/file_with_warning.txt

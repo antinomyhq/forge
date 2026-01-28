@@ -490,6 +490,10 @@ impl From<ToolResult> for MessageContent {
                     };
                     parts.push(content);
                 }
+                ToolValue::FileDiff(_) => {
+                    // FileDiff is for IDE integration, not sent to LLM
+                    // The text diff is already included as Text variant
+                }
                 ToolValue::Empty => {
                     // Handle empty case if needed
                 }

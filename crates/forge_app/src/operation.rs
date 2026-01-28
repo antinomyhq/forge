@@ -295,7 +295,18 @@ impl ToolOperation {
                     elm = elm.append(create_validation_warning(&input.file_path, &output.errors));
                 }
 
+                // Create structured diff data for IDE integration
+                let file_diff = forge_domain::FileDiff {
+                    path: input.file_path.clone(),
+                    old_text: output.before.clone(),
+                    new_text: input.content.clone(),
+                };
+
                 forge_domain::ToolOutput::text(elm)
+                    .combine(forge_domain::ToolOutput {
+                        is_error: false,
+                        values: vec![forge_domain::ToolValue::FileDiff(file_diff)],
+                    })
             }
             ToolOperation::FsRemove { input, output } => {
                 // None since file was removed
@@ -451,7 +462,18 @@ impl ToolOperation {
                         .content_hash(Some(output.content_hash.clone())),
                 );
 
+                // Create structured diff data for IDE integration
+                let file_diff = forge_domain::FileDiff {
+                    path: input.file_path.clone(),
+                    old_text: Some(output.before.clone()),
+                    new_text: output.after.clone(),
+                };
+
                 forge_domain::ToolOutput::text(elm)
+                    .combine(forge_domain::ToolOutput {
+                        is_error: false,
+                        values: vec![forge_domain::ToolValue::FileDiff(file_diff)],
+                    })
             }
             ToolOperation::FsUndo { input, output } => {
                 // Diff between snapshot state (after_undo) and modified state
@@ -650,6 +672,9 @@ mod tests {
             }
             ToolValue::Image(image) => {
                 writeln!(result, "Image with mime type: {}", image.mime_type()).unwrap();
+            }
+            ToolValue::FileDiff(file_diff) => {
+                writeln!(result, "File diff for: {}", file_diff.path).unwrap();
             }
             ToolValue::Empty => {
                 writeln!(result, "Empty value").unwrap();
