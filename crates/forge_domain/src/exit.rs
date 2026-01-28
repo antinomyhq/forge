@@ -82,8 +82,8 @@ impl Exit {
         Self::Structured { result, conversation_id }
     }
 
-    /// Creates an interrupt exit with the given reason, output, and conversation
-    /// ID.
+    /// Creates an interrupt exit with the given reason, output, and
+    /// conversation ID.
     pub fn interrupt(reason: InterruptionReason, conversation_id: ConversationId) -> Self {
         Self::Failure { reason, conversation_id }
     }

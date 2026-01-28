@@ -34,15 +34,13 @@ impl<S: Services> CodebaseSearchService<S> {
         let tool_name = forge_domain::ToolName::new("report_search");
         let agent_id = AgentId::new("codebase_search");
 
-        let hook = hooks::tool_output_capture(
-            agent_id.clone(),
-            tool_name.clone(),
-        )
-        .zip(hooks::tool_call_reminder(
-            agent_id.clone(),
-            tool_name,
-            env.codebase_search_max_iterations,
-        ));
+        let hook = hooks::tool_output_capture(agent_id.clone(), tool_name.clone()).zip(
+            hooks::tool_call_reminder(
+                agent_id.clone(),
+                tool_name,
+                env.codebase_search_max_iterations,
+            ),
+        );
 
         // Execute the request through ForgeApp with both hooks merged
         let app = crate::ForgeApp::<S>::new(self.services.clone()).with_hook(Arc::new(hook));

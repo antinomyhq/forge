@@ -2,7 +2,9 @@ use async_trait::async_trait;
 use derive_more::From;
 use derive_setters::Setters;
 
-use crate::{Agent, ChatCompletionMessageFull, Conversation, Exit, ModelId, ToolCallFull, ToolResult};
+use crate::{
+    Agent, ChatCompletionMessageFull, Conversation, Exit, ModelId, ToolCallFull, ToolResult,
+};
 
 /// A container for lifecycle events with agent and model ID context
 ///
@@ -257,7 +259,11 @@ impl Hook {
 // Implement EventHandle for Hook to allow hooks to handle LifecycleEvent
 #[async_trait]
 impl EventHandle<LifecycleEvent> for Hook {
-    async fn handle(&self, event: &LifecycleEvent, conversation: &mut Conversation) -> Option<Exit> {
+    async fn handle(
+        &self,
+        event: &LifecycleEvent,
+        conversation: &mut Conversation,
+    ) -> Option<Exit> {
         match &event {
             LifecycleEvent::Start(data) => self.on_start.handle(data, conversation).await,
             LifecycleEvent::End(data) => self.on_end.handle(data, conversation).await,
