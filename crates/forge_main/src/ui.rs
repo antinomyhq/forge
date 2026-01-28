@@ -2845,6 +2845,10 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     )?;
                 }
             }
+            ChatResponse::Exit(_) => {
+                // Exit contains the final output, which has already been streamed
+                // as TaskMessage. No action needed here.
+            }
         }
         Ok(())
     }

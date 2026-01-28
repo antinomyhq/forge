@@ -5,7 +5,7 @@ use chrono::{DateTime, Local};
 use derive_setters::Setters;
 use forge_domain::{
     Agent, AgentId, Attachment, ChatCompletionMessage, ChatResponse, Conversation, Environment,
-    Event, File, HttpConfig, MessageEntry, ModelId, ProviderId, RetryConfig, Role, Template,
+    Event, Exit, File, HttpConfig, MessageEntry, ModelId, ProviderId, RetryConfig, Role, Template,
     ToolCallFull, ToolDefinition, ToolResult, Workflow,
 };
 use url::Url;
@@ -110,11 +110,11 @@ impl Default for TestContext {
 }
 
 impl TestContext {
-    pub async fn run(&mut self, event: impl AsRef<str>) -> anyhow::Result<()> {
+    pub async fn run(&mut self, event: impl AsRef<str>) -> anyhow::Result<Exit> {
         self.run_event(Event::new(event.as_ref())).await
     }
 
-    pub async fn run_event(&mut self, event: impl Into<Event>) -> anyhow::Result<()> {
+    pub async fn run_event(&mut self, event: impl Into<Event>) -> anyhow::Result<Exit> {
         Runner::run(self, event.into()).await
     }
 }

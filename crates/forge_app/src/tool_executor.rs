@@ -4,7 +4,7 @@ use std::sync::Arc;
 use anyhow::anyhow;
 use forge_domain::{CodebaseQueryResult, ToolCallContext, ToolCatalog, ToolOutput};
 
-use crate::codebase_search_executor::CodebaseSearchService;
+use crate::codebase_search_service::CodebaseSearchService;
 use crate::fmt::content::FormatContent;
 use crate::operation::{TempContentFiles, ToolOperation};
 use crate::services::{SearchReportService, ShellService};
