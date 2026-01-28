@@ -222,8 +222,11 @@ impl<S: Services> ForgeAgent<S> {
     /// Maps a Forge ToolOutput to ACP ToolCallContent.
     fn map_tool_output_to_content(output: &forge_domain::ToolOutput) -> Vec<acp::ToolCallContent> {
         // Check if there's a FileDiff - if so, only show that and skip text diffs
-        let has_file_diff = output.values.iter().any(|v| matches!(v, ToolValue::FileDiff(_)));
-        
+        let has_file_diff = output
+            .values
+            .iter()
+            .any(|v| matches!(v, ToolValue::FileDiff(_)));
+
         output
             .values
             .iter()

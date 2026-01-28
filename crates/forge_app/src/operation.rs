@@ -302,11 +302,10 @@ impl ToolOperation {
                     new_text: input.content.clone(),
                 };
 
-                forge_domain::ToolOutput::text(elm)
-                    .combine(forge_domain::ToolOutput {
-                        is_error: false,
-                        values: vec![forge_domain::ToolValue::FileDiff(file_diff)],
-                    })
+                forge_domain::ToolOutput::text(elm).combine(forge_domain::ToolOutput {
+                    is_error: false,
+                    values: vec![forge_domain::ToolValue::FileDiff(file_diff)],
+                })
             }
             ToolOperation::FsRemove { input, output } => {
                 // None since file was removed
@@ -469,11 +468,10 @@ impl ToolOperation {
                     new_text: output.after.clone(),
                 };
 
-                forge_domain::ToolOutput::text(elm)
-                    .combine(forge_domain::ToolOutput {
-                        is_error: false,
-                        values: vec![forge_domain::ToolValue::FileDiff(file_diff)],
-                    })
+                forge_domain::ToolOutput::text(elm).combine(forge_domain::ToolOutput {
+                    is_error: false,
+                    values: vec![forge_domain::ToolValue::FileDiff(file_diff)],
+                })
             }
             ToolOperation::FsUndo { input, output } => {
                 // Diff between snapshot state (after_undo) and modified state

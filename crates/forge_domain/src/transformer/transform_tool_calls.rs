@@ -58,8 +58,10 @@ impl Transformer for TransformToolCalls {
                                 new_messages.push(ContextMessage::Image(image).into());
                             }
                             crate::ToolValue::FileDiff(_) => {
-                                // FileDiff is for IDE integration, not sent to LLM
-                                // The text diff is already included as Text variant
+                                // FileDiff is for IDE integration, not sent to
+                                // LLM
+                                // The text diff is already included as Text
+                                // variant
                             }
                             crate::ToolValue::Empty => {}
                             crate::ToolValue::AI { value, .. } => new_messages
