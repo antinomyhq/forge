@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use forge_domain::{
-    Attachment, ChatCompletionMessage, ChatResponse, Conversation, ConversationId, Event,
+    Attachment, ChatCompletionMessage, ChatResponse, Conversation, ConversationId, Event, Exit,
     ProviderId, ToolCallFull, ToolErrorTracker, ToolResult,
 };
 use handlebars::{Handlebars, no_escape};
@@ -62,7 +62,7 @@ impl Runner {
         self.conversation_history.lock().await.clone()
     }
 
-    pub async fn run(setup: &mut TestContext, event: Event) -> anyhow::Result<()> {
+    pub async fn run(setup: &mut TestContext, event: Event) -> anyhow::Result<Exit> {
         const LIMIT: usize = 1024;
         let (tx, mut rx) = tokio::sync::mpsc::channel::<anyhow::Result<ChatResponse>>(LIMIT);
         let handle = tokio::spawn(async move {
@@ -131,7 +131,7 @@ impl Runner {
             .conversation_history
             .extend(runner.get_history().await);
 
-        result.map(|_exit| ())
+        result
     }
 }
 

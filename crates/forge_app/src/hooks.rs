@@ -1,6 +1,6 @@
 use forge_domain::{
     AgentId, ContextMessage, Conversation, EventData, Exit, Hook, RequestPayload, Role,
-    TextMessage, ToolName, ToolResult, ToolcallEndPayload,
+    TextMessage, ToolName, ToolcallEndPayload,
 };
 use forge_template::Element;
 
@@ -128,7 +128,7 @@ pub fn tool_output_capture(agent_id: AgentId, tool_name: ToolName) -> Hook {
 mod tests {
     use forge_domain::{
         Agent, AgentId, EventHandle, LifecycleEvent, ModelId, ProviderId, RequestPayload, ToolName,
-        ToolOutput, ToolcallEndPayload,
+        ToolOutput, ToolResult, ToolcallEndPayload,
     };
 
     use super::*;
