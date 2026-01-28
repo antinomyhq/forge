@@ -32,7 +32,7 @@ use crate::{ToolCallArguments, ToolCallFull, ToolDefinition, ToolDescription, To
     PartialEq,
     EnumDiscriminants,
 )]
-#[strum_discriminants(derive(Display, Serialize, Deserialize, Hash))]
+#[strum_discriminants(derive(Display, Serialize, Deserialize, Hash, EnumIter))]
 #[strum_discriminants(serde(rename_all = "snake_case"))]
 #[serde(tag = "name", content = "arguments", rename_all = "snake_case")]
 #[strum_discriminants(name(ToolKind))]
@@ -640,6 +640,11 @@ impl ToolCatalog {
             .any(|v| v.to_string().to_case(Case::Snake).eq(normalized.as_str()))
     }
 
+    /// Returns a user-friendly display message for the tool
+    /// Returns None for unknown tools (e.g., MCP tools)
+    pub fn display_message(tool_name: &ToolName) -> Option<&'static str> {
+        ToolKind::from_name(tool_name).map(|kind| kind.display_message())
+    }
     /// Convert a tool input to its corresponding domain operation for policy
     /// checking. Returns None for tools that don't require permission
     /// checks.
@@ -886,12 +891,35 @@ impl ToolKind {
         ToolName::new(self.to_string().to_case(Case::Snake))
     }
 
+    /// Attempts to convert a ToolName to a ToolKind
+    pub fn from_name(tool_name: &ToolName) -> Option<Self> {
+        let normalized = normalize_tool_name(tool_name);
+        use strum::IntoEnumIterator;
+        Self::iter().find(|kind| kind.name() == normalized)
+    }
+
     // TODO: This is an extremely slow operation
     pub fn definition(&self) -> ToolDefinition {
         ToolCatalog::iter()
             .find(|tool| tool.definition().name == self.name())
             .map(|tool| tool.definition())
             .expect("Forge tool definition not found")
+    }
+
+    /// Returns a user-friendly display message for the tool
+    pub fn display_message(&self) -> &'static str {
+        match self {
+            ToolKind::Read => "Understanding",
+            ToolKind::Write | ToolKind::Patch => "Editing",
+            ToolKind::FsSearch | ToolKind::SemSearch => "Searching",
+            ToolKind::Remove => "Removing",
+            ToolKind::Undo => "Restoring",
+            ToolKind::Fetch => "Fetching",
+            ToolKind::Skill => "Loading",
+            ToolKind::Plan => "Planning",
+            ToolKind::Followup => "Asking",
+            ToolKind::Shell => "Executing",
+        }
     }
 }
 
