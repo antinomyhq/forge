@@ -252,11 +252,8 @@ impl<S: AgentService> Orchestrator<S> {
             model_id.clone(),
             StartPayload,
         ));
-        if let Some(exit) = self
-            .hook
-            .handle(&start_event, &mut self.conversation)
-            .await
-        {
+        if let Some(exit) = self.hook.handle(&start_event, &mut self.conversation).await {
+            let _ = self.send(ChatResponse::Exit(exit.clone()));
             return Ok(exit);
         }
 
@@ -295,6 +292,7 @@ impl<S: AgentService> Orchestrator<S> {
                 .handle(&request_event, &mut self.conversation)
                 .await
             {
+                let _ = self.send(ChatResponse::Exit(exit.clone()));
                 return Ok(exit);
             }
             // it's possible that context may have been modified by the hook.
@@ -331,6 +329,7 @@ impl<S: AgentService> Orchestrator<S> {
                 .handle(&response_event, &mut self.conversation)
                 .await
             {
+                let _ = self.send(ChatResponse::Exit(exit.clone()));
                 return Ok(exit);
             }
             // it's possible that context may have been modified by the hook.
@@ -377,7 +376,10 @@ impl<S: AgentService> Orchestrator<S> {
                 .await?
             {
                 ToolCallExecutionResult::Records(records) => records,
-                ToolCallExecutionResult::Exit(exit) => return Ok(exit),
+                ToolCallExecutionResult::Exit(exit) => {
+                    let _ = self.send(ChatResponse::Exit(exit.clone()));
+                    return Ok(exit);
+                }
             };
 
             self.error_tracker.adjust_record(&tool_call_records);
@@ -473,6 +475,7 @@ impl<S: AgentService> Orchestrator<S> {
             )
             .await
         {
+            let _ = self.send(ChatResponse::Exit(exit.clone()));
             return Ok(exit);
         }
 
@@ -492,17 +495,21 @@ impl<S: AgentService> Orchestrator<S> {
             .unwrap_or_default();
 
         // Return appropriate Exit variant based on completion status
-        if is_complete {
+        let exit = if is_complete {
             // Task completed successfully
-            Ok(Exit::text(output, self.conversation.id))
+            Exit::text(output, self.conversation.id)
         } else if let Some(reason) = interruption_reason {
             // Execution was interrupted (max requests/errors reached)
-            Ok(Exit::interrupt(reason, self.conversation.id))
+            Exit::interrupt(reason, self.conversation.id)
         } else {
             // Yielded for other reasons (e.g., tool requested follow-up from user)
             // This is not an error - it's a valid pause point
-            Ok(Exit::text(output, self.conversation.id))
-        }
+            Exit::text(output, self.conversation.id)
+        };
+
+        let _ = self.send(ChatResponse::Exit(exit.clone()));
+
+        Ok(exit)
     }
 
     fn get_model(&self) -> ModelId {
