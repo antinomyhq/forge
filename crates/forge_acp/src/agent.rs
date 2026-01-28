@@ -9,15 +9,18 @@
 //! `SessionModelState` mechanism. When creating or loading a session, the agent
 //! returns a list of available models and the currently selected model.
 //!
-//! The IDE will display a model dropdown near the send button, allowing users to:
+//! The IDE will display a model dropdown near the send button, allowing users
+//! to:
 //! - View all available models from the current provider
 //! - See model metadata (context length, capabilities, etc.)
 //! - Switch between models mid-conversation
 //!
 //! Model changes are handled automatically by the ACP protocol through the
-//! `session/set_model` RPC method, which updates the session-specific model override.
+//! `session/set_model` RPC method, which updates the session-specific model
+//! override.
 //!
-//! Additionally, custom extension methods are available for programmatic access:
+//! Additionally, custom extension methods are available for programmatic
+//! access:
 //! - `forge/listModels` - List all available models with full metadata
 //! - `forge/setModel` - Set model for a session
 //! - `forge/getModel` - Get current model for a session
@@ -63,7 +66,8 @@ pub struct ForgeAgent<S> {
     /// Tracks which agent is being used for each session.
     session_to_agent: RefCell<HashMap<String, AgentId>>,
     /// Mapping from ACP session IDs to model overrides.
-    /// When set, these models override the agent's default model for the session.
+    /// When set, these models override the agent's default model for the
+    /// session.
     session_to_model: RefCell<HashMap<String, ModelId>>,
 }
 
@@ -339,7 +343,8 @@ impl<S: Services> ForgeAgent<S> {
         Ok(agent)
     }
 
-    /// Builds the SessionModelState from available models for the agent's provider.
+    /// Builds the SessionModelState from available models for the agent's
+    /// provider.
     ///
     /// # Errors
     ///
@@ -377,10 +382,7 @@ impl<S: Services> ForgeAgent<S> {
             .map(|model| {
                 let mut model_info = acp::ModelInfo::new(
                     model.id.to_string(),
-                    model
-                        .name
-                        .clone()
-                        .unwrap_or_else(|| model.id.to_string()),
+                    model.name.clone().unwrap_or_else(|| model.id.to_string()),
                 )
                 .description(model.description.clone());
 
@@ -421,22 +423,20 @@ impl<S: Services> ForgeAgent<S> {
             })
             .collect();
 
-        Ok(acp::SessionModelState::new(
-            current_agent.model.to_string(),
-            available_models,
+        Ok(
+            acp::SessionModelState::new(current_agent.model.to_string(), available_models).meta({
+                let mut meta = serde_json::Map::new();
+                // Enable search functionality in the model dropdown
+                meta.insert("searchable".to_string(), serde_json::json!(true));
+                // Show search bar when there are more than 10 models
+                meta.insert("searchThreshold".to_string(), serde_json::json!(10));
+                // Enable filtering by model capabilities
+                meta.insert("filterable".to_string(), serde_json::json!(true));
+                // Suggest grouping models by provider
+                meta.insert("groupBy".to_string(), serde_json::json!("provider"));
+                meta
+            }),
         )
-        .meta({
-            let mut meta = serde_json::Map::new();
-            // Enable search functionality in the model dropdown
-            meta.insert("searchable".to_string(), serde_json::json!(true));
-            // Show search bar when there are more than 10 models
-            meta.insert("searchThreshold".to_string(), serde_json::json!(10));
-            // Enable filtering by model capabilities
-            meta.insert("filterable".to_string(), serde_json::json!(true));
-            // Suggest grouping models by provider
-            meta.insert("groupBy".to_string(), serde_json::json!("provider"));
-            meta
-        }))
     }
 
     /// Converts an ACP EmbeddedResource to a Forge Attachment.
@@ -517,11 +517,7 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
         tracing::info!("Sending model selection capabilities in meta: {:?}", meta);
 
         Ok(acp::InitializeResponse::new(acp::ProtocolVersion::V1)
-            .agent_capabilities(
-                acp::AgentCapabilities::new()
-                    .load_session(true)
-                    .meta(meta),
-            )
+            .agent_capabilities(acp::AgentCapabilities::new().load_session(true).meta(meta))
             .agent_info(
                 acp::Implementation::new("forge".to_string(), VERSION.to_string())
                     .title("Forge Code".to_string()),
@@ -1091,21 +1087,17 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
                 let session_id = params
                     .get("sessionId")
                     .and_then(|v: &serde_json::Value| v.as_str())
-                    .ok_or_else(|| acp::Error::invalid_params())?;
+                    .ok_or_else(acp::Error::invalid_params)?;
 
                 let model_id = params
                     .get("modelId")
                     .and_then(|v: &serde_json::Value| v.as_str())
-                    .ok_or_else(|| acp::Error::invalid_params())?;
+                    .ok_or_else(acp::Error::invalid_params)?;
 
                 let session_key = session_id.to_string();
                 let model_id = ModelId::new(model_id);
 
-                tracing::info!(
-                    "Setting model for session {} to: {}",
-                    session_key,
-                    model_id
-                );
+                tracing::info!("Setting model for session {} to: {}", session_key, model_id);
 
                 // Store the model override for this session
                 self.session_to_model
@@ -1126,7 +1118,7 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
                 let session_id = params
                     .get("sessionId")
                     .and_then(|v: &serde_json::Value| v.as_str())
-                    .ok_or_else(|| acp::Error::invalid_params())?;
+                    .ok_or_else(acp::Error::invalid_params)?;
 
                 let session_key = session_id.to_string();
 
