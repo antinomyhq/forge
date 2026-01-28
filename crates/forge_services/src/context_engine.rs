@@ -601,7 +601,8 @@ impl<
         Ok(())
     }
 
-    /// Deletes multiple workspaces in parallel from both the server and local database.
+    /// Deletes multiple workspaces in parallel from both the server and local
+    /// database.
     async fn delete_workspaces(&self, workspace_ids: &[forge_domain::WorkspaceId]) -> Result<()> {
         // Delete all workspaces in parallel by calling delete_workspace for each
         let delete_tasks: Vec<_> = workspace_ids
