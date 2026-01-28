@@ -5,11 +5,14 @@
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use agent_client_protocol as acp;
 use forge_app::{ConversationService, ForgeApp, Services};
-use forge_domain::{AgentId, ChatRequest, ConversationId, Event, EventValue};
+use forge_domain::{
+    AgentId, ChatRequest, ConversationId, Event, EventValue, ToolCallFull, ToolName, ToolValue,
+};
 use tokio::sync::mpsc;
 
 use crate::{Error, Result};
@@ -83,6 +86,116 @@ impl<S: Services> ForgeAgent<S> {
         self.session_update_tx
             .send(notification)
             .map_err(|_| Error::Application(anyhow::anyhow!("Failed to send notification")))
+    }
+
+    /// Maps a Forge tool name to an ACP ToolKind.
+    fn map_tool_kind(tool_name: &ToolName) -> acp::ToolKind {
+        match tool_name.as_str() {
+            "read" => acp::ToolKind::Read,
+            "write" | "patch" => acp::ToolKind::Edit,
+            "remove" | "undo" => acp::ToolKind::Delete,
+            "fs_search" | "sem_search" => acp::ToolKind::Search,
+            "shell" => acp::ToolKind::Execute,
+            "fetch" => acp::ToolKind::Fetch,
+            "sage" => acp::ToolKind::Think, // Research agent
+            _ => {
+                // Check MCP tool patterns
+                let name = tool_name.as_str();
+                if name.starts_with("mcp_") {
+                    if name.contains("read") || name.contains("get") || name.contains("fetch") {
+                        acp::ToolKind::Read
+                    } else if name.contains("search")
+                        || name.contains("query")
+                        || name.contains("find")
+                    {
+                        acp::ToolKind::Search
+                    } else if name.contains("write")
+                        || name.contains("update")
+                        || name.contains("create")
+                    {
+                        acp::ToolKind::Edit
+                    } else if name.contains("delete") || name.contains("remove") {
+                        acp::ToolKind::Delete
+                    } else if name.contains("execute") || name.contains("run") {
+                        acp::ToolKind::Execute
+                    } else {
+                        acp::ToolKind::Other
+                    }
+                } else {
+                    acp::ToolKind::Other
+                }
+            }
+        }
+    }
+
+    /// Extracts file locations from tool arguments for "follow-along" features.
+    fn extract_file_locations(
+        tool_name: &ToolName,
+        arguments: &serde_json::Value,
+    ) -> Vec<acp::ToolCallLocation> {
+        match tool_name.as_str() {
+            "read" | "write" | "patch" | "remove" | "undo" => {
+                if let Some(file_path) = arguments.get("file_path").and_then(|v| v.as_str()) {
+                    vec![acp::ToolCallLocation::new(PathBuf::from(file_path))]
+                } else {
+                    vec![]
+                }
+            }
+            _ => vec![],
+        }
+    }
+
+    /// Maps a Forge ToolCallFull to an ACP ToolCall.
+    fn map_tool_call_to_acp(tool_call: &ToolCallFull) -> acp::ToolCall {
+        let tool_call_id = tool_call
+            .call_id
+            .as_ref()
+            .map(|id| id.as_str().to_string())
+            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+
+        let title = format!("{}", tool_call.name.as_str());
+        let kind = Self::map_tool_kind(&tool_call.name);
+        let locations = Self::extract_file_locations(
+            &tool_call.name,
+            &serde_json::to_value(&tool_call.arguments).unwrap_or(serde_json::json!({})),
+        );
+
+        acp::ToolCall::new(tool_call_id, title)
+            .kind(kind)
+            .status(acp::ToolCallStatus::Pending)
+            .locations(locations)
+            .raw_input(
+                serde_json::to_value(&tool_call.arguments)
+                    .ok()
+                    .filter(|v| !v.is_null()),
+            )
+    }
+
+    /// Maps a Forge ToolOutput to ACP ToolCallContent.
+    fn map_tool_output_to_content(output: &forge_domain::ToolOutput) -> Vec<acp::ToolCallContent> {
+        output
+            .values
+            .iter()
+            .filter_map(|value| match value {
+                ToolValue::Text(text) => {
+                    Some(acp::ToolCallContent::Content(acp::Content::new(
+                        acp::ContentBlock::Text(acp::TextContent::new(text.clone())),
+                    )))
+                }
+                ToolValue::Image(image) => Some(acp::ToolCallContent::Content(acp::Content::new(
+                    acp::ContentBlock::Image(acp::ImageContent::new(
+                        image.data(),
+                        image.mime_type(),
+                    )),
+                ))),
+                ToolValue::AI { value, .. } => {
+                    Some(acp::ToolCallContent::Content(acp::Content::new(
+                        acp::ContentBlock::Text(acp::TextContent::new(value.clone())),
+                    )))
+                }
+                ToolValue::Empty => None,
+            })
+            .collect()
     }
 }
 
@@ -269,14 +382,47 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
                                             .map_err(acp::Error::from)?;
                                     }
                                 }
-                                forge_domain::ChatResponse::ToolCallStart(_) => {
-                                    // Skip tool call starts - not needed in ACP output
-                                    // TODO: Map to ACP tool calls if possible
-                                    continue;
+                                forge_domain::ChatResponse::ToolCallStart(tool_call) => {
+                                    // Create ACP ToolCall and send as update
+                                    let acp_tool_call = Self::map_tool_call_to_acp(&tool_call);
+
+                                    let notification = acp::SessionNotification::new(
+                                        arguments.session_id.clone(),
+                                        acp::SessionUpdate::ToolCallUpdate(acp_tool_call.into()),
+                                    );
+
+                                    self.send_notification(notification)
+                                        .map_err(|e| acp::Error::from(e))?;
                                 }
-                                forge_domain::ChatResponse::ToolCallEnd(_) => {
-                                    // Skip tool call ends - not needed in ACP output
-                                    continue;
+                                forge_domain::ChatResponse::ToolCallEnd(tool_result) => {
+                                    // Map tool result to ACP content and send completion update
+                                    let content = Self::map_tool_output_to_content(&tool_result.output);
+                                    let status = if tool_result.output.is_error {
+                                        acp::ToolCallStatus::Failed
+                                    } else {
+                                        acp::ToolCallStatus::Completed
+                                    };
+
+                                    let tool_call_id = tool_result
+                                        .call_id
+                                        .as_ref()
+                                        .map(|id| id.as_str().to_string())
+                                        .unwrap_or_else(|| "unknown".to_string());
+
+                                    let update = acp::ToolCallUpdate::new(
+                                        tool_call_id,
+                                        acp::ToolCallUpdateFields::new()
+                                            .status(status)
+                                            .content(content),
+                                    );
+
+                                    let notification = acp::SessionNotification::new(
+                                        arguments.session_id.clone(),
+                                        acp::SessionUpdate::ToolCallUpdate(update),
+                                    );
+
+                                    self.send_notification(notification)
+                                        .map_err(|e| acp::Error::from(e))?;
                                 }
                                 forge_domain::ChatResponse::TaskComplete => {
                                     // Task is complete, we'll return EndTurn
