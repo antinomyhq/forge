@@ -69,8 +69,18 @@ where
         _timeout: Duration,
     ) -> anyhow::Result<()> {
         // Extract auth method from context response
+        // For ApiKey responses, we need to check if it's Google ADC or regular API key
         let auth_method = match &auth_context_response {
-            AuthContextResponse::ApiKey(_) => AuthMethod::ApiKey,
+            AuthContextResponse::ApiKey(_) => {
+                // Check if provider supports Google ADC and if it's the Google ADC marker
+                if provider_id == forge_domain::ProviderId::VERTEX_AI {
+                    // Vertex AI uses Google ADC
+                    forge_domain::AuthMethod::google_adc()
+                } else {
+                    // Regular API key
+                    forge_domain::AuthMethod::ApiKey
+                }
+            }
             AuthContextResponse::Code(ctx) => {
                 AuthMethod::OAuthCode(ctx.request.oauth_config.clone())
             }

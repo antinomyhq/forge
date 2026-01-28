@@ -379,6 +379,27 @@ impl AuthStrategy for GoogleAdcStrategy {
     ) -> anyhow::Result<AuthCredential> {
         match context_response {
             AuthContextResponse::ApiKey(ctx) => {
+                // Validate that gcloud auth is properly configured before completing authentication
+                // This ensures the user has run 'gcloud auth application-default login'
+                use google_cloud_auth::credentials::Builder;
+                let credentials = Builder::default()
+                    .build_access_token_credentials()
+                    .map_err(|e| {
+                        AuthError::CompletionFailed(format!(
+                            "Google ADC not configured: {e}. Please run 'gcloud auth application-default login' to set up credentials."
+                        ))
+                    })?;
+
+                // Try to fetch a token to verify authentication works
+                credentials
+                    .access_token()
+                    .await
+                    .map_err(|e| {
+                        AuthError::CompletionFailed(format!(
+                            "{e}. Please run 'gcloud auth application-default login' to set up credentials."
+                        ))
+                    })?;
+
                 // For Google ADC, we save a marker instead of the actual token
                 // The token will be refreshed on every use
                 // But we still need to save the url_params (PROJECT_ID, LOCATION)
