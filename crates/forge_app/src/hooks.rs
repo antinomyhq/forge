@@ -4,6 +4,7 @@ use forge_domain::{
     AgentId, ContextMessage, Conversation, EventData, EventResult, Hook, RequestPayload, Role,
     TextMessage, ToolName, ToolResult, ToolcallEndPayload,
 };
+use forge_template::Element;
 use tokio::sync::Mutex;
 
 /// Manages tool call reminders for agents.
@@ -39,32 +40,38 @@ impl ToolCallReminder {
         let (message, force_tool) = match request_count {
             0 => return,
             n if n == halfway => (
-                format!(
-                    "<system-reminder>You have used {n} of {} requests. \
-                     You have {remaining} requests remaining before you must call \
-{} to report your findings.</system-reminder>",
-                    self.max_iterations,
-                    self.tool_name.as_str(),
-                ),
+                Element::new("system-reminder")
+                    .text(format!(
+                        "You have used {n} of {} requests. \
+                         You have {remaining} requests remaining before you must call \
+{} to report your findings.",
+                        self.max_iterations,
+                        self.tool_name.as_str(),
+                    ))
+                    .render(),
                 false,
             ),
             n if n >= urgent_threshold && n < self.max_iterations => (
-                format!(
-                    "<system-reminder>URGENT: You have used {n} of {} requests. \
-                     Only {remaining} request(s) remaining! You MUST call {} on your \
-                     next turn to report your findings.</system-reminder>",
-                    self.max_iterations,
-                    self.tool_name.as_str()
-                ),
+                Element::new("system-reminder")
+                    .text(format!(
+                        "URGENT: You have used {n} of {} requests. \
+                         Only {remaining} request(s) remaining! You MUST call {} on your \
+                         next turn to report your findings.",
+                        self.max_iterations,
+                        self.tool_name.as_str()
+                    ))
+                    .render(),
                 false,
             ),
             n if n == self.max_iterations + 1 => (
-                format!(
-                    "<system-reminder>FINAL REMINDER: You have reached the maximum number of requests. \
-                 You MUST call the {} tool now to report your findings. \
-                 Do not make any more search requests.</system-reminder>",
-                    self.tool_name.as_str()
-                ),
+                Element::new("system-reminder")
+                    .text(format!(
+                        "FINAL REMINDER: You have reached the maximum number of requests. \
+                     You MUST call the {} tool now to report your findings. \
+                     Do not make any more search requests.",
+                        self.tool_name.as_str()
+                    ))
+                    .render(),
                 true,
             ),
             _ => return,

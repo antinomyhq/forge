@@ -210,7 +210,7 @@ expression: tools
           "relevance"
         ],
         "properties": {
-          "end": {
+          "end_line": {
             "description": "Ending line number (1-indexed, inclusive). Narrow to the specific relevant section.",
             "type": "integer",
             "format": "uint",
@@ -230,7 +230,7 @@ expression: tools
               "low"
             ]
           },
-          "start": {
+          "start_line": {
             "description": "Starting line number (1-indexed). Narrow to the specific relevant section.",
             "type": "integer",
             "format": "uint",
