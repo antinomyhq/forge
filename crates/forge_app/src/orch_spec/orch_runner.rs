@@ -131,7 +131,7 @@ impl Runner {
             .conversation_history
             .extend(runner.get_history().await);
 
-        result
+        result.map(|_exit| ())
     }
 }
 

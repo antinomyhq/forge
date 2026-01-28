@@ -1,11 +1,8 @@
-use std::sync::Arc;
-
 use forge_domain::{
-    AgentId, ContextMessage, Conversation, EventData, EventResult, Hook, RequestPayload, Role,
+    AgentId, ContextMessage, Conversation, EventData, Exit, Hook, RequestPayload, Role,
     TextMessage, ToolName, ToolResult, ToolcallEndPayload,
 };
 use forge_template::Element;
-use tokio::sync::Mutex;
 
 /// Manages tool call reminders for agents.
 ///
@@ -99,49 +96,32 @@ pub fn tool_call_reminder(agent_id: AgentId, tool_name: ToolName, max_iterations
             if event.agent.id == agent_id {
                 reminder.apply(event.payload.request_count, conversation);
             }
-            async move { Ok(EventResult::Continue) }
+            async move { None }
         }
     })
 }
 
 /// Creates a hook that captures the output of a tool call.
 ///
-/// Stores the tool result in the provided shared storage when the specified
-/// tool is called by the specified agent.
-pub fn tool_output_capture(
-    agent_id: AgentId,
-    tool_name: ToolName,
-    captured_output: Arc<Mutex<Option<ToolResult>>>,
-) -> Hook {
-    Hook::default()
-        .on_request({
-            let captured_output = captured_output.clone();
-            move |_event: &EventData<RequestPayload>, _conversation: &mut Conversation| {
-                let captured_output = captured_output.clone();
-                async move {
-                    if captured_output.lock().await.is_some() {
-                        Ok(EventResult::Exit)
-                    } else {
-                        Ok(EventResult::Continue)
-                    }
+/// Returns Exit with the captured tool result when the specified tool is called
+/// by the specified agent.
+pub fn tool_output_capture(agent_id: AgentId, tool_name: ToolName) -> Hook {
+    Hook::default().on_toolcall_end({
+        move |event: &EventData<ToolcallEndPayload>, conversation: &mut Conversation| {
+            let event_agent_id = event.agent.id.clone();
+            let result = event.payload.result.clone();
+            let expected_agent = agent_id.clone();
+            let expected_tool = tool_name.clone();
+            let conversation_id = conversation.id;
+            async move {
+                if event_agent_id == expected_agent && result.name == expected_tool {
+                    Some(Exit::tool(result, conversation_id))
+                } else {
+                    None
                 }
             }
-        })
-        .on_toolcall_end({
-            move |event: &EventData<ToolcallEndPayload>, _conversation: &mut Conversation| {
-                let captured_output = captured_output.clone();
-                let event_agent_id = event.agent.id.clone();
-                let result = event.payload.result.clone();
-                let expected_agent = agent_id.clone();
-                let expected_tool = tool_name.clone();
-                async move {
-                    if event_agent_id == expected_agent && result.name == expected_tool {
-                        *captured_output.lock().await = Some(result);
-                    }
-                    Ok(EventResult::Continue)
-                }
-            }
-        })
+        }
+    })
 }
 
 #[cfg(test)]
@@ -241,7 +221,7 @@ mod tests {
             ModelId::new("test-model"),
             RequestPayload::new(5),
         ));
-        hook.handle(&event, &mut conversation).await.unwrap();
+        hook.handle(&event, &mut conversation).await;
 
         // Verify reminder was added
         let ctx = conversation.context.as_ref().unwrap();
@@ -257,9 +237,7 @@ mod tests {
     async fn test_tool_output_capture() {
         let agent_id = AgentId::new("codebase_search");
         let tool_name = ToolName::new("report_search");
-        let captured_output = Arc::new(Mutex::new(None));
-        let hook =
-            tool_output_capture(agent_id.clone(), tool_name.clone(), captured_output.clone());
+        let hook = tool_output_capture(agent_id.clone(), tool_name.clone());
 
         let mut conversation = Conversation::generate()
             .title(Some("test".to_string()))
@@ -279,11 +257,12 @@ mod tests {
             ModelId::new("test-model"),
             ToolcallEndPayload::new(result.clone()),
         ));
-        hook.handle(&event, &mut conversation).await.unwrap();
+        let exit = hook.handle(&event, &mut conversation).await;
 
-        // Verify output was captured
-        let captured = captured_output.lock().await.take();
-        assert!(captured.is_some());
-        assert_eq!(captured.unwrap().name.as_str(), "report_search");
+        // Verify Exit was returned with the tool result
+        assert!(exit.is_some());
+        let exit = exit.unwrap();
+        let captured_result = exit.as_tool_result().unwrap();
+        assert_eq!(captured_result.name.as_str(), "report_search");
     }
 }

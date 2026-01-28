@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use convert_case::{Case, Casing};
 use forge_domain::{
-    AgentId, ChatRequest, ChatResponse, ChatResponseContent, Conversation, Event, TitleFormat,
-    ToolCallContext, ToolDefinition, ToolName, ToolOutput,
+    AgentId, ChatRequest, ChatResponse, ChatResponseContent, Conversation, Event, Exit,
+    TitleFormat, ToolCallContext, ToolDefinition, ToolName, ToolOutput,
 };
 use forge_template::Element;
 use futures::StreamExt;
@@ -69,27 +69,15 @@ impl<S: Services> AgentExecutor<S> {
         let request = ChatRequest::new(Event::new(task.clone()), conversation.id);
         let mut response_stream = app.chat(agent_id.clone(), request).await?;
 
-        // Collect responses from the agent
-        let mut output = String::new();
+        // Collect responses from the agent and forward to context
+        let mut exit: Option<Exit> = None;
         while let Some(message) = response_stream.next().await {
             let message = message?;
-            if matches!(
-                &message,
-                ChatResponse::ToolCallStart(_) | ChatResponse::ToolCallEnd(_)
-            ) {
-                output.clear();
-            }
-            match message {
-                ChatResponse::TaskMessage { ref content } => match content {
+            match &message {
+                ChatResponse::TaskMessage { content } => match content {
                     ChatResponseContent::ToolInput(_) => ctx.send(message).await?,
                     ChatResponseContent::ToolOutput(_) => {}
-                    ChatResponseContent::Markdown { text, partial } => {
-                        if *partial {
-                            output.push_str(text);
-                        } else {
-                            output = text.to_string();
-                        }
-                    }
+                    ChatResponseContent::Markdown { .. } => {}
                 },
                 ChatResponse::TaskReasoning { .. } => {}
                 ChatResponse::TaskComplete => {}
@@ -97,20 +85,24 @@ impl<S: Services> AgentExecutor<S> {
                 ChatResponse::ToolCallEnd(_) => ctx.send(message).await?,
                 ChatResponse::RetryAttempt { .. } => ctx.send(message).await?,
                 ChatResponse::Interrupt { .. } => ctx.send(message).await?,
+                ChatResponse::Exit(e) => {
+                    exit = Some(e.clone());
+                }
             }
         }
 
-        // Create tool output from collected text
-        if !output.is_empty() {
-            Ok(ToolOutput::ai(
-                conversation.id,
-                Element::new("task_completed")
-                    .attr("task", &task)
-                    .append(Element::new("output").text(output)),
-            ))
-        } else {
-            Err(Error::EmptyToolResponse.into())
-        }
+        // Extract output from Exit
+        let output = exit
+            .and_then(|e| e.as_text().map(|s| s.to_string()))
+            .ok_or_else(|| Error::EmptyToolResponse)?;
+
+        // Create tool output from Exit text
+        Ok(ToolOutput::ai(
+            conversation.id,
+            Element::new("task_completed")
+                .attr("task", &task)
+                .append(Element::new("output").text(output)),
+        ))
     }
 
     pub async fn contains_tool(&self, tool_name: &ToolName) -> anyhow::Result<bool> {
