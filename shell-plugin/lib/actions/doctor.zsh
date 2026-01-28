@@ -8,5 +8,5 @@ function _forge_action_doctor() {
     echo
     
     # Execute forge zsh doctor command
-    $_FORGE_BIN zsh doctor
+    _forge_bin zsh doctor
 }

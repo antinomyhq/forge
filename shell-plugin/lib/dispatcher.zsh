@@ -30,7 +30,7 @@ function _forge_action_default() {
             if [[ "${command_type:l}" == "custom" ]]; then
                 # Generate conversation ID if needed (don't track previous for auto-generation)
                 if [[ -z "$_FORGE_CONVERSATION_ID" ]]; then
-                    local new_id=$($_FORGE_BIN conversation new)
+                    local new_id=$(_forge_bin conversation new)
                     # Use helper but don't track previous for auto-generation
                     _FORGE_CONVERSATION_ID="$new_id"
                 fi
@@ -60,7 +60,7 @@ function _forge_action_default() {
     
     # Generate conversation ID if needed (don't track previous for auto-generation)
     if [[ -z "$_FORGE_CONVERSATION_ID" ]]; then
-        local new_id=$($_FORGE_BIN conversation new)
+        local new_id=$(_forge_bin conversation new)
         # Use direct assignment here - no previous to track for auto-generation
         _FORGE_CONVERSATION_ID="$new_id"
     fi

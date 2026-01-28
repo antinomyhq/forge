@@ -6,7 +6,7 @@
 # Loads the commands list only when first needed, avoiding startup cost
 function _forge_get_commands() {
     if [[ -z "$_FORGE_COMMANDS" ]]; then
-        _FORGE_COMMANDS="$(CLICOLOR_FORCE=0 $_FORGE_BIN list commands --porcelain 2>/dev/null)"
+        _FORGE_COMMANDS="$(CLICOLOR_FORCE=0 _forge_bin list commands --porcelain 2>/dev/null)"
     fi
     echo "$_FORGE_COMMANDS"
 }
@@ -22,7 +22,7 @@ function _forge_exec() {
     # Ensure FORGE_ACTIVE_AGENT always has a value, default to "forge"
     local agent_id="${_FORGE_ACTIVE_AGENT:-forge}"
     
-    eval "$_FORGE_BIN --agent $(printf '%q' "$agent_id") $(printf '%q ' "$@")"
+    _forge_bin --agent "$agent_id" "$@"
 }
 
 function _forge_reset() {
@@ -107,7 +107,7 @@ function _forge_log() {
 # Returns: 0 if workspace is indexed, 1 otherwise
 function _forge_is_workspace_indexed() {
     local workspace_path="$1"
-    $_FORGE_BIN workspace info "$workspace_path" >/dev/null 2>&1
+    _forge_bin workspace info "$workspace_path" >/dev/null 2>&1
     return $?
 }
 
@@ -133,7 +133,7 @@ function _forge_start_background_sync() {
     {
         exec >/dev/null 2>&1
         setopt NO_NOTIFY NO_MONITOR
-        $_FORGE_BIN workspace sync "$workspace_path"
+        _forge_bin workspace sync "$workspace_path"
     } &!
 }
 

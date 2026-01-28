@@ -3,7 +3,12 @@
 # Configuration variables for forge plugin
 # Using typeset to keep variables local to plugin scope and prevent public exposure
 
-typeset -h _FORGE_BIN="${FORGE_BIN:-forge}"
+# Function to execute forge binary with proper word splitting
+# Handles multi-word commands like "npx forgecode" correctly
+function _forge_bin() {
+    ${=FORGE_BIN:-forge} "$@"
+}
+
 typeset -h _FORGE_CONVERSATION_PATTERN=":"
 typeset -h _FORGE_MAX_COMMIT_DIFF="${FORGE_MAX_COMMIT_DIFF:-100000}"
 typeset -h _FORGE_DELIMITER='\s\s+'

@@ -8,5 +8,5 @@ function _forge_action_keyboard() {
     echo
     
     # Execute forge zsh keyboard command
-    $_FORGE_BIN zsh keyboard
+    _forge_bin zsh keyboard
 }
