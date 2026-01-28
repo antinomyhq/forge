@@ -407,7 +407,11 @@ impl<S: AgentService> Orchestrator<S> {
                         })
                         .await?;
                     } else {
-                        return Err(Error::MaxTurnsReached(self.agent.id.clone(), max_request_allowed as u64).into());
+                        return Err(Error::MaxTurnsReached(
+                            self.agent.id.clone(),
+                            max_request_allowed as u64,
+                        )
+                        .into());
                     }
                     // force completion
                     should_yield = true;
