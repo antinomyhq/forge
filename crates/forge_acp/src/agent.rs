@@ -9,9 +9,10 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use agent_client_protocol as acp;
-use forge_app::{ConversationService, ForgeApp, Services};
+use forge_app::{AgentRegistry, ConversationService, ForgeApp, Services};
 use forge_domain::{
-    AgentId, ChatRequest, ConversationId, Event, EventValue, ToolCallFull, ToolName, ToolValue,
+    Agent, AgentId, ChatRequest, ConversationId, Event, EventValue, ToolCallFull, ToolName,
+    ToolValue,
 };
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
@@ -36,6 +37,9 @@ pub struct ForgeAgent<S> {
     /// Cancellation tokens for active sessions.
     /// Allows clients to interrupt long-running operations.
     cancellation_tokens: RefCell<HashMap<String, CancellationToken>>,
+    /// Mapping from ACP session IDs to active agent IDs.
+    /// Tracks which agent is being used for each session.
+    session_to_agent: RefCell<HashMap<String, AgentId>>,
 }
 
 impl<S: Services> ForgeAgent<S> {
@@ -58,6 +62,7 @@ impl<S: Services> ForgeAgent<S> {
             next_session_id: Cell::new(0),
             session_to_conversation: RefCell::new(HashMap::new()),
             cancellation_tokens: RefCell::new(HashMap::new()),
+            session_to_agent: RefCell::new(HashMap::new()),
         }
     }
 
@@ -91,6 +96,46 @@ impl<S: Services> ForgeAgent<S> {
         self.session_update_tx
             .send(notification)
             .map_err(|_| Error::Application(anyhow::anyhow!("Failed to send notification")))
+    }
+
+    /// Converts a Forge Agent to an ACP SessionMode.
+    fn agent_to_session_mode(agent: &Agent) -> acp::SessionMode {
+        let id = acp::SessionModeId::new(agent.id.as_str().to_string());
+        // Title can be too big
+        // it will not be a good UX to show title as name.
+        let name = agent.id.to_string();
+        let description = agent.description.clone();
+
+        acp::SessionMode::new(id, name).description(description)
+    }
+
+    /// Builds the SessionModeState from available agents.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if agents cannot be loaded from the registry.
+    async fn build_session_mode_state(
+        &self,
+        current_agent_id: &AgentId,
+    ) -> Result<acp::SessionModeState> {
+        // Get all available agents from the registry
+        let agents = self
+            .services
+            .agent_registry()
+            .get_agents()
+            .await
+            .map_err(|e| Error::Application(e))?;
+
+        // Convert agents to session modes
+        let available_modes: Vec<acp::SessionMode> = agents
+            .iter()
+            .map(Self::agent_to_session_mode)
+            .collect();
+
+        // Create the mode state with current agent as active
+        let current_mode_id = acp::SessionModeId::new(current_agent_id.as_str().to_string());
+
+        Ok(acp::SessionModeState::new(current_mode_id, available_modes))
     }
 
     /// Maps a Forge tool name to an ACP ToolKind.
@@ -158,7 +203,7 @@ impl<S: Services> ForgeAgent<S> {
             .map(|id| id.as_str().to_string())
             .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
 
-        let title = tool_call.name.as_str().to_string();
+        let title = format!("{}", tool_call.name.as_str());
         let kind = Self::map_tool_kind(&tool_call.name);
         let locations = Self::extract_file_locations(
             &tool_call.name,
@@ -182,9 +227,11 @@ impl<S: Services> ForgeAgent<S> {
             .values
             .iter()
             .filter_map(|value| match value {
-                ToolValue::Text(text) => Some(acp::ToolCallContent::Content(acp::Content::new(
-                    acp::ContentBlock::Text(acp::TextContent::new(text.clone())),
-                ))),
+                ToolValue::Text(text) => {
+                    Some(acp::ToolCallContent::Content(acp::Content::new(
+                        acp::ContentBlock::Text(acp::TextContent::new(text.clone())),
+                    )))
+                }
                 ToolValue::Image(image) => Some(acp::ToolCallContent::Content(acp::Content::new(
                     acp::ContentBlock::Image(acp::ImageContent::new(
                         image.data(),
@@ -247,6 +294,7 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
 
         // Generate a new session ID that maps to a Forge conversation ID
         let session_id = self.next_session_id();
+        let session_key = session_id.0.as_ref().to_string();
 
         // Create the conversation in Forge's database so it exists when chat() is
         // called
@@ -264,7 +312,27 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
             .await
             .map_err(|e| acp::Error::into_internal_error(&*e))?;
 
-        Ok(acp::NewSessionResponse::new(session_id))
+        // Get the active agent or default to forge
+        let active_agent_id = self
+            .services
+            .agent_registry()
+            .get_active_agent_id()
+            .await
+            .map_err(|e| acp::Error::into_internal_error(&*e))?
+            .unwrap_or_default();
+
+        // Store the agent for this session
+        self.session_to_agent
+            .borrow_mut()
+            .insert(session_key, active_agent_id.clone());
+
+        // Build session mode state with available agents
+        let mode_state = self
+            .build_session_mode_state(&active_agent_id)
+            .await
+            .map_err(acp::Error::from)?;
+
+        Ok(acp::NewSessionResponse::new(session_id).modes(mode_state))
     }
 
     /// Loads an existing session.
@@ -279,7 +347,22 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
             .to_conversation_id(&arguments.session_id)
             .map_err(acp::Error::from)?;
 
-        Ok(acp::LoadSessionResponse::new())
+        // Get the agent for this session, or default to forge
+        let session_key = arguments.session_id.0.as_ref().to_string();
+        let active_agent_id = self
+            .session_to_agent
+            .borrow()
+            .get(&session_key)
+            .cloned()
+            .unwrap_or_default();
+
+        // Build session mode state with available agents
+        let mode_state = self
+            .build_session_mode_state(&active_agent_id)
+            .await
+            .map_err(acp::Error::from)?;
+
+        Ok(acp::LoadSessionResponse::new().modes(mode_state))
     }
 
     /// Handles a prompt request from the client.
@@ -332,8 +415,19 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
 
         let chat_request = ChatRequest::new(event, conversation_id);
 
-        // Get the default agent ID (or could be configured)
-        let agent_id = AgentId::default();
+        // Get the agent for this session, or default to forge
+        let agent_id = self
+            .session_to_agent
+            .borrow()
+            .get(&session_key)
+            .cloned()
+            .unwrap_or_default();
+
+        tracing::info!(
+            "Executing chat for session {} with agent: {}",
+            session_key,
+            agent_id
+        );
 
         // Execute the chat request
         match self.app.chat(agent_id, chat_request).await {
@@ -343,148 +437,148 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
                 // Stream responses back to the client as session notifications
                 loop {
                     tokio::select! {
-                                // Check for cancellation
-                                _ = cancellation_token.cancelled() => {
-                                    tracing::info!("Session {} cancelled by client", session_key);
-
-                                    // Clean up the cancellation token
-                                    self.cancellation_tokens.borrow_mut().remove(&session_key);
-
-                                    return Ok(acp::PromptResponse::new(acp::StopReason::Cancelled));
-                                }
-
-                                // Process next stream item
-                                response_result = stream.next() => {
-                                    match response_result {
-                                        Some(Ok(response)) => {
-                                    match response {
-                                        forge_domain::ChatResponse::TaskMessage { content } => {
-                                            match content {
-                                                forge_domain::ChatResponseContent::ToolOutput(_) => {
-                                                    // Skip tool outputs in ACP - they're too verbose
-                                                    continue;
-                                                }
-                                                forge_domain::ChatResponseContent::Markdown {
-                                                    text,
-                                                    ..
-                                                } => {
-                                                    // Only send non-empty markdown text
-                                                    if !text.is_empty() {
-                                                        let notification = acp::SessionNotification::new(
-                                                            arguments.session_id.clone(),
-                                                            acp::SessionUpdate::AgentMessageChunk(
-                                                                acp::ContentChunk::new(
-                                                                    acp::ContentBlock::Text(
-                                                                        acp::TextContent::new(text),
-                                                                    ),
-                                                                ),
-                                                            ),
-                                                        );
-                                                        self.send_notification(notification)
-                                                            .map_err(acp::Error::from)?;
-                                                    }
-                                                }
-                                                forge_domain::ChatResponseContent::ToolInput(_) => {
-                                                    // Skip tool input notifications - too verbose for ACP
-                                                    continue;
-                                                }
-                                            }
-                                        }
-                                        forge_domain::ChatResponse::TaskReasoning { content } => {
-                                            // Send as agent thought, only if non-empty
-                                            if !content.is_empty() {
-                                                let notification = acp::SessionNotification::new(
-                                                    arguments.session_id.clone(),
-                                                    acp::SessionUpdate::AgentThoughtChunk(
-                                                        acp::ContentChunk::new(acp::ContentBlock::Text(
-                                                            acp::TextContent::new(content),
-                                                        )),
-                                                    ),
-                                                );
-
-                                                self.send_notification(notification)
-                                                    .map_err(acp::Error::from)?;
-                                            }
-                                        }
-                                        forge_domain::ChatResponse::ToolCallStart(tool_call) => {
-                                            // Create ACP ToolCall and send as update
-                                            let acp_tool_call = Self::map_tool_call_to_acp(&tool_call);
-
-                                            let notification = acp::SessionNotification::new(
-                                                arguments.session_id.clone(),
-                                                acp::SessionUpdate::ToolCallUpdate(acp_tool_call.into()),
-                                            );
-
-                                            self.send_notification(notification)
-                                                .map_err(acp::Error::from)?;
-                                        }
-                                        forge_domain::ChatResponse::ToolCallEnd(tool_result) => {
-                                            // Map tool result to ACP content and send completion update
-                                            let content = Self::map_tool_output_to_content(&tool_result.output);
-                                            let status = if tool_result.output.is_error {
-                                                acp::ToolCallStatus::Failed
-                                            } else {
-                                                acp::ToolCallStatus::Completed
-                                            };
-
-                                            let tool_call_id = tool_result
-                                                .call_id
-                                                .as_ref()
-                                                .map(|id| id.as_str().to_string())
-                                                .unwrap_or_else(|| "unknown".to_string());
-
-                                            let update = acp::ToolCallUpdate::new(
-                                                tool_call_id,
-                                                acp::ToolCallUpdateFields::new()
-                                                    .status(status)
-                                                    .content(content),
-                                            );
-
-                                            let notification = acp::SessionNotification::new(
-                                                arguments.session_id.clone(),
-                                                acp::SessionUpdate::ToolCallUpdate(update),
-                                            );
-
-                                            self.send_notification(notification)
-                                                .map_err(acp::Error::from)?;
-                                        }
-                                        forge_domain::ChatResponse::TaskComplete => {
-                                            // Task is complete, we'll return EndTurn
-                                            break;
-                                        }
-                                        forge_domain::ChatResponse::RetryAttempt { .. } => {
-                                            // Skip retry attempts in ACP output
+                        // Check for cancellation
+                        _ = cancellation_token.cancelled() => {
+                            tracing::info!("Session {} cancelled by client", session_key);
+                            
+                            // Clean up the cancellation token
+                            self.cancellation_tokens.borrow_mut().remove(&session_key);
+                            
+                            return Ok(acp::PromptResponse::new(acp::StopReason::Cancelled));
+                        }
+                        
+                        // Process next stream item
+                        response_result = stream.next() => {
+                            match response_result {
+                                Some(Ok(response)) => {
+                            match response {
+                                forge_domain::ChatResponse::TaskMessage { content } => {
+                                    match content {
+                                        forge_domain::ChatResponseContent::ToolOutput(_) => {
+                                            // Skip tool outputs in ACP - they're too verbose
                                             continue;
                                         }
-                                        forge_domain::ChatResponse::Interrupt { .. } => {
-                                            // Interrupted, return cancelled
-                                            // Clean up cancellation token
-                                            self.cancellation_tokens.borrow_mut().remove(&session_key);
-
-                                            return Ok(acp::PromptResponse::new(
-                                                acp::StopReason::Cancelled,
-                                            ));
+                                        forge_domain::ChatResponseContent::Markdown {
+                                            text,
+                                            ..
+                                        } => {
+                                            // Only send non-empty markdown text
+                                            if !text.is_empty() {
+                                                let notification = acp::SessionNotification::new(
+                                                    arguments.session_id.clone(),
+                                                    acp::SessionUpdate::AgentMessageChunk(
+                                                        acp::ContentChunk::new(
+                                                            acp::ContentBlock::Text(
+                                                                acp::TextContent::new(text),
+                                                            ),
+                                                        ),
+                                                    ),
+                                                );
+                                                self.send_notification(notification)
+                                                    .map_err(|e| acp::Error::from(e))?;
+                                            }
+                                        }
+                                        forge_domain::ChatResponseContent::ToolInput(_) => {
+                                            // Skip tool input notifications - too verbose for ACP
+                                            continue;
                                         }
                                     }
                                 }
-                                Some(Err(e)) => {
-                                    tracing::error!("Error in chat stream: {}", e);
+                                forge_domain::ChatResponse::TaskReasoning { content } => {
+                                    // Send as agent thought, only if non-empty
+                                    if !content.is_empty() {
+                                        let notification = acp::SessionNotification::new(
+                                            arguments.session_id.clone(),
+                                            acp::SessionUpdate::AgentThoughtChunk(
+                                                acp::ContentChunk::new(acp::ContentBlock::Text(
+                                                    acp::TextContent::new(content),
+                                                )),
+                                            ),
+                                        );
 
+                                        self.send_notification(notification)
+                                            .map_err(|e| acp::Error::from(e))?;
+                                    }
+                                }
+                                forge_domain::ChatResponse::ToolCallStart(tool_call) => {
+                                    // Create ACP ToolCall and send as update
+                                    let acp_tool_call = Self::map_tool_call_to_acp(&tool_call);
+
+                                    let notification = acp::SessionNotification::new(
+                                        arguments.session_id.clone(),
+                                        acp::SessionUpdate::ToolCallUpdate(acp_tool_call.into()),
+                                    );
+
+                                    self.send_notification(notification)
+                                        .map_err(|e| acp::Error::from(e))?;
+                                }
+                                forge_domain::ChatResponse::ToolCallEnd(tool_result) => {
+                                    // Map tool result to ACP content and send completion update
+                                    let content = Self::map_tool_output_to_content(&tool_result.output);
+                                    let status = if tool_result.output.is_error {
+                                        acp::ToolCallStatus::Failed
+                                    } else {
+                                        acp::ToolCallStatus::Completed
+                                    };
+
+                                    let tool_call_id = tool_result
+                                        .call_id
+                                        .as_ref()
+                                        .map(|id| id.as_str().to_string())
+                                        .unwrap_or_else(|| "unknown".to_string());
+
+                                    let update = acp::ToolCallUpdate::new(
+                                        tool_call_id,
+                                        acp::ToolCallUpdateFields::new()
+                                            .status(status)
+                                            .content(content),
+                                    );
+
+                                    let notification = acp::SessionNotification::new(
+                                        arguments.session_id.clone(),
+                                        acp::SessionUpdate::ToolCallUpdate(update),
+                                    );
+
+                                    self.send_notification(notification)
+                                        .map_err(|e| acp::Error::from(e))?;
+                                }
+                                forge_domain::ChatResponse::TaskComplete => {
+                                    // Task is complete, we'll return EndTurn
+                                    break;
+                                }
+                                forge_domain::ChatResponse::RetryAttempt { .. } => {
+                                    // Skip retry attempts in ACP output
+                                    continue;
+                                }
+                                forge_domain::ChatResponse::Interrupt { .. } => {
+                                    // Interrupted, return cancelled
                                     // Clean up cancellation token
                                     self.cancellation_tokens.borrow_mut().remove(&session_key);
-
-                                    return Err(acp::Error::into_internal_error(
-                                        e.as_ref() as &dyn std::error::Error
+                                    
+                                    return Ok(acp::PromptResponse::new(
+                                        acp::StopReason::Cancelled,
                                     ));
-                                }
-                                None => {
-                                    // Stream ended normally
-                                    break;
                                 }
                             }
                         }
+                        Some(Err(e)) => {
+                            tracing::error!("Error in chat stream: {}", e);
+                            
+                            // Clean up cancellation token
+                            self.cancellation_tokens.borrow_mut().remove(&session_key);
+                            
+                            return Err(acp::Error::into_internal_error(
+                                e.as_ref() as &dyn std::error::Error
+                            ));
+                        }
+                        None => {
+                            // Stream ended normally
+                            break;
+                        }
                     }
                 }
+            }
+        }
 
                 // Clean up cancellation token
                 self.cancellation_tokens.borrow_mut().remove(&session_key);
@@ -493,10 +587,10 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
             }
             Err(e) => {
                 tracing::error!("Failed to execute chat: {}", e);
-
+                
                 // Clean up cancellation token
                 self.cancellation_tokens.borrow_mut().remove(&session_key);
-
+                
                 Err(acp::Error::into_internal_error(
                     e.as_ref() as &dyn std::error::Error
                 ))
@@ -510,7 +604,7 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
     /// triggering the associated cancellation token.
     async fn cancel(&self, args: acp::CancelNotification) -> std::result::Result<(), acp::Error> {
         let session_key = args.session_id.0.as_ref().to_string();
-
+        
         tracing::info!("Received cancel request for session: {}", session_key);
 
         // Trigger the cancellation token if it exists
@@ -525,12 +619,53 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
     }
 
     /// Handles session mode changes.
+    ///
+    /// Switches the active agent for the session to the specified mode.
     async fn set_session_mode(
         &self,
         args: acp::SetSessionModeRequest,
     ) -> std::result::Result<acp::SetSessionModeResponse, acp::Error> {
-        tracing::info!("Setting session mode: {:?}", args.mode_id);
-        Ok(acp::SetSessionModeResponse::default())
+        let mode_id = args.mode_id.0.as_ref();
+        let session_key = args.session_id.0.as_ref().to_string();
+
+        tracing::info!(
+            "Setting session mode for session {} to: {}",
+            session_key,
+            mode_id
+        );
+
+        // Parse the mode ID as an agent ID
+        let new_agent_id = AgentId::new(mode_id);
+
+        // Verify the agent exists
+        let agent = self
+            .services
+            .agent_registry()
+            .get_agent(&new_agent_id)
+            .await
+            .map_err(|e| acp::Error::into_internal_error(&*e))?;
+
+        if agent.is_none() {
+            tracing::error!("Agent '{}' not found", mode_id);
+            return Err(acp::Error::invalid_params());
+        }
+
+        // Update the session's active agent
+        self.session_to_agent
+            .borrow_mut()
+            .insert(session_key.clone(), new_agent_id.clone());
+
+        // Send a notification about the mode change
+        let mode_update = acp::CurrentModeUpdate::new(acp::SessionModeId::new(mode_id.to_string()));
+        let notification = acp::SessionNotification::new(
+            args.session_id,
+            acp::SessionUpdate::CurrentModeUpdate(mode_update),
+        );
+
+        self.send_notification(notification)
+            .map_err(acp::Error::from)?;
+
+        Ok(acp::SetSessionModeResponse::new())
     }
 
     /// Handles extension method calls.
