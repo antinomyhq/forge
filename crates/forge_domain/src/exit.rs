@@ -9,7 +9,7 @@ use crate::{ConversationId, InterruptionReason, ToolResult};
 #[derive(Debug, Clone)]
 pub enum Exit {
     /// Agent produced text output (normal completion or hook exit).
-    Text {
+    Unstructured {
         /// The accumulated text/markdown output from assistant messages
         output: String,
         /// Reference to the conversation
@@ -17,7 +17,7 @@ pub enum Exit {
     },
 
     /// Hook captured a specific tool's output as the final result.
-    Tool {
+    Structured {
         /// The captured tool result
         result: ToolResult,
         /// Reference to the conversation
@@ -26,7 +26,7 @@ pub enum Exit {
 
     /// Execution was interrupted (max requests, max errors).
     /// Caller may prompt user to continue.
-    Interrupt {
+    Failure {
         /// The reason for interruption
         reason: InterruptionReason,
         /// Reference to the conversation
@@ -38,53 +38,53 @@ impl Exit {
     /// Returns the conversation ID regardless of exit variant.
     pub fn conversation_id(&self) -> ConversationId {
         match self {
-            Exit::Text { conversation_id, .. }
-            | Exit::Tool { conversation_id, .. }
-            | Exit::Interrupt { conversation_id, .. } => *conversation_id,
+            Exit::Unstructured { conversation_id, .. }
+            | Exit::Structured { conversation_id, .. }
+            | Exit::Failure { conversation_id, .. } => *conversation_id,
         }
     }
 
     /// Returns the text output if available.
     pub fn as_text(&self) -> Option<&str> {
         match self {
-            Exit::Text { output, .. } => Some(output),
-            Exit::Tool { .. } | Exit::Interrupt { .. } => None,
+            Exit::Unstructured { output, .. } => Some(output),
+            Exit::Structured { .. } | Exit::Failure { .. } => None,
         }
     }
 
     pub fn as_interrupt_reason(&self) -> Option<&InterruptionReason> {
         match self {
-            Exit::Tool { .. } | Exit::Text {  .. } => None,
-            Exit::Interrupt { reason, .. } => Some(reason),
+            Exit::Structured { .. } | Exit::Unstructured { .. } => None,
+            Exit::Failure { reason, .. } => Some(reason),
         }
     }
 
     /// Returns the tool result if this was a tool capture exit.
     pub fn as_tool_result(&self) -> Option<&ToolResult> {
         match self {
-            Exit::Tool { result, .. } => Some(result),
+            Exit::Structured { result, .. } => Some(result),
             _ => None,
         }
     }
 
     /// Returns true if this was an interrupt exit.
     pub fn is_interrupt(&self) -> bool {
-        matches!(self, Exit::Interrupt { .. })
+        matches!(self, Exit::Failure { .. })
     }
 
     /// Creates a text exit with the given output and conversation ID.
     pub fn text(output: impl Into<String>, conversation_id: ConversationId) -> Self {
-        Self::Text { output: output.into(), conversation_id }
+        Self::Unstructured { output: output.into(), conversation_id }
     }
 
     /// Creates a tool exit with the given result and conversation ID.
     pub fn tool(result: ToolResult, conversation_id: ConversationId) -> Self {
-        Self::Tool { result, conversation_id }
+        Self::Structured { result, conversation_id }
     }
 
     /// Creates an interrupt exit with the given reason, output, and conversation
     /// ID.
     pub fn interrupt(reason: InterruptionReason, conversation_id: ConversationId) -> Self {
-        Self::Interrupt { reason, conversation_id }
+        Self::Failure { reason, conversation_id }
     }
 }
