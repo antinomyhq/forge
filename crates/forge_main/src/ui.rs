@@ -626,8 +626,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     crate::cli::WorkspaceCommand::Info { path } => {
                         self.on_workspace_info(path).await?;
                     }
-                    crate::cli::WorkspaceCommand::Delete { workspace_id } => {
-                        self.on_delete_workspace(workspace_id).await?;
+                    crate::cli::WorkspaceCommand::Delete { workspace_ids } => {
+                        self.on_delete_workspaces(workspace_ids).await?;
                     }
                     crate::cli::WorkspaceCommand::Status { path, porcelain } => {
                         self.on_workspace_status(path, porcelain).await?;
@@ -3455,20 +3455,36 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
     }
 
-    async fn on_delete_workspace(&mut self, workspace_id: String) -> anyhow::Result<()> {
-        // Parse workspace ID
-        let workspace_id = forge_domain::WorkspaceId::from_string(&workspace_id)
-            .context("Invalid workspace ID format")?;
+    async fn on_delete_workspaces(&mut self, workspace_ids: Vec<String>) -> anyhow::Result<()> {
+        if workspace_ids.is_empty() {
+            anyhow::bail!("At least one workspace ID is required");
+        }
 
-        self.spinner.start(Some("Deleting workspace..."))?;
+        // Parse all workspace IDs
+        let parsed_ids: Vec<forge_domain::WorkspaceId> = workspace_ids
+            .iter()
+            .map(|id| {
+                forge_domain::WorkspaceId::from_string(id)
+                    .with_context(|| format!("Invalid workspace ID format: {}", id))
+            })
+            .collect::<anyhow::Result<Vec<_>>>()?;
 
-        match self.api.delete_workspace(workspace_id.clone()).await {
+        let total = parsed_ids.len();
+        self.spinner.start(Some(&format!(
+            "Deleting {} workspace{}...",
+            total,
+            if total > 1 { "s" } else { "" }
+        )))?;
+
+        match self.api.delete_workspaces(parsed_ids.clone()).await {
             Ok(()) => {
                 self.spinner.stop(None)?;
-                self.writeln_title(TitleFormat::debug(format!(
-                    "Successfully deleted workspace {}",
-                    workspace_id
-                )))?;
+                for id in &parsed_ids {
+                    self.writeln_title(TitleFormat::debug(format!(
+                        "Successfully deleted workspace {}",
+                        id
+                    )))?;
+                }
                 Ok(())
             }
             Err(e) => {
