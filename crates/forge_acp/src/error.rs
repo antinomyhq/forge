@@ -37,7 +37,9 @@ impl From<Error> for acp::Error {
                 acp::Error::invalid_params().data(format!("Session not found: {msg}"))
             }
             Error::InvalidRequest(msg) => acp::Error::invalid_params().data(msg),
-            Error::Application(e) => acp::Error::into_internal_error(e.as_ref() as &dyn std::error::Error),
+            Error::Application(e) => {
+                acp::Error::into_internal_error(e.as_ref() as &dyn std::error::Error)
+            }
             Error::Io(e) => acp::Error::into_internal_error(&e),
         }
     }

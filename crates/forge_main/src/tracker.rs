@@ -11,7 +11,7 @@ fn dispatch(event: EventKind) {
 /// Dispatches an event blockingly
 /// This is useful for events that are not expected to be dispatched in the
 /// background
-/// 
+///
 /// Note: This function silently does nothing in single-threaded runtimes
 /// (like the ACP server) because block_in_place is not available there.
 fn dispatch_blocking(event: EventKind) {

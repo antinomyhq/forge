@@ -1,20 +1,23 @@
 //! Standalone ACP server runner that bypasses the async API layer.
 //!
-//! This is necessary because the ACP SDK uses !Send futures which require LocalSet,
-//! and we can't use LocalSet in the multi-threaded Tokio runtime used by the main app.
+//! This is necessary because the ACP SDK uses !Send futures which require
+//! LocalSet, and we can't use LocalSet in the multi-threaded Tokio runtime used
+//! by the main app.
+
+use std::path::PathBuf;
+use std::sync::Arc;
 
 use anyhow::Result;
 use forge_app::ForgeApp;
 use forge_infra::ForgeInfra;
 use forge_repo::ForgeRepo;
 use forge_services::ForgeServices;
-use std::path::PathBuf;
-use std::sync::Arc;
 
 /// Runs the ACP server in stdio mode using a single-threaded runtime.
 ///
 /// This function creates its own runtime and blocks until the server exits.
-/// It should be called directly from main() without going through the async API.
+/// It should be called directly from main() without going through the async
+/// API.
 pub fn run_acp_stdio_server(cwd: PathBuf) -> Result<()> {
     // Create a single-threaded runtime for the ACP server
     let rt = tokio::runtime::Builder::new_current_thread()

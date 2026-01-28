@@ -1,7 +1,7 @@
 //! Forge ACP agent implementation.
 //!
-//! This module implements the `Agent` trait from the ACP SDK, mapping ACP protocol
-//! messages to Forge's existing functionality.
+//! This module implements the `Agent` trait from the ACP SDK, mapping ACP
+//! protocol messages to Forge's existing functionality.
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
@@ -37,7 +37,8 @@ impl<S: Services> ForgeAgent<S> {
     /// # Arguments
     ///
     /// * `app` - The Forge application instance
-    /// * `session_update_tx` - Channel for sending session updates to the client
+    /// * `session_update_tx` - Channel for sending session updates to the
+    ///   client
     pub fn new(
         app: Arc<ForgeApp<S>>,
         services: Arc<S>,
@@ -65,14 +66,14 @@ impl<S: Services> ForgeAgent<S> {
 
         // Check if we already have a mapping
         if let Some(conversation_id) = self.session_to_conversation.borrow().get(&session_key) {
-            return Ok(conversation_id.clone());
+            return Ok(*conversation_id);
         }
 
         // Create a new conversation ID for this session
         let conversation_id = ConversationId::generate();
         self.session_to_conversation
             .borrow_mut()
-            .insert(session_key, conversation_id.clone());
+            .insert(session_key, conversation_id);
 
         Ok(conversation_id)
     }
@@ -131,10 +132,11 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
         // Generate a new session ID that maps to a Forge conversation ID
         let session_id = self.next_session_id();
 
-        // Create the conversation in Forge's database so it exists when chat() is called
+        // Create the conversation in Forge's database so it exists when chat() is
+        // called
         let conversation_id = self
             .to_conversation_id(&session_id)
-            .map_err(|e| acp::Error::from(e))?;
+            .map_err(acp::Error::from)?;
 
         // Create a new conversation with the generated ID
         let conversation = forge_domain::Conversation::new(conversation_id);
@@ -159,14 +161,15 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
         // Verify the session exists by attempting to parse it as a conversation ID
         let _conversation_id = self
             .to_conversation_id(&arguments.session_id)
-            .map_err(|e| acp::Error::from(e))?;
+            .map_err(acp::Error::from)?;
 
         Ok(acp::LoadSessionResponse::new())
     }
 
     /// Handles a prompt request from the client.
     ///
-    /// This is the main method that processes user input and generates responses.
+    /// This is the main method that processes user input and generates
+    /// responses.
     async fn prompt(
         &self,
         arguments: acp::PromptRequest,
@@ -179,7 +182,7 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
 
         let conversation_id = self
             .to_conversation_id(&arguments.session_id)
-            .map_err(|e| acp::Error::from(e))?;
+            .map_err(acp::Error::from)?;
 
         // Convert ACP prompt content to Forge Event
         let prompt_text = arguments
@@ -253,7 +256,7 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
                                     );
 
                                     self.send_notification(notification)
-                                        .map_err(|e| acp::Error::from(e))?;
+                                        .map_err(acp::Error::from)?;
                                     continue;
                                 }
                                 forge_domain::ChatResponse::ToolCallStart(_) => {
@@ -287,7 +290,7 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
                             );
 
                             self.send_notification(notification)
-                                .map_err(|e| acp::Error::from(e))?;
+                                .map_err(acp::Error::from)?;
                         }
                         Err(e) => {
                             tracing::error!("Error in chat stream: {}", e);
