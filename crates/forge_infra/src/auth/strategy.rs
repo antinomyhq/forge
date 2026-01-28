@@ -379,8 +379,9 @@ impl AuthStrategy for GoogleAdcStrategy {
     ) -> anyhow::Result<AuthCredential> {
         match context_response {
             AuthContextResponse::ApiKey(ctx) => {
-                // Validate that gcloud auth is properly configured before completing authentication
-                // This ensures the user has run 'gcloud auth application-default login'
+                // Validate that gcloud auth is properly configured before completing
+                // authentication This ensures the user has run 'gcloud auth
+                // application-default login'
                 use google_cloud_auth::credentials::Builder;
                 let credentials = Builder::default()
                     .build_access_token_credentials()
