@@ -253,7 +253,7 @@ impl<S: AgentService> Orchestrator<S> {
             StartPayload,
         ));
         if let Some(exit) = self.hook.handle(&start_event, &mut self.conversation).await {
-            let _ = self.send(ChatResponse::Exit(exit.clone()));
+            self.send(ChatResponse::Exit(exit.clone())).await?;
             return Ok(exit);
         }
 
@@ -292,7 +292,7 @@ impl<S: AgentService> Orchestrator<S> {
                 .handle(&request_event, &mut self.conversation)
                 .await
             {
-                let _ = self.send(ChatResponse::Exit(exit.clone()));
+                self.send(ChatResponse::Exit(exit.clone())).await?;
                 return Ok(exit);
             }
             // it's possible that context may have been modified by the hook.
@@ -329,7 +329,7 @@ impl<S: AgentService> Orchestrator<S> {
                 .handle(&response_event, &mut self.conversation)
                 .await
             {
-                let _ = self.send(ChatResponse::Exit(exit.clone()));
+                self.send(ChatResponse::Exit(exit.clone())).await?;
                 return Ok(exit);
             }
             // it's possible that context may have been modified by the hook.
@@ -377,7 +377,7 @@ impl<S: AgentService> Orchestrator<S> {
             {
                 ToolCallExecutionResult::Records(records) => records,
                 ToolCallExecutionResult::Exit(exit) => {
-                    let _ = self.send(ChatResponse::Exit(exit.clone()));
+                    self.send(ChatResponse::Exit(exit.clone())).await?;
                     return Ok(exit);
                 }
             };
@@ -475,7 +475,7 @@ impl<S: AgentService> Orchestrator<S> {
             )
             .await
         {
-            let _ = self.send(ChatResponse::Exit(exit.clone()));
+            self.send(ChatResponse::Exit(exit.clone())).await?;
             return Ok(exit);
         }
 
@@ -507,7 +507,7 @@ impl<S: AgentService> Orchestrator<S> {
             Exit::text(output, self.conversation.id)
         };
 
-        let _ = self.send(ChatResponse::Exit(exit.clone()));
+        self.send(ChatResponse::Exit(exit.clone())).await?;
 
         Ok(exit)
     }
