@@ -327,11 +327,8 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
         Ok(acp::InitializeResponse::new(acp::ProtocolVersion::V1)
             .agent_capabilities(acp::AgentCapabilities::new().load_session(true))
             .agent_info(
-                acp::Implementation::new(
-                    "forge".to_string(),
-                    VERSION.to_string(),
-                )
-                .title("Forge Code".to_string()),
+                acp::Implementation::new("forge".to_string(), VERSION.to_string())
+                    .title("Forge Code".to_string()),
             ))
     }
 
