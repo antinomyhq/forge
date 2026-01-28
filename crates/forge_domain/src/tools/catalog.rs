@@ -44,7 +44,7 @@ pub enum ToolCatalog {
     Write(FSWrite),
     FsSearch(FSSearch),
     SemSearch(SemanticSearch),
-    CodebaseSearch(CodebaseSearch),
+    ContextEngine(ContextEngine),
     ReportSearch(ReportSearch),
     Remove(FSRemove),
     Patch(FSPatch),
@@ -249,7 +249,7 @@ pub struct SemanticSearch {
 /// concepts.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq, Default)]
 #[tool_description_file = "crates/forge_domain/src/tools/descriptions/codebase_search.md"]
-pub struct CodebaseSearch {
+pub struct ContextEngine {
     /// A detailed query specifying exactly what to find and why.
     /// Include: which part of the codebase, what specific things to find, why
     /// you need them. Example: "Find the OpenAI API client retry logic: 1.
@@ -584,7 +584,7 @@ impl ToolDescription for ToolCatalog {
             ToolCatalog::Plan(v) => v.description(),
             ToolCatalog::Skill(v) => v.description(),
             ToolCatalog::ReportSearch(v) => v.description(),
-            ToolCatalog::CodebaseSearch(v) => v.description(),
+            ToolCatalog::ContextEngine(v) => v.description(),
         }
     }
 }
@@ -673,7 +673,7 @@ impl ToolCatalog {
             ToolCatalog::Plan(_) => r#gen.into_root_schema_for::<PlanCreate>(),
             ToolCatalog::Skill(_) => r#gen.into_root_schema_for::<SkillFetch>(),
             ToolCatalog::ReportSearch(_) => r#gen.into_root_schema_for::<ReportSearch>(),
-            ToolCatalog::CodebaseSearch(_) => r#gen.into_root_schema_for::<CodebaseSearch>(),
+            ToolCatalog::ContextEngine(_) => r#gen.into_root_schema_for::<ContextEngine>(),
         }
     }
 
@@ -784,7 +784,7 @@ impl ToolCatalog {
             | ToolCatalog::Plan(_)
             | ToolCatalog::Skill(_)
             | ToolCatalog::ReportSearch(_)
-            | ToolCatalog::CodebaseSearch(_) => None,
+            | ToolCatalog::ContextEngine(_) => None,
         }
     }
 

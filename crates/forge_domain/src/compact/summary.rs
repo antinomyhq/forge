@@ -121,7 +121,7 @@ impl SummaryToolCall {
     pub fn codebase_search(query: impl Into<String>) -> Self {
         Self {
             id: None,
-            tool: SummaryTool::CodebaseSearch { query: query.into() },
+            tool: SummaryTool::ContextEngine { query: query.into() },
             is_success: true,
         }
     }
@@ -209,7 +209,7 @@ pub enum SummaryTool {
         queries: Vec<SearchQuery>,
         file_extensions: Vec<String>,
     },
-    CodebaseSearch {
+    ContextEngine {
         query: String,
     },
     ReportSearch {
@@ -355,8 +355,8 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
             }
             ToolCatalog::Plan(input) => Some(SummaryTool::Plan { plan_name: input.plan_name }),
             ToolCatalog::Skill(input) => Some(SummaryTool::Skill { name: input.name }),
-            ToolCatalog::CodebaseSearch(input) => {
-                Some(SummaryTool::CodebaseSearch { query: input.query })
+            ToolCatalog::ContextEngine(input) => {
+                Some(SummaryTool::ContextEngine { query: input.query })
             }
         };
     }

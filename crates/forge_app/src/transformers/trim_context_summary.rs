@@ -55,7 +55,7 @@ fn to_op(tool: &SummaryTool) -> Operation<'_> {
         SummaryTool::SemSearch { queries, file_extensions } => {
             Operation::SemSearch { queries, file_extensions }
         }
-        SummaryTool::CodebaseSearch { query } => Operation::Search(query),
+        SummaryTool::ContextEngine { query } => Operation::Search(query),
         SummaryTool::Fetch { url } => Operation::Fetch(url),
         SummaryTool::Followup { question } => Operation::Followup(question),
         SummaryTool::Plan { plan_name } => Operation::Plan(plan_name),

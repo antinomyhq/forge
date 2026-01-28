@@ -222,7 +222,7 @@ impl<S: Services> ToolExecutor<S> {
                 let output = self.services.generate_report(normalized_chunks).await?;
                 ToolOperation::SearchReport { output }
             }
-            ToolCatalog::CodebaseSearch(input) => {
+            ToolCatalog::ContextEngine(input) => {
                 let executor = CodebaseSearchService::new(self.services.clone());
                 let output = executor.execute(input.query, ctx).await?;
                 ToolOperation::CodebaseSearch { output }
