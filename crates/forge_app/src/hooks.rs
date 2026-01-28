@@ -37,12 +37,12 @@ impl ToolCallReminder {
         if let Some(last_entry) = ctx.messages.last() {
             match &last_entry.message {
                 ContextMessage::Text(text_msg) => {
-                    if let Some(tool_calls) = &text_msg.tool_calls {
-                        if tool_calls.iter().any(|call| call.name == self.tool_name) {
-                            // Tool is already being called, don't add reminder
-                            conversation.context = Some(ctx);
-                            return;
-                        }
+                    if let Some(tool_calls) = &text_msg.tool_calls
+                        && tool_calls.iter().any(|call| call.name == self.tool_name)
+                    {
+                        // Tool is already being called, don't add reminder
+                        conversation.context = Some(ctx);
+                        return;
                     }
                 }
                 ContextMessage::Tool(tool_result) => {

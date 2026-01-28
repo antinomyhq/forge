@@ -73,8 +73,8 @@ impl<S: Services> CodebaseSearchService<S> {
 
         // Extract tool result from Exit
         let result = exit
-            .and_then(|e| e.as_tool_result().map(|r| r.clone()))
-            .ok_or_else(|| Error::EmptyToolResponse)?;
+            .and_then(|e| e.as_tool_result().cloned())
+            .ok_or(Error::EmptyToolResponse)?;
 
         Ok(ToolOutput::ai(
             conversation.id,

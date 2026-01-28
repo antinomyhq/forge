@@ -115,12 +115,6 @@ pub enum LifecycleEvent {
     ToolcallEnd(EventData<ToolcallEndPayload>),
 }
 
-/// Result of handling a lifecycle event.
-///
-/// Returns `Option<Exit>`:
-/// - `None` - continue execution
-/// - `Some(Exit)` - exit with this value as the final output
-
 /// Trait for handling lifecycle events
 ///
 /// Implementations of this trait can be used to react to different

@@ -94,7 +94,7 @@ impl<S: Services> AgentExecutor<S> {
         // Extract output from Exit
         let output = exit
             .and_then(|e| e.as_text().map(|s| s.to_string()))
-            .ok_or_else(|| Error::EmptyToolResponse)?;
+            .ok_or(Error::EmptyToolResponse)?;
 
         // Create tool output from Exit text
         Ok(ToolOutput::ai(
