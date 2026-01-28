@@ -96,7 +96,9 @@ function _forge_action_model() {
 # Action handler: Sync workspace for codebase search
 function _forge_action_sync() {
     echo
-    _forge_exec workspace sync
+    # Execute sync with stdin redirected to prevent hanging
+    # Sync doesn't need interactive input, so close stdin immediately
+    _forge_exec workspace sync </dev/null
 }
 
 # Helper function to select and set config values with fzf

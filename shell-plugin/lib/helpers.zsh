@@ -130,8 +130,9 @@ function _forge_start_background_sync() {
     
     # Run sync once in background
     # Close all output streams immediately to prevent any flashing
+    # Redirect stdin to /dev/null to prevent hanging if sync tries to read input
     {
-        exec >/dev/null 2>&1
+        exec >/dev/null 2>&1 </dev/null
         setopt NO_NOTIFY NO_MONITOR
         $_FORGE_BIN workspace sync "$workspace_path"
     } &!
