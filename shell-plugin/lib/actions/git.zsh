@@ -19,9 +19,6 @@ function _forge_action_commit() {
     else
         commit_message=$(FORCE_COLOR=true CLICOLOR_FORCE=1 $_FORGE_BIN commit --max-diff "$_FORGE_MAX_COMMIT_DIFF")
     fi
-    
-    BUFFER=""
-    CURSOR=0
     zle reset-prompt
 }
 
@@ -49,10 +46,10 @@ function _forge_action_commit_preview() {
         # Check if there are staged changes to determine commit strategy
         if git diff --staged --quiet; then
             # No staged changes: commit all tracked changes with -a flag
-            BUFFER="git commit -a -m '$commit_message'"
+            BUFFER="git commit -am ${(qq)commit_message}"
         else
             # Staged changes exist: commit only what's staged
-            BUFFER="git commit -m '$commit_message'"
+            BUFFER="git commit -m ${(qq)commit_message}"
         fi
         # Move cursor to end of buffer for immediate execution
         CURSOR=${#BUFFER}
