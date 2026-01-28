@@ -14,7 +14,7 @@ forge_services.workspace = true
 forge_repo.workspace = true
 forge_infra.workspace = true
 futures.workspace = true
-
+forge_acp.workspace = true
 
 
 

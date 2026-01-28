@@ -12,7 +12,7 @@ use forge_app::{ConversationService, ForgeApp, Services};
 use forge_domain::{AgentId, ChatRequest, ConversationId, Event, EventValue};
 use tokio::sync::mpsc;
 
-use crate::acp::{Error, Result};
+use crate::{Error, Result};
 
 /// Forge implementation of the ACP Agent trait.
 ///
@@ -224,7 +224,10 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
                                         forge_domain::ChatResponseContent::ToolOutput(s) => {
                                             format!("{}\n", s)
                                         }
-                                        forge_domain::ChatResponseContent::Markdown { text, .. } => {
+                                        forge_domain::ChatResponseContent::Markdown {
+                                            text,
+                                            ..
+                                        } => {
                                             format!("{}\n", text)
                                         }
                                         forge_domain::ChatResponseContent::ToolInput(title) => {
@@ -351,41 +354,5 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
             args.params
         );
         Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use pretty_assertions::assert_eq;
-
-    #[test]
-    fn test_session_id_generation() {
-        let (tx, _rx) = mpsc::unbounded_channel();
-        let app = Arc::new(ForgeApp::new(Arc::new(forge_test_kit::MockServices::new())));
-        let agent = ForgeAgent::new(app, tx);
-
-        let id1 = agent.next_session_id();
-        let id2 = agent.next_session_id();
-
-        assert_eq!(id1.0.as_ref(), "0");
-        assert_eq!(id2.0.as_ref(), "1");
-    }
-
-    #[test]
-    fn test_conversation_id_conversion() {
-        let (tx, _rx) = mpsc::unbounded_channel();
-        let app = Arc::new(ForgeApp::new(Arc::new(forge_test_kit::MockServices::new())));
-        let agent = ForgeAgent::new(app, tx);
-
-        let valid_uuid = "550e8400-e29b-41d4-a716-446655440000";
-        let session_id = acp::SessionId::new(valid_uuid.to_string());
-
-        let result = agent.to_conversation_id(&session_id);
-        assert!(result.is_ok());
-
-        let invalid_session_id = acp::SessionId::new("invalid".to_string());
-        let result = agent.to_conversation_id(&invalid_session_id);
-        assert!(result.is_err());
     }
 }

@@ -402,18 +402,18 @@ impl<
 
     async fn acp_start_stdio(&self) -> Result<()> {
         let app = Arc::new(self.app());
-        forge_repo::acp::start_stdio_server(app).await?;
+        forge_acp::start_stdio_server(app).await?;
         Ok(())
     }
 
     async fn acp_start_http(&self, port: u16) -> Result<()> {
         let app = Arc::new(self.app());
-        forge_repo::acp::start_http_server(app, port).await?;
+        forge_acp::start_http_server(app, port).await?;
         Ok(())
     }
 
-    fn acp_info(&self) -> forge_repo::acp::AgentInfo {
-        forge_repo::acp::agent_info()
+    fn acp_info(&self) -> forge_acp::AgentInfo {
+        forge_acp::agent_info()
     }
 }
 

@@ -11,7 +11,6 @@ mod skill;
 mod validation;
 mod workspace;
 
-pub mod acp;
 
 mod proto_generated {
     tonic::include_proto!("forge.v1");

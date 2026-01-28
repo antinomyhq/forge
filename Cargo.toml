@@ -133,6 +133,7 @@ agent-client-protocol = "0.9"
 
 # Internal crates
 forge_api = { path = "crates/forge_api" }
+forge_acp = { path = "crates/forge_acp" }
 forge_app = { path = "crates/forge_app" }
 forge_ci = { path = "crates/forge_ci" }
 forge_display = { path = "crates/forge_display" }

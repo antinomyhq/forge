@@ -243,5 +243,5 @@ pub trait API: Sync + Send {
     async fn acp_start_http(&self, port: u16) -> Result<()>;
 
     /// Returns information about the ACP agent capabilities.
-    fn acp_info(&self) -> forge_repo::acp::AgentInfo;
+    fn acp_info(&self) -> forge_acp::AgentInfo;
 }

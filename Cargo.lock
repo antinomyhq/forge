@@ -1684,11 +1684,31 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d9c4f5dac5e15c24eb999c26181a6ca40b39fe946cbe4c263c7209467bc83af2"
 
 [[package]]
+name = "forge_acp"
+version = "0.1.0"
+dependencies = [
+ "agent-client-protocol",
+ "anyhow",
+ "async-trait",
+ "chrono",
+ "forge_app",
+ "forge_domain",
+ "futures",
+ "serde_json",
+ "thiserror 2.0.17",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "forge_api"
 version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "forge_acp",
  "forge_app",
  "forge_domain",
  "forge_infra",
@@ -1902,6 +1922,7 @@ dependencies = [
  "convert_case 0.8.0",
  "derive_setters",
  "fake",
+ "forge_acp",
  "forge_api",
  "forge_app",
  "forge_display",

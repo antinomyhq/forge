@@ -5,3 +5,17 @@ rust-version.workspace = true
 edition.workspace = true
 
 [dependencies]
+forge_app.workspace = true
+forge_domain.workspace = true
+
+anyhow.workspace = true
+async-trait.workspace = true
+futures.workspace = true
+tokio.workspace = true
+tokio-util = { workspace = true, features = ["compat"] }
+tracing.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+serde_json.workspace = true
+agent-client-protocol.workspace = true

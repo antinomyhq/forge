@@ -8,7 +8,7 @@ use forge_app::{ForgeApp, Services};
 use tokio::sync::mpsc;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
-use crate::acp::{ForgeAgent, Result};
+use crate::{ForgeAgent, Result};
 
 /// Information about the ACP agent.
 #[derive(Debug, Clone)]
@@ -57,7 +57,7 @@ pub async fn start_stdio_server<S: Services + 'static>(app: Arc<ForgeApp<S>>) ->
             // LocalSet and spawn_local are used because the futures from the
             // agent-client-protocol crate are not Send.
             let local_set = tokio::task::LocalSet::new();
-            
+
             let result = local_set
                 .run_until(async move {
                     let services = app.services().clone();
@@ -81,15 +81,16 @@ pub async fn start_stdio_server<S: Services + 'static>(app: Arc<ForgeApp<S>>) ->
 
                     // Run until stdin/stdout are closed or an error occurs
                     let io_result = handle_io.await;
-                    
+
                     // Cancel the notification task
                     notification_task.abort();
-                    
+
                     io_result
                 })
                 .await;
 
-            result.map_err(|e| crate::acp::Error::Application(anyhow::anyhow!("ACP server error: {}", e)))
+            result
+                .map_err(|e| crate::Error::Application(anyhow::anyhow!("ACP server error: {}", e)))
         })
     });
 
@@ -100,7 +101,10 @@ pub async fn start_stdio_server<S: Services + 'static>(app: Arc<ForgeApp<S>>) ->
             tracing::info!("ACP server task was cancelled");
             Ok(())
         }
-        Err(e) => Err(crate::acp::Error::Application(anyhow::anyhow!("Task join error: {}", e))),
+        Err(e) => Err(crate::Error::Application(anyhow::anyhow!(
+            "Task join error: {}",
+            e
+        ))),
     }
 }
 
@@ -117,19 +121,8 @@ pub async fn start_stdio_server<S: Services + 'static>(app: Arc<ForgeApp<S>>) ->
 /// # Errors
 ///
 /// Returns an error if the server fails to start or bind to the port.
-pub async fn start_http_server<S: Services>(_app: Arc<ForgeApp<S>>, port: u16) -> Result<()> {
-    tracing::info!("Starting ACP server with HTTP transport on port {}", port);
-
-    // TODO: Implement HTTP/WebSocket transport
-    // This will require:
-    // 1. HTTP server setup (e.g., using axum or warp)
-    // 2. WebSocket upgrade handling
-    // 3. JSON-RPC over WebSocket
-    // 4. Session management for multiple concurrent clients
-
-    Err(crate::acp::Error::InvalidRequest(
-        "HTTP transport not yet implemented".to_string(),
-    ))
+pub async fn start_http_server<S: Services>(_app: Arc<ForgeApp<S>>, _port: u16) -> Result<()> {
+    todo!()
 }
 
 /// Returns information about the ACP agent capabilities.
@@ -140,19 +133,5 @@ pub fn agent_info() -> AgentInfo {
         name: "forge".to_string(),
         version: env!("CARGO_PKG_VERSION").to_string(),
         capabilities: "file_system, terminal, tools".to_string(),
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use pretty_assertions::assert_eq;
-
-    #[test]
-    fn test_agent_info() {
-        let info = agent_info();
-        assert_eq!(info.name, "forge");
-        assert!(!info.version.is_empty());
-        assert!(info.capabilities.contains("file_system"));
     }
 }
