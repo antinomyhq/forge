@@ -51,18 +51,18 @@ impl FormatContent for ToolCatalog {
                 let title = match (&input.glob, &input.file_type) {
                     (Some(glob), _) => {
                         format!(
-                            "Search for '{}' in '{}' files at {}",
+                            "Search '{}' in '{}' files at {}",
                             input.pattern, glob, formatted_dir
                         )
                     }
                     (None, Some(file_type)) => {
                         format!(
-                            "Search for '{}' in {} files at {}",
+                            "Search '{}' in {} files at {}",
                             input.pattern, file_type, formatted_dir
                         )
                     }
                     (None, None) => {
-                        format!("Search for '{}' at {}", input.pattern, formatted_dir)
+                        format!("Search '{}' at {}", input.pattern, formatted_dir)
                     }
                 };
                 Some(TitleFormat::debug(title).into())
@@ -74,8 +74,8 @@ impl FormatContent for ToolCatalog {
                     .map(|item| item.query.as_str())
                     .collect();
                 Some(
-                    TitleFormat::debug("Semantic Search")
-                        .sub_title(format!("[{}]", pairs.join(" · ")))
+                    TitleFormat::debug("Search")
+                        .sub_title(format!("[{}]", pairs.join(" ~ ")))
                         .into(),
                 )
             }
