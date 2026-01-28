@@ -29,8 +29,6 @@ pub enum Exit {
     Interrupt {
         /// The reason for interruption
         reason: InterruptionReason,
-        /// Output accumulated before interruption
-        output: String,
         /// Reference to the conversation
         conversation_id: ConversationId,
     },
@@ -49,8 +47,8 @@ impl Exit {
     /// Returns the text output if available.
     pub fn as_text(&self) -> Option<&str> {
         match self {
-            Exit::Text { output, .. } | Exit::Interrupt { output, .. } => Some(output),
-            Exit::Tool { .. } => None,
+            Exit::Text { output, .. } => Some(output),
+            Exit::Tool { .. } | Exit::Interrupt { .. } => None,
         }
     }
 
@@ -79,12 +77,8 @@ impl Exit {
 
     /// Creates an interrupt exit with the given reason, output, and conversation
     /// ID.
-    pub fn interrupt(
-        reason: InterruptionReason,
-        output: impl Into<String>,
-        conversation_id: ConversationId,
-    ) -> Self {
-        Self::Interrupt { reason, output: output.into(), conversation_id }
+    pub fn interrupt(reason: InterruptionReason, conversation_id: ConversationId) -> Self {
+        Self::Interrupt { reason, conversation_id }
     }
 }
 
@@ -145,7 +139,7 @@ mod tests {
     fn test_exit_interrupt_is_interrupt() {
         let conv_id = ConversationId::generate();
         let reason = InterruptionReason::MaxRequestPerTurnLimitReached { limit: 10 };
-        let exit = Exit::interrupt(reason, "partial output", conv_id);
+        let exit = Exit::interrupt(reason, conv_id);
 
         assert!(exit.is_interrupt());
     }
@@ -162,10 +156,10 @@ mod tests {
     fn test_exit_interrupt_as_text() {
         let conv_id = ConversationId::generate();
         let reason = InterruptionReason::MaxRequestPerTurnLimitReached { limit: 10 };
-        let exit = Exit::interrupt(reason, "partial output", conv_id);
+        let exit = Exit::interrupt(reason, conv_id);
 
         let actual = exit.as_text();
-        let expected = Some("partial output");
+        let expected = None;
 
         assert_eq!(actual, expected);
     }

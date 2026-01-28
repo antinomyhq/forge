@@ -497,7 +497,7 @@ impl<S: AgentService> Orchestrator<S> {
             Ok(Exit::text(output, self.conversation.id))
         } else if let Some(reason) = interruption_reason {
             // Execution was interrupted (max requests/errors reached)
-            Ok(Exit::interrupt(reason, output, self.conversation.id))
+            Ok(Exit::interrupt(reason, self.conversation.id))
         } else {
             // Yielded for other reasons (e.g., tool requested follow-up from user)
             // This is not an error - it's a valid pause point
