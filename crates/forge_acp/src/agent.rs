@@ -2,6 +2,25 @@
 //!
 //! This module implements the `Agent` trait from the ACP SDK, mapping ACP
 //! protocol messages to Forge's existing functionality.
+//!
+//! ## Model Management
+//!
+//! The agent exposes model selection through the ACP protocol's standard
+//! `SessionModelState` mechanism. When creating or loading a session, the agent
+//! returns a list of available models and the currently selected model.
+//!
+//! The IDE will display a model dropdown near the send button, allowing users to:
+//! - View all available models from the current provider
+//! - See model metadata (context length, capabilities, etc.)
+//! - Switch between models mid-conversation
+//!
+//! Model changes are handled automatically by the ACP protocol through the
+//! `session/set_model` RPC method, which updates the session-specific model override.
+//!
+//! Additionally, custom extension methods are available for programmatic access:
+//! - `forge/listModels` - List all available models with full metadata
+//! - `forge/setModel` - Set model for a session
+//! - `forge/getModel` - Get current model for a session
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
@@ -9,10 +28,13 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use agent_client_protocol as acp;
-use forge_app::{AgentRegistry, AttachmentService, ConversationService, ForgeApp, Services};
+use forge_app::{
+    AgentProviderResolver, AgentRegistry, AttachmentService, ConversationService, ForgeApp,
+    ProviderAuthService, ProviderService, Services,
+};
 use forge_domain::{
-    Agent, AgentId, ChatRequest, ConversationId, Event, EventValue, ToolCallFull, ToolName,
-    ToolValue,
+    Agent, AgentId, ChatRequest, ConversationId, Event, EventValue, ModelId, ToolCallFull,
+    ToolName, ToolValue,
 };
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
@@ -40,6 +62,9 @@ pub struct ForgeAgent<S> {
     /// Mapping from ACP session IDs to active agent IDs.
     /// Tracks which agent is being used for each session.
     session_to_agent: RefCell<HashMap<String, AgentId>>,
+    /// Mapping from ACP session IDs to model overrides.
+    /// When set, these models override the agent's default model for the session.
+    session_to_model: RefCell<HashMap<String, ModelId>>,
 }
 
 impl<S: Services> ForgeAgent<S> {
@@ -63,6 +88,7 @@ impl<S: Services> ForgeAgent<S> {
             session_to_conversation: RefCell::new(HashMap::new()),
             cancellation_tokens: RefCell::new(HashMap::new()),
             session_to_agent: RefCell::new(HashMap::new()),
+            session_to_model: RefCell::new(HashMap::new()),
         }
     }
 
@@ -282,6 +308,137 @@ impl<S: Services> ForgeAgent<S> {
         }
     }
 
+    /// Gets the agent for a session and applies any model override.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the agent cannot be retrieved.
+    async fn get_session_agent(&self, session_key: &str) -> Result<Agent> {
+        // Get the agent ID for this session, or default to forge
+        let agent_id = self
+            .session_to_agent
+            .borrow()
+            .get(session_key)
+            .cloned()
+            .unwrap_or_default();
+
+        // Retrieve the agent
+        let mut agent = self
+            .services
+            .agent_registry()
+            .get_agent(&agent_id)
+            .await
+            .map_err(Error::Application)?
+            .ok_or_else(|| Error::Application(anyhow::anyhow!("Agent '{}' not found", agent_id)))?;
+
+        // Apply model override if set for this session
+        if let Some(model_id) = self.session_to_model.borrow().get(session_key) {
+            agent.model = model_id.clone();
+        }
+
+        Ok(agent)
+    }
+
+    /// Builds the SessionModelState from available models for the agent's provider.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if models cannot be fetched from the provider.
+    async fn build_session_model_state(
+        &self,
+        current_agent: &Agent,
+    ) -> Result<acp::SessionModelState> {
+        // Resolve the provider for this agent
+        let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
+        let provider = agent_provider_resolver
+            .get_provider(Some(current_agent.id.clone()))
+            .await
+            .map_err(Error::Application)?;
+
+        // Refresh provider credentials
+        let provider = self
+            .services
+            .provider_auth_service()
+            .refresh_provider_credential(provider)
+            .await
+            .map_err(Error::Application)?;
+
+        // Fetch models from the provider
+        let models = self
+            .services
+            .provider_service()
+            .models(provider)
+            .await
+            .map_err(Error::Application)?;
+
+        // Convert Forge models to ACP ModelInfo
+        let available_models: Vec<acp::ModelInfo> = models
+            .iter()
+            .map(|model| {
+                let mut model_info = acp::ModelInfo::new(
+                    model.id.to_string(),
+                    model
+                        .name
+                        .clone()
+                        .unwrap_or_else(|| model.id.to_string()),
+                )
+                .description(model.description.clone());
+
+                // Add metadata about model capabilities
+                let mut meta = serde_json::Map::new();
+                if let Some(context_length) = model.context_length {
+                    meta.insert(
+                        "contextLength".to_string(),
+                        serde_json::json!(context_length),
+                    );
+                }
+                if let Some(tools_supported) = model.tools_supported {
+                    meta.insert(
+                        "toolsSupported".to_string(),
+                        serde_json::json!(tools_supported),
+                    );
+                }
+                if let Some(supports_reasoning) = model.supports_reasoning {
+                    meta.insert(
+                        "supportsReasoning".to_string(),
+                        serde_json::json!(supports_reasoning),
+                    );
+                }
+                if !model.input_modalities.is_empty() {
+                    let modalities: Vec<String> = model
+                        .input_modalities
+                        .iter()
+                        .map(|m| format!("{:?}", m).to_lowercase())
+                        .collect();
+                    meta.insert("inputModalities".to_string(), serde_json::json!(modalities));
+                }
+
+                if !meta.is_empty() {
+                    model_info = model_info.meta(meta);
+                }
+
+                model_info
+            })
+            .collect();
+
+        Ok(acp::SessionModelState::new(
+            current_agent.model.to_string(),
+            available_models,
+        )
+        .meta({
+            let mut meta = serde_json::Map::new();
+            // Enable search functionality in the model dropdown
+            meta.insert("searchable".to_string(), serde_json::json!(true));
+            // Show search bar when there are more than 10 models
+            meta.insert("searchThreshold".to_string(), serde_json::json!(10));
+            // Enable filtering by model capabilities
+            meta.insert("filterable".to_string(), serde_json::json!(true));
+            // Suggest grouping models by provider
+            meta.insert("groupBy".to_string(), serde_json::json!("provider"));
+            meta
+        }))
+    }
+
     /// Converts an ACP EmbeddedResource to a Forge Attachment.
     ///
     /// # Errors
@@ -344,8 +501,27 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
             arguments.client_info
         );
 
+        let mut meta = serde_json::Map::new();
+        meta.insert(
+            "forge".to_string(),
+            serde_json::json!({
+                "modelSelection": true,
+                "supportedExtensions": [
+                    "forge/listModels",
+                    "forge/setModel",
+                    "forge/getModel"
+                ]
+            }),
+        );
+
+        tracing::info!("Sending model selection capabilities in meta: {:?}", meta);
+
         Ok(acp::InitializeResponse::new(acp::ProtocolVersion::V1)
-            .agent_capabilities(acp::AgentCapabilities::new().load_session(true))
+            .agent_capabilities(
+                acp::AgentCapabilities::new()
+                    .load_session(true)
+                    .meta(meta),
+            )
             .agent_info(
                 acp::Implementation::new("forge".to_string(), VERSION.to_string())
                     .title("Forge Code".to_string()),
@@ -404,13 +580,41 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
             .borrow_mut()
             .insert(session_key, active_agent_id.clone());
 
+        // Get the full agent object to build states
+        let agent = self
+            .services
+            .agent_registry()
+            .get_agent(&active_agent_id)
+            .await
+            .map_err(|e| acp::Error::into_internal_error(&*e))?
+            .ok_or_else(|| {
+                acp::Error::into_internal_error(&*anyhow::anyhow!(
+                    "Agent '{}' not found",
+                    active_agent_id
+                ))
+            })?;
+
         // Build session mode state with available agents
         let mode_state = self
             .build_session_mode_state(&active_agent_id)
             .await
             .map_err(acp::Error::from)?;
 
-        Ok(acp::NewSessionResponse::new(session_id).modes(mode_state))
+        // Build session model state with available models
+        let model_state = self
+            .build_session_model_state(&agent)
+            .await
+            .map_err(acp::Error::from)?;
+
+        tracing::info!(
+            "Created session {} with {} models available",
+            session_id.0.as_ref(),
+            model_state.available_models.len()
+        );
+
+        Ok(acp::NewSessionResponse::new(session_id)
+            .modes(mode_state)
+            .models(model_state))
     }
 
     /// Loads an existing session.
@@ -434,13 +638,35 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
             .cloned()
             .unwrap_or_default();
 
+        // Get the full agent object to build states
+        let agent = self
+            .services
+            .agent_registry()
+            .get_agent(&active_agent_id)
+            .await
+            .map_err(|e| acp::Error::into_internal_error(&*e))?
+            .ok_or_else(|| {
+                acp::Error::into_internal_error(&*anyhow::anyhow!(
+                    "Agent '{}' not found",
+                    active_agent_id
+                ))
+            })?;
+
         // Build session mode state with available agents
         let mode_state = self
             .build_session_mode_state(&active_agent_id)
             .await
             .map_err(acp::Error::from)?;
 
-        Ok(acp::LoadSessionResponse::new().modes(mode_state))
+        // Build session model state with available models
+        let model_state = self
+            .build_session_model_state(&agent)
+            .await
+            .map_err(acp::Error::from)?;
+
+        Ok(acp::LoadSessionResponse::new()
+            .modes(mode_state)
+            .models(model_state))
     }
 
     /// Handles a prompt request from the client.
@@ -522,22 +748,21 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
 
         let chat_request = ChatRequest::new(event, conversation_id);
 
-        // Get the agent for this session, or default to forge
-        let agent_id = self
-            .session_to_agent
-            .borrow()
-            .get(&session_key)
-            .cloned()
-            .unwrap_or_default();
+        // Get the agent for this session with any model override applied
+        let agent = self
+            .get_session_agent(&session_key)
+            .await
+            .map_err(acp::Error::from)?;
 
         tracing::info!(
-            "Executing chat for session {} with agent: {}",
+            "Executing chat for session {} with agent: {}, model: {}",
             session_key,
-            agent_id
+            agent.id,
+            agent.model
         );
 
         // Execute the chat request
-        match self.app.chat(agent_id, chat_request).await {
+        match self.app.chat(agent.id.clone(), chat_request).await {
             Ok(mut stream) => {
                 use futures::StreamExt;
 
@@ -785,9 +1010,145 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
             args.method,
             args.params
         );
-        // Return empty response for now
-        let raw_value = serde_json::value::to_raw_value(&serde_json::json!({}))?;
-        Ok(acp::ExtResponse::from(Arc::from(raw_value)))
+
+        match args.method.as_ref() {
+            "forge/listModels" => {
+                tracing::info!("Listing available models");
+
+                // Get the active agent to determine which provider to use
+                let active_agent_id = self
+                    .services
+                    .agent_registry()
+                    .get_active_agent_id()
+                    .await
+                    .map_err(|e| acp::Error::into_internal_error(&*e))?
+                    .unwrap_or_default();
+
+                // Retrieve the agent
+                let agent = self
+                    .services
+                    .agent_registry()
+                    .get_agent(&active_agent_id)
+                    .await
+                    .map_err(|e| acp::Error::into_internal_error(&*e))?
+                    .ok_or_else(|| {
+                        acp::Error::into_internal_error(&*anyhow::anyhow!(
+                            "Agent '{}' not found",
+                            active_agent_id
+                        ))
+                    })?;
+
+                // Resolve the provider for this agent
+                let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
+                let provider = agent_provider_resolver
+                    .get_provider(Some(agent.id.clone()))
+                    .await
+                    .map_err(|e| acp::Error::into_internal_error(&*e))?;
+
+                // Refresh provider credentials
+                let provider = self
+                    .services
+                    .provider_auth_service()
+                    .refresh_provider_credential(provider)
+                    .await
+                    .map_err(|e| acp::Error::into_internal_error(&*e))?;
+
+                // Fetch models from the provider
+                let models = self
+                    .services
+                    .provider_service()
+                    .models(provider)
+                    .await
+                    .map_err(|e| acp::Error::into_internal_error(&*e))?;
+
+                // Convert models to JSON format
+                let models_json: Vec<serde_json::Value> = models
+                    .iter()
+                    .map(|model| {
+                        serde_json::json!({
+                            "id": model.id.to_string(),
+                            "name": model.name.clone().unwrap_or_else(|| model.id.to_string()),
+                            "description": model.description.clone(),
+                            "contextLength": model.context_length,
+                            "toolsSupported": model.tools_supported,
+                            "supportsParallelToolCalls": model.supports_parallel_tool_calls,
+                            "supportsReasoning": model.supports_reasoning,
+                            "inputModalities": model.input_modalities.iter().map(|m| format!("{:?}", m).to_lowercase()).collect::<Vec<_>>(),
+                        })
+                    })
+                    .collect();
+
+                let raw_value = serde_json::value::to_raw_value(&serde_json::json!({
+                    "models": models_json
+                }))?;
+                Ok(acp::ExtResponse::from(Arc::from(raw_value)))
+            }
+            "forge/setModel" => {
+                // Extract parameters
+                let params: serde_json::Value = serde_json::from_str(args.params.get())
+                    .map_err(|_| acp::Error::invalid_params())?;
+
+                let session_id = params
+                    .get("sessionId")
+                    .and_then(|v: &serde_json::Value| v.as_str())
+                    .ok_or_else(|| acp::Error::invalid_params())?;
+
+                let model_id = params
+                    .get("modelId")
+                    .and_then(|v: &serde_json::Value| v.as_str())
+                    .ok_or_else(|| acp::Error::invalid_params())?;
+
+                let session_key = session_id.to_string();
+                let model_id = ModelId::new(model_id);
+
+                tracing::info!(
+                    "Setting model for session {} to: {}",
+                    session_key,
+                    model_id
+                );
+
+                // Store the model override for this session
+                self.session_to_model
+                    .borrow_mut()
+                    .insert(session_key, model_id);
+
+                // Return success response
+                let raw_value = serde_json::value::to_raw_value(&serde_json::json!({
+                    "success": true
+                }))?;
+                Ok(acp::ExtResponse::from(Arc::from(raw_value)))
+            }
+            "forge/getModel" => {
+                // Extract parameters
+                let params: serde_json::Value = serde_json::from_str(args.params.get())
+                    .map_err(|_| acp::Error::invalid_params())?;
+
+                let session_id = params
+                    .get("sessionId")
+                    .and_then(|v: &serde_json::Value| v.as_str())
+                    .ok_or_else(|| acp::Error::invalid_params())?;
+
+                let session_key = session_id.to_string();
+
+                // Get the current model for this session
+                let agent = self
+                    .get_session_agent(&session_key)
+                    .await
+                    .map_err(acp::Error::from)?;
+
+                // Return the model ID
+                let raw_value = serde_json::value::to_raw_value(&serde_json::json!({
+                    "modelId": agent.model.to_string(),
+                    "providerId": agent.provider.to_string()
+                }))?;
+                Ok(acp::ExtResponse::from(Arc::from(raw_value)))
+            }
+            _ => {
+                // Unknown extension method, return empty response
+                let raw_value = serde_json::value::to_raw_value(&serde_json::json!({}))?;
+                Ok(acp::ExtResponse::from(Arc::from(raw_value)))
+            }
+        }
     }
 
     /// Handles extension notifications.
