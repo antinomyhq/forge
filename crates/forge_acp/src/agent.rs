@@ -39,7 +39,7 @@ use forge_domain::{
     Agent, AgentId, ChatRequest, ConversationId, Event, EventValue, ModelId, ToolCallFull,
     ToolName, ToolValue,
 };
-use tokio::sync::mpsc;
+use tokio::sync::{Mutex, mpsc};
 use tokio_util::sync::CancellationToken;
 
 use crate::{Error, Result, VERSION};
@@ -55,6 +55,9 @@ pub struct ForgeAgent<S> {
     services: Arc<S>,
     /// Channel for sending session notifications to the client.
     session_update_tx: mpsc::UnboundedSender<acp::SessionNotification>,
+    /// Client connection for making RPC calls to the IDE client.
+    /// Used for requesting user permission during prompt execution.
+    client_conn: Arc<Mutex<Option<Arc<acp::AgentSideConnection>>>>,
     /// Counter for generating unique session IDs.
     next_session_id: Cell<u64>,
     /// Mapping from ACP session IDs to Forge conversation IDs.
@@ -88,12 +91,21 @@ impl<S: Services> ForgeAgent<S> {
             app,
             services,
             session_update_tx,
+            client_conn: Arc::new(Mutex::new(None)),
             next_session_id: Cell::new(0),
             session_to_conversation: RefCell::new(HashMap::new()),
             cancellation_tokens: RefCell::new(HashMap::new()),
             session_to_agent: RefCell::new(HashMap::new()),
             session_to_model: RefCell::new(HashMap::new()),
         }
+    }
+
+    /// Sets the client connection for making RPC calls to the IDE.
+    ///
+    /// This must be called after creating the agent to enable user interaction
+    /// features like requesting permission to continue after failures.
+    pub async fn set_client_connection(&self, conn: Arc<acp::AgentSideConnection>) {
+        *self.client_conn.lock().await = Some(conn);
     }
 
     /// Generates a new unique session ID.
@@ -126,6 +138,124 @@ impl<S: Services> ForgeAgent<S> {
         self.session_update_tx
             .send(notification)
             .map_err(|_| Error::Application(anyhow::anyhow!("Failed to send notification")))
+    }
+
+    /// Requests user permission to continue execution after an interruption.
+    ///
+    /// Uses the ACP `session/request_permission` mechanism to ask the user
+    /// if they want to continue after hitting limits (tool failures, chat turns).
+    ///
+    /// # Arguments
+    ///
+    /// * `session_id` - The session to request permission for
+    /// * `reason` - The interruption reason to display to the user
+    ///
+    /// # Returns
+    ///
+    /// Returns `Ok(true)` if the user wants to continue, `Ok(false)` if they
+    /// decline, or an error if the request fails.
+    async fn request_continue_permission(
+        &self,
+        session_id: &acp::SessionId,
+        reason: &forge_domain::InterruptionReason,
+    ) -> Result<bool> {
+        use acp::Client;
+
+        // Get the client connection
+        let client_conn = self.client_conn.lock().await;
+        let Some(conn) = client_conn.as_ref() else {
+            // If no client connection, default to not continuing
+            tracing::warn!("No client connection available to request permission");
+            return Ok(false);
+        };
+
+        // Build the permission request message based on the interruption reason
+        let (title, meta_description) = match reason {
+            forge_domain::InterruptionReason::MaxRequestPerTurnLimitReached { limit } => (
+                "Maximum Request Limit Reached".to_string(),
+                format!(
+                    "The agent has reached the maximum request limit ({}) for this turn. \
+                    This may indicate the agent is stuck in a loop or the task is too complex.",
+                    limit
+                ),
+            ),
+            forge_domain::InterruptionReason::MaxToolFailurePerTurnLimitReached {
+                limit,
+                errors,
+            } => {
+                let error_summary = if errors.is_empty() {
+                    String::new()
+                } else {
+                    let error_list = errors
+                        .iter()
+                        .map(|(tool, count)| format!("  • {} failed {} time(s)", tool, count))
+                        .collect::<Vec<_>>()
+                        .join("\n");
+                    format!("\n\nFailed tools:\n{}", error_list)
+                };
+
+                (
+                    "Maximum Tool Failure Limit Reached".to_string(),
+                    format!(
+                        "The agent has reached the maximum tool failure limit ({}) for this turn. \
+                        Continuing may result in more errors or unexpected behavior.{}",
+                        limit, error_summary
+                    ),
+                )
+            }
+        };
+
+        // Create permission options with proper API
+        let options = vec![
+            acp::PermissionOption::new(
+                "continue",
+                "Continue Anyway",
+                acp::PermissionOptionKind::AllowOnce,
+            ),
+            acp::PermissionOption::new("stop", "Stop", acp::PermissionOptionKind::RejectOnce),
+        ];
+
+        // Create a pseudo tool call for the permission request
+        // The ACP protocol requires a tool call context, so we create a synthetic one
+        // representing the "continue execution" action
+        let tool_call_update = acp::ToolCallUpdate::new(
+            "interrupt-continue",
+            acp::ToolCallUpdateFields::new()
+                .status(acp::ToolCallStatus::Pending)
+                .title(title.clone()),
+        );
+
+        // Build and send the permission request
+        let mut request =
+            acp::RequestPermissionRequest::new(session_id.clone(), tool_call_update, options.clone());
+
+        // Add description via meta field since there's no direct description field
+        let mut meta = serde_json::Map::new();
+        meta.insert("title".to_string(), serde_json::json!(title));
+        meta.insert("description".to_string(), serde_json::json!(meta_description));
+        request = request.meta(meta);
+
+        // Send the request and wait for response
+        let response = conn
+            .request_permission(request)
+            .await
+            .map_err(|e| Error::Application(anyhow::anyhow!("Permission request failed: {}", e)))?;
+
+        // Process the response
+        match response.outcome {
+            acp::RequestPermissionOutcome::Selected(selection) => {
+                let should_continue = selection.option_id.0.as_ref() == "continue";
+                Ok(should_continue)
+            }
+            acp::RequestPermissionOutcome::Cancelled => {
+                // User cancelled the permission dialog or prompt was cancelled
+                Ok(false)
+            }
+            _ => {
+                // Handle any future variants added to the enum
+                Ok(false)
+            }
+        }
     }
 
     /// Converts a Forge Agent to an ACP SessionMode.
@@ -742,38 +872,42 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
             additional_context: None,
         };
 
-        let chat_request = ChatRequest::new(event, conversation_id);
+        // Loop to handle interrupts and continuation
+        let mut chat_request = ChatRequest::new(event, conversation_id);
+        loop {
+            // Get the agent for this session with any model override applied
+            let agent = self
+                .get_session_agent(&session_key)
+                .await
+                .map_err(acp::Error::from)?;
 
-        // Get the agent for this session with any model override applied
-        let agent = self
-            .get_session_agent(&session_key)
-            .await
-            .map_err(acp::Error::from)?;
+            tracing::info!(
+                "Executing chat for session {} with agent: {}, model: {}",
+                session_key,
+                agent.id,
+                agent.model
+            );
 
-        tracing::info!(
-            "Executing chat for session {} with agent: {}, model: {}",
-            session_key,
-            agent.id,
-            agent.model
-        );
+            // Flag to track if user wants to continue after an interrupt
+            let mut continue_after_interrupt = false;
 
-        // Execute the chat request
-        match self.app.chat(agent.id.clone(), chat_request).await {
-            Ok(mut stream) => {
-                use futures::StreamExt;
+            // Execute the chat request
+            match self.app.chat(agent.id.clone(), chat_request).await {
+                Ok(mut stream) => {
+                    use futures::StreamExt;
 
-                // Stream responses back to the client as session notifications
-                loop {
-                    tokio::select! {
-                                // Check for cancellation
-                                _ = cancellation_token.cancelled() => {
-                                    tracing::info!("Session {} cancelled by client", session_key);
+                    // Stream responses back to the client as session notifications
+                    loop {
+                        tokio::select! {
+                                    // Check for cancellation
+                                    _ = cancellation_token.cancelled() => {
+                                        tracing::info!("Session {} cancelled by client", session_key);
 
-                                    // Clean up the cancellation token
-                                    self.cancellation_tokens.borrow_mut().remove(&session_key);
+                                        // Clean up the cancellation token
+                                        self.cancellation_tokens.borrow_mut().remove(&session_key);
 
-                                    return Ok(acp::PromptResponse::new(acp::StopReason::Cancelled));
-                                }
+                                        return Ok(acp::PromptResponse::new(acp::StopReason::Cancelled));
+                                    }
 
                                 // Process next stream item
                                 response_result = stream.next() => {
@@ -878,14 +1012,20 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
                                             // Skip retry attempts in ACP output
                                             continue;
                                         }
-                                        forge_domain::ChatResponse::Interrupt { .. } => {
-                                            // Interrupted, return cancelled
-                                            // Clean up cancellation token
-                                            self.cancellation_tokens.borrow_mut().remove(&session_key);
+                                        forge_domain::ChatResponse::Interrupt { reason } => {
+                                            // Request user permission to continue via ACP standard mechanism
+                                            let should_continue = self.request_continue_permission(&arguments.session_id, &reason).await?;
 
-                                            return Ok(acp::PromptResponse::new(
-                                                acp::StopReason::Cancelled,
-                                            ));
+                                            if !should_continue {
+                                                // User declined to continue - stop execution
+                                                self.cancellation_tokens.borrow_mut().remove(&session_key);
+                                                return Ok(acp::PromptResponse::new(
+                                                    acp::StopReason::EndTurn,
+                                                ));
+                                            }
+
+                                            // User wants to continue - mark for continuation after stream ends
+                                            continue_after_interrupt = true;
                                         }
                                     }
                                 }
@@ -908,10 +1048,26 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
                     }
                 }
 
+                // Check if user wanted to continue after an interrupt
+                if continue_after_interrupt {
+                    tracing::info!("Continuing execution after user approved continuation");
+                    // Create a new empty event to continue the conversation
+                    let continue_event = Event {
+                        id: uuid::Uuid::new_v4().to_string(),
+                        value: Some(EventValue::text("")),
+                        timestamp: chrono::Utc::now().to_rfc3339(),
+                        attachments: vec![],
+                        additional_context: None,
+                    };
+                    chat_request = ChatRequest::new(continue_event, conversation_id);
+                    // Loop back to start a new chat
+                    continue;
+                }
+
                 // Clean up cancellation token
                 self.cancellation_tokens.borrow_mut().remove(&session_key);
 
-                Ok(acp::PromptResponse::new(acp::StopReason::EndTurn))
+                return Ok(acp::PromptResponse::new(acp::StopReason::EndTurn));
             }
             Err(e) => {
                 tracing::error!("Failed to execute chat: {}", e);
@@ -919,10 +1075,11 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
                 // Clean up cancellation token
                 self.cancellation_tokens.borrow_mut().remove(&session_key);
 
-                Err(acp::Error::into_internal_error(
+                return Err(acp::Error::into_internal_error(
                     e.as_ref() as &dyn std::error::Error
-                ))
+                ));
             }
+        }
         }
     }
 

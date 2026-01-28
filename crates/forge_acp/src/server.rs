@@ -61,18 +61,25 @@ pub async fn start_stdio_server<S: Services + 'static>(app: Arc<ForgeApp<S>>) ->
             let result = local_set
                 .run_until(async move {
                     let services = app.services().clone();
-                    let agent = ForgeAgent::new(app, services, tx);
+                    let agent = Arc::new(ForgeAgent::new(app, services, tx));
 
                     // Start up the ForgeAgent connected to stdio
                     let (conn, handle_io) =
-                        acp::AgentSideConnection::new(agent, outgoing, incoming, |fut| {
+                        acp::AgentSideConnection::new(agent.clone(), outgoing, incoming, |fut| {
                             tokio::task::spawn_local(fut);
                         });
 
+                    // Share the connection with the agent so it can make RPC calls to the client
+                    let conn = Arc::new(conn);
+                    
+                    // Set the client connection on the agent for user interaction
+                    agent.set_client_connection(conn.clone()).await;
+
                     // Kick off a background task to send session notifications to the client
+                    let conn_for_notifications = conn.clone();
                     let notification_task = tokio::task::spawn_local(async move {
                         while let Some(session_notification) = rx.recv().await {
-                            if let Err(e) = conn.session_notification(session_notification).await {
+                            if let Err(e) = conn_for_notifications.session_notification(session_notification).await {
                                 tracing::error!("Failed to send session notification: {}", e);
                                 break;
                             }
