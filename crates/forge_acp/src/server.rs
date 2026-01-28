@@ -8,7 +8,7 @@ use forge_app::{ForgeApp, Services};
 use tokio::sync::mpsc;
 use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
 
-use crate::{ForgeAgent, Result};
+use crate::{ForgeAgent, Result, VERSION};
 
 /// Information about the ACP agent.
 #[derive(Debug, Clone)]
@@ -131,7 +131,7 @@ pub async fn start_http_server<S: Services>(_app: Arc<ForgeApp<S>>, _port: u16) 
 pub fn agent_info() -> AgentInfo {
     AgentInfo {
         name: "forge".to_string(),
-        version: env!("CARGO_PKG_VERSION").to_string(),
+        version: VERSION.to_string(),
         capabilities: "file_system, terminal, tools".to_string(),
     }
 }

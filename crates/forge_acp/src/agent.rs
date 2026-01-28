@@ -17,7 +17,7 @@ use forge_domain::{
 use tokio::sync::mpsc;
 use tokio_util::sync::CancellationToken;
 
-use crate::{Error, Result};
+use crate::{Error, Result, VERSION};
 
 /// Forge implementation of the ACP Agent trait.
 ///
@@ -329,7 +329,7 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
             .agent_info(
                 acp::Implementation::new(
                     "forge".to_string(),
-                    env!("CARGO_PKG_VERSION").to_string(),
+                    VERSION.to_string(),
                 )
                 .title("Forge Code".to_string()),
             ))
