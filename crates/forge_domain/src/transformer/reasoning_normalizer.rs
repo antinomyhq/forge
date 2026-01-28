@@ -8,7 +8,8 @@ use crate::{Context, Transformer};
 ///
 /// This transformer checks if the last assistant message has reasoning details.
 /// If it does, reasoning is preserved only on the last assistant message.
-/// If it doesn't, all reasoning details are removed from all assistant messages.
+/// If it doesn't, all reasoning details are removed from all assistant
+/// messages.
 #[derive(Default)]
 pub struct ReasoningNormalizer;
 
