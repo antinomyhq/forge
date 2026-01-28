@@ -71,7 +71,7 @@ pub async fn start_stdio_server<S: Services + 'static>(app: Arc<ForgeApp<S>>) ->
 
                     // Share the connection with the agent so it can make RPC calls to the client
                     let conn = Arc::new(conn);
-                    
+
                     // Set the client connection on the agent for user interaction
                     agent.set_client_connection(conn.clone()).await;
 
@@ -79,7 +79,10 @@ pub async fn start_stdio_server<S: Services + 'static>(app: Arc<ForgeApp<S>>) ->
                     let conn_for_notifications = conn.clone();
                     let notification_task = tokio::task::spawn_local(async move {
                         while let Some(session_notification) = rx.recv().await {
-                            if let Err(e) = conn_for_notifications.session_notification(session_notification).await {
+                            if let Err(e) = conn_for_notifications
+                                .session_notification(session_notification)
+                                .await
+                            {
                                 tracing::error!("Failed to send session notification: {}", e);
                                 break;
                             }

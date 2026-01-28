@@ -143,7 +143,8 @@ impl<S: Services> ForgeAgent<S> {
     /// Requests user permission to continue execution after an interruption.
     ///
     /// Uses the ACP `session/request_permission` mechanism to ask the user
-    /// if they want to continue after hitting limits (tool failures, chat turns).
+    /// if they want to continue after hitting limits (tool failures, chat
+    /// turns).
     ///
     /// # Arguments
     ///
@@ -226,13 +227,19 @@ impl<S: Services> ForgeAgent<S> {
         );
 
         // Build and send the permission request
-        let mut request =
-            acp::RequestPermissionRequest::new(session_id.clone(), tool_call_update, options.clone());
+        let mut request = acp::RequestPermissionRequest::new(
+            session_id.clone(),
+            tool_call_update,
+            options.clone(),
+        );
 
         // Add description via meta field since there's no direct description field
         let mut meta = serde_json::Map::new();
         meta.insert("title".to_string(), serde_json::json!(title));
-        meta.insert("description".to_string(), serde_json::json!(meta_description));
+        meta.insert(
+            "description".to_string(),
+            serde_json::json!(meta_description),
+        );
         request = request.meta(meta);
 
         // Send the request and wait for response
@@ -899,187 +906,187 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
                     // Stream responses back to the client as session notifications
                     loop {
                         tokio::select! {
-                                    // Check for cancellation
-                                    _ = cancellation_token.cancelled() => {
-                                        tracing::info!("Session {} cancelled by client", session_key);
+                                        // Check for cancellation
+                                        _ = cancellation_token.cancelled() => {
+                                            tracing::info!("Session {} cancelled by client", session_key);
 
-                                        // Clean up the cancellation token
-                                        self.cancellation_tokens.borrow_mut().remove(&session_key);
+                                            // Clean up the cancellation token
+                                            self.cancellation_tokens.borrow_mut().remove(&session_key);
 
-                                        return Ok(acp::PromptResponse::new(acp::StopReason::Cancelled));
-                                    }
+                                            return Ok(acp::PromptResponse::new(acp::StopReason::Cancelled));
+                                        }
 
-                                // Process next stream item
-                                response_result = stream.next() => {
-                                    match response_result {
-                                        Some(Ok(response)) => {
-                                    match response {
-                                        forge_domain::ChatResponse::TaskMessage { content } => {
-                                            match content {
-                                                forge_domain::ChatResponseContent::ToolOutput(_) => {
-                                                    // Skip tool outputs in ACP - diffs are shown via ToolCallEnd
-                                                    continue;
-                                                }
-                                                forge_domain::ChatResponseContent::Markdown {
-                                                    text,
-                                                    ..
-                                                } => {
-                                                    // Only send non-empty markdown text
-                                                    if !text.is_empty() {
-                                                        let notification = acp::SessionNotification::new(
-                                                            arguments.session_id.clone(),
-                                                            acp::SessionUpdate::AgentMessageChunk(
-                                                                acp::ContentChunk::new(
-                                                                    acp::ContentBlock::Text(
-                                                                        acp::TextContent::new(text),
+                                    // Process next stream item
+                                    response_result = stream.next() => {
+                                        match response_result {
+                                            Some(Ok(response)) => {
+                                        match response {
+                                            forge_domain::ChatResponse::TaskMessage { content } => {
+                                                match content {
+                                                    forge_domain::ChatResponseContent::ToolOutput(_) => {
+                                                        // Skip tool outputs in ACP - diffs are shown via ToolCallEnd
+                                                        continue;
+                                                    }
+                                                    forge_domain::ChatResponseContent::Markdown {
+                                                        text,
+                                                        ..
+                                                    } => {
+                                                        // Only send non-empty markdown text
+                                                        if !text.is_empty() {
+                                                            let notification = acp::SessionNotification::new(
+                                                                arguments.session_id.clone(),
+                                                                acp::SessionUpdate::AgentMessageChunk(
+                                                                    acp::ContentChunk::new(
+                                                                        acp::ContentBlock::Text(
+                                                                            acp::TextContent::new(text),
+                                                                        ),
                                                                     ),
                                                                 ),
-                                                            ),
-                                                        );
-                                                        self.send_notification(notification)
-                                                            .map_err(acp::Error::from)?;
+                                                            );
+                                                            self.send_notification(notification)
+                                                                .map_err(acp::Error::from)?;
+                                                        }
+                                                    }
+                                                    forge_domain::ChatResponseContent::ToolInput(_) => {
+                                                        // Skip tool input notifications - too verbose for ACP
+                                                        continue;
                                                     }
                                                 }
-                                                forge_domain::ChatResponseContent::ToolInput(_) => {
-                                                    // Skip tool input notifications - too verbose for ACP
-                                                    continue;
+                                            }
+                                            forge_domain::ChatResponse::TaskReasoning { content } => {
+                                                // Send as agent thought, only if non-empty
+                                                if !content.is_empty() {
+                                                    let notification = acp::SessionNotification::new(
+                                                        arguments.session_id.clone(),
+                                                        acp::SessionUpdate::AgentThoughtChunk(
+                                                            acp::ContentChunk::new(acp::ContentBlock::Text(
+                                                                acp::TextContent::new(content),
+                                                            )),
+                                                        ),
+                                                    );
+
+                                                    self.send_notification(notification)
+                                                        .map_err(acp::Error::from)?;
                                                 }
                                             }
-                                        }
-                                        forge_domain::ChatResponse::TaskReasoning { content } => {
-                                            // Send as agent thought, only if non-empty
-                                            if !content.is_empty() {
+                                            forge_domain::ChatResponse::ToolCallStart(tool_call) => {
+                                                // Create ACP ToolCall and send as update
+                                                let acp_tool_call = Self::map_tool_call_to_acp(&tool_call);
+
                                                 let notification = acp::SessionNotification::new(
                                                     arguments.session_id.clone(),
-                                                    acp::SessionUpdate::AgentThoughtChunk(
-                                                        acp::ContentChunk::new(acp::ContentBlock::Text(
-                                                            acp::TextContent::new(content),
-                                                        )),
-                                                    ),
+                                                    acp::SessionUpdate::ToolCallUpdate(acp_tool_call.into()),
                                                 );
 
                                                 self.send_notification(notification)
                                                     .map_err(acp::Error::from)?;
                                             }
-                                        }
-                                        forge_domain::ChatResponse::ToolCallStart(tool_call) => {
-                                            // Create ACP ToolCall and send as update
-                                            let acp_tool_call = Self::map_tool_call_to_acp(&tool_call);
+                                            forge_domain::ChatResponse::ToolCallEnd(tool_result) => {
+                                                // Map tool result to ACP content and send completion update
+                                                let content = Self::map_tool_output_to_content(&tool_result.output);
+                                                let status = if tool_result.output.is_error {
+                                                    acp::ToolCallStatus::Failed
+                                                } else {
+                                                    acp::ToolCallStatus::Completed
+                                                };
 
-                                            let notification = acp::SessionNotification::new(
-                                                arguments.session_id.clone(),
-                                                acp::SessionUpdate::ToolCallUpdate(acp_tool_call.into()),
-                                            );
+                                                let tool_call_id = tool_result
+                                                    .call_id
+                                                    .as_ref()
+                                                    .map(|id| id.as_str().to_string())
+                                                    .unwrap_or_else(|| "unknown".to_string());
 
-                                            self.send_notification(notification)
-                                                .map_err(acp::Error::from)?;
-                                        }
-                                        forge_domain::ChatResponse::ToolCallEnd(tool_result) => {
-                                            // Map tool result to ACP content and send completion update
-                                            let content = Self::map_tool_output_to_content(&tool_result.output);
-                                            let status = if tool_result.output.is_error {
-                                                acp::ToolCallStatus::Failed
-                                            } else {
-                                                acp::ToolCallStatus::Completed
-                                            };
+                                                let update = acp::ToolCallUpdate::new(
+                                                    tool_call_id,
+                                                    acp::ToolCallUpdateFields::new()
+                                                        .status(status)
+                                                        .content(content),
+                                                );
 
-                                            let tool_call_id = tool_result
-                                                .call_id
-                                                .as_ref()
-                                                .map(|id| id.as_str().to_string())
-                                                .unwrap_or_else(|| "unknown".to_string());
+                                                let notification = acp::SessionNotification::new(
+                                                    arguments.session_id.clone(),
+                                                    acp::SessionUpdate::ToolCallUpdate(update),
+                                                );
 
-                                            let update = acp::ToolCallUpdate::new(
-                                                tool_call_id,
-                                                acp::ToolCallUpdateFields::new()
-                                                    .status(status)
-                                                    .content(content),
-                                            );
-
-                                            let notification = acp::SessionNotification::new(
-                                                arguments.session_id.clone(),
-                                                acp::SessionUpdate::ToolCallUpdate(update),
-                                            );
-
-                                            self.send_notification(notification)
-                                                .map_err(acp::Error::from)?;
-                                        }
-                                        forge_domain::ChatResponse::TaskComplete => {
-                                            // Task is complete, we'll return EndTurn
-                                            break;
-                                        }
-                                        forge_domain::ChatResponse::RetryAttempt { .. } => {
-                                            // Skip retry attempts in ACP output
-                                            continue;
-                                        }
-                                        forge_domain::ChatResponse::Interrupt { reason } => {
-                                            // Request user permission to continue via ACP standard mechanism
-                                            let should_continue = self.request_continue_permission(&arguments.session_id, &reason).await?;
-
-                                            if !should_continue {
-                                                // User declined to continue - stop execution
-                                                self.cancellation_tokens.borrow_mut().remove(&session_key);
-                                                return Ok(acp::PromptResponse::new(
-                                                    acp::StopReason::EndTurn,
-                                                ));
+                                                self.send_notification(notification)
+                                                    .map_err(acp::Error::from)?;
                                             }
+                                            forge_domain::ChatResponse::TaskComplete => {
+                                                // Task is complete, we'll return EndTurn
+                                                break;
+                                            }
+                                            forge_domain::ChatResponse::RetryAttempt { .. } => {
+                                                // Skip retry attempts in ACP output
+                                                continue;
+                                            }
+                                            forge_domain::ChatResponse::Interrupt { reason } => {
+                                                // Request user permission to continue via ACP standard mechanism
+                                                let should_continue = self.request_continue_permission(&arguments.session_id, &reason).await?;
 
-                                            // User wants to continue - mark for continuation after stream ends
-                                            continue_after_interrupt = true;
+                                                if !should_continue {
+                                                    // User declined to continue - stop execution
+                                                    self.cancellation_tokens.borrow_mut().remove(&session_key);
+                                                    return Ok(acp::PromptResponse::new(
+                                                        acp::StopReason::EndTurn,
+                                                    ));
+                                                }
+
+                                                // User wants to continue - mark for continuation after stream ends
+                                                continue_after_interrupt = true;
+                                            }
                                         }
                                     }
-                                }
-                                Some(Err(e)) => {
-                                    tracing::error!("Error in chat stream: {}", e);
+                                    Some(Err(e)) => {
+                                        tracing::error!("Error in chat stream: {}", e);
 
-                                    // Clean up cancellation token
-                                    self.cancellation_tokens.borrow_mut().remove(&session_key);
+                                        // Clean up cancellation token
+                                        self.cancellation_tokens.borrow_mut().remove(&session_key);
 
-                                    return Err(acp::Error::into_internal_error(
-                                        e.as_ref() as &dyn std::error::Error
-                                    ));
-                                }
-                                None => {
-                                    // Stream ended normally
-                                    break;
+                                        return Err(acp::Error::into_internal_error(
+                                            e.as_ref() as &dyn std::error::Error
+                                        ));
+                                    }
+                                    None => {
+                                        // Stream ended normally
+                                        break;
+                                    }
                                 }
                             }
                         }
                     }
+
+                    // Check if user wanted to continue after an interrupt
+                    if continue_after_interrupt {
+                        tracing::info!("Continuing execution after user approved continuation");
+                        // Create a new empty event to continue the conversation
+                        let continue_event = Event {
+                            id: uuid::Uuid::new_v4().to_string(),
+                            value: Some(EventValue::text("")),
+                            timestamp: chrono::Utc::now().to_rfc3339(),
+                            attachments: vec![],
+                            additional_context: None,
+                        };
+                        chat_request = ChatRequest::new(continue_event, conversation_id);
+                        // Loop back to start a new chat
+                        continue;
+                    }
+
+                    // Clean up cancellation token
+                    self.cancellation_tokens.borrow_mut().remove(&session_key);
+
+                    return Ok(acp::PromptResponse::new(acp::StopReason::EndTurn));
                 }
+                Err(e) => {
+                    tracing::error!("Failed to execute chat: {}", e);
 
-                // Check if user wanted to continue after an interrupt
-                if continue_after_interrupt {
-                    tracing::info!("Continuing execution after user approved continuation");
-                    // Create a new empty event to continue the conversation
-                    let continue_event = Event {
-                        id: uuid::Uuid::new_v4().to_string(),
-                        value: Some(EventValue::text("")),
-                        timestamp: chrono::Utc::now().to_rfc3339(),
-                        attachments: vec![],
-                        additional_context: None,
-                    };
-                    chat_request = ChatRequest::new(continue_event, conversation_id);
-                    // Loop back to start a new chat
-                    continue;
+                    // Clean up cancellation token
+                    self.cancellation_tokens.borrow_mut().remove(&session_key);
+
+                    return Err(acp::Error::into_internal_error(
+                        e.as_ref() as &dyn std::error::Error
+                    ));
                 }
-
-                // Clean up cancellation token
-                self.cancellation_tokens.borrow_mut().remove(&session_key);
-
-                return Ok(acp::PromptResponse::new(acp::StopReason::EndTurn));
             }
-            Err(e) => {
-                tracing::error!("Failed to execute chat: {}", e);
-
-                // Clean up cancellation token
-                self.cancellation_tokens.borrow_mut().remove(&session_key);
-
-                return Err(acp::Error::into_internal_error(
-                    e.as_ref() as &dyn std::error::Error
-                ));
-            }
-        }
         }
     }
 

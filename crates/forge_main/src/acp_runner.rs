@@ -21,11 +21,12 @@ use forge_services::ForgeServices;
 pub fn run_acp_stdio_server(cwd: PathBuf) -> Result<()> {
     // Initialize tracing subscriber for ACP server logging
     // Logs will go to stderr (which the IDE should capture)
-    // Log level can be configured via RUST_LOG environment variable (defaults to INFO)
+    // Log level can be configured via RUST_LOG environment variable (defaults to
+    // INFO)
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info"))
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("info")),
         )
         .with_writer(std::io::stderr)
         .init();
