@@ -236,11 +236,6 @@ pub struct SemanticSearch {
     /// authentication, try "user login verification", "token generation",
     /// "OAuth flow".
     pub queries: Vec<SearchQuery>,
-
-    /// File extension filters (e.g., [".rs", ".ts", ".py"]). Only files with
-    /// these extensions will be included in the search results. At least one
-    /// extension must be provided.
-    pub extensions: Vec<String>,
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
@@ -781,14 +776,8 @@ impl ToolCatalog {
     }
 
     /// Creates a Semantic Search tool call with the specified queries
-    pub fn tool_call_semantic_search(
-        queries: Vec<SearchQuery>,
-        extensions: Vec<String>,
-    ) -> ToolCallFull {
-        ToolCallFull::from(ToolCatalog::SemSearch(SemanticSearch {
-            queries,
-            extensions,
-        }))
+    pub fn tool_call_semantic_search(queries: Vec<SearchQuery>) -> ToolCallFull {
+        ToolCallFull::from(ToolCatalog::SemSearch(SemanticSearch { queries }))
     }
 
     /// Creates an Undo tool call with the specified path

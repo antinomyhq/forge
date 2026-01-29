@@ -372,13 +372,10 @@ mod tests {
             SummaryBlock::new(
                 Role::Assistant,
                 vec![
-                    SummaryToolCall::codebase_search(
-                        vec![forge_domain::SearchQuery::new(
-                            "authentication logic",
-                            "Find authentication implementation",
-                        )],
-                        vec![".rs".to_string()],
-                    )
+                    SummaryToolCall::codebase_search(vec![forge_domain::SearchQuery::new(
+                        "authentication logic",
+                        "Find authentication implementation",
+                    )])
                     .id("call_4")
                     .is_success(false)
                     .into(),

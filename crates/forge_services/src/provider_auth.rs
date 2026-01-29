@@ -30,8 +30,8 @@ where
         provider_id: ProviderId,
         auth_method: AuthMethod,
     ) -> anyhow::Result<AuthContextRequest> {
-        // Get required URL parameters for API key flow
-        let required_params = if matches!(auth_method, AuthMethod::ApiKey) {
+        // Get required URL parameters for API key flow and Google ADC
+        let required_params = if matches!(auth_method, AuthMethod::ApiKey | AuthMethod::GoogleAdc) {
             // Get URL params from provider entry (works for both configured and
             // unconfigured)
             let providers = self.infra.get_all_providers().await?;
@@ -50,7 +50,7 @@ where
                 .create_auth_strategy(provider_id.clone(), auth_method, required_params)?;
         let mut request = strategy.init().await?;
 
-        // For API key flow, attach existing credential if available
+        // For API key flow and Google ADC, attach existing credential if available
         if let AuthContextRequest::ApiKey(ref mut api_key_request) = request
             && let Ok(Some(existing_credential)) = self.infra.get_credential(&provider_id).await
         {
@@ -69,8 +69,18 @@ where
         _timeout: Duration,
     ) -> anyhow::Result<()> {
         // Extract auth method from context response
+        // For ApiKey responses, we need to check if it's Google ADC or regular API key
         let auth_method = match &auth_context_response {
-            AuthContextResponse::ApiKey(_) => AuthMethod::ApiKey,
+            AuthContextResponse::ApiKey(_) => {
+                // Check if provider supports Google ADC and if it's the Google ADC marker
+                if provider_id == forge_domain::ProviderId::VERTEX_AI {
+                    // Vertex AI uses Google ADC
+                    forge_domain::AuthMethod::google_adc()
+                } else {
+                    // Regular API key
+                    forge_domain::AuthMethod::ApiKey
+                }
+            }
             AuthContextResponse::Code(ctx) => {
                 AuthMethod::OAuthCode(ctx.request.oauth_config.clone())
             }
