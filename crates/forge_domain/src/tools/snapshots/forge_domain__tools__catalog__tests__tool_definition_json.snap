@@ -182,6 +182,67 @@ expression: tools
   }
 }
 {
+  "title": "CodebaseSearch",
+  "description": "Semantic code search using natural language. Finds code by behavior and concepts.",
+  "type": "object",
+  "properties": {
+    "query": {
+      "description": "A detailed query specifying exactly what to find and why. Include: which part of the codebase, what specific things to find, why you need them. Example: \"Find the OpenAI API client retry logic: 1. backoff strategy 2. max retry count 3. which errors trigger retry. Need to add rate limit handling.\"",
+      "default": "",
+      "type": "string"
+    }
+  }
+}
+{
+  "title": "ReportSearch",
+  "type": "object",
+  "required": [
+    "chunks"
+  ],
+  "properties": {
+    "chunks": {
+      "description": "Code chunks ordered by relevance (most relevant first). Each chunk includes file path, line range, and relevance rating.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "file_path",
+          "relevance"
+        ],
+        "properties": {
+          "end_line": {
+            "description": "Ending line number (1-indexed, inclusive). Narrow to the specific relevant section.",
+            "type": "integer",
+            "format": "uint",
+            "minimum": 0.0,
+            "nullable": true
+          },
+          "file_path": {
+            "description": "Absolute path to the file containing the code chunk",
+            "type": "string"
+          },
+          "relevance": {
+            "description": "How relevant this chunk is to the search query",
+            "type": "string",
+            "enum": [
+              "high",
+              "medium",
+              "low"
+            ]
+          },
+          "start_line": {
+            "description": "Starting line number (1-indexed). Narrow to the specific relevant section.",
+            "type": "integer",
+            "format": "uint",
+            "minimum": 0.0,
+            "nullable": true
+          }
+        }
+      }
+    }
+  }
+}
+{
   "title": "FSRemove",
   "type": "object",
   "required": [

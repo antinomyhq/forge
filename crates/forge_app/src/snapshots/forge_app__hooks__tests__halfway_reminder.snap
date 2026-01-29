@@ -1,0 +1,9 @@
+---
+source: crates/forge_app/src/codebase_search_executor/reminder.rs
+expression: conversation.context.unwrap().to_text()
+---
+<chat_history><message
+  role="User"
+>
+<content>&lt;system-reminder&gt;You have used 5 of 10 requests. You have 5 requests remaining before you must call report_search to report your findings.&lt;/system-reminder&gt;</content>
+</message></chat_history>

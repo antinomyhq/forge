@@ -15,6 +15,11 @@ pub struct Agent {
     /// Flag to enable/disable tool support for this agent.
     pub tool_supported: Option<bool>,
 
+    /// Configure whether this agent should be available as a tool.
+    /// When true (default), the agent can be called as a tool by other agents.
+    /// When false, the agent is not available as a tool.
+    pub is_tool: bool,
+
     // Unique identifier for the agent
     pub id: AgentId,
 
@@ -82,6 +87,7 @@ impl Agent {
             model,
             title: Default::default(),
             tool_supported: Default::default(),
+            is_tool: true,
             description: Default::default(),
             system_prompt: Default::default(),
             user_prompt: Default::default(),
@@ -191,6 +197,7 @@ impl Agent {
     ) -> Self {
         Agent {
             tool_supported: def.tool_supported,
+            is_tool: def.is_tool,
             id: def.id,
             title: def.title,
             description: def.description,

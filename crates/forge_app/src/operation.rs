@@ -7,7 +7,7 @@ use derive_setters::Setters;
 use forge_display::DiffFormat;
 use forge_domain::{
     CodebaseSearchResults, Environment, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite,
-    FileOperation, LineNumbers, Metrics, NetFetch, PlanCreate, ToolKind,
+    FileOperation, LineNumbers, Metrics, NetFetch, PlanCreate, ToolKind, ToolOutput,
 };
 use forge_template::Element;
 
@@ -18,7 +18,7 @@ use crate::truncation::{
 use crate::utils::{compute_hash, format_display_path};
 use crate::{
     FsRemoveOutput, FsUndoOutput, FsWriteOutput, HttpResponse, PatchOutput, PlanCreateOutput,
-    ReadOutput, ResponseContext, SearchResult, ShellOutput,
+    ReadOutput, ResponseContext, SearchReportOutput, SearchResult, ShellOutput,
 };
 
 #[derive(Debug, Default, Setters)]
@@ -46,8 +46,14 @@ pub enum ToolOperation {
         input: FSSearch,
         output: Option<SearchResult>,
     },
-    CodebaseSearch {
+    SemSearch {
         output: CodebaseSearchResults,
+    },
+    SearchReport {
+        output: SearchReportOutput,
+    },
+    CodebaseSearch {
+        output: ToolOutput,
     },
     FsPatch {
         input: FSPatch,
@@ -378,7 +384,7 @@ impl ToolOperation {
                     forge_domain::ToolOutput::text(elm)
                 }
             },
-            ToolOperation::CodebaseSearch { output } => {
+            ToolOperation::SemSearch { output } => {
                 let total_results: usize = output.queries.iter().map(|q| q.results.len()).sum();
                 let mut root = Element::new("sem_search_results");
 
@@ -430,6 +436,49 @@ impl ToolOperation {
 
                 forge_domain::ToolOutput::text(root)
             }
+            ToolOperation::SearchReport { output } => {
+                let mut root = Element::new("search_report_results");
+
+                if output.chunks.is_empty() {
+                    root = root.text("No code sections were retrieved.")
+                } else {
+                    let mut grouped_by_path: HashMap<&str, Vec<_>> = HashMap::new();
+
+                    // Group chunks by file path
+                    for chunk in &output.chunks {
+                        let key = chunk.file_path.as_str();
+                        grouped_by_path.entry(key).or_default().push(chunk);
+                    }
+
+                    // Sort by file path for stable ordering
+                    let mut grouped_chunks: Vec<_> = grouped_by_path.into_iter().collect();
+                    grouped_chunks.sort_by(|a, b| a.0.cmp(b.0));
+
+                    let mut result_elm = Vec::new();
+
+                    // Process each file path
+                    for (path, mut chunks) in grouped_chunks {
+                        // Sort chunks by start line
+                        chunks.sort_by_key(|a| a.start_line);
+
+                        let mut content_parts = Vec::new();
+                        for chunk in chunks {
+                            let numbered =
+                                chunk.content.to_numbered_from(chunk.start_line as usize);
+                            content_parts.push(numbered);
+                        }
+
+                        let data = content_parts.join("\n...\n");
+                        let element = Element::new("file").attr("path", path).cdata(data);
+                        result_elm.push(element);
+                    }
+
+                    root = root.append(result_elm);
+                }
+
+                forge_domain::ToolOutput::text(root)
+            }
+            ToolOperation::CodebaseSearch { output } => output,
             ToolOperation::FsPatch { input, output } => {
                 let diff_result = DiffFormat::format(&output.before, &output.after);
                 let diff = console::strip_ansi_codes(diff_result.diff()).to_string();
@@ -623,7 +672,7 @@ mod tests {
     use forge_domain::{FSRead, ToolValue};
 
     use super::*;
-    use crate::{Content, Match, MatchResult};
+    use crate::{Content, Match, MatchResult, ReadChunk, SearchReportOutput};
 
     fn fixture_environment() -> Environment {
         use fake::{Fake, Faker};
@@ -2251,7 +2300,7 @@ mod tests {
     fn test_sem_search_with_results() {
         use sem_search_helpers::{chunk_node, search_results};
 
-        let fixture = ToolOperation::CodebaseSearch {
+        let fixture = ToolOperation::SemSearch {
             output: search_results(
                 "retry mechanism with exponential backoff",
                 "where is the retrying logic written",
@@ -2285,7 +2334,7 @@ mod tests {
     fn test_sem_search_with_usecase() {
         use sem_search_helpers::{chunk_node, search_results};
 
-        let fixture = ToolOperation::CodebaseSearch {
+        let fixture = ToolOperation::SemSearch {
             output: search_results(
                 "authentication logic",
                 "need to add similar auth to my endpoint",
@@ -2330,7 +2379,7 @@ mod tests {
 
         // Test that multiple chunks from the same file are sorted by start_line
         // Chunks are provided in non-sequential order: 100, 10, 50
-        let fixture = ToolOperation::CodebaseSearch {
+        let fixture = ToolOperation::SemSearch {
             output: search_results(
                 "database operations",
                 "finding all database query implementations",
@@ -2432,5 +2481,172 @@ mod tests {
             forge_domain::ToolValue::Image(_) => (), // Expected
             _ => panic!("Expected image output for vision model"),
         }
+    }
+
+    #[test]
+    fn test_search_report_empty() {
+        let fixture = ToolOperation::SearchReport { output: SearchReportOutput::default() };
+
+        let env = fixture_environment();
+        let actual = fixture.into_tool_output(
+            ToolKind::ReportSearch,
+            TempContentFiles::default(),
+            &env,
+            &mut Metrics::default(),
+        );
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_search_report_single_chunk() {
+        let fixture = ToolOperation::SearchReport {
+            output: SearchReportOutput {
+                chunks: vec![ReadChunk {
+                    file_path: "src/main.rs".to_string(),
+                    content: "fn main() {\n    println!(\"Hello, world!\");\n}".to_string(),
+                    start_line: 1,
+                    end_line: 3,
+                    relevance: "high".to_string(),
+                }],
+            },
+        };
+
+        let env = fixture_environment();
+        let actual = fixture.into_tool_output(
+            ToolKind::ReportSearch,
+            TempContentFiles::default(),
+            &env,
+            &mut Metrics::default(),
+        );
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_search_report_multiple_chunks_different_files() {
+        let fixture = ToolOperation::SearchReport {
+            output: SearchReportOutput {
+                chunks: vec![
+                    ReadChunk {
+                        file_path: "src/utils.rs".to_string(),
+                        content: "pub fn helper() -> i32 {\n    42\n}".to_string(),
+                        start_line: 10,
+                        end_line: 12,
+                        relevance: "medium".to_string(),
+                    },
+                    ReadChunk {
+                        file_path: "src/main.rs".to_string(),
+                        content: "fn main() {\n    println!(\"Hello, world!\");\n}".to_string(),
+                        start_line: 1,
+                        end_line: 3,
+                        relevance: "high".to_string(),
+                    },
+                ],
+            },
+        };
+
+        let env = fixture_environment();
+        let actual = fixture.into_tool_output(
+            ToolKind::ReportSearch,
+            TempContentFiles::default(),
+            &env,
+            &mut Metrics::default(),
+        );
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_search_report_multiple_chunks_same_file_sorted() {
+        // Test that chunks from the same file are sorted by start_line
+        // Chunks provided in non-sequential order: 100, 10, 50
+        let fixture = ToolOperation::SearchReport {
+            output: SearchReportOutput {
+                chunks: vec![
+                    ReadChunk {
+                        file_path: "src/database.rs".to_string(),
+                        content: "fn delete_user(id: u32) -> Result<()> {\n    db.execute(\"DELETE FROM users WHERE id = ?\", &[id])\n}".to_string(),
+                        start_line: 100,
+                        end_line: 102,
+                        relevance: "high".to_string(),
+                    },
+                    ReadChunk {
+                        file_path: "src/database.rs".to_string(),
+                        content: "fn get_user(id: u32) -> Result<User> {\n    db.query(\"SELECT * FROM users WHERE id = ?\", &[id])\n}".to_string(),
+                        start_line: 10,
+                        end_line: 12,
+                        relevance: "high".to_string(),
+                    },
+                    ReadChunk {
+                        file_path: "src/database.rs".to_string(),
+                        content: "fn update_user(id: u32, name: &str) -> Result<()> {\n    db.execute(\"UPDATE users SET name = ? WHERE id = ?\", &[name, id])\n}".to_string(),
+                        start_line: 50,
+                        end_line: 52,
+                        relevance: "medium".to_string(),
+                    },
+                ],
+            },
+        };
+
+        let env = fixture_environment();
+        let actual = fixture.into_tool_output(
+            ToolKind::ReportSearch,
+            TempContentFiles::default(),
+            &env,
+            &mut Metrics::default(),
+        );
+
+        insta::assert_snapshot!(to_value(actual));
+    }
+
+    #[test]
+    fn test_search_report_mixed_files_with_sorting() {
+        // Test multiple files with multiple chunks each, testing both file sorting and
+        // chunk sorting
+        let fixture = ToolOperation::SearchReport {
+            output: SearchReportOutput {
+                chunks: vec![
+                    ReadChunk {
+                        file_path: "src/utils.rs".to_string(),
+                        content: "pub fn calculate() -> i32 {\n    100\n}".to_string(),
+                        start_line: 50,
+                        end_line: 52,
+                        relevance: "low".to_string(),
+                    },
+                    ReadChunk {
+                        file_path: "src/main.rs".to_string(),
+                        content: "fn main() {\n    run_app();\n}".to_string(),
+                        start_line: 1,
+                        end_line: 3,
+                        relevance: "high".to_string(),
+                    },
+                    ReadChunk {
+                        file_path: "src/utils.rs".to_string(),
+                        content: "pub fn helper() -> i32 {\n    42\n}".to_string(),
+                        start_line: 10,
+                        end_line: 12,
+                        relevance: "medium".to_string(),
+                    },
+                    ReadChunk {
+                        file_path: "src/main.rs".to_string(),
+                        content: "fn run_app() {\n    println!(\"Running...\");\n}".to_string(),
+                        start_line: 20,
+                        end_line: 22,
+                        relevance: "high".to_string(),
+                    },
+                ],
+            },
+        };
+
+        let env = fixture_environment();
+        let actual = fixture.into_tool_output(
+            ToolKind::ReportSearch,
+            TempContentFiles::default(),
+            &env,
+            &mut Metrics::default(),
+        );
+
+        insta::assert_snapshot!(to_value(actual));
     }
 }

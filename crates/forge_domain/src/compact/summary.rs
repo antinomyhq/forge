@@ -118,7 +118,17 @@ impl SummaryToolCall {
 
     /// Creates a CodebaseSearch tool call with default values (id: None,
     /// is_success: true)
-    pub fn codebase_search(queries: Vec<SearchQuery>, file_extensions: Vec<String>) -> Self {
+    pub fn codebase_search(query: impl Into<String>) -> Self {
+        Self {
+            id: None,
+            tool: SummaryTool::ContextEngine { query: query.into() },
+            is_success: true,
+        }
+    }
+
+    /// Creates a CodebaseSearch tool call with default values (id: None,
+    /// is_success: true)
+    pub fn sem_search(queries: Vec<SearchQuery>, file_extensions: Vec<String>) -> Self {
         Self {
             id: None,
             tool: SummaryTool::SemSearch { queries, file_extensions },
@@ -198,6 +208,12 @@ pub enum SummaryTool {
     SemSearch {
         queries: Vec<SearchQuery>,
         file_extensions: Vec<String>,
+    },
+    ContextEngine {
+        query: String,
+    },
+    ReportSearch {
+        paths: Vec<String>,
     },
     Undo {
         path: String,
@@ -324,6 +340,14 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
                 queries: input.queries,
                 file_extensions: input.extensions,
             }),
+            ToolCatalog::ReportSearch(input) => {
+                let paths: Vec<String> = input
+                    .chunks
+                    .iter()
+                    .map(|chunk| chunk.file_path.display().to_string())
+                    .collect();
+                Some(SummaryTool::ReportSearch { paths })
+            }
             ToolCatalog::Undo(input) => Some(SummaryTool::Undo { path: input.path }),
             ToolCatalog::Fetch(input) => Some(SummaryTool::Fetch { url: input.url }),
             ToolCatalog::Followup(input) => {
@@ -331,6 +355,9 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
             }
             ToolCatalog::Plan(input) => Some(SummaryTool::Plan { plan_name: input.plan_name }),
             ToolCatalog::Skill(input) => Some(SummaryTool::Skill { name: input.name }),
+            ToolCatalog::ContextEngine(input) => {
+                Some(SummaryTool::ContextEngine { query: input.query })
+            }
         };
     }
 
@@ -988,7 +1015,7 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Searching codebase"),
-                SummaryToolCall::codebase_search(
+                SummaryToolCall::sem_search(
                     vec![SearchQuery::new("retry mechanism", "find retry logic")],
                     vec![".rs".to_string()],
                 )

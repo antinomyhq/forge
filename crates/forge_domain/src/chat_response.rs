@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use chrono::Local;
 
-use crate::{ToolCallFull, ToolName, ToolResult};
+use crate::{Exit, ToolCallFull, ToolName, ToolResult};
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ChatResponseContent {
@@ -58,6 +58,7 @@ pub enum ChatResponse {
     ToolCallEnd(ToolResult),
     RetryAttempt { cause: Cause, duration: Duration },
     Interrupt { reason: InterruptionReason },
+    Exit(Exit),
 }
 
 impl ChatResponse {
@@ -74,6 +75,7 @@ impl ChatResponse {
                 ChatResponseContent::Markdown { text, .. } => text.is_empty(),
             },
             ChatResponse::TaskReasoning { content } => content.is_empty(),
+            ChatResponse::Exit(_) => false,
             _ => false,
         }
     }

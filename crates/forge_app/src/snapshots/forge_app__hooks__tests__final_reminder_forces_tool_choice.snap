@@ -1,0 +1,9 @@
+---
+source: crates/forge_app/src/codebase_search_executor/reminder.rs
+expression: conversation.context.unwrap().to_text()
+---
+<chat_history><message
+  role="User"
+>
+<content>&lt;system-reminder&gt;FINAL REMINDER: You have reached the maximum number of requests. You MUST call the report_search tool now to report your findings. Do not make any more search requests.&lt;/system-reminder&gt;</content>
+</message></chat_history>

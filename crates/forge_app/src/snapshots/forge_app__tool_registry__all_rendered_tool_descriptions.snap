@@ -61,6 +61,31 @@ Returns the topK most relevant file:line locations with code context. Use multip
 
 ---
 
+### codebase_search
+
+Semantic code search using natural language. Finds code by behavior and concepts, not just keywords - 'authentication flow' finds login code, 'retry logic' finds backoff implementations.
+Usage:
+- Use for locating code to modify, understanding how features work, finding patterns/examples
+- Returns topK most relevant file:line locations with code snippets inline
+- QUERY FORMAT: Specify exactly what you're looking for and why.
+  - Include: which part of the codebase, what specific things to find, why you need them.
+  - Good: "Find the GitHub API client authentication: 1. How tokens are stored 2. Token refresh logic 3. Header injection. Need to add support for GitHub App tokens."
+  - Bad: "authentication" - too vague, doesn't say which part of codebase, no specific aspects, no reason.
+
+---
+
+### report_search
+
+Report search results to the user. Returns code chunks ordered by relevance (most relevant first). Line ranges should contain only the relevant code, not entire files.
+
+Usage:
+- Include only code chunks that directly answer the search query
+- Prefer fewer high-relevance results over many low-relevance ones
+- Reasons should explain *why* the code matters for the query, not describe what the code does
+- Narrow line ranges to the specific relevant section rather than entire files
+
+---
+
 ### remove
 
 Request to remove a file at the specified path. Use when you need to delete an existing file. The path must be absolute. This operation can be undone using the `undo` tool.

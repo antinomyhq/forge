@@ -56,6 +56,13 @@ pub struct AgentDefinition {
     #[merge(strategy = crate::merge::option)]
     pub tool_supported: Option<bool>,
 
+    /// Configure whether this agent should be available as a tool.
+    /// When true (default), the agent can be called as a tool by other agents.
+    /// When false, the agent is not available as a tool.
+    #[serde(default = "default_true")]
+    #[merge(strategy = crate::merge::std::overwrite)]
+    pub is_tool: bool,
+
     // Unique identifier for the agent
     #[merge(strategy = crate::merge::std::overwrite)]
     pub id: AgentId,
@@ -237,6 +244,7 @@ impl AgentDefinition {
             id: id.into(),
             title: Default::default(),
             tool_supported: Default::default(),
+            is_tool: Default::default(),
             model: Default::default(),
             description: Default::default(),
             system_prompt: Default::default(),
@@ -267,6 +275,10 @@ pub fn estimate_token_count(count: usize) -> usize {
     // A very rough estimation that assumes ~4 characters per token on average
     // In a real implementation, this should use a proper LLM-specific tokenizer
     count / 4
+}
+
+fn default_true() -> bool {
+    true
 }
 
 #[cfg(test)]

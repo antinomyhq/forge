@@ -140,6 +140,27 @@ pub struct PlanCreateOutput {
     pub before: Option<String>,
 }
 
+/// A file chunk with its content read from disk
+#[derive(Debug, Clone)]
+pub struct ReadChunk {
+    /// File path
+    pub file_path: String,
+    /// Code content
+    pub content: String,
+    /// Start line in the file
+    pub start_line: u64,
+    /// End line in the file
+    pub end_line: u64,
+    /// Relevance score of the chunk
+    pub relevance: String,
+}
+
+/// Output for SearchReport containing read file chunks
+#[derive(Debug, Default)]
+pub struct SearchReportOutput {
+    pub chunks: Vec<ReadChunk>,
+}
+
 #[derive(Default, Debug, derive_more::From)]
 pub struct FsUndoOutput {
     pub before_undo: Option<String>,
@@ -423,6 +444,24 @@ pub trait FsSearchService: Send + Sync {
     async fn search(&self, params: forge_domain::FSSearch) -> anyhow::Result<Option<SearchResult>>;
 }
 
+/// Service for generating search reports by reading file chunks in parallel
+#[async_trait::async_trait]
+pub trait SearchReportService: Send + Sync {
+    /// Generates a search report by reading the specified file chunks in
+    /// parallel
+    ///
+    /// # Arguments
+    /// * `chunks` - File chunks to read with paths and line ranges
+    ///
+    /// # Returns
+    /// * `Ok(SearchReportOutput)` - Successfully read chunks with content
+    /// * `Err(_)` - Error reading chunks
+    async fn generate_report(
+        &self,
+        chunks: Vec<forge_domain::ChunkSelection>,
+    ) -> anyhow::Result<SearchReportOutput>;
+}
+
 #[async_trait::async_trait]
 pub trait FollowUpService: Send + Sync {
     /// Follows up on a tool call with the given context.
@@ -573,6 +612,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     type ImageReadService: ImageReadService;
     type FsRemoveService: FsRemoveService;
     type FsSearchService: FsSearchService;
+    type SearchReportService: SearchReportService;
     type FollowUpService: FollowUpService;
     type FsUndoService: FsUndoService;
     type NetFetchService: NetFetchService;
@@ -601,6 +641,7 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn image_read_service(&self) -> &Self::ImageReadService;
     fn fs_remove_service(&self) -> &Self::FsRemoveService;
     fn fs_search_service(&self) -> &Self::FsSearchService;
+    fn search_report_service(&self) -> &Self::SearchReportService;
     fn follow_up_service(&self) -> &Self::FollowUpService;
     fn fs_undo_service(&self) -> &Self::FsUndoService;
     fn net_fetch_service(&self) -> &Self::NetFetchService;
@@ -845,6 +886,16 @@ impl<I: Services> FsRemoveService for I {
 impl<I: Services> FsSearchService for I {
     async fn search(&self, params: forge_domain::FSSearch) -> anyhow::Result<Option<SearchResult>> {
         self.fs_search_service().search(params).await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> SearchReportService for I {
+    async fn generate_report(
+        &self,
+        chunks: Vec<forge_domain::ChunkSelection>,
+    ) -> anyhow::Result<SearchReportOutput> {
+        self.search_report_service().generate_report(chunks).await
     }
 }
 

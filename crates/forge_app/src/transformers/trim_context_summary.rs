@@ -22,7 +22,7 @@ enum Operation<'a> {
     /// Search operation with a specific pattern
     Search(&'a str),
     /// Codebase search operation with queries
-    CodebaseSearch {
+    SemSearch {
         queries: &'a [forge_domain::SearchQuery],
         file_extensions: &'a [String],
     },
@@ -36,6 +36,8 @@ enum Operation<'a> {
     Skill(&'a str),
     /// MCP tool call by name
     Mcp(&'a str),
+    /// Search result reporting
+    SearchReport(&'a [String]),
 }
 
 /// Converts the tool call to its operation type for comparison.
@@ -51,13 +53,15 @@ fn to_op(tool: &SummaryTool) -> Operation<'_> {
         SummaryTool::Shell { command } => Operation::Shell(command),
         SummaryTool::Search { pattern } => Operation::Search(pattern),
         SummaryTool::SemSearch { queries, file_extensions } => {
-            Operation::CodebaseSearch { queries, file_extensions }
+            Operation::SemSearch { queries, file_extensions }
         }
+        SummaryTool::ContextEngine { query } => Operation::Search(query),
         SummaryTool::Fetch { url } => Operation::Fetch(url),
         SummaryTool::Followup { question } => Operation::Followup(question),
         SummaryTool::Plan { plan_name } => Operation::Plan(plan_name),
         SummaryTool::Skill { name } => Operation::Skill(name),
         SummaryTool::Mcp { name } => Operation::Mcp(name),
+        SummaryTool::ReportSearch { paths } => Operation::SearchReport(paths),
     }
 }
 

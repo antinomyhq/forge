@@ -5,7 +5,7 @@ use chrono::{DateTime, Local};
 use derive_setters::Setters;
 use forge_domain::{
     Agent, AgentId, Attachment, ChatCompletionMessage, ChatResponse, Conversation, Environment,
-    Event, File, HttpConfig, MessageEntry, ModelId, ProviderId, RetryConfig, Role, Template,
+    Event, Exit, File, HttpConfig, MessageEntry, ModelId, ProviderId, RetryConfig, Role, Template,
     ToolCallFull, ToolDefinition, ToolResult, Workflow,
 };
 use url::Url;
@@ -87,6 +87,7 @@ impl Default for TestContext {
                 sem_search_limit: 100,
                 sem_search_top_k: 10,
                 max_image_size: 262144,
+                codebase_search_max_iterations: 5,
                 workspace_server_url: Url::parse("http://localhost:8080").unwrap(),
                 override_model: None,
                 override_provider: None,
@@ -109,11 +110,11 @@ impl Default for TestContext {
 }
 
 impl TestContext {
-    pub async fn run(&mut self, event: impl AsRef<str>) -> anyhow::Result<()> {
+    pub async fn run(&mut self, event: impl AsRef<str>) -> anyhow::Result<Exit> {
         self.run_event(Event::new(event.as_ref())).await
     }
 
-    pub async fn run_event(&mut self, event: impl Into<Event>) -> anyhow::Result<()> {
+    pub async fn run_event(&mut self, event: impl Into<Event>) -> anyhow::Result<Exit> {
         Runner::run(self, event.into()).await
     }
 }

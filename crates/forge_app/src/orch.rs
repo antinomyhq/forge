@@ -15,6 +15,12 @@ use crate::agent::AgentService;
 use crate::compact::Compactor;
 use crate::title_generator::TitleGenerator;
 
+/// Result of executing tool calls - either records or an early exit
+enum ToolCallExecutionResult {
+    Records(Vec<(ToolCallFull, ToolResult)>),
+    Exit(Exit),
+}
+
 #[derive(Clone, Setters)]
 #[setters(into)]
 pub struct Orchestrator<S> {
@@ -52,6 +58,12 @@ impl<S: AgentService> Orchestrator<S> {
         }
     }
 
+    /// Sets a custom hook for this orchestrator
+    pub fn with_hook(mut self, hook: Arc<Hook>) -> Self {
+        self.hook = hook;
+        self
+    }
+
     /// Get a reference to the internal conversation
     pub fn get_conversation(&self) -> &Conversation {
         &self.conversation
@@ -63,7 +75,7 @@ impl<S: AgentService> Orchestrator<S> {
         &mut self,
         tool_calls: &[ToolCallFull],
         tool_context: &ToolCallContext,
-    ) -> anyhow::Result<Vec<(ToolCallFull, ToolResult)>> {
+    ) -> anyhow::Result<ToolCallExecutionResult> {
         // Always process tool calls sequentially
         let mut tool_call_records = Vec::with_capacity(tool_calls.len());
 
@@ -87,9 +99,13 @@ impl<S: AgentService> Orchestrator<S> {
                 self.agent.model.clone(),
                 ToolcallStartPayload::new(tool_call.clone()),
             ));
-            self.hook
+            if let Some(exit) = self
+                .hook
                 .handle(&toolcall_start_event, &mut self.conversation)
-                .await?;
+                .await
+            {
+                return Ok(ToolCallExecutionResult::Exit(exit));
+            }
 
             // Execute the tool
             let tool_result = self
@@ -113,9 +129,13 @@ impl<S: AgentService> Orchestrator<S> {
                 self.agent.model.clone(),
                 ToolcallEndPayload::new(tool_result.clone()),
             ));
-            self.hook
+            if let Some(exit) = self
+                .hook
                 .handle(&toolcall_end_event, &mut self.conversation)
-                .await?;
+                .await
+            {
+                return Ok(ToolCallExecutionResult::Exit(exit));
+            }
 
             // Send the end notification for system tools and not agent as a tool
             if is_system_tool {
@@ -127,7 +147,7 @@ impl<S: AgentService> Orchestrator<S> {
             tool_call_records.push((tool_call.clone(), tool_result));
         }
 
-        Ok(tool_call_records)
+        Ok(ToolCallExecutionResult::Records(tool_call_records))
     }
 
     async fn send(&self, message: ChatResponse) -> anyhow::Result<()> {
@@ -206,7 +226,7 @@ impl<S: AgentService> Orchestrator<S> {
     }
 
     // Create a helper method with the core functionality
-    pub async fn run(&mut self) -> anyhow::Result<()> {
+    pub async fn run(&mut self) -> anyhow::Result<Exit> {
         let event = self.event.clone();
 
         debug!(
@@ -227,14 +247,16 @@ impl<S: AgentService> Orchestrator<S> {
         let mut context = self.conversation.context.clone().unwrap_or_default();
 
         // Fire the Start lifecycle event
-        let start_event = LifecycleEvent::Start(EventData::new(
-            self.agent.clone(),
-            model_id.clone(),
-            StartPayload,
-        ));
-        self.hook
-            .handle(&start_event, &mut self.conversation)
-            .await?;
+        if let Some(exit) = self
+            .process_hooks(EventData::new(
+                self.agent.clone(),
+                model_id.clone(),
+                StartPayload,
+            ))
+            .await?
+        {
+            return Ok(exit);
+        };
 
         // Signals that the loop should suspend (task may or may not be completed)
         let mut should_yield = false;
@@ -253,20 +275,27 @@ impl<S: AgentService> Orchestrator<S> {
         // TODO: Move into app.rs
         let title = self.generate_title(model_id.clone());
 
+        let mut last_message = None;
+        let mut interruption_reason = None;
         while !should_yield {
             // Set context for the current loop iteration
             self.conversation.context = Some(context.clone());
             self.services.update(self.conversation.clone()).await?;
 
             // Fire the Request lifecycle event
-            let request_event = LifecycleEvent::Request(EventData::new(
-                self.agent.clone(),
-                model_id.clone(),
-                RequestPayload::new(request_count),
-            ));
-            self.hook
-                .handle(&request_event, &mut self.conversation)
-                .await?;
+            if let Some(exit) = self
+                .process_hooks(EventData::new(
+                    self.agent.clone(),
+                    model_id.clone(),
+                    RequestPayload::new(request_count),
+                ))
+                .await?
+            {
+                return Ok(exit);
+            };
+
+            // it's possible that context may have been modified by the hook.
+            context = self.conversation.context.clone().unwrap_or(context);
 
             let message = crate::retry::retry_with_config(
                 &self.environment.retry_config,
@@ -288,14 +317,18 @@ impl<S: AgentService> Orchestrator<S> {
             ).await?;
 
             // Fire the Response lifecycle event
-            let response_event = LifecycleEvent::Response(EventData::new(
-                self.agent.clone(),
-                model_id.clone(),
-                ResponsePayload::new(message.clone()),
-            ));
-            self.hook
-                .handle(&response_event, &mut self.conversation)
-                .await?;
+            if let Some(exit) = self
+                .process_hooks(EventData::new(
+                    self.agent.clone(),
+                    model_id.clone(),
+                    ResponsePayload::new(message.clone()),
+                ))
+                .await?
+            {
+                return Ok(exit);
+            };
+            // it's possible that context may have been modified by the hook.
+            context = self.conversation.context.clone().unwrap_or(context);
 
             // TODO: Add a unit test in orch spec, to guarantee that compaction is
             // triggered after receiving the response
@@ -333,9 +366,16 @@ impl<S: AgentService> Orchestrator<S> {
                     .any(|call| ToolCatalog::should_yield(&call.name));
 
             // Process tool calls and update context
-            let mut tool_call_records = self
+            let mut tool_call_records = match self
                 .execute_tool_calls(&message.tool_calls, &tool_context)
-                .await?;
+                .await?
+            {
+                ToolCallExecutionResult::Records(records) => records,
+                ToolCallExecutionResult::Exit(exit) => {
+                    self.send(ChatResponse::Exit(exit.clone())).await?;
+                    return Ok(exit);
+                }
+            };
 
             self.error_tracker.adjust_record(&tool_call_records);
             let allowed_max_attempts = self.error_tracker.limit();
@@ -363,14 +403,14 @@ impl<S: AgentService> Orchestrator<S> {
             );
 
             if self.error_tracker.limit_reached() {
-                self.send(ChatResponse::Interrupt {
-                    reason: InterruptionReason::MaxToolFailurePerTurnLimitReached {
-                        limit: *self.error_tracker.limit() as u64,
-                        errors: self.error_tracker.errors().clone(),
-                    },
-                })
-                .await?;
+                let reason = InterruptionReason::MaxToolFailurePerTurnLimitReached {
+                    limit: *self.error_tracker.limit() as u64,
+                    errors: self.error_tracker.errors().clone(),
+                };
+                self.send(ChatResponse::Interrupt { reason: reason.clone() })
+                    .await?;
                 // Should yield if too many errors are produced
+                interruption_reason = Some(reason);
                 should_yield = true;
             }
 
@@ -391,18 +431,19 @@ impl<S: AgentService> Orchestrator<S> {
                         "Agent has reached the maximum request per turn limit"
                     );
                     // raise an interrupt event to notify the UI
-                    self.send(ChatResponse::Interrupt {
-                        reason: InterruptionReason::MaxRequestPerTurnLimitReached {
-                            limit: max_request_allowed as u64,
-                        },
-                    })
-                    .await?;
+                    let reason = InterruptionReason::MaxRequestPerTurnLimitReached {
+                        limit: max_request_allowed as u64,
+                    };
+                    self.send(ChatResponse::Interrupt { reason: reason.clone() })
+                        .await?;
                     // force completion
+                    interruption_reason = Some(reason);
                     should_yield = true;
                 }
             }
 
             // Update metrics in conversation
+            last_message = context.messages.last();
             tool_context.with_metrics(|metrics| {
                 self.conversation.metrics = metrics.clone();
             })?;
@@ -417,23 +458,48 @@ impl<S: AgentService> Orchestrator<S> {
         self.services.update(self.conversation.clone()).await?;
 
         // Fire the End lifecycle event
-        self.hook
-            .handle(
-                &LifecycleEvent::End(EventData::new(
-                    self.agent.clone(),
-                    model_id.clone(),
-                    EndPayload,
-                )),
-                &mut self.conversation,
-            )
-            .await?;
+        if let Some(exit) = self
+            .process_hooks(EventData::new(
+                self.agent.clone(),
+                model_id.clone(),
+                EndPayload,
+            ))
+            .await?
+        {
+            return Ok(exit);
+        };
 
         // Signal Task Completion
         if is_complete {
             self.send(ChatResponse::TaskComplete).await?;
         }
 
-        Ok(())
+        // Extract output from the last assistant message (contains final summary)
+        let output = last_message
+            .and_then(|msg| match &**msg {
+                ContextMessage::Text(text_msg) if text_msg.role == Role::Assistant => {
+                    Some(text_msg.content.clone())
+                }
+                _ => None,
+            })
+            .unwrap_or_default();
+
+        // Return appropriate Exit variant based on completion status
+        let exit = if is_complete {
+            // Task completed successfully
+            Exit::text(output, self.conversation.id)
+        } else if let Some(reason) = interruption_reason {
+            // Execution was interrupted (max requests/errors reached)
+            Exit::interrupt(reason, self.conversation.id)
+        } else {
+            // Yielded for other reasons (e.g., tool requested follow-up from user)
+            // This is not an error - it's a valid pause point
+            Exit::text(output, self.conversation.id)
+        };
+
+        self.send(ChatResponse::Exit(exit.clone())).await?;
+
+        Ok(exit)
     }
 
     fn get_model(&self) -> ModelId {
@@ -459,5 +525,21 @@ impl<S: AgentService> Orchestrator<S> {
         } else {
             tokio::spawn(async { None })
         }
+    }
+
+    async fn process_hooks(
+        &mut self,
+        event: impl Into<LifecycleEvent>,
+    ) -> anyhow::Result<Option<Exit>> {
+        if let Some(exit) = self
+            .hook
+            .handle(&event.into(), &mut self.conversation)
+            .await
+        {
+            self.send(ChatResponse::Exit(exit.clone())).await?;
+            return Ok(Some(exit));
+        }
+
+        Ok(None)
     }
 }

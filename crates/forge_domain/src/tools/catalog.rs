@@ -32,7 +32,7 @@ use crate::{ToolCallArguments, ToolCallFull, ToolDefinition, ToolDescription, To
     PartialEq,
     EnumDiscriminants,
 )]
-#[strum_discriminants(derive(Display, Serialize, Deserialize, Hash))]
+#[strum_discriminants(derive(Display, Serialize, Deserialize, Hash, EnumIter))]
 #[strum_discriminants(serde(rename_all = "snake_case"))]
 #[serde(tag = "name", content = "arguments", rename_all = "snake_case")]
 #[strum_discriminants(name(ToolKind))]
@@ -44,6 +44,8 @@ pub enum ToolCatalog {
     Write(FSWrite),
     FsSearch(FSSearch),
     SemSearch(SemanticSearch),
+    ContextEngine(ContextEngine),
+    ReportSearch(ReportSearch),
     Remove(FSRemove),
     Patch(FSPatch),
     Undo(FSUndo),
@@ -241,6 +243,21 @@ pub struct SemanticSearch {
     /// these extensions will be included in the search results. At least one
     /// extension must be provided.
     pub extensions: Vec<String>,
+}
+
+/// Semantic code search using natural language. Finds code by behavior and
+/// concepts.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq, Default)]
+#[tool_description_file = "crates/forge_domain/src/tools/descriptions/codebase_search.md"]
+pub struct ContextEngine {
+    /// A detailed query specifying exactly what to find and why.
+    /// Include: which part of the codebase, what specific things to find, why
+    /// you need them. Example: "Find the OpenAI API client retry logic: 1.
+    /// backoff strategy
+    /// 2. max retry count 3. which errors trigger retry. Need to add
+    /// rate limit handling."
+    #[serde(default)]
+    pub query: String,
 }
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
@@ -566,6 +583,8 @@ impl ToolDescription for ToolCatalog {
             ToolCatalog::Write(v) => v.description(),
             ToolCatalog::Plan(v) => v.description(),
             ToolCatalog::Skill(v) => v.description(),
+            ToolCatalog::ReportSearch(v) => v.description(),
+            ToolCatalog::ContextEngine(v) => v.description(),
         }
     }
 }
@@ -584,6 +603,47 @@ fn normalize_tool_name(name: &ToolName) -> ToolName {
         "Write" => ToolName::new("write"),
         _ => name.clone(),
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, AsRefStr, EnumIter)]
+#[serde(rename_all = "lowercase")]
+#[strum(serialize_all = "lowercase")]
+pub enum ChunkRelevance {
+    High,
+    Medium,
+    Low,
+}
+
+impl JsonSchema for ChunkRelevance {
+    fn schema_name() -> String {
+        <Self as SimpleEnumSchema>::simple_enum_schema_name()
+    }
+
+    fn json_schema(r#gen: &mut schemars::r#gen::SchemaGenerator) -> schemars::schema::Schema {
+        <Self as SimpleEnumSchema>::simple_enum_schema(r#gen)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq)]
+pub struct ChunkSelection {
+    /// Absolute path to the file containing the code chunk
+    pub file_path: PathBuf,
+    /// Starting line number (1-indexed). Narrow to the specific relevant
+    /// section.
+    pub start_line: Option<usize>,
+    /// Ending line number (1-indexed, inclusive). Narrow to the specific
+    /// relevant section.
+    pub end_line: Option<usize>,
+    /// How relevant this chunk is to the search query
+    pub relevance: ChunkRelevance,
+}
+
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+#[tool_description_file = "crates/forge_domain/src/tools/descriptions/report_search.md"]
+pub struct ReportSearch {
+    /// Code chunks ordered by relevance (most relevant first). Each chunk
+    /// includes file path, line range, and relevance rating.
+    pub chunks: Vec<ChunkSelection>,
 }
 
 impl ToolCatalog {
@@ -612,6 +672,8 @@ impl ToolCatalog {
             ToolCatalog::Write(_) => r#gen.into_root_schema_for::<FSWrite>(),
             ToolCatalog::Plan(_) => r#gen.into_root_schema_for::<PlanCreate>(),
             ToolCatalog::Skill(_) => r#gen.into_root_schema_for::<SkillFetch>(),
+            ToolCatalog::ReportSearch(_) => r#gen.into_root_schema_for::<ReportSearch>(),
+            ToolCatalog::ContextEngine(_) => r#gen.into_root_schema_for::<ContextEngine>(),
         }
     }
 
@@ -720,7 +782,9 @@ impl ToolCatalog {
             | ToolCatalog::Undo(_)
             | ToolCatalog::Followup(_)
             | ToolCatalog::Plan(_)
-            | ToolCatalog::Skill(_) => None,
+            | ToolCatalog::Skill(_)
+            | ToolCatalog::ReportSearch(_)
+            | ToolCatalog::ContextEngine(_) => None,
         }
     }
 
@@ -892,6 +956,13 @@ impl ToolKind {
             .find(|tool| tool.definition().name == self.name())
             .map(|tool| tool.definition())
             .expect("Forge tool definition not found")
+    }
+
+    /// Attempts to parse a tool name into a ToolKind.
+    ///
+    /// Returns None if the name doesn't match any known tool kind.
+    pub fn from_name(name: &ToolName) -> Option<Self> {
+        ToolKind::iter().find(|kind| kind.name() == *name)
     }
 }
 

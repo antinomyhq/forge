@@ -1,0 +1,9 @@
+---
+source: crates/forge_app/src/codebase_search_executor/reminder.rs
+expression: conversation.context.unwrap().to_text()
+---
+<chat_history><message
+  role="User"
+>
+<content>&lt;system-reminder&gt;URGENT: You have used 8 of 10 requests. Only 2 request(s) remaining! You MUST call report_search on your next turn to report your findings.&lt;/system-reminder&gt;</content>
+</message></chat_history>

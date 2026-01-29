@@ -372,7 +372,7 @@ mod tests {
             SummaryBlock::new(
                 Role::Assistant,
                 vec![
-                    SummaryToolCall::codebase_search(
+                    SummaryToolCall::sem_search(
                         vec![forge_domain::SearchQuery::new(
                             "authentication logic",
                             "Find authentication implementation",

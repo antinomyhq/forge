@@ -27,7 +27,8 @@ use crate::provider_service::ForgeProviderService;
 use crate::template::ForgeTemplateService;
 use crate::tool_services::{
     ForgeFetch, ForgeFollowup, ForgeFsPatch, ForgeFsRead, ForgeFsRemove, ForgeFsSearch,
-    ForgeFsUndo, ForgeFsWrite, ForgeImageRead, ForgePlanCreate, ForgeShell, ForgeSkillFetch,
+    ForgeFsUndo, ForgeFsWrite, ForgeImageRead, ForgePlanCreate, ForgeSearchReport, ForgeShell,
+    ForgeSkillFetch,
 };
 use crate::workflow::ForgeWorkflowService;
 
@@ -72,6 +73,7 @@ pub struct ForgeServices<
     file_read_service: Arc<ForgeFsRead<F>>,
     image_read_service: Arc<ForgeImageRead<F>>,
     file_search_service: Arc<ForgeFsSearch<F>>,
+    search_report_service: Arc<ForgeSearchReport<ForgeFsRead<F>>>,
     file_remove_service: Arc<ForgeFsRemove<F>>,
     file_patch_service: Arc<ForgeFsPatch<F>>,
     file_undo_service: Arc<ForgeFsUndo<F>>,
@@ -130,6 +132,7 @@ impl<
         let file_read_service = Arc::new(ForgeFsRead::new(infra.clone()));
         let image_read_service = Arc::new(ForgeImageRead::new(infra.clone()));
         let file_search_service = Arc::new(ForgeFsSearch::new(infra.clone()));
+        let search_report_service = Arc::new(ForgeSearchReport::new(file_read_service.clone()));
         let file_remove_service = Arc::new(ForgeFsRemove::new(infra.clone()));
         let file_patch_service = Arc::new(ForgeFsPatch::new(infra.clone()));
         let file_undo_service = Arc::new(ForgeFsUndo::new(infra.clone()));
@@ -160,6 +163,7 @@ impl<
             file_read_service,
             image_read_service,
             file_search_service,
+            search_report_service,
             file_remove_service,
             file_patch_service,
             file_undo_service,
@@ -234,6 +238,7 @@ impl<
     type ImageReadService = ForgeImageRead<F>;
     type FsRemoveService = ForgeFsRemove<F>;
     type FsSearchService = ForgeFsSearch<F>;
+    type SearchReportService = ForgeSearchReport<ForgeFsRead<F>>;
     type FollowUpService = ForgeFollowup<F>;
     type FsUndoService = ForgeFsUndo<F>;
     type NetFetchService = ForgeFetch;
@@ -304,6 +309,10 @@ impl<
 
     fn fs_search_service(&self) -> &Self::FsSearchService {
         &self.file_search_service
+    }
+
+    fn search_report_service(&self) -> &Self::SearchReportService {
+        &self.search_report_service
     }
 
     fn follow_up_service(&self) -> &Self::FollowUpService {

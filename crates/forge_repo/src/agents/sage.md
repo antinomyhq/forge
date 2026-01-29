@@ -5,6 +5,7 @@ description: "Research-only tool for systematic codebase exploration and analysi
 reasoning:
   enabled: true
 tools:
+  - codebase_search
   - sem_search
   - search
   - read

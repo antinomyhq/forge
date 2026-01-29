@@ -80,12 +80,19 @@ impl Transformer for StripWorkingDir {
                         SummaryTool::Shell { .. }
                         | SummaryTool::Search { .. }
                         | SummaryTool::SemSearch { .. }
+                        | SummaryTool::ContextEngine { .. }
                         | SummaryTool::Fetch { .. }
                         | SummaryTool::Followup { .. }
                         | SummaryTool::Plan { .. }
                         | SummaryTool::Skill { .. }
                         | SummaryTool::Mcp { .. } => {
                             // These tools don't have paths to strip
+                        }
+                        SummaryTool::ReportSearch { paths } => {
+                            // Strip working directory prefix from each path
+                            for path in paths.iter_mut() {
+                                *path = self.strip_prefix(path);
+                            }
                         }
                     }
                 }

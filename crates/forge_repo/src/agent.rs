@@ -76,6 +76,7 @@ impl<I: FileInfoInfra + EnvironmentInfra + DirectoryReaderInfra> ForgeAgentRepos
                 ("forge", include_str!("agents/forge.md")),
                 ("muse", include_str!("agents/muse.md")),
                 ("sage", include_str!("agents/sage.md")),
+                ("codebase_search", include_str!("agents/codebase_search.md")),
             ]
             .into_iter()
             .map(|(name, content)| (name.to_string(), content.to_string())),

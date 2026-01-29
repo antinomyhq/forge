@@ -32,6 +32,7 @@ pub struct ForgeApp<S> {
     services: Arc<S>,
     tool_registry: ToolRegistry<S>,
     authenticator: Authenticator<S>,
+    hook: Arc<Hook>,
 }
 
 impl<S: Services> ForgeApp<S> {
@@ -41,7 +42,14 @@ impl<S: Services> ForgeApp<S> {
             tool_registry: ToolRegistry::new(services.clone()),
             authenticator: Authenticator::new(services.clone()),
             services,
+            hook: Arc::new(Hook::default()),
         }
+    }
+
+    /// Sets a custom hook for this app
+    pub fn with_hook(mut self, hook: Arc<Hook>) -> Self {
+        self.hook = hook;
+        self
     }
 
     /// Executes a chat request and returns a stream of responses.
@@ -150,7 +158,8 @@ impl<S: Services> ForgeApp<S> {
         )
         .error_tracker(ToolErrorTracker::new(max_tool_failure_per_turn))
         .tool_definitions(tool_definitions)
-        .models(models);
+        .models(models)
+        .with_hook(self.hook.clone());
 
         // Create and return the stream
         let stream = MpscStream::spawn(
