@@ -28,6 +28,8 @@ pub struct Orchestrator<S> {
     event: Event,
     error_tracker: ToolErrorTracker,
     hook: Arc<Hook>,
+    /// Whether this orchestrator is running as a sub-agent (executed as a tool)
+    is_sub_agent: bool,
 }
 
 impl<S: AgentService> Orchestrator<S> {
@@ -49,6 +51,7 @@ impl<S: AgentService> Orchestrator<S> {
             models: Default::default(),
             error_tracker: Default::default(),
             hook: Arc::new(Hook::default()),
+            is_sub_agent: false,
         }
     }
 
@@ -363,13 +366,18 @@ impl<S: AgentService> Orchestrator<S> {
             );
 
             if self.error_tracker.limit_reached() {
-                self.send(ChatResponse::Interrupt {
-                    reason: InterruptionReason::MaxToolFailurePerTurnLimitReached {
-                        limit: *self.error_tracker.limit() as u64,
-                        errors: self.error_tracker.errors().clone(),
-                    },
-                })
-                .await?;
+                // Only send interrupts if not a sub-agent
+                if !self.is_sub_agent {
+                    self.send(ChatResponse::Interrupt {
+                        reason: InterruptionReason::MaxToolFailurePerTurnLimitReached {
+                            limit: *self.error_tracker.limit() as u64,
+                            errors: self.error_tracker.errors().clone(),
+                        },
+                    })
+                    .await?;
+                } else {
+                    return Err(Error::MaxToolFailuresPerTurnReached(self.agent.id.clone()).into());
+                }
                 // Should yield if too many errors are produced
                 should_yield = true;
             }
@@ -390,13 +398,21 @@ impl<S: AgentService> Orchestrator<S> {
                         max_request_allowed,
                         "Agent has reached the maximum request per turn limit"
                     );
-                    // raise an interrupt event to notify the UI
-                    self.send(ChatResponse::Interrupt {
-                        reason: InterruptionReason::MaxRequestPerTurnLimitReached {
-                            limit: max_request_allowed as u64,
-                        },
-                    })
-                    .await?;
+                    // Only raise an interrupt event if not a sub-agent
+                    if !self.is_sub_agent {
+                        self.send(ChatResponse::Interrupt {
+                            reason: InterruptionReason::MaxRequestPerTurnLimitReached {
+                                limit: max_request_allowed as u64,
+                            },
+                        })
+                        .await?;
+                    } else {
+                        return Err(Error::MaxTurnsReached(
+                            self.agent.id.clone(),
+                            max_request_allowed as u64,
+                        )
+                        .into());
+                    }
                     // force completion
                     should_yield = true;
                 }

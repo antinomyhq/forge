@@ -63,6 +63,7 @@ impl<S: Services> AgentExecutor<S> {
             .chat(
                 agent_id.clone(),
                 ChatRequest::new(Event::new(task.clone()), conversation.id),
+                true, // is_sub_agent: true because this agent is being executed as a tool
             )
             .await?;
 

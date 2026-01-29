@@ -119,7 +119,7 @@ impl<
             .get_active_agent_id()
             .await?
             .unwrap_or_default();
-        self.app().chat(agent_id, chat).await
+        self.app().chat(agent_id, chat, false).await // is_sub_agent: false for normal agent execution
     }
 
     async fn upsert_conversation(&self, conversation: Conversation) -> anyhow::Result<()> {
