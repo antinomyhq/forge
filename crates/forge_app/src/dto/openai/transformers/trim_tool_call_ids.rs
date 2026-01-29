@@ -23,7 +23,8 @@ impl Transformer for TrimToolCallIds {
                 if let Some(ref mut id) = message.tool_calls {
                     for tool_call in id.iter_mut() {
                         if let Some(ref mut tool_call_id) = tool_call.id {
-                            let trimmed_id = tool_call_id.as_str().chars().take(40).collect::<String>();
+                            let trimmed_id =
+                                tool_call_id.as_str().chars().take(40).collect::<String>();
                             *tool_call_id = forge_domain::ToolCallId::new(trimmed_id);
                         }
                     }
@@ -39,11 +40,9 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::dto::openai::response::ToolCall as ResponseToolCall;
-    use crate::dto::openai::response::FunctionCall;
+    use crate::dto::openai::response::{FunctionCall, ToolCall as ResponseToolCall};
     use crate::dto::openai::tool_choice::FunctionType;
-    use crate::dto::openai::Message;
-    use crate::dto::openai::Role;
+    use crate::dto::openai::{Message, Role};
 
     #[test]
     fn test_trim_tool_call_id_in_tool_message() {
@@ -69,11 +68,7 @@ mod tests {
 
         let messages = actual.messages.unwrap();
         assert_eq!(
-            messages[0]
-                .tool_call_id
-                .as_ref()
-                .unwrap()
-                .as_str(),
+            messages[0].tool_call_id.as_ref().unwrap().as_str(),
             expected_id
         );
     }
@@ -109,10 +104,7 @@ mod tests {
 
         let messages = actual.messages.unwrap();
         assert_eq!(
-            messages[0]
-                .tool_calls
-                .as_ref()
-                .unwrap()[0]
+            messages[0].tool_calls.as_ref().unwrap()[0]
                 .id
                 .as_ref()
                 .unwrap()
@@ -165,14 +157,8 @@ mod tests {
 
         let messages = actual.messages.unwrap();
         let tool_calls = messages[0].tool_calls.as_ref().unwrap();
-        assert_eq!(
-            tool_calls[0].id.as_ref().unwrap().as_str(),
-            expected_id_1
-        );
-        assert_eq!(
-            tool_calls[1].id.as_ref().unwrap().as_str(),
-            expected_id_2
-        );
+        assert_eq!(tool_calls[0].id.as_ref().unwrap().as_str(), expected_id_1);
+        assert_eq!(tool_calls[1].id.as_ref().unwrap().as_str(), expected_id_2);
     }
 
     #[test]
@@ -196,11 +182,7 @@ mod tests {
 
         let messages = actual.messages.unwrap();
         assert_eq!(
-            messages[0]
-                .tool_call_id
-                .as_ref()
-                .unwrap()
-                .as_str(),
+            messages[0].tool_call_id.as_ref().unwrap().as_str(),
             short_id
         );
     }
@@ -226,11 +208,7 @@ mod tests {
 
         let messages = actual.messages.unwrap();
         assert_eq!(
-            messages[0]
-                .tool_call_id
-                .as_ref()
-                .unwrap()
-                .as_str(),
+            messages[0].tool_call_id.as_ref().unwrap().as_str(),
             exact_id
         );
     }
@@ -266,7 +244,10 @@ mod tests {
         let actual = TrimToolCallIds.transform(fixture);
 
         let messages = actual.messages.unwrap();
-        assert_eq!(messages[0].tool_call_id.as_ref().unwrap().as_str().len(), 40);
+        assert_eq!(
+            messages[0].tool_call_id.as_ref().unwrap().as_str().len(),
+            40
+        );
         assert_eq!(
             messages[1].tool_call_id.as_ref().unwrap().as_str().len(),
             short_id.len()

@@ -50,8 +50,7 @@ impl Transformer for ProviderPipeline<'_> {
 
         let cerebras_compat = MakeCerebrasCompat.when(move |_| provider.id == ProviderId::CEREBRAS);
 
-        let trim_tool_call_ids =
-            TrimToolCallIds.when(move |_| provider.id == ProviderId::OPENAI);
+        let trim_tool_call_ids = TrimToolCallIds.when(move |_| provider.id == ProviderId::OPENAI);
 
         let mut combined = zai_thinking
             .pipe(or_transformers)
@@ -322,11 +321,7 @@ mod tests {
 
         let messages = actual.messages.unwrap();
         assert_eq!(
-            messages[0]
-                .tool_call_id
-                .as_ref()
-                .unwrap()
-                .as_str(),
+            messages[0].tool_call_id.as_ref().unwrap().as_str(),
             expected_id
         );
     }
@@ -352,13 +347,6 @@ mod tests {
 
         // Anthropic provider should not trim tool call IDs
         let messages = actual.messages.unwrap();
-        assert_eq!(
-            messages[0]
-                .tool_call_id
-                .as_ref()
-                .unwrap()
-                .as_str(),
-            long_id
-        );
+        assert_eq!(messages[0].tool_call_id.as_ref().unwrap().as_str(), long_id);
     }
 }
