@@ -327,6 +327,7 @@ mod tests {
             reasoning_details: None,
             reasoning_text: None,
             reasoning_opaque: None,
+            extra_content: None,
         }]);
 
         let mut pipeline = ProviderPipeline::new(&provider);
@@ -356,6 +357,7 @@ mod tests {
             reasoning_details: None,
             reasoning_text: None,
             reasoning_opaque: None,
+            extra_content: None,
         }]);
 
         let mut pipeline = ProviderPipeline::new(&provider);
