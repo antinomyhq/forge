@@ -165,6 +165,16 @@ pub struct ExtraContent {
     pub google: Option<GoogleMetadata>,
 }
 
+impl From<String> for ExtraContent {
+    fn from(thought_signature: String) -> Self {
+        Self {
+            google: Some(GoogleMetadata {
+                thought_signature: Some(thought_signature),
+            }),
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ToolCall {
     pub id: Option<ToolCallId>,
