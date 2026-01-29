@@ -168,9 +168,7 @@ pub struct ExtraContent {
 impl From<String> for ExtraContent {
     fn from(thought_signature: String) -> Self {
         Self {
-            google: Some(GoogleMetadata {
-                thought_signature: Some(thought_signature),
-            }),
+            google: Some(GoogleMetadata { thought_signature: Some(thought_signature) }),
         }
     }
 }

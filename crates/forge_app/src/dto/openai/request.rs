@@ -401,9 +401,7 @@ impl From<Context> for Request {
 
 impl From<ToolCallFull> for ToolCall {
     fn from(value: ToolCallFull) -> Self {
-        let extra_content = value
-            .thought_signature
-            .map(ExtraContent::from);
+        let extra_content = value.thought_signature.map(ExtraContent::from);
 
         Self {
             id: value.call_id,
