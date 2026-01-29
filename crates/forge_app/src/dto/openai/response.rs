@@ -165,6 +165,15 @@ pub struct ExtraContent {
     pub google: Option<GoogleMetadata>,
 }
 
+impl ExtraContent {
+    /// Extracts the thought_signature from the extra content if present
+    pub fn thought_signature(&self) -> Option<String> {
+        self.google
+            .as_ref()
+            .and_then(|g| g.thought_signature.clone())
+    }
+}
+
 impl From<String> for ExtraContent {
     fn from(thought_signature: String) -> Self {
         Self {
@@ -301,12 +310,10 @@ impl TryFrom<Response> for ChatCompletionMessage {
                                 resp = resp.reasoning(Content::full(reasoning.clone()));
                             }
 
-                            // Extract thought_signature from extra_content if present
                             if let Some(thought_signature) = message
                                 .extra_content
                                 .as_ref()
-                                .and_then(|ec| ec.google.as_ref())
-                                .and_then(|g| g.thought_signature.clone())
+                                .and_then(ExtraContent::thought_signature)
                             {
                                 resp = resp.thought_signature(thought_signature);
                             }
@@ -336,12 +343,10 @@ impl TryFrom<Response> for ChatCompletionMessage {
 
                             if let Some(tool_calls) = &message.tool_calls {
                                 for tool_call in tool_calls {
-                                    // Extract thought_signature from extra_content if present
                                     let thought_signature = tool_call
                                         .extra_content
                                         .as_ref()
-                                        .and_then(|ec| ec.google.as_ref())
-                                        .and_then(|g| g.thought_signature.clone());
+                                        .and_then(ExtraContent::thought_signature);
 
                                     resp = resp.add_tool_call(ToolCallFull {
                                         call_id: tool_call.id.clone(),
@@ -373,12 +378,10 @@ impl TryFrom<Response> for ChatCompletionMessage {
                                 resp = resp.reasoning(Content::part(reasoning.clone()));
                             }
 
-                            // Extract thought_signature from extra_content if present
                             if let Some(thought_signature) = delta
                                 .extra_content
                                 .as_ref()
-                                .and_then(|ec| ec.google.as_ref())
-                                .and_then(|g| g.thought_signature.clone())
+                                .and_then(ExtraContent::thought_signature)
                             {
                                 resp = resp.thought_signature(thought_signature);
                             }
@@ -407,12 +410,10 @@ impl TryFrom<Response> for ChatCompletionMessage {
 
                             if let Some(tool_calls) = &delta.tool_calls {
                                 for tool_call in tool_calls {
-                                    // Extract thought_signature from extra_content if present
                                     let thought_signature = tool_call
                                         .extra_content
                                         .as_ref()
-                                        .and_then(|ec| ec.google.as_ref())
-                                        .and_then(|g| g.thought_signature.clone());
+                                        .and_then(ExtraContent::thought_signature);
 
                                     resp = resp.add_tool_call(ToolCallPart {
                                         call_id: tool_call.id.clone(),
