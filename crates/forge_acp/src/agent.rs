@@ -1336,20 +1336,26 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
             .insert(session_key.clone(), model_id);
         if let Some(agent_id) = self.session_to_agent.borrow().get(&session_key) {
             let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
+            let agent_model = agent_provider_resolver
+                .get_model(Some(agent_id.clone()))
+                .await;
+            let default_model = self.services.get_provider_model(None).await;
+            let model = agent_model.or(default_model).ok();
 
-            let model_update = acp::SessionNotification::new(
-                args.session_id.clone(),
-                acp::SessionUpdate::AgentMessageChunk(acp::ContentChunk::new(
-                    acp::ContentBlock::Text(acp::TextContent::new(format!(
-                        "Model changed to: {:?}",
-                        agent_provider_resolver
-                            .get_model(Some(agent_id.clone()))
-                            .await
-                    ))),
-                )),
-            );
-            if let Err(e) = self.send_notification(model_update) {
-                tracing::warn!("Failed to send a model change notification: {}", e);
+            if let Some(model) = model {
+                let model_update = acp::SessionNotification::new(
+                    args.session_id.clone(),
+                    acp::SessionUpdate::AgentMessageChunk(acp::ContentChunk::new(
+                        acp::ContentBlock::Text(acp::TextContent::new(format!(
+                            "Model changed to: {}",
+                            model
+                        ))),
+                    )),
+                );
+
+                if let Err(e) = self.send_notification(model_update) {
+                    tracing::warn!("Failed to send a model change notification: {}", e);
+                }
             }
         }
 
