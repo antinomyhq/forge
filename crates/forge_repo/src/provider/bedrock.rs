@@ -685,50 +685,27 @@ impl FromDomain<forge_domain::ContextMessage> for aws_sdk_bedrockruntime::types:
                 // Add thought signature FIRST if present (for Assistant messages)
                 // AWS requires that when thinking is enabled, assistant messages MUST start
                 // with reasoning blocks
-                if text_msg.role == forge_domain::Role::Assistant {
-                    // Add thought signature if present
-                    if let Some(thought_sig) = &text_msg.thought_signature {
-                        use aws_sdk_bedrockruntime::types::{
-                            ReasoningContentBlock, ReasoningTextBlock,
-                        };
+                if text_msg.role == forge_domain::Role::Assistant
+                    && let Some(reasoning_details) = &text_msg.reasoning_details
+                {
+                    for reasoning in reasoning_details {
+                        // Create a thinking content block
+                        if let Some(text) = &reasoning.text {
+                            use aws_sdk_bedrockruntime::types::{
+                                ReasoningContentBlock, ReasoningTextBlock,
+                            };
 
-                        let reasoning_text_block = ReasoningTextBlock::builder()
-                            .text("") // Empty text since we only have signature
-                            .set_signature(Some(thought_sig.clone()))
-                            .build()
-                            .map_err(|e| {
-                                anyhow::anyhow!("Failed to build reasoning text block: {}", e)
-                            })?;
+                            let reasoning_text_block = ReasoningTextBlock::builder()
+                                .text(text.clone())
+                                .set_signature(reasoning.signature.clone())
+                                .build()
+                                .map_err(|e| {
+                                    anyhow::anyhow!("Failed to build reasoning text block: {}", e)
+                                })?;
 
-                        content_blocks.push(ContentBlock::ReasoningContent(
-                            ReasoningContentBlock::ReasoningText(reasoning_text_block),
-                        ));
-                    }
-
-                    // Add reasoning blocks if present
-                    if let Some(reasoning_details) = &text_msg.reasoning_details {
-                        for reasoning in reasoning_details {
-                            // Create a thinking content block
-                            if let Some(text) = &reasoning.text {
-                                use aws_sdk_bedrockruntime::types::{
-                                    ReasoningContentBlock, ReasoningTextBlock,
-                                };
-
-                                let reasoning_text_block = ReasoningTextBlock::builder()
-                                    .text(text.clone())
-                                    .set_signature(reasoning.signature.clone())
-                                    .build()
-                                    .map_err(|e| {
-                                        anyhow::anyhow!(
-                                            "Failed to build reasoning text block: {}",
-                                            e
-                                        )
-                                    })?;
-
-                                content_blocks.push(ContentBlock::ReasoningContent(
-                                    ReasoningContentBlock::ReasoningText(reasoning_text_block),
-                                ));
-                            }
+                            content_blocks.push(ContentBlock::ReasoningContent(
+                                ReasoningContentBlock::ReasoningText(reasoning_text_block),
+                            ));
                         }
                     }
                 }
