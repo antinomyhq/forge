@@ -258,10 +258,6 @@ impl From<&TextMessage> for Vec<SummaryMessage> {
     fn from(text_msg: &TextMessage) -> Self {
         let mut blocks = vec![];
 
-        if let Some(thought) = &text_msg.thought_signature {
-            blocks.push(SummaryMessage::Text(thought.clone()));
-        }
-
         // Add content block if there's text content
         if !text_msg.content.is_empty() {
             blocks.push(SummaryMessage::Text(text_msg.content.clone()));
