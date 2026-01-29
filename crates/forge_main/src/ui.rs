@@ -2256,13 +2256,6 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         provider_id: ProviderId,
         auth_methods: Vec<AuthMethod>,
     ) -> Result<Option<Provider<Url>>> {
-        if provider_id == ProviderId::FORGE_SERVICES {
-            let auth = self.api.create_auth_credentials().await?;
-            self.writeln_title(
-                TitleFormat::info("Forge API key created").sub_title(auth.token.as_str()),
-            )?;
-            return Ok(None);
-        }
         // Select auth method (or use the only one available)
         let auth_method = match self
             .select_auth_method(provider_id.clone(), &auth_methods)
@@ -2481,9 +2474,25 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
             id
         } else if let Some(ref path) = self.cli.conversation {
-            let conversation: Conversation =
-                serde_json::from_str(ForgeFS::read_utf8(path.as_os_str()).await?.as_str())
-                    .context("Failed to parse Conversation")?;
+            let file_content = ForgeFS::read_utf8(path.as_os_str()).await?;
+
+            // Try to parse as a dump file first (with wrapper object)
+            let conversation: Conversation = if let Ok(dump) =
+                serde_json::from_str::<serde_json::Value>(&file_content)
+            {
+                if let Some(conv) = dump.get("conversation") {
+                    // It's a dump file with wrapper
+                    serde_json::from_value(conv.clone())
+                        .context("Failed to parse Conversation from dump file")?
+                } else {
+                    // Try parsing as direct Conversation
+                    serde_json::from_str(&file_content).context("Failed to parse Conversation")?
+                }
+            } else {
+                // Fallback to parsing as direct Conversation
+                serde_json::from_str(&file_content).context("Failed to parse Conversation")?
+            };
+
             let id = conversation.id;
             self.api.upsert_conversation(conversation).await?;
             id
@@ -3211,12 +3220,18 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         use forge_domain::SyncProgress;
         use forge_spinner::ProgressBarManager;
 
-        // Check if auth already exists and create if needed
+        // Ensure user is authenticated, trigger login if not
         if !self.api.is_authenticated().await? {
-            let auth = self.api.create_auth_credentials().await?;
-            self.writeln_title(
-                TitleFormat::info("Forge API key created").sub_title(auth.token.as_str()),
-            )?;
+            self.writeln_title(TitleFormat::info(
+                "Authentication required for workspace sync",
+            ))?;
+            self.handle_provider_login(Some(&ProviderId::FORGE_SERVICES))
+                .await?;
+
+            // Verify authentication succeeded
+            if !self.api.is_authenticated().await? {
+                anyhow::bail!("Authentication failed or cancelled. Please try again.");
+            }
         }
 
         let mut stream = self.api.sync_workspace(path.clone(), batch_size).await?;
