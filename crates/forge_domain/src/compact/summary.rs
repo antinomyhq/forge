@@ -180,42 +180,18 @@ impl SummaryToolCall {
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SummaryTool {
-    FileRead {
-        path: String,
-    },
-    FileUpdate {
-        path: String,
-    },
-    FileRemove {
-        path: String,
-    },
-    Shell {
-        command: String,
-    },
-    Search {
-        pattern: String,
-    },
-    SemSearch {
-        queries: Vec<SearchQuery>,
-    },
-    Undo {
-        path: String,
-    },
-    Fetch {
-        url: String,
-    },
-    Followup {
-        question: String,
-    },
-    Plan {
-        plan_name: String,
-    },
-    Skill {
-        name: String,
-    },
-    Mcp {
-        name: String,
-    },
+    FileRead { path: String },
+    FileUpdate { path: String },
+    FileRemove { path: String },
+    Shell { command: String },
+    Search { pattern: String },
+    SemSearch { queries: Vec<SearchQuery> },
+    Undo { path: String },
+    Fetch { url: String },
+    Followup { question: String },
+    Plan { plan_name: String },
+    Skill { name: String },
+    Mcp { name: String },
 }
 
 impl From<&Context> for ContextSummary {
@@ -319,7 +295,9 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
                 let pattern = input.glob.or(input.file_type).unwrap_or(input.pattern);
                 Some(SummaryTool::Search { pattern })
             }
-            ToolCatalog::SemSearch(input) => Some(SummaryTool::SemSearch { queries: input.queries }),
+            ToolCatalog::SemSearch(input) => {
+                Some(SummaryTool::SemSearch { queries: input.queries })
+            }
             ToolCatalog::Undo(input) => Some(SummaryTool::Undo { path: input.path }),
             ToolCatalog::Fetch(input) => Some(SummaryTool::Fetch { url: input.url }),
             ToolCatalog::Followup(input) => {
