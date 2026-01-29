@@ -293,13 +293,23 @@ npm run test:email --template=welcome
 
 ### 5. Create Pull Request
 
-Use GitHub CLI to create the PR:
+Write the description to a temporary file and use GitHub CLI to create the PR:
 
+**Step 1: Write description to temp file**
 ```bash
-gh pr create --title "[Change Type]: [One-line summary]" --body "[Generated description]"
+# Write the generated description to .forge/FORGE_PR_DESCRIPTION.md
+```
+
+Use the `write` tool to create `.forge/FORGE_PR_DESCRIPTION.md` with the generated description content.
+
+**Step 2: Create PR using the temp file**
+```bash
+gh pr create --title "[Change Type]: [One-line summary]" --body-file .forge/FORGE_PR_DESCRIPTION.md
 ```
 
 The `gh` CLI is pre-installed and authenticated - use it directly without prompting for confirmation.
+
+**Note:** The temp file `.forge/FORGE_PR_DESCRIPTION.md` can not be left in place and should be deleted after PR creation. It's in `.forge/` directory which is typically gitignored.
 
 ### 6. Confirm
 

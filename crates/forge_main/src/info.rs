@@ -1049,7 +1049,12 @@ mod tests {
                 forge_domain::TextMessage::new(Role::User, "First user message")
                     .raw_content(EventValue::text("First user message")),
             ))
-            .add_message(ContextMessage::assistant("Assistant response", None, None))
+            .add_message(ContextMessage::assistant(
+                "Assistant response",
+                None,
+                None,
+                None,
+            ))
             .add_message(ContextMessage::Text(
                 forge_domain::TextMessage::new(Role::User, "Create a new feature")
                     .raw_content(EventValue::text("Create a new feature")),
