@@ -2018,21 +2018,35 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             })
             .collect::<anyhow::Result<HashMap<_, _>>>()?;
 
-        let input = if let Some(default_key) = &request.api_key {
-            // ApiKey's Display shows masked version, AsRef<str> gives actual value
-            ForgeSelect::input(format!("Enter your {provider_id} API key:"))
-                .with_default(default_key)
+        // Check if API key is already provided
+        // For Google ADC, we use a marker to skip prompting
+        // For other providers, we use the existing key as a default value (autofill)
+        let api_key_str = if let Some(default_key) = &request.api_key {
+            let key_str = default_key.as_ref();
+
+            // Skip prompting only for Google ADC marker
+            if key_str == "google_adc_marker" {
+                key_str.to_string()
+            } else {
+                // For other providers, show the existing key as default (autofill)
+                let input = ForgeSelect::input(format!("Enter your {provider_id} API key:"))
+                    .with_default(key_str);
+                let api_key = input.prompt()?.context("API key input cancelled")?;
+                let api_key_str = api_key.trim();
+                anyhow::ensure!(!api_key_str.is_empty(), "API key cannot be empty");
+                api_key_str.to_string()
+            }
         } else {
-            ForgeSelect::input(format!("Enter your {provider_id} API key:"))
+            // Prompt for API key input (no existing key)
+            let input = ForgeSelect::input(format!("Enter your {provider_id} API key:"));
+            let api_key = input.prompt()?.context("API key input cancelled")?;
+            let api_key_str = api_key.trim();
+            anyhow::ensure!(!api_key_str.is_empty(), "API key cannot be empty");
+            api_key_str.to_string()
         };
 
-        let api_key_str = input.prompt()?.context("API key input cancelled")?;
-
-        let api_key_str = api_key_str.trim();
-        anyhow::ensure!(!api_key_str.is_empty(), "API key cannot be empty");
-
         // Update the context with collected data
-        let response = AuthContextResponse::api_key(request.clone(), api_key_str, url_params);
+        let response = AuthContextResponse::api_key(request.clone(), &api_key_str, url_params);
 
         self.api
             .complete_provider_auth(
@@ -2231,6 +2245,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 AuthMethod::ApiKey => "API Key".to_string(),
                 AuthMethod::OAuthDevice(_) => "OAuth Device Flow".to_string(),
                 AuthMethod::OAuthCode(_) => "OAuth Authorization Code".to_string(),
+                AuthMethod::GoogleAdc => "Google Application Default Credentials (ADC)".to_string(),
             })
             .collect();
 

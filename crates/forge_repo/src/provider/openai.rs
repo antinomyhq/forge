@@ -66,6 +66,7 @@ impl<H: HttpInfra> OpenAIProvider<H> {
                         });
                     }
                 }
+                forge_domain::AuthMethod::GoogleAdc => {}
             });
         headers
     }

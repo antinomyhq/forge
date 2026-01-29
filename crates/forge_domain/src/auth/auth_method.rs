@@ -11,6 +11,8 @@ pub enum AuthMethod {
     OAuthDevice(OAuthConfig),
     #[serde(rename = "oauth_code")]
     OAuthCode(OAuthConfig),
+    #[serde(rename = "google_adc")]
+    GoogleAdc,
 }
 
 impl AuthMethod {
@@ -22,10 +24,14 @@ impl AuthMethod {
         Self::OAuthCode(config)
     }
 
+    pub fn google_adc() -> Self {
+        Self::GoogleAdc
+    }
+
     pub fn oauth_config(&self) -> Option<&OAuthConfig> {
         match self {
             Self::OAuthDevice(config) | Self::OAuthCode(config) => Some(config),
-            Self::ApiKey => None,
+            Self::ApiKey | Self::GoogleAdc => None,
         }
     }
 }
