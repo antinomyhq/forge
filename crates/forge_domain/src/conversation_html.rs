@@ -312,8 +312,9 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
                         }
 
                         // Add reasoning indicator if reasoning details are present
-                        if let Some(reasoning_details) = &content_message.reasoning_details
-                            && !reasoning_details.is_empty()
+                        let has_reasoning = content_message.reasoning_details.as_ref().is_some_and(|d| !d.is_empty())
+                            || content_message.thought_signature.is_some();
+                        if has_reasoning
                         {
                             header = header.append(
                                 Element::new("span.reasoning-indicator").text(" 🧠 Reasoning"),
@@ -324,8 +325,19 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
                             Element::new(format!("details.message-card.message-{role_lowercase}"))
                                 .append(header);
 
+                        // Add thought signature
+                        let mut message_elm = if let Some(sig) = &content_message.thought_signature {
+                            message_elm.append(
+                                Element::new("div.thought-signature")
+                                    .append(Element::new("strong").text("💭 Thought Signature: "))
+                                    .append(Element::new("pre").text(sig)),
+                            )
+                        } else {
+                            message_elm
+                        };
+
                         // Add reasoning details
-                        let message_elm = if let Some(reasoning_details) =
+                        message_elm = if let Some(reasoning_details) =
                             &content_message.reasoning_details
                         {
                             if !reasoning_details.is_empty() {

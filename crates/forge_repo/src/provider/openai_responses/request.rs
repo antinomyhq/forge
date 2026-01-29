@@ -356,7 +356,12 @@ mod tests {
         let context = ChatContext::default()
             .add_message(ContextMessage::system("You are a helpful assistant."))
             .add_message(ContextMessage::user("Hello", None))
-            .add_message(ContextMessage::assistant("", None, Some(vec![tool_call])))
+            .add_message(ContextMessage::assistant(
+                "",
+                None,
+                None,
+                Some(vec![tool_call]),
+            ))
             .add_message(ContextMessage::tool_result(tool_result))
             .add_tool(tool_definition)
             .tool_choice(ToolChoice::Auto)
@@ -683,7 +688,12 @@ mod tests {
 
         let context = ChatContext::default()
             .add_message(ContextMessage::user("Run command", None))
-            .add_message(ContextMessage::assistant("", None, Some(vec![tool_call])))
+            .add_message(ContextMessage::assistant(
+                "",
+                None,
+                None,
+                Some(vec![tool_call]),
+            ))
             .add_message(ContextMessage::tool_result(
                 forge_app::domain::ToolResult::new("shell")
                     .call_id(Some(ToolCallId::new("call_1")))
@@ -712,6 +722,7 @@ mod tests {
             .add_message(ContextMessage::user("Do two things", None))
             .add_message(ContextMessage::assistant(
                 "",
+                None,
                 None,
                 Some(vec![tool_call1, tool_call2]),
             ));
@@ -818,7 +829,12 @@ mod tests {
 
         let context = ChatContext::default()
             .add_message(ContextMessage::user("Run command", None))
-            .add_message(ContextMessage::assistant("", None, Some(vec![tool_call])));
+            .add_message(ContextMessage::assistant(
+                "",
+                None,
+                None,
+                Some(vec![tool_call]),
+            ));
 
         let result = oai::CreateResponse::from_domain(context);
 

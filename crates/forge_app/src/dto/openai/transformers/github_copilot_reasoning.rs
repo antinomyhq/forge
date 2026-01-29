@@ -83,6 +83,7 @@ mod tests {
             tool_calls: None,
             tool_call_id: None,
             name: None,
+            extra_content: None,
         }]);
 
         // Execute
@@ -108,6 +109,7 @@ mod tests {
             tool_calls: None,
             tool_call_id: None,
             name: None,
+            extra_content: None,
         }]);
 
         // Execute

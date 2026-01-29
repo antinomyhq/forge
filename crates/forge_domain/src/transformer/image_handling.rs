@@ -228,7 +228,12 @@ mod tests {
         let fixture = Context::default()
             .add_message(ContextMessage::system("System message"))
             .add_message(ContextMessage::user("User message", None))
-            .add_message(ContextMessage::assistant("Assistant message", None, None))
+            .add_message(ContextMessage::assistant(
+                "Assistant message",
+                None,
+                None,
+                None,
+            ))
             .add_tool_results(vec![ToolResult {
                 name: ToolName::new("image_tool"),
                 call_id: Some(ToolCallId::new("call_preserve")),

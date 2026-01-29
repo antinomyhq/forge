@@ -50,6 +50,7 @@ uuid.workspace = true
 # Agent Client Protocol
 agent-client-protocol.workspace = true
 tokio-util = { workspace = true, features = ["compat"] }
+google-cloud-auth.workspace = true
 
 # gRPC for codebase client
 tonic.workspace = true

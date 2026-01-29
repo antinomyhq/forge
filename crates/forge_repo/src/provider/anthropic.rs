@@ -304,10 +304,12 @@ mod tests {
             .add_message(ContextMessage::assistant(
                 "here is the system call.",
                 None,
+                None,
                 Some(vec![ToolCallFull {
                     name: ToolName::new("math"),
                     call_id: Some(ToolCallId::new("math-1")),
                     arguments: serde_json::json!({"expression": "2 + 2"}).into(),
+                    thought_signature: None,
                 }]),
             ))
             .add_tool_results(vec![ToolResult {
