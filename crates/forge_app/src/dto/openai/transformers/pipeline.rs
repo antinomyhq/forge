@@ -9,6 +9,7 @@ use super::minimax::SetMinimaxParams;
 use super::normalize_tool_schema::NormalizeToolSchema;
 use super::set_cache::SetCache;
 use super::tool_choice::SetToolChoice;
+use super::trim_tool_call_ids::TrimToolCallIds;
 use super::when_model::when_model;
 use super::zai_reasoning::SetZaiThinking;
 use crate::dto::openai::{Request, ToolChoice};
@@ -49,11 +50,15 @@ impl Transformer for ProviderPipeline<'_> {
 
         let cerebras_compat = MakeCerebrasCompat.when(move |_| provider.id == ProviderId::CEREBRAS);
 
+        let trim_tool_call_ids =
+            TrimToolCallIds.when(move |_| provider.id == ProviderId::OPENAI);
+
         let mut combined = zai_thinking
             .pipe(or_transformers)
             .pipe(open_ai_compat)
             .pipe(github_copilot_reasoning)
             .pipe(cerebras_compat)
+            .pipe(trim_tool_call_ids)
             .pipe(NormalizeToolSchema);
         combined.transform(request)
     }
@@ -291,5 +296,69 @@ mod tests {
         assert_eq!(actual.thinking, None);
         // OpenAI compat transformer removes reasoning field
         assert_eq!(actual.reasoning, None);
+    }
+
+    #[test]
+    fn test_openai_provider_trims_tool_call_ids() {
+        let provider = openai("openai");
+        let long_id = "call_12345678901234567890123456789012345678901234567890";
+
+        let fixture = Request::default().messages(vec![crate::dto::openai::Message {
+            role: crate::dto::openai::Role::Tool,
+            content: None,
+            name: None,
+            tool_call_id: Some(forge_domain::ToolCallId::new(long_id)),
+            tool_calls: None,
+            reasoning_details: None,
+            reasoning_text: None,
+            reasoning_opaque: None,
+        }]);
+
+        let mut pipeline = ProviderPipeline::new(&provider);
+        let actual = pipeline.transform(fixture);
+
+        let expected_id = "call_12345678901234567890123456789012345";
+        assert_eq!(expected_id.len(), 40);
+
+        let messages = actual.messages.unwrap();
+        assert_eq!(
+            messages[0]
+                .tool_call_id
+                .as_ref()
+                .unwrap()
+                .as_str(),
+            expected_id
+        );
+    }
+
+    #[test]
+    fn test_non_openai_provider_does_not_trim_tool_call_ids() {
+        let provider = anthropic("claude");
+        let long_id = "call_12345678901234567890123456789012345678901234567890";
+
+        let fixture = Request::default().messages(vec![crate::dto::openai::Message {
+            role: crate::dto::openai::Role::Tool,
+            content: None,
+            name: None,
+            tool_call_id: Some(forge_domain::ToolCallId::new(long_id)),
+            tool_calls: None,
+            reasoning_details: None,
+            reasoning_text: None,
+            reasoning_opaque: None,
+        }]);
+
+        let mut pipeline = ProviderPipeline::new(&provider);
+        let actual = pipeline.transform(fixture);
+
+        // Anthropic provider should not trim tool call IDs
+        let messages = actual.messages.unwrap();
+        assert_eq!(
+            messages[0]
+                .tool_call_id
+                .as_ref()
+                .unwrap()
+                .as_str(),
+            long_id
+        );
     }
 }

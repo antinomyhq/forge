@@ -7,6 +7,7 @@ mod normalize_tool_schema;
 mod pipeline;
 mod set_cache;
 mod tool_choice;
+mod trim_tool_call_ids;
 mod when_model;
 mod zai_reasoning;
 
