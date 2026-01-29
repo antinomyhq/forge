@@ -1324,12 +1324,34 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
         &self,
         args: SetSessionModelRequest,
     ) -> agent_client_protocol::Result<SetSessionModelResponse> {
-        tracing::debug!("got args while changing model: {:?}", args);
-        // TODO: Need review, if we should use existing
-        // model selection algo or we should actually set model for a session
-        self.services
-            .set_default_model(ModelId::new(args.model_id.0.to_string()))
-            .await?;
+        let session_key = args.session_id.0.as_ref().to_string();
+        let model_id = ModelId::new(args.model_id.0.to_string());
+
+        // Set the model as default in the app configuration (this persists the change)
+        self.services.set_default_model(model_id.clone()).await?;
+        let _ = self.services.reload_agents().await;
+        // Store the model override for this session so it takes effect immediately
+        self.session_to_model
+            .borrow_mut()
+            .insert(session_key.clone(), model_id);
+        if let Some(agent_id) = self.session_to_agent.borrow().get(&session_key) {
+            let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
+
+            let model_update = acp::SessionNotification::new(
+                args.session_id.clone(),
+                acp::SessionUpdate::AgentMessageChunk(acp::ContentChunk::new(
+                    acp::ContentBlock::Text(acp::TextContent::new(format!(
+                        "Model changed to: {:?}",
+                        agent_provider_resolver
+                            .get_model(Some(agent_id.clone()))
+                            .await
+                    ))),
+                )),
+            );
+            if let Err(e) = self.send_notification(model_update) {
+                tracing::warn!("Failed to send a model change notification: {}", e);
+            }
+        }
 
         Ok(SetSessionModelResponse::default())
     }
