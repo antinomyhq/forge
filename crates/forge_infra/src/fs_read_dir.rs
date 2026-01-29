@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use anyhow::Result;
 use forge_app::DirectoryReaderInfra;
 use forge_fs::ForgeFS;
+use forge_walker::Walker;
 use futures::future::join_all;
 use glob::Pattern;
 
@@ -13,20 +14,37 @@ impl ForgeDirectoryReaderService {
     /// Lists all entries in a directory without reading file contents
     /// Returns a vector of tuples containing (entry_path, is_directory)
     /// Much more efficient than read_directory_files for directory listings
+    /// Respects .gitignore, .ignore, and other standard ignore files
     async fn list_directory_entries(&self, directory: &Path) -> Result<Vec<(PathBuf, bool)>> {
         // Check if directory exists
         if !ForgeFS::exists(directory) || ForgeFS::is_file(directory) {
             return Ok(vec![]);
         }
 
-        // Read directory entries
-        let mut dir = ForgeFS::read_dir(directory).await?;
+        // Use Walker to get entries with gitignore filtering
+        let files = Walker::max_all()
+            .cwd(directory.to_path_buf())
+            .max_depth(1)
+            .skip_binary(true)
+            .get()
+            .await?;
+
         let mut entries = Vec::new();
 
-        while let Some(entry) = dir.next_entry().await? {
-            let path = entry.path();
-            let is_dir = path.is_dir();
-            entries.push((path, is_dir));
+        for file in files {
+            // Skip root directory entry
+            if file.path == "/" {
+                continue;
+            }
+
+            let file_path = PathBuf::from(file.path);
+            let absolute_path = if file_path.is_relative() {
+                directory.join(file_path)
+            } else {
+                file_path
+            };
+            let is_dir = absolute_path.is_dir();
+            entries.push((absolute_path, is_dir));
         }
 
         Ok(entries)
@@ -220,6 +238,29 @@ mod tests {
             .unwrap();
 
         let expected: Vec<(PathBuf, bool)> = vec![];
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_list_directory_entries_respects_gitignore() {
+        let fixture = tempdir().unwrap();
+        write_file(&fixture.path().join("file.txt"), "Content");
+        write_file(&fixture.path().join("ignored.log"), "Log");
+
+        let subdir = fixture.path().join("node_modules");
+        fs::create_dir(&subdir).unwrap();
+
+        let git_dir = fixture.path().join(".git");
+        fs::create_dir(&git_dir).unwrap();
+
+        write_file(&fixture.path().join(".gitignore"), "*.log\nnode_modules/\n");
+
+        let actual = ForgeDirectoryReaderService
+            .list_directory_entries(fixture.path())
+            .await
+            .unwrap();
+
+        let expected = vec![(fixture.path().join("file.txt"), false)];
         assert_eq!(actual, expected);
     }
 }
