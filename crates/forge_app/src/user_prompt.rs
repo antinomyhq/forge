@@ -56,6 +56,7 @@ impl<S: AttachmentService> UserPromptGenerator<S> {
                 content: piped_input.clone(),
                 raw_content: None,
                 tool_calls: None,
+                thought_signature: None,
                 reasoning_details: None,
                 model: Some(self.agent.model.clone()),
                 droppable: true, // Piped input is droppable
@@ -131,6 +132,7 @@ impl<S: AttachmentService> UserPromptGenerator<S> {
                 content: content.clone(),
                 raw_content: event_value,
                 tool_calls: None,
+                thought_signature: None,
                 reasoning_details: None,
                 model: Some(self.agent.model.clone()),
                 droppable: false,

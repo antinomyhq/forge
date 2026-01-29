@@ -208,7 +208,7 @@ mod tests {
 
         let context = Context::default()
             .add_message(ContextMessage::user("Test task", None))
-            .add_message(ContextMessage::assistant("Working on it", None, None))
+            .add_message(ContextMessage::assistant("Working on it", None, None, None))
             .add_message(ContextMessage::Tool(ToolResult::new("agent_tool").output(
                 Ok(ToolOutput {
                     is_error: false,
@@ -218,7 +218,7 @@ mod tests {
                     }],
                 }),
             )))
-            .add_message(ContextMessage::assistant("Continuing", None, None))
+            .add_message(ContextMessage::assistant("Continuing", None, None, None))
             .add_message(ContextMessage::Tool(
                 ToolResult::new("another_agent").output(Ok(ToolOutput {
                     is_error: false,
@@ -271,8 +271,10 @@ mod tests {
         use crate::{MessageEntry, Usage};
 
         // Create main conversation with cost
+        // Create main conversation with cost
         let main_usage = Usage { cost: Some(0.01), ..Usage::default() };
-        let main_entry: MessageEntry = ContextMessage::assistant("Response", None, None).into();
+        let main_entry: MessageEntry =
+            ContextMessage::assistant("Response", None, None, None).into();
         let main_context = Context::default()
             .add_message(ContextMessage::user("Test", None))
             .add_entry(main_entry.usage(main_usage));
@@ -282,7 +284,7 @@ mod tests {
         // Create related conversations with costs
         let related_usage_1 = Usage { cost: Some(0.02), ..Usage::default() };
         let related_entry_1: MessageEntry =
-            ContextMessage::assistant("Result 1", None, None).into();
+            ContextMessage::assistant("Result 1", None, None, None).into();
         let related_context_1 = Context::default()
             .add_message(ContextMessage::user("Task 1", None))
             .add_entry(related_entry_1.usage(related_usage_1));
@@ -291,11 +293,10 @@ mod tests {
 
         let related_usage_2 = Usage { cost: Some(0.03), ..Usage::default() };
         let related_entry_2: MessageEntry =
-            ContextMessage::assistant("Result 2", None, None).into();
+            ContextMessage::assistant("Result 2", None, None, None).into();
         let related_context_2 = Context::default()
             .add_message(ContextMessage::user("Task 2", None))
             .add_entry(related_entry_2.usage(related_usage_2));
-
         let related_conv_2 = Conversation::generate().context(related_context_2);
 
         let actual = Conversation::total_cost(&[main_conv, related_conv_1, related_conv_2]);
@@ -326,7 +327,8 @@ mod tests {
 
         // Related conversation has cost
         let related_usage = Usage { cost: Some(0.05), ..Usage::default() };
-        let related_entry: MessageEntry = ContextMessage::assistant("Result", None, None).into();
+        let related_entry: MessageEntry =
+            ContextMessage::assistant("Result", None, None, None).into();
         let related_context = Context::default()
             .add_message(ContextMessage::user("Task", None))
             .add_entry(related_entry.usage(related_usage));

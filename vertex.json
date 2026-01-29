@@ -177,5 +177,25 @@
     "supports_parallel_tool_calls": true,
     "supports_reasoning": true,
     "input_modalities": ["text", "image"]
+  },
+  {
+    "id": "google/gemini-3-pro-preview",
+    "name": "Gemini 3 Pro Preview",
+    "description": "Google's fast and capable model with thinking support",
+    "context_length": 1048576,
+    "tools_supported": true,
+    "supports_parallel_tool_calls": true,
+    "supports_reasoning": true,
+    "input_modalities": ["text", "image"]
+  },
+  {
+    "id": "google/gemini-3-flash-preview",
+    "name": "Gemini 3 Flash Preview",
+    "description": "Google's fast and capable model with thinking support",
+    "context_length": 1048576,
+    "tools_supported": true,
+    "supports_parallel_tool_calls": true,
+    "supports_reasoning": true,
+    "input_modalities": ["text", "image"]
   }
 ]

@@ -565,6 +565,7 @@ mod tests {
                     content: "test".to_string(),
                     reasoning: None,
                     tool_calls: vec![],
+                    thought_signature: None,
                     reasoning_details: None,
                     usage: crate::Usage::default(),
                     finish_reason: None,

@@ -59,6 +59,7 @@ mod tests {
             reasoning_details: None,
             reasoning_text: None,
             reasoning_opaque: None,
+            extra_content: None,
         }]);
 
         let actual = TrimToolCallIds.transform(fixture);
@@ -91,10 +92,12 @@ mod tests {
                     name: Some(forge_domain::ToolName::new("test_tool")),
                     arguments: "{}".to_string(),
                 },
+                extra_content: None,
             }]),
             reasoning_details: None,
             reasoning_text: None,
             reasoning_opaque: None,
+            extra_content: None,
         }]);
 
         let actual = TrimToolCallIds.transform(fixture);
@@ -133,6 +136,7 @@ mod tests {
                         name: Some(forge_domain::ToolName::new("tool_1")),
                         arguments: "{}".to_string(),
                     },
+                    extra_content: None,
                 },
                 ResponseToolCall {
                     id: Some(forge_domain::ToolCallId::new(long_id_2)),
@@ -141,11 +145,13 @@ mod tests {
                         name: Some(forge_domain::ToolName::new("tool_2")),
                         arguments: "{}".to_string(),
                     },
+                    extra_content: None,
                 },
             ]),
             reasoning_details: None,
             reasoning_text: None,
             reasoning_opaque: None,
+            extra_content: None,
         }]);
 
         let actual = TrimToolCallIds.transform(fixture);
@@ -176,6 +182,7 @@ mod tests {
             reasoning_details: None,
             reasoning_text: None,
             reasoning_opaque: None,
+            extra_content: None,
         }]);
 
         let actual = TrimToolCallIds.transform(fixture);
@@ -202,6 +209,7 @@ mod tests {
             reasoning_details: None,
             reasoning_text: None,
             reasoning_opaque: None,
+            extra_content: None,
         }]);
 
         let actual = TrimToolCallIds.transform(fixture);
@@ -228,6 +236,7 @@ mod tests {
                 reasoning_details: None,
                 reasoning_text: None,
                 reasoning_opaque: None,
+                extra_content: None,
             },
             Message {
                 role: Role::Tool,
@@ -238,6 +247,7 @@ mod tests {
                 reasoning_details: None,
                 reasoning_text: None,
                 reasoning_opaque: None,
+                extra_content: None,
             },
         ]);
 

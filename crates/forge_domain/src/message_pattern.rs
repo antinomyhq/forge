@@ -67,6 +67,7 @@ impl MessagePattern {
             name: ToolName::new("read"),
             call_id: Some(ToolCallId::new("call_123")),
             arguments: json!({"path": "/test/path"}).into(),
+            thought_signature: None,
         };
 
         let tool_result = ToolResult::new(ToolName::new("read"))
@@ -81,9 +82,14 @@ impl MessagePattern {
                 let content = format!("Message {}", i + 1);
                 match c {
                     'u' => ContextMessage::user(&content, Some(model_id.clone())),
-                    'a' => ContextMessage::assistant(&content, None, None),
+                    'a' => ContextMessage::assistant(&content, None, None, None),
                     's' => ContextMessage::system(&content),
-                    't' => ContextMessage::assistant(&content, None, Some(vec![tool_call.clone()])),
+                    't' => ContextMessage::assistant(
+                        &content,
+                        None,
+                        None,
+                        Some(vec![tool_call.clone()]),
+                    ),
                     'r' => ContextMessage::tool_result(tool_result.clone()),
                     _ => {
                         panic!("Invalid character '{c}' in pattern. Use 'u', 'a', 's', 't', or 'r'")

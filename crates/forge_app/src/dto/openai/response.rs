@@ -135,6 +135,8 @@ pub struct ResponseMessage {
     // GitHub Copilot format (flat fields instead of array)
     pub reasoning_text: Option<String>,
     pub reasoning_opaque: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extra_content: Option<ExtraContent>,
 }
 
 impl From<ReasoningDetail> for forge_domain::ReasoningDetail {
@@ -151,11 +153,42 @@ impl From<ReasoningDetail> for forge_domain::ReasoningDetail {
     }
 }
 
+/// Google-specific metadata for Vertex AI thought signatures
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct GoogleMetadata {
+    pub thought_signature: Option<String>,
+}
+
+/// Extra content that may be included by certain providers (e.g., Vertex AI)
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct ExtraContent {
+    pub google: Option<GoogleMetadata>,
+}
+
+impl ExtraContent {
+    /// Extracts the thought_signature from the extra content if present
+    pub fn thought_signature(&self) -> Option<String> {
+        self.google
+            .as_ref()
+            .and_then(|g| g.thought_signature.clone())
+    }
+}
+
+impl From<String> for ExtraContent {
+    fn from(thought_signature: String) -> Self {
+        Self {
+            google: Some(GoogleMetadata { thought_signature: Some(thought_signature) }),
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct ToolCall {
     pub id: Option<ToolCallId>,
     pub r#type: FunctionType,
     pub function: FunctionCall,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extra_content: Option<ExtraContent>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -277,6 +310,14 @@ impl TryFrom<Response> for ChatCompletionMessage {
                                 resp = resp.reasoning(Content::full(reasoning.clone()));
                             }
 
+                            if let Some(thought_signature) = message
+                                .extra_content
+                                .as_ref()
+                                .and_then(ExtraContent::thought_signature)
+                            {
+                                resp = resp.thought_signature(thought_signature);
+                            }
+
                             if let Some(reasoning_details) = &message.reasoning_details {
                                 let converted_details: Vec<forge_domain::ReasoningFull> =
                                     reasoning_details
@@ -302,6 +343,11 @@ impl TryFrom<Response> for ChatCompletionMessage {
 
                             if let Some(tool_calls) = &message.tool_calls {
                                 for tool_call in tool_calls {
+                                    let thought_signature = tool_call
+                                        .extra_content
+                                        .as_ref()
+                                        .and_then(ExtraContent::thought_signature);
+
                                     resp = resp.add_tool_call(ToolCallFull {
                                         call_id: tool_call.id.clone(),
                                         name: tool_call
@@ -312,6 +358,7 @@ impl TryFrom<Response> for ChatCompletionMessage {
                                         arguments: serde_json::from_str(
                                             &tool_call.function.arguments,
                                         )?,
+                                        thought_signature,
                                     });
                                 }
                             }
@@ -329,6 +376,14 @@ impl TryFrom<Response> for ChatCompletionMessage {
 
                             if let Some(reasoning) = &delta.reasoning {
                                 resp = resp.reasoning(Content::part(reasoning.clone()));
+                            }
+
+                            if let Some(thought_signature) = delta
+                                .extra_content
+                                .as_ref()
+                                .and_then(ExtraContent::thought_signature)
+                            {
+                                resp = resp.thought_signature(thought_signature);
                             }
 
                             if let Some(reasoning_details) = &delta.reasoning_details {
@@ -355,10 +410,16 @@ impl TryFrom<Response> for ChatCompletionMessage {
 
                             if let Some(tool_calls) = &delta.tool_calls {
                                 for tool_call in tool_calls {
+                                    let thought_signature = tool_call
+                                        .extra_content
+                                        .as_ref()
+                                        .and_then(ExtraContent::thought_signature);
+
                                     resp = resp.add_tool_call(ToolCallPart {
                                         call_id: tool_call.id.clone(),
                                         name: tool_call.function.name.clone(),
                                         arguments_part: tool_call.function.arguments.clone(),
+                                        thought_signature,
                                     });
                                 }
                             }
@@ -547,6 +608,7 @@ mod tests {
                     reasoning_details: None,
                     reasoning_text: None,
                     reasoning_opaque: None,
+                    extra_content: None,
                 },
                 error: Some(error_response.clone()),
             }],
@@ -583,6 +645,7 @@ mod tests {
                     reasoning_details: None,
                     reasoning_text: None,
                     reasoning_opaque: None,
+                    extra_content: None,
                 },
                 error: Some(error_response.clone()),
             }],
@@ -619,6 +682,7 @@ mod tests {
                     reasoning_details: None,
                     reasoning_text: None,
                     reasoning_opaque: None,
+                    extra_content: None,
                 },
                 error: None,
             }],
