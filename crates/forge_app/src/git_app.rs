@@ -154,8 +154,10 @@ where
 
         // Set ForgeCode as the committer while keeping the user as the author
         // by prefixing the command with environment variables
+        // Escape single quotes in the message by replacing ' with '\''
+        let escaped_message = message.replace('\'', r"'\''");
         let commit_command = format!(
-            "GIT_COMMITTER_NAME='ForgeCode' GIT_COMMITTER_EMAIL='noreply@forgecode.dev' git commit {flags} -m '{message}'"
+            "GIT_COMMITTER_NAME='ForgeCode' GIT_COMMITTER_EMAIL='noreply@forgecode.dev' git commit {flags} -m '{escaped_message}'"
         );
 
         let commit_result = self
