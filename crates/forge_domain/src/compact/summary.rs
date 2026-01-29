@@ -118,10 +118,10 @@ impl SummaryToolCall {
 
     /// Creates a CodebaseSearch tool call with default values (id: None,
     /// is_success: true)
-    pub fn codebase_search(queries: Vec<SearchQuery>, file_extensions: Vec<String>) -> Self {
+    pub fn codebase_search(queries: Vec<SearchQuery>) -> Self {
         Self {
             id: None,
-            tool: SummaryTool::SemSearch { queries, file_extensions },
+            tool: SummaryTool::SemSearch { queries },
             is_success: true,
         }
     }
@@ -180,43 +180,18 @@ impl SummaryToolCall {
 #[derive(Clone, PartialEq, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SummaryTool {
-    FileRead {
-        path: String,
-    },
-    FileUpdate {
-        path: String,
-    },
-    FileRemove {
-        path: String,
-    },
-    Shell {
-        command: String,
-    },
-    Search {
-        pattern: String,
-    },
-    SemSearch {
-        queries: Vec<SearchQuery>,
-        file_extensions: Vec<String>,
-    },
-    Undo {
-        path: String,
-    },
-    Fetch {
-        url: String,
-    },
-    Followup {
-        question: String,
-    },
-    Plan {
-        plan_name: String,
-    },
-    Skill {
-        name: String,
-    },
-    Mcp {
-        name: String,
-    },
+    FileRead { path: String },
+    FileUpdate { path: String },
+    FileRemove { path: String },
+    Shell { command: String },
+    Search { pattern: String },
+    SemSearch { queries: Vec<SearchQuery> },
+    Undo { path: String },
+    Fetch { url: String },
+    Followup { question: String },
+    Plan { plan_name: String },
+    Skill { name: String },
+    Mcp { name: String },
 }
 
 impl From<&Context> for ContextSummary {
@@ -320,10 +295,9 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
                 let pattern = input.glob.or(input.file_type).unwrap_or(input.pattern);
                 Some(SummaryTool::Search { pattern })
             }
-            ToolCatalog::SemSearch(input) => Some(SummaryTool::SemSearch {
-                queries: input.queries,
-                file_extensions: input.extensions,
-            }),
+            ToolCatalog::SemSearch(input) => {
+                Some(SummaryTool::SemSearch { queries: input.queries })
+            }
             ToolCatalog::Undo(input) => Some(SummaryTool::Undo { path: input.path }),
             ToolCatalog::Fetch(input) => Some(SummaryTool::Fetch { url: input.url }),
             ToolCatalog::Followup(input) => {
@@ -974,10 +948,10 @@ mod tests {
         let fixture = context(vec![assistant_with_tools(
             "Searching codebase",
             vec![
-                ToolCatalog::tool_call_semantic_search(
-                    vec![SearchQuery::new("retry mechanism", "find retry logic")],
-                    vec![".rs".to_string()],
-                )
+                ToolCatalog::tool_call_semantic_search(vec![SearchQuery::new(
+                    "retry mechanism",
+                    "find retry logic",
+                )])
                 .call_id("call_1"),
             ],
         )]);
@@ -988,10 +962,10 @@ mod tests {
             Role::Assistant,
             vec![
                 Block::content("Searching codebase"),
-                SummaryToolCall::codebase_search(
-                    vec![SearchQuery::new("retry mechanism", "find retry logic")],
-                    vec![".rs".to_string()],
-                )
+                SummaryToolCall::codebase_search(vec![SearchQuery::new(
+                    "retry mechanism",
+                    "find retry logic",
+                )])
                 .id("call_1")
                 .is_success(false)
                 .into(),
