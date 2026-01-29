@@ -48,7 +48,8 @@ impl Transformer for ProviderPipeline<'_> {
         let strip_thought_signature =
             StripThoughtSignature.when(move |req: &Request| !is_gemini3_model(req));
 
-        // For gemini-3 models: conditionally strip thought signatures based on last message without signature
+        // For gemini-3 models: conditionally strip thought signatures based on last
+        // message without signature
         let strip_thought_signature_gemini3 =
             StripThoughtSignatureForGemini3.when(move |req: &Request| is_gemini3_model(req));
 
@@ -76,7 +77,8 @@ fn is_zai_provider(provider: &Provider<Url>) -> bool {
     provider.id == ProviderId::ZAI || provider.id == ProviderId::ZAI_CODING
 }
 
-/// Checks if the request model is a gemini-3 model (which supports thought signatures)
+/// Checks if the request model is a gemini-3 model (which supports thought
+/// signatures)
 fn is_gemini3_model(req: &Request) -> bool {
     req.model
         .as_ref()
@@ -331,9 +333,7 @@ mod tests {
                 reasoning_text: None,
                 reasoning_opaque: None,
                 extra_content: Some(ExtraContent {
-                    google: Some(GoogleMetadata {
-                        thought_signature: Some("sig123".to_string()),
-                    }),
+                    google: Some(GoogleMetadata { thought_signature: Some("sig123".to_string()) }),
                 }),
             }]);
 
@@ -344,7 +344,14 @@ mod tests {
         let messages = actual.messages.unwrap();
         assert!(messages[0].extra_content.is_some());
         assert_eq!(
-            messages[0].extra_content.as_ref().unwrap().google.as_ref().unwrap().thought_signature,
+            messages[0]
+                .extra_content
+                .as_ref()
+                .unwrap()
+                .google
+                .as_ref()
+                .unwrap()
+                .thought_signature,
             Some("sig123".to_string())
         );
     }
@@ -366,9 +373,7 @@ mod tests {
                 reasoning_text: None,
                 reasoning_opaque: None,
                 extra_content: Some(ExtraContent {
-                    google: Some(GoogleMetadata {
-                        thought_signature: Some("sig123".to_string()),
-                    }),
+                    google: Some(GoogleMetadata { thought_signature: Some("sig123".to_string()) }),
                 }),
             }]);
 
@@ -397,9 +402,7 @@ mod tests {
                 reasoning_text: None,
                 reasoning_opaque: None,
                 extra_content: Some(ExtraContent {
-                    google: Some(GoogleMetadata {
-                        thought_signature: Some("sig123".to_string()),
-                    }),
+                    google: Some(GoogleMetadata { thought_signature: Some("sig123".to_string()) }),
                 }),
             }]);
 
@@ -534,23 +537,58 @@ mod tests {
         let messages = actual.messages.unwrap();
 
         // Messages 1-5 should have signatures stripped
-        assert!(messages[0].extra_content.is_none(), "Message 1 should not have signature");
-        assert!(messages[1].extra_content.is_none(), "Message 2 should not have signature");
-        assert!(messages[2].extra_content.is_none(), "Message 3 should not have signature");
-        assert!(messages[3].extra_content.is_none(), "Message 4 should not have signature");
-        assert!(messages[4].extra_content.is_none(), "Message 5 should not have signature");
+        assert!(
+            messages[0].extra_content.is_none(),
+            "Message 1 should not have signature"
+        );
+        assert!(
+            messages[1].extra_content.is_none(),
+            "Message 2 should not have signature"
+        );
+        assert!(
+            messages[2].extra_content.is_none(),
+            "Message 3 should not have signature"
+        );
+        assert!(
+            messages[3].extra_content.is_none(),
+            "Message 4 should not have signature"
+        );
+        assert!(
+            messages[4].extra_content.is_none(),
+            "Message 5 should not have signature"
+        );
 
         // Messages 6-7 should retain signatures
-        assert!(messages[5].extra_content.is_some(), "Message 6 should have signature");
-        assert!(messages[6].extra_content.is_some(), "Message 7 should have signature");
+        assert!(
+            messages[5].extra_content.is_some(),
+            "Message 6 should have signature"
+        );
+        assert!(
+            messages[6].extra_content.is_some(),
+            "Message 7 should have signature"
+        );
 
         // Verify the actual signature values are preserved for 6 and 7
         assert_eq!(
-            messages[5].extra_content.as_ref().unwrap().google.as_ref().unwrap().thought_signature,
+            messages[5]
+                .extra_content
+                .as_ref()
+                .unwrap()
+                .google
+                .as_ref()
+                .unwrap()
+                .thought_signature,
             Some("sig6".to_string())
         );
         assert_eq!(
-            messages[6].extra_content.as_ref().unwrap().google.as_ref().unwrap().thought_signature,
+            messages[6]
+                .extra_content
+                .as_ref()
+                .unwrap()
+                .google
+                .as_ref()
+                .unwrap()
+                .thought_signature,
             Some("sig7".to_string())
         );
     }
@@ -603,14 +641,34 @@ mod tests {
         let messages = actual.messages.unwrap();
 
         // All signatures should be preserved
-        assert!(messages[0].extra_content.is_some(), "Message 1 should have signature");
-        assert!(messages[1].extra_content.is_some(), "Message 2 should have signature");
+        assert!(
+            messages[0].extra_content.is_some(),
+            "Message 1 should have signature"
+        );
+        assert!(
+            messages[1].extra_content.is_some(),
+            "Message 2 should have signature"
+        );
         assert_eq!(
-            messages[0].extra_content.as_ref().unwrap().google.as_ref().unwrap().thought_signature,
+            messages[0]
+                .extra_content
+                .as_ref()
+                .unwrap()
+                .google
+                .as_ref()
+                .unwrap()
+                .thought_signature,
             Some("sig1".to_string())
         );
         assert_eq!(
-            messages[1].extra_content.as_ref().unwrap().google.as_ref().unwrap().thought_signature,
+            messages[1]
+                .extra_content
+                .as_ref()
+                .unwrap()
+                .google
+                .as_ref()
+                .unwrap()
+                .thought_signature,
             Some("sig2".to_string())
         );
     }

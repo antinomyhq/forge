@@ -54,9 +54,7 @@ mod tests {
             reasoning_text: None,
             reasoning_opaque: None,
             extra_content: Some(ExtraContent {
-                google: Some(GoogleMetadata {
-                    thought_signature: Some("sig123".to_string()),
-                }),
+                google: Some(GoogleMetadata { thought_signature: Some("sig123".to_string()) }),
             }),
         }]);
 
@@ -76,14 +74,9 @@ mod tests {
             tool_calls: Some(vec![ToolCall {
                 id: None,
                 r#type: FunctionType,
-                function: FunctionCall {
-                    name: None,
-                    arguments: "{}".to_string(),
-                },
+                function: FunctionCall { name: None, arguments: "{}".to_string() },
                 extra_content: Some(ExtraContent {
-                    google: Some(GoogleMetadata {
-                        thought_signature: Some("sig456".to_string()),
-                    }),
+                    google: Some(GoogleMetadata { thought_signature: Some("sig456".to_string()) }),
                 }),
             }]),
             reasoning_details: None,
@@ -124,9 +117,7 @@ mod tests {
                 reasoning_text: Some("reasoning".to_string()),
                 reasoning_opaque: None,
                 extra_content: Some(ExtraContent {
-                    google: Some(GoogleMetadata {
-                        thought_signature: Some("sig123".to_string()),
-                    }),
+                    google: Some(GoogleMetadata { thought_signature: Some("sig123".to_string()) }),
                 }),
             }]);
 
