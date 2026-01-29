@@ -19,10 +19,10 @@ function _forge_fzf() {
 # Helper function to execute forge commands consistently
 # This ensures proper handling of special characters and consistent output
 function _forge_exec() {
-    # Ensure FORGE_ACTIVE_AGENT always has a value, default to "forge"
     local agent_id="${_FORGE_ACTIVE_AGENT:-forge}"
-    
-    eval "$_FORGE_BIN --agent $(printf '%q' "$agent_id") $(printf '%q ' "$@")"
+    local -a cmd
+    cmd=($_FORGE_BIN --agent "$agent_id" "$@")
+    "${cmd[@]}"
 }
 
 function _forge_reset() {
@@ -130,8 +130,9 @@ function _forge_start_background_sync() {
     
     # Run sync once in background
     # Close all output streams immediately to prevent any flashing
+    # Redirect stdin to /dev/null to prevent hanging if sync tries to read input
     {
-        exec >/dev/null 2>&1
+        exec >/dev/null 2>&1 </dev/null
         setopt NO_NOTIFY NO_MONITOR
         $_FORGE_BIN workspace sync "$workspace_path"
     } &!

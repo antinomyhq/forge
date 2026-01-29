@@ -268,10 +268,10 @@ pub enum WorkspaceCommand {
         path: PathBuf,
     },
 
-    /// Delete a workspace.
+    /// Delete one or more workspaces.
     Delete {
-        /// Workspace ID to delete
-        workspace_id: String,
+        /// Workspace IDs to delete
+        workspace_ids: Vec<String>,
     },
 
     /// Show sync status of all files in the workspace.
