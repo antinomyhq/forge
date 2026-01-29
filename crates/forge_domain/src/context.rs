@@ -128,6 +128,11 @@ impl ContextMessage {
                     }
                 }
 
+                if let Some(thought_signature) = &message.thought_signature {
+                    message_element = message_element
+                        .append(Element::new("thought_signature").text(thought_signature));
+                }
+
                 if let Some(reasoning_details) = &message.reasoning_details {
                     for reasoning_detail in reasoning_details {
                         if let Some(text) = &reasoning_detail.text {
@@ -160,6 +165,7 @@ impl ContextMessage {
             content: content.to_string(),
             raw_content: None,
             tool_calls: None,
+            thought_signature: None,
             reasoning_details: None,
             model,
             droppable: false,
@@ -173,6 +179,7 @@ impl ContextMessage {
             content: content.to_string(),
             raw_content: None,
             tool_calls: None,
+            thought_signature: None,
             model: None,
             reasoning_details: None,
             droppable: false,
@@ -182,6 +189,7 @@ impl ContextMessage {
 
     pub fn assistant(
         content: impl ToString,
+        thought_signature: Option<String>,
         reasoning_details: Option<Vec<ReasoningFull>>,
         tool_calls: Option<Vec<ToolCallFull>>,
     ) -> Self {
@@ -192,6 +200,7 @@ impl ContextMessage {
             content: content.to_string(),
             raw_content: None,
             tool_calls,
+            thought_signature,
             reasoning_details,
             model: None,
             droppable: false,
@@ -292,6 +301,8 @@ pub struct TextMessage {
     pub raw_content: Option<EventValue>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub tool_calls: Option<Vec<ToolCallFull>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub thought_signature: Option<String>,
     // note: this used to track model used for this message.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<ModelId>,
@@ -310,6 +321,7 @@ impl TextMessage {
             content: content.into(),
             raw_content: None,
             tool_calls: None,
+            thought_signature: None,
             model: None,
             reasoning_details: None,
             droppable: false,
@@ -330,6 +342,7 @@ impl TextMessage {
             content: content.to_string(),
             raw_content: None,
             tool_calls: None,
+            thought_signature: None,
             reasoning_details,
             model,
             droppable: false,
@@ -537,6 +550,7 @@ impl Context {
     pub fn append_message(
         self,
         content: impl ToString,
+        thought_signature: Option<String>,
         reasoning_details: Option<Vec<ReasoningFull>>,
         usage: Usage,
         tool_records: Vec<(ToolCallFull, ToolResult)>,
@@ -544,6 +558,7 @@ impl Context {
         // Adding tool calls
         let message: MessageEntry = ContextMessage::assistant(
             content,
+            thought_signature,
             reasoning_details,
             Some(
                 tool_records
@@ -758,7 +773,12 @@ mod tests {
         let context = Context::default()
             .add_message(ContextMessage::system("System message"))
             .add_message(ContextMessage::user("User message", model.into()))
-            .add_message(ContextMessage::assistant("Assistant message", None, None));
+            .add_message(ContextMessage::assistant(
+                "Assistant message",
+                None,
+                None,
+                None,
+            ));
 
         // Get the token count
         let token_count = estimate_token_count(context.to_text().len());
@@ -782,7 +802,12 @@ mod tests {
         let fixture = Context::default()
             .add_message(ContextMessage::system("System message"))
             .add_message(ContextMessage::user("User message", None))
-            .add_message(ContextMessage::assistant("Assistant message", None, None));
+            .add_message(ContextMessage::assistant(
+                "Assistant message",
+                None,
+                None,
+                None,
+            ));
         let mut transformer = crate::transformer::ImageHandling::new();
         let actual = transformer.transform(fixture);
 
@@ -892,7 +917,12 @@ mod tests {
         let fixture = Context::default()
             .add_message(ContextMessage::system("System message"))
             .add_message(ContextMessage::user("User question", None))
-            .add_message(ContextMessage::assistant("Assistant response", None, None))
+            .add_message(ContextMessage::assistant(
+                "Assistant response",
+                None,
+                None,
+                None,
+            ))
             .add_tool_results(vec![ToolResult {
                 name: crate::ToolName::new("mixed_tool"),
                 call_id: Some(crate::ToolCallId::new("call1")),
@@ -956,8 +986,13 @@ mod tests {
         // estimate
         let fixture = Context::default()
             .add_message(ContextMessage::user("Hello", None))
-            .add_message(ContextMessage::assistant("Hi there!", None, None))
-            .add_message(ContextMessage::assistant("How can I help you?", None, None))
+            .add_message(ContextMessage::assistant("Hi there!", None, None, None))
+            .add_message(ContextMessage::assistant(
+                "How can I help you?",
+                None,
+                None,
+                None,
+            ))
             .add_message(ContextMessage::user("I'm looking for a restaurant.", None));
         assert_eq!(fixture.token_count(), TokenCount::Approx(18));
     }
@@ -970,8 +1005,12 @@ mod tests {
         first_message.usage = Some(first_usage);
 
         let second_usage = Usage { total_tokens: TokenCount::Actual(200), ..Default::default() };
-        let mut second_message =
-            MessageEntry::from(ContextMessage::assistant("Second message", None, None));
+        let mut second_message = MessageEntry::from(ContextMessage::assistant(
+            "Second message",
+            None,
+            None,
+            None,
+        ));
         second_message.usage = Some(second_usage);
 
         let third_usage = Usage { total_tokens: TokenCount::Actual(300), ..Default::default() };
@@ -1211,10 +1250,16 @@ mod tests {
         let fixture = Context::default()
             .add_message(ContextMessage::system("System message"))
             .add_message(ContextMessage::user("User message 1", None))
-            .add_message(ContextMessage::assistant("Assistant response", None, None))
+            .add_message(ContextMessage::assistant(
+                "Assistant response",
+                None,
+                None,
+                None,
+            ))
             .add_message(ContextMessage::user("User message 2", None))
             .add_message(ContextMessage::assistant(
                 "Assistant with tool",
+                None,
                 None,
                 Some(vec![
                     ToolCallFull {
@@ -1318,7 +1363,8 @@ mod tests {
     #[test]
     fn test_context_message_token_count_approx_assistant_text() {
         // Fixture: Assistant text message
-        let fixture = ContextMessage::assistant("Hello! How can I help you today?", None, None);
+        let fixture =
+            ContextMessage::assistant("Hello! How can I help you today?", None, None, None);
         let actual = fixture.token_count_approx();
         let expected = 8; // 32 chars / 4 = 8 tokens
         assert_eq!(actual, expected);
@@ -1350,7 +1396,8 @@ mod tests {
                 thought_signature: None,
             },
         ];
-        let fixture = ContextMessage::assistant("Let me help", None, Some(fixture_tool_calls));
+        let fixture =
+            ContextMessage::assistant("Let me help", None, None, Some(fixture_tool_calls));
         let actual = fixture.token_count_approx();
         // Content: "Let me help" = 11 chars
         // Tool call 1: "fs_search" (9 chars) + {"query":"test"} (16 chars) = 25 chars
@@ -1373,7 +1420,8 @@ mod tests {
                 ..Default::default()
             },
         ];
-        let fixture = ContextMessage::assistant("Final answer", Some(fixture_reasoning), None);
+        let fixture =
+            ContextMessage::assistant("Final answer", None, Some(fixture_reasoning), None);
         let actual = fixture.token_count_approx();
         // Content: "Final answer" = 12 chars = 3 tokens
         // Reasoning 1: "First reasoning step" = 20 chars = 5 tokens

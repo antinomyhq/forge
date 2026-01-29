@@ -178,6 +178,15 @@ impl TryFrom<ContextMessage> for Message {
                         + 1,
                 );
 
+                // Handle thought_signature for Assistant messages
+                if chat_message.role == forge_domain::Role::Assistant
+                    && let Some(thought_sig) = chat_message.thought_signature
+                {
+                    content
+                        .push(Content::Thinking { signature: Some(thought_sig), thinking: None });
+                }
+
+                // Handle reasoning_details
                 if let Some(reasoning) = chat_message.reasoning_details
                     && let Some((sig, text)) = reasoning.into_iter().find_map(|reasoning| {
                         match (reasoning.signature, reasoning.text) {

@@ -124,6 +124,7 @@ mod tests {
             .add_message(ContextMessage::assistant(
                 "I'll help you",
                 None,
+                None,
                 Some(vec![tool_call]),
             ))
             .add_tool_results(vec![ToolResult {

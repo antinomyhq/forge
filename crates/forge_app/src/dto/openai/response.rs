@@ -135,6 +135,8 @@ pub struct ResponseMessage {
     // GitHub Copilot format (flat fields instead of array)
     pub reasoning_text: Option<String>,
     pub reasoning_opaque: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extra_content: Option<ExtraContent>,
 }
 
 impl From<ReasoningDetail> for forge_domain::ReasoningDetail {
@@ -291,6 +293,16 @@ impl TryFrom<Response> for ChatCompletionMessage {
                                 resp = resp.reasoning(Content::full(reasoning.clone()));
                             }
 
+                            // Extract thought_signature from extra_content if present
+                            if let Some(thought_signature) = message
+                                .extra_content
+                                .as_ref()
+                                .and_then(|ec| ec.google.as_ref())
+                                .and_then(|g| g.thought_signature.clone())
+                            {
+                                resp = resp.thought_signature(thought_signature);
+                            }
+
                             if let Some(reasoning_details) = &message.reasoning_details {
                                 let converted_details: Vec<forge_domain::ReasoningFull> =
                                     reasoning_details
@@ -351,6 +363,16 @@ impl TryFrom<Response> for ChatCompletionMessage {
 
                             if let Some(reasoning) = &delta.reasoning {
                                 resp = resp.reasoning(Content::part(reasoning.clone()));
+                            }
+
+                            // Extract thought_signature from extra_content if present
+                            if let Some(thought_signature) = delta
+                                .extra_content
+                                .as_ref()
+                                .and_then(|ec| ec.google.as_ref())
+                                .and_then(|g| g.thought_signature.clone())
+                            {
+                                resp = resp.thought_signature(thought_signature);
                             }
 
                             if let Some(reasoning_details) = &delta.reasoning_details {
@@ -577,6 +599,7 @@ mod tests {
                     reasoning_details: None,
                     reasoning_text: None,
                     reasoning_opaque: None,
+                    extra_content: None,
                 },
                 error: Some(error_response.clone()),
             }],
@@ -613,6 +636,7 @@ mod tests {
                     reasoning_details: None,
                     reasoning_text: None,
                     reasoning_opaque: None,
+                    extra_content: None,
                 },
                 error: Some(error_response.clone()),
             }],
@@ -649,6 +673,7 @@ mod tests {
                     reasoning_details: None,
                     reasoning_text: None,
                     reasoning_opaque: None,
+                    extra_content: None,
                 },
                 error: None,
             }],

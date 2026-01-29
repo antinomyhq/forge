@@ -37,6 +37,8 @@ pub struct Message {
     pub reasoning_text: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_opaque: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extra_content: Option<ExtraContent>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
@@ -419,6 +421,40 @@ impl From<ToolCallFull> for ToolCall {
 impl From<ContextMessage> for Message {
     fn from(value: ContextMessage) -> Self {
         match value {
+            ContextMessage::Text(text_message)
+                if text_message.role == forge_domain::Role::Assistant =>
+            {
+                Message {
+                    role: Role::Assistant,
+                    content: Some(MessageContent::Text(text_message.content)),
+                    name: None,
+                    tool_call_id: None,
+                    tool_calls: text_message
+                        .tool_calls
+                        .map(|tool_calls| tool_calls.into_iter().map(ToolCall::from).collect()),
+                    reasoning_details: text_message.reasoning_details.map(|details| {
+                        details
+                            .into_iter()
+                            .map(|detail| ReasoningDetail {
+                                r#type: detail
+                                    .type_of
+                                    .unwrap_or_else(|| "reasoning.text".to_string()),
+                                text: detail.text,
+                                signature: detail.signature,
+                                data: detail.data,
+                                id: detail.id,
+                                format: detail.format,
+                                index: detail.index,
+                            })
+                            .collect::<Vec<ReasoningDetail>>()
+                    }),
+                    reasoning_text: None,
+                    reasoning_opaque: None,
+                    extra_content: text_message.thought_signature.map(|sig| ExtraContent {
+                        google: Some(GoogleMetadata { thought_signature: Some(sig) }),
+                    }),
+                }
+            }
             ContextMessage::Text(chat_message) => Message {
                 role: chat_message.role.into(),
                 content: Some(MessageContent::Text(chat_message.content)),
@@ -445,6 +481,9 @@ impl From<ContextMessage> for Message {
                 }),
                 reasoning_text: None,
                 reasoning_opaque: None,
+                extra_content: chat_message.thought_signature.map(|sig| ExtraContent {
+                    google: Some(GoogleMetadata { thought_signature: Some(sig) }),
+                }),
             },
             ContextMessage::Tool(tool_result) => Message {
                 role: Role::Tool,
@@ -455,6 +494,7 @@ impl From<ContextMessage> for Message {
                 reasoning_details: None,
                 reasoning_text: None,
                 reasoning_opaque: None,
+                extra_content: None,
             },
             ContextMessage::Image(img) => {
                 let content = vec![ContentPart::ImageUrl {
@@ -470,6 +510,7 @@ impl From<ContextMessage> for Message {
                     reasoning_details: None,
                     reasoning_text: None,
                     reasoning_opaque: None,
+                    extra_content: None,
                 }
             }
         }

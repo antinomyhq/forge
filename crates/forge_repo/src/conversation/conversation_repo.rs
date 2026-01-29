@@ -700,6 +700,7 @@ mod tests {
                         thought_signature: None,
                     }]),
                     model: Some(forge_domain::ModelId::from("gpt-4")),
+                    thought_signature: None,
                     reasoning_details: None,
                     droppable: false,
                 }),

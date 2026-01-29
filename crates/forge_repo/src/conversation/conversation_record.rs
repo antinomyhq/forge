@@ -310,6 +310,8 @@ pub(super) struct TextMessageRecord {
     #[serde(skip_serializing_if = "Option::is_none")]
     tool_calls: Option<Vec<ToolCallFullRecord>>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    thought_signature: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     model: Option<ModelIdRecord>,
     #[serde(skip_serializing_if = "Option::is_none")]
     reasoning_details: Option<Vec<ReasoningFullRecord>>,
@@ -332,6 +334,7 @@ impl From<&forge_domain::TextMessage> for TextMessageRecord {
                 .tool_calls
                 .as_ref()
                 .map(|calls| calls.iter().map(ToolCallFullRecord::from).collect()),
+            thought_signature: msg.thought_signature.clone(),
             model: msg.model.as_ref().map(ModelIdRecord::from),
             reasoning_details: msg
                 .reasoning_details
@@ -353,6 +356,7 @@ impl TryFrom<TextMessageRecord> for forge_domain::TextMessage {
             tool_calls: record
                 .tool_calls
                 .map(|calls| calls.into_iter().map(Into::into).collect()),
+            thought_signature: record.thought_signature,
             model: record.model.map(Into::into),
             reasoning_details: record
                 .reasoning_details

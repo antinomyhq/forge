@@ -304,6 +304,7 @@ mod tests {
             .add_message(ContextMessage::assistant(
                 "here is the system call.",
                 None,
+                None,
                 Some(vec![ToolCallFull {
                     name: ToolName::new("math"),
                     call_id: Some(ToolCallId::new("math-1")),
