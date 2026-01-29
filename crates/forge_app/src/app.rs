@@ -44,6 +44,11 @@ impl<S: Services> ForgeApp<S> {
         }
     }
 
+    /// Returns a reference to the services.
+    pub fn services(&self) -> &Arc<S> {
+        &self.services
+    }
+
     /// Executes a chat request and returns a stream of responses.
     /// This method contains the core chat logic extracted from ForgeAPI.
     pub async fn chat(

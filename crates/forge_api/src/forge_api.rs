@@ -38,6 +38,14 @@ impl<A, F> ForgeAPI<A, F> {
     {
         ForgeApp::new(self.services.clone())
     }
+
+    /// Returns an Arc-wrapped ForgeApp instance for use in ACP server
+    pub fn app_arc(&self) -> Arc<ForgeApp<A>>
+    where
+        A: Services,
+    {
+        Arc::new(self.app())
+    }
 }
 
 impl ForgeAPI<ForgeServices<ForgeRepo<ForgeInfra>>, ForgeRepo<ForgeInfra>> {
@@ -390,6 +398,22 @@ impl<
     fn hydrate_channel(&self) -> Result<()> {
         self.infra.hydrate();
         Ok(())
+    }
+
+    async fn acp_start_stdio(&self) -> Result<()> {
+        let app = Arc::new(self.app());
+        forge_acp::start_stdio_server(app).await?;
+        Ok(())
+    }
+
+    async fn acp_start_http(&self, port: u16) -> Result<()> {
+        let app = Arc::new(self.app());
+        forge_acp::start_http_server(app, port).await?;
+        Ok(())
+    }
+
+    fn acp_info(&self) -> forge_acp::AgentInfo {
+        forge_acp::agent_info()
     }
 }
 

@@ -130,6 +130,15 @@ where
     }
 }
 
+/// Represents a file modification with before and after content.
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash)]
+#[serde(rename_all = "camelCase")]
+pub struct FileDiff {
+    pub path: String,
+    pub old_text: Option<String>,
+    pub new_text: String,
+}
+
 /// Like serde_json::Value, ToolValue represents all the primitive values that
 /// tools can produce.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash)]
@@ -141,6 +150,7 @@ pub enum ToolValue {
         conversation_id: ConversationId,
     },
     Image(Image),
+    FileDiff(FileDiff),
     #[default]
     Empty,
 }
@@ -160,6 +170,7 @@ impl ToolValue {
             ToolValue::Image(_) => None,
             ToolValue::Empty => None,
             ToolValue::AI { value, .. } => Some(value),
+            ToolValue::FileDiff(_) => None,
         }
     }
 }

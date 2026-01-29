@@ -417,6 +417,16 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
                                         crate::ToolValue::Image(image) => {
                                             Some(Element::new("img").attr("src", image.url()))
                                         }
+                                        crate::ToolValue::FileDiff(file_diff) => {
+                                            // Render diff info in HTML
+                                            Some(
+                                                Element::new("div.file-diff")
+                                                    .append(
+                                                        Element::new("strong").text(format!("File: {}", file_diff.path))
+                                                    )
+                                                    .append(Element::new("pre").text("(diff not shown in HTML)"))
+                                            )
+                                        }
                                         crate::ToolValue::Empty => None,
                                         crate::ToolValue::AI { value, conversation_id } => {
                                             // Use anchor link to navigate within the same HTML
