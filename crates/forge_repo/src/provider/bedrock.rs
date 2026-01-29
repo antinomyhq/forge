@@ -309,6 +309,7 @@ impl IntoDomain for aws_sdk_bedrockruntime::types::ConverseStreamOutput {
                                     call_id: None,
                                     name: None,
                                     arguments_part: tool_use.input,
+                                    thought_signature: None,
                                 },
                             )
                         }
@@ -368,6 +369,7 @@ impl IntoDomain for aws_sdk_bedrockruntime::types::ConverseStreamOutput {
                                     call_id: Some(ToolCallId::new(tool_use.tool_use_id)),
                                     name: Some(ToolName::new(tool_use.name)),
                                     arguments_part: String::new(),
+                                    thought_signature: None,
                                 },
                             )
                         }
@@ -1336,6 +1338,7 @@ mod tests {
                 call_id: Some(ToolCallId::new("call_123")),
                 name: Some(ToolName::new("get_weather")),
                 arguments_part: String::new(),
+                thought_signature: None,
             });
 
         assert_eq!(actual, expected);

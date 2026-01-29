@@ -43,6 +43,7 @@ impl IntoDomain for oai::Response {
                         call_id: Some(ToolCallId::new(call.call_id.clone())),
                         name: ToolName::new(call.name.clone()),
                         arguments: ToolCallArguments::from_json(&call.arguments),
+                        thought_signature: None,
                     }));
                 }
                 oai::OutputItem::Reasoning(reasoning) => {
@@ -170,6 +171,7 @@ impl IntoDomain for BoxStream<oai::ResponseStreamEvent, anyhow::Error> {
                                                     call_id: Some(tool_call_id),
                                                     name: Some(tool_name),
                                                     arguments_part: call.arguments.clone(),
+                                                    thought_signature: None,
                                                 }))))
                                         } else {
                                             None
@@ -205,6 +207,7 @@ impl IntoDomain for BoxStream<oai::ResponseStreamEvent, anyhow::Error> {
                                         call_id: Some(call_id),
                                         name,
                                         arguments_part: delta.delta,
+                                        thought_signature: None,
                                     }),
                                 )))
                             }

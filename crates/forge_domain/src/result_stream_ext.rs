@@ -384,6 +384,7 @@ mod tests {
             name: ToolName::new("test_tool"),
             call_id: Some(ToolCallId::new("call_123")),
             arguments: serde_json::json!("test_arg").into(),
+            thought_signature: None,
         };
 
         let messages = vec![Ok(ChatCompletionMessage::default()
@@ -418,6 +419,7 @@ mod tests {
             call_id: Some(ToolCallId::new("call_123")),
             name: Some(ToolName::new("test_tool")),
             arguments_part: "invalid json {".to_string(), // Invalid JSON
+            thought_signature: None,
         };
 
         let messages = vec![Ok(ChatCompletionMessage::default()
@@ -437,6 +439,7 @@ mod tests {
             name: ToolName::new("test_tool"),
             call_id: Some(ToolCallId::new("call_123")),
             arguments: ToolCallArguments::from_json("invalid json {"),
+            thought_signature: None,
         };
         assert_eq!(actual.tool_calls[0], expected);
     }
@@ -874,6 +877,7 @@ mod tests {
             name: ToolName::new("test_tool"),
             call_id: Some(ToolCallId::new("call_123")),
             arguments: serde_json::json!("test_arg").into(),
+            thought_signature: None,
         };
 
         let messages = vec![Ok(ChatCompletionMessage::default()

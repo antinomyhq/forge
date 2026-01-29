@@ -116,6 +116,7 @@ mod tests {
             name: ToolName::new("test_tool"),
             call_id: Some(ToolCallId::new("call_123")),
             arguments: serde_json::json!({"param": "value"}).into(),
+            thought_signature: None,
         };
 
         Context::default()

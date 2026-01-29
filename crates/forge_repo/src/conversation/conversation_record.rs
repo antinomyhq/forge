@@ -114,6 +114,8 @@ pub(super) struct ToolCallFullRecord {
     name: ToolNameRecord,
     call_id: Option<ToolCallIdRecord>,
     arguments: ToolCallArgumentsRecord,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    thought_signature: Option<String>,
 }
 
 impl From<&forge_domain::ToolCallFull> for ToolCallFullRecord {
@@ -122,6 +124,7 @@ impl From<&forge_domain::ToolCallFull> for ToolCallFullRecord {
             name: ToolNameRecord::from(&call.name),
             call_id: call.call_id.as_ref().map(ToolCallIdRecord::from),
             arguments: ToolCallArgumentsRecord::from(&call.arguments),
+            thought_signature: call.thought_signature.clone(),
         }
     }
 }
@@ -132,6 +135,7 @@ impl From<ToolCallFullRecord> for forge_domain::ToolCallFull {
             name: record.name.into(),
             call_id: record.call_id.map(Into::into),
             arguments: record.arguments.into(),
+            thought_signature: record.thought_signature,
         }
     }
 }
