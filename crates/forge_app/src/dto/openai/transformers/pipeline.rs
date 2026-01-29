@@ -47,7 +47,6 @@ impl Transformer for ProviderPipeline<'_> {
         let strip_thought_signature =
             StripThoughtSignature.when(move |req: &Request| !is_gemini3_model(req));
 
-
         let open_ai_compat = MakeOpenAiCompat.when(move |_| !supports_open_router_params(provider));
 
         let github_copilot_reasoning =
@@ -407,5 +406,4 @@ mod tests {
         let messages = actual.messages.unwrap();
         assert!(messages[0].extra_content.is_none());
     }
-
 }

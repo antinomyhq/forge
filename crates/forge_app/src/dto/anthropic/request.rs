@@ -178,7 +178,6 @@ impl TryFrom<ContextMessage> for Message {
                         + 1,
                 );
 
-
                 // Handle reasoning_details
                 if let Some(reasoning) = chat_message.reasoning_details
                     && let Some((sig, text)) = reasoning.into_iter().find_map(|reasoning| {
