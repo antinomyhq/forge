@@ -28,32 +28,30 @@ struct Anthropic<T> {
 }
 
 impl<H: HttpInfra> Anthropic<H> {
-    pub fn new(
-        http: Arc<H>,
-        provider: Provider<Url>,
-        version: String,
-        use_oauth: bool,
-    ) -> Self {
-        Self {
-            http,
-            provider,
-            anthropic_version: version,
-            use_oauth,
-        }
+    pub fn new(http: Arc<H>, provider: Provider<Url>, version: String, use_oauth: bool) -> Self {
+        Self { http, provider, anthropic_version: version, use_oauth }
     }
 
     fn get_headers(&self) -> Vec<(String, String)> {
-        let mut headers = vec![("anthropic-version".to_string(), self.anthropic_version.clone())];
+        let mut headers = vec![(
+            "anthropic-version".to_string(),
+            self.anthropic_version.clone(),
+        )];
 
-        // Extract API key/token from provider credentials (handles Google ADC, OAuth, and API key)
+        // Extract API key/token from provider credentials (handles Google ADC, OAuth,
+        // and API key)
         let api_key = self
             .provider
             .credential
             .as_ref()
-            .and_then(|c| match &c.auth_details {
-                forge_domain::AuthDetails::ApiKey(key) => Some(key.as_str()),
-                forge_domain::AuthDetails::OAuthWithApiKey { api_key, .. } => Some(api_key.as_str()),
-                forge_domain::AuthDetails::OAuth { tokens, .. } => Some(tokens.access_token.as_str()),
+            .map(|c| match &c.auth_details {
+                forge_domain::AuthDetails::ApiKey(key) => key.as_str(),
+                forge_domain::AuthDetails::OAuthWithApiKey { api_key, .. } => {
+                    api_key.as_str()
+                }
+                forge_domain::AuthDetails::OAuth { tokens, .. } => {
+                    tokens.access_token.as_str()
+                }
             });
 
         if let Some(api_key) = api_key {
@@ -61,10 +59,7 @@ impl<H: HttpInfra> Anthropic<H> {
             // For OAuth, use Authorization: Bearer
             // For API key, use x-api-key header
             if self.provider.id == ProviderId::VERTEX_AI_ANTHROPIC || self.use_oauth {
-                headers.push((
-                    "authorization".to_string(),
-                    format!("Bearer {}", api_key),
-                ));
+                headers.push(("authorization".to_string(), format!("Bearer {}", api_key)));
             } else {
                 headers.push(("x-api-key".to_string(), api_key.to_string()));
             }
@@ -218,9 +213,7 @@ mod tests {
 
     impl MockHttpClient {
         fn new() -> Self {
-            Self {
-                client: reqwest::Client::new(),
-            }
+            Self { client: reqwest::Client::new() }
         }
     }
 
@@ -260,7 +253,7 @@ mod tests {
     fn create_anthropic(base_url: &str) -> anyhow::Result<Anthropic<MockHttpClient>> {
         let chat_url = Url::parse(base_url)?.join("messages")?;
         let model_url = Url::parse(base_url)?.join("models")?;
-        
+
         let provider = Provider {
             id: forge_app::domain::ProviderId::ANTHROPIC,
             provider_type: forge_domain::ProviderType::Llm,
@@ -268,9 +261,9 @@ mod tests {
             url: chat_url,
             credential: Some(forge_domain::AuthCredential {
                 id: forge_app::domain::ProviderId::ANTHROPIC,
-                auth_details: forge_domain::AuthDetails::ApiKey(
-                    forge_domain::ApiKey::from("sk-test-key".to_string()),
-                ),
+                auth_details: forge_domain::AuthDetails::ApiKey(forge_domain::ApiKey::from(
+                    "sk-test-key".to_string(),
+                )),
                 url_params: std::collections::HashMap::new(),
             }),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
@@ -327,7 +320,7 @@ mod tests {
     async fn test_url_for_models() {
         let chat_url = Url::parse("https://api.anthropic.com/v1/messages").unwrap();
         let model_url = Url::parse("https://api.anthropic.com/v1/models").unwrap();
-        
+
         let provider = Provider {
             id: forge_app::domain::ProviderId::ANTHROPIC,
             provider_type: forge_domain::ProviderType::Llm,
@@ -335,9 +328,9 @@ mod tests {
             url: chat_url,
             credential: Some(forge_domain::AuthCredential {
                 id: forge_app::domain::ProviderId::ANTHROPIC,
-                auth_details: forge_domain::AuthDetails::ApiKey(
-                    forge_domain::ApiKey::from("sk-some-key".to_string()),
-                ),
+                auth_details: forge_domain::AuthDetails::ApiKey(forge_domain::ApiKey::from(
+                    "sk-some-key".to_string(),
+                )),
                 url_params: std::collections::HashMap::new(),
             }),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
@@ -466,7 +459,7 @@ mod tests {
     fn test_get_headers_with_api_key_includes_beta_flags() {
         let chat_url = Url::parse("https://api.anthropic.com/v1/messages").unwrap();
         let model_url = Url::parse("https://api.anthropic.com/v1/models").unwrap();
-        
+
         let provider = Provider {
             id: forge_app::domain::ProviderId::ANTHROPIC,
             provider_type: forge_domain::ProviderType::Llm,
@@ -474,9 +467,9 @@ mod tests {
             url: chat_url,
             credential: Some(forge_domain::AuthCredential {
                 id: forge_app::domain::ProviderId::ANTHROPIC,
-                auth_details: forge_domain::AuthDetails::ApiKey(
-                    forge_domain::ApiKey::from("sk-test-key".to_string()),
-                ),
+                auth_details: forge_domain::AuthDetails::ApiKey(forge_domain::ApiKey::from(
+                    "sk-test-key".to_string(),
+                )),
                 url_params: std::collections::HashMap::new(),
             }),
             auth_methods: vec![forge_domain::AuthMethod::ApiKey],
@@ -494,14 +487,18 @@ mod tests {
         let actual = fixture.get_headers();
 
         // Should contain anthropic-version header
-        assert!(actual
-            .iter()
-            .any(|(k, v)| k == "anthropic-version" && v == "2023-06-01"));
+        assert!(
+            actual
+                .iter()
+                .any(|(k, v)| k == "anthropic-version" && v == "2023-06-01")
+        );
 
         // Should contain x-api-key header (not authorization)
-        assert!(actual
-            .iter()
-            .any(|(k, v)| k == "x-api-key" && v == "sk-test-key"));
+        assert!(
+            actual
+                .iter()
+                .any(|(k, v)| k == "x-api-key" && v == "sk-test-key")
+        );
 
         // Should contain anthropic-beta header with structured outputs support
         let beta_header = actual.iter().find(|(k, _)| k == "anthropic-beta");
@@ -525,7 +522,7 @@ mod tests {
     fn test_get_headers_with_oauth_includes_beta_flags() {
         let chat_url = Url::parse("https://api.anthropic.com/v1/messages").unwrap();
         let model_url = Url::parse("https://api.anthropic.com/v1/models").unwrap();
-        
+
         let provider = Provider {
             id: forge_app::domain::ProviderId::ANTHROPIC,
             provider_type: forge_domain::ProviderType::Llm,
@@ -568,14 +565,18 @@ mod tests {
         let actual = fixture.get_headers();
 
         // Should contain anthropic-version header
-        assert!(actual
-            .iter()
-            .any(|(k, v)| k == "anthropic-version" && v == "2023-06-01"));
+        assert!(
+            actual
+                .iter()
+                .any(|(k, v)| k == "anthropic-version" && v == "2023-06-01")
+        );
 
         // Should contain authorization header (not x-api-key)
-        assert!(actual
-            .iter()
-            .any(|(k, v)| k == "authorization" && v == "Bearer oauth-token"));
+        assert!(
+            actual
+                .iter()
+                .any(|(k, v)| k == "authorization" && v == "Bearer oauth-token")
+        );
 
         // Should contain anthropic-beta header with structured outputs support
         let beta_header = actual.iter().find(|(k, _)| k == "anthropic-beta");
@@ -606,10 +607,7 @@ pub struct AnthropicResponseRepository<F> {
 
 impl<F> AnthropicResponseRepository<F> {
     pub fn new(infra: Arc<F>) -> Self {
-        Self {
-            infra,
-            retry_config: Arc::new(RetryConfig::default()),
-        }
+        Self { infra, retry_config: Arc::new(RetryConfig::default()) }
     }
 }
 
