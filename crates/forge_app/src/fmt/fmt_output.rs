@@ -11,14 +11,14 @@ impl FormatContent for ToolOperation {
             ToolOperation::FsWrite { input, output } => {
                 if let Some(ref before) = output.before {
                     let after = &input.content;
-                    Some(ChatResponseContent::PlainText(
+                    Some(ChatResponseContent::ToolOutput(
                         DiffFormat::format(before, after).diff().to_string(),
                     ))
                 } else {
                     None
                 }
             }
-            ToolOperation::FsPatch { input: _, output } => Some(ChatResponseContent::PlainText(
+            ToolOperation::FsPatch { input: _, output } => Some(ChatResponseContent::ToolOutput(
                 DiffFormat::format(&output.before, &output.after)
                     .diff()
                     .to_string(),
@@ -30,9 +30,10 @@ impl FormatContent for ToolOperation {
                 ));
                 title.into()
             }),
-            ToolOperation::TodoWrite { output } => {
-                Some(ChatResponseContent::Markdown(format_todos(output)))
-            }
+            ToolOperation::TodoWrite { output } => Some(ChatResponseContent::Markdown {
+                text: format_todos(output),
+                partial: false,
+            }),
             ToolOperation::FsRead { input: _, output: _ }
             | ToolOperation::FsRemove { input: _, output: _ }
             | ToolOperation::FsSearch { input: _, output: _ }
@@ -205,7 +206,7 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.to_content(&env);
-        let expected = Some(ChatResponseContent::PlainText(
+        let expected = Some(ChatResponseContent::ToolOutput(
             DiffFormat::format("old content", "new content")
                 .diff()
                 .to_string(),
@@ -556,7 +557,7 @@ mod tests {
         let env = fixture_environment();
 
         let actual = fixture.to_content(&env);
-        if let Some(ChatResponseContent::Title(title)) = actual {
+        if let Some(ChatResponseContent::ToolInput(title)) = actual {
             assert_eq!(title.title, "Create plans/2024-08-11-test-plan-v1.md");
             assert_eq!(title.category, forge_domain::Category::Debug);
             assert_eq!(title.sub_title, None);
@@ -572,7 +573,7 @@ mod tests {
 
         let actual = fixture.to_content(&env);
         assert!(actual.is_some());
-        if let Some(ChatResponseContent::Markdown(text)) = actual {
+        if let Some(ChatResponseContent::Markdown { text, .. }) = actual {
             assert_eq!(text, "");
         } else {
             panic!("Expected Markdown content");
@@ -594,7 +595,7 @@ mod tests {
 
         let actual = fixture.to_content(&env);
         assert!(actual.is_some());
-        if let Some(ChatResponseContent::Markdown(text)) = actual {
+        if let Some(ChatResponseContent::Markdown { text, .. }) = actual {
             let expected = "[ ] Task 1\n[~] Task 2\n[x] ~~Task 3~~";
             assert_eq!(text, expected);
         } else {
@@ -616,7 +617,7 @@ mod tests {
 
         let actual = fixture.to_content(&env);
         assert!(actual.is_some());
-        if let Some(ChatResponseContent::Markdown(text)) = actual {
+        if let Some(ChatResponseContent::Markdown { text, .. }) = actual {
             let expected = "[x] ~~Task 1~~\n[x] ~~Task 2~~";
             assert_eq!(text, expected);
         } else {
@@ -642,7 +643,7 @@ mod tests {
 
         let actual = fixture.to_content(&env);
         assert!(actual.is_some());
-        if let Some(ChatResponseContent::Markdown(text)) = actual {
+        if let Some(ChatResponseContent::Markdown { text, .. }) = actual {
             let expected = "[ ] Buy groceries\n[ ] Walk the dog";
             assert_eq!(text, expected);
         } else {

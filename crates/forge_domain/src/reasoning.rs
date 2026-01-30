@@ -42,98 +42,65 @@ impl Reasoning {
     }
 
     pub fn from_parts(parts: Vec<Vec<ReasoningPart>>) -> Vec<ReasoningFull> {
-        let mut result: Vec<ReasoningFull> = Vec::new();
-        let mut current_text_parts: Vec<ReasoningPart> = Vec::new();
+        // Flatten all parts and group by type
+        let mut grouped: std::collections::HashMap<Option<String>, Vec<ReasoningPart>> =
+            std::collections::HashMap::new();
 
         for part_vec in parts {
             for part in part_vec {
-                // According to OpenRouter SDK:
-                // 1. Only 'reasoning.text' blocks are merged when consecutive.
-                // 2. IMPORTANT: Blocks with signatures or IDs must NEVER be merged, as this
-                //    invalidates the cryptographic signature (e.g., for Gemini).
-                let is_text = part.type_of.as_deref() == Some("reasoning.text")
-                    || (part.type_of.is_none() && part.text.is_some());
-
-                let is_mergeable = is_text && part.signature.is_none() && part.id.is_none();
-
-                if is_mergeable {
-                    current_text_parts.push(part);
-                } else {
-                    // Non-mergeable type or has signature/id. Flush any pending text parts first.
-                    if !current_text_parts.is_empty() {
-                        if let Some(merged) = Self::merge_parts(
-                            Some("reasoning.text".to_string()),
-                            &current_text_parts,
-                        ) {
-                            result.push(merged);
-                        }
-                        current_text_parts.clear();
-                    }
-
-                    // Add this part as a separate block to preserve signature integrity
-                    result.push(ReasoningFull {
-                        text: part.text,
-                        signature: part.signature,
-                        data: part.data,
-                        id: part.id,
-                        format: part.format,
-                        index: part.index,
-                        type_of: part.type_of,
-                    });
-                }
+                grouped.entry(part.type_of.clone()).or_default().push(part);
             }
         }
 
-        // Flush any remaining text parts
-        if !current_text_parts.is_empty()
-            && let Some(merged) =
-                Self::merge_parts(Some("reasoning.text".to_string()), &current_text_parts)
-        {
-            result.push(merged);
-        }
+        grouped
+            .into_iter()
+            .filter_map(|(type_key, parts)| {
+                // Merge text from all parts
+                let text = parts
+                    .iter()
+                    .filter_map(|p| p.text.as_deref())
+                    .collect::<String>();
 
-        result
-    }
+                // Get first non-empty value for each field
+                let signature = parts.iter().find_map(|p| {
+                    p.signature
+                        .as_deref()
+                        .filter(|s| !s.is_empty())
+                        .map(String::from)
+                });
+                let data = parts.iter().find_map(|p| {
+                    p.data
+                        .as_deref()
+                        .filter(|s| !s.is_empty())
+                        .map(String::from)
+                });
+                let id = parts
+                    .iter()
+                    .find_map(|p| p.id.as_deref().filter(|s| !s.is_empty()).map(String::from));
+                let format = parts.iter().find_map(|p| {
+                    p.format
+                        .as_deref()
+                        .filter(|s| !s.is_empty())
+                        .map(String::from)
+                });
+                let index = parts.iter().find_map(|p| p.index);
 
-    fn merge_parts(type_key: Option<String>, parts: &[ReasoningPart]) -> Option<ReasoningFull> {
-        // Merge text from all parts
-        let text = parts
-            .iter()
-            .filter_map(|p| p.text.as_deref())
-            .collect::<String>();
+                // Only include if at least one field has data
+                if text.is_empty() && signature.is_none() && data.is_none() {
+                    return None;
+                }
 
-        // Get first non-empty value for each field
-        let signature = parts.iter().find_map(|p| {
-            p.signature
-                .as_deref()
-                .filter(|s| !s.is_empty())
-                .map(String::from)
-        });
-        let id = parts
-            .iter()
-            .find_map(|p| p.id.as_deref().filter(|s| !s.is_empty()).map(String::from));
-        let format = parts.iter().find_map(|p| {
-            p.format
-                .as_deref()
-                .filter(|s| !s.is_empty())
-                .map(String::from)
-        });
-        let index = parts.iter().find_map(|p| p.index);
-
-        // Only include if at least one field has data
-        if text.is_empty() && signature.is_none() {
-            return None;
-        }
-
-        Some(ReasoningFull {
-            text: (!text.is_empty()).then_some(text),
-            signature,
-            data: None,
-            id,
-            format,
-            index,
-            type_of: type_key,
-        })
+                Some(ReasoningFull {
+                    text: (!text.is_empty()).then_some(text),
+                    signature,
+                    data,
+                    id,
+                    format,
+                    index,
+                    type_of: type_key,
+                })
+            })
+            .collect()
     }
 }
 
@@ -142,7 +109,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_reasoning_detail_from_parts_merges_consecutive_types() {
+    fn test_reasoning_detail_from_parts_groups_by_type() {
         // Create a fixture with parts of different types across streaming deltas
         let fixture = vec![
             // First delta: reasoning.text
@@ -164,79 +131,107 @@ mod tests {
                 id: Some("tool_call_id".to_string()),
                 ..Default::default()
             }],
-            // Fourth delta: another reasoning.text appears (non-consecutive with first)
-            vec![ReasoningPart {
-                type_of: Some("reasoning.text".to_string()),
-                text: Some("Part 3".to_string()),
-                ..Default::default()
-            }],
         ];
 
         // Execute the function to get the actual result
         let actual = Reasoning::from_parts(fixture);
 
-        // Should have 3 entries: merged text 1+2, encrypted, and separate text 3
-        assert_eq!(actual.len(), 3);
+        // Both types should be separate entries
+        assert_eq!(actual.len(), 2);
 
-        // Verify order and content
-        assert_eq!(actual[0].type_of, Some("reasoning.text".to_string()));
-        assert_eq!(actual[0].text, Some("Part 1 Part 2".to_string()));
+        // Find each type
+        let text_entry = actual
+            .iter()
+            .find(|r| r.type_of == Some("reasoning.text".to_string()))
+            .expect("Should have reasoning.text entry");
+        let encrypted_entry = actual
+            .iter()
+            .find(|r| r.type_of == Some("reasoning.encrypted".to_string()))
+            .expect("Should have reasoning.encrypted entry");
 
-        assert_eq!(actual[1].type_of, Some("reasoning.encrypted".to_string()));
-        assert_eq!(actual[1].data, Some("encrypted_data".to_string()));
+        // Verify text entry has merged text
+        assert_eq!(text_entry.text, Some("Part 1 Part 2".to_string()));
 
-        assert_eq!(actual[2].type_of, Some("reasoning.text".to_string()));
-        assert_eq!(actual[2].text, Some("Part 3".to_string()));
+        // Verify encrypted entry has data and id
+        assert_eq!(encrypted_entry.data, Some("encrypted_data".to_string()));
+        assert_eq!(encrypted_entry.id, Some("tool_call_id".to_string()));
     }
 
     #[test]
     fn test_reasoning_detail_from_parts_with_different_lengths() {
-        // Create a fixture with different types of reasoning
+        // Create a fixture with different types to test grouping
         let fixture = vec![
+            vec![
+                ReasoningPart {
+                    type_of: Some("type1".to_string()),
+                    text: Some("a-text".to_string()),
+                    signature: Some("a-sig".to_string()),
+                    ..Default::default()
+                },
+                ReasoningPart {
+                    type_of: Some("type2".to_string()),
+                    text: Some("b-text".to_string()),
+                    signature: Some("b-sig".to_string()),
+                    ..Default::default()
+                },
+            ],
             vec![ReasoningPart {
                 type_of: Some("type1".to_string()),
-                text: Some("a-text".to_string()),
-                signature: Some("a-sig".to_string()),
-                ..Default::default()
-            }],
-            vec![ReasoningPart {
-                type_of: Some("type2".to_string()),
-                text: Some("b-text".to_string()),
-                signature: Some("b-sig".to_string()),
-                ..Default::default()
-            }],
-            vec![ReasoningPart {
-                type_of: Some("type2".to_string()),
                 text: Some("c-text".to_string()),
                 signature: Some("c-sig".to_string()),
                 ..Default::default()
             }],
+            vec![
+                ReasoningPart {
+                    type_of: Some("type1".to_string()),
+                    text: Some("d-text".to_string()),
+                    signature: Some("d-sig".to_string()),
+                    ..Default::default()
+                },
+                ReasoningPart {
+                    type_of: Some("type2".to_string()),
+                    text: Some("e-text".to_string()),
+                    signature: Some("e-sig".to_string()),
+                    ..Default::default()
+                },
+                ReasoningPart {
+                    type_of: Some("type3".to_string()),
+                    text: Some("f-text".to_string()),
+                    signature: Some("f-sig".to_string()),
+                    ..Default::default()
+                },
+            ],
         ];
 
         // Execute the function to get the actual result
-        let actual = Reasoning::from_parts(fixture);
+        let mut actual = Reasoning::from_parts(fixture);
+        actual.sort_by(|a, b| a.type_of.cmp(&b.type_of)); // Sort by type for consistent ordering
 
-        // Non-text types are NEVER merged, even if consecutive
-        let expected = vec![
+        // Define the expected result - now grouped by type
+        let mut expected = vec![
+            // type1: a + c + d (text merged, signature is first non-empty)
             ReasoningFull {
                 type_of: Some("type1".to_string()),
-                text: Some("a-text".to_string()),
-                signature: Some("a-sig".to_string()),
+                text: Some("a-textc-textd-text".to_string()),
+                signature: Some("a-sig".to_string()), // First non-empty signature
                 ..Default::default()
             },
+            // type2: b + e (text merged, signature is first non-empty)
             ReasoningFull {
                 type_of: Some("type2".to_string()),
-                text: Some("b-text".to_string()),
-                signature: Some("b-sig".to_string()),
+                text: Some("b-texte-text".to_string()),
+                signature: Some("b-sig".to_string()), // First non-empty signature
                 ..Default::default()
             },
+            // type3: f
             ReasoningFull {
-                type_of: Some("type2".to_string()),
-                text: Some("c-text".to_string()),
-                signature: Some("c-sig".to_string()),
+                type_of: Some("type3".to_string()),
+                text: Some("f-text".to_string()),
+                signature: Some("f-sig".to_string()),
                 ..Default::default()
             },
         ];
+        expected.sort_by(|a, b| a.type_of.cmp(&b.type_of)); // Sort expected for consistent comparison
 
         // Assert that the actual result matches the expected result
         assert_eq!(actual, expected);
@@ -266,29 +261,12 @@ mod tests {
         // Execute the function to get the actual result
         let actual = Reasoning::from_parts(fixture);
 
-        // parts with text but no type_of are treated as reasoning.text and merged if
-        // consecutive. The middle part has NO text and NO type_of, so it breaks
-        // the consecutive text merge.
-        let expected = vec![
-            ReasoningFull {
-                text: Some("a-text".to_string()),
-                signature: None,
-                type_of: Some("reasoning.text".to_string()),
-                ..Default::default()
-            },
-            ReasoningFull {
-                text: None,
-                signature: Some("b-sig".to_string()),
-                type_of: None,
-                ..Default::default()
-            },
-            ReasoningFull {
-                text: Some("b-test".to_string()),
-                signature: None,
-                type_of: Some("reasoning.text".to_string()),
-                ..Default::default()
-            },
-        ];
+        // Define the expected result
+        let expected = vec![ReasoningFull {
+            text: Some("a-textb-test".to_string()),
+            signature: Some("b-sig".to_string()),
+            ..Default::default()
+        }];
 
         // Assert that the actual result matches the expected result
         assert_eq!(actual, expected);
@@ -321,7 +299,7 @@ mod tests {
                 },
                 ReasoningPart {
                     type_of: Some("reasoning.encrypted".to_string()),
-                    data: Some("complete-data".to_string()),
+                    text: Some("complete-text".to_string()),
                     signature: Some("complete-sig".to_string()),
                     ..Default::default()
                 },
@@ -335,24 +313,34 @@ mod tests {
                 },
                 ReasoningPart {
                     type_of: Some("reasoning.encrypted".to_string()),
-                    data: Some("more-data2".to_string()),
+                    text: Some("more-text2".to_string()),
                     signature: Some("more-sig".to_string()),
                     ..Default::default()
                 },
             ],
         ];
 
-        let actual = Reasoning::from_parts(fixture);
+        let mut actual = Reasoning::from_parts(fixture);
+        actual.sort_by(|a, b| a.type_of.cmp(&b.type_of)); // Sort by type for consistent ordering
 
-        // Encrypted reasoning blocks are NEVER merged.
-        // Non-consecutive text blocks are NOT merged.
-        // In this case: [text1, encrypted1, text2, encrypted2]
-        assert_eq!(actual.len(), 4);
-
-        assert_eq!(actual[0].text, Some("text-only".to_string()));
-        assert_eq!(actual[1].data, Some("complete-data".to_string()));
-        assert_eq!(actual[2].text, Some("more-text".to_string()));
-        assert_eq!(actual[3].data, Some("more-data2".to_string()));
+        // Now grouped by type: reasoning.text and reasoning.encrypted are separate
+        // entries
+        let mut expected = vec![
+            ReasoningFull {
+                type_of: Some("reasoning.text".to_string()),
+                text: Some("text-onlymore-text".to_string()),
+                signature: None, // No signature in reasoning.text type
+                ..Default::default()
+            },
+            ReasoningFull {
+                type_of: Some("reasoning.encrypted".to_string()),
+                text: Some("complete-textmore-text2".to_string()),
+                signature: Some("complete-sig".to_string()), // First non-empty signature
+                ..Default::default()
+            },
+        ];
+        expected.sort_by(|a, b| a.type_of.cmp(&b.type_of)); // Sort expected as well for consistent comparison
+        assert_eq!(actual, expected);
     }
 
     #[test]
@@ -372,13 +360,26 @@ mod tests {
             },
         ]];
 
-        let actual = Reasoning::from_parts(fixture);
+        let mut actual = Reasoning::from_parts(fixture);
+        actual.sort_by(|a, b| a.type_of.cmp(&b.type_of)); // Sort by type for consistent ordering
 
-        // Blocks with signatures should NOT be merged
-        assert_eq!(actual.len(), 2);
-        assert_eq!(actual[0].text, Some("Part 1".to_string()));
-        assert_eq!(actual[0].signature, Some("sig1".to_string()));
-        assert_eq!(actual[1].text, Some("Part 2".to_string()));
-        assert_eq!(actual[1].signature, Some("sig2".to_string()));
+        // Now grouped by type: reasoning.text and reasoning.encrypted are separate
+        // entries
+        let mut expected = vec![
+            ReasoningFull {
+                type_of: Some("reasoning.text".to_string()),
+                text: Some("text-onlymore-text".to_string()),
+                signature: None, // No signature in reasoning.text type
+                ..Default::default()
+            },
+            ReasoningFull {
+                type_of: Some("reasoning.encrypted".to_string()),
+                text: Some("complete-textmore-text2".to_string()),
+                signature: Some("complete-sig".to_string()), // First non-empty signature
+                ..Default::default()
+            },
+        ];
+        expected.sort_by(|a, b| a.type_of.cmp(&b.type_of)); // Sort expected as well for consistent comparison
+        assert_eq!(actual, expected);
     }
 }

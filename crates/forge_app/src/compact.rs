@@ -217,6 +217,7 @@ impl Compactor {
                 reasoning_details: None,
                 model: None,
                 droppable: true, // Allow future compactions to remove this
+                thought_signature: None
             };
 
             // Insert after the summary but before other messages
@@ -284,17 +285,19 @@ mod tests {
             .add_message(ContextMessage::user("M1", None))
             .add_message(ContextMessage::assistant(
                 "R1",
+                None,
                 Some(first_reasoning.clone()),
                 None,
             ))
             .add_message(ContextMessage::user("M2", None))
             .add_message(ContextMessage::assistant(
                 "R2",
+                None,
                 Some(last_reasoning.clone()),
                 None,
             ))
             .add_message(ContextMessage::user("M3", None))
-            .add_message(ContextMessage::assistant("R3", None, None));
+            .add_message(ContextMessage::assistant("R3", None, None, None));
 
         let actual = compactor.compress_single_sequence(context, (0, 3)).unwrap();
 
@@ -334,11 +337,12 @@ mod tests {
             .add_message(ContextMessage::user("M1", None))
             .add_message(ContextMessage::assistant(
                 "R1",
+                None,
                 Some(reasoning.clone()),
                 None,
             ))
             .add_message(ContextMessage::user("M2", None))
-            .add_message(ContextMessage::assistant("R2", None, None));
+            .add_message(ContextMessage::assistant("R2", None, None, None));
 
         let context = compactor.compress_single_sequence(context, (0, 1)).unwrap();
 
@@ -356,7 +360,7 @@ mod tests {
         // Second compaction - add more messages
         let context = context
             .add_message(ContextMessage::user("M3", None))
-            .add_message(ContextMessage::assistant("R3", None, None));
+            .add_message(ContextMessage::assistant("R3", None, None, None));
 
         let context = compactor.compress_single_sequence(context, (0, 2)).unwrap();
 
@@ -394,13 +398,14 @@ mod tests {
             .add_message(ContextMessage::user("M1", None))
             .add_message(ContextMessage::assistant(
                 "R1",
+                None,
                 Some(non_empty_reasoning.clone()),
                 None,
             ))
             .add_message(ContextMessage::user("M2", None))
-            .add_message(ContextMessage::assistant("R2", Some(vec![]), None)) // Empty - most recent in range
+            .add_message(ContextMessage::assistant("R2", None, Some(vec![]), None)) // Empty - most recent in range
             .add_message(ContextMessage::user("M3", None))
-            .add_message(ContextMessage::assistant("R3", None, None)); // Outside range
+            .add_message(ContextMessage::assistant("R3", None, None, None)); // Outside range
 
         let actual = compactor.compress_single_sequence(context, (0, 3)).unwrap();
 
@@ -472,13 +477,10 @@ mod tests {
             SummaryBlock::new(
                 Role::Assistant,
                 vec![
-                    SummaryToolCall::codebase_search(
-                        vec![forge_domain::SearchQuery::new(
-                            "authentication logic",
-                            "Find authentication implementation",
-                        )],
-                        vec![".rs".to_string()],
-                    )
+                    SummaryToolCall::codebase_search(vec![forge_domain::SearchQuery::new(
+                        "authentication logic",
+                        "Find authentication implementation",
+                    )])
                     .id("call_4")
                     .is_success(false)
                     .into(),
@@ -558,6 +560,7 @@ mod tests {
                 "Assistant response 1",
                 None,
                 None,
+                None,
             ))
             .add_message(ContextMessage::Text(
                 TextMessage::new(Role::User, "Attachment content").droppable(true),
@@ -565,6 +568,7 @@ mod tests {
             .add_message(ContextMessage::user("User message 2", None))
             .add_message(ContextMessage::assistant(
                 "Assistant response 2",
+                None,
                 None,
                 None,
             ));
@@ -600,11 +604,11 @@ mod tests {
         };
 
         let msg1 = ContextMessage::user("Message 1", None);
-        let msg2 = ContextMessage::assistant("Response 1", None, None);
+        let msg2 = ContextMessage::assistant("Response 1", None, None, None);
         let msg3 = ContextMessage::user("Message 2", None);
-        let msg4 = ContextMessage::assistant("Response 2", None, None);
+        let msg4 = ContextMessage::assistant("Response 2", None, None, None);
         let msg5 = ContextMessage::user("Message 3", None);
-        let msg6 = ContextMessage::assistant("Response 3", None, None);
+        let msg6 = ContextMessage::assistant("Response 3", None, None, None);
 
         // Add usage to the last message to set context-wide usage
         let mut wrapper6 = MessageEntry::from(msg6.clone());
@@ -618,9 +622,9 @@ mod tests {
             .add_message(msg5.clone())
             .messages(vec![
                 ContextMessage::user("Message 1", None).into(),
-                ContextMessage::assistant("Response 1", None, None).into(),
+                ContextMessage::assistant("Response 1", None, None, None).into(),
                 ContextMessage::user("Message 2", None).into(),
-                ContextMessage::assistant("Response 2", None, None).into(),
+                ContextMessage::assistant("Response 2", None, None, None).into(),
                 ContextMessage::user("Message 3", None).into(),
                 wrapper6,
             ]);
@@ -680,7 +684,7 @@ mod tests {
                     .tool_calls(vec![todo_tool_call]),
             ))
             .add_message(ContextMessage::user("Continue working", None))
-            .add_message(ContextMessage::assistant("Working on it", None, None));
+            .add_message(ContextMessage::assistant("Working on it", None, None, None));
 
         // Compact the sequence containing the todo_write
         let actual = compactor.compress_single_sequence(context, (0, 1)).unwrap();

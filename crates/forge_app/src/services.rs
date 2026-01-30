@@ -311,6 +311,9 @@ pub trait WorkspaceService: Send + Sync {
     /// Delete a workspace and all its indexed data
     async fn delete_workspace(&self, workspace_id: &WorkspaceId) -> anyhow::Result<()>;
 
+    /// Delete multiple workspaces in parallel and all their indexed data
+    async fn delete_workspaces(&self, workspace_ids: &[WorkspaceId]) -> anyhow::Result<()>;
+
     /// Checks if workspace is indexed.
     async fn is_indexed(&self, path: &Path) -> anyhow::Result<bool>;
 
@@ -1134,6 +1137,12 @@ impl<I: Services> WorkspaceService for I {
     async fn delete_workspace(&self, workspace_id: &WorkspaceId) -> anyhow::Result<()> {
         self.workspace_service()
             .delete_workspace(workspace_id)
+            .await
+    }
+
+    async fn delete_workspaces(&self, workspace_ids: &[WorkspaceId]) -> anyhow::Result<()> {
+        self.workspace_service()
+            .delete_workspaces(workspace_ids)
             .await
     }
 

@@ -47,4 +47,4 @@ Cargo.lock
 **/.forge/request.body.json
 node_modules/
 jobs/
-__pycache__/
+bench/__pycache__
