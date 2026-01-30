@@ -19,6 +19,24 @@ use crate::provider::event::into_chat_completion_message;
 use crate::provider::retry::into_retry;
 use crate::provider::utils::{create_headers, format_http_context, join_url, sanitize_headers};
 
+/// Enhances error messages with provider-specific helpful information
+fn enhance_error(error: anyhow::Error, provider_id: &ProviderId) -> anyhow::Error {
+    // GitHub Copilot specific error enhancements
+    if *provider_id == ProviderId::GITHUB_COPILOT {
+        let error_string = format!("{:#}", error);
+        
+        // Check if this is a model_not_supported error
+        if error_string.contains("model_not_supported") 
+            || error_string.contains("requested model is not supported") {
+            return error.context(
+                "This model may not be enabled for your GitHub Copilot subscription. Visit https://github.com/settings/copilot/features to check which models are available to you."
+            );
+        }
+    }
+
+    error
+}
+
 #[derive(Clone)]
 struct OpenAIProvider<H> {
     provider: Provider<Url>,
@@ -681,6 +699,7 @@ impl<F: HttpInfra + 'static> ChatRepository for OpenAIResponseRepository<F> {
         provider: Provider<Url>,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
         let retry_config = self.retry_config.clone();
+        let provider_id = provider.id.clone();
         let provider_client = OpenAIProvider::new(provider, self.infra.clone());
         let stream = provider_client
             .chat(model_id, context)
@@ -688,7 +707,7 @@ impl<F: HttpInfra + 'static> ChatRepository for OpenAIResponseRepository<F> {
             .map_err(|e| into_retry(e, &retry_config))?;
 
         Ok(Box::pin(stream.map(move |item| {
-            item.map_err(|e| into_retry(e, &retry_config))
+            item.map_err(|e| enhance_error(into_retry(e, &retry_config), &provider_id))
         })))
     }
 
