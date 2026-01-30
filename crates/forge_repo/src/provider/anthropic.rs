@@ -46,12 +46,8 @@ impl<H: HttpInfra> Anthropic<H> {
             .as_ref()
             .map(|c| match &c.auth_details {
                 forge_domain::AuthDetails::ApiKey(key) => key.as_str(),
-                forge_domain::AuthDetails::OAuthWithApiKey { api_key, .. } => {
-                    api_key.as_str()
-                }
-                forge_domain::AuthDetails::OAuth { tokens, .. } => {
-                    tokens.access_token.as_str()
-                }
+                forge_domain::AuthDetails::OAuthWithApiKey { api_key, .. } => api_key.as_str(),
+                forge_domain::AuthDetails::OAuth { tokens, .. } => tokens.access_token.as_str(),
             });
 
         if let Some(api_key) = api_key {
