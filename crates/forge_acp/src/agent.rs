@@ -31,7 +31,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use agent_client_protocol as acp;
-use agent_client_protocol::{SetSessionModelRequest, SetSessionModelResponse};
+use agent_client_protocol::{Client, SetSessionModelRequest, SetSessionModelResponse};
 use forge_app::{
     AgentProviderResolver, AgentRegistry, AppConfigService, AttachmentService, ConversationService,
     ForgeApp, ProviderAuthService, ProviderService, Services,
@@ -161,8 +161,6 @@ impl<S: Services> ForgeAgent<S> {
         session_id: &acp::SessionId,
         reason: &forge_domain::InterruptionReason,
     ) -> Result<bool> {
-        use acp::Client;
-
         // Get the client connection
         let client_conn = self.client_conn.lock().await;
         let Some(conn) = client_conn.as_ref() else {
