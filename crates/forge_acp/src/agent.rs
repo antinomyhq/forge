@@ -507,12 +507,13 @@ impl<S: Services> ForgeAgent<S> {
             .map_err(Error::Application)?;
 
         // Fetch models from the provider
-        let models = self
+        let mut models = self
             .services
             .provider_service()
             .models(provider)
             .await
             .map_err(Error::Application)?;
+        models.sort_by(|a, b| a.name.cmp(&b.name));
 
         // Convert Forge models to ACP ModelInfo
         let available_models: Vec<acp::ModelInfo> = models
@@ -639,23 +640,8 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
             arguments.client_info
         );
 
-        let mut meta = serde_json::Map::new();
-        meta.insert(
-            "forge".to_string(),
-            serde_json::json!({
-                "modelSelection": true,
-                "supportedExtensions": [
-                    "forge/listModels",
-                    "forge/setModel",
-                    "forge/getModel"
-                ]
-            }),
-        );
-
-        tracing::info!("Sending model selection capabilities in meta: {:?}", meta);
-
         Ok(acp::InitializeResponse::new(acp::ProtocolVersion::V1)
-            .agent_capabilities(acp::AgentCapabilities::new().load_session(true).meta(meta))
+            .agent_capabilities(acp::AgentCapabilities::new().load_session(true))
             .agent_info(
                 acp::Implementation::new("forge".to_string(), VERSION.to_string())
                     .title("Forge Code".to_string()),
