@@ -24,10 +24,11 @@ fn enhance_error(error: anyhow::Error, provider_id: &ProviderId) -> anyhow::Erro
     // GitHub Copilot specific error enhancements
     if *provider_id == ProviderId::GITHUB_COPILOT {
         let error_string = format!("{:#}", error);
-        
+
         // Check if this is a model_not_supported error
-        if error_string.contains("model_not_supported") 
-            || error_string.contains("requested model is not supported") {
+        if error_string.contains("model_not_supported")
+            || error_string.contains("requested model is not supported")
+        {
             return error.context(
                 "This model may not be enabled for your GitHub Copilot subscription. Visit https://github.com/settings/copilot/features to check which models are available to you."
             );
