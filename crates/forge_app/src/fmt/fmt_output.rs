@@ -30,10 +30,9 @@ impl FormatContent for ToolOperation {
                 ));
                 title.into()
             }),
-            ToolOperation::TodoWrite { output } => Some(ChatResponseContent::Markdown {
-                text: format_todos(output),
-                partial: false,
-            }),
+            ToolOperation::TodoWrite { output } => {
+                Some(ChatResponseContent::Markdown { text: format_todos(output), partial: false })
+            }
             ToolOperation::FsRead { input: _, output: _ }
             | ToolOperation::FsRemove { input: _, output: _ }
             | ToolOperation::FsSearch { input: _, output: _ }

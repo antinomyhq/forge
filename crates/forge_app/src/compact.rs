@@ -217,7 +217,7 @@ impl Compactor {
                 reasoning_details: None,
                 model: None,
                 droppable: true, // Allow future compactions to remove this
-                thought_signature: None
+                thought_signature: None,
             };
 
             // Insert after the summary but before other messages

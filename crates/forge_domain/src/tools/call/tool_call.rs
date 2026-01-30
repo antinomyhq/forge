@@ -136,7 +136,12 @@ impl ToolCallFull {
                         // send it
                         let call_id = Some(existing_call_id.clone());
 
-                        tool_calls.push(ToolCallFull { name: tool_name, call_id, arguments, thought_signature: current_thought_signature.take(), });
+                        tool_calls.push(ToolCallFull {
+                            name: tool_name,
+                            call_id,
+                            arguments,
+                            thought_signature: current_thought_signature.take(),
+                        });
                     }
                     current_arguments.clear();
                     current_thought_signature = None;

@@ -192,9 +192,7 @@ pub enum SummaryTool {
     Plan { plan_name: String },
     Skill { name: String },
     Mcp { name: String },
-    TodoWrite {
-        todos: Vec<crate::Todo>,
-    },
+    TodoWrite { todos: Vec<crate::Todo> },
 }
 
 impl From<&Context> for ContextSummary {
