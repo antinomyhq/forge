@@ -136,7 +136,8 @@ impl<H: HttpInfra> OpenAIProvider<H> {
             .http
             .http_eventsource(&url, Some(headers), json_bytes.into())
             .await
-            .with_context(|| format_http_context(None, "POST", &url))?;
+            .with_context(|| format_http_context(None, "POST", &url))
+            .map_err(|e| enhance_error(e, &self.provider.id))?;
 
         let stream = into_chat_completion_message::<Response>(url, es);
 
@@ -666,6 +667,20 @@ mod tests {
         );
         assert!(!headers.iter().any(|(k, _)| k == "Session-Id"));
         Ok(())
+    }
+
+    #[test]
+    fn test_enhance_error_github_copilot_model_not_supported() {
+        use crate::provider::openai::enhance_error;
+        // Setup - simulate the actual error from GitHub Copilot
+        let fixture = anyhow::anyhow!(
+            "400 Bad Request Reason: {{\"error\":{{\"message\":\"The requested model is not supported.\",\"code\":\"model_not_supported\"}}}}"
+        );
+
+        // Execute
+        let actual = enhance_error(fixture, &ProviderId::GITHUB_COPILOT);
+        let error_string = format!("{:#}", actual);
+        insta::assert_snapshot!(error_string);
     }
 }
 
