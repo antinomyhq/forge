@@ -75,7 +75,12 @@ mod tests {
                     .reasoning_details(reasoning_details),
             ))
             .add_message(ContextMessage::user("User message without reasoning", None))
-            .add_message(ContextMessage::assistant("Assistant response", None, None))
+            .add_message(ContextMessage::assistant(
+                "Assistant response",
+                None,
+                None,
+                None,
+            ))
             .add_tool_results(vec![ToolResult {
                 name: ToolName::new("test_tool"),
                 call_id: Some(ToolCallId::new("call_123")),
@@ -130,7 +135,12 @@ mod tests {
     fn test_drop_reasoning_details_already_none() {
         let fixture = Context::default()
             .add_message(ContextMessage::user("User message", None))
-            .add_message(ContextMessage::assistant("Assistant message", None, None))
+            .add_message(ContextMessage::assistant(
+                "Assistant message",
+                None,
+                None,
+                None,
+            ))
             .add_message(ContextMessage::system("System message"));
 
         let mut transformer = DropReasoningDetails;

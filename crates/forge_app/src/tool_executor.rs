@@ -184,7 +184,6 @@ impl<
                         forge_domain::SearchParams::new(&search_query.query, &search_query.use_case)
                             .limit(limit)
                             .top_k(top_k)
-                            .ends_with(input.extensions.clone())
                     })
                     .collect();
 

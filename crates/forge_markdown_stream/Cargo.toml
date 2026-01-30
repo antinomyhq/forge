@@ -9,10 +9,10 @@ name = "forge_markdown_stream"
 path = "src/lib.rs"
 
 [dependencies]
-streamdown-parser = { git = "https://github.com/fed-stew/streamdown-rs", rev = "5c136b72b502697e440e5eb0804818cbf2a53c1b" }
-streamdown-core = { git = "https://github.com/fed-stew/streamdown-rs", rev = "5c136b72b502697e440e5eb0804818cbf2a53c1b" }
-streamdown-ansi = { git = "https://github.com/fed-stew/streamdown-rs", rev = "5c136b72b502697e440e5eb0804818cbf2a53c1b" }
-streamdown-render = { git = "https://github.com/fed-stew/streamdown-rs", rev = "5c136b72b502697e440e5eb0804818cbf2a53c1b" }
+streamdown-parser = "0.1.4"
+streamdown-core = "0.1.4"
+streamdown-ansi = "0.1.4"
+streamdown-render = "0.1.4"
 syntect.workspace = true
 colored.workspace = true
 unicode-width = "0.2"
