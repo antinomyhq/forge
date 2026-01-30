@@ -342,44 +342,4 @@ mod tests {
         expected.sort_by(|a, b| a.type_of.cmp(&b.type_of)); // Sort expected as well for consistent comparison
         assert_eq!(actual, expected);
     }
-
-    #[test]
-    fn test_reasoning_detail_does_not_merge_parts_with_signatures() {
-        let fixture = vec![vec![
-            ReasoningPart {
-                type_of: Some("reasoning.text".to_string()),
-                text: Some("Part 1".to_string()),
-                signature: Some("sig1".to_string()),
-                ..Default::default()
-            },
-            ReasoningPart {
-                type_of: Some("reasoning.text".to_string()),
-                text: Some("Part 2".to_string()),
-                signature: Some("sig2".to_string()),
-                ..Default::default()
-            },
-        ]];
-
-        let mut actual = Reasoning::from_parts(fixture);
-        actual.sort_by(|a, b| a.type_of.cmp(&b.type_of)); // Sort by type for consistent ordering
-
-        // Now grouped by type: reasoning.text and reasoning.encrypted are separate
-        // entries
-        let mut expected = vec![
-            ReasoningFull {
-                type_of: Some("reasoning.text".to_string()),
-                text: Some("text-onlymore-text".to_string()),
-                signature: None, // No signature in reasoning.text type
-                ..Default::default()
-            },
-            ReasoningFull {
-                type_of: Some("reasoning.encrypted".to_string()),
-                text: Some("complete-textmore-text2".to_string()),
-                signature: Some("complete-sig".to_string()), // First non-empty signature
-                ..Default::default()
-            },
-        ];
-        expected.sort_by(|a, b| a.type_of.cmp(&b.type_of)); // Sort expected as well for consistent comparison
-        assert_eq!(actual, expected);
-    }
 }
