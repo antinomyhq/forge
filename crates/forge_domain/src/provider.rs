@@ -56,6 +56,7 @@ impl ProviderId {
     pub const ANTHROPIC: ProviderId = ProviderId(Cow::Borrowed("anthropic"));
     pub const CLAUDE_CODE: ProviderId = ProviderId(Cow::Borrowed("claude_code"));
     pub const VERTEX_AI: ProviderId = ProviderId(Cow::Borrowed("vertex_ai"));
+    pub const VERTEX_AI_ANTHROPIC: ProviderId = ProviderId(Cow::Borrowed("vertex_ai_anthropic"));
     pub const BIG_MODEL: ProviderId = ProviderId(Cow::Borrowed("big_model"));
     pub const AZURE: ProviderId = ProviderId(Cow::Borrowed("azure"));
     pub const GITHUB_COPILOT: ProviderId = ProviderId(Cow::Borrowed("github_copilot"));
@@ -81,6 +82,7 @@ impl ProviderId {
             ProviderId::ANTHROPIC,
             ProviderId::CLAUDE_CODE,
             ProviderId::VERTEX_AI,
+            ProviderId::VERTEX_AI_ANTHROPIC,
             ProviderId::BIG_MODEL,
             ProviderId::AZURE,
             ProviderId::GITHUB_COPILOT,
@@ -106,6 +108,7 @@ impl ProviderId {
             "xai" => "XAI".to_string(),
             "zai" => "ZAI".to_string(),
             "vertex_ai" => "VertexAI".to_string(),
+            "vertex_ai_anthropic" => "VertexAIAnthropic".to_string(),
             "openai_compatible" => "OpenAICompatible".to_string(),
             "io_intelligence" => "IOIntelligence".to_string(),
             _ => {

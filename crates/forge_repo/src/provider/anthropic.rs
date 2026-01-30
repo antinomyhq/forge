@@ -10,7 +10,7 @@ use forge_app::dto::anthropic::{
     AuthSystemMessage, CapitalizeToolNames, DropInvalidToolUse, EnforceStrictObjectSchema,
     EventData, ListModelResponse, ReasoningTransform, Request, SetCache,
 };
-use forge_domain::{ChatRepository, Provider};
+use forge_domain::{ChatRepository, Provider, ProviderId};
 use reqwest::Url;
 use tokio_stream::StreamExt;
 use tracing::debug;
@@ -22,9 +22,7 @@ use crate::provider::utils::{create_headers, format_http_context};
 #[derive(Clone)]
 struct Anthropic<T> {
     http: Arc<T>,
-    api_key: String,
-    chat_url: Url,
-    models: forge_domain::ModelSource<Url>,
+    provider: Provider<Url>,
     anthropic_version: String,
     use_oauth: bool,
 }
@@ -32,46 +30,61 @@ struct Anthropic<T> {
 impl<H: HttpInfra> Anthropic<H> {
     pub fn new(
         http: Arc<H>,
-        api_key: String,
-        chat_url: Url,
-        models: forge_domain::ModelSource<Url>,
+        provider: Provider<Url>,
         version: String,
         use_oauth: bool,
     ) -> Self {
         Self {
             http,
-            api_key,
-            chat_url,
-            models,
+            provider,
             anthropic_version: version,
             use_oauth,
         }
     }
 
     fn get_headers(&self) -> Vec<(String, String)> {
-        let mut headers = vec![(
-            "anthropic-version".to_string(),
-            self.anthropic_version.clone(),
-        )];
+        let mut headers = vec![("anthropic-version".to_string(), self.anthropic_version.clone())];
 
-        // Use Authorization: Bearer for OAuth, x-api-key for API key auth
-        if self.use_oauth {
-            headers.push((
-                "authorization".to_string(),
-                format!("Bearer {}", self.api_key),
-            ));
-            // OAuth requires multiple beta flags including structured outputs
-            headers.push((
-                "anthropic-beta".to_string(),
-                "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,structured-outputs-2025-11-13".to_string(),
-            ));
-        } else {
-            headers.push(("x-api-key".to_string(), self.api_key.clone()));
-            // API key auth also needs beta flags for structured outputs and thinking
-            headers.push((
-                "anthropic-beta".to_string(),
-                "interleaved-thinking-2025-05-14,structured-outputs-2025-11-13".to_string(),
-            ));
+        // Extract API key/token from provider credentials (handles Google ADC, OAuth, and API key)
+        let api_key = self
+            .provider
+            .credential
+            .as_ref()
+            .and_then(|c| match &c.auth_details {
+                forge_domain::AuthDetails::ApiKey(key) => Some(key.as_str()),
+                forge_domain::AuthDetails::OAuthWithApiKey { api_key, .. } => Some(api_key.as_str()),
+                forge_domain::AuthDetails::OAuth { tokens, .. } => Some(tokens.access_token.as_str()),
+            });
+
+        if let Some(api_key) = api_key {
+            // For Vertex AI, use Authorization: Bearer with Google ADC token
+            // For OAuth, use Authorization: Bearer
+            // For API key, use x-api-key header
+            if self.provider.id == ProviderId::VERTEX_AI_ANTHROPIC || self.use_oauth {
+                headers.push((
+                    "authorization".to_string(),
+                    format!("Bearer {}", api_key),
+                ));
+            } else {
+                headers.push(("x-api-key".to_string(), api_key.to_string()));
+            }
+        }
+
+        // Add beta flags (not needed for Vertex AI)
+        if self.provider.id != ProviderId::VERTEX_AI_ANTHROPIC {
+            if self.use_oauth {
+                // OAuth requires multiple beta flags including structured outputs
+                headers.push((
+                    "anthropic-beta".to_string(),
+                    "claude-code-20250219,oauth-2025-04-20,interleaved-thinking-2025-05-14,structured-outputs-2025-11-13".to_string(),
+                ));
+            } else {
+                // API key auth also needs beta flags for structured outputs and thinking
+                headers.push((
+                    "anthropic-beta".to_string(),
+                    "interleaved-thinking-2025-05-14,structured-outputs-2025-11-13".to_string(),
+                ));
+            }
         }
 
         headers
@@ -88,9 +101,14 @@ impl<T: HttpInfra> Anthropic<T> {
         // transform the context to match the request format
         let context = ReasoningTransform.transform(context);
 
-        let request = Request::try_from(context)?
-            .model(model.as_str().to_string())
-            .max_tokens(max_tokens as u64);
+        let mut request = Request::try_from(context)?.max_tokens(max_tokens as u64);
+
+        // For Vertex AI Anthropic, model is in the URL path, not the request body
+        if self.provider.id == ProviderId::VERTEX_AI_ANTHROPIC {
+            request = request.anthropic_version(self.anthropic_version.clone());
+        } else {
+            request = request.model(model.as_str().to_string());
+        }
 
         let request = AuthSystemMessage::default()
             .when(|_| self.use_oauth)
@@ -99,29 +117,46 @@ impl<T: HttpInfra> Anthropic<T> {
             .pipe(EnforceStrictObjectSchema)
             .pipe(SetCache)
             .transform(request);
-        let url = &self.chat_url;
+
+        let url = if self.provider.id == ProviderId::VERTEX_AI_ANTHROPIC {
+            // For Vertex AI, we need to append the model ID and streamRawPredict to the URL
+            // The chat_url from provider.json ends with .../models
+            let base = self.provider.url.as_str().trim_end_matches('/');
+            format!("{}/{}:streamRawPredict", base, model.as_str())
+        } else {
+            self.provider.url.to_string()
+        };
+
         debug!(url = %url, model = %model, "Connecting Upstream");
 
         let json_bytes =
             serde_json::to_vec(&request).with_context(|| "Failed to serialize request")?;
 
+        let parsed_url = Url::parse(&url).with_context(|| format!("Invalid URL: {}", url))?;
+
         let source = self
             .http
             .http_eventsource(
-                url,
+                &parsed_url,
                 Some(create_headers(self.get_headers())),
                 json_bytes.into(),
             )
             .await
-            .with_context(|| format_http_context(None, "POST", url))?;
+            .with_context(|| format_http_context(None, "POST", &url))?;
 
-        let stream = into_chat_completion_message::<EventData>(url.clone(), source);
+        let stream = into_chat_completion_message::<EventData>(parsed_url, source);
 
         Ok(Box::pin(stream))
     }
 
     pub async fn models(&self) -> anyhow::Result<Vec<Model>> {
-        match &self.models {
+        let models = self
+            .provider
+            .models
+            .as_ref()
+            .context("Anthropic requires models configuration")?;
+
+        match models {
             forge_domain::ModelSource::Url(url) => {
                 debug!(url = %url, "Fetching models");
 
@@ -183,7 +218,9 @@ mod tests {
 
     impl MockHttpClient {
         fn new() -> Self {
-            Self { client: reqwest::Client::new() }
+            Self {
+                client: reqwest::Client::new(),
+            }
         }
     }
 
@@ -223,11 +260,27 @@ mod tests {
     fn create_anthropic(base_url: &str) -> anyhow::Result<Anthropic<MockHttpClient>> {
         let chat_url = Url::parse(base_url)?.join("messages")?;
         let model_url = Url::parse(base_url)?.join("models")?;
+        
+        let provider = Provider {
+            id: forge_app::domain::ProviderId::ANTHROPIC,
+            provider_type: forge_domain::ProviderType::Llm,
+            response: Some(forge_app::domain::ProviderResponse::Anthropic),
+            url: chat_url,
+            credential: Some(forge_domain::AuthCredential {
+                id: forge_app::domain::ProviderId::ANTHROPIC,
+                auth_details: forge_domain::AuthDetails::ApiKey(
+                    forge_domain::ApiKey::from("sk-test-key".to_string()),
+                ),
+                url_params: std::collections::HashMap::new(),
+            }),
+            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+            url_params: vec![],
+            models: Some(forge_domain::ModelSource::Url(model_url)),
+        };
+
         Ok(Anthropic::new(
             Arc::new(MockHttpClient::new()),
-            "sk-test-key".to_string(),
-            chat_url,
-            forge_domain::ModelSource::Url(model_url),
+            provider,
             "2023-06-01".to_string(),
             false,
         ))
@@ -274,16 +327,32 @@ mod tests {
     async fn test_url_for_models() {
         let chat_url = Url::parse("https://api.anthropic.com/v1/messages").unwrap();
         let model_url = Url::parse("https://api.anthropic.com/v1/models").unwrap();
+        
+        let provider = Provider {
+            id: forge_app::domain::ProviderId::ANTHROPIC,
+            provider_type: forge_domain::ProviderType::Llm,
+            response: Some(forge_app::domain::ProviderResponse::Anthropic),
+            url: chat_url,
+            credential: Some(forge_domain::AuthCredential {
+                id: forge_app::domain::ProviderId::ANTHROPIC,
+                auth_details: forge_domain::AuthDetails::ApiKey(
+                    forge_domain::ApiKey::from("sk-some-key".to_string()),
+                ),
+                url_params: std::collections::HashMap::new(),
+            }),
+            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+            url_params: vec![],
+            models: Some(forge_domain::ModelSource::Url(model_url.clone())),
+        };
+
         let anthropic = Anthropic::new(
             Arc::new(MockHttpClient::new()),
-            "sk-some-key".to_string(),
-            chat_url,
-            forge_domain::ModelSource::Url(model_url.clone()),
+            provider.clone(),
             "v1".to_string(),
             false,
         );
-        match &anthropic.models {
-            forge_domain::ModelSource::Url(url) => {
+        match &anthropic.provider.models {
+            Some(forge_domain::ModelSource::Url(url)) => {
                 assert_eq!(url.as_str(), "https://api.anthropic.com/v1/models");
             }
             _ => panic!("Expected Models::Url variant"),
@@ -397,11 +466,27 @@ mod tests {
     fn test_get_headers_with_api_key_includes_beta_flags() {
         let chat_url = Url::parse("https://api.anthropic.com/v1/messages").unwrap();
         let model_url = Url::parse("https://api.anthropic.com/v1/models").unwrap();
+        
+        let provider = Provider {
+            id: forge_app::domain::ProviderId::ANTHROPIC,
+            provider_type: forge_domain::ProviderType::Llm,
+            response: Some(forge_app::domain::ProviderResponse::Anthropic),
+            url: chat_url,
+            credential: Some(forge_domain::AuthCredential {
+                id: forge_app::domain::ProviderId::ANTHROPIC,
+                auth_details: forge_domain::AuthDetails::ApiKey(
+                    forge_domain::ApiKey::from("sk-test-key".to_string()),
+                ),
+                url_params: std::collections::HashMap::new(),
+            }),
+            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+            url_params: vec![],
+            models: Some(forge_domain::ModelSource::Url(model_url)),
+        };
+
         let fixture = Anthropic::new(
             Arc::new(MockHttpClient::new()),
-            "sk-test-key".to_string(),
-            chat_url,
-            forge_domain::ModelSource::Url(model_url),
+            provider,
             "2023-06-01".to_string(),
             false, // API key auth (not OAuth)
         );
@@ -409,18 +494,14 @@ mod tests {
         let actual = fixture.get_headers();
 
         // Should contain anthropic-version header
-        assert!(
-            actual
-                .iter()
-                .any(|(k, v)| k == "anthropic-version" && v == "2023-06-01")
-        );
+        assert!(actual
+            .iter()
+            .any(|(k, v)| k == "anthropic-version" && v == "2023-06-01"));
 
         // Should contain x-api-key header (not authorization)
-        assert!(
-            actual
-                .iter()
-                .any(|(k, v)| k == "x-api-key" && v == "sk-test-key")
-        );
+        assert!(actual
+            .iter()
+            .any(|(k, v)| k == "x-api-key" && v == "sk-test-key"));
 
         // Should contain anthropic-beta header with structured outputs support
         let beta_header = actual.iter().find(|(k, _)| k == "anthropic-beta");
@@ -444,11 +525,42 @@ mod tests {
     fn test_get_headers_with_oauth_includes_beta_flags() {
         let chat_url = Url::parse("https://api.anthropic.com/v1/messages").unwrap();
         let model_url = Url::parse("https://api.anthropic.com/v1/models").unwrap();
+        
+        let provider = Provider {
+            id: forge_app::domain::ProviderId::ANTHROPIC,
+            provider_type: forge_domain::ProviderType::Llm,
+            response: Some(forge_app::domain::ProviderResponse::Anthropic),
+            url: chat_url,
+            credential: Some(forge_domain::AuthCredential {
+                id: forge_app::domain::ProviderId::ANTHROPIC,
+                auth_details: forge_domain::AuthDetails::OAuth {
+                    tokens: forge_domain::OAuthTokens::new(
+                        "oauth-token",
+                        None::<String>,
+                        chrono::Utc::now() + chrono::Duration::hours(1),
+                    ),
+                    config: forge_domain::OAuthConfig {
+                        auth_url: reqwest::Url::parse("https://example.com/auth").unwrap(),
+                        token_url: reqwest::Url::parse("https://example.com/token").unwrap(),
+                        client_id: forge_domain::ClientId::from("client-id".to_string()),
+                        scopes: vec![],
+                        redirect_uri: None,
+                        use_pkce: false,
+                        token_refresh_url: None,
+                        custom_headers: None,
+                        extra_auth_params: None,
+                    },
+                },
+                url_params: std::collections::HashMap::new(),
+            }),
+            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+            url_params: vec![],
+            models: Some(forge_domain::ModelSource::Url(model_url)),
+        };
+
         let fixture = Anthropic::new(
             Arc::new(MockHttpClient::new()),
-            "oauth-token".to_string(),
-            chat_url,
-            forge_domain::ModelSource::Url(model_url),
+            provider,
             "2023-06-01".to_string(),
             true, // OAuth auth
         );
@@ -456,18 +568,14 @@ mod tests {
         let actual = fixture.get_headers();
 
         // Should contain anthropic-version header
-        assert!(
-            actual
-                .iter()
-                .any(|(k, v)| k == "anthropic-version" && v == "2023-06-01")
-        );
+        assert!(actual
+            .iter()
+            .any(|(k, v)| k == "anthropic-version" && v == "2023-06-01"));
 
         // Should contain authorization header (not x-api-key)
-        assert!(
-            actual
-                .iter()
-                .any(|(k, v)| k == "authorization" && v == "Bearer oauth-token")
-        );
+        assert!(actual
+            .iter()
+            .any(|(k, v)| k == "authorization" && v == "Bearer oauth-token"));
 
         // Should contain anthropic-beta header with structured outputs support
         let beta_header = actual.iter().find(|(k, _)| k == "anthropic-beta");
@@ -498,39 +606,40 @@ pub struct AnthropicResponseRepository<F> {
 
 impl<F> AnthropicResponseRepository<F> {
     pub fn new(infra: Arc<F>) -> Self {
-        Self { infra, retry_config: Arc::new(RetryConfig::default()) }
+        Self {
+            infra,
+            retry_config: Arc::new(RetryConfig::default()),
+        }
     }
 }
 
 impl<F: HttpInfra> AnthropicResponseRepository<F> {
     /// Creates an Anthropic client from a provider configuration
-    fn create_client(&self, provider: &Provider<Url>) -> anyhow::Result<Anthropic<F>> {
-        let chat_url = provider.url.clone();
-        let models = provider
-            .models
-            .clone()
-            .context("Anthropic requires models configuration")?;
-        let creds = provider
+    fn create_client(&self, provider: Provider<Url>) -> anyhow::Result<Anthropic<F>> {
+        // Validate that credentials exist
+        provider
             .credential
             .as_ref()
-            .context("Anthropic provider requires credentials")?
-            .auth_details
-            .clone();
+            .context("Anthropic provider requires credentials")?;
 
-        let (key, is_oauth) = match creds {
-            forge_domain::AuthDetails::ApiKey(api_key) => (api_key.as_str().to_string(), false),
-            forge_domain::AuthDetails::OAuth { tokens, .. } => {
-                (tokens.access_token.as_str().to_string(), true)
-            }
-            _ => anyhow::bail!("Unsupported authentication method for Anthropic provider"),
+        // Determine OAuth usage based on auth details
+        let is_oauth = provider
+            .credential
+            .as_ref()
+            .map(|c| matches!(c.auth_details, forge_domain::AuthDetails::OAuth { .. }))
+            .unwrap_or(false);
+
+        // Use different API version for Vertex AI
+        let version = if provider.id == ProviderId::VERTEX_AI_ANTHROPIC {
+            "vertex-2023-10-16".to_string()
+        } else {
+            "2023-06-01".to_string()
         };
 
         Ok(Anthropic::new(
             self.infra.clone(),
-            key,
-            chat_url,
-            models,
-            "2023-06-01".to_string(),
+            provider,
+            version,
             is_oauth,
         ))
     }
@@ -545,7 +654,7 @@ impl<F: HttpInfra + 'static> ChatRepository for AnthropicResponseRepository<F> {
         provider: Provider<Url>,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
         let retry_config = self.retry_config.clone();
-        let provider_client = self.create_client(&provider)?;
+        let provider_client = self.create_client(provider)?;
 
         let stream = provider_client
             .chat(model_id, context)
@@ -559,7 +668,7 @@ impl<F: HttpInfra + 'static> ChatRepository for AnthropicResponseRepository<F> {
 
     async fn models(&self, provider: Provider<Url>) -> anyhow::Result<Vec<Model>> {
         let retry_config = self.retry_config.clone();
-        let provider_client = self.create_client(&provider)?;
+        let provider_client = self.create_client(provider)?;
 
         provider_client
             .models()

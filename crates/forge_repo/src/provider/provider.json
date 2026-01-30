@@ -1039,5 +1039,135 @@
       }
     ],
     "auth_methods": ["api_key"]
+  },
+  {
+    "id": "vertex_ai_anthropic",
+    "api_key_vars": "VERTEX_AI_AUTH_TOKEN",
+    "url_param_vars": ["PROJECT_ID", "LOCATION"],
+    "response_type": "Anthropic",
+    "url": "{{#if (eq LOCATION \"global\")}}https://aiplatform.googleapis.com/v1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/publishers/anthropic/models/{{else}}https://{{LOCATION}}-aiplatform.googleapis.com/v1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/publishers/anthropic/models/{{/if}}",
+    "models": [
+      {
+        "id": "claude-opus-4-5@20251101",
+        "name": "Claude Opus 4.5",
+        "description": "Most capable Claude model with enhanced reasoning and analysis capabilities",
+        "context_length": 200000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "claude-sonnet-4-5@20250929",
+        "name": "Claude Sonnet 4.5",
+        "description": "Balanced Claude model with excellent performance and speed",
+        "context_length": 200000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "claude-opus-4-1@20250805",
+        "name": "Claude Opus 4.1",
+        "description": "Advanced Claude model with improved capabilities",
+        "context_length": 200000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "claude-opus-4@20250514",
+        "name": "Claude Opus 4",
+        "description": "Fourth generation flagship Claude model",
+        "context_length": 200000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "claude-sonnet-4@20250514",
+        "name": "Claude Sonnet 4",
+        "description": "Fourth generation balanced Claude model",
+        "context_length": 200000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "claude-3-7-sonnet@20250219",
+        "name": "Claude Sonnet 3.7",
+        "description": "Enhanced third generation Claude model with improved performance",
+        "context_length": 200000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "claude-3-5-sonnet-v2@20241022",
+        "name": "Claude Sonnet 3.5 v2",
+        "description": "Most intelligent model through Amazon Bedrock",
+        "context_length": 200000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "claude-3-5-haiku@20241022",
+        "name": "Claude Haiku 3.5",
+        "description": "Fast third generation Claude model optimized for efficiency",
+        "context_length": 200000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "claude-3-5-sonnet@20240620",
+        "name": "Claude Sonnet 3.5",
+        "description": "Advanced third generation Claude model",
+        "context_length": 200000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "claude-3-haiku@20240307",
+        "name": "Claude Haiku 3",
+        "description": "Third generation fast Claude model",
+        "context_length": 200000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": false,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "claude-3-sonnet@20240229",
+        "name": "Claude Sonnet 3",
+        "description": "Third generation balanced Claude model",
+        "context_length": 200000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "claude-3-opus@20240229",
+        "name": "Claude Opus 3",
+        "description": "Third generation most powerful Claude model",
+        "context_length": 200000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      }
+    ],
+    "auth_methods": ["google_adc"]
   }
 ]
