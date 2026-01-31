@@ -511,7 +511,7 @@ mod tests {
             config.url_param_vars,
             vec!["PROJECT_ID".to_string(), "LOCATION".to_string()]
         );
-        assert_eq!(config.response_type, Some(ProviderResponse::OpenAI));
+        assert_eq!(config.response_type, Some(ProviderResponse::Google));
         assert!(&config.url.contains("{{"));
         assert!(&config.url.contains("}}"));
     }
