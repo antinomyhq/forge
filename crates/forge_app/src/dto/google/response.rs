@@ -426,44 +426,45 @@ impl TryFrom<Candidate> for ChatCompletionMessage {
 
         // Process content parts
         if let Some(content) = candidate.content
-            && let Some(parts) = content.parts {
-                for part in parts {
-                    let part_message = ChatCompletionMessage::try_from(part)?;
+            && let Some(parts) = content.parts
+        {
+            for part in parts {
+                let part_message = ChatCompletionMessage::try_from(part)?;
 
-                    // Collect content text
-                    if let Some(part_content) = part_message.content {
-                        let text = part_content.as_str();
-                        if !text.is_empty() {
-                            content_parts.push(text.to_string());
-                        }
-                    }
-
-                    // Collect reasoning text
-                    if let Some(part_reasoning) = part_message.reasoning {
-                        let text = part_reasoning.as_str();
-                        if !text.is_empty() {
-                            reasoning_parts.push(text.to_string());
-                        }
-                    }
-
-                    // Collect reasoning details (accumulate)
-                    if let Some(details) = part_message.reasoning_details {
-                        if let Some(ref mut current) = reasoning_details {
-                            current.extend(details);
-                        } else {
-                            reasoning_details = Some(details);
-                        }
-                    }
-
-                    // Collect tool calls
-                    tool_calls.extend(part_message.tool_calls);
-
-                    // Take thought signature (last one wins)
-                    if part_message.thought_signature.is_some() {
-                        thought_signature = part_message.thought_signature;
+                // Collect content text
+                if let Some(part_content) = part_message.content {
+                    let text = part_content.as_str();
+                    if !text.is_empty() {
+                        content_parts.push(text.to_string());
                     }
                 }
+
+                // Collect reasoning text
+                if let Some(part_reasoning) = part_message.reasoning {
+                    let text = part_reasoning.as_str();
+                    if !text.is_empty() {
+                        reasoning_parts.push(text.to_string());
+                    }
+                }
+
+                // Collect reasoning details (accumulate)
+                if let Some(details) = part_message.reasoning_details {
+                    if let Some(ref mut current) = reasoning_details {
+                        current.extend(details);
+                    } else {
+                        reasoning_details = Some(details);
+                    }
+                }
+
+                // Collect tool calls
+                tool_calls.extend(part_message.tool_calls);
+
+                // Take thought signature (last one wins)
+                if part_message.thought_signature.is_some() {
+                    thought_signature = part_message.thought_signature;
+                }
             }
+        }
 
         // Build the final message
         let content = content_parts.join("");
