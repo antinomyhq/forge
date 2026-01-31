@@ -37,7 +37,10 @@ impl<H: HttpInfra> Google<H> {
     fn get_headers(&self) -> Vec<(String, String)> {
         vec![
             ("Content-Type".to_string(), "application/json".to_string()),
-            ("Authorization".to_string(), format!("Bearer {}", self.api_key)),
+            (
+                "Authorization".to_string(),
+                format!("Bearer {}", self.api_key),
+            ),
         ]
     }
 }
@@ -61,9 +64,8 @@ impl<T: HttpInfra> Google<T> {
             base_url.trim_end_matches('/'),
             model_name
         );
-        let url = Url::parse(&full_url)
-            .with_context(|| "Failed to construct Google API URL")?;
-        
+        let url = Url::parse(&full_url).with_context(|| "Failed to construct Google API URL")?;
+
         debug!(url = %url, model = %model, "Connecting Upstream");
 
         let json_bytes =
@@ -163,8 +165,12 @@ impl<F: HttpInfra> GoogleResponseRepository<F> {
         // For OAuth, extract the access token
         let token = match creds {
             forge_domain::AuthDetails::ApiKey(api_key) => api_key.as_str().to_string(),
-            forge_domain::AuthDetails::OAuth { tokens, .. } => tokens.access_token.as_str().to_string(),
-            forge_domain::AuthDetails::OAuthWithApiKey { api_key, .. } => api_key.as_str().to_string(),
+            forge_domain::AuthDetails::OAuth { tokens, .. } => {
+                tokens.access_token.as_str().to_string()
+            }
+            forge_domain::AuthDetails::OAuthWithApiKey { api_key, .. } => {
+                api_key.as_str().to_string()
+            }
         };
 
         Ok(Google::new(self.infra.clone(), token, chat_url, models))

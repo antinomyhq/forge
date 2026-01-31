@@ -47,7 +47,13 @@ impl<F: EnvironmentInfra + HttpInfra> ForgeChatRepository<F> {
         let google_repo =
             GoogleResponseRepository::new(infra.clone()).retry_config(retry_config.clone());
 
-        Self { openai_repo, codex_repo, anthropic_repo, bedrock_repo, google_repo }
+        Self {
+            openai_repo,
+            codex_repo,
+            anthropic_repo,
+            bedrock_repo,
+            google_repo,
+        }
     }
 }
 

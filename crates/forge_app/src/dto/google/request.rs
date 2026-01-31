@@ -1,7 +1,6 @@
 use derive_setters::Setters;
-use serde::Serialize;
-
 use forge_domain::{Context, ContextMessage};
+use serde::Serialize;
 
 #[derive(Serialize, Default, Setters)]
 #[setters(into, strip_option)]
@@ -157,7 +156,7 @@ pub enum CacheControl {
 #[serde(rename_all = "lowercase")]
 pub enum Role {
     User,
-    Model
+    Model,
 }
 
 #[derive(Serialize)]
@@ -306,29 +305,33 @@ impl From<Context> for Request {
             .messages
             .iter()
             .filter(|msg| msg.has_role(forge_domain::Role::System))
-            .filter_map(|msg| msg.content().map(|content| Part::Text {
-                text: content.to_string(),
-                thought: None,
-                thought_signature: None,
-                cache_control: None,
-            }))
+            .filter_map(|msg| {
+                msg.content().map(|content| Part::Text {
+                    text: content.to_string(),
+                    thought: None,
+                    thought_signature: None,
+                    cache_control: None,
+                })
+            })
             .collect();
 
         let system_instruction = if !system_parts.is_empty() {
-            Some(Content {
-                role: None,
-                parts: system_parts,
-            })
+            Some(Content { role: None, parts: system_parts })
         } else {
             None
         };
 
         // Convert messages (excluding system messages)
-        // Group consecutive tool results into single Content objects to match Google's API requirements
+        // Group consecutive tool results into single Content objects to match Google's
+        // API requirements
         let mut contents: Vec<Content> = Vec::new();
         let mut pending_tool_parts: Vec<Part> = Vec::new();
-        
-        for msg in context.messages.into_iter().filter(|msg| !msg.has_role(forge_domain::Role::System)) {
+
+        for msg in context
+            .messages
+            .into_iter()
+            .filter(|msg| !msg.has_role(forge_domain::Role::System))
+        {
             match msg.message {
                 ContextMessage::Tool(tool_result) => {
                     // Collect tool result parts to be grouped together
@@ -342,7 +345,7 @@ impl From<Context> for Request {
                             parts: std::mem::take(&mut pending_tool_parts),
                         });
                     }
-                    
+
                     // Add the current non-tool message
                     let content = Content::from(other);
                     if !content.parts.is_empty() {
@@ -351,13 +354,10 @@ impl From<Context> for Request {
                 }
             }
         }
-        
+
         // Flush any remaining tool results
         if !pending_tool_parts.is_empty() {
-            contents.push(Content {
-                role: Some(Role::User),
-                parts: pending_tool_parts,
-            });
+            contents.push(Content { role: Some(Role::User), parts: pending_tool_parts });
         }
 
         // Convert tools
@@ -453,13 +453,14 @@ impl From<forge_domain::ToolChoice> for ToolConfig {
 impl From<forge_domain::ToolDefinition> for FunctionDeclaration {
     fn from(tool: forge_domain::ToolDefinition) -> Self {
         // Convert input_schema to JSON value and strip $schema field
-        let mut parameters = serde_json::to_value(tool.input_schema).unwrap_or(serde_json::json!({}));
-        
+        let mut parameters =
+            serde_json::to_value(tool.input_schema).unwrap_or(serde_json::json!({}));
+
         // Remove $schema field if present (Google API doesn't accept it)
         if let Some(obj) = parameters.as_object_mut() {
             obj.remove("$schema");
         }
-        
+
         FunctionDeclaration {
             name: tool.name.to_string(),
             description: Some(tool.description),
@@ -518,10 +519,7 @@ impl From<forge_domain::ToolResult> for Content {
 
 impl From<forge_domain::Image> for Content {
     fn from(image: forge_domain::Image) -> Self {
-        Content {
-            role: Some(Role::User),
-            parts: vec![Part::from(image)],
-        }
+        Content { role: Some(Role::User), parts: vec![Part::from(image)] }
     }
 }
 
@@ -542,7 +540,8 @@ impl From<forge_domain::ToolResult> for Part {
         Part::FunctionResponse {
             function_response: FunctionResponseData {
                 name: tool_result.name.to_string(),
-                response: serde_json::to_value(&tool_result.output).unwrap_or(serde_json::json!({})),
+                response: serde_json::to_value(&tool_result.output)
+                    .unwrap_or(serde_json::json!({})),
             },
         }
     }
@@ -562,16 +561,20 @@ impl From<forge_domain::Image> for Part {
 
 #[cfg(test)]
 mod tests {
+    use forge_domain::{ToolCallArguments, ToolCallFull, ToolCallId, ToolName, ToolResult};
+
     use super::*;
-    use forge_domain::{ToolCallFull, ToolCallArguments, ToolName, ToolResult, ToolCallId};
 
     #[test]
     fn test_tool_call_args_serialization() {
-        // Create a ToolCallFull with Unparsed JSON arguments (as it would come from API)
+        // Create a ToolCallFull with Unparsed JSON arguments (as it would come from
+        // API)
         let tool_call = ToolCallFull {
             name: ToolName::new("patch"),
             call_id: None,
-            arguments: ToolCallArguments::from_json(r#"{"file_path":"test.rs","old_string":"foo","new_string":"bar"}"#),
+            arguments: ToolCallArguments::from_json(
+                r#"{"file_path":"test.rs","old_string":"foo","new_string":"bar"}"#,
+            ),
             thought_signature: None,
         };
 
@@ -580,13 +583,17 @@ mod tests {
 
         // Verify it serializes correctly
         let serialized = serde_json::to_value(&part).unwrap();
-        
+
         // The Part enum serializes using snake_case for the variant name
         if let Some(function_call) = serialized.get("function_call") {
             if let Some(args) = function_call.get("args") {
                 // Args should be a proper JSON object, not a string
-                assert!(args.is_object(), "Args should be deserialized as JSON object, not string: {:?}", args);
-                
+                assert!(
+                    args.is_object(),
+                    "Args should be deserialized as JSON object, not string: {:?}",
+                    args
+                );
+
                 // Verify fields are accessible
                 assert_eq!(args["file_path"], "test.rs");
                 assert_eq!(args["old_string"], "foo");
@@ -621,10 +628,15 @@ mod tests {
         for (i, tool_call) in tool_calls.into_iter().enumerate() {
             let part = Part::from(tool_call);
             let serialized = serde_json::to_value(&part).unwrap();
-            
+
             if let Some(function_call) = serialized.get("function_call") {
                 if let Some(args) = function_call.get("args") {
-                    assert!(args.is_object(), "Tool call {} args should be object, got: {:?}", i, args);
+                    assert!(
+                        args.is_object(),
+                        "Tool call {} args should be object, got: {:?}",
+                        i,
+                        args
+                    );
                     let expected_path = format!("file{}.rs", i + 1);
                     assert_eq!(args["path"], expected_path, "Tool call {} path mismatch", i);
                 } else {
@@ -639,16 +651,20 @@ mod tests {
     #[test]
     fn test_consecutive_tool_results_grouped() {
         use forge_domain::{Context, ContextMessage, ModelId};
-        
-        // Create a context with multiple consecutive tool results (simulating 13 read calls)
+
+        // Create a context with multiple consecutive tool results (simulating 13 read
+        // calls)
         let mut context = Context::default();
-        
+
         // Add initial user message
-        context = context.add_message(ContextMessage::user("Read these files", Some(ModelId::new("test"))));
-        
+        context = context.add_message(ContextMessage::user(
+            "Read these files",
+            Some(ModelId::new("test")),
+        ));
+
         // Add assistant message with tool calls
         context = context.add_message(ContextMessage::assistant("", None, None, None));
-        
+
         // Add 13 consecutive tool results (like in the dump)
         for i in 1..=13 {
             let tool_result = ToolResult::new("read")
@@ -656,81 +672,111 @@ mod tests {
                 .success(format!("Content of file {}", i));
             context = context.add_message(ContextMessage::tool_result(tool_result));
         }
-        
+
         // Convert to Google Request
         let request = Request::from(context);
-        
+
         // Verify structure:
         // 1. First content: user message
         // 2. Second content: assistant message (might be empty and filtered out)
         // 3. Third content: ALL 13 tool results grouped together
-        
+
         // Find the content with tool results
-        let tool_result_content = request.contents.iter()
-            .find(|c| c.parts.iter().any(|p| matches!(p, Part::FunctionResponse { .. })))
+        let tool_result_content = request
+            .contents
+            .iter()
+            .find(|c| {
+                c.parts
+                    .iter()
+                    .any(|p| matches!(p, Part::FunctionResponse { .. }))
+            })
             .expect("Should have a content with function responses");
-        
+
         // Verify all 13 tool results are in ONE Content object
-        let function_response_count = tool_result_content.parts.iter()
+        let function_response_count = tool_result_content
+            .parts
+            .iter()
             .filter(|p| matches!(p, Part::FunctionResponse { .. }))
             .count();
-        
+
         assert_eq!(
-            function_response_count, 
-            13, 
+            function_response_count, 13,
             "All 13 tool results should be grouped into a single Content with 13 FunctionResponse parts"
         );
-        
+
         // Verify the role is User
-        assert_eq!(tool_result_content.role, Some(Role::User), "Tool results should have User role");
+        assert_eq!(
+            tool_result_content.role,
+            Some(Role::User),
+            "Tool results should have User role"
+        );
     }
 
     #[test]
     fn test_non_consecutive_tool_results_not_grouped() {
         use forge_domain::{Context, ContextMessage, ModelId};
-        
+
         // Create a context with tool results separated by other messages
         let mut context = Context::default();
-        
+
         // User message
-        context = context.add_message(ContextMessage::user("First task", Some(ModelId::new("test"))));
-        
+        context = context.add_message(ContextMessage::user(
+            "First task",
+            Some(ModelId::new("test")),
+        ));
+
         // Tool result #1
         let tool_result_1 = ToolResult::new("read")
             .call_id(ToolCallId::new("call_1"))
             .success("Result 1");
         context = context.add_message(ContextMessage::tool_result(tool_result_1));
-        
+
         // Assistant message (breaks the sequence)
-        context = context.add_message(ContextMessage::assistant("Let me do more", None, None, None));
-        
+        context = context.add_message(ContextMessage::assistant(
+            "Let me do more",
+            None,
+            None,
+            None,
+        ));
+
         // Tool result #2 (should be in a separate Content)
         let tool_result_2 = ToolResult::new("read")
             .call_id(ToolCallId::new("call_2"))
             .success("Result 2");
         context = context.add_message(ContextMessage::tool_result(tool_result_2));
-        
+
         // Convert to Google Request
         let request = Request::from(context);
-        
+
         // Count how many Content objects have FunctionResponse parts
-        let contents_with_tool_results: Vec<_> = request.contents.iter()
-            .filter(|c| c.parts.iter().any(|p| matches!(p, Part::FunctionResponse { .. })))
+        let contents_with_tool_results: Vec<_> = request
+            .contents
+            .iter()
+            .filter(|c| {
+                c.parts
+                    .iter()
+                    .any(|p| matches!(p, Part::FunctionResponse { .. }))
+            })
             .collect();
-        
+
         // Should have 2 separate Content objects for the 2 non-consecutive tool results
         assert_eq!(
-            contents_with_tool_results.len(), 
-            2, 
+            contents_with_tool_results.len(),
+            2,
             "Non-consecutive tool results should be in separate Content objects"
         );
-        
+
         // Each should have exactly 1 FunctionResponse
         for content in contents_with_tool_results {
-            let count = content.parts.iter()
+            let count = content
+                .parts
+                .iter()
                 .filter(|p| matches!(p, Part::FunctionResponse { .. }))
                 .count();
-            assert_eq!(count, 1, "Each separate tool result group should have 1 FunctionResponse");
+            assert_eq!(
+                count, 1,
+                "Each separate tool result group should have 1 FunctionResponse"
+            );
         }
     }
 
@@ -738,41 +784,47 @@ mod tests {
     fn test_response_schema_strips_dollar_schema() {
         use forge_domain::{Context, ResponseFormat};
         use schemars::schema_for;
-        
+
         #[allow(dead_code)]
         #[derive(schemars::JsonSchema)]
         struct TestResponse {
             result: String,
         }
-        
+
         // Create a context with a JSON schema response format
         let schema = schema_for!(TestResponse);
-        let context = Context::default()
-            .response_format(ResponseFormat::JsonSchema(Box::new(schema)));
-        
+        let context =
+            Context::default().response_format(ResponseFormat::JsonSchema(Box::new(schema)));
+
         // Convert to Google Request
         let request = Request::from(context);
-        
+
         // Verify generation_config has response_schema
-        let generation_config = request.generation_config.expect("Should have generation_config");
-        let response_schema = generation_config.response_schema.expect("Should have response_schema");
-        
+        let generation_config = request
+            .generation_config
+            .expect("Should have generation_config");
+        let response_schema = generation_config
+            .response_schema
+            .expect("Should have response_schema");
+
         // Verify $schema field is removed
         if let Some(obj) = response_schema.as_object() {
             assert!(
                 !obj.contains_key("$schema"),
                 "$schema field should be removed from response_schema"
             );
-            
+
             // Verify other schema properties are still present
             assert!(
-                obj.contains_key("type") || obj.contains_key("properties") || obj.contains_key("title"),
+                obj.contains_key("type")
+                    || obj.contains_key("properties")
+                    || obj.contains_key("title"),
                 "Schema should still contain other properties"
             );
         } else {
             panic!("response_schema should be an object");
         }
-        
+
         // Verify response_mime_type is set to application/json
         assert_eq!(
             generation_config.response_mime_type,

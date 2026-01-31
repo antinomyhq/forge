@@ -39,7 +39,7 @@ impl From<Model> for forge_domain::Model {
             tools_supported: Some(true), // Google models support function calling
             supports_parallel_tool_calls: Some(true),
             supports_reasoning: Some(true), // Gemini 2.0+ supports thinking
-            input_modalities: vec![], // Google supports text, images, audio, video
+            input_modalities: vec![],       // Google supports text, images, audio, video
         }
     }
 }
@@ -72,10 +72,12 @@ impl TryFrom<EventData> for ChatCompletionMessage {
     fn try_from(value: EventData) -> Result<Self, Self::Error> {
         match value {
             EventData::Response(response) => ChatCompletionMessage::try_from(response),
-            EventData::Error(e) => Err(anyhow::anyhow!("Google API Error {}: {}", e.error.code, e.error.message)),
-            EventData::Unknown(v) => {
-                Err(anyhow::anyhow!("Received unknown event data: {}", v))
-            }
+            EventData::Error(e) => Err(anyhow::anyhow!(
+                "Google API Error {}: {}",
+                e.error.code,
+                e.error.message
+            )),
+            EventData::Unknown(v) => Err(anyhow::anyhow!("Received unknown event data: {}", v)),
         }
     }
 }
@@ -367,39 +369,40 @@ impl TryFrom<Part> for ChatCompletionMessage {
 
                 if is_thought {
                     // This is a thinking/reasoning part
-                    Ok(ChatCompletionMessage::assistant(forge_domain::Content::part(""))
-                        .reasoning(forge_domain::Content::part(text_content.clone()))
-                        .add_reasoning_detail(Reasoning::Part(vec![ReasoningPart::default()
-                            .text(Some(text_content))
-                            .signature(thought_signature)])))
+                    Ok(
+                        ChatCompletionMessage::assistant(forge_domain::Content::part(""))
+                            .reasoning(forge_domain::Content::part(text_content.clone()))
+                            .add_reasoning_detail(Reasoning::Part(vec![
+                                ReasoningPart::default()
+                                    .text(Some(text_content))
+                                    .signature(thought_signature),
+                            ])),
+                    )
                 } else {
                     // Regular text content
-                    let mut msg = ChatCompletionMessage::assistant(forge_domain::Content::part(
-                        text_content,
-                    ));
+                    let mut msg =
+                        ChatCompletionMessage::assistant(forge_domain::Content::part(text_content));
                     if let Some(signature) = thought_signature {
                         msg = msg.thought_signature(signature);
                     }
                     Ok(msg)
                 }
             }
-            Part::FunctionCall {
-                function_call,
-                thought_signature,
-            } => {
-                Ok(ChatCompletionMessage::assistant(forge_domain::Content::part(""))
-                    .add_tool_call(ToolCallPart {
+            Part::FunctionCall { function_call, thought_signature } => Ok(
+                ChatCompletionMessage::assistant(forge_domain::Content::part("")).add_tool_call(
+                    ToolCallPart {
                         call_id: Some(ToolCallId::generate()),
                         name: Some(ToolName::new(function_call.name)),
                         arguments_part: serde_json::to_string(&function_call.args)?,
                         thought_signature,
-                    }))
-            }
+                    },
+                ),
+            ),
             Part::InlineData { .. } => {
                 // For now, skip inline data in responses (it's typically for inputs)
-                Ok(ChatCompletionMessage::assistant(forge_domain::Content::part(
-                    "",
-                )))
+                Ok(ChatCompletionMessage::assistant(
+                    forge_domain::Content::part(""),
+                ))
             }
         }
     }
@@ -422,8 +425,8 @@ impl TryFrom<Candidate> for ChatCompletionMessage {
         }
 
         // Process content parts
-        if let Some(content) = candidate.content {
-            if let Some(parts) = content.parts {
+        if let Some(content) = candidate.content
+            && let Some(parts) = content.parts {
                 for part in parts {
                     let part_message = ChatCompletionMessage::try_from(part)?;
 
@@ -461,7 +464,6 @@ impl TryFrom<Candidate> for ChatCompletionMessage {
                     }
                 }
             }
-        }
 
         // Build the final message
         let content = content_parts.join("");
@@ -521,35 +523,31 @@ impl TryFrom<Response> for ChatCompletionMessage {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use serde_json::json;
+
+    use super::*;
 
     #[test]
     fn test_chat_completion_message_from_part_function_call_generates_id() {
-        let function_call = FunctionCall {
-            name: "test_tool".to_string(),
-            args: json!({"arg": "value"}),
-        };
-        
-        let part = Part::FunctionCall {
-            function_call,
-            thought_signature: None,
-        };
+        let function_call =
+            FunctionCall { name: "test_tool".to_string(), args: json!({"arg": "value"}) };
+
+        let part = Part::FunctionCall { function_call, thought_signature: None };
 
         let message = ChatCompletionMessage::try_from(part).unwrap();
-        
+
         assert!(!message.tool_calls.is_empty());
         let tool_calls = message.tool_calls;
         assert_eq!(tool_calls.len(), 1);
-        
+
         let tool_call = &tool_calls[0];
         match tool_call {
-             forge_domain::ToolCall::Part(part) => {
-                 assert!(part.call_id.is_some());
-                 let call_id = part.call_id.as_ref().unwrap();
-                 assert!(call_id.as_str().starts_with("forge_call_id_"));
-             },
-             _ => panic!("Expected ToolCall::Part"),
+            forge_domain::ToolCall::Part(part) => {
+                assert!(part.call_id.is_some());
+                let call_id = part.call_id.as_ref().unwrap();
+                assert!(call_id.as_str().starts_with("forge_call_id_"));
+            }
+            _ => panic!("Expected ToolCall::Part"),
         }
     }
 }
