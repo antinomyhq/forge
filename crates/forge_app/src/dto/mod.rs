@@ -2,6 +2,7 @@
 // DTOs instead of using Prefixes for type names
 pub mod anthropic;
 pub mod openai;
+pub mod google;
 
 mod tools_overview;
 
