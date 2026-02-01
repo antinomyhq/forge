@@ -6,8 +6,8 @@ use forge_app::HttpInfra;
 use forge_app::domain::{
     ChatCompletionMessage, Context, Model, ModelId, ResultStream, RetryConfig,
 };
-use forge_app::dto::google::{EventData, Request};
-use forge_domain::{ChatRepository, Provider};
+use forge_app::dto::google::{EventData, ProviderPipeline, Request};
+use forge_domain::{ChatRepository, Provider, Transformer};
 use reqwest::Url;
 use tokio_stream::StreamExt;
 use tracing::debug;
@@ -57,8 +57,11 @@ impl<T: HttpInfra> Google<T> {
         &self,
         model: &ModelId,
         context: Context,
+        provider: &Provider<Url>,
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
         let request = Request::from(context);
+        let mut pipeline = ProviderPipeline::new(provider, model.as_str());
+        let request = pipeline.transform(request);
 
         // Google models are specified in the URL path, not the request body
         // URL format: {base_url}/models/{model}:streamGenerateContent?alt=sse
@@ -203,7 +206,7 @@ impl<F: HttpInfra + 'static> ChatRepository for GoogleResponseRepository<F> {
         let provider_client = self.create_client(&provider)?;
 
         let stream = provider_client
-            .chat(model_id, context)
+            .chat(model_id, context, &provider)
             .await
             .map_err(|e| into_retry(e, &retry_config))?;
 
