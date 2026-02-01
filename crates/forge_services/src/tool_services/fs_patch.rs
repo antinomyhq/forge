@@ -39,6 +39,15 @@ impl Range {
             .map(|start| Self::new(start, search.len()))
     }
 
+    /// Detect the line ending used in the source (CRLF or LF)
+    fn detect_line_ending(source: &str) -> &'static str {
+        if source.contains("\r\n") {
+            "\r\n"
+        } else {
+            "\n"
+        }
+    }
+
     /// Create a range from a fuzzy search match
     fn from_search_match(source: &str, search_match: &SearchMatch) -> Self {
         let lines: Vec<&str> = source.lines().collect();
@@ -48,6 +57,10 @@ impl Range {
             return Self::new(0, 0);
         }
 
+        // Detect the line ending style used in the source
+        let line_ending = Self::detect_line_ending(source);
+        let line_ending_len = line_ending.len();
+
         // SearchMatch uses 0-based inclusive line numbers
         // Convert to 0-based array indices
         let start_idx = (search_match.start_line as usize).min(lines.len());
@@ -56,10 +69,10 @@ impl Range {
         let end_idx = ((search_match.end_line as usize) + 1).min(lines.len());
 
         // Find the character position of the start line
-        // Sum the lengths of all lines before start_idx, adding 1 for each newline
+        // Sum the lengths of all lines before start_idx, adding the appropriate line ending length
         let start_pos = lines[..start_idx]
             .iter()
-            .map(|l| l.len() + 1)
+            .map(|l| l.len() + line_ending_len)
             .sum::<usize>();
 
         // Calculate the length
@@ -73,14 +86,14 @@ impl Range {
         } else {
             // Multi-line match: include newlines between lines but NOT after the last line
             // Sum lengths of lines from start_idx to end_idx (exclusive)
-            // Add 1 for each newline between lines (end_idx - start_idx - 1 newlines)
+            // Add appropriate line ending length for each newline between lines
             let content_len: usize = if start_idx >= lines.len() || end_idx > lines.len() {
                 0 // Out of bounds match
             } else {
                 lines[start_idx..end_idx].iter().map(|l| l.len()).sum()
             };
             let newlines_between = end_idx - start_idx - 1;
-            content_len + newlines_between
+            content_len + (newlines_between * line_ending_len)
         };
 
         Self::new(start_pos, length)
@@ -908,5 +921,71 @@ mod tests {
                 .to_string()
                 .contains("Could not find match for search text: 'missing'")
         );
+    }
+
+    #[test]
+    fn test_range_from_search_match_crlf_single_line() {
+        let source = "line1\r\nline2\r\nline3";
+        // 0-based: line 1 (the second line, "line2")
+        let search_match = SearchMatch { start_line: 1, end_line: 1 };
+
+        let range = super::Range::from_search_match(source, &search_match);
+        let actual = &source[range.start..range.end()];
+        let expected = "line2";
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_range_from_search_match_crlf_multi_line() {
+        let source = "line1\r\nline2\r\nline3\r\nline4";
+        // 0-based: lines 1-2 (second and third lines, "line2\r\nline3")
+        let search_match = SearchMatch { start_line: 1, end_line: 2 };
+
+        let range = super::Range::from_search_match(source, &search_match);
+        let actual = &source[range.start..range.end()];
+        let expected = "line2\r\nline3";
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_range_from_search_match_crlf_first_line() {
+        let source = "line1\r\nline2\r\nline3";
+        // 0-based: line 0 (first line, "line1")
+        let search_match = SearchMatch { start_line: 0, end_line: 0 };
+
+        let range = super::Range::from_search_match(source, &search_match);
+        let actual = &source[range.start..range.end()];
+        let expected = "line1";
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_range_from_search_match_crlf_all_lines() {
+        let source = "line1\r\nline2\r\nline3";
+        // 0-based: lines 0-2 (all three lines)
+        let search_match = SearchMatch { start_line: 0, end_line: 2 };
+
+        let range = super::Range::from_search_match(source, &search_match);
+        let actual = &source[range.start..range.end()];
+        let expected = "line1\r\nline2\r\nline3";
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_detect_line_ending_crlf() {
+        let source = "line1\r\nline2\r\nline3";
+        let line_ending = super::Range::detect_line_ending(source);
+        assert_eq!(line_ending, "\r\n");
+    }
+
+    #[test]
+    fn test_detect_line_ending_lf() {
+        let source = "line1\nline2\nline3";
+        let line_ending = super::Range::detect_line_ending(source);
+        assert_eq!(line_ending, "\n");
     }
 }
