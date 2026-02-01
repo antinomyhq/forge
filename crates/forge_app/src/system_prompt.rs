@@ -62,6 +62,18 @@ impl<S: SkillFetchService> SystemPrompt<S> {
 
             let skills = self.services.list_skills().await?;
 
+            // Populate tool_names map for template rendering
+            let tool_names = self
+                .tool_definitions
+                .iter()
+                .map(|tool| {
+                    (
+                        tool.name.to_string(),
+                        serde_json::Value::String(tool.name.to_string()),
+                    )
+                })
+                .collect();
+
             let ctx = SystemContext {
                 env: Some(env),
                 tool_information,
@@ -71,7 +83,7 @@ impl<S: SkillFetchService> SystemPrompt<S> {
                 supports_parallel_tool_calls,
                 skills,
                 model: None,
-                tool_names: Default::default(),
+                tool_names,
             };
 
             let static_block = TemplateEngine::default()
@@ -180,5 +192,140 @@ mod tests {
         assert!(result.is_ok());
         let conversation = result.unwrap();
         assert!(conversation.context.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_tool_names_populated_in_context() {
+        use forge_domain::{Template, ToolDefinition};
+
+        // Fixture - create system prompt with tool definitions
+        let services = Arc::new(MockSkillFetchService);
+        let env = create_test_environment();
+        let agent = create_test_agent().system_prompt(Template::new(
+            "Tools: {{tool_names.todo_write}}, {{tool_names.read}}",
+        ));
+
+        let tool_definitions = vec![
+            ToolDefinition::new("todo_write").description("Task tracking"),
+            ToolDefinition::new("read").description("Read files"),
+            ToolDefinition::new("write").description("Write files"),
+        ];
+
+        let system_prompt =
+            SystemPrompt::new(services, env, agent).tool_definitions(tool_definitions);
+
+        // Act
+        let conversation = forge_domain::Conversation::generate();
+        let result = system_prompt.add_system_message(conversation).await;
+
+        // Assert - verify tool_names are available in rendered template
+        assert!(result.is_ok());
+        let conversation = result.unwrap();
+        let context = conversation.context.expect("Context should exist");
+        let system_message = context
+            .messages
+            .iter()
+            .find(|m| m.has_role(forge_domain::Role::System))
+            .expect("System message should exist");
+
+        let content = system_message.content().expect("Content should exist");
+
+        // Verify template variables were resolved
+        assert!(
+            content.contains("Tools: todo_write, read"),
+            "Template should resolve {{{{tool_names.todo_write}}}} and {{{{tool_names.read}}}}, got: {}",
+            content
+        );
+    }
+
+    #[tokio::test]
+    async fn test_conditional_tool_names_when_tool_missing() {
+        use forge_domain::{Template, ToolDefinition};
+
+        // Fixture - create system prompt with conditional tool reference
+        let services = Arc::new(MockSkillFetchService);
+        let env = create_test_environment();
+        let agent = create_test_agent().system_prompt(Template::new(
+            "Search using {{#if tool_names.sem_search}}{{tool_names.sem_search}}, {{/if}}{{tool_names.fs_search}}",
+        ));
+
+        // Only include fs_search, not sem_search
+        let tool_definitions = vec![ToolDefinition::new("fs_search").description("File search")];
+
+        let system_prompt =
+            SystemPrompt::new(services, env, agent).tool_definitions(tool_definitions);
+
+        // Act
+        let conversation = forge_domain::Conversation::generate();
+        let result = system_prompt.add_system_message(conversation).await;
+
+        // Assert - verify conditional rendering works when tool is missing
+        assert!(result.is_ok());
+        let conversation = result.unwrap();
+        let context = conversation.context.expect("Context should exist");
+        let system_message = context
+            .messages
+            .iter()
+            .find(|m| m.has_role(forge_domain::Role::System))
+            .expect("System message should exist");
+
+        let content = system_message.content().expect("Content should exist");
+
+        // Should render only fs_search since sem_search is not available
+        assert!(
+            content.contains("Search using fs_search"),
+            "Template should conditionally omit sem_search, got: {}",
+            content
+        );
+        // Should not have double commas or extra spaces from missing tool
+        assert!(
+            !content.contains("Search using , fs_search"),
+            "Template should not have empty tool reference, got: {}",
+            content
+        );
+    }
+
+    #[tokio::test]
+    async fn test_conditional_tool_names_when_tool_present() {
+        use forge_domain::{Template, ToolDefinition};
+
+        // Fixture - create system prompt with conditional tool reference
+        let services = Arc::new(MockSkillFetchService);
+        let env = create_test_environment();
+        let agent = create_test_agent().system_prompt(Template::new(
+            "Search using {{#if tool_names.sem_search}}{{tool_names.sem_search}}, {{/if}}{{tool_names.fs_search}}",
+        ));
+
+        // Include both tools
+        let tool_definitions = vec![
+            ToolDefinition::new("sem_search").description("Semantic search"),
+            ToolDefinition::new("fs_search").description("File search"),
+        ];
+
+        let system_prompt =
+            SystemPrompt::new(services, env, agent).tool_definitions(tool_definitions);
+
+        // Act
+        let conversation = forge_domain::Conversation::generate();
+        let result = system_prompt.add_system_message(conversation).await;
+
+        // Assert - verify conditional rendering includes both tools
+        assert!(result.is_ok());
+        let conversation = result.unwrap();
+        let context = conversation.context.expect("Context should exist");
+        let system_message = context
+            .messages
+            .iter()
+            .find(|m| m.has_role(forge_domain::Role::System))
+            .expect("System message should exist");
+
+        let content = system_message.content().expect("Content should exist");
+
+        // Should render both tools
+        assert!(
+            content.contains("Search using sem_search, fs_search"),
+            "Template should include both tools, got: {}",
+            content
+        );
     }
 }
