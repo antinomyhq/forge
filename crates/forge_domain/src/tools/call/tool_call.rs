@@ -28,11 +28,8 @@ impl ToolCallId {
         &self.0
     }
 
-    fn generate() -> Self {
-        // Generate ID in Anthropic/Bedrock compatible format: toolu_<alphanumeric>
-        // Use UUID but strip hyphens to ensure alphanumeric-only format
-        let uuid = uuid::Uuid::new_v4().to_string().replace("-", "");
-        let id = format!("toolu_{}", &uuid[..22]); // Use first 22 chars to match Anthropic's format
+    pub fn generate() -> Self {
+        let id = format!("forge_call_id_{}", uuid::Uuid::new_v4());
         ToolCallId(id)
     }
 }
@@ -558,7 +555,7 @@ mod tests {
 
         let tool_call = ToolCallFull::try_from_xml(&message).unwrap();
         let actual = tool_call.first().unwrap().call_id.as_ref().unwrap();
-        assert!(actual.as_str().starts_with("toolu_"));
+        assert!(actual.as_str().starts_with("forge_call_id_"));
     }
     #[test]
     fn test_try_from_parts_handles_empty_tool_names() {
@@ -636,7 +633,7 @@ mod tests {
                 .as_ref()
                 .unwrap()
                 .as_str()
-                .starts_with("toolu_")
+                .starts_with("forge_call_id_")
         );
     }
 
