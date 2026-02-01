@@ -84,6 +84,6 @@ mod tests {
 
         assert_eq!(thinking_config.include_thoughts, Some(true));
         // Should be None (unspecified) for non-gemini-3
-        assert!(matches!(thinking_config.thinking_level, None));
+        assert!(thinking_config.thinking_level.is_none());
     }
 }
