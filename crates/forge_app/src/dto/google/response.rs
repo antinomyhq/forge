@@ -369,14 +369,13 @@ impl TryFrom<Part> for ChatCompletionMessage {
 
                 if is_thought {
                     // This is a thinking/reasoning part
-                    let mut msg =
-                        ChatCompletionMessage::assistant(forge_domain::Content::part(""))
-                            .reasoning(forge_domain::Content::part(text_content.clone()))
-                            .add_reasoning_detail(Reasoning::Part(vec![
-                                ReasoningPart::default()
-                                    .text(Some(text_content))
-                                    .signature(thought_signature.clone()),
-                            ]));
+                    let mut msg = ChatCompletionMessage::assistant(forge_domain::Content::part(""))
+                        .reasoning(forge_domain::Content::part(text_content.clone()))
+                        .add_reasoning_detail(Reasoning::Part(vec![
+                            ReasoningPart::default()
+                                .text(Some(text_content))
+                                .signature(thought_signature.clone()),
+                        ]));
 
                     if let Some(signature) = thought_signature {
                         msg = msg.thought_signature(signature);
@@ -591,7 +590,7 @@ mod tests {
         });
         let event_data: EventData = serde_json::from_value(response_json).unwrap();
         match event_data {
-            EventData::Response(_) => {},
+            EventData::Response(_) => {}
             _ => panic!("Expected Response"),
         }
 
@@ -607,7 +606,7 @@ mod tests {
             EventData::Error(e) => {
                 assert_eq!(e.error.code, 400);
                 assert_eq!(e.error.message, "Bad Request");
-            },
+            }
             _ => panic!("Expected Error"),
         }
     }
@@ -631,7 +630,7 @@ mod tests {
                         thought_signature: Some("sig123".to_string()),
                         executable_code: None,
                         code_execution_result: None,
-                    }
+                    },
                 ]),
             }),
             finish_reason: Some("STOP".to_string()),
@@ -641,16 +640,16 @@ mod tests {
         };
 
         let message = ChatCompletionMessage::try_from(candidate).unwrap();
-        
+
         // Check content
         assert_eq!(message.content.unwrap().as_str(), "Hello");
-        
+
         // Check reasoning
         assert_eq!(message.reasoning.unwrap().as_str(), "Thinking...");
-        
+
         // Check finish reason
         assert_eq!(message.finish_reason.unwrap(), FinishReason::Stop);
-        
+
         // Check thought signature
         assert_eq!(message.thought_signature.unwrap(), "sig123");
     }
@@ -665,9 +664,9 @@ mod tests {
             thoughts_token_count: None,
             traffic_type: None,
         };
-        
+
         let domain_usage: forge_domain::Usage = usage.into();
-        
+
         assert_eq!(domain_usage.prompt_tokens, TokenCount::Actual(10));
         assert_eq!(domain_usage.completion_tokens, TokenCount::Actual(20));
         assert_eq!(domain_usage.total_tokens, TokenCount::Actual(30));

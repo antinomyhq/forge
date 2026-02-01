@@ -390,10 +390,11 @@ mod tests {
             }])
             .tool_choice(ToolChoice::Call(ToolName::new("math")));
 
-        // We can't easily test Request::from(context) directly here because Request is private or we need to access it via Google::chat
-        // But we can check the serialized request if we mock the http call.
-        // However, Request is pub in dto::google::Request, so we can use it if we import it.
-        // The import `use forge_app::dto::google::{EventData, Request};` is already there.
+        // We can't easily test Request::from(context) directly here because Request is
+        // private or we need to access it via Google::chat But we can check the
+        // serialized request if we mock the http call. However, Request is pub
+        // in dto::google::Request, so we can use it if we import it. The import
+        // `use forge_app::dto::google::{EventData, Request};` is already there.
 
         let request = Request::from(context);
         insta::assert_json_snapshot!(request);
@@ -447,8 +448,12 @@ mod tests {
         );
 
         let headers = google.get_headers();
-        
-        assert!(headers.iter().any(|(k, v)| k == "x-goog-api-key" && v == "sk-test-key"));
+
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "x-goog-api-key" && v == "sk-test-key")
+        );
         assert!(!headers.iter().any(|(k, _)| k == "Authorization"));
     }
 
@@ -465,8 +470,12 @@ mod tests {
         );
 
         let headers = google.get_headers();
-        
-        assert!(headers.iter().any(|(k, v)| k == "Authorization" && v == "Bearer oauth-token"));
+
+        assert!(
+            headers
+                .iter()
+                .any(|(k, v)| k == "Authorization" && v == "Bearer oauth-token")
+        );
         assert!(!headers.iter().any(|(k, _)| k == "x-goog-api-key"));
     }
 }
