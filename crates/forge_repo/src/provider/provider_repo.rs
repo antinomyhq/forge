@@ -465,7 +465,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Sync>
 
 #[cfg(test)]
 mod tests {
-    use forge_app::domain::ProviderResponse;
+    use forge_app::domain::{AuthMethod, ProviderResponse};
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -514,6 +514,10 @@ mod tests {
         assert_eq!(config.response_type, Some(ProviderResponse::Google));
         assert!(&config.url.contains("{{"));
         assert!(&config.url.contains("}}"));
+
+        // Verify both auth methods are supported
+        assert!(config.auth_methods.contains(&AuthMethod::ApiKey));
+        assert!(config.auth_methods.contains(&AuthMethod::GoogleAdc));
     }
 
     #[test]

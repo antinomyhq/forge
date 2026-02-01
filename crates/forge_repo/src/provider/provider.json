@@ -504,7 +504,7 @@
         "input_modalities": ["text", "image"]
       }
     ],
-    "auth_methods": ["google_adc"]
+    "auth_methods": ["api_key", "google_adc"]
   },
   {
     "id": "azure",

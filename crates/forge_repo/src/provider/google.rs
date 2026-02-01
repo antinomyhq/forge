@@ -22,6 +22,7 @@ struct Google<T> {
     api_key: String,
     chat_url: Url,
     models: forge_domain::ModelSource<Url>,
+    use_api_key_header: bool,
 }
 
 impl<H: HttpInfra> Google<H> {
@@ -30,18 +31,24 @@ impl<H: HttpInfra> Google<H> {
         api_key: String,
         chat_url: Url,
         models: forge_domain::ModelSource<Url>,
+        use_api_key_header: bool,
     ) -> Self {
-        Self { http, api_key, chat_url, models }
+        Self { http, api_key, chat_url, models, use_api_key_header }
     }
 
     fn get_headers(&self) -> Vec<(String, String)> {
-        vec![
-            ("Content-Type".to_string(), "application/json".to_string()),
-            (
+        let mut headers = vec![("Content-Type".to_string(), "application/json".to_string())];
+
+        if self.use_api_key_header {
+            headers.push(("x-goog-api-key".to_string(), self.api_key.clone()));
+        } else {
+            headers.push((
                 "Authorization".to_string(),
                 format!("Bearer {}", self.api_key),
-            ),
-        ]
+            ));
+        }
+
+        headers
     }
 }
 
@@ -162,21 +169,28 @@ impl<F: HttpInfra> GoogleResponseRepository<F> {
             .clone();
 
         // For Vertex AI, the Google ADC token is stored as ApiKey
+        // For Vertex AI, the Google ADC token is stored as ApiKey
         // For OAuth, extract the access token
-        let token = match creds {
-            forge_domain::AuthDetails::ApiKey(api_key) => api_key.as_str().to_string(),
+        let (token, use_api_key_header) = match creds {
+            forge_domain::AuthDetails::ApiKey(api_key) => (api_key.as_str().to_string(), true),
+            forge_domain::AuthDetails::GoogleAdc(token) => (token.as_str().to_string(), false),
             forge_domain::AuthDetails::OAuth { tokens, .. } => {
-                tokens.access_token.as_str().to_string()
+                (tokens.access_token.as_str().to_string(), false)
             }
             forge_domain::AuthDetails::OAuthWithApiKey { api_key, .. } => {
-                api_key.as_str().to_string()
+                (api_key.as_str().to_string(), true)
             }
         };
 
-        Ok(Google::new(self.infra.clone(), token, chat_url, models))
+        Ok(Google::new(
+            self.infra.clone(),
+            token,
+            chat_url,
+            models,
+            use_api_key_header,
+        ))
     }
 }
-
 #[async_trait::async_trait]
 impl<F: HttpInfra + 'static> ChatRepository for GoogleResponseRepository<F> {
     async fn chat(
