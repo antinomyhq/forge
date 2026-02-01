@@ -369,15 +369,20 @@ impl TryFrom<Part> for ChatCompletionMessage {
 
                 if is_thought {
                     // This is a thinking/reasoning part
-                    Ok(
+                    let mut msg =
                         ChatCompletionMessage::assistant(forge_domain::Content::part(""))
                             .reasoning(forge_domain::Content::part(text_content.clone()))
                             .add_reasoning_detail(Reasoning::Part(vec![
                                 ReasoningPart::default()
                                     .text(Some(text_content))
-                                    .signature(thought_signature),
-                            ])),
-                    )
+                                    .signature(thought_signature.clone()),
+                            ]));
+
+                    if let Some(signature) = thought_signature {
+                        msg = msg.thought_signature(signature);
+                    }
+
+                    Ok(msg)
                 } else {
                     // Regular text content
                     let mut msg =
@@ -550,5 +555,122 @@ mod tests {
             }
             _ => panic!("Expected ToolCall::Part"),
         }
+    }
+
+    #[test]
+    fn test_model_conversion() {
+        let model = Model {
+            name: "models/gemini-pro".to_string(),
+            display_name: Some("Gemini Pro".to_string()),
+            description: Some("A model".to_string()),
+        };
+        let domain_model: forge_domain::Model = model.into();
+        assert_eq!(domain_model.id.as_str(), "gemini-pro");
+        assert_eq!(domain_model.name.unwrap(), "Gemini Pro");
+        assert_eq!(domain_model.context_length.unwrap(), 32_000);
+
+        let model_v2 = Model {
+            name: "models/gemini-2.0-flash".to_string(),
+            display_name: None,
+            description: None,
+        };
+        let domain_model_v2: forge_domain::Model = model_v2.clone().into();
+        assert_eq!(domain_model_v2.id.as_str(), "gemini-2.0-flash");
+        assert_eq!(domain_model_v2.name.unwrap(), "models/gemini-2.0-flash");
+        assert_eq!(domain_model_v2.context_length.unwrap(), 2_000_000);
+    }
+
+    #[test]
+    fn test_event_data_parsing() {
+        let response_json = json!({
+            "candidates": [{
+                "content": {
+                    "parts": [{"text": "Hello"}]
+                }
+            }]
+        });
+        let event_data: EventData = serde_json::from_value(response_json).unwrap();
+        match event_data {
+            EventData::Response(_) => {},
+            _ => panic!("Expected Response"),
+        }
+
+        let error_json = json!({
+            "error": {
+                "code": 400,
+                "message": "Bad Request",
+                "status": "INVALID_ARGUMENT"
+            }
+        });
+        let event_data_err: EventData = serde_json::from_value(error_json).unwrap();
+        match event_data_err {
+            EventData::Error(e) => {
+                assert_eq!(e.error.code, 400);
+                assert_eq!(e.error.message, "Bad Request");
+            },
+            _ => panic!("Expected Error"),
+        }
+    }
+
+    #[test]
+    fn test_candidate_to_message_conversion() {
+        let candidate = Candidate {
+            content: Some(Content {
+                role: Some("model".to_string()),
+                parts: Some(vec![
+                    Part::Text {
+                        text: Some("Hello".to_string()),
+                        thought: None,
+                        thought_signature: None,
+                        executable_code: None,
+                        code_execution_result: None,
+                    },
+                    Part::Text {
+                        text: Some("Thinking...".to_string()),
+                        thought: Some(true),
+                        thought_signature: Some("sig123".to_string()),
+                        executable_code: None,
+                        code_execution_result: None,
+                    }
+                ]),
+            }),
+            finish_reason: Some("STOP".to_string()),
+            safety_ratings: None,
+            grounding_metadata: None,
+            url_context_metadata: None,
+        };
+
+        let message = ChatCompletionMessage::try_from(candidate).unwrap();
+        
+        // Check content
+        assert_eq!(message.content.unwrap().as_str(), "Hello");
+        
+        // Check reasoning
+        assert_eq!(message.reasoning.unwrap().as_str(), "Thinking...");
+        
+        // Check finish reason
+        assert_eq!(message.finish_reason.unwrap(), FinishReason::Stop);
+        
+        // Check thought signature
+        assert_eq!(message.thought_signature.unwrap(), "sig123");
+    }
+
+    #[test]
+    fn test_usage_metadata_conversion() {
+        let usage = UsageMetadata {
+            prompt_token_count: Some(10),
+            candidates_token_count: Some(20),
+            total_token_count: Some(30),
+            cached_content_token_count: Some(5),
+            thoughts_token_count: None,
+            traffic_type: None,
+        };
+        
+        let domain_usage: forge_domain::Usage = usage.into();
+        
+        assert_eq!(domain_usage.prompt_tokens, TokenCount::Actual(10));
+        assert_eq!(domain_usage.completion_tokens, TokenCount::Actual(20));
+        assert_eq!(domain_usage.total_tokens, TokenCount::Actual(30));
+        assert_eq!(domain_usage.cached_tokens, TokenCount::Actual(5));
     }
 }
