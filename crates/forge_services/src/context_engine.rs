@@ -348,6 +348,7 @@ impl<F> ForgeWorkspaceService<F> {
                 // Use the dedicated API key
                 Ok(api_key.clone())
             }
+            AuthDetails::GoogleAdc(token) => Ok(token.clone()),
         }
     }
 
@@ -1092,7 +1093,6 @@ mod tests {
         let ws1 = workspace();
         let ws2 = Workspace {
             workspace_id: WorkspaceId::generate(),
-            user_id: ws1.user_id.clone(),
             path: PathBuf::from("/project2"),
             created_at: chrono::Utc::now(),
             updated_at: None,
