@@ -675,7 +675,6 @@ mod tests {
 
     #[test]
     fn test_part_text_conversion() {
-
         let part = Part::Text {
             text: Some("Hello".to_string()),
             thought: None,
@@ -718,7 +717,7 @@ mod tests {
 
         let msg = ChatCompletionMessage::try_from(response).unwrap();
         assert_eq!(msg.content.unwrap().as_str(), "");
-        
+
         let usage = msg.usage.unwrap();
         assert_eq!(usage.prompt_tokens, TokenCount::Actual(10));
         assert_eq!(usage.completion_tokens, TokenCount::Actual(20));

@@ -829,7 +829,7 @@ mod tests {
 
         assert_eq!(decl.name, "test_tool");
         assert_eq!(decl.description.unwrap(), "A test tool");
-        
+
         // Check schema stripping
         let params = decl.parameters;
         assert!(params.is_object());
@@ -852,8 +852,7 @@ mod tests {
         }
 
         // Assistant message with thought signature
-        let msg = TextMessage::assistant("Hi", None, None)
-            .thought_signature("sig");
+        let msg = TextMessage::assistant("Hi", None, None).thought_signature("sig");
         let content = Content::from(msg);
         assert_eq!(content.role, Some(self::Role::Model));
         match &content.parts[0] {
@@ -874,7 +873,7 @@ mod tests {
 
         assert_eq!(content.role, Some(self::Role::User));
         assert_eq!(content.parts.len(), 1);
-        
+
         match &content.parts[0] {
             Part::Image { inline_data, .. } => {
                 assert_eq!(inline_data.mime_type.as_deref(), Some("image/png"));
@@ -954,9 +953,9 @@ mod tests {
         let result = ToolResult::new(ToolName::new("test"))
             .call_id(ToolCallId::new("call_1"))
             .success("output");
-        
+
         let part = Part::from(result);
-        
+
         match part {
             Part::FunctionResponse { function_response } => {
                 assert_eq!(function_response.name, "test");

@@ -511,24 +511,24 @@ mod tests {
     async fn test_chat_success() -> anyhow::Result<()> {
         let mut fixture = MockServer::new().await;
         let model_id = "gemini-1.5-pro";
-        
+
         let response1 = format!("data: {}", create_mock_chat_response("Hello"));
         let response2 = format!("data: {}", create_mock_chat_response(" World"));
-        
+
         let mock = fixture
-            .mock_google_chat_stream(
-                model_id,
-                vec![response1, response2],
-                200
-            )
+            .mock_google_chat_stream(model_id, vec![response1, response2], 200)
             .await;
 
         let google = create_google(&fixture.url())?;
-        
-        let context = Context::default()
-            .add_message(ContextMessage::user("Hi", Some(ModelId::new(format!("models/{}", model_id)))));
 
-        let mut stream = google.chat(&ModelId::new(format!("models/{}", model_id)), context).await?;
+        let context = Context::default().add_message(ContextMessage::user(
+            "Hi",
+            Some(ModelId::new(format!("models/{}", model_id))),
+        ));
+
+        let mut stream = google
+            .chat(&ModelId::new(format!("models/{}", model_id)), context)
+            .await?;
 
         let mut content = String::new();
         while let Some(result) = stream.next().await {
@@ -539,9 +539,9 @@ mod tests {
         }
 
         mock.assert_async().await;
-        
+
         assert_eq!(content, "Hello World");
-        
+
         Ok(())
     }
 }
