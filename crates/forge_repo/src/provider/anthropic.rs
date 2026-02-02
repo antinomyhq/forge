@@ -8,7 +8,7 @@ use forge_app::domain::{
 };
 use forge_app::dto::anthropic::{
     AuthSystemMessage, CapitalizeToolNames, DropInvalidToolUse, EnforceStrictObjectSchema,
-    EventData, ListModelResponse, ReasoningTransform, Request, SetCache,
+    EventData, ListModelResponse, ReasoningTransform, RemoveOutputFormat, Request, SetCache,
 };
 use forge_domain::{ChatRepository, Provider, ProviderId};
 use reqwest::Url;
@@ -48,6 +48,7 @@ impl<H: HttpInfra> Anthropic<H> {
                 forge_domain::AuthDetails::ApiKey(key) => key.as_str(),
                 forge_domain::AuthDetails::OAuthWithApiKey { api_key, .. } => api_key.as_str(),
                 forge_domain::AuthDetails::OAuth { tokens, .. } => tokens.access_token.as_str(),
+                forge_domain::AuthDetails::GoogleAdc(api_key) => api_key.as_str(),
             });
 
         if let Some(api_key) = api_key {
@@ -101,13 +102,24 @@ impl<T: HttpInfra> Anthropic<T> {
             request = request.model(model.as_str().to_string());
         }
 
-        let request = AuthSystemMessage::default()
+        let pipeline = AuthSystemMessage::default()
             .when(|_| self.use_oauth)
             .pipe(CapitalizeToolNames)
-            .pipe(DropInvalidToolUse)
-            .pipe(EnforceStrictObjectSchema)
-            .pipe(SetCache)
-            .transform(request);
+            .pipe(DropInvalidToolUse);
+
+        // Vertex AI does not support output_format, so we skip schema enforcement
+        // and remove any output_format field
+        let request = if self.provider.id == ProviderId::VERTEX_AI_ANTHROPIC {
+            pipeline
+                .pipe(RemoveOutputFormat)
+                .pipe(SetCache)
+                .transform(request)
+        } else {
+            pipeline
+                .pipe(EnforceStrictObjectSchema)
+                .pipe(SetCache)
+                .transform(request)
+        };
 
         let url = if self.provider.id == ProviderId::VERTEX_AI_ANTHROPIC {
             // For Vertex AI, we need to append the model ID and streamRawPredict to the URL
@@ -589,6 +601,84 @@ mod tests {
         assert!(
             beta_value.contains("oauth-2025-04-20"),
             "Beta header should include oauth flag for OAuth auth"
+        );
+    }
+
+    #[test]
+    fn test_vertex_ai_removes_output_format() {
+        use forge_domain::ResponseFormat;
+        use schemars::JsonSchema;
+        use serde::Deserialize;
+
+        #[derive(Deserialize, JsonSchema)]
+        #[schemars(title = "test_response")]
+        #[allow(dead_code)]
+        struct TestResponse {
+            result: String,
+        }
+
+        let chat_url = Url::parse(
+            "https://aiplatform.googleapis.com/v1/projects/test/locations/global/publishers/anthropic/models",
+        )
+        .unwrap();
+
+        let provider = Provider {
+            id: ProviderId::VERTEX_AI_ANTHROPIC,
+            provider_type: forge_domain::ProviderType::Llm,
+            response: Some(forge_app::domain::ProviderResponse::Anthropic),
+            url: chat_url,
+            credential: Some(forge_domain::AuthCredential {
+                id: ProviderId::VERTEX_AI_ANTHROPIC,
+                auth_details: forge_domain::AuthDetails::GoogleAdc(forge_domain::ApiKey::from(
+                    "test-token".to_string(),
+                )),
+                url_params: std::collections::HashMap::new(),
+            }),
+            auth_methods: vec![forge_domain::AuthMethod::GoogleAdc],
+            url_params: vec![],
+            models: Some(forge_domain::ModelSource::Hardcoded(vec![])),
+        };
+
+        let _anthropic = Anthropic::new(
+            Arc::new(MockHttpClient::new()),
+            provider,
+            "vertex-2023-10-16".to_string(),
+            false,
+        );
+
+        // Create a context with response_format (which would normally add
+        // output_format)
+        let schema = schemars::schema_for!(TestResponse);
+        let context = Context::default()
+            .add_message(ContextMessage::user("test", ModelId::new("test").into()))
+            .response_format(ResponseFormat::JsonSchema(Box::new(schema)));
+
+        // Convert to request
+        let mut request = Request::try_from(context).unwrap().max_tokens(4000u64);
+        request = request.anthropic_version("vertex-2023-10-16".to_string());
+
+        // Apply the transformer pipeline (same as in chat method)
+        let pipeline = AuthSystemMessage::default()
+            .when(|_| false) // Not using OAuth
+            .pipe(CapitalizeToolNames)
+            .pipe(DropInvalidToolUse);
+
+        let request = pipeline
+            .pipe(RemoveOutputFormat)
+            .pipe(SetCache)
+            .transform(request);
+
+        // Verify output_format is None for Vertex AI
+        assert_eq!(
+            request.output_format, None,
+            "Vertex AI requests should not include output_format"
+        );
+
+        // Verify anthropic_version is set
+        assert_eq!(
+            request.anthropic_version,
+            Some("vertex-2023-10-16".to_string()),
+            "Vertex AI requests should include anthropic_version"
         );
     }
 }
