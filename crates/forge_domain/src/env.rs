@@ -41,7 +41,7 @@ pub struct Environment {
     pub max_search_result_bytes: usize,
     /// Maximum characters for fetch content
     pub fetch_truncation_limit: usize,
-    /// Maximum characters for MCP tool output
+    /// Maximum lines for MCP tool output
     pub mcp_truncation_limit: usize,
     /// Maximum lines for shell output prefix
     pub stdout_max_prefix_length: usize,
