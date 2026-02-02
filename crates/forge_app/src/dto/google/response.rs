@@ -672,4 +672,55 @@ mod tests {
         assert_eq!(domain_usage.total_tokens, TokenCount::Actual(30));
         assert_eq!(domain_usage.cached_tokens, TokenCount::Actual(5));
     }
+
+    #[test]
+    fn test_part_text_conversion() {
+
+        let part = Part::Text {
+            text: Some("Hello".to_string()),
+            thought: None,
+            thought_signature: None,
+            executable_code: None,
+            code_execution_result: None,
+        };
+        let msg = ChatCompletionMessage::try_from(part).unwrap();
+        assert_eq!(msg.content.unwrap().as_str(), "Hello");
+        assert!(msg.reasoning.is_none());
+
+        // Test thought
+        let part = Part::Text {
+            text: Some("Thinking...".to_string()),
+            thought: Some(true),
+            thought_signature: Some("sig".to_string()),
+            executable_code: None,
+            code_execution_result: None,
+        };
+        let msg = ChatCompletionMessage::try_from(part).unwrap();
+        assert_eq!(msg.content.unwrap().as_str(), ""); // Content should be empty for pure thought part
+        assert_eq!(msg.reasoning.unwrap().as_str(), "Thinking...");
+        assert_eq!(msg.thought_signature.unwrap(), "sig");
+    }
+
+    #[test]
+    fn test_response_no_candidates() {
+        let response = Response {
+            candidates: vec![],
+            usage_metadata: Some(UsageMetadata {
+                prompt_token_count: Some(10),
+                candidates_token_count: Some(20),
+                total_token_count: Some(30),
+                cached_content_token_count: None,
+                thoughts_token_count: None,
+                traffic_type: None,
+            }),
+            prompt_feedback: None,
+        };
+
+        let msg = ChatCompletionMessage::try_from(response).unwrap();
+        assert_eq!(msg.content.unwrap().as_str(), "");
+        
+        let usage = msg.usage.unwrap();
+        assert_eq!(usage.prompt_tokens, TokenCount::Actual(10));
+        assert_eq!(usage.completion_tokens, TokenCount::Actual(20));
+    }
 }

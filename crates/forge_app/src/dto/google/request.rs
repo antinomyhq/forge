@@ -781,6 +781,120 @@ mod tests {
     }
 
     #[test]
+    fn test_tool_choice_conversion() {
+        use forge_domain::ToolChoice;
+
+        // Test Auto
+        let config = ToolConfig::from(ToolChoice::Auto);
+        let fc_config = config.function_calling_config.unwrap();
+        assert!(matches!(fc_config.mode, Some(FunctionCallingMode::Auto)));
+        assert!(fc_config.allowed_function_names.is_none());
+
+        // Test None
+        let config = ToolConfig::from(ToolChoice::None);
+        let fc_config = config.function_calling_config.unwrap();
+        assert!(matches!(fc_config.mode, Some(FunctionCallingMode::None)));
+        assert!(fc_config.allowed_function_names.is_none());
+
+        // Test Required
+        let config = ToolConfig::from(ToolChoice::Required);
+        let fc_config = config.function_calling_config.unwrap();
+        assert!(matches!(fc_config.mode, Some(FunctionCallingMode::Any)));
+        assert!(fc_config.allowed_function_names.is_none());
+
+        // Test Call
+        let config = ToolConfig::from(ToolChoice::Call(ToolName::new("my_tool")));
+        let fc_config = config.function_calling_config.unwrap();
+        assert!(matches!(fc_config.mode, Some(FunctionCallingMode::Any)));
+        assert_eq!(fc_config.allowed_function_names.unwrap(), vec!["my_tool"]);
+    }
+
+    #[test]
+    fn test_tool_definition_conversion() {
+        use forge_domain::ToolDefinition;
+        use schemars::schema_for;
+
+        #[derive(schemars::JsonSchema)]
+        struct Args {
+            _arg1: String,
+        }
+
+        let tool_def = ToolDefinition {
+            name: ToolName::new("test_tool"),
+            description: "A test tool".to_string(),
+            input_schema: schema_for!(Args),
+        };
+
+        let decl = FunctionDeclaration::from(tool_def);
+
+        assert_eq!(decl.name, "test_tool");
+        assert_eq!(decl.description.unwrap(), "A test tool");
+        
+        // Check schema stripping
+        let params = decl.parameters;
+        assert!(params.is_object());
+        assert!(!params.as_object().unwrap().contains_key("$schema"));
+        assert!(params.as_object().unwrap().contains_key("type"));
+    }
+
+    #[test]
+    fn test_text_message_conversion() {
+        use forge_domain::{Role, TextMessage};
+
+        // User message
+        let msg = TextMessage::new(Role::User, "Hello");
+        let content = Content::from(msg);
+        assert_eq!(content.role, Some(self::Role::User));
+        assert_eq!(content.parts.len(), 1);
+        match &content.parts[0] {
+            Part::Text { text, .. } => assert_eq!(text, "Hello"),
+            _ => panic!("Expected Text part"),
+        }
+
+        // Assistant message with thought signature
+        let msg = TextMessage::assistant("Hi", None, None)
+            .thought_signature("sig");
+        let content = Content::from(msg);
+        assert_eq!(content.role, Some(self::Role::Model));
+        match &content.parts[0] {
+            Part::Text { text, thought_signature, .. } => {
+                assert_eq!(text, "Hi");
+                assert_eq!(thought_signature.as_deref(), Some("sig"));
+            }
+            _ => panic!("Expected Text part"),
+        }
+    }
+
+    #[test]
+    fn test_image_conversion() {
+        use forge_domain::Image;
+
+        let image = Image::new_base64("base64data".to_string(), "image/png");
+        let content = Content::from(image.clone());
+
+        assert_eq!(content.role, Some(self::Role::User));
+        assert_eq!(content.parts.len(), 1);
+        
+        match &content.parts[0] {
+            Part::Image { inline_data, .. } => {
+                assert_eq!(inline_data.mime_type.as_deref(), Some("image/png"));
+                assert_eq!(inline_data.data.as_deref(), Some("base64data"));
+            }
+            _ => panic!("Expected Image part"),
+        }
+
+        // Test direct Part conversion
+        let part = Part::from(image);
+        match part {
+            Part::Image { inline_data, .. } => {
+                assert_eq!(inline_data.mime_type.as_deref(), Some("image/png"));
+                assert_eq!(inline_data.data.as_deref(), Some("base64data"));
+            }
+            _ => panic!("Expected Image part"),
+        }
+    }
+
+    #[test]
     fn test_response_schema_strips_dollar_schema() {
         use forge_domain::{Context, ResponseFormat};
         use schemars::schema_for;
@@ -831,5 +945,29 @@ mod tests {
             Some("application/json".to_string()),
             "response_mime_type should be set for JSON schema"
         );
+    }
+
+    #[test]
+    fn test_tool_result_part_conversion() {
+        use forge_domain::{ToolCallId, ToolName, ToolResult};
+
+        let result = ToolResult::new(ToolName::new("test"))
+            .call_id(ToolCallId::new("call_1"))
+            .success("output");
+        
+        let part = Part::from(result);
+        
+        match part {
+            Part::FunctionResponse { function_response } => {
+                assert_eq!(function_response.name, "test");
+                // The response should be wrapped in a JSON value
+                let expected = serde_json::json!({
+                    "is_error": false,
+                    "values": [{"text": "output"}]
+                });
+                assert_eq!(function_response.response, expected);
+            }
+            _ => panic!("Expected FunctionResponse part"),
+        }
     }
 }
