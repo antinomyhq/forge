@@ -359,36 +359,52 @@ impl<S: Services> ForgeAgent<S> {
         output
             .values
             .iter()
-            .filter_map(|value| match value {
-                ToolValue::Text(text) => {
-                    // Skip text content if we have a FileDiff (text is the formatted diff for CLI)
-                    if has_file_diff {
-                        None
-                    } else {
+            .filter_map(|value| {
+                // Use display_value() to get the user-friendly representation
+                let display = value.display_value();
+                
+                match display {
+                    ToolValue::Text(text) => {
+                        // Skip text content if we have a FileDiff (text is the formatted diff for CLI)
+                        if has_file_diff {
+                            None
+                        } else {
+                            Some(acp::ToolCallContent::Content(acp::Content::new(
+                                acp::ContentBlock::Text(acp::TextContent::new(text.clone())),
+                            )))
+                        }
+                    }
+                    ToolValue::Markdown(md) => {
+                        // Markdown is for display, send as text content
                         Some(acp::ToolCallContent::Content(acp::Content::new(
-                            acp::ContentBlock::Text(acp::TextContent::new(text.clone())),
+                            acp::ContentBlock::Text(acp::TextContent::new(md.clone())),
                         )))
                     }
+                    ToolValue::Image(image) => Some(acp::ToolCallContent::Content(acp::Content::new(
+                        acp::ContentBlock::Image(acp::ImageContent::new(
+                            image.data(),
+                            image.mime_type(),
+                        )),
+                    ))),
+                    ToolValue::AI { value, .. } => {
+                        Some(acp::ToolCallContent::Content(acp::Content::new(
+                            acp::ContentBlock::Text(acp::TextContent::new(value.clone())),
+                        )))
+                    }
+                    ToolValue::FileDiff(file_diff) => {
+                        // Convert Forge FileDiff to ACP Diff
+                        Some(acp::ToolCallContent::Diff(
+                            acp::Diff::new(PathBuf::from(&file_diff.path), &file_diff.new_text)
+                                .old_text(file_diff.old_text.clone()),
+                        ))
+                    }
+                    ToolValue::Empty => None,
+                    ToolValue::Pair(_, _) => {
+                        // This shouldn't happen since display_value() unwraps pairs
+                        // But handle it just in case by recursing
+                        None
+                    }
                 }
-                ToolValue::Image(image) => Some(acp::ToolCallContent::Content(acp::Content::new(
-                    acp::ContentBlock::Image(acp::ImageContent::new(
-                        image.data(),
-                        image.mime_type(),
-                    )),
-                ))),
-                ToolValue::AI { value, .. } => {
-                    Some(acp::ToolCallContent::Content(acp::Content::new(
-                        acp::ContentBlock::Text(acp::TextContent::new(value.clone())),
-                    )))
-                }
-                ToolValue::FileDiff(file_diff) => {
-                    // Convert Forge FileDiff to ACP Diff
-                    Some(acp::ToolCallContent::Diff(
-                        acp::Diff::new(PathBuf::from(&file_diff.path), &file_diff.new_text)
-                            .old_text(file_diff.old_text.clone()),
-                    ))
-                }
-                ToolValue::Empty => None,
             })
             .collect()
     }

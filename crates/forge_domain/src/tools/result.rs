@@ -94,6 +94,55 @@ impl ToolOutput {
         }
     }
 
+    pub fn markdown(md: impl ToString) -> Self {
+        ToolOutput {
+            is_error: Default::default(),
+            values: vec![ToolValue::Markdown(md.to_string())],
+        }
+    }
+
+    /// Creates a paired output with XML for LLM and Markdown for display.
+    /// This is the recommended way to create outputs that need different
+    /// representations for AI and human consumption.
+    ///
+    /// # Example
+    /// ```ignore
+    /// use forge_template::Element;
+    /// 
+    /// let elm = Element::new("search_results")
+    ///     .attr("pattern", "*.rs")
+    ///     .text("file.rs");
+    /// 
+    /// let output = ToolOutput::paired(elm.render(), elm.render_markdown());
+    /// ```
+    pub fn paired(xml: impl ToString, markdown: impl ToString) -> Self {
+        ToolOutput {
+            is_error: Default::default(),
+            values: vec![ToolValue::Text(xml.to_string()).pair(ToolValue::Markdown(markdown.to_string()))],
+        }
+    }
+
+    /// Creates a paired output from an Element and Markdown builder.
+    /// The Element provides XML for LLM, the Markdown provides display format.
+    ///
+    /// # Example
+    /// ```ignore
+    /// use forge_template::{Element, Markdown};
+    /// 
+    /// let elm = Element::new("search_results")
+    ///     .attr("pattern", "*.rs")
+    ///     .text("file.rs");
+    /// 
+    /// let md = Markdown::new()
+    ///     .bold("Search Results")
+    ///     .kv_code("Pattern", "*.rs");
+    /// 
+    /// let output = ToolOutput::from_element_and_markdown(elm, md);
+    /// ```
+    pub fn from_element_and_markdown(element: Element, markdown: forge_template::Markdown) -> Self {
+        Self::paired(element.render(), markdown.render())
+    }
+
     pub fn ai(id: ConversationId, output: impl ToString) -> Self {
         ToolOutput {
             is_error: Default::default(),
@@ -115,7 +164,7 @@ impl ToolOutput {
         ToolOutput { values: items, is_error: self.is_error || other.is_error }
     }
 
-    /// Returns the first item as a string if it exists
+    /// Returns the first item as a string if it exists (uses LLM value for Pairs)
     pub fn as_str(&self) -> Option<&str> {
         self.values.iter().find_map(|item| item.as_str())
     }
@@ -153,6 +202,8 @@ pub enum ToolValue {
     FileDiff(FileDiff),
     #[default]
     Empty,
+    Markdown(String),
+    Pair(Box<ToolValue>, Box<ToolValue>),
 }
 
 impl ToolValue {
@@ -160,17 +211,63 @@ impl ToolValue {
         ToolValue::Text(text)
     }
 
+    pub fn markdown(md: String) -> Self {
+        ToolValue::Markdown(md)
+    }
+
     pub fn image(img: Image) -> Self {
         ToolValue::Image(img)
+    }
+
+    /// Pairs this value with another, creating a `Pair` variant.
+    /// Typically used to pair XML content (for LLM) with Markdown (for display).
+    ///
+    /// # Example
+    /// ```ignore
+    /// let xml = ToolValue::text(element.render());
+    /// let md = ToolValue::markdown(element.render_markdown());
+    /// let paired = xml.pair(md);
+    /// ```
+    pub fn pair(self, other: impl Into<ToolValue>) -> Self {
+        ToolValue::Pair(Box::new(self), Box::new(other.into()))
+    }
+
+    /// Gets the LLM value from a Pair, or returns self if not a Pair.
+    /// The LLM value is the first value in the pair (typically XML-formatted).
+    pub fn llm_value(&self) -> &ToolValue {
+        match self {
+            ToolValue::Pair(llm, _) => llm.as_ref(),
+            _ => self,
+        }
+    }
+
+    /// Gets the display value from a Pair, or returns self if not a Pair.
+    /// The display value is the second value in the pair (typically Markdown-formatted).
+    pub fn display_value(&self) -> &ToolValue {
+        match self {
+            ToolValue::Pair(_, display) => display.as_ref(),
+            _ => self,
+        }
     }
 
     pub fn as_str(&self) -> Option<&str> {
         match self {
             ToolValue::Text(text) => Some(text),
+            ToolValue::Markdown(md) => Some(md),
             ToolValue::Image(_) => None,
             ToolValue::Empty => None,
             ToolValue::AI { value, .. } => Some(value),
             ToolValue::FileDiff(_) => None,
+            ToolValue::Pair(llm, _) => llm.as_str(),
+        }
+    }
+
+    /// Gets the string representation suitable for display (UI, terminal, etc.).
+    /// For Pair values, returns the display value; otherwise returns as_str().
+    pub fn display_str(&self) -> Option<&str> {
+        match self {
+            ToolValue::Pair(_, display) => display.as_str(),
+            _ => self.as_str(),
         }
     }
 }

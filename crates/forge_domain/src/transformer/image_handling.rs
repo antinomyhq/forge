@@ -46,9 +46,11 @@ impl Transformer for ImageHandling {
                     images.push((id, image));
                 }
                 crate::ToolValue::Text(_) => {}
+                crate::ToolValue::Markdown(_) => {}
                 crate::ToolValue::Empty => {}
                 crate::ToolValue::AI { .. } => {}
                 crate::ToolValue::FileDiff(_) => {}
+                crate::ToolValue::Pair(_, _) => {}
             });
 
         // Step 2: Insert all images at the end

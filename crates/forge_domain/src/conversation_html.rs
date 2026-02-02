@@ -426,6 +426,10 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
                                             Element::new("div")
                                                 .append(Element::new("pre").text(text)),
                                         ),
+                                        crate::ToolValue::Markdown(md) => Some(
+                                            Element::new("div")
+                                                .append(Element::new("pre").text(md)),
+                                        ),
                                         crate::ToolValue::Image(image) => {
                                             Some(Element::new("img").attr("src", image.url()))
                                         }
@@ -440,6 +444,22 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
                                             )
                                         }
                                         crate::ToolValue::Empty => None,
+                                        crate::ToolValue::Pair(llm, display) => {
+                                            // For HTML, prefer display value (markdown)
+                                            match display.as_ref() {
+                                                crate::ToolValue::Markdown(md) => Some(
+                                                    Element::new("div")
+                                                        .append(Element::new("pre").text(md)),
+                                                ),
+                                                _ => match llm.as_ref() {
+                                                    crate::ToolValue::Text(text) => Some(
+                                                        Element::new("div")
+                                                            .append(Element::new("pre").text(text)),
+                                                    ),
+                                                    _ => None,
+                                                }
+                                            }
+                                        }
                                         crate::ToolValue::AI { value, conversation_id } => {
                                             // Use anchor link to navigate within the same HTML
                                             let anchor_id = format!("conversation-{}", conversation_id);
