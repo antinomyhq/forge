@@ -58,7 +58,7 @@ impl<F: EnvironmentInfra + HttpInfra + Sync> ChatRepository for ForgeChatReposit
         match provider.response {
             Some(ProviderResponse::OpenAI) => {
                 // Check if model is a Codex model
-                if model_id.as_str().contains("codex")
+                if model_id.as_str().contains("gpt-5")
                     && (provider.id == ProviderId::OPENAI
                         || provider.id == ProviderId::GITHUB_COPILOT)
                 {

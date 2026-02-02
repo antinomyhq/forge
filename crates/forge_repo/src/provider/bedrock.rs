@@ -309,6 +309,7 @@ impl IntoDomain for aws_sdk_bedrockruntime::types::ConverseStreamOutput {
                                     call_id: None,
                                     name: None,
                                     arguments_part: tool_use.input,
+                                    thought_signature: None,
                                 },
                             )
                         }
@@ -368,6 +369,7 @@ impl IntoDomain for aws_sdk_bedrockruntime::types::ConverseStreamOutput {
                                     call_id: Some(ToolCallId::new(tool_use.tool_use_id)),
                                     name: Some(ToolName::new(tool_use.name)),
                                     arguments_part: String::new(),
+                                    thought_signature: None,
                                 },
                             )
                         }
@@ -680,9 +682,9 @@ impl FromDomain<forge_domain::ContextMessage> for aws_sdk_bedrockruntime::types:
             forge_domain::ContextMessage::Text(text_msg) => {
                 let mut content_blocks = Vec::new();
 
-                // Add reasoning blocks FIRST if present (required by AWS when extended thinking
-                // is enabled) AWS requires that when thinking is enabled,
-                // assistant messages MUST start with thinking blocks
+                // Add thought signature FIRST if present (for Assistant messages)
+                // AWS requires that when thinking is enabled, assistant messages MUST start
+                // with reasoning blocks
                 if text_msg.role == forge_domain::Role::Assistant
                     && let Some(reasoning_details) = &text_msg.reasoning_details
                 {
@@ -1336,6 +1338,7 @@ mod tests {
                 call_id: Some(ToolCallId::new("call_123")),
                 name: Some(ToolName::new("get_weather")),
                 arguments_part: String::new(),
+                thought_signature: None,
             });
 
         assert_eq!(actual, expected);

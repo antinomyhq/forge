@@ -46,28 +46,12 @@ after:
     - text:
         role: Assistant
         content: First assistant response with reasoning
-        reasoning_details:
-          - text: I need to think about this carefully
-            signature: ~
-            data: ~
-            id: ~
-            format: ~
-            index: ~
-            type_of: ~
     - text:
         role: User
         content: Follow-up question
     - text:
         role: Assistant
         content: Second assistant response with reasoning
-        reasoning_details:
-          - text: I need to think about this carefully
-            signature: ~
-            data: ~
-            id: ~
-            format: ~
-            index: ~
-            type_of: ~
     - text:
         role: Assistant
         content: Third assistant without reasoning

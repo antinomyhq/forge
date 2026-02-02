@@ -4,7 +4,7 @@ use derive_more::derive::Display;
 use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 
-use super::response::{FunctionCall, ToolCall};
+use super::response::{ExtraContent, FunctionCall, ToolCall};
 use super::tool_choice::{FunctionType, ToolChoice};
 use crate::domain::{
     Context, ContextMessage, ModelId, ToolCallFull, ToolCallId, ToolDefinition, ToolName,
@@ -37,6 +37,8 @@ pub struct Message {
     pub reasoning_text: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_opaque: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extra_content: Option<ExtraContent>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
@@ -399,6 +401,8 @@ impl From<Context> for Request {
 
 impl From<ToolCallFull> for ToolCall {
     fn from(value: ToolCallFull) -> Self {
+        let extra_content = value.thought_signature.map(ExtraContent::from);
+
         Self {
             id: value.call_id,
             r#type: FunctionType,
@@ -406,6 +410,7 @@ impl From<ToolCallFull> for ToolCall {
                 arguments: serde_json::to_string(&value.arguments).unwrap(),
                 name: Some(value.name),
             },
+            extra_content,
         }
     }
 }
@@ -439,6 +444,7 @@ impl From<ContextMessage> for Message {
                 }),
                 reasoning_text: None,
                 reasoning_opaque: None,
+                extra_content: chat_message.thought_signature.map(ExtraContent::from),
             },
             ContextMessage::Tool(tool_result) => Message {
                 role: Role::Tool,
@@ -449,6 +455,7 @@ impl From<ContextMessage> for Message {
                 reasoning_details: None,
                 reasoning_text: None,
                 reasoning_opaque: None,
+                extra_content: None,
             },
             ContextMessage::Image(img) => {
                 let content = vec![ContentPart::ImageUrl {
@@ -464,6 +471,7 @@ impl From<ContextMessage> for Message {
                     reasoning_details: None,
                     reasoning_text: None,
                     reasoning_opaque: None,
+                    extra_content: None,
                 }
             }
         }
@@ -701,6 +709,7 @@ mod tests {
             call_id: Some(ToolCallId::new("123")),
             name: ToolName::new("test_tool"),
             arguments: serde_json::json!({"key": "value"}).into(),
+            thought_signature: None,
         };
 
         let assistant_message = ContextMessage::Text(
