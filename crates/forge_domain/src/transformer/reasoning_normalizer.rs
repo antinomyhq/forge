@@ -2,14 +2,22 @@ use crate::{Context, Transformer};
 
 /// A transformer that normalizes reasoning details across assistant messages.
 ///
-/// Per Claude's extended thinking docs, thinking blocks from previous turns are
-/// stripped to save context space, but the LAST assistant turn's thinking must
-/// be preserved for reasoning continuity (especially during tool use).
+/// Per Claude's extended thinking docs, when thinking is enabled, assistant
+/// messages should include thinking blocks. The docs state: "We recommend you
+/// include thinking blocks from previous turns."
 ///
-/// This transformer checks if the last assistant message has reasoning details.
-/// If it does, reasoning is preserved only on the last assistant message.
-/// If it doesn't, all reasoning details are removed from all assistant
-/// messages.
+/// This transformer preserves reasoning on the LAST assistant message that has
+/// it, and strips reasoning from all earlier assistant messages to save context
+/// space while maintaining the required thinking block for the most recent
+/// assistant turn.
+///
+/// Key behaviors:
+/// - If the last assistant message has reasoning: keep only its reasoning,
+///   strip from earlier assistants
+/// - If the last assistant message has NO reasoning but earlier ones do:
+///   preserve the last assistant that HAS reasoning (for API compliance),
+///   strip from all others
+/// - If no assistant messages have reasoning: nothing to do
 #[derive(Default)]
 pub struct ReasoningNormalizer;
 
@@ -34,21 +42,22 @@ impl Transformer for ReasoningNormalizer {
                 .map(|message| message.has_reasoning_details())
         });
 
+        // Find the index of the last assistant message that HAS reasoning
+        // (may be different from last_assistant_idx if last assistant has no reasoning)
+        let last_assistant_with_reasoning_idx = context
+            .messages
+            .iter()
+            .enumerate()
+            .rev()
+            .find(|(_, message)| {
+                message.has_role(crate::Role::Assistant) && message.has_reasoning_details()
+            })
+            .map(|(idx, _)| idx);
+
         // Apply the normalization rule
-        if last_assistant_has_reasoning == Some(false) || last_assistant_has_reasoning.is_none() {
-            // Remove reasoning details from all assistant messages
-            // NOTE: We do NOT set context.reasoning = None here, as that would
-            // disable reasoning for subsequent turns. The reasoning config should
-            // persist across turns even when stripping reasoning blocks.
-            for message in context.messages.iter_mut() {
-                if message.has_role(crate::Role::Assistant)
-                    && let crate::ContextMessage::Text(text_msg) = &mut **message
-                {
-                    text_msg.reasoning_details = None;
-                }
-            }
-        } else {
+        if last_assistant_has_reasoning == Some(true) {
             // Last assistant has reasoning - strip from all previous assistant messages
+            // but keep reasoning on the last assistant
             for (idx, message) in context.messages.iter_mut().enumerate() {
                 if message.has_role(crate::Role::Assistant)
                     && Some(idx) != last_assistant_idx
@@ -57,7 +66,21 @@ impl Transformer for ReasoningNormalizer {
                     text_msg.reasoning_details = None;
                 }
             }
+        } else if let Some(preserve_idx) = last_assistant_with_reasoning_idx {
+            // Last assistant has NO reasoning, but an earlier assistant does.
+            // Preserve reasoning on the last assistant that HAS it (for API compliance),
+            // strip from all others.
+            // This ensures at least one assistant message has a thinking block.
+            for (idx, message) in context.messages.iter_mut().enumerate() {
+                if message.has_role(crate::Role::Assistant)
+                    && idx != preserve_idx
+                    && let crate::ContextMessage::Text(text_msg) = &mut **message
+                {
+                    text_msg.reasoning_details = None;
+                }
+            }
         }
+        // If no assistant messages have reasoning, nothing to do
 
         context
     }
@@ -139,7 +162,9 @@ mod tests {
         let mut transformer = ReasoningNormalizer;
         let actual = transformer.transform(fixture.clone());
 
-        // All reasoning details should be preserved since first assistant has reasoning
+        // When last assistant has no reasoning but earlier ones do,
+        // preserve reasoning on the last assistant that HAS it (second assistant)
+        // to ensure API compliance with extended thinking requirements
         let snapshot =
             TransformationSnapshot::new("ReasoningNormalizer_first_has_reasoning", fixture, actual);
         assert_yaml_snapshot!(snapshot);
@@ -151,8 +176,8 @@ mod tests {
         let mut transformer = ReasoningNormalizer;
         let actual = transformer.transform(context.clone());
 
-        // All reasoning details should be removed since first assistant has no
-        // reasoning
+        // When last assistant (third) has reasoning, keep only its reasoning
+        // and strip from all previous assistants
         let snapshot =
             TransformationSnapshot::new("ReasoningNormalizer_first_no_reasoning", context, actual);
         assert_yaml_snapshot!(snapshot);
@@ -167,8 +192,7 @@ mod tests {
         let mut transformer = ReasoningNormalizer;
         let actual = transformer.transform(context.clone());
 
-        // All reasoning details should be removed since first assistant has no
-        // reasoning
+        // No assistant messages, nothing to normalize
         let snapshot = TransformationSnapshot::new(
             "ReasoningNormalizer_first_no_assistant_message_present",
             context,

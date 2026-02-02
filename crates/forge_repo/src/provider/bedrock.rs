@@ -684,16 +684,18 @@ impl FromDomain<forge_domain::ContextMessage> for aws_sdk_bedrockruntime::types:
 
                 // Add thought signature FIRST if present (for Assistant messages)
                 // AWS requires that when thinking is enabled, assistant messages MUST start
-                // with reasoning blocks
+                // with reasoning blocks (either thinking or redacted_thinking)
                 if text_msg.role == forge_domain::Role::Assistant
                     && let Some(reasoning_details) = &text_msg.reasoning_details
                 {
                     for reasoning in reasoning_details {
-                        // Create a thinking content block
+                        use aws_sdk_bedrockruntime::types::ReasoningContentBlock;
+
+                        // Determine which type of reasoning block to create:
+                        // - If we have text, use ReasoningText (with optional signature)
+                        // - If we only have data (encrypted/redacted), use RedactedContent
                         if let Some(text) = &reasoning.text {
-                            use aws_sdk_bedrockruntime::types::{
-                                ReasoningContentBlock, ReasoningTextBlock,
-                            };
+                            use aws_sdk_bedrockruntime::types::ReasoningTextBlock;
 
                             let reasoning_text_block = ReasoningTextBlock::builder()
                                 .text(text.clone())
@@ -706,7 +708,16 @@ impl FromDomain<forge_domain::ContextMessage> for aws_sdk_bedrockruntime::types:
                             content_blocks.push(ContentBlock::ReasoningContent(
                                 ReasoningContentBlock::ReasoningText(reasoning_text_block),
                             ));
+                        } else if let Some(data) = &reasoning.data {
+                            // Redacted/encrypted content - convert from base64 string to Blob
+                            let blob = aws_sdk_bedrockruntime::primitives::Blob::new(
+                                data.as_bytes().to_vec(),
+                            );
+                            content_blocks.push(ContentBlock::ReasoningContent(
+                                ReasoningContentBlock::RedactedContent(blob),
+                            ));
                         }
+                        // Skip reasoning entries that have neither text nor data
                     }
                 }
 
@@ -1721,6 +1732,179 @@ mod tests {
                 assert!(arr.is_empty());
             }
             _ => panic!("Expected array document"),
+        }
+    }
+
+    #[test]
+    fn test_from_domain_assistant_message_with_reasoning_text() {
+        use aws_sdk_bedrockruntime::types::{ContentBlock, ConversationRole, Message};
+        use forge_domain::{ContextMessage, ReasoningFull, TextMessage};
+
+        let reasoning_details = vec![ReasoningFull {
+            text: Some("I need to think about this...".to_string()),
+            signature: Some("sig123".to_string()),
+            ..Default::default()
+        }];
+
+        let mut text_msg = TextMessage::assistant("Here's my response", None, None);
+        text_msg.reasoning_details = Some(reasoning_details);
+        let fixture = ContextMessage::Text(text_msg);
+
+        let actual = Message::from_domain(fixture).unwrap();
+
+        assert_eq!(actual.role(), &ConversationRole::Assistant);
+        let content = actual.content();
+        // Should have 2 blocks: reasoning first, then text
+        assert_eq!(content.len(), 2);
+
+        // First block should be reasoning
+        match &content[0] {
+            ContentBlock::ReasoningContent(reasoning) => {
+                assert!(reasoning.is_reasoning_text());
+            }
+            _ => panic!("Expected reasoning content block first"),
+        }
+
+        // Second block should be text
+        match &content[1] {
+            ContentBlock::Text(text) => assert_eq!(text, "Here's my response"),
+            _ => panic!("Expected text content block second"),
+        }
+    }
+
+    #[test]
+    fn test_from_domain_assistant_message_with_redacted_content() {
+        use aws_sdk_bedrockruntime::types::{ContentBlock, ConversationRole, Message};
+        use forge_domain::{ContextMessage, ReasoningFull, TextMessage};
+
+        // Reasoning with only data (no text) - represents redacted/encrypted content
+        let reasoning_details = vec![ReasoningFull {
+            text: None,
+            data: Some("encrypted_reasoning_data".to_string()),
+            type_of: Some("reasoning.encrypted".to_string()),
+            ..Default::default()
+        }];
+
+        let mut text_msg = TextMessage::assistant("Here's my response", None, None);
+        text_msg.reasoning_details = Some(reasoning_details);
+        let fixture = ContextMessage::Text(text_msg);
+
+        let actual = Message::from_domain(fixture).unwrap();
+
+        assert_eq!(actual.role(), &ConversationRole::Assistant);
+        let content = actual.content();
+        // Should have 2 blocks: redacted reasoning first, then text
+        assert_eq!(content.len(), 2);
+
+        // First block should be redacted reasoning content
+        match &content[0] {
+            ContentBlock::ReasoningContent(reasoning) => {
+                assert!(reasoning.is_redacted_content());
+            }
+            _ => panic!("Expected reasoning content block (redacted) first"),
+        }
+
+        // Second block should be text
+        match &content[1] {
+            ContentBlock::Text(text) => assert_eq!(text, "Here's my response"),
+            _ => panic!("Expected text content block second"),
+        }
+    }
+
+    #[test]
+    fn test_from_domain_assistant_message_with_mixed_reasoning() {
+        use aws_sdk_bedrockruntime::types::{ContentBlock, ConversationRole, Message};
+        use forge_domain::{ContextMessage, ReasoningFull, TextMessage};
+
+        // Mixed reasoning: one with text, one with only data (redacted)
+        let reasoning_details = vec![
+            ReasoningFull {
+                text: Some("Visible thinking...".to_string()),
+                signature: Some("sig1".to_string()),
+                type_of: Some("reasoning.text".to_string()),
+                ..Default::default()
+            },
+            ReasoningFull {
+                text: None,
+                data: Some("encrypted_data".to_string()),
+                type_of: Some("reasoning.encrypted".to_string()),
+                ..Default::default()
+            },
+        ];
+
+        let mut text_msg = TextMessage::assistant("Final answer", None, None);
+        text_msg.reasoning_details = Some(reasoning_details);
+        let fixture = ContextMessage::Text(text_msg);
+
+        let actual = Message::from_domain(fixture).unwrap();
+
+        assert_eq!(actual.role(), &ConversationRole::Assistant);
+        let content = actual.content();
+        // Should have 3 blocks: reasoning text, redacted reasoning, then text
+        assert_eq!(content.len(), 3);
+
+        // First block should be reasoning text
+        match &content[0] {
+            ContentBlock::ReasoningContent(reasoning) => {
+                assert!(reasoning.is_reasoning_text());
+            }
+            _ => panic!("Expected reasoning text block first"),
+        }
+
+        // Second block should be redacted reasoning
+        match &content[1] {
+            ContentBlock::ReasoningContent(reasoning) => {
+                assert!(reasoning.is_redacted_content());
+            }
+            _ => panic!("Expected redacted reasoning block second"),
+        }
+
+        // Third block should be text
+        match &content[2] {
+            ContentBlock::Text(text) => assert_eq!(text, "Final answer"),
+            _ => panic!("Expected text content block third"),
+        }
+    }
+
+    #[test]
+    fn test_from_domain_assistant_message_skips_empty_reasoning() {
+        use aws_sdk_bedrockruntime::types::{ContentBlock, Message};
+        use forge_domain::{ContextMessage, ReasoningFull, TextMessage};
+
+        // Reasoning with neither text nor data should be skipped
+        let reasoning_details = vec![
+            ReasoningFull {
+                text: None,
+                data: None,
+                signature: Some("orphan_sig".to_string()), // Only signature, no content
+                ..Default::default()
+            },
+            ReasoningFull {
+                text: Some("Valid thinking".to_string()),
+                ..Default::default()
+            },
+        ];
+
+        let mut text_msg = TextMessage::assistant("Response", None, None);
+        text_msg.reasoning_details = Some(reasoning_details);
+        let fixture = ContextMessage::Text(text_msg);
+
+        let actual = Message::from_domain(fixture).unwrap();
+
+        let content = actual.content();
+        // Should have 2 blocks: only the valid reasoning and text (empty one skipped)
+        assert_eq!(content.len(), 2);
+
+        match &content[0] {
+            ContentBlock::ReasoningContent(reasoning) => {
+                assert!(reasoning.is_reasoning_text());
+            }
+            _ => panic!("Expected reasoning content block"),
+        }
+
+        match &content[1] {
+            ContentBlock::Text(text) => assert_eq!(text, "Response"),
+            _ => panic!("Expected text content block"),
         }
     }
 }
