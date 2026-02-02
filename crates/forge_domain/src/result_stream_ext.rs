@@ -209,13 +209,24 @@ impl ResultStreamExt<anyhow::Error> for crate::BoxStream<ChatCompletionMessage, 
             .rev()
             .find_map(|message| message.finish_reason.clone());
 
+        // Get thought signature from the last message that has one
+        let thought_signature = messages
+            .iter()
+            .rev()
+            .find_map(|message| message.thought_signature.clone());
+
         // Check for empty completion - map to retryable error for retry
-        if content.trim().is_empty() && tool_calls.is_empty() && finish_reason.is_none() {
+        if content.trim().is_empty()
+            && tool_calls.is_empty()
+            && finish_reason.is_none()
+            && thought_signature.is_none()
+        {
             return Err(crate::Error::EmptyCompletion.into_retryable().into());
         }
 
         Ok(ChatCompletionMessageFull {
             content,
+            thought_signature,
             tool_calls,
             usage,
             reasoning: (!reasoning.is_empty()).then_some(reasoning),
@@ -269,6 +280,7 @@ mod tests {
         let expected = ChatCompletionMessageFull {
             content: "Hello world!".to_string(),
             tool_calls: vec![],
+            thought_signature: None,
             usage: Usage {
                 prompt_tokens: TokenCount::Actual(10),
                 completion_tokens: TokenCount::Actual(10),
@@ -384,6 +396,7 @@ mod tests {
             name: ToolName::new("test_tool"),
             call_id: Some(ToolCallId::new("call_123")),
             arguments: serde_json::json!("test_arg").into(),
+            thought_signature: None,
         };
 
         let messages = vec![Ok(ChatCompletionMessage::default()
@@ -400,6 +413,7 @@ mod tests {
         let expected = ChatCompletionMessageFull {
             content: "Processing...".to_string(),
             tool_calls: vec![tool_call],
+            thought_signature: None,
             usage: Usage::default(),
             reasoning: None,
             reasoning_details: None,
@@ -418,6 +432,7 @@ mod tests {
             call_id: Some(ToolCallId::new("call_123")),
             name: Some(ToolName::new("test_tool")),
             arguments_part: "invalid json {".to_string(), // Invalid JSON
+            thought_signature: None,
         };
 
         let messages = vec![Ok(ChatCompletionMessage::default()
@@ -437,6 +452,7 @@ mod tests {
             name: ToolName::new("test_tool"),
             call_id: Some(ToolCallId::new("call_123")),
             arguments: ToolCallArguments::from_json("invalid json {"),
+            thought_signature: None,
         };
         assert_eq!(actual.tool_calls[0], expected);
     }
@@ -463,6 +479,7 @@ mod tests {
         let expected = ChatCompletionMessageFull {
             content: "Hello world!".to_string(),
             tool_calls: vec![],
+            thought_signature: None,
             usage: Usage::default(),
             reasoning: Some("First reasoning: thinking deeply about this...".to_string()),
             reasoning_details: None,
@@ -517,6 +534,7 @@ mod tests {
         let expected = ChatCompletionMessageFull {
             content: "Processing... complete".to_string(),
             tool_calls: vec![],
+            thought_signature: None,
             usage: Usage::default(),
             reasoning: None,
             reasoning_details: Some(expected_reasoning_details),
@@ -546,6 +564,7 @@ mod tests {
         let expected = ChatCompletionMessageFull {
             content: "Hello world".to_string(),
             tool_calls: vec![],
+            thought_signature: None,
             usage: Usage::default(),
             reasoning: None, // Empty reasoning should be None
             reasoning_details: None,
@@ -627,6 +646,7 @@ mod tests {
             content: format!("{xml_content} and more content"),
             tool_calls: vec![], /* No XML tool calls should be extracted when interruption is
                                  * disabled */
+            thought_signature: None,
             usage: Usage {
                 prompt_tokens: TokenCount::Actual(5),
                 completion_tokens: TokenCount::Actual(15),
@@ -668,6 +688,7 @@ mod tests {
         let expected = ChatCompletionMessageFull {
             content: "Starting processing complete".to_string(),
             tool_calls: vec![],
+            thought_signature: None,
             usage: Usage {
                 prompt_tokens: TokenCount::Actual(5),
                 completion_tokens: TokenCount::Actual(15),
@@ -712,6 +733,7 @@ mod tests {
         let expected = ChatCompletionMessageFull {
             content: "Processing... continue done".to_string(),
             tool_calls: vec![],
+            thought_signature: None,
             usage: Usage::default(),
             reasoning: None,
             reasoning_details: None,
@@ -741,6 +763,7 @@ mod tests {
         let expected = ChatCompletionMessageFull {
             content: "I'll call a tool".to_string(),
             tool_calls: vec![],
+            thought_signature: None,
             usage: Usage::default(),
             reasoning: None,
             reasoning_details: None,
@@ -768,6 +791,7 @@ mod tests {
         let expected = ChatCompletionMessageFull {
             content: "Hello world".to_string(),
             tool_calls: vec![],
+            thought_signature: None,
             usage: Usage::default(),
             reasoning: None,
             reasoning_details: None,
@@ -858,6 +882,7 @@ mod tests {
         let expected = ChatCompletionMessageFull {
             content: "".to_string(),
             tool_calls: vec![],
+            thought_signature: None,
             usage: Usage::default(),
             reasoning: None,
             reasoning_details: None,
@@ -874,6 +899,7 @@ mod tests {
             name: ToolName::new("test_tool"),
             call_id: Some(ToolCallId::new("call_123")),
             arguments: serde_json::json!("test_arg").into(),
+            thought_signature: None,
         };
 
         let messages = vec![Ok(ChatCompletionMessage::default()
@@ -890,6 +916,7 @@ mod tests {
         let expected = ChatCompletionMessageFull {
             content: "".to_string(),
             tool_calls: vec![tool_call],
+            thought_signature: None,
             usage: Usage::default(),
             reasoning: None,
             reasoning_details: None,

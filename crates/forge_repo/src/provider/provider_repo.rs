@@ -261,10 +261,29 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
         config: &ProviderConfig,
     ) -> anyhow::Result<forge_domain::ProviderTemplate> {
         // Get credential from file
-        let credential = self
+        let mut credential = self
             .get_credential(&config.id)
             .await?
             .ok_or_else(|| Error::provider_not_available(config.id.clone()))?;
+
+        // Check if this is a Google ADC credential and refresh it
+        // Google ADC tokens expire quickly, so we refresh them on every load
+        if credential.id == forge_domain::ProviderId::VERTEX_AI
+            && let forge_domain::AuthDetails::ApiKey(ref api_key) = credential.auth_details
+            && api_key.as_ref() == "google_adc_marker"
+        {
+            // Refresh the Google ADC credential, preserving url_params
+            match self.refresh_google_adc_credential(&credential).await {
+                Ok(refreshed) => {
+                    credential = refreshed;
+                    tracing::info!("Successfully refreshed Google ADC token");
+                }
+                Err(e) => {
+                    tracing::error!("Failed to refresh Google ADC token: {e}");
+                    return Err(e.context("Failed to refresh Google ADC token. Please run 'gcloud auth application-default login' to set up credentials."));
+                }
+            }
+        }
 
         // Handle models - keep as templates
         let models = config.models.as_ref().map(|m| match m {
@@ -298,6 +317,44 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
         config: &ProviderConfig,
     ) -> anyhow::Result<forge_domain::ProviderTemplate> {
         Ok(config.into())
+    }
+
+    /// Refreshes a Google ADC credential by fetching a fresh token
+    async fn refresh_google_adc_credential(
+        &self,
+        original_credential: &forge_domain::AuthCredential,
+    ) -> anyhow::Result<forge_domain::AuthCredential> {
+        use google_cloud_auth::credentials::Builder;
+
+        // Vertex AI requires cloud-platform scope
+        const VERTEX_AI_SCOPES: &[&str] = &["https://www.googleapis.com/auth/cloud-platform"];
+
+        // Create credentials with proper scopes using the Builder API
+        let credentials = Builder::default()
+            .with_scopes(VERTEX_AI_SCOPES.iter().map(|s| s.to_string()))
+            .build_access_token_credentials()
+            .map_err(|e| anyhow::anyhow!("Failed to create Google credentials builder: {e}. Please run 'gcloud auth application-default login' to set up credentials."))?;
+
+        // Get fresh token
+        let access_token = credentials.access_token().await.map_err(|e| {
+            anyhow::anyhow!("Failed to fetch Google access token: {e}. Please run 'gcloud auth application-default login' to set up credentials.")
+        })?;
+
+        tracing::debug!(
+            "Fetched Google ADC token (length: {})",
+            access_token.token.len()
+        );
+        tracing::debug!(
+            "Token starts with: {}",
+            &access_token.token[..access_token.token.len().min(20)]
+        );
+
+        // Create new credential with fresh token, preserving url_params
+        Ok(forge_domain::AuthCredential::new_api_key(
+            forge_domain::ProviderId::VERTEX_AI,
+            forge_domain::ApiKey::from(access_token.token),
+        )
+        .url_params(original_credential.url_params.clone()))
     }
 
     async fn provider_from_id(
@@ -408,7 +465,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Sync>
 
 #[cfg(test)]
 mod tests {
-    use forge_app::domain::ProviderResponse;
+    use forge_app::domain::{AuthMethod, ProviderResponse};
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -454,9 +511,13 @@ mod tests {
             config.url_param_vars,
             vec!["PROJECT_ID".to_string(), "LOCATION".to_string()]
         );
-        assert_eq!(config.response_type, Some(ProviderResponse::OpenAI));
+        assert_eq!(config.response_type, Some(ProviderResponse::Google));
         assert!(&config.url.contains("{{"));
         assert!(&config.url.contains("}}"));
+
+        // Verify both auth methods are supported
+        assert!(config.auth_methods.contains(&AuthMethod::ApiKey));
+        assert!(config.auth_methods.contains(&AuthMethod::GoogleAdc));
     }
 
     #[test]

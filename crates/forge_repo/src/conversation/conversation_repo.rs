@@ -697,8 +697,10 @@ mod tests {
                         arguments: forge_domain::ToolCallArguments::from(
                             serde_json::json!({"param": "value"}),
                         ),
+                        thought_signature: None,
                     }]),
                     model: Some(forge_domain::ModelId::from("gpt-4")),
+                    thought_signature: None,
                     reasoning_details: None,
                     droppable: false,
                 }),

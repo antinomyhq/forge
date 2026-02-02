@@ -116,12 +116,14 @@ mod tests {
             name: ToolName::new("test_tool"),
             call_id: Some(ToolCallId::new("call_123")),
             arguments: serde_json::json!({"param": "value"}).into(),
+            thought_signature: None,
         };
 
         Context::default()
             .add_message(ContextMessage::system("System message"))
             .add_message(ContextMessage::assistant(
                 "I'll help you",
+                None,
                 None,
                 Some(vec![tool_call]),
             ))

@@ -39,6 +39,7 @@ impl Transformer for TransformToolCalls {
                             content: text_msg.content.clone(),
                             raw_content: text_msg.raw_content.clone(),
                             tool_calls: None,
+                            thought_signature: text_msg.thought_signature.clone(),
                             reasoning_details: text_msg.reasoning_details.clone(),
                             model: text_msg.model.clone(),
                             droppable: text_msg.droppable,
@@ -102,12 +103,14 @@ mod tests {
             name: ToolName::new("test_tool"),
             call_id: Some(ToolCallId::new("call_123")),
             arguments: serde_json::json!({"param": "value"}).into(),
+            thought_signature: None,
         };
 
         Context::default()
             .add_message(ContextMessage::system("System message"))
             .add_message(ContextMessage::assistant(
                 "I'll help you",
+                None,
                 None,
                 Some(vec![tool_call]),
             ))
@@ -151,7 +154,12 @@ mod tests {
         let fixture = Context::default()
             .add_message(ContextMessage::system("System message"))
             .add_message(ContextMessage::user("User message", None))
-            .add_message(ContextMessage::assistant("Assistant response", None, None));
+            .add_message(ContextMessage::assistant(
+                "Assistant response",
+                None,
+                None,
+                None,
+            ));
 
         let mut transformer = TransformToolCalls::new();
         let actual = transformer.transform(fixture.clone());

@@ -354,8 +354,8 @@ impl<
         self.services.get_workspace_info(path).await
     }
 
-    async fn delete_workspace(&self, workspace_id: forge_domain::WorkspaceId) -> Result<()> {
-        self.services.delete_workspace(&workspace_id).await
+    async fn delete_workspaces(&self, workspace_ids: Vec<forge_domain::WorkspaceId>) -> Result<()> {
+        self.services.delete_workspaces(&workspace_ids).await
     }
 
     async fn get_workspace_status(&self, path: PathBuf) -> Result<Vec<forge_domain::FileStatus>> {

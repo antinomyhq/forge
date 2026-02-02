@@ -626,8 +626,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                     crate::cli::WorkspaceCommand::Info { path } => {
                         self.on_workspace_info(path).await?;
                     }
-                    crate::cli::WorkspaceCommand::Delete { workspace_id } => {
-                        self.on_delete_workspace(workspace_id).await?;
+                    crate::cli::WorkspaceCommand::Delete { workspace_ids } => {
+                        self.on_delete_workspaces(workspace_ids).await?;
                     }
                     crate::cli::WorkspaceCommand::Status { path, porcelain } => {
                         self.on_workspace_status(path, porcelain).await?;
@@ -2018,21 +2018,35 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             })
             .collect::<anyhow::Result<HashMap<_, _>>>()?;
 
-        let input = if let Some(default_key) = &request.api_key {
-            // ApiKey's Display shows masked version, AsRef<str> gives actual value
-            ForgeSelect::input(format!("Enter your {provider_id} API key:"))
-                .with_default(default_key)
+        // Check if API key is already provided
+        // For Google ADC, we use a marker to skip prompting
+        // For other providers, we use the existing key as a default value (autofill)
+        let api_key_str = if let Some(default_key) = &request.api_key {
+            let key_str = default_key.as_ref();
+
+            // Skip prompting only for Google ADC marker
+            if key_str == "google_adc_marker" {
+                key_str.to_string()
+            } else {
+                // For other providers, show the existing key as default (autofill)
+                let input = ForgeSelect::input(format!("Enter your {provider_id} API key:"))
+                    .with_default(key_str);
+                let api_key = input.prompt()?.context("API key input cancelled")?;
+                let api_key_str = api_key.trim();
+                anyhow::ensure!(!api_key_str.is_empty(), "API key cannot be empty");
+                api_key_str.to_string()
+            }
         } else {
-            ForgeSelect::input(format!("Enter your {provider_id} API key:"))
+            // Prompt for API key input (no existing key)
+            let input = ForgeSelect::input(format!("Enter your {provider_id} API key:"));
+            let api_key = input.prompt()?.context("API key input cancelled")?;
+            let api_key_str = api_key.trim();
+            anyhow::ensure!(!api_key_str.is_empty(), "API key cannot be empty");
+            api_key_str.to_string()
         };
 
-        let api_key_str = input.prompt()?.context("API key input cancelled")?;
-
-        let api_key_str = api_key_str.trim();
-        anyhow::ensure!(!api_key_str.is_empty(), "API key cannot be empty");
-
         // Update the context with collected data
-        let response = AuthContextResponse::api_key(request.clone(), api_key_str, url_params);
+        let response = AuthContextResponse::api_key(request.clone(), &api_key_str, url_params);
 
         self.api
             .complete_provider_auth(
@@ -2231,6 +2245,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 AuthMethod::ApiKey => "API Key".to_string(),
                 AuthMethod::OAuthDevice(_) => "OAuth Device Flow".to_string(),
                 AuthMethod::OAuthCode(_) => "OAuth Authorization Code".to_string(),
+                AuthMethod::GoogleAdc => "Google Application Default Credentials (ADC)".to_string(),
             })
             .collect();
 
@@ -3455,20 +3470,36 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
         }
     }
 
-    async fn on_delete_workspace(&mut self, workspace_id: String) -> anyhow::Result<()> {
-        // Parse workspace ID
-        let workspace_id = forge_domain::WorkspaceId::from_string(&workspace_id)
-            .context("Invalid workspace ID format")?;
+    async fn on_delete_workspaces(&mut self, workspace_ids: Vec<String>) -> anyhow::Result<()> {
+        if workspace_ids.is_empty() {
+            anyhow::bail!("At least one workspace ID is required");
+        }
 
-        self.spinner.start(Some("Deleting workspace..."))?;
+        // Parse all workspace IDs
+        let parsed_ids: Vec<forge_domain::WorkspaceId> = workspace_ids
+            .iter()
+            .map(|id| {
+                forge_domain::WorkspaceId::from_string(id)
+                    .with_context(|| format!("Invalid workspace ID format: {}", id))
+            })
+            .collect::<anyhow::Result<Vec<_>>>()?;
 
-        match self.api.delete_workspace(workspace_id.clone()).await {
+        let total = parsed_ids.len();
+        self.spinner.start(Some(&format!(
+            "Deleting {} workspace{}...",
+            total,
+            if total > 1 { "s" } else { "" }
+        )))?;
+
+        match self.api.delete_workspaces(parsed_ids.clone()).await {
             Ok(()) => {
                 self.spinner.stop(None)?;
-                self.writeln_title(TitleFormat::debug(format!(
-                    "Successfully deleted workspace {}",
-                    workspace_id
-                )))?;
+                for id in &parsed_ids {
+                    self.writeln_title(TitleFormat::debug(format!(
+                        "Successfully deleted workspace {}",
+                        id
+                    )))?;
+                }
                 Ok(())
             }
             Err(e) => {

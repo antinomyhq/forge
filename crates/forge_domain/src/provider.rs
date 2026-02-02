@@ -165,6 +165,7 @@ pub enum ProviderResponse {
     OpenAI,
     Anthropic,
     Bedrock,
+    Google,
 }
 
 /// Represents the source of models for a provider
