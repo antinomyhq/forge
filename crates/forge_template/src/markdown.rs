@@ -15,7 +15,11 @@ impl Markdown {
     /// Adds a heading at the specified level (1-6)
     pub fn heading(mut self, level: u8, text: impl ToString) -> Self {
         let level = level.min(6).max(1);
-        self.parts.push(format!("{} {}", "#".repeat(level as usize), text.to_string()));
+        self.parts.push(format!(
+            "{} {}",
+            "#".repeat(level as usize),
+            text.to_string()
+        ));
         self.parts.push(String::new()); // Add blank line after heading
         self
     }
@@ -112,7 +116,8 @@ impl Markdown {
 
     /// Adds a link
     pub fn link(mut self, text: impl ToString, url: impl ToString) -> Self {
-        self.parts.push(format!("[{}]({})", text.to_string(), url.to_string()));
+        self.parts
+            .push(format!("[{}]({})", text.to_string(), url.to_string()));
         self
     }
 
@@ -124,23 +129,24 @@ impl Markdown {
 
     /// Adds a key-value pair formatted as "- **key:** value"
     pub fn kv(mut self, key: impl ToString, value: impl ToString) -> Self {
-        self.parts.push(format!("- **{}:** {}", key.to_string(), value.to_string()));
+        self.parts
+            .push(format!("- **{}:** {}", key.to_string(), value.to_string()));
         self
     }
 
     /// Adds a key-value pair with the value as inline code
     pub fn kv_code(mut self, key: impl ToString, value: impl ToString) -> Self {
-        self.parts.push(format!("- **{}:** `{}`", key.to_string(), value.to_string()));
+        self.parts.push(format!(
+            "- **{}:** `{}`",
+            key.to_string(),
+            value.to_string()
+        ));
         self
     }
 
     /// Conditionally adds content if the condition is true
     pub fn when(self, condition: bool, f: impl FnOnce(Self) -> Self) -> Self {
-        if condition {
-            f(self)
-        } else {
-            self
-        }
+        if condition { f(self) } else { self }
     }
 
     /// Conditionally adds content if the option is Some

@@ -395,7 +395,14 @@ impl ToolOperation {
                         md = md.kv_code("File Type", file_type);
                     }
 
-                    md = md.kv("Results", format!("{} total lines, displaying lines {}", truncated_output.total, display_lines))
+                    md = md
+                        .kv(
+                            "Results",
+                            format!(
+                                "{} total lines, displaying lines {}",
+                                truncated_output.total, display_lines
+                            ),
+                        )
                         .blank_line();
 
                     if let Some(reason) = reason {
@@ -441,10 +448,10 @@ impl ToolOperation {
             },
             ToolOperation::CodebaseSearch { output } => {
                 let total_results: usize = output.queries.iter().map(|q| q.results.len()).sum();
-                
+
                 // Build XML for LLM
                 let mut root = Element::new("sem_search_results");
-                
+
                 // Build Markdown for display
                 let mut md = Markdown::new().bold("Semantic Search Results").blank_line();
 
@@ -710,7 +717,8 @@ impl ToolOperation {
                     md = md.line(format!("**Location:** `{}`", path.display()));
                 }
 
-                md = md.blank_line()
+                md = md
+                    .blank_line()
                     .bold("Instructions:")
                     .code_block(&output.command, Some("markdown"));
 

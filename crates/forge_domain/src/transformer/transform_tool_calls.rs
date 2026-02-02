@@ -74,8 +74,9 @@ impl Transformer for TransformToolCalls {
                             crate::ToolValue::Pair(llm, _display) => {
                                 // For LLM context, always use the LLM value (typically XML)
                                 if let Some(text) = llm.as_str() {
-                                    new_messages
-                                        .push(ContextMessage::user(text, self.model.clone()).into());
+                                    new_messages.push(
+                                        ContextMessage::user(text, self.model.clone()).into(),
+                                    );
                                 }
                             }
                             crate::ToolValue::AI { value, .. } => new_messages

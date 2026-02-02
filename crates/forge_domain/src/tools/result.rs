@@ -108,17 +108,19 @@ impl ToolOutput {
     /// # Example
     /// ```ignore
     /// use forge_template::Element;
-    /// 
+    ///
     /// let elm = Element::new("search_results")
     ///     .attr("pattern", "*.rs")
     ///     .text("file.rs");
-    /// 
+    ///
     /// let output = ToolOutput::paired(elm.render(), elm.render_markdown());
     /// ```
     pub fn paired(xml: impl ToString, markdown: impl ToString) -> Self {
         ToolOutput {
             is_error: Default::default(),
-            values: vec![ToolValue::Text(xml.to_string()).pair(ToolValue::Markdown(markdown.to_string()))],
+            values: vec![
+                ToolValue::Text(xml.to_string()).pair(ToolValue::Markdown(markdown.to_string())),
+            ],
         }
     }
 
@@ -128,15 +130,15 @@ impl ToolOutput {
     /// # Example
     /// ```ignore
     /// use forge_template::{Element, Markdown};
-    /// 
+    ///
     /// let elm = Element::new("search_results")
     ///     .attr("pattern", "*.rs")
     ///     .text("file.rs");
-    /// 
+    ///
     /// let md = Markdown::new()
     ///     .bold("Search Results")
     ///     .kv_code("Pattern", "*.rs");
-    /// 
+    ///
     /// let output = ToolOutput::from_element_and_markdown(elm, md);
     /// ```
     pub fn from_element_and_markdown(element: Element, markdown: forge_template::Markdown) -> Self {
@@ -164,7 +166,8 @@ impl ToolOutput {
         ToolOutput { values: items, is_error: self.is_error || other.is_error }
     }
 
-    /// Returns the first item as a string if it exists (uses LLM value for Pairs)
+    /// Returns the first item as a string if it exists (uses LLM value for
+    /// Pairs)
     pub fn as_str(&self) -> Option<&str> {
         self.values.iter().find_map(|item| item.as_str())
     }
@@ -220,7 +223,8 @@ impl ToolValue {
     }
 
     /// Pairs this value with another, creating a `Pair` variant.
-    /// Typically used to pair XML content (for LLM) with Markdown (for display).
+    /// Typically used to pair XML content (for LLM) with Markdown (for
+    /// display).
     ///
     /// # Example
     /// ```ignore
@@ -242,7 +246,8 @@ impl ToolValue {
     }
 
     /// Gets the display value from a Pair, or returns self if not a Pair.
-    /// The display value is the second value in the pair (typically Markdown-formatted).
+    /// The display value is the second value in the pair (typically
+    /// Markdown-formatted).
     pub fn display_value(&self) -> &ToolValue {
         match self {
             ToolValue::Pair(_, display) => display.as_ref(),
@@ -262,8 +267,9 @@ impl ToolValue {
         }
     }
 
-    /// Gets the string representation suitable for display (UI, terminal, etc.).
-    /// For Pair values, returns the display value; otherwise returns as_str().
+    /// Gets the string representation suitable for display (UI, terminal,
+    /// etc.). For Pair values, returns the display value; otherwise returns
+    /// as_str().
     pub fn display_str(&self) -> Option<&str> {
         match self {
             ToolValue::Pair(_, display) => display.as_str(),

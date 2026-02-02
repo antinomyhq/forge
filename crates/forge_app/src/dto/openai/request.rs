@@ -512,7 +512,10 @@ impl From<ToolResult> for MessageContent {
                 ToolValue::Pair(llm, _display) => {
                     // For LLM, always use the LLM value (typically XML)
                     if let Some(text) = llm.as_str() {
-                        parts.push(ContentPart::Text { text: text.to_string(), cache_control: None });
+                        parts.push(ContentPart::Text {
+                            text: text.to_string(),
+                            cache_control: None,
+                        });
                     }
                 }
                 ToolValue::AI { value, .. } => {

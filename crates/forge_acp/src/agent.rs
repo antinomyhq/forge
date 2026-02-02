@@ -362,10 +362,11 @@ impl<S: Services> ForgeAgent<S> {
             .filter_map(|value| {
                 // Use display_value() to get the user-friendly representation
                 let display = value.display_value();
-                
+
                 match display {
                     ToolValue::Text(text) => {
-                        // Skip text content if we have a FileDiff (text is the formatted diff for CLI)
+                        // Skip text content if we have a FileDiff (text is the formatted diff for
+                        // CLI)
                         if has_file_diff {
                             None
                         } else {
@@ -380,12 +381,12 @@ impl<S: Services> ForgeAgent<S> {
                             acp::ContentBlock::Text(acp::TextContent::new(md.clone())),
                         )))
                     }
-                    ToolValue::Image(image) => Some(acp::ToolCallContent::Content(acp::Content::new(
-                        acp::ContentBlock::Image(acp::ImageContent::new(
+                    ToolValue::Image(image) => Some(acp::ToolCallContent::Content(
+                        acp::Content::new(acp::ContentBlock::Image(acp::ImageContent::new(
                             image.data(),
                             image.mime_type(),
-                        )),
-                    ))),
+                        ))),
+                    )),
                     ToolValue::AI { value, .. } => {
                         Some(acp::ToolCallContent::Content(acp::Content::new(
                             acp::ContentBlock::Text(acp::TextContent::new(value.clone())),
@@ -1131,9 +1132,10 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
         let session_key = args.session_id.0.as_ref().to_string();
         let model_id = ModelId::new(args.model_id.0.to_string());
 
-        // Set the model as default in the app configuration (this persists the change) - commented out (TODO: needs review)
-        // self.services.set_default_model(model_id.clone()).await?;
-        // let _ = self.services.reload_agents().await;
+        // Set the model as default in the app configuration (this persists the change)
+        // - commented out (TODO: needs review) self.services.
+        // set_default_model(model_id.clone()).await?; let _ = self.services.
+        // reload_agents().await;
 
         // Store the model override for this session so it takes effect immediately
         self.session_to_model
