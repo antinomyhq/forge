@@ -717,7 +717,8 @@ impl FromDomain<forge_domain::ContextMessage> for aws_sdk_bedrockruntime::types:
                                 ReasoningContentBlock::RedactedContent(blob),
                             ));
                         }
-                        // Skip reasoning entries that have neither text nor data
+                        // Skip reasoning entries that have neither text nor
+                        // data
                     }
                 }
 

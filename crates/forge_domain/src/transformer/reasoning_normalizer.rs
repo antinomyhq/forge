@@ -15,8 +15,8 @@ use crate::{Context, Transformer};
 /// - If the last assistant message has reasoning: keep only its reasoning,
 ///   strip from earlier assistants
 /// - If the last assistant message has NO reasoning but earlier ones do:
-///   preserve the last assistant that HAS reasoning (for API compliance),
-///   strip from all others
+///   preserve the last assistant that HAS reasoning (for API compliance), strip
+///   from all others
 /// - If no assistant messages have reasoning: nothing to do
 #[derive(Default)]
 pub struct ReasoningNormalizer;
