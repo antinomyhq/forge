@@ -9,6 +9,7 @@ use url::Url;
 
 use crate::provider::anthropic::AnthropicResponseRepository;
 use crate::provider::bedrock::BedrockResponseRepository;
+use crate::provider::google::GoogleResponseRepository;
 use crate::provider::openai::OpenAIResponseRepository;
 use crate::provider::openai_responses::OpenAIResponsesResponseRepository;
 
@@ -19,6 +20,7 @@ pub struct ForgeChatRepository<F> {
     codex_repo: OpenAIResponsesResponseRepository<F>,
     anthropic_repo: AnthropicResponseRepository<F>,
     bedrock_repo: BedrockResponseRepository,
+    google_repo: GoogleResponseRepository<F>,
 }
 
 impl<F: EnvironmentInfra + HttpInfra> ForgeChatRepository<F> {
@@ -40,9 +42,18 @@ impl<F: EnvironmentInfra + HttpInfra> ForgeChatRepository<F> {
         let anthropic_repo =
             AnthropicResponseRepository::new(infra.clone()).retry_config(retry_config.clone());
 
-        let bedrock_repo = BedrockResponseRepository::new(retry_config);
+        let bedrock_repo = BedrockResponseRepository::new(retry_config.clone());
 
-        Self { openai_repo, codex_repo, anthropic_repo, bedrock_repo }
+        let google_repo =
+            GoogleResponseRepository::new(infra.clone()).retry_config(retry_config.clone());
+
+        Self {
+            openai_repo,
+            codex_repo,
+            anthropic_repo,
+            bedrock_repo,
+            google_repo,
+        }
     }
 }
 
@@ -73,6 +84,9 @@ impl<F: EnvironmentInfra + HttpInfra + Sync> ChatRepository for ForgeChatReposit
             Some(ProviderResponse::Bedrock) => {
                 self.bedrock_repo.chat(model_id, context, provider).await
             }
+            Some(ProviderResponse::Google) => {
+                self.google_repo.chat(model_id, context, provider).await
+            }
             None => Err(anyhow::anyhow!(
                 "Provider response type not configured for provider: {}",
                 provider.id
@@ -86,6 +100,7 @@ impl<F: EnvironmentInfra + HttpInfra + Sync> ChatRepository for ForgeChatReposit
             Some(ProviderResponse::OpenAI) => self.openai_repo.models(provider).await,
             Some(ProviderResponse::Anthropic) => self.anthropic_repo.models(provider).await,
             Some(ProviderResponse::Bedrock) => self.bedrock_repo.models(provider).await,
+            Some(ProviderResponse::Google) => self.google_repo.models(provider).await,
             None => Err(anyhow::anyhow!(
                 "Provider response type not configured for provider: {}",
                 provider.id
