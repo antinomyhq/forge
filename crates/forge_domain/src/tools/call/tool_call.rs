@@ -28,7 +28,7 @@ impl ToolCallId {
         &self.0
     }
 
-    fn generate() -> Self {
+    pub fn generate() -> Self {
         let id = format!("forge_call_id_{}", uuid::Uuid::new_v4());
         ToolCallId(id)
     }

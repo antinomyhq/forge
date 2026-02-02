@@ -404,7 +404,7 @@ impl AuthStrategy for GoogleAdcStrategy {
                 // For Google ADC, we save a marker instead of the actual token
                 // The token will be refreshed on every use
                 // But we still need to save the url_params (PROJECT_ID, LOCATION)
-                Ok(AuthCredential::new_api_key(
+                Ok(AuthCredential::new_google_adc(
                     self.provider_id.clone(),
                     ApiKey::from("google_adc_marker".to_string()), /* Marker that will trigger
                                                                     * refresh */
@@ -430,7 +430,7 @@ impl AuthStrategy for GoogleAdcStrategy {
             AuthError::RefreshFailed(format!("Failed to refresh Google access token: {e}"))
         })?;
 
-        Ok(AuthCredential::new_api_key(
+        Ok(AuthCredential::new_google_adc(
             self.provider_id.clone(),
             ApiKey::from(access_token.token),
         ))
