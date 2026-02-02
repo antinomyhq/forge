@@ -208,11 +208,24 @@ impl<F: forge_app::FileWriterInfra + 'static> ForgeHttpInfra<F> {
 
         if let Some(debug_path) = &self.env.debug_requests {
             let file_writer = self.file.clone();
-            let body_clone = body.clone();
             let debug_path = debug_path.clone();
+            let url_str = url.to_string();
+            let headers_clone = Self::sanitize_headers(&request_headers);
+            let body_clone = body.clone();
             tokio::spawn(async move {
-                // Use debug_path if parent dir can be created, otherwise use fallback
-                let _ = file_writer.write(&debug_path, body_clone).await;
+                // Format complete request as JSON
+                let request_log = serde_json::json!({
+                    "method": "POST",
+                    "url": url_str,
+                    "headers": headers_clone.iter().map(|(k, v)| {
+                        (k.as_str(), v.to_str().unwrap_or("[invalid utf8]"))
+                    }).collect::<std::collections::HashMap<_, _>>(),
+                    "body": String::from_utf8_lossy(&body_clone).to_string(),
+                });
+                
+                if let Ok(request_bytes) = serde_json::to_vec_pretty(&request_log) {
+                    let _ = file_writer.write(&debug_path, Bytes::from(request_bytes)).await;
+                }
             });
         }
 
@@ -351,7 +364,14 @@ mod tests {
         let writes = file_writer.get_writes().await;
         assert_eq!(writes.len(), 1, "Should write one file");
         assert_eq!(writes[0].0, debug_path);
-        assert_eq!(writes[0].1, body);
+        
+        // Verify the written content is valid JSON with complete request info
+        let written_json: serde_json::Value = 
+            serde_json::from_slice(&writes[0].1).expect("Should be valid JSON");
+        assert_eq!(written_json["method"], "POST");
+        assert_eq!(written_json["url"], url.as_str());
+        assert_eq!(written_json["body"], "test request body");
+        assert!(written_json["headers"].is_object(), "Should have headers object");
     }
 
     #[tokio::test]
@@ -372,7 +392,14 @@ mod tests {
         let writes = file_writer.get_writes().await;
         assert_eq!(writes.len(), 1, "Should write one file");
         assert_eq!(writes[0].0, debug_path);
-        assert_eq!(writes[0].1, body);
+        
+        // Verify the written content is valid JSON with complete request info
+        let written_json: serde_json::Value = 
+            serde_json::from_slice(&writes[0].1).expect("Should be valid JSON");
+        assert_eq!(written_json["method"], "POST");
+        assert_eq!(written_json["url"], url.as_str());
+        assert_eq!(written_json["body"], "test request body");
+        assert!(written_json["headers"].is_object(), "Should have headers object");
     }
 
     #[tokio::test]
@@ -396,6 +423,13 @@ mod tests {
         // Should write to debug_path (no parent dir needed)
         assert_eq!(writes.len(), 1, "Should write one file");
         assert_eq!(writes[0].0, debug_path);
-        assert_eq!(writes[0].1, body);
+        
+        // Verify the written content is valid JSON with complete request info
+        let written_json: serde_json::Value = 
+            serde_json::from_slice(&writes[0].1).expect("Should be valid JSON");
+        assert_eq!(written_json["method"], "POST");
+        assert_eq!(written_json["url"], url.as_str());
+        assert_eq!(written_json["body"], "test request body");
+        assert!(written_json["headers"].is_object(), "Should have headers object");
     }
 }
