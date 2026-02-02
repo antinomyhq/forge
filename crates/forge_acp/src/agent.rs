@@ -1,30 +1,3 @@
-//! Forge ACP agent implementation.
-//!
-//! This module implements the `Agent` trait from the ACP SDK, mapping ACP
-//! protocol messages to Forge's existing functionality.
-//!
-//! ## Model Management
-//!
-//! The agent exposes model selection through the ACP protocol's standard
-//! `SessionModelState` mechanism. When creating or loading a session, the agent
-//! returns a list of available models and the currently selected model.
-//!
-//! The IDE will display a model dropdown near the send button, allowing users
-//! to:
-//! - View all available models from the current provider
-//! - See model metadata (context length, capabilities, etc.)
-//! - Switch between models mid-conversation
-//!
-//! Model changes are handled automatically by the ACP protocol through the
-//! `session/set_model` RPC method, which updates the session-specific model
-//! override.
-//!
-//! Additionally, custom extension methods are available for programmatic
-//! access:
-//! - `forge/listModels` - List all available models with full metadata
-//! - `forge/setModel` - Set model for a session
-//! - `forge/getModel` - Get current model for a session
-
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -46,9 +19,6 @@ use tokio_util::sync::CancellationToken;
 use crate::{Error, Result, VERSION};
 
 /// Forge implementation of the ACP Agent trait.
-///
-/// This struct bridges the ACP protocol with Forge's existing infrastructure,
-/// allowing Forge to be invoked as an agent from ACP-compatible IDEs.
 pub struct ForgeAgent<S> {
     /// Forge application instance with all services.
     app: Arc<ForgeApp<S>>,
@@ -76,13 +46,6 @@ pub struct ForgeAgent<S> {
 }
 
 impl<S: Services> ForgeAgent<S> {
-    /// Creates a new ForgeAgent instance.
-    ///
-    /// # Arguments
-    ///
-    /// * `app` - The Forge application instance
-    /// * `session_update_tx` - Channel for sending session updates to the
-    ///   client
     pub fn new(
         app: Arc<ForgeApp<S>>,
         services: Arc<S>,
