@@ -677,7 +677,8 @@ mod tests {
     fn test_sem_search_included_when_supported() {
         use fake::{Fake, Faker};
         let env: Environment = Faker.fake();
-        let actual = ToolRegistry::<()>::get_system_tools(true, &env, None, create_test_agents(), None);
+        let actual =
+            ToolRegistry::<()>::get_system_tools(true, &env, None, create_test_agents(), None);
         assert!(actual.iter().any(|t| t.name.as_str() == "sem_search"));
     }
 
@@ -685,7 +686,8 @@ mod tests {
     fn test_sem_search_filtered_when_not_supported() {
         use fake::{Fake, Faker};
         let env: Environment = Faker.fake();
-        let actual = ToolRegistry::<()>::get_system_tools(false, &env, None, create_test_agents(), None);
+        let actual =
+            ToolRegistry::<()>::get_system_tools(false, &env, None, create_test_agents(), None);
         assert!(actual.iter().all(|t| t.name.as_str() != "sem_search"));
     }
 }
@@ -786,8 +788,13 @@ fn test_dynamic_tool_description_with_vision_model() {
     env.max_image_size = 5000; // Set fixed value for deterministic test
     let vision_model = create_test_model("gpt-4o", vec![InputModality::Text, InputModality::Image]);
 
-    let tools_with_vision =
-        ToolRegistry::<()>::get_system_tools(true, &env, Some(vision_model), create_test_agents(), None);
+    let tools_with_vision = ToolRegistry::<()>::get_system_tools(
+        true,
+        &env,
+        Some(vision_model),
+        create_test_agents(),
+        None,
+    );
     let read_tool = tools_with_vision
         .iter()
         .find(|t| t.name.as_str() == "read")
