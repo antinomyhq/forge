@@ -912,9 +912,58 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
                                                                 .map_err(acp::Error::from)?;
                                                         }
                                                     }
-                                                    forge_domain::ChatResponseContent::ToolInput(_) => {
-                                                        // Skip tool input notifications - too verbose for ACP
-                                                        continue;
+                                                    forge_domain::ChatResponseContent::ToolInput(title) => {
+                                                        // Check if this is a task from an active agent tool call
+                                                        let agent_name = title.title.split_whitespace().next().unwrap_or("");
+                                                        let is_agent_task = title.title.contains("[Agent]");
+
+                                                        if is_agent_task {
+                                                            // Create a separate tool call for this task that completes immediately
+                                                            let task_desc = if let Some(sub) = &title.sub_title {
+                                                                sub.clone()
+                                                            } else {
+                                                                "Working...".to_string()
+                                                            };
+
+                                                            // Generate unique ID for this task
+                                                            let task_id = format!("{}-task-{}", agent_name.to_lowercase(), uuid::Uuid::new_v4());
+
+                                                            // Send ToolCallUpdate for task start with content
+                                                            let start_update = acp::ToolCallUpdate::new(
+                                                                task_id.clone(),
+                                                                acp::ToolCallUpdateFields::new()
+                                                                    .kind(acp::ToolKind::Think)
+                                                                    .title(format!("{}", agent_name))
+                                                                    .status(acp::ToolCallStatus::InProgress)
+                                                                    .content(vec![acp::ToolCallContent::Content(
+                                                                        acp::Content::new(acp::ContentBlock::Text(
+                                                                            acp::TextContent::new(task_desc.clone())
+                                                                        ))
+                                                                    )])
+                                                            );
+
+                                                            let start_notification = acp::SessionNotification::new(
+                                                                arguments.session_id.clone(),
+                                                                acp::SessionUpdate::ToolCallUpdate(start_update),
+                                                            );
+                                                            self.send_notification(start_notification)
+                                                                .map_err(acp::Error::from)?;
+
+                                                            // Immediately send completion for this task
+                                                            let complete_update = acp::ToolCallUpdate::new(
+                                                                task_id,
+                                                                acp::ToolCallUpdateFields::new()
+                                                                    .status(acp::ToolCallStatus::Completed)
+                                                            );
+
+                                                            let complete_notification = acp::SessionNotification::new(
+                                                                arguments.session_id.clone(),
+                                                                acp::SessionUpdate::ToolCallUpdate(complete_update),
+                                                            );
+                                                            self.send_notification(complete_notification)
+                                                                .map_err(acp::Error::from)?;
+                                                        }
+                                                        // If not an agent task, ignore (could be other tool input)
                                                     }
                                                 }
                                             }
