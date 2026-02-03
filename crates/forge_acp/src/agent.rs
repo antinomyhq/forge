@@ -5,8 +5,14 @@ use std::sync::Arc;
 
 use agent_client_protocol as acp;
 use agent_client_protocol::{Client, SetSessionModelRequest, SetSessionModelResponse};
-use forge_app::{AgentProviderResolver, AgentRegistry, AppConfigService, AttachmentService, ConversationService, ForgeApp, McpConfigManager, McpService, ProviderAuthService, ProviderService, Services};
-use forge_domain::{Agent, AgentId, ChatRequest, ConversationId, Event, EventValue, ModelId, ToolCallFull, ToolName, ToolValue};
+use forge_app::{
+    AgentProviderResolver, AgentRegistry, AppConfigService, AttachmentService, ConversationService,
+    ForgeApp, McpConfigManager, McpService, ProviderAuthService, ProviderService, Services,
+};
+use forge_domain::{
+    Agent, AgentId, ChatRequest, ConversationId, Event, EventValue, ModelId, ToolCallFull,
+    ToolName, ToolValue,
+};
 use tokio::sync::{Mutex, mpsc};
 use tokio_util::sync::CancellationToken;
 
@@ -472,7 +478,9 @@ impl<S: Services> ForgeAgent<S> {
         // Add new servers to the existing config
         for server in mcp_servers {
             let (name, config) = Self::convert_acp_mcp_server(server)?;
-            local_config.mcp_servers.insert(ServerName::from(name), config);
+            local_config
+                .mcp_servers
+                .insert(ServerName::from(name), config);
         }
 
         // Write the merged MCP config back to the local scope
@@ -495,7 +503,9 @@ impl<S: Services> ForgeAgent<S> {
     /// # Errors
     ///
     /// Returns an error if the server configuration is invalid.
-    fn convert_acp_mcp_server(server: &acp::McpServer) -> Result<(String, forge_domain::McpServerConfig)> {
+    fn convert_acp_mcp_server(
+        server: &acp::McpServer,
+    ) -> Result<(String, forge_domain::McpServerConfig)> {
         use forge_domain::McpServerConfig;
 
         match server {
@@ -744,10 +754,10 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
                     .load_session(true)
                     .mcp_capabilities(
                         acp::McpCapabilities::new()
-                            .http(true)  // Support HTTP transport
-                            .sse(true)   // Support SSE transport
-                            // Stdio is mandatory and always supported
-                    )
+                            .http(true) // Support HTTP transport
+                            .sse(true), /* Support SSE transport
+                                         * Stdio is mandatory and always supported */
+                    ),
             )
             .agent_info(
                 acp::Implementation::new("forge".to_string(), VERSION.to_string())
@@ -775,7 +785,10 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
 
         // Load MCP servers if provided by the client
         if !arguments.mcp_servers.is_empty() {
-            tracing::info!("Loading {} MCP servers from client", arguments.mcp_servers.len());
+            tracing::info!(
+                "Loading {} MCP servers from client",
+                arguments.mcp_servers.len()
+            );
             self.load_mcp_servers(&arguments.mcp_servers).await?;
         }
 
@@ -859,7 +872,10 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
 
         // Load MCP servers if provided by the client
         if !arguments.mcp_servers.is_empty() {
-            tracing::info!("Loading {} MCP servers from client", arguments.mcp_servers.len());
+            tracing::info!(
+                "Loading {} MCP servers from client",
+                arguments.mcp_servers.len()
+            );
             self.load_mcp_servers(&arguments.mcp_servers).await?;
         }
 
