@@ -365,6 +365,19 @@ impl<S: AgentService> Orchestrator<S> {
                 tool_call_records,
             );
 
+            if is_complete {
+                let pending_todos = self.services.get_pending_todos(&self.conversation.id).await?;
+                if !pending_todos.is_empty() {
+                    let reminder = format!(
+                        "You have {} pending todo items. Please complete them before finishing the task.",
+                        pending_todos.len()
+                    );
+                    context = context.add_message(ContextMessage::user(reminder, None));
+                    should_yield = false;
+                    is_complete = false;
+                }
+            }
+
             if self.error_tracker.limit_reached() {
                 self.send(ChatResponse::Interrupt {
                     reason: InterruptionReason::MaxToolFailurePerTurnLimitReached {
