@@ -5,14 +5,8 @@ use std::sync::Arc;
 
 use agent_client_protocol as acp;
 use agent_client_protocol::{Client, SetSessionModelRequest, SetSessionModelResponse};
-use forge_app::{
-    AgentProviderResolver, AgentRegistry, AppConfigService, AttachmentService, ConversationService,
-    ForgeApp, ProviderAuthService, ProviderService, Services,
-};
-use forge_domain::{
-    Agent, AgentId, ChatRequest, ConversationId, Event, EventValue, ModelId, ToolCallFull,
-    ToolName, ToolValue,
-};
+use forge_app::{AgentProviderResolver, AgentRegistry, AppConfigService, AttachmentService, ConversationService, ForgeApp, McpConfigManager, McpService, ProviderAuthService, ProviderService, Services};
+use forge_domain::{Agent, AgentId, ChatRequest, ConversationId, Event, EventValue, ModelId, ToolCallFull, ToolName, ToolValue};
 use tokio::sync::{Mutex, mpsc};
 use tokio_util::sync::CancellationToken;
 
@@ -279,21 +273,50 @@ impl<S: Services> ForgeAgent<S> {
                 // Check MCP tool patterns
                 let name = tool_name.as_str();
                 if name.starts_with("mcp_") {
-                    if name.contains("read") || name.contains("get") || name.contains("fetch") {
+                    if name.contains("read")
+                        || name.contains("get")
+                        || name.contains("fetch")
+                        || name.contains("list")
+                        || name.contains("show")
+                        || name.contains("view")
+                        || name.contains("load")
+                    {
                         acp::ToolKind::Read
                     } else if name.contains("search")
                         || name.contains("query")
                         || name.contains("find")
+                        || name.contains("filter")
+                        || name.contains("lookup")
                     {
                         acp::ToolKind::Search
                     } else if name.contains("write")
                         || name.contains("update")
                         || name.contains("create")
+                        || name.contains("set")
+                        || name.contains("add")
+                        || name.contains("insert")
+                        || name.contains("push")
+                        || name.contains("merge")
+                        || name.contains("fork")
+                        || name.contains("comment")
+                        || name.contains("assign")
+                        || name.contains("request")
                     {
                         acp::ToolKind::Edit
-                    } else if name.contains("delete") || name.contains("remove") {
+                    } else if name.contains("delete")
+                        || name.contains("remove")
+                        || name.contains("drop")
+                        || name.contains("clear")
+                        || name.contains("close")
+                        || name.contains("cancel")
+                    {
                         acp::ToolKind::Delete
-                    } else if name.contains("execute") || name.contains("run") {
+                    } else if name.contains("execute")
+                        || name.contains("run")
+                        || name.contains("start")
+                        || name.contains("invoke")
+                        || name.contains("call")
+                    {
                         acp::ToolKind::Execute
                     } else {
                         acp::ToolKind::Other
@@ -425,6 +448,103 @@ impl<S: Services> ForgeAgent<S> {
         } else {
             // Return as-is if not a file:// URI
             uri.to_string()
+        }
+    }
+
+    /// Loads MCP servers from ACP requests into Forge's MCP configuration.
+    ///
+    /// Converts ACP McpServer types to Forge's McpServerConfig and adds them
+    /// to the local MCP configuration without overwriting existing servers.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if MCP servers cannot be loaded or converted.
+    async fn load_mcp_servers(&self, mcp_servers: &[acp::McpServer]) -> Result<()> {
+        use forge_domain::{Scope, ServerName};
+
+        // Read existing local config (if any)
+        let mut local_config = self
+            .services
+            .read_mcp_config(Some(&Scope::Local))
+            .await
+            .unwrap_or_default();
+
+        // Add new servers to the existing config
+        for server in mcp_servers {
+            let (name, config) = Self::convert_acp_mcp_server(server)?;
+            local_config.mcp_servers.insert(ServerName::from(name), config);
+        }
+
+        // Write the merged MCP config back to the local scope
+        self.services
+            .write_mcp_config(&local_config, &Scope::Local)
+            .await
+            .map_err(Error::Application)?;
+
+        // Reload MCP servers to pick up the new configuration
+        self.services
+            .reload_mcp()
+            .await
+            .map_err(Error::Application)?;
+
+        Ok(())
+    }
+
+    /// Converts an ACP McpServer to Forge's McpServerConfig.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the server configuration is invalid.
+    fn convert_acp_mcp_server(server: &acp::McpServer) -> Result<(String, forge_domain::McpServerConfig)> {
+        use forge_domain::McpServerConfig;
+
+        match server {
+            acp::McpServer::Stdio(stdio) => {
+                // Convert Vec<EnvVariable> to BTreeMap<String, String>
+                let env_map = stdio
+                    .env
+                    .iter()
+                    .map(|ev| (ev.name.clone(), ev.value.clone()))
+                    .collect();
+
+                let config = McpServerConfig::new_stdio(
+                    stdio.command.to_string_lossy().to_string(),
+                    stdio.args.clone(),
+                    Some(env_map),
+                );
+                Ok((stdio.name.clone(), config))
+            }
+            acp::McpServer::Http(http) => {
+                let mut config = McpServerConfig::new_http(&http.url);
+                if let McpServerConfig::Http(ref mut http_config) = config {
+                    // Convert Vec<HttpHeader> to BTreeMap<String, String>
+                    http_config.headers = http
+                        .headers
+                        .iter()
+                        .map(|h| (h.name.clone(), h.value.clone()))
+                        .collect();
+                }
+                Ok((http.name.clone(), config))
+            }
+            acp::McpServer::Sse(sse) => {
+                // SSE uses the same HTTP transport in Forge (auto-detected)
+                let mut config = McpServerConfig::new_http(&sse.url);
+                if let McpServerConfig::Http(ref mut http_config) = config {
+                    // Convert Vec<HttpHeader> to BTreeMap<String, String>
+                    http_config.headers = sse
+                        .headers
+                        .iter()
+                        .map(|h| (h.name.clone(), h.value.clone()))
+                        .collect();
+                }
+                Ok((sse.name.clone(), config))
+            }
+            _ => {
+                // Handle future MCP server types that may be added to the protocol
+                Err(Error::Application(anyhow::anyhow!(
+                    "Unsupported MCP server type"
+                )))
+            }
         }
     }
 
@@ -619,7 +739,16 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
         );
 
         Ok(acp::InitializeResponse::new(acp::ProtocolVersion::V1)
-            .agent_capabilities(acp::AgentCapabilities::new().load_session(true))
+            .agent_capabilities(
+                acp::AgentCapabilities::new()
+                    .load_session(true)
+                    .mcp_capabilities(
+                        acp::McpCapabilities::new()
+                            .http(true)  // Support HTTP transport
+                            .sse(true)   // Support SSE transport
+                            // Stdio is mandatory and always supported
+                    )
+            )
             .agent_info(
                 acp::Implementation::new("forge".to_string(), VERSION.to_string())
                     .title("Forge Code".to_string()),
@@ -643,6 +772,12 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
         arguments: acp::NewSessionRequest,
     ) -> std::result::Result<acp::NewSessionResponse, acp::Error> {
         tracing::info!("Creating new session with cwd: {:?}", arguments.cwd);
+
+        // Load MCP servers if provided by the client
+        if !arguments.mcp_servers.is_empty() {
+            tracing::info!("Loading {} MCP servers from client", arguments.mcp_servers.len());
+            self.load_mcp_servers(&arguments.mcp_servers).await?;
+        }
 
         // Generate a new session ID that maps to a Forge conversation ID
         let session_id = self.next_session_id();
@@ -721,6 +856,12 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
         arguments: acp::LoadSessionRequest,
     ) -> std::result::Result<acp::LoadSessionResponse, acp::Error> {
         tracing::info!("Loading session: {}", arguments.session_id.0.as_ref());
+
+        // Load MCP servers if provided by the client
+        if !arguments.mcp_servers.is_empty() {
+            tracing::info!("Loading {} MCP servers from client", arguments.mcp_servers.len());
+            self.load_mcp_servers(&arguments.mcp_servers).await?;
+        }
 
         // Verify the session exists by attempting to parse it as a conversation ID
         let _conversation_id = self
