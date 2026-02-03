@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use anyhow::Context;
 use bytes::Bytes;
+use crate::curl::CurlCommand;
 use forge_app::HttpInfra;
 use forge_domain::{Environment, TlsBackend, TlsVersion};
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
@@ -196,51 +197,6 @@ impl<F> ForgeHttpInfra<F> {
     }
 }
 
-/// Represents a curl command with type-safe components
-#[derive(Debug, Clone, Default, derive_setters::Setters)]
-#[setters(strip_option, into)]
-struct CurlCommand {
-    method: String,
-    url: String,
-    headers: Vec<(String, String)>,
-    body: Option<String>,
-}
-
-impl CurlCommand {
-    /// Creates a new curl command builder
-    fn new(method: impl Into<String>, url: impl Into<String>) -> Self {
-        Self {
-            method: method.into(),
-            url: url.into(),
-            headers: Vec::new(),
-            body: None,
-        }
-    }
-
-    /// Adds a header to the curl command
-    fn header(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
-        self.headers.push((key.into(), value.into()));
-        self
-    }
-
-    /// Renders the curl command as a string
-    fn render(&self) -> String {
-        let mut cmd = format!("curl -X {} '{}'", self.method, self.url);
-
-        for (key, value) in &self.headers {
-            cmd.push_str(&format!(" \\\n  -H '{}: {}'", key, value));
-        }
-
-        if let Some(body) = &self.body {
-            // Escape single quotes in the body
-            let escaped_body = body.replace('\'', "'\\''");
-            cmd.push_str(&format!(" \\\n  -d '{}'", escaped_body));
-        }
-
-        cmd
-    }
-}
-
 impl<F: forge_app::FileWriterInfra + 'static> ForgeHttpInfra<F> {
     async fn eventsource(
         &self,
@@ -258,20 +214,21 @@ impl<F: forge_app::FileWriterInfra + 'static> ForgeHttpInfra<F> {
             let headers_clone = Self::sanitize_headers(&request_headers);
             let body_clone = body.clone();
             tokio::spawn(async move {
-                // Build curl command using type-safe builder
-                let mut curl_builder = CurlCommand::new("POST", url_str);
+                // Build curl command using derive_setters
+                let headers_vec: Vec<(String, String)> = headers_clone
+                    .iter()
+                    .map(|(key, value)| {
+                        let value_str = value.to_str().unwrap_or("[invalid utf8]").to_string();
+                        (key.as_str().to_string(), value_str)
+                    })
+                    .collect();
 
-                // Add headers
-                for (key, value) in headers_clone.iter() {
-                    let value_str = value.to_str().unwrap_or("[invalid utf8]");
-                    curl_builder = curl_builder.header(key.as_str(), value_str);
-                }
-
-                // Add body
                 let body_str = String::from_utf8_lossy(&body_clone);
-                curl_builder = curl_builder.body(body_str.as_ref());
 
-                let curl_cmd = curl_builder.render();
+                let curl_cmd = CurlCommand::new("POST", url_str)
+                    .headers(headers_vec)
+                    .body(body_str.to_string())
+                    .render();
 
                 let _ = file_writer
                     .write(&debug_path, Bytes::from(curl_cmd.into_bytes()))
