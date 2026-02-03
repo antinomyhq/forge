@@ -417,9 +417,15 @@ mod tests {
 
         // Verify the written content is a valid curl command
         let curl_cmd = String::from_utf8_lossy(&writes[0].1);
-        assert!(curl_cmd.starts_with("curl -X POST"), "Should start with curl -X POST");
+        assert!(
+            curl_cmd.starts_with("curl -X POST"),
+            "Should start with curl -X POST"
+        );
         assert!(curl_cmd.contains(url.as_str()), "Should contain URL");
-        assert!(curl_cmd.contains("test request body"), "Should contain body");
+        assert!(
+            curl_cmd.contains("test request body"),
+            "Should contain body"
+        );
         assert!(curl_cmd.contains("-H"), "Should contain headers");
     }
 
@@ -444,9 +450,15 @@ mod tests {
 
         // Verify the written content is a valid curl command
         let curl_cmd = String::from_utf8_lossy(&writes[0].1);
-        assert!(curl_cmd.starts_with("curl -X POST"), "Should start with curl -X POST");
+        assert!(
+            curl_cmd.starts_with("curl -X POST"),
+            "Should start with curl -X POST"
+        );
         assert!(curl_cmd.contains(url.as_str()), "Should contain URL");
-        assert!(curl_cmd.contains("test request body"), "Should contain body");
+        assert!(
+            curl_cmd.contains("test request body"),
+            "Should contain body"
+        );
         assert!(curl_cmd.contains("-H"), "Should contain headers");
     }
 
@@ -474,9 +486,15 @@ mod tests {
 
         // Verify the written content is a valid curl command
         let curl_cmd = String::from_utf8_lossy(&writes[0].1);
-        assert!(curl_cmd.starts_with("curl -X POST"), "Should start with curl -X POST");
+        assert!(
+            curl_cmd.starts_with("curl -X POST"),
+            "Should start with curl -X POST"
+        );
         assert!(curl_cmd.contains(url.as_str()), "Should contain URL");
-        assert!(curl_cmd.contains("test request body"), "Should contain body");
+        assert!(
+            curl_cmd.contains("test request body"),
+            "Should contain body"
+        );
         assert!(curl_cmd.contains("-H"), "Should contain headers");
     }
 }
