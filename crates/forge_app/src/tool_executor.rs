@@ -300,6 +300,10 @@ impl<
                 let skill = self.services.fetch_skill(input.name.clone()).await?;
                 ToolOperation::Skill { output: skill }
             }
+            ToolCatalog::Task(_) => {
+                // Task tools are handled in ToolRegistry before reaching here
+                unreachable!("Task tool should be handled in ToolRegistry")
+            }
         })
     }
 

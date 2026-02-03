@@ -33,6 +33,8 @@ enum Operation<'a> {
     Plan(&'a str),
     /// Skill loading by name
     Skill(&'a str),
+    /// Task delegation to an agent
+    Task(&'a str),
     /// MCP tool call by name
     Mcp(&'a str),
 }
@@ -54,6 +56,7 @@ fn to_op(tool: &SummaryTool) -> Operation<'_> {
         SummaryTool::Followup { question } => Operation::Followup(question),
         SummaryTool::Plan { plan_name } => Operation::Plan(plan_name),
         SummaryTool::Skill { name } => Operation::Skill(name),
+        SummaryTool::Task { agent_id } => Operation::Task(agent_id),
         SummaryTool::Mcp { name } => Operation::Mcp(name),
     }
 }

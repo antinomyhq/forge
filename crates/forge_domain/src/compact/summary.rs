@@ -191,6 +191,7 @@ pub enum SummaryTool {
     Followup { question: String },
     Plan { plan_name: String },
     Skill { name: String },
+    Task { agent_id: String },
     Mcp { name: String },
 }
 
@@ -305,6 +306,7 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
             }
             ToolCatalog::Plan(input) => Some(SummaryTool::Plan { plan_name: input.plan_name }),
             ToolCatalog::Skill(input) => Some(SummaryTool::Skill { name: input.name }),
+            ToolCatalog::Task(input) => Some(SummaryTool::Task { agent_id: input.agent_id }),
         };
     }
 

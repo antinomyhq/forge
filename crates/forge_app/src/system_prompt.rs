@@ -72,6 +72,8 @@ impl<S: SkillFetchService> SystemPrompt<S> {
                 skills,
                 model: None,
                 tool_names: Default::default(),
+                agents: Vec::new(), /* Empty for system prompt (agents list is for tool
+                                     * descriptions only) */
             };
 
             let static_block = TemplateEngine::default()
