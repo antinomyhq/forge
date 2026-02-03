@@ -361,6 +361,47 @@ expression: tools
   }
 }
 {
+  "title": "TodoWrite",
+  "type": "object",
+  "required": [
+    "todos"
+  ],
+  "properties": {
+    "todos": {
+      "description": "Array of todo items to create or update",
+      "type": "array",
+      "items": {
+        "description": "A todo item",
+        "type": "object",
+        "required": [
+          "content",
+          "id",
+          "status"
+        ],
+        "properties": {
+          "content": {
+            "description": "Content/description of the todo item",
+            "type": "string"
+          },
+          "id": {
+            "description": "Unique identifier for the todo item",
+            "type": "string"
+          },
+          "status": {
+            "description": "Current status of the todo",
+            "type": "string",
+            "enum": [
+              "pending",
+              "in_progress",
+              "completed"
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+{
   "title": "TaskInput",
   "description": "Input structure for the Task tool - delegates work to specialized agents",
   "type": "object",

@@ -37,6 +37,8 @@ enum Operation<'a> {
     Task(&'a str),
     /// MCP tool call by name
     Mcp(&'a str),
+    /// Todo write operation
+    TodoWrite,
 }
 
 /// Converts the tool call to its operation type for comparison.
@@ -58,6 +60,7 @@ fn to_op(tool: &SummaryTool) -> Operation<'_> {
         SummaryTool::Skill { name } => Operation::Skill(name),
         SummaryTool::Task { agent_id } => Operation::Task(agent_id),
         SummaryTool::Mcp { name } => Operation::Mcp(name),
+        SummaryTool::TodoWrite { .. } => Operation::TodoWrite,
     }
 }
 

@@ -119,6 +119,7 @@ impl FormatContent for ToolCatalog {
                     .sub_title(input.name.to_lowercase())
                     .into(),
             ),
+            ToolCatalog::TodoWrite(_) => Some(TitleFormat::debug("Update Todos").into()),
             ToolCatalog::Task(input) => {
                 Some(TitleFormat::debug("Task").sub_title(&input.agent_id).into())
             }

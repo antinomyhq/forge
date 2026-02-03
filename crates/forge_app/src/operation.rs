@@ -18,7 +18,7 @@ use crate::truncation::{
 use crate::utils::{compute_hash, format_display_path};
 use crate::{
     FsRemoveOutput, FsUndoOutput, FsWriteOutput, HttpResponse, PatchOutput, PlanCreateOutput,
-    ReadOutput, ResponseContext, SearchResult, ShellOutput,
+    ReadOutput, ResponseContext, SearchResult, ShellOutput, TodoWriteOutput,
 };
 
 #[derive(Debug, Default, Setters)]
@@ -73,6 +73,9 @@ pub enum ToolOperation {
     },
     Skill {
         output: forge_domain::Skill,
+    },
+    TodoWrite {
+        output: TodoWriteOutput,
     },
 }
 
@@ -608,6 +611,27 @@ impl ToolOperation {
                         Element::new("resource").text(resource.display().to_string())
                     }));
                 }
+
+                forge_domain::ToolOutput::text(elm)
+            }
+            ToolOperation::TodoWrite { output } => {
+                // Count incomplete todos (pending + in_progress)
+                let incomplete_count = output
+                    .todos
+                    .iter()
+                    .filter(|todo| todo.status != forge_domain::TodoStatus::Completed)
+                    .count();
+
+                // Format as JSON for output
+                let json_output = serde_json::to_string_pretty(&output.todos)
+                    .unwrap_or_else(|_| "[]".to_string());
+
+                let elm = Element::new("todo_write_result")
+                    .attr("title", format!("{} todos", incomplete_count))
+                    .append(Element::new("output").cdata(json_output))
+                    .append(Element::new("metadata").append(Element::new("todos").cdata(
+                        serde_json::to_string(&output.todos).unwrap_or_else(|_| "[]".to_string()),
+                    )));
 
                 forge_domain::ToolOutput::text(elm)
             }

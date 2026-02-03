@@ -193,6 +193,7 @@ pub enum SummaryTool {
     Skill { name: String },
     Task { agent_id: String },
     Mcp { name: String },
+    TodoWrite { todos: Vec<crate::Todo> },
 }
 
 impl From<&Context> for ContextSummary {
@@ -306,6 +307,7 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
             }
             ToolCatalog::Plan(input) => Some(SummaryTool::Plan { plan_name: input.plan_name }),
             ToolCatalog::Skill(input) => Some(SummaryTool::Skill { name: input.name }),
+            ToolCatalog::TodoWrite(input) => Some(SummaryTool::TodoWrite { todos: input.todos }),
             ToolCatalog::Task(input) => Some(SummaryTool::Task { agent_id: input.agent_id }),
         };
     }
