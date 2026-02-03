@@ -4,7 +4,6 @@ use std::time::Duration;
 
 use anyhow::Context;
 use bytes::Bytes;
-use crate::curl::CurlCommand;
 use forge_app::HttpInfra;
 use forge_domain::{Environment, TlsBackend, TlsVersion};
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
@@ -12,6 +11,8 @@ use reqwest::redirect::Policy;
 use reqwest::{Certificate, Client, Response, StatusCode, Url};
 use reqwest_eventsource::{EventSource, RequestBuilderExt};
 use tracing::{debug, warn};
+
+use crate::curl::CurlCommand;
 
 const VERSION: &str = match option_env!("APP_VERSION") {
     None => env!("CARGO_PKG_VERSION"),

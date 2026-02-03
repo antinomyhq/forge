@@ -87,7 +87,10 @@ mod tests {
     #[test]
     fn test_full_request() {
         let actual = CurlCommand::new("PUT", "https://api.example.com/users/1")
-            .headers(vec![("Content-Type".to_string(), "application/json".to_string())])
+            .headers(vec![(
+                "Content-Type".to_string(),
+                "application/json".to_string(),
+            )])
             .body(r#"{"name":"John"}"#.to_string())
             .render();
         let expected = "curl -X PUT 'https://api.example.com/users/1' \
