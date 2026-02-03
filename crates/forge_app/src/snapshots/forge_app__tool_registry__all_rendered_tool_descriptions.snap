@@ -174,7 +174,7 @@ Available agent types and the tools they have access to:
 - **debug**: Specialized in debugging issues
   - Tools: read, shell, fs_search, sem_search, fetch
 
-When using the task tool, you must specify a subagent_type parameter to select which agent type to use.
+When using the task tool, you must specify a agent_id parameter to select which agent type to use.
 
 When NOT to use the task tool:
 - If you want to read a specific file path, use the read or fs_search tool instead of the task tool, to find the match more quickly

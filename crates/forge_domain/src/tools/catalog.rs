@@ -52,6 +52,7 @@ pub enum ToolCatalog {
     Followup(Followup),
     Plan(PlanCreate),
     Skill(SkillFetch),
+    #[serde(alias = "Task")]
     Task(TaskInput),
 }
 
@@ -601,6 +602,7 @@ fn normalize_tool_name(name: &ToolName) -> ToolName {
     match name.as_str() {
         "Read" => ToolName::new("read"),
         "Write" => ToolName::new("write"),
+        "Task" => ToolName::new("task"),
         _ => name.clone(),
     }
 }
