@@ -933,7 +933,7 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
                                                                 task_id.clone(),
                                                                 acp::ToolCallUpdateFields::new()
                                                                     .kind(acp::ToolKind::Think)
-                                                                    .title(format!("{}", agent_name))
+                                                                    .title(agent_name.to_string())
                                                                     .status(acp::ToolCallStatus::InProgress)
                                                                     .content(vec![acp::ToolCallContent::Content(
                                                                         acp::Content::new(acp::ContentBlock::Text(
