@@ -1770,6 +1770,7 @@ dependencies = [
  "bytes",
  "cacache",
  "chrono",
+ "derive_setters",
  "diesel",
  "diesel_migrations",
  "dirs",

@@ -196,6 +196,51 @@ impl<F> ForgeHttpInfra<F> {
     }
 }
 
+/// Represents a curl command with type-safe components
+#[derive(Debug, Clone, Default, derive_setters::Setters)]
+#[setters(strip_option, into)]
+struct CurlCommand {
+    method: String,
+    url: String,
+    headers: Vec<(String, String)>,
+    body: Option<String>,
+}
+
+impl CurlCommand {
+    /// Creates a new curl command builder
+    fn new(method: impl Into<String>, url: impl Into<String>) -> Self {
+        Self {
+            method: method.into(),
+            url: url.into(),
+            headers: Vec::new(),
+            body: None,
+        }
+    }
+
+    /// Adds a header to the curl command
+    fn header(mut self, key: impl Into<String>, value: impl Into<String>) -> Self {
+        self.headers.push((key.into(), value.into()));
+        self
+    }
+
+    /// Renders the curl command as a string
+    fn render(&self) -> String {
+        let mut cmd = format!("curl -X {} '{}'", self.method, self.url);
+
+        for (key, value) in &self.headers {
+            cmd.push_str(&format!(" \\\n  -H '{}: {}'", key, value));
+        }
+
+        if let Some(body) = &self.body {
+            // Escape single quotes in the body
+            let escaped_body = body.replace('\'', "'\\''");
+            cmd.push_str(&format!(" \\\n  -d '{}'", escaped_body));
+        }
+
+        cmd
+    }
+}
+
 impl<F: forge_app::FileWriterInfra + 'static> ForgeHttpInfra<F> {
     async fn eventsource(
         &self,
@@ -213,21 +258,24 @@ impl<F: forge_app::FileWriterInfra + 'static> ForgeHttpInfra<F> {
             let headers_clone = Self::sanitize_headers(&request_headers);
             let body_clone = body.clone();
             tokio::spawn(async move {
-                // Format complete request as JSON
-                let request_log = serde_json::json!({
-                    "method": "POST",
-                    "url": url_str,
-                    "headers": headers_clone.iter().map(|(k, v)| {
-                        (k.as_str(), v.to_str().unwrap_or("[invalid utf8]"))
-                    }).collect::<std::collections::HashMap<_, _>>(),
-                    "body": String::from_utf8_lossy(&body_clone).to_string(),
-                });
+                // Build curl command using type-safe builder
+                let mut curl_builder = CurlCommand::new("POST", url_str);
 
-                if let Ok(request_bytes) = serde_json::to_vec_pretty(&request_log) {
-                    let _ = file_writer
-                        .write(&debug_path, Bytes::from(request_bytes))
-                        .await;
+                // Add headers
+                for (key, value) in headers_clone.iter() {
+                    let value_str = value.to_str().unwrap_or("[invalid utf8]");
+                    curl_builder = curl_builder.header(key.as_str(), value_str);
                 }
+
+                // Add body
+                let body_str = String::from_utf8_lossy(&body_clone);
+                curl_builder = curl_builder.body(body_str.as_ref());
+
+                let curl_cmd = curl_builder.render();
+
+                let _ = file_writer
+                    .write(&debug_path, Bytes::from(curl_cmd.into_bytes()))
+                    .await;
             });
         }
 
@@ -367,16 +415,12 @@ mod tests {
         assert_eq!(writes.len(), 1, "Should write one file");
         assert_eq!(writes[0].0, debug_path);
 
-        // Verify the written content is valid JSON with complete request info
-        let written_json: serde_json::Value =
-            serde_json::from_slice(&writes[0].1).expect("Should be valid JSON");
-        assert_eq!(written_json["method"], "POST");
-        assert_eq!(written_json["url"], url.as_str());
-        assert_eq!(written_json["body"], "test request body");
-        assert!(
-            written_json["headers"].is_object(),
-            "Should have headers object"
-        );
+        // Verify the written content is a valid curl command
+        let curl_cmd = String::from_utf8_lossy(&writes[0].1);
+        assert!(curl_cmd.starts_with("curl -X POST"), "Should start with curl -X POST");
+        assert!(curl_cmd.contains(url.as_str()), "Should contain URL");
+        assert!(curl_cmd.contains("test request body"), "Should contain body");
+        assert!(curl_cmd.contains("-H"), "Should contain headers");
     }
 
     #[tokio::test]
@@ -398,16 +442,12 @@ mod tests {
         assert_eq!(writes.len(), 1, "Should write one file");
         assert_eq!(writes[0].0, debug_path);
 
-        // Verify the written content is valid JSON with complete request info
-        let written_json: serde_json::Value =
-            serde_json::from_slice(&writes[0].1).expect("Should be valid JSON");
-        assert_eq!(written_json["method"], "POST");
-        assert_eq!(written_json["url"], url.as_str());
-        assert_eq!(written_json["body"], "test request body");
-        assert!(
-            written_json["headers"].is_object(),
-            "Should have headers object"
-        );
+        // Verify the written content is a valid curl command
+        let curl_cmd = String::from_utf8_lossy(&writes[0].1);
+        assert!(curl_cmd.starts_with("curl -X POST"), "Should start with curl -X POST");
+        assert!(curl_cmd.contains(url.as_str()), "Should contain URL");
+        assert!(curl_cmd.contains("test request body"), "Should contain body");
+        assert!(curl_cmd.contains("-H"), "Should contain headers");
     }
 
     #[tokio::test]
@@ -432,15 +472,11 @@ mod tests {
         assert_eq!(writes.len(), 1, "Should write one file");
         assert_eq!(writes[0].0, debug_path);
 
-        // Verify the written content is valid JSON with complete request info
-        let written_json: serde_json::Value =
-            serde_json::from_slice(&writes[0].1).expect("Should be valid JSON");
-        assert_eq!(written_json["method"], "POST");
-        assert_eq!(written_json["url"], url.as_str());
-        assert_eq!(written_json["body"], "test request body");
-        assert!(
-            written_json["headers"].is_object(),
-            "Should have headers object"
-        );
+        // Verify the written content is a valid curl command
+        let curl_cmd = String::from_utf8_lossy(&writes[0].1);
+        assert!(curl_cmd.starts_with("curl -X POST"), "Should start with curl -X POST");
+        assert!(curl_cmd.contains(url.as_str()), "Should contain URL");
+        assert!(curl_cmd.contains("test request body"), "Should contain body");
+        assert!(curl_cmd.contains("-H"), "Should contain headers");
     }
 }
