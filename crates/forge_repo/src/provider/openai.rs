@@ -43,6 +43,7 @@ impl<H: HttpInfra> OpenAIProvider<H> {
                 forge_domain::AuthDetails::ApiKey(key) => key.as_str(),
                 forge_domain::AuthDetails::OAuthWithApiKey { api_key, .. } => api_key.as_str(),
                 forge_domain::AuthDetails::OAuth { tokens, .. } => tokens.access_token.as_str(),
+                forge_domain::AuthDetails::GoogleAdc(token) => token.as_str(),
             })
         {
             headers.push((AUTHORIZATION.to_string(), format!("Bearer {api_key}")));

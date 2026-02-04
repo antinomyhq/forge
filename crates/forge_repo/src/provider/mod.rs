@@ -3,6 +3,7 @@ mod bedrock;
 mod bedrock_cache;
 mod chat;
 mod event;
+mod google;
 #[cfg(test)]
 mod mock_server;
 mod openai;

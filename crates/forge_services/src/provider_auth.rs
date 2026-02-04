@@ -45,9 +45,11 @@ where
         };
 
         // Create appropriate strategy and initialize
-        let strategy =
-            self.infra
-                .create_auth_strategy(provider_id.clone(), auth_method, required_params)?;
+        let strategy = self.infra.create_auth_strategy(
+            provider_id.clone(),
+            auth_method.clone(),
+            required_params,
+        )?;
         let mut request = strategy.init().await?;
 
         // For API key flow and Google ADC, attach existing credential if available
@@ -55,7 +57,18 @@ where
             && let Ok(Some(existing_credential)) = self.infra.get_credential(&provider_id).await
         {
             api_key_request.existing_params = Some(existing_credential.url_params.into());
-            api_key_request.api_key = existing_credential.auth_details.api_key().cloned()
+
+            // Only prefill API key if it's not the internal Google ADC marker when asking
+            // for regular API Key This allows switching from ADC -> API Key
+            // without prefilling the marker
+            if let Some(key) = existing_credential.auth_details.api_key() {
+                let is_adc_marker = key.as_ref() == "google_adc_marker";
+                let requesting_adc = matches!(auth_method, AuthMethod::GoogleAdc);
+
+                if (requesting_adc && is_adc_marker) || (!requesting_adc && !is_adc_marker) {
+                    api_key_request.api_key = Some(key.clone());
+                }
+            }
         }
 
         Ok(request)
@@ -71,9 +84,11 @@ where
         // Extract auth method from context response
         // For ApiKey responses, we need to check if it's Google ADC or regular API key
         let auth_method = match &auth_context_response {
-            AuthContextResponse::ApiKey(_) => {
+            AuthContextResponse::ApiKey(response) => {
                 // Check if provider supports Google ADC and if it's the Google ADC marker
-                if provider_id == forge_domain::ProviderId::VERTEX_AI {
+                if provider_id == forge_domain::ProviderId::VERTEX_AI
+                    && response.response.api_key.as_ref() == "google_adc_marker"
+                {
                     // Vertex AI uses Google ADC
                     forge_domain::AuthMethod::google_adc()
                 } else {
