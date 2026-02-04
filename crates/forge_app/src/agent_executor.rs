@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use anyhow::Context;
 use convert_case::{Case, Casing};
 use forge_domain::{
     AgentId, ChatRequest, ChatResponse, ChatResponseContent, Conversation, Event, TitleFormat,
@@ -63,7 +64,6 @@ impl<S: Services> AgentExecutor<S> {
             .chat(
                 agent_id.clone(),
                 ChatRequest::new(Event::new(task.clone()), conversation.id),
-                true, // is_sub_agent: true because this agent is being executed as a tool
             )
             .await?;
 
@@ -94,7 +94,16 @@ impl<S: Services> AgentExecutor<S> {
                 ChatResponse::ToolCallStart(_) => ctx.send(message).await?,
                 ChatResponse::ToolCallEnd(_) => ctx.send(message).await?,
                 ChatResponse::RetryAttempt { .. } => ctx.send(message).await?,
-                ChatResponse::Interrupt { .. } => ctx.send(message).await?,
+                ChatResponse::Interrupt { reason } => {
+                    return Err(Error::AgentToolInterrupted(reason))
+                        .context(format!(
+                            "Tool call to '{}' failed.\n\
+                             Note: This is an AGENTIC tool (powered by an LLM), not a traditional function.\n\
+                             The failure occurred because the underlying LLM did not behave as expected.\n\
+                             This is typically caused by model limitations, prompt issues, or reaching safety limits.",
+                            agent_id.as_str()
+                        ));
+                }
             }
         }
         if !output.is_empty() {

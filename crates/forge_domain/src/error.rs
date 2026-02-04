@@ -56,10 +56,6 @@ pub enum Error {
     #[error("Agent '{0}' has reached max turns of {1}")]
     MaxTurnsReached(AgentId, u64),
 
-    #[error("Agent '{0}' has reached max tool failures per turn")]
-    #[from(skip)]
-    MaxToolFailuresPerTurnReached(AgentId),
-
     #[error("Conversation with ID '{0}' not found")]
     ConversationNotFound(ConversationId),
 
