@@ -2,7 +2,7 @@ use derive_setters::Setters;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
-use crate::{Environment, File, Model, Skill};
+use crate::{Agent, Environment, File, Model, Skill};
 
 #[derive(Debug, Setters, Clone, PartialEq, Serialize, Deserialize)]
 #[setters(strip_option)]
@@ -46,4 +46,8 @@ pub struct SystemContext {
     /// {{tool_names.write}}, etc.
     #[serde(skip_serializing_if = "Map::is_empty")]
     pub tool_names: Map<String, Value>,
+
+    /// List of available agents for task delegation
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub agents: Vec<Agent>,
 }

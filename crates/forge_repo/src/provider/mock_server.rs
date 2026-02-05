@@ -35,6 +35,26 @@ impl MockServer {
             .create_async()
             .await
     }
+
+    pub async fn mock_google_chat_stream(
+        &mut self,
+        model: &str,
+        events: Vec<String>,
+        status: usize,
+    ) -> Mock {
+        let mut sse_body = events.join("\n\n");
+        sse_body.push_str("\n\n");
+        let path = format!("/models/{}:streamGenerateContent", model);
+        self.server
+            .mock("POST", path.as_str())
+            .match_query(mockito::Matcher::UrlEncoded("alt".into(), "sse".into()))
+            .with_status(status)
+            .with_header("content-type", "text/event-stream")
+            .with_header("cache-control", "no-cache")
+            .with_body(sse_body)
+            .create_async()
+            .await
+    }
 }
 
 /// Normalize dynamic addresses in messages for testing/logging.

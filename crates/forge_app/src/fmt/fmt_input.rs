@@ -120,6 +120,9 @@ impl FormatContent for ToolCatalog {
                     .into(),
             ),
             ToolCatalog::TodoWrite(_) => Some(TitleFormat::debug("Update Todos").into()),
+            ToolCatalog::Task(input) => {
+                Some(TitleFormat::debug("Task").sub_title(&input.agent_id).into())
+            }
         }
     }
 }

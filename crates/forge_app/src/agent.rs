@@ -6,6 +6,7 @@ use forge_domain::{
 };
 
 use crate::services::AppConfigService;
+use crate::services::TodoService;
 use crate::tool_registry::ToolRegistry;
 use crate::{ConversationService, ProviderService, Services};
 
@@ -31,6 +32,12 @@ pub trait AgentService: Send + Sync + 'static {
 
     /// Synchronize the on-going conversation
     async fn update(&self, conversation: Conversation) -> anyhow::Result<()>;
+
+    /// Get pending todos for the conversation
+    async fn get_pending_todos(
+        &self,
+        conversation_id: &forge_domain::ConversationId,
+    ) -> anyhow::Result<Vec<forge_domain::Todo>>;
 }
 
 /// Blanket implementation of AgentService for any type that implements Services
@@ -64,5 +71,13 @@ impl<T: Services> AgentService for T {
 
     async fn update(&self, conversation: Conversation) -> anyhow::Result<()> {
         self.upsert_conversation(conversation).await
+    }
+
+    async fn get_pending_todos(
+        &self,
+        conversation_id: &forge_domain::ConversationId,
+    ) -> anyhow::Result<Vec<forge_domain::Todo>> {
+        let todos = self.todo_service().get_todos(conversation_id).await?;
+        Ok(todos.into_iter().filter(|t| t.is_incomplete()).collect())
     }
 }

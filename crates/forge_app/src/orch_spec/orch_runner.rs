@@ -179,6 +179,13 @@ impl AgentService for Runner {
         self.conversation_history.lock().await.push(conversation);
         Ok(())
     }
+
+    async fn get_pending_todos(
+        &self,
+        _conversation_id: &forge_domain::ConversationId,
+    ) -> anyhow::Result<Vec<forge_domain::Todo>> {
+        Ok(vec![])
+    }
 }
 
 #[async_trait::async_trait]

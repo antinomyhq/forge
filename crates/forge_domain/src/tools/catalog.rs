@@ -53,6 +53,8 @@ pub enum ToolCatalog {
     Plan(PlanCreate),
     Skill(SkillFetch),
     TodoWrite(TodoWrite),
+    #[serde(alias = "Task")]
+    Task(TaskInput),
 }
 
 /// Input structure for agent tool calls. This serves as the generic schema
@@ -65,6 +67,28 @@ pub struct AgentInput {
     /// requirements to enable the agent to understand and execute the work
     /// accurately.
     pub tasks: Vec<String>,
+}
+
+/// Input structure for the Task tool - delegates work to specialized agents
+#[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, ToolDescription, PartialEq)]
+#[tool_description_file = "crates/forge_domain/src/tools/descriptions/task.md"]
+pub struct TaskInput {
+    /// A list of clear and detailed descriptions of the tasks to be performed
+    /// by the agent in parallel. Provide sufficient context and specific
+    /// requirements to enable the agent to understand and execute the work
+    /// accurately.
+    pub tasks: Vec<String>,
+
+    /// The ID of the specialized agent to delegate to (e.g., "sage", "forge",
+    /// "muse")
+    pub agent_id: String,
+
+    /// Optional session ID to continue an existing agent session. If not
+    /// provided, a new stateless session will be created. Use this to
+    /// maintain context across multiple task invocations with the same
+    /// agent.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
 }
 
 fn default_true() -> bool {
@@ -659,6 +683,7 @@ impl ToolDescription for ToolCatalog {
             ToolCatalog::Plan(v) => v.description(),
             ToolCatalog::Skill(v) => v.description(),
             ToolCatalog::TodoWrite(v) => v.description(),
+            ToolCatalog::Task(v) => v.description(),
         }
     }
 }
@@ -675,6 +700,7 @@ fn normalize_tool_name(name: &ToolName) -> ToolName {
     match name.as_str() {
         "Read" => ToolName::new("read"),
         "Write" => ToolName::new("write"),
+        "Task" => ToolName::new("task"),
         _ => name.clone(),
     }
 }
@@ -706,6 +732,7 @@ impl ToolCatalog {
             ToolCatalog::Plan(_) => r#gen.into_root_schema_for::<PlanCreate>(),
             ToolCatalog::Skill(_) => r#gen.into_root_schema_for::<SkillFetch>(),
             ToolCatalog::TodoWrite(_) => r#gen.into_root_schema_for::<TodoWrite>(),
+            ToolCatalog::Task(_) => r#gen.into_root_schema_for::<TaskInput>(),
         }
     }
 
@@ -815,7 +842,8 @@ impl ToolCatalog {
             | ToolCatalog::Followup(_)
             | ToolCatalog::Plan(_)
             | ToolCatalog::Skill(_)
-            | ToolCatalog::TodoWrite(_) => None,
+            | ToolCatalog::TodoWrite(_)
+            | ToolCatalog::Task(_) => None,
         }
     }
 

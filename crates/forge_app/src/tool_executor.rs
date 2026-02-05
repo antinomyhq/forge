@@ -321,6 +321,10 @@ impl<
 
                 ToolOperation::TodoWrite { output }
             }
+            ToolCatalog::Task(_) => {
+                // Task tools are handled in ToolRegistry before reaching here
+                unreachable!("Task tool should be handled in ToolRegistry")
+            }
         })
     }
 
