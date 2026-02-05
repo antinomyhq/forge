@@ -1338,10 +1338,8 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
         let session_key = args.session_id.0.as_ref().to_string();
         let model_id = ModelId::new(args.model_id.0.to_string());
 
-        // Set the model as default in the app configuration (this persists the change)
-        // - commented out (TODO: needs review) self.services.
-        // set_default_model(model_id.clone()).await?; let _ = self.services.
-        // reload_agents().await;
+        self.services.set_default_model(model_id.clone()).await?;
+        let _ = self.services.reload_agents().await;
 
         // Store the model override for this session so it takes effect immediately
         self.session_to_model
