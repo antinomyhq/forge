@@ -450,6 +450,23 @@ impl FromDomain<forge_domain::Context>
                 _ => None,
             })
             .collect();
+        let assistant_messages = context
+            .messages
+            .iter()
+            .filter(|m| m.has_role(forge_domain::Role::Assistant))
+            .collect::<Vec<_>>();
+        let has_thinking = if assistant_messages.is_empty() {
+            context
+                .reasoning
+                .as_ref()
+                .and_then(|r| r.enabled)
+                .unwrap_or(false)
+        } else {
+            assistant_messages
+                .iter()
+                .find(|a| a.has_reasoning_details())
+                .is_some()
+        };
 
         // Convert user and assistant messages
         // Group consecutive tool results into single User messages as required by
@@ -521,11 +538,6 @@ impl FromDomain<forge_domain::Context>
 
         // Convert inference configuration
         // When extended thinking is enabled, top_p must be >= 0.95 or unset
-        let has_thinking = context
-            .reasoning
-            .as_ref()
-            .and_then(|r| r.enabled)
-            .unwrap_or(false);
         let adjusted_top_p = if has_thinking {
             // If thinking is enabled and top_p is set, ensure it's at least 0.95
             context.top_p.map(|p| {
@@ -560,7 +572,7 @@ impl FromDomain<forge_domain::Context>
         // For Claude models with extended thinking support
         // Based on AWS Bedrock docs: additionalModelRequestFields for Claude extended
         // thinking https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-anthropic-claude-messages.html
-        let additional_model_fields = if let Some(reasoning_config) = &context.reasoning {
+        let additional_model_fields = if has_thinking && let Some(reasoning_config) = &context.reasoning {
             if reasoning_config.enabled.unwrap_or(false) {
                 let mut thinking_config = std::collections::HashMap::new();
                 thinking_config.insert(

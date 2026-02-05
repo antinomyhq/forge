@@ -93,17 +93,17 @@ impl Compactor {
 
         // Extended thinking reasoning chain preservation
         //
-        // Extended thinking requires the first assistant message to have
+        // Extended thinking requires the last assistant message to have
         // reasoning_details for subsequent messages to maintain reasoning
-        // chains. After compaction, this consistency can break if the first
+        // chains. After compaction, this consistency can break if the last
         // remaining assistant lacks reasoning.
         //
         // Solution: Extract the LAST reasoning from compacted messages and inject it
-        // into the first assistant message after compaction. This preserves
+        // into the last assistant message after compaction. This preserves
         // chain continuity while preventing exponential accumulation across
         // multiple compactions.
         //
-        // Example: [U, A+r, U, A+r, U, A] → compact → [U-summary, A+r, U, A]
+        // Example: [U, A+r, U, A+r, U, A] → compact → [U-summary, U, A+r]
         //                                                          └─from last
         // compacted
         let reasoning_details = compaction_sequence
@@ -127,11 +127,12 @@ impl Compactor {
         // Remove all droppable messages from the context
         context.messages.retain(|msg| !msg.is_droppable());
 
-        // Inject preserved reasoning into first assistant message (if empty)
+        // Inject preserved reasoning into last assistant message (if empty)
         if let Some(reasoning) = reasoning_details
             && let Some(ContextMessage::Text(msg)) = context
                 .messages
                 .iter_mut()
+                .rev()
                 .find(|msg| msg.has_role(forge_domain::Role::Assistant))
                 .map(|msg| &mut **msg)
             && msg
