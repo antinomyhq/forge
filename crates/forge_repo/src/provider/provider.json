@@ -1146,6 +1146,16 @@
     "url": "{{#if (eq LOCATION \"global\")}}https://aiplatform.googleapis.com/v1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/publishers/anthropic/models/{{else}}https://{{LOCATION}}-aiplatform.googleapis.com/v1/projects/{{PROJECT_ID}}/locations/{{LOCATION}}/publishers/anthropic/models/{{/if}}",
     "models": [
       {
+        "id": "claude-opus-4-6",
+        "name": "Claude Opus 4.6",
+        "description": "Most capable Claude model with enhanced reasoning and analysis capabilities",
+        "context_length": 200000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
         "id": "claude-opus-4-5@20251101",
         "name": "Claude Opus 4.5",
         "description": "Most capable Claude model with enhanced reasoning and analysis capabilities",
