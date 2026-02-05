@@ -80,7 +80,14 @@ fn coerce_value_with_schema_object(
         if let Some(object_validation) = &schema.object {
             for (key, val) in map.iter_mut() {
                 if let Some(prop_schema) = object_validation.properties.get(key) {
-                    let coerced = coerce_value_with_schema(val.clone(), prop_schema, root_schema);
+                    // Special case: coerce empty strings to null for nullable fields
+                    // This prevents semantically invalid values like `type: ""` from
+                    // passing through when the field is optional
+                    let coerced = if is_empty_string_for_nullable_field(val, prop_schema) {
+                        Value::Null
+                    } else {
+                        coerce_value_with_schema(val.clone(), prop_schema, root_schema)
+                    };
                     *val = coerced;
                 }
             }
@@ -167,6 +174,50 @@ fn type_matches(value: &Value, target_types: &[&InstanceType]) -> bool {
         InstanceType::String => value.is_string(),
         InstanceType::Integer => value.is_i64() || value.is_u64(),
     })
+}
+
+/// Checks if a value is an empty string and the schema allows null.
+///
+/// This is used to coerce empty strings to null for optional string fields,
+/// preventing semantically invalid but syntactically valid values like
+/// `"type": ""` from causing downstream errors in tools that don't accept
+/// empty strings.
+fn is_empty_string_for_nullable_field(value: &Value, schema: &Schema) -> bool {
+    // Only apply to empty strings
+    if !matches!(value, Value::String(s) if s.is_empty()) {
+        return false;
+    }
+
+    // Check if the schema allows null
+    match schema {
+        Schema::Object(schema_obj) => {
+            // Method 1: Check for "nullable": true in extensions (OpenAPI style)
+            if let Some(nullable) = schema_obj.extensions.get("nullable") {
+                if nullable.as_bool() == Some(true) {
+                    return true;
+                }
+            }
+            
+            // Method 2: Check if instance_type includes both String and Null
+            // (JSON Schema standard: `"type": ["string", "null"]`)
+            if let Some(instance_types) = &schema_obj.instance_type {
+                let types_vec: Vec<&InstanceType> = match instance_types {
+                    SingleOrVec::Single(t) => vec![t.as_ref()],
+                    SingleOrVec::Vec(types) => types.iter().collect(),
+                };
+                
+                let has_string = types_vec.iter().any(|t| matches!(t, InstanceType::String));
+                let has_null = types_vec.iter().any(|t| matches!(t, InstanceType::Null));
+                
+                if has_string && has_null {
+                    return true;
+                }
+            }
+            
+            false
+        }
+        Schema::Bool(_) => false,
+    }
 }
 
 fn try_coerce_string(
@@ -1121,6 +1172,88 @@ mod tests {
 
         let expected = json!({
             "items": [{"tags": ["tag1", "tag2"]}]
+        });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_coerce_empty_string_to_null_for_nullable_optional_string() {
+        // Test the exact fs_search failure case: empty string for nullable
+        // optional string field This simulates the `"type": ""` case that
+        // caused ripgrep to fail
+        #[derive(JsonSchema)]
+        #[allow(dead_code)]
+        struct SearchInput {
+            pattern: String,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            file_type: Option<String>,
+        }
+
+        let fixture = json!({
+            "pattern": "send_keystrokes\\(",
+            "file_type": ""
+        });
+
+        let schema = schema_for!(SearchInput);
+        let actual = coerce_to_schema(fixture, &schema);
+
+        // Empty string should be coerced to null for nullable optional fields
+        let expected = json!({
+            "pattern": "send_keystrokes\\(",
+            "file_type": null
+        });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_preserve_non_empty_string_for_nullable_field() {
+        // Ensure non-empty strings are NOT coerced to null
+        #[derive(JsonSchema)]
+        #[allow(dead_code)]
+        struct SearchInput {
+            pattern: String,
+            #[serde(skip_serializing_if = "Option::is_none")]
+            file_type: Option<String>,
+        }
+
+        let fixture = json!({
+            "pattern": "test",
+            "file_type": "py"
+        });
+
+        let schema = schema_for!(SearchInput);
+        let actual = coerce_to_schema(fixture, &schema);
+
+        // Non-empty string should be preserved
+        let expected = json!({
+            "pattern": "test",
+            "file_type": "py"
+        });
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_preserve_empty_string_for_required_string() {
+        // Empty strings on required (non-nullable) fields should NOT be coerced
+        #[derive(JsonSchema)]
+        #[allow(dead_code)]
+        struct RequiredStringData {
+            value: String,
+        }
+
+        let fixture = json!({
+            "value": ""
+        });
+
+        let schema = schema_for!(RequiredStringData);
+        let actual = coerce_to_schema(fixture, &schema);
+
+        // Empty string should be preserved for required fields
+        let expected = json!({
+            "value": ""
         });
 
         assert_eq!(actual, expected);
