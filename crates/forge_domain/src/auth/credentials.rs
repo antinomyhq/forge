@@ -49,6 +49,16 @@ impl AuthCredential {
         }
     }
 
+    /// Returns true if this credential is a Google ADC marker (either stored as
+    /// `GoogleAdc` or legacy `ApiKey` with the marker value).
+    pub fn is_google_adc_marker(&self) -> bool {
+        match &self.auth_details {
+            AuthDetails::GoogleAdc(key) => key.as_ref() == "google_adc_marker",
+            AuthDetails::ApiKey(key) => key.as_ref() == "google_adc_marker",
+            _ => false,
+        }
+    }
+
     /// Checks if the credential needs to be refreshed.
     pub fn needs_refresh(&self, buffer: chrono::Duration) -> bool {
         match &self.auth_details {

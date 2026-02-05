@@ -86,10 +86,11 @@ where
         let auth_method = match &auth_context_response {
             AuthContextResponse::ApiKey(response) => {
                 // Check if provider supports Google ADC and if it's the Google ADC marker
-                if provider_id == forge_domain::ProviderId::VERTEX_AI
+                if (provider_id == forge_domain::ProviderId::VERTEX_AI
+                    || provider_id == forge_domain::ProviderId::VERTEX_AI_ANTHROPIC)
                     && response.response.api_key.as_ref() == "google_adc_marker"
                 {
-                    // Vertex AI uses Google ADC
+                    // Vertex AI providers use Google ADC
                     forge_domain::AuthMethod::google_adc()
                 } else {
                     // Regular API key
@@ -145,6 +146,37 @@ where
                 // Iterate through auth methods and try to refresh
                 for auth_method in &provider.auth_methods {
                     match auth_method {
+                        AuthMethod::GoogleAdc => {
+                            // Get existing credential
+                            let existing_credential =
+                                self.infra.get_credential(&provider.id).await?.ok_or_else(
+                                    || forge_domain::Error::ProviderNotAvailable {
+                                        provider: provider.id.clone(),
+                                    },
+                                )?;
+
+                            let required_params = provider.url_params.clone();
+
+                            // Create Google ADC strategy and refresh
+                            if let Ok(strategy) = self.infra.create_auth_strategy(
+                                provider.id.clone(),
+                                auth_method.clone(),
+                                required_params,
+                            ) {
+                                match strategy.refresh(&existing_credential).await {
+                                    Ok(refreshed) => {
+                                        // Update provider with refreshed credential
+                                        provider.credential = Some(refreshed);
+                                        break; // Success, stop trying other methods
+                                    }
+                                    Err(e) => {
+                                        return Err(anyhow::anyhow!(
+                                            "Failed to refresh Google ADC token: {e}. Please run 'gcloud auth application-default login' to set up credentials."
+                                        ));
+                                    }
+                                }
+                            }
+                        }
                         AuthMethod::OAuthDevice(_) | AuthMethod::OAuthCode(_) => {
                             // Get existing credential
                             let existing_credential =
