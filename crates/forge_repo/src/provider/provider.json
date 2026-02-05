@@ -105,6 +105,16 @@
     "url": "https://api.anthropic.com/v1/messages",
     "models": [
       {
+        "id": "claude-opus-4-6",
+        "name": "Claude Opus 4.6",
+        "description": "Most intelligent model for building agents and coding",
+        "context_length": 200000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
         "id": "claude-opus-4-5-20251101",
         "name": "Claude Opus 4.5",
         "description": "Most capable Claude model with enhanced reasoning and analysis capabilities",
@@ -658,6 +668,16 @@
         "id": "anthropic.claude-sonnet-4-5-20250929-v1:0",
         "name": "Claude 4.5 Sonnet",
         "description": "Anthropic's Claude 4.5 Sonnet - enhanced capabilities",
+        "context_length": 200000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "anthropic.claude-opus-4-6-v1:0",
+        "name": "Claude 4.6 Opus",
+        "description": "Anthropic's Opus 4.6 Opus - enhanced capabilities",
         "context_length": 200000,
         "tools_supported": true,
         "supports_parallel_tool_calls": true,
