@@ -64,7 +64,6 @@ impl<S: AgentService> Orchestrator<S> {
         tool_calls: &[ToolCallFull],
         tool_context: &ToolCallContext,
     ) -> anyhow::Result<Vec<(ToolCallFull, ToolResult)>> {
-        // Always process tool calls sequentially
         let mut tool_call_records = Vec::with_capacity(tool_calls.len());
 
         let system_tools = self
@@ -73,15 +72,14 @@ impl<S: AgentService> Orchestrator<S> {
             .map(|tool| &tool.name)
             .collect::<HashSet<_>>();
 
+        // Send all start notifications and fire start lifecycle events
         for tool_call in tool_calls {
-            // Send the start notification for system tools and not agent as a tool
             let is_system_tool = system_tools.contains(&tool_call.name);
             if is_system_tool {
                 self.send(ChatResponse::ToolCallStart(tool_call.clone()))
                     .await?;
             }
 
-            // Fire the ToolcallStart lifecycle event
             let toolcall_start_event = LifecycleEvent::ToolcallStart(EventData::new(
                 self.agent.clone(),
                 self.agent.model.clone(),
@@ -90,13 +88,27 @@ impl<S: AgentService> Orchestrator<S> {
             self.hook
                 .handle(&toolcall_start_event, &mut self.conversation)
                 .await?;
+        }
 
-            // Execute the tool
-            let tool_result = self
-                .services
-                .call(&self.agent, tool_context, tool_call.clone())
-                .await;
+        // Execute all tools in parallel
+        let futures: Vec<_> = tool_calls
+            .iter()
+            .map(|tool_call| {
+                let services = self.services.clone();
+                let agent = self.agent.clone();
+                let tool_context = tool_context.clone();
+                let tool_call = tool_call.clone();
+                
+                async move {
+                    services.call(&agent, &tool_context, tool_call).await
+                }
+            })
+            .collect();
 
+        let results = futures::future::join_all(futures).await;
+
+        // Process results: fire end lifecycle events and send end notifications
+        for (tool_call, tool_result) in tool_calls.iter().zip(results.into_iter()) {
             if tool_result.is_error() {
                 warn!(
                     agent_id = %self.agent.id,
@@ -107,7 +119,6 @@ impl<S: AgentService> Orchestrator<S> {
                 );
             }
 
-            // Fire the ToolcallEnd lifecycle event
             let toolcall_end_event = LifecycleEvent::ToolcallEnd(EventData::new(
                 self.agent.clone(),
                 self.agent.model.clone(),
@@ -117,13 +128,12 @@ impl<S: AgentService> Orchestrator<S> {
                 .handle(&toolcall_end_event, &mut self.conversation)
                 .await?;
 
-            // Send the end notification for system tools and not agent as a tool
+            let is_system_tool = system_tools.contains(&tool_call.name);
             if is_system_tool {
                 self.send(ChatResponse::ToolCallEnd(tool_result.clone()))
                     .await?;
             }
-            // Ensure all tool calls and results are recorded
-            // Adding task completion records is critical for compaction to work correctly
+
             tool_call_records.push((tool_call.clone(), tool_result));
         }
 
