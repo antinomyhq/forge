@@ -1,4 +1,4 @@
-use async_openai::types::responses::{self as oai , CreateResponse};
+use async_openai::types::responses::{self as oai, CreateResponse};
 use forge_domain::Transformer;
 
 /// Transformer that adjusts Responses API requests for the Codex backend.
@@ -113,7 +113,10 @@ mod tests {
         let actual = transformer.transform(fixture);
 
         let expected = Some(oai::Verbosity::Low);
-        assert_eq!(actual.text.as_ref().and_then(|t| t.verbosity.clone()), expected);
+        assert_eq!(
+            actual.text.as_ref().and_then(|t| t.verbosity.clone()),
+            expected
+        );
     }
 
     #[test]
@@ -127,7 +130,10 @@ mod tests {
         let actual = transformer.transform(fixture);
 
         let expected = Some(oai::Verbosity::Low);
-        assert_eq!(actual.text.as_ref().and_then(|t| t.verbosity.clone()), expected);
+        assert_eq!(
+            actual.text.as_ref().and_then(|t| t.verbosity.clone()),
+            expected
+        );
     }
 
     #[test]
