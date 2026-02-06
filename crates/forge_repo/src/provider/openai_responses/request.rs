@@ -42,15 +42,17 @@ fn map_reasoning_details_to_input_items(
         match detail.type_of.as_deref() {
             Some("reasoning.encrypted") => {
                 if let Some(data) = detail.data
-                    && !data.is_empty() {
-                        entry.0 = Some(data);
-                    }
+                    && !data.is_empty()
+                {
+                    entry.0 = Some(data);
+                }
             }
             Some("reasoning.summary") => {
                 if let Some(text) = detail.text
-                    && !text.is_empty() {
-                        entry.1.push(text);
-                    }
+                    && !text.is_empty()
+                {
+                    entry.1.push(text);
+                }
             }
             _ => {}
         }
