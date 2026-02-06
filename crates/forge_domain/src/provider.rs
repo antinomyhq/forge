@@ -491,6 +491,20 @@ mod tests {
             "AnthropicCompatible"
         );
         assert_eq!(ProviderId::IO_INTELLIGENCE.to_string(), "IOIntelligence");
+        assert_eq!(ProviderId::CODEX.to_string(), "Codex");
+    }
+
+    #[test]
+    fn test_codex_from_str() {
+        let actual = ProviderId::from_str("codex").unwrap();
+        let expected = ProviderId::CODEX;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_codex_in_built_in_providers() {
+        let built_in = ProviderId::built_in_providers();
+        assert!(built_in.contains(&ProviderId::CODEX));
     }
 
     #[test]

@@ -380,11 +380,15 @@ mod tests {
 
         async fn http_post(
             &self,
-            _url: &reqwest::Url,
-            _headers: Option<reqwest::header::HeaderMap>,
-            _body: bytes::Bytes,
+            url: &reqwest::Url,
+            headers: Option<reqwest::header::HeaderMap>,
+            body: bytes::Bytes,
         ) -> anyhow::Result<reqwest::Response> {
-            unimplemented!()
+            let mut request = self.client.post(url.clone()).body(body);
+            if let Some(headers) = headers {
+                request = request.headers(headers);
+            }
+            Ok(request.send().await?)
         }
 
         async fn http_delete(&self, _url: &reqwest::Url) -> anyhow::Result<reqwest::Response> {
@@ -1047,6 +1051,117 @@ mod tests {
             .await
             .expect("stream should yield second message")?;
         assert_eq!(second.finish_reason, Some(FinishReason::Stop));
+
+        Ok(())
+    }
+
+    /// Tests the Codex direct streaming path (`chat_codex_stream`) which
+    /// bypasses the Content-Type validation enforced by reqwest-eventsource.
+    /// The mock server returns SSE data with `Content-Type: application/octet-stream`
+    /// (not `text/event-stream`), verifying the bypass works correctly.
+    #[tokio::test]
+    async fn test_codex_provider_streams_without_text_event_stream_content_type(
+    ) -> anyhow::Result<()> {
+        let mut fixture = MockServer::new().await;
+
+        let events = vec![
+            "event: response.output_text.delta".to_string(),
+            format!(
+                "data: {}",
+                serde_json::json!({
+                    "type": "response.output_text.delta",
+                    "sequence_number": 1,
+                    "item_id": "item_1",
+                    "output_index": 0,
+                    "content_index": 0,
+                    "delta": "hello from codex"
+                })
+            ),
+            "event: response.completed".to_string(),
+            format!(
+                "data: {}",
+                serde_json::json!({
+                    "type": "response.completed",
+                    "sequence_number": 2,
+                    "response": openai_response_fixture()
+                })
+            ),
+            "event: done".to_string(),
+            "data: [DONE]".to_string(),
+        ];
+
+        let mock = fixture
+            .mock_codex_responses_stream("/backend-api/codex/responses", events, 200)
+            .await;
+
+        let codex_url = format!("{}/backend-api/codex/responses", fixture.url());
+        let provider = Provider {
+            id: ProviderId::CODEX,
+            provider_type: forge_domain::ProviderType::Llm,
+            response: Some(ProviderResponse::OpenAI),
+            url: Url::parse(&codex_url).unwrap(),
+            credential: make_credential(ProviderId::CODEX, "test-codex-token"),
+            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+            url_params: vec![],
+            models: None,
+        };
+
+        let infra = Arc::new(MockHttpClient { client: reqwest::Client::new() });
+        let provider_impl = OpenAIResponsesProvider::new(provider, infra);
+        let context = ChatContext::default()
+            .add_message(ContextMessage::user("Hi", None))
+            .stream(true);
+
+        let mut stream = provider_impl
+            .chat(&ModelId::from("gpt-5.1-codex-mini"), context)
+            .await?;
+
+        let first = stream.next().await.expect("stream should yield")?;
+        mock.assert_async().await;
+        assert_eq!(first.content, Some(Content::part("hello from codex")));
+
+        let second = stream
+            .next()
+            .await
+            .expect("stream should yield second message")?;
+        assert_eq!(second.finish_reason, Some(FinishReason::Stop));
+
+        Ok(())
+    }
+
+    /// Tests that the Codex stream correctly returns an error for non-success
+    /// HTTP status codes.
+    #[tokio::test]
+    async fn test_codex_provider_stream_returns_error_on_non_success() -> anyhow::Result<()> {
+        let mut fixture = MockServer::new().await;
+
+        let _mock = fixture
+            .mock_codex_responses_stream("/backend-api/codex/responses", vec![], 400)
+            .await;
+
+        let codex_url = format!("{}/backend-api/codex/responses", fixture.url());
+        let provider = Provider {
+            id: ProviderId::CODEX,
+            provider_type: forge_domain::ProviderType::Llm,
+            response: Some(ProviderResponse::OpenAI),
+            url: Url::parse(&codex_url).unwrap(),
+            credential: make_credential(ProviderId::CODEX, "test-codex-token"),
+            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+            url_params: vec![],
+            models: None,
+        };
+
+        let infra = Arc::new(MockHttpClient { client: reqwest::Client::new() });
+        let provider_impl = OpenAIResponsesProvider::new(provider, infra);
+        let context = ChatContext::default()
+            .add_message(ContextMessage::user("Hi", None))
+            .stream(true);
+
+        let actual = provider_impl
+            .chat(&ModelId::from("gpt-5.1-codex"), context)
+            .await;
+
+        assert!(actual.is_err());
 
         Ok(())
     }
