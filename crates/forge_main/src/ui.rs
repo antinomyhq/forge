@@ -2504,16 +2504,18 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             id
         } else if let Some(ref path) = self.cli.conversation {
             let content = ForgeFS::read_utf8(path).await?;
-            
+
             // Try to parse as a dump file first (with "conversation" wrapper)
-            let conversation: Conversation = if let Ok(dump) = serde_json::from_str::<ConversationDump>(&content) {
+            let conversation: Conversation = if let Ok(dump) =
+                serde_json::from_str::<ConversationDump>(&content)
+            {
                 dump.conversation
             } else {
                 // Fall back to parsing as direct Conversation object
                 serde_json::from_str(&content)
                     .context("Failed to parse conversation file. Expected either a ConversationDump or Conversation format")?
             };
-            
+
             let id = conversation.id;
             self.api.upsert_conversation(conversation).await?;
             id
@@ -2755,9 +2757,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 } else {
                     let dump_data = ConversationDump {
                         conversation: conversation.clone(),
-                        related_conversations: related_conversations.clone()
+                        related_conversations: related_conversations.clone(),
                     };
-
 
                     let path = format!("{timestamp}-dump.json");
                     let content = serde_json::to_string_pretty(&dump_data)?;
