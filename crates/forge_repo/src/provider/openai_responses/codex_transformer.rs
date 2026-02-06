@@ -102,7 +102,8 @@ mod tests {
     }
 
     #[test]
-    fn test_codex_transformer_preserves_existing_includes_and_appends_reasoning_encrypted_content() {
+    fn test_codex_transformer_preserves_existing_includes_and_appends_reasoning_encrypted_content()
+    {
         let mut fixture = fixture();
         fixture.include = Some(vec![oai::IncludeEnum::MessageOutputTextLogprobs]);
         let mut transformer = CodexTransformer;

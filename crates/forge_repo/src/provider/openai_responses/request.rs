@@ -41,18 +41,16 @@ fn map_reasoning_details_to_input_items(
 
         match detail.type_of.as_deref() {
             Some("reasoning.encrypted") => {
-                if let Some(data) = detail.data {
-                    if !data.is_empty() {
+                if let Some(data) = detail.data
+                    && !data.is_empty() {
                         entry.0 = Some(data);
                     }
-                }
             }
             Some("reasoning.summary") => {
-                if let Some(text) = detail.text {
-                    if !text.is_empty() {
+                if let Some(text) = detail.text
+                    && !text.is_empty() {
                         entry.1.push(text);
                     }
-                }
             }
             _ => {}
         }
@@ -68,9 +66,7 @@ fn map_reasoning_details_to_input_items(
 
             let summary: Vec<oai::SummaryPart> = summary_texts
                 .into_iter()
-                .map(|text| {
-                    oai::SummaryPart::SummaryText(oai::Summary { text })
-                })
+                .map(|text| oai::SummaryPart::SummaryText(oai::Summary { text }))
                 .collect();
 
             Some(oai::InputItem::Item(oai::Item::Reasoning(
@@ -785,8 +781,8 @@ mod tests {
     }
 
     #[test]
-    fn test_codex_request_maps_reasoning_encrypted_and_summary_to_reasoning_input_items(
-    ) -> anyhow::Result<()> {
+    fn test_codex_request_maps_reasoning_encrypted_and_summary_to_reasoning_input_items()
+    -> anyhow::Result<()> {
         use forge_domain::ReasoningFull;
 
         let context = ChatContext::default()
@@ -805,7 +801,9 @@ mod tests {
                     ReasoningFull::default()
                         .type_of(Some("reasoning.text".to_string()))
                         .id(Some("rs_123".to_string()))
-                        .text(Some("visible reasoning should not be in summary".to_string())),
+                        .text(Some(
+                            "visible reasoning should not be in summary".to_string(),
+                        )),
                 ]),
                 None,
             ))
@@ -818,7 +816,10 @@ mod tests {
         };
 
         assert_eq!(items.len(), 2);
-        assert!(matches!(&items[0], oai::InputItem::Item(oai::Item::Reasoning(_))));
+        assert!(matches!(
+            &items[0],
+            oai::InputItem::Item(oai::Item::Reasoning(_))
+        ));
         assert!(matches!(&items[1], oai::InputItem::EasyMessage(_)));
 
         let oai::InputItem::Item(oai::Item::Reasoning(reasoning_item)) = &items[0] else {
@@ -872,7 +873,10 @@ mod tests {
         };
 
         assert_eq!(items.len(), 2);
-        assert!(matches!(&items[0], oai::InputItem::Item(oai::Item::Reasoning(_))));
+        assert!(matches!(
+            &items[0],
+            oai::InputItem::Item(oai::Item::Reasoning(_))
+        ));
 
         let oai::InputItem::Item(oai::Item::Reasoning(reasoning_item)) = &items[0] else {
             anyhow::bail!("Expected first item to be reasoning item");
