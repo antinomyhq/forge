@@ -101,7 +101,8 @@ impl<W: WalkerInfra + FileReaderInfra + FileInfoInfra> ForgeFsSearch<W> {
         params: &FSSearch,
     ) -> anyhow::Result<Vec<PathBuf>> {
         // Build type matcher once if file_type is specified (for efficiency)
-        // Filter out empty strings that may arrive from LLM tool calls with nullable parameters
+        // Filter out empty strings that may arrive from LLM tool calls with nullable
+        // parameters
         let types_matcher =
             if let Some(file_type) = params.file_type.as_deref().filter(|s| !s.is_empty()) {
                 use ignore::types::TypesBuilder;
@@ -111,11 +112,9 @@ impl<W: WalkerInfra + FileReaderInfra + FileInfoInfra> ForgeFsSearch<W> {
                 builder.select(file_type);
 
                 Some(
-                    builder
-                        .build()
-                        .with_context(|| {
-                            format!("Failed to build type matcher for: {file_type}")
-                        })?,
+                    builder.build().with_context(|| {
+                        format!("Failed to build type matcher for: {file_type}")
+                    })?,
                 )
             } else {
                 None
