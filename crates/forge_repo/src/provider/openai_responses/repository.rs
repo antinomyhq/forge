@@ -229,9 +229,18 @@ impl<T: HttpInfra> OpenAIResponsesProvider<T> {
                 match event_result {
                     Ok(event) if ["[DONE]", ""].contains(&event.data.as_str()) => None,
                     Ok(event) => {
-                        let result = serde_json::from_str::<oai::ResponseStreamEvent>(&event.data)
-                            .with_context(|| format!("Failed to parse SSE event: {}", event.data));
-                        Some(result)
+                        let result =
+                            serde_json::from_str::<super::response::CodexStreamEvent>(&event.data)
+                                .with_context(|| {
+                                    format!("Failed to parse SSE event: {}", event.data)
+                                });
+                        match result {
+                            Ok(super::response::CodexStreamEvent::Keepalive { .. }) => None,
+                            Ok(super::response::CodexStreamEvent::Response(inner)) => {
+                                Some(Ok(inner))
+                            }
+                            Err(e) => Some(Err(e)),
+                        }
                     }
                     Err(e) => Some(Err(anyhow::anyhow!("SSE parse error: {}", e))),
                 }
@@ -1121,6 +1130,88 @@ mod tests {
         mock.assert_async().await;
         assert_eq!(first.content, Some(Content::part("hello from codex")));
 
+        let second = stream
+            .next()
+            .await
+            .expect("stream should yield second message")?;
+        assert_eq!(second.finish_reason, Some(FinishReason::Stop));
+
+        Ok(())
+    }
+
+    /// Tests that the Codex stream silently skips keepalive events that
+    /// cannot be deserialized as `ResponseStreamEvent`.
+    #[tokio::test]
+    async fn test_codex_provider_skips_keepalive_events() -> anyhow::Result<()> {
+        let mut fixture = MockServer::new().await;
+
+        let events = vec![
+            "event: response.output_text.delta".to_string(),
+            format!(
+                "data: {}",
+                serde_json::json!({
+                    "type": "response.output_text.delta",
+                    "sequence_number": 1,
+                    "item_id": "item_1",
+                    "output_index": 0,
+                    "content_index": 0,
+                    "delta": "hello"
+                })
+            ),
+            // Keepalive event that should be silently skipped
+            "event: keepalive".to_string(),
+            format!(
+                "data: {}",
+                serde_json::json!({
+                    "type": "keepalive",
+                    "sequence_number": 2
+                })
+            ),
+            "event: response.completed".to_string(),
+            format!(
+                "data: {}",
+                serde_json::json!({
+                    "type": "response.completed",
+                    "sequence_number": 3,
+                    "response": openai_response_fixture()
+                })
+            ),
+            "event: done".to_string(),
+            "data: [DONE]".to_string(),
+        ];
+
+        let mock = fixture
+            .mock_codex_responses_stream("/backend-api/codex/responses", events, 200)
+            .await;
+
+        let codex_url = format!("{}/backend-api/codex/responses", fixture.url());
+        let provider = Provider {
+            id: ProviderId::CODEX,
+            provider_type: forge_domain::ProviderType::Llm,
+            response: Some(ProviderResponse::OpenAI),
+            url: Url::parse(&codex_url).unwrap(),
+            credential: make_credential(ProviderId::CODEX, "test-codex-token"),
+            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+            url_params: vec![],
+            models: None,
+        };
+
+        let infra = Arc::new(MockHttpClient { client: reqwest::Client::new() });
+        let provider_impl = OpenAIResponsesProvider::new(provider, infra);
+        let context = ChatContext::default()
+            .add_message(ContextMessage::user("Hi", None))
+            .stream(true);
+
+        let mut stream = provider_impl
+            .chat(&ModelId::from("gpt-5.1-codex-mini"), context)
+            .await?;
+
+        // First message should be the text delta (keepalive was skipped)
+        let first = stream.next().await.expect("stream should yield")?;
+        mock.assert_async().await;
+        assert_eq!(first.content, Some(Content::part("hello")));
+
+        // Second message should be the completion event
         let second = stream
             .next()
             .await

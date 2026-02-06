@@ -92,6 +92,8 @@ fn codex_tool_parameters(
 /// - max_tokens, temperature, top_p
 impl FromDomain<ChatContext> for oai::CreateResponse {
     fn from_domain(context: ChatContext) -> anyhow::Result<Self> {
+        let prompt_cache_key = context.conversation_id.as_ref().map(ToString::to_string);
+
         let mut instructions: Vec<String> = Vec::new();
         let mut items: Vec<oai::InputItem> = Vec::new();
 
@@ -231,6 +233,10 @@ impl FromDomain<ChatContext> for oai::CreateResponse {
         if let Some(reasoning) = context.reasoning {
             let reasoning_config = oai::Reasoning::from_domain(reasoning)?;
             builder.reasoning(reasoning_config);
+        }
+
+        if let Some(prompt_cache_key) = prompt_cache_key {
+            builder.prompt_cache_key(prompt_cache_key);
         }
 
         let mut response = builder.build().map_err(anyhow::Error::from)?;
@@ -667,6 +673,34 @@ mod tests {
             serde_json::json!(["alpha", "beta", "zebra"])
         );
     }
+    #[test]
+    fn test_codex_request_sets_prompt_cache_key_from_conversation_id() -> anyhow::Result<()> {
+        use forge_domain::ConversationId;
+
+        let conversation_id = ConversationId::generate();
+        let context = ChatContext::default()
+            .conversation_id(conversation_id)
+            .add_message(ContextMessage::user("Hello", None));
+
+        let actual = oai::CreateResponse::from_domain(context)?;
+        let expected = Some(conversation_id.to_string());
+
+        assert_eq!(actual.prompt_cache_key, expected);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_codex_request_without_conversation_id_has_no_prompt_cache_key() -> anyhow::Result<()> {
+        let context = ChatContext::default().add_message(ContextMessage::user("Hello", None));
+
+        let actual = oai::CreateResponse::from_domain(context)?;
+
+        assert_eq!(actual.prompt_cache_key, None);
+
+        Ok(())
+    }
+
     #[test]
     fn test_codex_request_with_temperature() -> anyhow::Result<()> {
         use forge_app::domain::Temperature;

@@ -7,8 +7,30 @@ use forge_app::domain::{
 };
 use forge_domain::{BoxStream, ResultStream};
 use futures::StreamExt;
+use serde::Deserialize;
 
 use crate::provider::IntoDomain;
+
+/// Wrapper enum for SSE events from the Codex backend.
+///
+/// The Codex backend sends additional event types (e.g. `keepalive`) that are
+/// not part of the standard OpenAI Responses API. This enum models those
+/// explicitly so that known non-critical events can be filtered out without
+/// suppressing genuine deserialization errors.
+#[derive(Debug, Deserialize)]
+#[serde(tag = "type")]
+pub(super) enum CodexStreamEvent {
+    /// A keepalive ping sent periodically by the Codex backend to keep the
+    /// connection alive. Contains only a `sequence_number` and no payload.
+    #[serde(rename = "keepalive")]
+    Keepalive {
+        #[allow(dead_code)]
+        sequence_number: u64,
+    },
+    /// Any standard OpenAI Responses API streaming event.
+    #[serde(untagged)]
+    Response(oai::ResponseStreamEvent),
+}
 
 impl IntoDomain for oai::ResponseUsage {
     type Domain = Usage;
@@ -1230,5 +1252,41 @@ mod tests {
         assert_eq!(completion_msg.finish_reason, Some(FinishReason::ToolCalls));
 
         Ok(())
+    }
+
+    // ============== CodexStreamEvent Tests ==============
+
+    #[test]
+    fn test_codex_stream_event_deserializes_keepalive() {
+        let fixture = r#"{"type":"keepalive","sequence_number":3}"#;
+        let actual: CodexStreamEvent = serde_json::from_str(fixture).unwrap();
+
+        assert!(matches!(
+            actual,
+            CodexStreamEvent::Keepalive { sequence_number: 3 }
+        ));
+    }
+
+    #[test]
+    fn test_codex_stream_event_deserializes_response_event() {
+        let fixture = serde_json::json!({
+            "type": "response.output_text.delta",
+            "sequence_number": 1,
+            "item_id": "item_1",
+            "output_index": 0,
+            "content_index": 0,
+            "delta": "hello"
+        });
+        let actual: CodexStreamEvent = serde_json::from_str(&fixture.to_string()).unwrap();
+
+        assert!(matches!(actual, CodexStreamEvent::Response(_)));
+    }
+
+    #[test]
+    fn test_codex_stream_event_rejects_unknown_type() {
+        let fixture = r#"{"type":"totally_unknown_event","sequence_number":1}"#;
+        let actual = serde_json::from_str::<CodexStreamEvent>(fixture);
+
+        assert!(actual.is_err());
     }
 }
