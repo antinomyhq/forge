@@ -1,4 +1,3 @@
-use async_openai::types::responses as oai;
 use async_openai::types::responses::CreateResponse;
 use forge_domain::Transformer;
 
