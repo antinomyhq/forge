@@ -237,7 +237,7 @@ impl<T: HttpInfra> OpenAIResponsesProvider<T> {
                         match result {
                             Ok(super::response::CodexStreamEvent::Keepalive { .. }) => None,
                             Ok(super::response::CodexStreamEvent::Response(inner)) => {
-                                Some(Ok(inner))
+                                Some(Ok(*inner))
                             }
                             Err(e) => Some(Err(e)),
                         }

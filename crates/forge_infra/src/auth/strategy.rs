@@ -561,7 +561,9 @@ impl AuthStrategy for CodexDeviceStrategy {
                 // Poll for authorization code using the custom OpenAI endpoint
                 let token_response = codex_poll_for_tokens(&ctx.request, &self.config).await?;
 
-                // Extract ChatGPT account ID from the access token JWT
+                // Extract ChatGPT account ID from the access token JWT.
+                // This is used for the optional `ChatGPT-Account-Id` request
+                // header when available.
                 let account_id = extract_chatgpt_account_id(&token_response.access_token);
 
                 let mut credential = build_oauth_credential(
@@ -635,21 +637,19 @@ async fn refresh_oauth_credential(
     // Build new tokens with refreshed OAuth access token
     let new_tokens = OAuthTokens::new(oauth_access_token, oauth_refresh_token, expires_at);
 
-    // Build appropriate credential type
-    if let Some(key) = api_key {
-        Ok(AuthCredential::new_oauth_with_api_key(
+    // Build appropriate credential type while preserving URL params
+    let refreshed = if let Some(key) = api_key {
+        AuthCredential::new_oauth_with_api_key(
             credential.id.clone(),
             new_tokens,
             key,
             config.clone(),
-        ))
+        )
     } else {
-        Ok(AuthCredential::new_oauth(
-            credential.id.clone(),
-            new_tokens,
-            config.clone(),
-        ))
-    }
+        AuthCredential::new_oauth(credential.id.clone(), new_tokens, config.clone())
+    };
+
+    Ok(refreshed.url_params(credential.url_params.clone()))
 }
 
 /// Poll for OAuth tokens during device flow
@@ -857,10 +857,11 @@ async fn codex_poll_for_tokens(
                 })?;
 
             if !token_response.status().is_success() {
+                let token_exchange_status = token_response.status();
                 let error_text = token_response.text().await.unwrap_or_default();
                 return Err(AuthError::PollFailed(format!(
                     "Token exchange failed ({}): {}",
-                    status, error_text
+                    token_exchange_status, error_text
                 ))
                 .into());
             }
@@ -1079,6 +1080,10 @@ impl StrategyFactory for ForgeAuthStrategyFactory {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
+    use pretty_assertions::assert_eq;
+
     use super::*;
 
     #[test]
@@ -1270,5 +1275,44 @@ mod tests {
         }));
         let actual = extract_chatgpt_account_id(&fixture);
         assert_eq!(actual, None);
+    }
+
+    #[tokio::test]
+    async fn test_refresh_oauth_credential_preserves_url_params() {
+        let fixture_config = OAuthConfig {
+            client_id: "test".to_string().into(),
+            auth_url: Url::parse("https://example.com/auth").unwrap(),
+            token_url: Url::parse("https://example.com/token").unwrap(),
+            scopes: vec![],
+            redirect_uri: None,
+            use_pkce: false,
+            token_refresh_url: None,
+            extra_auth_params: None,
+            custom_headers: None,
+        };
+        let fixture_tokens = OAuthTokens::new(
+            "access_token",
+            None::<String>,
+            chrono::Utc::now() + chrono::Duration::minutes(30),
+        );
+        let fixture_url_params = HashMap::from([(
+            URLParam::from("chatgpt_account_id".to_string()),
+            "acct_123".to_string().into(),
+        )]);
+        let fixture_credential =
+            AuthCredential::new_oauth(ProviderId::CODEX, fixture_tokens, fixture_config.clone())
+                .url_params(fixture_url_params.clone());
+
+        let actual = refresh_oauth_credential(
+            &fixture_credential,
+            &fixture_config,
+            chrono::Duration::hours(1),
+            false,
+        )
+        .await
+        .unwrap();
+
+        let expected = fixture_url_params;
+        assert_eq!(actual.url_params, expected);
     }
 }

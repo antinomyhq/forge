@@ -29,7 +29,7 @@ pub(super) enum CodexStreamEvent {
     },
     /// Any standard OpenAI Responses API streaming event.
     #[serde(untagged)]
-    Response(oai::ResponseStreamEvent),
+    Response(Box<oai::ResponseStreamEvent>),
 }
 
 impl IntoDomain for oai::ResponseUsage {
