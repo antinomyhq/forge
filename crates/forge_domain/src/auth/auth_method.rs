@@ -13,6 +13,8 @@ pub enum AuthMethod {
     OAuthCode(OAuthConfig),
     #[serde(rename = "google_adc")]
     GoogleAdc,
+    #[serde(rename = "codex_device")]
+    CodexDevice(OAuthConfig),
 }
 
 impl AuthMethod {
@@ -28,9 +30,16 @@ impl AuthMethod {
         Self::GoogleAdc
     }
 
+    /// Creates a Codex device auth method
+    pub fn codex_device(config: OAuthConfig) -> Self {
+        Self::CodexDevice(config)
+    }
+
     pub fn oauth_config(&self) -> Option<&OAuthConfig> {
         match self {
-            Self::OAuthDevice(config) | Self::OAuthCode(config) => Some(config),
+            Self::OAuthDevice(config)
+            | Self::OAuthCode(config)
+            | Self::CodexDevice(config) => Some(config),
             Self::ApiKey | Self::GoogleAdc => None,
         }
     }

@@ -1277,5 +1277,88 @@
       }
     ],
     "auth_methods": ["google_adc"]
+  },
+  {
+    "id": "codex",
+    "api_key_vars": "CODEX_API_KEY",
+    "url_param_vars": [],
+    "response_type": "OpenAI",
+    "url": "https://chatgpt.com/backend-api/codex/responses",
+    "models": [
+      {
+        "id": "gpt-5.3-codex",
+        "name": "GPT-5.3 Codex",
+        "description": "Latest GPT-5.3 Codex model with advanced coding capabilities and 400K context window",
+        "context_length": 400000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "gpt-5.2-codex",
+        "name": "GPT-5.2 Codex",
+        "description": "GPT-5.2 Codex model with advanced coding capabilities and 200K context window",
+        "context_length": 200000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "gpt-5.2",
+        "name": "GPT-5.2",
+        "description": "GPT-5.2 model with advanced coding capabilities and 200K context window",
+        "context_length": 200000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "gpt-5.1-codex",
+        "name": "GPT-5.1 Codex",
+        "description": "GPT-5.1 Codex model with strong coding capabilities and 200K context window",
+        "context_length": 200000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "gpt-5.1-codex-max",
+        "name": "GPT-5.1 Codex Max",
+        "description": "GPT-5.1 Codex Max model with maximum capabilities and 200K context window",
+        "context_length": 200000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      },
+      {
+        "id": "gpt-5.1-codex-mini",
+        "name": "GPT-5.1 Codex Mini",
+        "description": "Fast and efficient GPT-5.1 Codex mini model for quick coding tasks",
+        "context_length": 200000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true,
+        "input_modalities": ["text", "image"]
+      }
+    ],
+    "auth_methods": [
+      {
+        "codex_device": {
+          "auth_url": "https://auth.openai.com/api/accounts/deviceauth/usercode",
+          "token_url": "https://auth.openai.com/oauth/token",
+          "client_id": "app_EMoamEEZ73f0CkXaXp7hrann",
+          "scopes": ["openid", "profile", "email", "offline_access"],
+          "use_pkce": false,
+          "custom_headers": {
+            "originator": "forge"
+          }
+        }
+      }
+    ]
   }
 ]

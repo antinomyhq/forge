@@ -1770,6 +1770,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "backon",
+ "base64 0.22.1",
  "bytes",
  "cacache",
  "chrono",

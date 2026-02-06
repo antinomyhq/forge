@@ -17,6 +17,17 @@ use crate::provider::FromDomain;
 use crate::provider::retry::into_retry;
 use crate::provider::utils::{create_headers, format_http_context, sanitize_headers};
 
+/// Returns the OS kernel release string, or "unknown" if unavailable.
+fn os_release() -> String {
+    std::process::Command::new("uname")
+        .arg("-r")
+        .output()
+        .ok()
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.trim().to_string())
+        .unwrap_or_else(|| "unknown".to_string())
+}
+
 #[derive(Clone)]
 pub(super) struct OpenAIResponsesProvider<H> {
     provider: Provider<Url>,
@@ -28,15 +39,39 @@ pub(super) struct OpenAIResponsesProvider<H> {
 impl<H: HttpInfra> OpenAIResponsesProvider<H> {
     /// Creates a new OpenAI Responses provider
     ///
+    /// For the Codex provider, the configured URL is used directly as the
+    /// responses endpoint (e.g., `chatgpt.com/backend-api/codex/responses`).
+    /// For all other providers, the path is rewritten to `{host}/v1/responses`.
+    ///
     /// # Panics
     ///
     /// Panics if the provider URL cannot be converted to an API base URL
     pub fn new(provider: Provider<Url>, http: Arc<H>) -> Self {
-        let api_base = api_base_from_endpoint_url(&provider.url)
-            .expect("Failed to derive API base URL from provider endpoint");
-        let responses_url = responses_endpoint_from_api_base(&api_base);
+        use forge_domain::ProviderId;
 
-        Self { provider, http, api_base, responses_url }
+        if provider.id == ProviderId::CODEX {
+            // Codex uses the configured URL directly as the responses endpoint
+            let responses_url = provider.url.clone();
+            let api_base = {
+                let mut base = provider.url.clone();
+                let path = base.path().trim_end_matches('/');
+                let trimmed = path
+                    .strip_suffix("/responses")
+                    .unwrap_or(path)
+                    .to_owned();
+                base.set_path(&trimmed);
+                base.set_query(None);
+                base.set_fragment(None);
+                base
+            };
+            Self { provider, http, api_base, responses_url }
+        } else {
+            // Standard OpenAI pattern: rewrite to /v1/responses
+            let api_base = api_base_from_endpoint_url(&provider.url)
+                .expect("Failed to derive API base URL from provider endpoint");
+            let responses_url = responses_endpoint_from_api_base(&api_base);
+            Self { provider, http, api_base, responses_url }
+        }
     }
 
     fn get_headers(&self) -> Vec<(String, String)> {
@@ -73,8 +108,50 @@ impl<H: HttpInfra> OpenAIResponsesProvider<H> {
                         });
                     }
                 }
+                forge_domain::AuthMethod::CodexDevice(oauth_config) => {
+                    if let Some(custom_headers) = &oauth_config.custom_headers {
+                        custom_headers.iter().for_each(|(k, v)| {
+                            headers.push((k.clone(), v.clone()));
+                        });
+                    }
+                }
                 forge_domain::AuthMethod::GoogleAdc => {}
             });
+
+        // Codex provider requires a dynamic User-Agent with OS info and
+        // the ChatGPT-Account-Id header extracted from the JWT at login
+        if self.provider.id == forge_domain::ProviderId::CODEX {
+            let user_agent = format!(
+                "forge ({} {}; {})",
+                std::env::consts::OS,
+                os_release(),
+                std::env::consts::ARCH,
+            );
+            // Replace any static User-Agent from custom_headers with the
+            // dynamic one
+            if let Some(pos) = headers.iter().position(|(k, _)| k.eq_ignore_ascii_case("user-agent")) {
+                headers[pos].1 = user_agent;
+            } else {
+                headers.push(("User-Agent".to_string(), user_agent));
+            }
+
+            // Add ChatGPT-Account-Id from credential's stored url_params
+            if let Some(account_id) = self
+                .provider
+                .credential
+                .as_ref()
+                .and_then(|c| {
+                    let key: forge_domain::URLParam = "chatgpt_account_id".to_string().into();
+                    c.url_params.get(&key)
+                })
+            {
+                headers.push((
+                    "ChatGPT-Account-Id".to_string(),
+                    account_id.to_string(),
+                ));
+            }
+        }
+
         headers
     }
 }
@@ -429,6 +506,31 @@ mod tests {
         assert_eq!(
             provider_impl.responses_url.as_str(),
             "https://api.openai.com/v1/responses"
+        );
+    }
+
+    #[test]
+    fn test_openai_responses_provider_new_with_codex_url() {
+        let provider = Provider {
+            id: ProviderId::CODEX,
+            provider_type: forge_domain::ProviderType::Llm,
+            response: Some(ProviderResponse::OpenAI),
+            url: Url::parse("https://chatgpt.com/backend-api/codex/responses").unwrap(),
+            credential: make_credential(ProviderId::CODEX, "test-key"),
+            auth_methods: vec![forge_domain::AuthMethod::ApiKey],
+            url_params: vec![],
+            models: None,
+        };
+        let infra = Arc::new(MockHttpClient { client: reqwest::Client::new() });
+        let provider_impl = OpenAIResponsesProvider::<MockHttpClient>::new(provider, infra);
+
+        assert_eq!(
+            provider_impl.responses_url.as_str(),
+            "https://chatgpt.com/backend-api/codex/responses"
+        );
+        assert_eq!(
+            provider_impl.api_base.as_str(),
+            "https://chatgpt.com/backend-api/codex"
         );
     }
 

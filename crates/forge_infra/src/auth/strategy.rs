@@ -437,6 +437,170 @@ impl AuthStrategy for GoogleAdcStrategy {
     }
 }
 
+/// OpenAI Codex Device Strategy - Custom device auth for ChatGPT Pro/Plus
+///
+/// Implements the OpenAI-specific device authorization flow used by Codex:
+/// 1. Request device code from `/api/accounts/deviceauth/usercode`
+/// 2. User enters code at `https://auth.openai.com/codex/device`
+/// 3. Poll `/api/accounts/deviceauth/token` for authorization code + verifier
+/// 4. Exchange authorization code for OAuth tokens via standard token endpoint
+pub struct CodexDeviceStrategy {
+    provider_id: ProviderId,
+    config: OAuthConfig,
+}
+
+impl CodexDeviceStrategy {
+    pub fn new(provider_id: ProviderId, config: OAuthConfig) -> Self {
+        Self { provider_id, config }
+    }
+}
+
+/// Response from the OpenAI device auth usercode endpoint
+#[derive(Debug, serde::Deserialize)]
+struct CodexDeviceAuthResponse {
+    device_auth_id: String,
+    user_code: String,
+    interval: String,
+}
+
+/// Response from the OpenAI device auth token polling endpoint
+#[derive(Debug, serde::Deserialize)]
+struct CodexDeviceTokenResponse {
+    authorization_code: String,
+    code_verifier: String,
+}
+
+/// Extract the ChatGPT account ID from a JWT token's claims.
+///
+/// Checks `chatgpt_account_id`, `https://api.openai.com/auth.chatgpt_account_id`,
+/// and `organizations[0].id` in that order, matching the opencode implementation.
+fn extract_chatgpt_account_id(token: &str) -> Option<String> {
+    let parts: Vec<&str> = token.split('.').collect();
+    if parts.len() != 3 {
+        return None;
+    }
+    use base64::Engine;
+    let payload = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(parts[1])
+        .ok()?;
+    let claims: serde_json::Value = serde_json::from_slice(&payload).ok()?;
+
+    // Try chatgpt_account_id first
+    if let Some(id) = claims["chatgpt_account_id"].as_str() {
+        return Some(id.to_string());
+    }
+    // Try nested auth claim
+    if let Some(id) = claims["https://api.openai.com/auth"]["chatgpt_account_id"].as_str() {
+        return Some(id.to_string());
+    }
+    // Fall back to organizations[0].id
+    if let Some(id) = claims["organizations"]
+        .as_array()
+        .and_then(|orgs| orgs.first())
+        .and_then(|org| org["id"].as_str())
+    {
+        return Some(id.to_string());
+    }
+    None
+}
+
+#[async_trait::async_trait]
+impl AuthStrategy for CodexDeviceStrategy {
+    async fn init(&self) -> anyhow::Result<AuthContextRequest> {
+        let http_client = build_http_client(self.config.custom_headers.as_ref()).map_err(|e| {
+            AuthError::InitiationFailed(format!("Failed to build HTTP client: {e}"))
+        })?;
+
+        // Step 1: Request device authorization from OpenAI's custom endpoint
+        let response = http_client
+            .post(self.config.auth_url.as_str())
+            .header("Content-Type", "application/json")
+            .json(&serde_json::json!({
+                "client_id": self.config.client_id.as_str()
+            }))
+            .send()
+            .await
+            .map_err(|e| {
+                AuthError::InitiationFailed(format!("Device authorization request failed: {e}"))
+            })?;
+
+        if !response.status().is_success() {
+            return Err(AuthError::InitiationFailed(format!(
+                "Device authorization failed with status: {}",
+                response.status()
+            ))
+            .into());
+        }
+
+        let device_data: CodexDeviceAuthResponse = response.json().await.map_err(|e| {
+            AuthError::InitiationFailed(format!("Failed to parse device auth response: {e}"))
+        })?;
+
+        let interval: u64 = device_data
+            .interval
+            .parse()
+            .unwrap_or(5)
+            .max(1);
+
+        // Build the device code request using existing domain types
+        // We encode the device_auth_id in the device_code field
+        Ok(AuthContextRequest::DeviceCode(DeviceCodeRequest {
+            user_code: device_data.user_code.clone().into(),
+            device_code: device_data.device_auth_id.into(),
+            verification_uri: Url::parse("https://auth.openai.com/codex/device")?,
+            verification_uri_complete: None,
+            expires_in: 300, // 5 minute timeout
+            interval,
+            oauth_config: self.config.clone(),
+        }))
+    }
+
+    async fn complete(
+        &self,
+        context_response: AuthContextResponse,
+    ) -> anyhow::Result<AuthCredential> {
+        match context_response {
+            AuthContextResponse::DeviceCode(ctx) => {
+                // Poll for authorization code using the custom OpenAI endpoint
+                let token_response =
+                    codex_poll_for_tokens(&ctx.request, &self.config).await?;
+
+                // Extract ChatGPT account ID from the access token JWT
+                let account_id =
+                    extract_chatgpt_account_id(&token_response.access_token);
+
+                let mut credential = build_oauth_credential(
+                    self.provider_id.clone(),
+                    token_response,
+                    &self.config,
+                    chrono::Duration::hours(1),
+                )?;
+
+                // Store account_id in url_params so it's persisted and available
+                // for chat request headers
+                if let Some(id) = account_id {
+                    credential
+                        .url_params
+                        .insert("chatgpt_account_id".to_string().into(), id.into());
+                }
+
+                Ok(credential)
+            }
+            _ => Err(AuthError::InvalidContext("Expected DeviceCode context".to_string()).into()),
+        }
+    }
+
+    async fn refresh(&self, credential: &AuthCredential) -> anyhow::Result<AuthCredential> {
+        refresh_oauth_credential(
+            credential,
+            &self.config,
+            chrono::Duration::hours(1),
+            false,
+        )
+        .await
+    }
+}
+
 /// Refresh OAuth credential - handles all OAuth flows
 async fn refresh_oauth_credential(
     credential: &AuthCredential,
@@ -619,6 +783,118 @@ async fn poll_for_tokens(
     }
 }
 
+/// Poll for Codex tokens using OpenAI's custom device auth endpoints.
+///
+/// This differs from standard OAuth2 device code flow:
+/// 1. Polls `/api/accounts/deviceauth/token` with `device_auth_id` + `user_code`
+/// 2. Receives `authorization_code` + `code_verifier` (not tokens directly)
+/// 3. Exchanges the authorization code for OAuth tokens via standard token endpoint
+async fn codex_poll_for_tokens(
+    request: &DeviceCodeRequest,
+    config: &OAuthConfig,
+) -> anyhow::Result<OAuthTokenResponse> {
+    let http_client = build_http_client(config.custom_headers.as_ref())
+        .map_err(|e| AuthError::PollFailed(format!("Failed to build HTTP client: {e}")))?;
+
+    let timeout = Duration::from_secs(request.expires_in);
+    let interval = Duration::from_secs(request.interval.max(1));
+    // Add a safety margin to polling interval to avoid rate limiting
+    let poll_interval = interval + Duration::from_secs(3);
+
+    let start_time = tokio::time::Instant::now();
+
+    // The auth_url in config points to the usercode endpoint; derive the token
+    // polling endpoint from the same base
+    let poll_url = config
+        .auth_url
+        .as_str()
+        .replace("/usercode", "/token");
+
+    loop {
+        if start_time.elapsed() >= timeout {
+            return Err(AuthError::Timeout(timeout).into());
+        }
+
+        tokio::time::sleep(poll_interval).await;
+
+        let response = http_client
+            .post(&poll_url)
+            .header("Content-Type", "application/json")
+            .json(&serde_json::json!({
+                "device_auth_id": request.device_code.as_str(),
+                "user_code": request.user_code.as_str(),
+            }))
+            .send()
+            .await
+            .map_err(|e| AuthError::PollFailed(format!("HTTP request failed: {e}")))?;
+
+        let status = response.status();
+
+        if status.is_success() {
+            // Parse the custom response containing authorization_code + code_verifier
+            let device_token: CodexDeviceTokenResponse = response.json().await.map_err(|e| {
+                AuthError::PollFailed(format!("Failed to parse device token response: {e}"))
+            })?;
+
+            // Exchange the authorization code for OAuth tokens via standard
+            // endpoint. Use a clean HTTP client without custom headers since the
+            // standard OAuth token endpoint rejects unknown headers.
+            let clean_client = reqwest::Client::builder()
+                .redirect(reqwest::redirect::Policy::none())
+                .build()
+                .map_err(|e| {
+                    AuthError::PollFailed(format!("Failed to build HTTP client: {e}"))
+                })?;
+
+            let token_response = clean_client
+                .post(config.token_url.as_str())
+                .header("Content-Type", "application/x-www-form-urlencoded")
+                .body(
+                    serde_urlencoded::to_string(&[
+                        ("grant_type", "authorization_code"),
+                        ("code", &device_token.authorization_code),
+                        ("redirect_uri", "https://auth.openai.com/deviceauth/callback"),
+                        ("client_id", config.client_id.as_ref()),
+                        ("code_verifier", &device_token.code_verifier),
+                    ])
+                    .map_err(|e| {
+                        AuthError::PollFailed(format!("Failed to encode token request: {e}"))
+                    })?,
+                )
+                .send()
+                .await
+                .map_err(|e| {
+                    AuthError::PollFailed(format!("Token exchange request failed: {e}"))
+                })?;
+
+            if !token_response.status().is_success() {
+                let error_text = token_response.text().await.unwrap_or_default();
+                return Err(AuthError::PollFailed(format!(
+                    "Token exchange failed ({}): {}",
+                    status, error_text
+                ))
+                .into());
+            }
+
+            let (access_token, refresh_token, expires_in) =
+                parse_token_response(&token_response.text().await.map_err(|e| {
+                    AuthError::PollFailed(format!("Failed to read token response: {e}"))
+                })?)?;
+
+            return Ok(build_token_response(access_token, refresh_token, expires_in));
+        }
+
+        // 403/404 means authorization pending (user hasn't entered code yet)
+        if status.as_u16() == 403 || status.as_u16() == 404 {
+            continue;
+        }
+
+        // Any other error is terminal
+        let body_text = response.text().await.unwrap_or_default();
+        return Err(AuthError::PollFailed(format!("HTTP {status}: {body_text}")).into());
+    }
+}
+
 /// Exchange OAuth token for API key (GitHub Copilot pattern)
 async fn exchange_oauth_for_api_key(
     oauth_token: &str,
@@ -685,6 +961,7 @@ pub enum AnyAuthStrategy {
     OAuthDevice(OAuthDeviceStrategy),
     OAuthWithApiKey(OAuthWithApiKeyStrategy),
     GoogleAdc(GoogleAdcStrategy),
+    CodexDevice(CodexDeviceStrategy),
 }
 
 #[async_trait::async_trait]
@@ -698,6 +975,7 @@ impl AuthStrategy for AnyAuthStrategy {
             Self::OAuthDevice(s) => s.init().await,
             Self::OAuthWithApiKey(s) => s.init().await,
             Self::GoogleAdc(s) => s.init().await,
+            Self::CodexDevice(s) => s.init().await,
         }
     }
 
@@ -713,6 +991,7 @@ impl AuthStrategy for AnyAuthStrategy {
             Self::OAuthDevice(s) => s.complete(context_response).await,
             Self::OAuthWithApiKey(s) => s.complete(context_response).await,
             Self::GoogleAdc(s) => s.complete(context_response).await,
+            Self::CodexDevice(s) => s.complete(context_response).await,
         }
     }
 
@@ -725,6 +1004,7 @@ impl AuthStrategy for AnyAuthStrategy {
             Self::OAuthDevice(s) => s.refresh(credential).await,
             Self::OAuthWithApiKey(s) => s.refresh(credential).await,
             Self::GoogleAdc(s) => s.refresh(credential).await,
+            Self::CodexDevice(s) => s.refresh(credential).await,
         }
     }
 }
@@ -796,6 +1076,9 @@ impl StrategyFactory for ForgeAuthStrategyFactory {
             }
             forge_domain::AuthMethod::GoogleAdc => Ok(AnyAuthStrategy::GoogleAdc(
                 GoogleAdcStrategy::new(provider_id, required_params),
+            )),
+            forge_domain::AuthMethod::CodexDevice(config) => Ok(AnyAuthStrategy::CodexDevice(
+                CodexDeviceStrategy::new(provider_id, config),
             )),
         }
     }
