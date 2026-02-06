@@ -268,7 +268,8 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
 
         // Check if this is a Google ADC credential and refresh it
         // Google ADC tokens expire quickly, so we refresh them on every load
-        if credential.id == forge_domain::ProviderId::VERTEX_AI
+        if (credential.id == forge_domain::ProviderId::VERTEX_AI
+            || credential.id == forge_domain::ProviderId::VERTEX_AI_ANTHROPIC)
             && let forge_domain::AuthDetails::ApiKey(ref api_key) = credential.auth_details
             && api_key.as_ref() == "google_adc_marker"
         {
@@ -349,9 +350,9 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra>
             &access_token.token[..access_token.token.len().min(20)]
         );
 
-        // Create new credential with fresh token, preserving url_params
+        // Create new credential with fresh token, preserving url_params and provider ID
         Ok(forge_domain::AuthCredential::new_api_key(
-            forge_domain::ProviderId::VERTEX_AI,
+            original_credential.id.clone(),
             forge_domain::ApiKey::from(access_token.token),
         )
         .url_params(original_credential.url_params.clone()))
@@ -465,7 +466,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + HttpInfra + Sync>
 
 #[cfg(test)]
 mod tests {
-    use forge_app::domain::ProviderResponse;
+    use forge_app::domain::{AuthMethod, ProviderResponse};
     use pretty_assertions::assert_eq;
 
     use super::*;
@@ -511,9 +512,13 @@ mod tests {
             config.url_param_vars,
             vec!["PROJECT_ID".to_string(), "LOCATION".to_string()]
         );
-        assert_eq!(config.response_type, Some(ProviderResponse::OpenAI));
+        assert_eq!(config.response_type, Some(ProviderResponse::Google));
         assert!(&config.url.contains("{{"));
         assert!(&config.url.contains("}}"));
+
+        // Verify both auth methods are supported
+        assert!(config.auth_methods.contains(&AuthMethod::ApiKey));
+        assert!(config.auth_methods.contains(&AuthMethod::GoogleAdc));
     }
 
     #[test]
