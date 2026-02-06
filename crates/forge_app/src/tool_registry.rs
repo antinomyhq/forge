@@ -128,7 +128,8 @@ impl<S: Services> ToolRegistry<S> {
 
             // Validate tool modality support before execution
             // Only resolve the current model when modality validation is needed.
-            if matches!(&tool_input, ToolCatalog::Read(input) if Self::has_image_extension(&input.file_path)) {
+            if matches!(&tool_input, ToolCatalog::Read(input) if Self::has_image_extension(&input.file_path))
+            {
                 let model = self.get_current_model().await;
                 Self::validate_tool_modality(&tool_input, model.as_ref())?;
             }
