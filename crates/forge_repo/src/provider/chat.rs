@@ -71,8 +71,12 @@ impl<F: EnvironmentInfra + HttpInfra + Sync> ChatRepository for ForgeChatReposit
                 // Check if model is a Codex model
                 if model_id.as_str().contains("gpt-5")
                     && (provider.id == ProviderId::OPENAI
-                        || provider.id == ProviderId::GITHUB_COPILOT)
+                        || provider.id == ProviderId::GITHUB_COPILOT
+                        || provider.id == ProviderId::CODEX)
                 {
+                    self.codex_repo.chat(model_id, context, provider).await
+                } else if provider.id == ProviderId::CODEX {
+                    // All Codex provider models use the Responses API
                     self.codex_repo.chat(model_id, context, provider).await
                 } else {
                     self.openai_repo.chat(model_id, context, provider).await

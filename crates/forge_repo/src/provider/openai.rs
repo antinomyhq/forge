@@ -67,6 +67,13 @@ impl<H: HttpInfra> OpenAIProvider<H> {
                         });
                     }
                 }
+                forge_domain::AuthMethod::CodexDevice(oauth_config) => {
+                    if let Some(custom_headers) = &oauth_config.custom_headers {
+                        custom_headers.iter().for_each(|(k, v)| {
+                            headers.push((k.clone(), v.clone()));
+                        });
+                    }
+                }
                 forge_domain::AuthMethod::GoogleAdc => {}
             });
         headers
@@ -330,7 +337,12 @@ mod tests {
             Ok(request.send().await?)
         }
 
-        async fn http_post(&self, _url: &Url, _body: Bytes) -> anyhow::Result<reqwest::Response> {
+        async fn http_post(
+            &self,
+            _url: &Url,
+            _headers: Option<HeaderMap>,
+            _body: Bytes,
+        ) -> anyhow::Result<reqwest::Response> {
             unimplemented!()
         }
 

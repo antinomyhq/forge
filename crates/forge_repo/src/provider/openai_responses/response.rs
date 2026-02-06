@@ -7,8 +7,30 @@ use forge_app::domain::{
 };
 use forge_domain::{BoxStream, ResultStream};
 use futures::StreamExt;
+use serde::Deserialize;
 
 use crate::provider::IntoDomain;
+
+/// Wrapper enum for SSE events from the Codex backend.
+///
+/// The Codex backend sends additional event types (e.g. `keepalive`) that are
+/// not part of the standard OpenAI Responses API. This enum models those
+/// explicitly so that known non-critical events can be filtered out without
+/// suppressing genuine deserialization errors.
+#[derive(Debug, Deserialize)]
+#[serde(tag = "type")]
+pub(super) enum CodexStreamEvent {
+    /// A keepalive ping sent periodically by the Codex backend to keep the
+    /// connection alive. Contains only a `sequence_number` and no payload.
+    #[serde(rename = "keepalive")]
+    Keepalive {
+        #[allow(dead_code)]
+        sequence_number: u64,
+    },
+    /// Any standard OpenAI Responses API streaming event.
+    #[serde(untagged)]
+    Response(Box<oai::ResponseStreamEvent>),
+}
 
 impl IntoDomain for oai::ResponseUsage {
     type Domain = Usage;
@@ -49,6 +71,18 @@ impl IntoDomain for oai::Response {
                 oai::OutputItem::Reasoning(reasoning) => {
                     let mut all_reasoning_text = String::new();
 
+                    if let Some(encrypted_content) = &reasoning.encrypted_content {
+                        message =
+                            message.add_reasoning_detail(forge_domain::Reasoning::Full(vec![
+                                forge_domain::ReasoningFull {
+                                    data: Some(encrypted_content.clone()),
+                                    id: Some(reasoning.id.clone()),
+                                    type_of: Some("reasoning.encrypted".to_string()),
+                                    ..Default::default()
+                                },
+                            ]));
+                    }
+
                     // Process reasoning text content
                     if let Some(content) = &reasoning.content {
                         let reasoning_text =
@@ -60,13 +94,16 @@ impl IntoDomain for oai::Response {
                                     forge_domain::ReasoningFull {
                                         text: Some(reasoning_text),
                                         type_of: Some("reasoning.text".to_string()),
+                                        id: Some(reasoning.id.clone()),
                                         ..Default::default()
                                     },
                                 ]));
                         }
                     }
 
-                    // Process reasoning summary
+                    // Process reasoning summary - include the reasoning id so that
+                    // summary parts can be grouped with their encrypted counterpart
+                    // when replayed back to the API.
                     if !reasoning.summary.is_empty() {
                         let mut summary_texts = Vec::new();
                         for summary_part in &reasoning.summary {
@@ -84,6 +121,7 @@ impl IntoDomain for oai::Response {
                                     forge_domain::ReasoningFull {
                                         text: Some(summary_text),
                                         type_of: Some("reasoning.summary".to_string()),
+                                        id: Some(reasoning.id.clone()),
                                         ..Default::default()
                                     },
                                 ]));
@@ -394,6 +432,26 @@ mod tests {
         .unwrap()
     }
 
+    fn fixture_response_with_reasoning_encrypted(encrypted: &str, id: &str) -> oai::Response {
+        serde_json::from_value(serde_json::json!({
+            "id": "resp_1",
+            "created_at": 0,
+            "model": "codex-mini-latest",
+            "object": "response",
+            "status": "completed",
+            "output": [
+                {
+                    "id": id,
+                    "type": "reasoning",
+                    "summary": [],
+                    "encrypted_content": encrypted,
+                    "annotations": []
+                }
+            ]
+        }))
+        .unwrap()
+    }
+
     fn fixture_response_with_reasoning_both(reasoning_text: &str, summary: &str) -> oai::Response {
         serde_json::from_value(serde_json::json!({
             "id": "resp_1",
@@ -656,6 +714,7 @@ mod tests {
             Some(vec![Reasoning::Full(vec![ReasoningFull {
                 text: Some("This is my reasoning".to_string()),
                 type_of: Some("reasoning.text".to_string()),
+                id: Some("reasoning_1".to_string()),
                 ..Default::default()
             }])])
         );
@@ -676,6 +735,25 @@ mod tests {
             Some(vec![Reasoning::Full(vec![ReasoningFull {
                 text: Some("Summary of reasoning".to_string()),
                 type_of: Some("reasoning.summary".to_string()),
+                id: Some("reasoning_1".to_string()),
+                ..Default::default()
+            }])])
+        );
+        assert_eq!(actual.finish_reason, Some(FinishReason::Stop));
+    }
+
+    #[test]
+    fn test_response_into_domain_with_reasoning_encrypted_content() {
+        let fixture = fixture_response_with_reasoning_encrypted("enc_payload_abc", "reasoning_1");
+        let actual = fixture.into_domain();
+
+        assert_eq!(actual.reasoning, None);
+        assert_eq!(
+            actual.reasoning_details,
+            Some(vec![Reasoning::Full(vec![ReasoningFull {
+                data: Some("enc_payload_abc".to_string()),
+                id: Some("reasoning_1".to_string()),
+                type_of: Some("reasoning.encrypted".to_string()),
                 ..Default::default()
             }])])
         );
@@ -697,11 +775,13 @@ mod tests {
                 Reasoning::Full(vec![ReasoningFull {
                     text: Some("Reasoning text".to_string()),
                     type_of: Some("reasoning.text".to_string()),
+                    id: Some("reasoning_1".to_string()),
                     ..Default::default()
                 }]),
                 Reasoning::Full(vec![ReasoningFull {
                     text: Some("Summary".to_string()),
                     type_of: Some("reasoning.summary".to_string()),
+                    id: Some("reasoning_1".to_string()),
                     ..Default::default()
                 }]),
             ])
@@ -1230,5 +1310,41 @@ mod tests {
         assert_eq!(completion_msg.finish_reason, Some(FinishReason::ToolCalls));
 
         Ok(())
+    }
+
+    // ============== CodexStreamEvent Tests ==============
+
+    #[test]
+    fn test_codex_stream_event_deserializes_keepalive() {
+        let fixture = r#"{"type":"keepalive","sequence_number":3}"#;
+        let actual: CodexStreamEvent = serde_json::from_str(fixture).unwrap();
+
+        assert!(matches!(
+            actual,
+            CodexStreamEvent::Keepalive { sequence_number: 3 }
+        ));
+    }
+
+    #[test]
+    fn test_codex_stream_event_deserializes_response_event() {
+        let fixture = serde_json::json!({
+            "type": "response.output_text.delta",
+            "sequence_number": 1,
+            "item_id": "item_1",
+            "output_index": 0,
+            "content_index": 0,
+            "delta": "hello"
+        });
+        let actual: CodexStreamEvent = serde_json::from_str(&fixture.to_string()).unwrap();
+
+        assert!(matches!(actual, CodexStreamEvent::Response(_)));
+    }
+
+    #[test]
+    fn test_codex_stream_event_rejects_unknown_type() {
+        let fixture = r#"{"type":"totally_unknown_event","sequence_number":1}"#;
+        let actual = serde_json::from_str::<CodexStreamEvent>(fixture);
+
+        assert!(actual.is_err());
     }
 }
