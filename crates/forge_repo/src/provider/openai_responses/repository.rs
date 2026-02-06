@@ -1057,11 +1057,12 @@ mod tests {
 
     /// Tests the Codex direct streaming path (`chat_codex_stream`) which
     /// bypasses the Content-Type validation enforced by reqwest-eventsource.
-    /// The mock server returns SSE data with `Content-Type: application/octet-stream`
-    /// (not `text/event-stream`), verifying the bypass works correctly.
+    /// The mock server returns SSE data with `Content-Type:
+    /// application/octet-stream` (not `text/event-stream`), verifying the
+    /// bypass works correctly.
     #[tokio::test]
-    async fn test_codex_provider_streams_without_text_event_stream_content_type(
-    ) -> anyhow::Result<()> {
+    async fn test_codex_provider_streams_without_text_event_stream_content_type()
+    -> anyhow::Result<()> {
         let mut fixture = MockServer::new().await;
 
         let events = vec![
