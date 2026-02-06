@@ -106,6 +106,9 @@ mod tests {
         let actual: AuthMethod = serde_json::from_value(json).unwrap();
         assert!(matches!(actual, AuthMethod::CodexDevice(_)));
         assert!(actual.oauth_config().is_some());
-        assert_eq!(actual.oauth_config().unwrap().client_id.as_str(), "app_EMoamEEZ73f0CkXaXp7hrann");
+        assert_eq!(
+            actual.oauth_config().unwrap().client_id.as_str(),
+            "app_EMoamEEZ73f0CkXaXp7hrann"
+        );
     }
 }

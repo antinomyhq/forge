@@ -825,9 +825,14 @@ mod tests {
             credential: make_credential(ProviderId::CODEX, "test-token"),
             auth_methods: vec![forge_domain::AuthMethod::CodexDevice(
                 forge_domain::OAuthConfig {
-                    auth_url: Url::parse("https://auth.openai.com/api/accounts/deviceauth/usercode").unwrap(),
+                    auth_url: Url::parse(
+                        "https://auth.openai.com/api/accounts/deviceauth/usercode",
+                    )
+                    .unwrap(),
                     token_url: Url::parse("https://auth.openai.com/oauth/token").unwrap(),
-                    client_id: forge_domain::ClientId::from("app_EMoamEEZ73f0CkXaXp7hrann".to_string()),
+                    client_id: forge_domain::ClientId::from(
+                        "app_EMoamEEZ73f0CkXaXp7hrann".to_string(),
+                    ),
                     scopes: vec![],
                     redirect_uri: None,
                     use_pkce: false,
@@ -875,7 +880,10 @@ mod tests {
                         chrono::Utc::now() + chrono::Duration::hours(1),
                     ),
                     config: forge_domain::OAuthConfig {
-                        auth_url: Url::parse("https://auth.openai.com/api/accounts/deviceauth/usercode").unwrap(),
+                        auth_url: Url::parse(
+                            "https://auth.openai.com/api/accounts/deviceauth/usercode",
+                        )
+                        .unwrap(),
                         token_url: Url::parse("https://auth.openai.com/oauth/token").unwrap(),
                         client_id: forge_domain::ClientId::from("app_test".to_string()),
                         scopes: vec![],
