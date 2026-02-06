@@ -1160,4 +1160,115 @@ mod tests {
         );
         assert!(strategy.is_ok());
     }
+
+    #[test]
+    fn test_create_auth_strategy_codex_device() {
+        let config = OAuthConfig {
+            client_id: "app_EMoamEEZ73f0CkXaXp7hrann".to_string().into(),
+            auth_url: Url::parse("https://auth.openai.com/api/accounts/deviceauth/usercode")
+                .unwrap(),
+            token_url: Url::parse("https://auth.openai.com/oauth/token").unwrap(),
+            scopes: vec![],
+            redirect_uri: None,
+            use_pkce: false,
+            token_refresh_url: None,
+            extra_auth_params: None,
+            custom_headers: None,
+        };
+
+        let factory = ForgeAuthStrategyFactory::new();
+        let actual = factory.create_auth_strategy(
+            ProviderId::CODEX,
+            forge_domain::AuthMethod::CodexDevice(config),
+            vec![],
+        );
+        assert!(actual.is_ok());
+        assert!(matches!(actual.unwrap(), AnyAuthStrategy::CodexDevice(_)));
+    }
+
+    /// Helper to build a JWT token with the given claims payload.
+    fn build_jwt(claims: &serde_json::Value) -> String {
+        use base64::Engine;
+        let header = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .encode(r#"{"alg":"RS256","typ":"JWT"}"#);
+        let payload = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .encode(serde_json::to_vec(claims).unwrap());
+        format!("{header}.{payload}.fake_signature")
+    }
+
+    #[test]
+    fn test_extract_chatgpt_account_id_from_direct_claim() {
+        let fixture = build_jwt(&serde_json::json!({
+            "chatgpt_account_id": "acct_123"
+        }));
+        let actual = extract_chatgpt_account_id(&fixture);
+        let expected = Some("acct_123".to_string());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_extract_chatgpt_account_id_from_nested_claim() {
+        let fixture = build_jwt(&serde_json::json!({
+            "https://api.openai.com/auth": {
+                "chatgpt_account_id": "acct_nested_456"
+            }
+        }));
+        let actual = extract_chatgpt_account_id(&fixture);
+        let expected = Some("acct_nested_456".to_string());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_extract_chatgpt_account_id_from_organizations() {
+        let fixture = build_jwt(&serde_json::json!({
+            "organizations": [
+                {"id": "org_789", "name": "My Org"}
+            ]
+        }));
+        let actual = extract_chatgpt_account_id(&fixture);
+        let expected = Some("org_789".to_string());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_extract_chatgpt_account_id_prefers_direct_claim() {
+        let fixture = build_jwt(&serde_json::json!({
+            "chatgpt_account_id": "direct",
+            "https://api.openai.com/auth": {
+                "chatgpt_account_id": "nested"
+            },
+            "organizations": [{"id": "org"}]
+        }));
+        let actual = extract_chatgpt_account_id(&fixture);
+        let expected = Some("direct".to_string());
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_extract_chatgpt_account_id_returns_none_for_empty_claims() {
+        let fixture = build_jwt(&serde_json::json!({}));
+        let actual = extract_chatgpt_account_id(&fixture);
+        assert_eq!(actual, None);
+    }
+
+    #[test]
+    fn test_extract_chatgpt_account_id_returns_none_for_invalid_jwt() {
+        let actual = extract_chatgpt_account_id("not-a-jwt");
+        assert_eq!(actual, None);
+    }
+
+    #[test]
+    fn test_extract_chatgpt_account_id_returns_none_for_invalid_base64() {
+        let actual = extract_chatgpt_account_id("header.!!!invalid-base64!!!.signature");
+        assert_eq!(actual, None);
+    }
+
+    #[test]
+    fn test_extract_chatgpt_account_id_returns_none_for_empty_organizations() {
+        let fixture = build_jwt(&serde_json::json!({
+            "organizations": []
+        }));
+        let actual = extract_chatgpt_account_id(&fixture);
+        assert_eq!(actual, None);
+    }
 }

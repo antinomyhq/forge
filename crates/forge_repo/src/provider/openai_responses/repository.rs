@@ -816,6 +816,147 @@ mod tests {
     }
 
     #[test]
+    fn test_get_headers_with_codex_device_custom_headers() {
+        let provider = Provider {
+            id: ProviderId::CODEX,
+            provider_type: forge_domain::ProviderType::Llm,
+            response: Some(ProviderResponse::OpenAI),
+            url: Url::parse("https://chatgpt.com/backend-api/codex/responses").unwrap(),
+            credential: make_credential(ProviderId::CODEX, "test-token"),
+            auth_methods: vec![forge_domain::AuthMethod::CodexDevice(
+                forge_domain::OAuthConfig {
+                    auth_url: Url::parse("https://auth.openai.com/api/accounts/deviceauth/usercode").unwrap(),
+                    token_url: Url::parse("https://auth.openai.com/oauth/token").unwrap(),
+                    client_id: forge_domain::ClientId::from("app_EMoamEEZ73f0CkXaXp7hrann".to_string()),
+                    scopes: vec![],
+                    redirect_uri: None,
+                    use_pkce: false,
+                    token_refresh_url: None,
+                    custom_headers: Some(
+                        [("originator".to_string(), "forge".to_string())]
+                            .into_iter()
+                            .collect(),
+                    ),
+                    extra_auth_params: None,
+                },
+            )],
+            url_params: vec![],
+            models: None,
+        };
+
+        let infra = Arc::new(MockHttpClient { client: reqwest::Client::new() });
+        let provider_impl = OpenAIResponsesProvider::<MockHttpClient>::new(provider, infra);
+        let actual = provider_impl.get_headers();
+
+        let header_names: Vec<&str> = actual.iter().map(|h| h.0.as_str()).collect();
+        assert!(header_names.contains(&"authorization"));
+        assert!(header_names.contains(&"originator"));
+    }
+
+    #[test]
+    fn test_get_headers_codex_includes_chatgpt_account_id() {
+        let mut url_params = HashMap::new();
+        url_params.insert(
+            forge_domain::URLParam::from("chatgpt_account_id".to_string()),
+            forge_domain::URLParamValue::from("acct_test_123".to_string()),
+        );
+
+        let provider = Provider {
+            id: ProviderId::CODEX,
+            provider_type: forge_domain::ProviderType::Llm,
+            response: Some(ProviderResponse::OpenAI),
+            url: Url::parse("https://chatgpt.com/backend-api/codex/responses").unwrap(),
+            credential: Some(forge_domain::AuthCredential {
+                id: ProviderId::CODEX,
+                auth_details: forge_domain::AuthDetails::OAuth {
+                    tokens: forge_domain::OAuthTokens::new(
+                        "access-token",
+                        None::<String>,
+                        chrono::Utc::now() + chrono::Duration::hours(1),
+                    ),
+                    config: forge_domain::OAuthConfig {
+                        auth_url: Url::parse("https://auth.openai.com/api/accounts/deviceauth/usercode").unwrap(),
+                        token_url: Url::parse("https://auth.openai.com/oauth/token").unwrap(),
+                        client_id: forge_domain::ClientId::from("app_test".to_string()),
+                        scopes: vec![],
+                        redirect_uri: None,
+                        use_pkce: false,
+                        token_refresh_url: None,
+                        custom_headers: None,
+                        extra_auth_params: None,
+                    },
+                },
+                url_params,
+            }),
+            auth_methods: vec![],
+            url_params: vec![],
+            models: None,
+        };
+
+        let infra = Arc::new(MockHttpClient { client: reqwest::Client::new() });
+        let provider_impl = OpenAIResponsesProvider::<MockHttpClient>::new(provider, infra);
+        let actual = provider_impl.get_headers();
+
+        let account_header = actual.iter().find(|(k, _)| k == "ChatGPT-Account-Id");
+        assert!(account_header.is_some());
+        assert_eq!(account_header.unwrap().1, "acct_test_123");
+    }
+
+    #[test]
+    fn test_get_headers_codex_omits_chatgpt_account_id_when_missing() {
+        let provider = Provider {
+            id: ProviderId::CODEX,
+            provider_type: forge_domain::ProviderType::Llm,
+            response: Some(ProviderResponse::OpenAI),
+            url: Url::parse("https://chatgpt.com/backend-api/codex/responses").unwrap(),
+            credential: make_credential(ProviderId::CODEX, "test-token"),
+            auth_methods: vec![],
+            url_params: vec![],
+            models: None,
+        };
+
+        let infra = Arc::new(MockHttpClient { client: reqwest::Client::new() });
+        let provider_impl = OpenAIResponsesProvider::<MockHttpClient>::new(provider, infra);
+        let actual = provider_impl.get_headers();
+
+        let account_header = actual.iter().find(|(k, _)| k == "ChatGPT-Account-Id");
+        assert!(account_header.is_none());
+    }
+
+    #[test]
+    fn test_get_headers_non_codex_does_not_include_chatgpt_account_id() {
+        let mut url_params = HashMap::new();
+        url_params.insert(
+            forge_domain::URLParam::from("chatgpt_account_id".to_string()),
+            forge_domain::URLParamValue::from("acct_should_not_appear".to_string()),
+        );
+
+        let provider = Provider {
+            id: ProviderId::OPENAI,
+            provider_type: forge_domain::ProviderType::Llm,
+            response: Some(ProviderResponse::OpenAI),
+            url: Url::parse("https://api.openai.com/v1").unwrap(),
+            credential: Some(forge_domain::AuthCredential {
+                id: ProviderId::OPENAI,
+                auth_details: forge_domain::AuthDetails::ApiKey(forge_domain::ApiKey::from(
+                    "test-key".to_string(),
+                )),
+                url_params,
+            }),
+            auth_methods: vec![],
+            url_params: vec![],
+            models: None,
+        };
+
+        let infra = Arc::new(MockHttpClient { client: reqwest::Client::new() });
+        let provider_impl = OpenAIResponsesProvider::<MockHttpClient>::new(provider, infra);
+        let actual = provider_impl.get_headers();
+
+        let account_header = actual.iter().find(|(k, _)| k == "ChatGPT-Account-Id");
+        assert!(account_header.is_none());
+    }
+
+    #[test]
     fn test_openai_responses_repository_new() {
         let infra = Arc::new(MockHttpClient { client: reqwest::Client::new() });
         let repo = OpenAIResponsesResponseRepository::new(infra.clone());
