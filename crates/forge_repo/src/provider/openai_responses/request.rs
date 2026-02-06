@@ -1,10 +1,90 @@
+use std::collections::HashMap;
+
 use anyhow::Context as _;
 use async_openai::types::responses as oai;
 use forge_app::domain::{Context as ChatContext, ContextMessage, Role, ToolChoice};
 use forge_app::utils::enforce_strict_schema;
-use forge_domain::{Effort, ReasoningConfig};
+use forge_domain::{Effort, ReasoningConfig, ReasoningFull};
 
 use crate::provider::FromDomain;
+
+/// Groups reasoning details by their ID and builds OpenAI `ReasoningItem`
+/// input items.
+///
+/// Following the reference implementation, each reasoning output item is
+/// identified by an `id`. When replaying multi-turn conversations with
+/// `store=false`, we must reconstruct the `ReasoningItem` with both:
+/// - `encrypted_content` from `reasoning.encrypted` details
+/// - `summary` parts from `reasoning.summary` details
+///
+/// Details sharing the same ID are merged into a single `ReasoningItem`.
+/// Details without an ID or with empty encrypted content are skipped.
+fn map_reasoning_details_to_input_items(
+    reasoning_details: Vec<ReasoningFull>,
+) -> Vec<oai::InputItem> {
+    // Group all details by ID so we can merge encrypted + summary for each
+    // reasoning item.
+    let mut grouped: HashMap<String, (Option<String>, Vec<String>)> = HashMap::new();
+    // Track insertion order so output is deterministic.
+    let mut order: Vec<String> = Vec::new();
+
+    for detail in reasoning_details {
+        let id = match detail.id {
+            Some(ref id) if !id.is_empty() => id.clone(),
+            _ => continue,
+        };
+
+        let entry = grouped.entry(id.clone()).or_insert_with(|| {
+            order.push(id.clone());
+            (None, Vec::new())
+        });
+
+        match detail.type_of.as_deref() {
+            Some("reasoning.encrypted") => {
+                if let Some(data) = detail.data {
+                    if !data.is_empty() {
+                        entry.0 = Some(data);
+                    }
+                }
+            }
+            Some("reasoning.summary") => {
+                if let Some(text) = detail.text {
+                    if !text.is_empty() {
+                        entry.1.push(text);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+
+    order
+        .into_iter()
+        .filter_map(|id| {
+            let (encrypted_content, summary_texts) = grouped.remove(&id)?;
+
+            // Must have encrypted content to be a valid reasoning replay item
+            let encrypted_content = encrypted_content?;
+
+            let summary: Vec<oai::SummaryPart> = summary_texts
+                .into_iter()
+                .map(|text| {
+                    oai::SummaryPart::SummaryText(oai::Summary { text })
+                })
+                .collect();
+
+            Some(oai::InputItem::Item(oai::Item::Reasoning(
+                oai::ReasoningItem {
+                    id,
+                    summary,
+                    content: None,
+                    encrypted_content: Some(encrypted_content),
+                    status: None,
+                },
+            )))
+        })
+        .collect()
+}
 
 impl FromDomain<ToolChoice> for oai::ToolChoiceParam {
     fn from_domain(choice: ToolChoice) -> anyhow::Result<Self> {
@@ -119,17 +199,20 @@ impl FromDomain<ChatContext> for oai::CreateResponse {
                             }));
                         }
 
+                        if let Some(reasoning_details) = message.reasoning_details {
+                            items.extend(map_reasoning_details_to_input_items(reasoning_details));
+                        }
+
                         if let Some(tool_calls) = message.tool_calls {
                             for call in tool_calls {
-                                let call_id = call
-                                    .call_id
-                                    .as_ref()
-                                    .map(|id| id.as_str().to_string())
-                                    .ok_or_else(|| {
-                                    anyhow::anyhow!(
-                                        "Tool call is missing call_id; cannot be sent to Responses API"
-                                    )
-                                })?;
+                                let call_id =
+                                    call.call_id.as_ref().map(|id| id.as_str().to_string()).ok_or_else(
+                                        || {
+                                            anyhow::anyhow!(
+                                                "Tool call is missing call_id; cannot be sent to Responses API"
+                                            )
+                                        },
+                                    )?;
 
                                 items.push(oai::InputItem::Item(oai::Item::FunctionCall(
                                     oai::FunctionToolCall {
@@ -697,6 +780,113 @@ mod tests {
         let actual = oai::CreateResponse::from_domain(context)?;
 
         assert_eq!(actual.prompt_cache_key, None);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_codex_request_maps_reasoning_encrypted_and_summary_to_reasoning_input_items(
+    ) -> anyhow::Result<()> {
+        use forge_domain::ReasoningFull;
+
+        let context = ChatContext::default()
+            .add_message(ContextMessage::assistant(
+                "",
+                None,
+                Some(vec![
+                    ReasoningFull::default()
+                        .type_of(Some("reasoning.encrypted".to_string()))
+                        .id(Some("rs_123".to_string()))
+                        .data(Some("enc_payload_1".to_string())),
+                    ReasoningFull::default()
+                        .type_of(Some("reasoning.summary".to_string()))
+                        .id(Some("rs_123".to_string()))
+                        .text(Some("Summary of reasoning".to_string())),
+                    ReasoningFull::default()
+                        .type_of(Some("reasoning.text".to_string()))
+                        .id(Some("rs_123".to_string()))
+                        .text(Some("visible reasoning should not be in summary".to_string())),
+                ]),
+                None,
+            ))
+            .add_message(ContextMessage::user("continue", None));
+
+        let actual = oai::CreateResponse::from_domain(context)?;
+
+        let oai::InputParam::Items(items) = actual.input else {
+            anyhow::bail!("Expected items input");
+        };
+
+        assert_eq!(items.len(), 2);
+        assert!(matches!(&items[0], oai::InputItem::Item(oai::Item::Reasoning(_))));
+        assert!(matches!(&items[1], oai::InputItem::EasyMessage(_)));
+
+        let oai::InputItem::Item(oai::Item::Reasoning(reasoning_item)) = &items[0] else {
+            anyhow::bail!("Expected first item to be reasoning item");
+        };
+
+        let expected = oai::ReasoningItem {
+            id: "rs_123".to_string(),
+            summary: vec![oai::SummaryPart::SummaryText(oai::Summary {
+                text: "Summary of reasoning".to_string(),
+            })],
+            content: None,
+            encrypted_content: Some("enc_payload_1".to_string()),
+            status: None,
+        };
+
+        assert_eq!(reasoning_item, &expected);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_codex_request_skips_invalid_encrypted_reasoning_details() -> anyhow::Result<()> {
+        use forge_domain::ReasoningFull;
+
+        let context = ChatContext::default()
+            .add_message(ContextMessage::assistant(
+                "",
+                None,
+                Some(vec![
+                    ReasoningFull::default()
+                        .type_of(Some("reasoning.encrypted".to_string()))
+                        .id(Some("".to_string()))
+                        .data(Some("enc_missing_id".to_string())),
+                    ReasoningFull::default()
+                        .type_of(Some("reasoning.encrypted".to_string()))
+                        .id(Some("rs_missing_data".to_string())),
+                    ReasoningFull::default()
+                        .type_of(Some("reasoning.encrypted".to_string()))
+                        .id(Some("rs_ok".to_string()))
+                        .data(Some("enc_ok".to_string())),
+                ]),
+                None,
+            ))
+            .add_message(ContextMessage::user("continue", None));
+
+        let actual = oai::CreateResponse::from_domain(context)?;
+
+        let oai::InputParam::Items(items) = actual.input else {
+            anyhow::bail!("Expected items input");
+        };
+
+        assert_eq!(items.len(), 2);
+        assert!(matches!(&items[0], oai::InputItem::Item(oai::Item::Reasoning(_))));
+
+        let oai::InputItem::Item(oai::Item::Reasoning(reasoning_item)) = &items[0] else {
+            anyhow::bail!("Expected first item to be reasoning item");
+        };
+
+        let expected = oai::ReasoningItem {
+            id: "rs_ok".to_string(),
+            summary: vec![],
+            content: None,
+            encrypted_content: Some("enc_ok".to_string()),
+            status: None,
+        };
+
+        assert_eq!(reasoning_item, &expected);
 
         Ok(())
     }

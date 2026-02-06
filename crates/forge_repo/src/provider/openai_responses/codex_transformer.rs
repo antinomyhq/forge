@@ -9,6 +9,8 @@ use forge_domain::Transformer;
 ///   omitted values).
 /// - `temperature` is not supported and must be stripped.
 /// - `max_output_tokens` is not supported and must be stripped.
+/// - `include` always contains `reasoning.encrypted_content` for stateless
+///   reasoning continuity.
 /// - `text.verbosity` is forced to `Low` for concise output.
 /// - `reasoning.effort` is forced to `High` and `reasoning.summary` to `Auto`.
 pub struct CodexTransformer;
@@ -20,6 +22,11 @@ impl Transformer for CodexTransformer {
         request.store = Some(false);
         request.temperature = None;
         request.max_output_tokens = None;
+
+        let includes = request.include.get_or_insert_with(Vec::new);
+        if !includes.contains(&oai::IncludeEnum::ReasoningEncryptedContent) {
+            includes.push(oai::IncludeEnum::ReasoningEncryptedContent);
+        }
 
         // Force text verbosity to Low for concise codex output
         let text = request.text.get_or_insert(oai::ResponseTextParam {
@@ -82,6 +89,41 @@ mod tests {
         let actual = transformer.transform(fixture);
 
         assert_eq!(actual.max_output_tokens, None);
+    }
+
+    #[test]
+    fn test_codex_transformer_includes_reasoning_encrypted_content() {
+        let fixture = fixture();
+        let mut transformer = CodexTransformer;
+        let actual = transformer.transform(fixture);
+
+        let expected = vec![oai::IncludeEnum::ReasoningEncryptedContent];
+        assert_eq!(actual.include, Some(expected));
+    }
+
+    #[test]
+    fn test_codex_transformer_preserves_existing_includes_and_appends_reasoning_encrypted_content() {
+        let mut fixture = fixture();
+        fixture.include = Some(vec![oai::IncludeEnum::MessageOutputTextLogprobs]);
+        let mut transformer = CodexTransformer;
+        let actual = transformer.transform(fixture);
+
+        let expected = vec![
+            oai::IncludeEnum::MessageOutputTextLogprobs,
+            oai::IncludeEnum::ReasoningEncryptedContent,
+        ];
+        assert_eq!(actual.include, Some(expected));
+    }
+
+    #[test]
+    fn test_codex_transformer_does_not_duplicate_reasoning_encrypted_content_include() {
+        let mut fixture = fixture();
+        fixture.include = Some(vec![oai::IncludeEnum::ReasoningEncryptedContent]);
+        let mut transformer = CodexTransformer;
+        let actual = transformer.transform(fixture);
+
+        let expected = vec![oai::IncludeEnum::ReasoningEncryptedContent];
+        assert_eq!(actual.include, Some(expected));
     }
 
     #[test]

@@ -71,6 +71,18 @@ impl IntoDomain for oai::Response {
                 oai::OutputItem::Reasoning(reasoning) => {
                     let mut all_reasoning_text = String::new();
 
+                    if let Some(encrypted_content) = &reasoning.encrypted_content {
+                        message =
+                            message.add_reasoning_detail(forge_domain::Reasoning::Full(vec![
+                                forge_domain::ReasoningFull {
+                                    data: Some(encrypted_content.clone()),
+                                    id: Some(reasoning.id.clone()),
+                                    type_of: Some("reasoning.encrypted".to_string()),
+                                    ..Default::default()
+                                },
+                            ]));
+                    }
+
                     // Process reasoning text content
                     if let Some(content) = &reasoning.content {
                         let reasoning_text =
@@ -82,13 +94,16 @@ impl IntoDomain for oai::Response {
                                     forge_domain::ReasoningFull {
                                         text: Some(reasoning_text),
                                         type_of: Some("reasoning.text".to_string()),
+                                        id: Some(reasoning.id.clone()),
                                         ..Default::default()
                                     },
                                 ]));
                         }
                     }
 
-                    // Process reasoning summary
+                    // Process reasoning summary - include the reasoning id so that
+                    // summary parts can be grouped with their encrypted counterpart
+                    // when replayed back to the API.
                     if !reasoning.summary.is_empty() {
                         let mut summary_texts = Vec::new();
                         for summary_part in &reasoning.summary {
@@ -106,6 +121,7 @@ impl IntoDomain for oai::Response {
                                     forge_domain::ReasoningFull {
                                         text: Some(summary_text),
                                         type_of: Some("reasoning.summary".to_string()),
+                                        id: Some(reasoning.id.clone()),
                                         ..Default::default()
                                     },
                                 ]));
@@ -416,6 +432,26 @@ mod tests {
         .unwrap()
     }
 
+    fn fixture_response_with_reasoning_encrypted(encrypted: &str, id: &str) -> oai::Response {
+        serde_json::from_value(serde_json::json!({
+            "id": "resp_1",
+            "created_at": 0,
+            "model": "codex-mini-latest",
+            "object": "response",
+            "status": "completed",
+            "output": [
+                {
+                    "id": id,
+                    "type": "reasoning",
+                    "summary": [],
+                    "encrypted_content": encrypted,
+                    "annotations": []
+                }
+            ]
+        }))
+        .unwrap()
+    }
+
     fn fixture_response_with_reasoning_both(reasoning_text: &str, summary: &str) -> oai::Response {
         serde_json::from_value(serde_json::json!({
             "id": "resp_1",
@@ -678,6 +714,7 @@ mod tests {
             Some(vec![Reasoning::Full(vec![ReasoningFull {
                 text: Some("This is my reasoning".to_string()),
                 type_of: Some("reasoning.text".to_string()),
+                id: Some("reasoning_1".to_string()),
                 ..Default::default()
             }])])
         );
@@ -698,6 +735,25 @@ mod tests {
             Some(vec![Reasoning::Full(vec![ReasoningFull {
                 text: Some("Summary of reasoning".to_string()),
                 type_of: Some("reasoning.summary".to_string()),
+                id: Some("reasoning_1".to_string()),
+                ..Default::default()
+            }])])
+        );
+        assert_eq!(actual.finish_reason, Some(FinishReason::Stop));
+    }
+
+    #[test]
+    fn test_response_into_domain_with_reasoning_encrypted_content() {
+        let fixture = fixture_response_with_reasoning_encrypted("enc_payload_abc", "reasoning_1");
+        let actual = fixture.into_domain();
+
+        assert_eq!(actual.reasoning, None);
+        assert_eq!(
+            actual.reasoning_details,
+            Some(vec![Reasoning::Full(vec![ReasoningFull {
+                data: Some("enc_payload_abc".to_string()),
+                id: Some("reasoning_1".to_string()),
+                type_of: Some("reasoning.encrypted".to_string()),
                 ..Default::default()
             }])])
         );
@@ -719,11 +775,13 @@ mod tests {
                 Reasoning::Full(vec![ReasoningFull {
                     text: Some("Reasoning text".to_string()),
                     type_of: Some("reasoning.text".to_string()),
+                    id: Some("reasoning_1".to_string()),
                     ..Default::default()
                 }]),
                 Reasoning::Full(vec![ReasoningFull {
                     text: Some("Summary".to_string()),
                     type_of: Some("reasoning.summary".to_string()),
+                    id: Some("reasoning_1".to_string()),
                     ..Default::default()
                 }]),
             ])
