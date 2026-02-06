@@ -55,10 +55,7 @@ impl<H: HttpInfra> OpenAIResponsesProvider<H> {
             let api_base = {
                 let mut base = provider.url.clone();
                 let path = base.path().trim_end_matches('/');
-                let trimmed = path
-                    .strip_suffix("/responses")
-                    .unwrap_or(path)
-                    .to_owned();
+                let trimmed = path.strip_suffix("/responses").unwrap_or(path).to_owned();
                 base.set_path(&trimmed);
                 base.set_query(None);
                 base.set_fragment(None);
@@ -129,26 +126,21 @@ impl<H: HttpInfra> OpenAIResponsesProvider<H> {
             );
             // Replace any static User-Agent from custom_headers with the
             // dynamic one
-            if let Some(pos) = headers.iter().position(|(k, _)| k.eq_ignore_ascii_case("user-agent")) {
+            if let Some(pos) = headers
+                .iter()
+                .position(|(k, _)| k.eq_ignore_ascii_case("user-agent"))
+            {
                 headers[pos].1 = user_agent;
             } else {
                 headers.push(("User-Agent".to_string(), user_agent));
             }
 
             // Add ChatGPT-Account-Id from credential's stored url_params
-            if let Some(account_id) = self
-                .provider
-                .credential
-                .as_ref()
-                .and_then(|c| {
-                    let key: forge_domain::URLParam = "chatgpt_account_id".to_string().into();
-                    c.url_params.get(&key)
-                })
-            {
-                headers.push((
-                    "ChatGPT-Account-Id".to_string(),
-                    account_id.to_string(),
-                ));
+            if let Some(account_id) = self.provider.credential.as_ref().and_then(|c| {
+                let key: forge_domain::URLParam = "chatgpt_account_id".to_string().into();
+                c.url_params.get(&key)
+            }) {
+                headers.push(("ChatGPT-Account-Id".to_string(), account_id.to_string()));
             }
         }
 

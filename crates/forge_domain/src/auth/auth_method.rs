@@ -37,9 +37,9 @@ impl AuthMethod {
 
     pub fn oauth_config(&self) -> Option<&OAuthConfig> {
         match self {
-            Self::OAuthDevice(config)
-            | Self::OAuthCode(config)
-            | Self::CodexDevice(config) => Some(config),
+            Self::OAuthDevice(config) | Self::OAuthCode(config) | Self::CodexDevice(config) => {
+                Some(config)
+            }
             Self::ApiKey | Self::GoogleAdc => None,
         }
     }

@@ -473,7 +473,8 @@ struct CodexDeviceTokenResponse {
 /// Extract the ChatGPT account ID from a JWT token's claims.
 ///
 /// Checks `chatgpt_account_id`, `https://api.openai.com/auth.chatgpt_account_id`,
-/// and `organizations[0].id` in that order, matching the opencode implementation.
+/// and `organizations[0].id` in that order, matching the opencode
+/// implementation.
 fn extract_chatgpt_account_id(token: &str) -> Option<String> {
     let parts: Vec<&str> = token.split('.').collect();
     if parts.len() != 3 {
@@ -536,11 +537,7 @@ impl AuthStrategy for CodexDeviceStrategy {
             AuthError::InitiationFailed(format!("Failed to parse device auth response: {e}"))
         })?;
 
-        let interval: u64 = device_data
-            .interval
-            .parse()
-            .unwrap_or(5)
-            .max(1);
+        let interval: u64 = device_data.interval.parse().unwrap_or(5).max(1);
 
         // Build the device code request using existing domain types
         // We encode the device_auth_id in the device_code field
@@ -562,12 +559,10 @@ impl AuthStrategy for CodexDeviceStrategy {
         match context_response {
             AuthContextResponse::DeviceCode(ctx) => {
                 // Poll for authorization code using the custom OpenAI endpoint
-                let token_response =
-                    codex_poll_for_tokens(&ctx.request, &self.config).await?;
+                let token_response = codex_poll_for_tokens(&ctx.request, &self.config).await?;
 
                 // Extract ChatGPT account ID from the access token JWT
-                let account_id =
-                    extract_chatgpt_account_id(&token_response.access_token);
+                let account_id = extract_chatgpt_account_id(&token_response.access_token);
 
                 let mut credential = build_oauth_credential(
                     self.provider_id.clone(),
@@ -591,13 +586,7 @@ impl AuthStrategy for CodexDeviceStrategy {
     }
 
     async fn refresh(&self, credential: &AuthCredential) -> anyhow::Result<AuthCredential> {
-        refresh_oauth_credential(
-            credential,
-            &self.config,
-            chrono::Duration::hours(1),
-            false,
-        )
-        .await
+        refresh_oauth_credential(credential, &self.config, chrono::Duration::hours(1), false).await
     }
 }
 
@@ -786,9 +775,11 @@ async fn poll_for_tokens(
 /// Poll for Codex tokens using OpenAI's custom device auth endpoints.
 ///
 /// This differs from standard OAuth2 device code flow:
-/// 1. Polls `/api/accounts/deviceauth/token` with `device_auth_id` + `user_code`
+/// 1. Polls `/api/accounts/deviceauth/token` with `device_auth_id` +
+///    `user_code`
 /// 2. Receives `authorization_code` + `code_verifier` (not tokens directly)
-/// 3. Exchanges the authorization code for OAuth tokens via standard token endpoint
+/// 3. Exchanges the authorization code for OAuth tokens via standard token
+///    endpoint
 async fn codex_poll_for_tokens(
     request: &DeviceCodeRequest,
     config: &OAuthConfig,
@@ -805,10 +796,7 @@ async fn codex_poll_for_tokens(
 
     // The auth_url in config points to the usercode endpoint; derive the token
     // polling endpoint from the same base
-    let poll_url = config
-        .auth_url
-        .as_str()
-        .replace("/usercode", "/token");
+    let poll_url = config.auth_url.as_str().replace("/usercode", "/token");
 
     loop {
         if start_time.elapsed() >= timeout {
@@ -842,18 +830,19 @@ async fn codex_poll_for_tokens(
             let clean_client = reqwest::Client::builder()
                 .redirect(reqwest::redirect::Policy::none())
                 .build()
-                .map_err(|e| {
-                    AuthError::PollFailed(format!("Failed to build HTTP client: {e}"))
-                })?;
+                .map_err(|e| AuthError::PollFailed(format!("Failed to build HTTP client: {e}")))?;
 
             let token_response = clean_client
                 .post(config.token_url.as_str())
                 .header("Content-Type", "application/x-www-form-urlencoded")
                 .body(
-                    serde_urlencoded::to_string(&[
+                    serde_urlencoded::to_string([
                         ("grant_type", "authorization_code"),
                         ("code", &device_token.authorization_code),
-                        ("redirect_uri", "https://auth.openai.com/deviceauth/callback"),
+                        (
+                            "redirect_uri",
+                            "https://auth.openai.com/deviceauth/callback",
+                        ),
                         ("client_id", config.client_id.as_ref()),
                         ("code_verifier", &device_token.code_verifier),
                     ])
@@ -881,7 +870,11 @@ async fn codex_poll_for_tokens(
                     AuthError::PollFailed(format!("Failed to read token response: {e}"))
                 })?)?;
 
-            return Ok(build_token_response(access_token, refresh_token, expires_in));
+            return Ok(build_token_response(
+                access_token,
+                refresh_token,
+                expires_in,
+            ));
         }
 
         // 403/404 means authorization pending (user hasn't entered code yet)

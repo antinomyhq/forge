@@ -50,11 +50,10 @@ fn coerce_value_with_schema_object(
     // LLMs often send "" for optional parameters instead of omitting them or
     // sending null. When the schema has "nullable": true (OpenAPI 3.0 style),
     // an empty string should be treated as null.
-    if let Value::String(s) = &value {
-        if s.is_empty() && is_nullable(schema) {
+    if let Value::String(s) = &value
+        && s.is_empty() && is_nullable(schema) {
             return Value::Null;
         }
-    }
     // Handle anyOf/oneOf schemas by trying each sub-schema
     if let Some(subschemas) = &schema.subschemas {
         if let Some(any_of) = &subschemas.any_of {
