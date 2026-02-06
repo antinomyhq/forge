@@ -117,7 +117,7 @@ impl Compactor {
                         .filter(|rd| !rd.is_empty())
                         .cloned();
                     let signature = text.thought_signature.clone();
-                    
+
                     // Only return if we have either reasoning or signature
                     if reasoning.is_some() || signature.is_some() {
                         Some((reasoning, signature))
@@ -133,7 +133,8 @@ impl Compactor {
         context.messages.splice(
             start..=end,
             std::iter::once(
-                ContextMessage::assistant(summary, thought_signature, reasoning_details, None).into(),
+                ContextMessage::assistant(summary, thought_signature, reasoning_details, None)
+                    .into(),
             ),
         );
 
