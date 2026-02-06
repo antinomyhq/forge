@@ -56,7 +56,6 @@ const MISSING_AGENT_TITLE: &str = "<missing agent.title>";
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 struct ConversationDump {
     conversation: Conversation,
-    #[allow(dead_code)]
     related_conversations: Vec<Conversation>,
 }
 
