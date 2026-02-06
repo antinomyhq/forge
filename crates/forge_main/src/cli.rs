@@ -127,6 +127,9 @@ pub enum TopLevelCommand {
     /// Manage Model Context Protocol servers.
     Mcp(McpCommandGroup),
 
+    /// Start Agent Client Protocol server.
+    Acp(AcpCommandGroup),
+
     /// Suggest shell commands from natural language.
     Suggest {
         /// Natural language description of the desired command.
@@ -451,6 +454,33 @@ impl From<Scope> for forge_domain::Scope {
             Scope::User => forge_domain::Scope::User,
         }
     }
+}
+
+/// Command group for ACP server management.
+#[derive(Parser, Debug, Clone)]
+pub struct AcpCommandGroup {
+    #[command(subcommand)]
+    pub command: AcpCommand,
+}
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum AcpCommand {
+    /// Start ACP server with stdio transport (for local agent mode).
+    ///
+    /// This is the primary mode for IDE integration where the IDE spawns Forge
+    /// as a subprocess and communicates via stdin/stdout.
+    Start {
+        /// Enable HTTP/WebSocket transport instead of stdio
+        #[arg(long)]
+        http: bool,
+
+        /// Port for HTTP server (default: 3000)
+        #[arg(long, default_value = "3000")]
+        port: u16,
+    },
+
+    /// Show ACP server information and capabilities.
+    Info,
 }
 
 /// Transport protocol for communication.

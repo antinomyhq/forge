@@ -383,11 +383,24 @@ impl From<&forge_domain::ToolValue> for ToolValueRecord {
     fn from(value: &forge_domain::ToolValue) -> Self {
         match value {
             forge_domain::ToolValue::Text(text) => Self::Text(text.clone()),
+            forge_domain::ToolValue::Markdown(md) => {
+                // Markdown is for display; persist as text
+                Self::Text(md.clone())
+            }
             forge_domain::ToolValue::AI { value, conversation_id } => Self::AI {
                 value: value.clone(),
                 conversation_id: conversation_id.into_string(),
             },
             forge_domain::ToolValue::Image(img) => Self::Image(ImageRecord::from(img)),
+            forge_domain::ToolValue::FileDiff(_) => {
+                // FileDiff is for IDE integration, not persisted
+                // The text diff is already included as Text variant
+                Self::Empty
+            }
+            forge_domain::ToolValue::Pair(llm, _display) => {
+                // For persistence, use LLM value (typically XML with structure)
+                Self::from(llm.as_ref())
+            }
             forge_domain::ToolValue::Empty => Self::Empty,
         }
     }

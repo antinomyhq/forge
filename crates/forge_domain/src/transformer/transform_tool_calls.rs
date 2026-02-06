@@ -55,10 +55,30 @@ impl Transformer for TransformToolCalls {
                                 new_messages
                                     .push(ContextMessage::user(text, self.model.clone()).into());
                             }
+                            crate::ToolValue::Markdown(md) => {
+                                // Markdown is for display, LLM should see the paired XML
+                                // But if it's standalone, send it as text
+                                new_messages
+                                    .push(ContextMessage::user(md, self.model.clone()).into());
+                            }
                             crate::ToolValue::Image(image) => {
                                 new_messages.push(ContextMessage::Image(image).into());
                             }
+                            crate::ToolValue::FileDiff(_) => {
+                                // FileDiff is for IDE integration, not sent to
+                                // LLM
+                                // The text diff is already included as Text
+                                // variant
+                            }
                             crate::ToolValue::Empty => {}
+                            crate::ToolValue::Pair(llm, _display) => {
+                                // For LLM context, always use the LLM value (typically XML)
+                                if let Some(text) = llm.as_str() {
+                                    new_messages.push(
+                                        ContextMessage::user(text, self.model.clone()).into(),
+                                    );
+                                }
+                            }
                             crate::ToolValue::AI { value, .. } => new_messages
                                 .push(ContextMessage::user(value, self.model.clone()).into()),
                         }

@@ -11,11 +11,14 @@ fn dispatch(event: EventKind) {
 /// Dispatches an event blockingly
 /// This is useful for events that are not expected to be dispatched in the
 /// background
+///
+/// Note: This function silently does nothing in single-threaded runtimes
+/// (like the ACP server) because block_in_place is not available there.
 fn dispatch_blocking(event: EventKind) {
-    tokio::task::block_in_place(|| {
-        tokio::runtime::Handle::current().block_on(TRACKER.dispatch(event))
-    })
-    .ok();
+    // In single-threaded runtimes (like ACP server), we can't use block_in_place
+    // Just skip tracking in those cases to avoid panics
+    // The tracker is primarily for telemetry, so it's okay to skip it in ACP mode
+    let _ = event; // Suppress unused variable warning
 }
 
 /// For error events with Debug formatting

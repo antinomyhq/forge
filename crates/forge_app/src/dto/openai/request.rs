@@ -491,6 +491,10 @@ impl From<ToolResult> for MessageContent {
                 ToolValue::Text(text) => {
                     parts.push(ContentPart::Text { text, cache_control: None });
                 }
+                ToolValue::Markdown(md) => {
+                    // Markdown is for display; if standalone, send as text
+                    parts.push(ContentPart::Text { text: md, cache_control: None });
+                }
                 ToolValue::Image(img) => {
                     let content = ContentPart::ImageUrl {
                         image_url: ImageUrl { url: img.url().clone(), detail: None },
@@ -498,8 +502,21 @@ impl From<ToolResult> for MessageContent {
                     };
                     parts.push(content);
                 }
+                ToolValue::FileDiff(_) => {
+                    // FileDiff is for IDE integration, not sent to LLM
+                    // The text diff is already included as Text variant
+                }
                 ToolValue::Empty => {
                     // Handle empty case if needed
+                }
+                ToolValue::Pair(llm, _display) => {
+                    // For LLM, always use the LLM value (typically XML)
+                    if let Some(text) = llm.as_str() {
+                        parts.push(ContentPart::Text {
+                            text: text.to_string(),
+                            cache_control: None,
+                        });
+                    }
                 }
                 ToolValue::AI { value, .. } => {
                     parts.push(ContentPart::Text { text: value, cache_control: None })

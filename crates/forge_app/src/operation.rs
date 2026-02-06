@@ -9,7 +9,7 @@ use forge_domain::{
     CodebaseSearchResults, Environment, FSPatch, FSRead, FSRemove, FSSearch, FSUndo, FSWrite,
     FileOperation, LineNumbers, Metrics, NetFetch, PlanCreate, ToolKind,
 };
-use forge_template::Element;
+use forge_template::{Element, Markdown};
 
 use crate::truncation::{
     Stderr, Stdout, TruncationMode, truncate_fetch_content, truncate_search_output,
@@ -295,7 +295,17 @@ impl ToolOperation {
                     elm = elm.append(create_validation_warning(&input.file_path, &output.errors));
                 }
 
-                forge_domain::ToolOutput::text(elm)
+                // Create structured diff data for IDE integration
+                let file_diff = forge_domain::FileDiff {
+                    path: input.file_path.clone(),
+                    old_text: output.before.clone(),
+                    new_text: input.content.clone(),
+                };
+
+                forge_domain::ToolOutput::text(elm).combine(forge_domain::ToolOutput {
+                    is_error: false,
+                    values: vec![forge_domain::ToolValue::FileDiff(file_diff)],
+                })
             }
             ToolOperation::FsRemove { input, output } => {
                 // None since file was removed
@@ -339,57 +349,128 @@ impl ToolOperation {
                         "0-0".to_string()
                     };
 
+                    // Build XML for LLM
                     let mut elm = Element::new("search_results")
                         .attr("path", input.path.as_deref().unwrap_or("."))
                         .attr("max_bytes_allowed", env.max_search_result_bytes)
                         .attr("total_lines", truncated_output.total)
-                        .attr("display_lines", display_lines);
+                        .attr("display_lines", &display_lines);
 
                     elm = elm.attr("pattern", &input.pattern);
                     elm = elm.attr_if_some("glob", input.glob.as_ref());
                     elm = elm.attr_if_some("file_type", input.file_type.as_ref());
 
-                    match truncated_output.strategy {
+                    let reason = match truncated_output.strategy {
                         TruncationMode::Byte => {
                             let reason = format!(
                                 "Results truncated due to exceeding the {} bytes size limit. Please use a more specific search pattern",
                                 env.max_search_result_bytes
                             );
-                            elm = elm.attr("reason", reason);
+                            elm = elm.attr("reason", &reason);
+                            Some(reason)
                         }
                         TruncationMode::Line => {
                             let reason = format!(
                                 "Results truncated due to exceeding the {max_lines} lines limit. Please use a more specific search pattern"
                             );
-                            elm = elm.attr("reason", reason);
+                            elm = elm.attr("reason", &reason);
+                            Some(reason)
                         }
-                        TruncationMode::Full => {}
+                        TruncationMode::Full => None,
                     };
                     elm = elm.cdata(truncated_output.data.join("\n"));
 
-                    forge_domain::ToolOutput::text(elm)
+                    // Build Markdown for display
+                    let content = truncated_output.data.join("\n");
+                    let mut md = Markdown::new()
+                        .bold("Search Results")
+                        .blank_line()
+                        .kv_code("Pattern", &input.pattern)
+                        .kv_code("Path", input.path.as_deref().unwrap_or("."));
+
+                    if let Some(glob) = &input.glob {
+                        md = md.kv_code("Glob", glob);
+                    }
+                    if let Some(file_type) = &input.file_type {
+                        md = md.kv_code("File Type", file_type);
+                    }
+
+                    md = md
+                        .kv(
+                            "Results",
+                            format!(
+                                "{} total lines, displaying lines {}",
+                                truncated_output.total, display_lines
+                            ),
+                        )
+                        .blank_line();
+
+                    if let Some(reason) = reason {
+                        md = md.line(format!("⚠️ *{}*", reason));
+                    }
+
+                    if !content.trim().is_empty() {
+                        md = md.code_block(content, None);
+                    } else {
+                        md = md.italic("No matches found");
+                    }
+
+                    forge_domain::ToolOutput::from_element_and_markdown(elm, md)
                 }
                 None => {
+                    // Build XML for LLM
                     let mut elm = Element::new("search_results");
-                    elm = elm.attr_if_some("path", input.path);
+                    elm = elm.attr_if_some("path", input.path.as_ref());
                     elm = elm.attr("pattern", &input.pattern);
-                    elm = elm.attr_if_some("glob", input.glob);
+                    elm = elm.attr_if_some("glob", input.glob.as_ref());
                     elm = elm.attr_if_some("file_type", input.file_type.as_ref());
-                    forge_domain::ToolOutput::text(elm)
+
+                    // Build Markdown for display
+                    let mut md = Markdown::new()
+                        .bold("Search Results")
+                        .blank_line()
+                        .kv_code("Pattern", &input.pattern);
+
+                    if let Some(path) = &input.path {
+                        md = md.kv_code("Path", path);
+                    }
+                    if let Some(glob) = &input.glob {
+                        md = md.kv_code("Glob", glob);
+                    }
+                    if let Some(file_type) = &input.file_type {
+                        md = md.kv_code("File Type", file_type);
+                    }
+
+                    md = md.blank_line().italic("No matches found");
+
+                    forge_domain::ToolOutput::from_element_and_markdown(elm, md)
                 }
             },
             ToolOperation::CodebaseSearch { output } => {
                 let total_results: usize = output.queries.iter().map(|q| q.results.len()).sum();
+
+                // Build XML for LLM
                 let mut root = Element::new("sem_search_results");
 
+                // Build Markdown for display
+                let mut md = Markdown::new().bold("Semantic Search Results").blank_line();
+
                 if output.queries.is_empty() || total_results == 0 {
-                    root = root.text("No results found for query. Try refining your search with more specific terms or different keywords.")
+                    root = root.text("No results found for query. Try refining your search with more specific terms or different keywords.");
+                    md = md.italic("No results found for query. Try refining your search with more specific terms or different keywords.");
                 } else {
                     for query_result in &output.queries {
                         let query_elm = Element::new("query_result")
                             .attr("query", &query_result.query)
                             .attr("use_case", &query_result.use_case)
                             .attr("results", query_result.results.len());
+
+                        // Add to markdown
+                        md = md
+                            .h3(format!("Query: {}", query_result.query))
+                            .italic(format!("Use case: {}", query_result.use_case))
+                            .line(format!("**{} results found**", query_result.results.len()))
+                            .blank_line();
 
                         let mut grouped_by_path: HashMap<&str, Vec<_>> = HashMap::new();
 
@@ -420,15 +501,20 @@ impl ToolOperation {
                             }
 
                             let data = content_parts.join("\n...\n");
-                            let element = Element::new("file").attr("path", path).cdata(data);
+                            let element = Element::new("file").attr("path", path).cdata(&data);
                             result_elm.push(element);
+
+                            // Add to markdown
+                            md = md
+                                .line(format!("**File:** `{}`", path))
+                                .code_block(data, None);
                         }
 
                         root = root.append(query_elm.append(result_elm));
                     }
                 }
 
-                forge_domain::ToolOutput::text(root)
+                forge_domain::ToolOutput::from_element_and_markdown(root, md)
             }
             ToolOperation::FsPatch { input, output } => {
                 let diff_result = DiffFormat::format(&output.before, &output.after);
@@ -451,7 +537,17 @@ impl ToolOperation {
                         .content_hash(Some(output.content_hash.clone())),
                 );
 
-                forge_domain::ToolOutput::text(elm)
+                // Create structured diff data for IDE integration
+                let file_diff = forge_domain::FileDiff {
+                    path: input.file_path.clone(),
+                    old_text: Some(output.before.clone()),
+                    new_text: output.after.clone(),
+                };
+
+                forge_domain::ToolOutput::text(elm).combine(forge_domain::ToolOutput {
+                    is_error: false,
+                    values: vec![forge_domain::ToolValue::FileDiff(file_diff)],
+                })
             }
             ToolOperation::FsUndo { input, output } => {
                 // Diff between snapshot state (after_undo) and modified state
@@ -591,15 +687,16 @@ impl ToolOperation {
                 forge_domain::ToolOutput::text(elm)
             }
             ToolOperation::Skill { output } => {
+                // Build XML for LLM
                 let mut elm = Element::new("skill_details");
 
                 elm = elm.append({
                     let mut elm = Element::new("command");
-                    if let Some(path) = output.path {
+                    if let Some(path) = &output.path {
                         elm = elm.attr("location", path.display().to_string());
                     }
 
-                    elm.cdata(output.command)
+                    elm.cdata(&output.command)
                 });
 
                 // Insert Resources
@@ -609,7 +706,30 @@ impl ToolOperation {
                     }));
                 }
 
-                forge_domain::ToolOutput::text(elm)
+                // Build Markdown for display
+                let mut md = Markdown::new()
+                    .bold("Skill Loaded")
+                    .blank_line()
+                    .line(format!("**Name:** {}", output.name))
+                    .line(format!("**Description:** {}", output.description));
+
+                if let Some(path) = &output.path {
+                    md = md.line(format!("**Location:** `{}`", path.display()));
+                }
+
+                md = md
+                    .blank_line()
+                    .bold("Instructions:")
+                    .code_block(&output.command, Some("markdown"));
+
+                if !output.resources.is_empty() {
+                    md = md.blank_line().bold("Available Resources:");
+                    for resource in &output.resources {
+                        md = md.bullet(format!("`{}`", resource.display()));
+                    }
+                }
+
+                forge_domain::ToolOutput::from_element_and_markdown(elm, md)
             }
         }
     }
@@ -648,11 +768,23 @@ mod tests {
             ToolValue::Text(txt) => {
                 writeln!(result, "{}", txt).unwrap();
             }
+            ToolValue::Markdown(md) => {
+                writeln!(result, "{}", md).unwrap();
+            }
             ToolValue::Image(image) => {
                 writeln!(result, "Image with mime type: {}", image.mime_type()).unwrap();
             }
+            ToolValue::FileDiff(file_diff) => {
+                writeln!(result, "File diff for: {}", file_diff.path).unwrap();
+            }
             ToolValue::Empty => {
                 writeln!(result, "Empty value").unwrap();
+            }
+            ToolValue::Pair(llm, _display) => {
+                // For test output, use LLM value
+                if let Some(text) = llm.as_str() {
+                    writeln!(result, "{}", text).unwrap();
+                }
             }
             ToolValue::AI { value, .. } => {
                 writeln!(result, "{}", value).unwrap();
