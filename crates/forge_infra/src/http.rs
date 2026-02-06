@@ -109,11 +109,19 @@ impl<F> ForgeHttpInfra<F> {
         .await
     }
 
-    async fn post(&self, url: &Url, body: Bytes) -> anyhow::Result<Response> {
+    async fn post(
+        &self,
+        url: &Url,
+        headers: Option<HeaderMap>,
+        body: Bytes,
+    ) -> anyhow::Result<Response> {
+        let mut request_headers = self.headers(headers);
+        request_headers.insert("Content-Type", HeaderValue::from_static("application/json"));
+
         self.execute_request("POST", url, |client| {
             client
                 .post(url.clone())
-                .headers(self.headers(None))
+                .headers(request_headers)
                 .body(body)
         })
         .await
@@ -241,8 +249,13 @@ impl<F: forge_app::FileWriterInfra + 'static> HttpInfra for ForgeHttpInfra<F> {
         self.get(url, headers).await
     }
 
-    async fn http_post(&self, url: &Url, body: Bytes) -> anyhow::Result<Response> {
-        self.post(url, body).await
+    async fn http_post(
+        &self,
+        url: &Url,
+        headers: Option<HeaderMap>,
+        body: Bytes,
+    ) -> anyhow::Result<Response> {
+        self.post(url, headers, body).await
     }
 
     async fn http_delete(&self, url: &Url) -> anyhow::Result<Response> {

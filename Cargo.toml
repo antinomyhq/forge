@@ -73,6 +73,7 @@ reqwest = { version = "0.12.23", features = [
 ], default-features = false }
 rustls = { version = "0.23", features = ["ring"], default-features = false }
 reqwest-eventsource = "0.6.0"
+eventsource-stream = "0.2.3"
 rust-embed = "8.5.0"
 schemars = "0.8.21"
 serde = { version = "1.0.217", features = ["derive"] }

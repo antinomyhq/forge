@@ -3,6 +3,7 @@ use std::sync::Arc;
 use anyhow::Context as _;
 use async_openai::types::responses as oai;
 use derive_setters::Setters;
+use eventsource_stream::Eventsource;
 use forge_app::HttpInfra;
 use forge_app::domain::{
     ChatCompletionMessage, Context as ChatContext, Model, ModelId, ResultStream, RetryConfig,
@@ -158,17 +159,33 @@ impl<T: HttpInfra> OpenAIResponsesProvider<T> {
         let mut request = oai::CreateResponse::from_domain(context)?;
         request.model = Some(model.as_str().to_string());
 
+        // Apply Codex-specific request adjustments via the transformer pipeline.
+        if self.provider.id == forge_domain::ProviderId::CODEX {
+            use forge_domain::Transformer;
+            request = super::codex_transformer::CodexTransformer.transform(request);
+        }
+
         info!(
             url = %self.responses_url,
             base_url = %self.api_base,
             model = %model,
             headers = ?sanitize_headers(&headers),
             message_count = %request_message_count(&request),
-            "Connecting Upstream (Codex via Responses API)"
+            "Connecting Upstream (Responses API)"
         );
 
         let json_bytes = serde_json::to_vec(&request)
             .with_context(|| "Failed to serialize OpenAI Responses request")?;
+
+        // The Codex backend at chatgpt.com does not return
+        // `Content-Type: text/event-stream`, which causes the
+        // reqwest-eventsource library to reject the response with
+        // `InvalidContentType`. We bypass it by making a direct HTTP POST
+        // and parsing SSE from the raw byte stream using
+        // eventsource-stream, exactly like the AI SDK does.
+        if self.provider.id == forge_domain::ProviderId::CODEX {
+            return self.chat_codex_stream(headers, json_bytes).await;
+        }
 
         let source = self
             .http
@@ -200,6 +217,61 @@ impl<T: HttpInfra> OpenAIResponsesProvider<T> {
             });
 
         // Convert to domain messages using the existing conversion logic
+        use crate::provider::IntoDomain;
+        let stream: BoxStream<oai::ResponseStreamEvent, anyhow::Error> = Box::pin(event_stream);
+        stream.into_domain()
+    }
+
+    /// Streams a Codex chat response by making a direct HTTP POST and
+    /// parsing SSE from the raw byte stream, bypassing Content-Type
+    /// validation that `reqwest-eventsource` enforces.
+    async fn chat_codex_stream(
+        &self,
+        headers: reqwest::header::HeaderMap,
+        json_bytes: Vec<u8>,
+    ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
+        let response = self
+            .http
+            .http_post(
+                &self.responses_url,
+                Some(headers),
+                json_bytes.into(),
+            )
+            .await
+            .with_context(|| format_http_context(None, "POST", &self.responses_url))?;
+
+        let status = response.status();
+        if !status.is_success() {
+            let error_body = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unable to read response body".to_string());
+            return Err(anyhow::anyhow!(error_body))
+                .with_context(|| format_http_context(Some(status), "POST", &self.responses_url));
+        }
+
+        // Parse the raw byte stream as SSE events using eventsource-stream.
+        // This mirrors the AI SDK approach: TextDecoderStream ->
+        // EventSourceParserStream -> JSON parse, without any Content-Type
+        // requirement.
+        let byte_stream = response.bytes_stream();
+        let event_stream = byte_stream
+            .eventsource()
+            .filter_map(|event_result| async move {
+                match event_result {
+                    Ok(event) if ["[DONE]", ""].contains(&event.data.as_str()) => None,
+                    Ok(event) => {
+                        let result =
+                            serde_json::from_str::<oai::ResponseStreamEvent>(&event.data)
+                                .with_context(|| {
+                                    format!("Failed to parse SSE event: {}", event.data)
+                                });
+                        Some(result)
+                    }
+                    Err(e) => Some(Err(anyhow::anyhow!("SSE parse error: {}", e))),
+                }
+            });
+
         use crate::provider::IntoDomain;
         let stream: BoxStream<oai::ResponseStreamEvent, anyhow::Error> = Box::pin(event_stream);
         stream.into_domain()
@@ -344,6 +416,7 @@ mod tests {
         async fn http_post(
             &self,
             _url: &reqwest::Url,
+            _headers: Option<reqwest::header::HeaderMap>,
             _body: bytes::Bytes,
         ) -> anyhow::Result<reqwest::Response> {
             unimplemented!()

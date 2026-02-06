@@ -193,7 +193,12 @@ pub trait WalkerInfra: Send + Sync {
 #[async_trait::async_trait]
 pub trait HttpInfra: Send + Sync + 'static {
     async fn http_get(&self, url: &Url, headers: Option<HeaderMap>) -> anyhow::Result<Response>;
-    async fn http_post(&self, url: &Url, body: bytes::Bytes) -> anyhow::Result<Response>;
+    async fn http_post(
+        &self,
+        url: &Url,
+        headers: Option<HeaderMap>,
+        body: bytes::Bytes,
+    ) -> anyhow::Result<Response>;
     async fn http_delete(&self, url: &Url) -> anyhow::Result<Response>;
 
     /// Posts JSON data and returns a server-sent events stream

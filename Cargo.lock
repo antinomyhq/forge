@@ -1914,6 +1914,7 @@ dependencies = [
  "diesel",
  "diesel_migrations",
  "dirs",
+ "eventsource-stream",
  "fake",
  "forge_app",
  "forge_domain",
