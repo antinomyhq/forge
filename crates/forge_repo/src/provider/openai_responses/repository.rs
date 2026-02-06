@@ -18,17 +18,6 @@ use crate::provider::FromDomain;
 use crate::provider::retry::into_retry;
 use crate::provider::utils::{create_headers, format_http_context, sanitize_headers};
 
-/// Returns the OS kernel release string, or "unknown" if unavailable.
-fn os_release() -> String {
-    std::process::Command::new("uname")
-        .arg("-r")
-        .output()
-        .ok()
-        .and_then(|o| String::from_utf8(o.stdout).ok())
-        .map(|s| s.trim().to_string())
-        .unwrap_or_else(|| "unknown".to_string())
-}
-
 #[derive(Clone)]
 pub(super) struct OpenAIResponsesProvider<H> {
     provider: Provider<Url>,
@@ -116,26 +105,9 @@ impl<H: HttpInfra> OpenAIResponsesProvider<H> {
                 forge_domain::AuthMethod::GoogleAdc => {}
             });
 
-        // Codex provider requires a dynamic User-Agent with OS info and
-        // the ChatGPT-Account-Id header extracted from the JWT at login
+        // Codex provider requires the ChatGPT-Account-Id header extracted
+        // from the JWT at login
         if self.provider.id == forge_domain::ProviderId::CODEX {
-            let user_agent = format!(
-                "forge ({} {}; {})",
-                std::env::consts::OS,
-                os_release(),
-                std::env::consts::ARCH,
-            );
-            // Replace any static User-Agent from custom_headers with the
-            // dynamic one
-            if let Some(pos) = headers
-                .iter()
-                .position(|(k, _)| k.eq_ignore_ascii_case("user-agent"))
-            {
-                headers[pos].1 = user_agent;
-            } else {
-                headers.push(("User-Agent".to_string(), user_agent));
-            }
-
             // Add ChatGPT-Account-Id from credential's stored url_params
             if let Some(account_id) = self.provider.credential.as_ref().and_then(|c| {
                 let key: forge_domain::URLParam = "chatgpt_account_id".to_string().into();
