@@ -232,11 +232,7 @@ impl<T: HttpInfra> OpenAIResponsesProvider<T> {
     ) -> ResultStream<ChatCompletionMessage, anyhow::Error> {
         let response = self
             .http
-            .http_post(
-                &self.responses_url,
-                Some(headers),
-                json_bytes.into(),
-            )
+            .http_post(&self.responses_url, Some(headers), json_bytes.into())
             .await
             .with_context(|| format_http_context(None, "POST", &self.responses_url))?;
 
@@ -261,11 +257,8 @@ impl<T: HttpInfra> OpenAIResponsesProvider<T> {
                 match event_result {
                     Ok(event) if ["[DONE]", ""].contains(&event.data.as_str()) => None,
                     Ok(event) => {
-                        let result =
-                            serde_json::from_str::<oai::ResponseStreamEvent>(&event.data)
-                                .with_context(|| {
-                                    format!("Failed to parse SSE event: {}", event.data)
-                                });
+                        let result = serde_json::from_str::<oai::ResponseStreamEvent>(&event.data)
+                            .with_context(|| format!("Failed to parse SSE event: {}", event.data));
                         Some(result)
                     }
                     Err(e) => Some(Err(anyhow::anyhow!("SSE parse error: {}", e))),

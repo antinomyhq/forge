@@ -337,7 +337,12 @@ mod tests {
             Ok(request.send().await?)
         }
 
-        async fn http_post(&self, _url: &Url, _headers: Option<HeaderMap>, _body: Bytes) -> anyhow::Result<reqwest::Response> {
+        async fn http_post(
+            &self,
+            _url: &Url,
+            _headers: Option<HeaderMap>,
+            _body: Bytes,
+        ) -> anyhow::Result<reqwest::Response> {
             unimplemented!()
         }
 

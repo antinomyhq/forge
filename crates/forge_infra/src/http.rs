@@ -119,10 +119,7 @@ impl<F> ForgeHttpInfra<F> {
         request_headers.insert("Content-Type", HeaderValue::from_static("application/json"));
 
         self.execute_request("POST", url, |client| {
-            client
-                .post(url.clone())
-                .headers(request_headers)
-                .body(body)
+            client.post(url.clone()).headers(request_headers).body(body)
         })
         .await
     }
