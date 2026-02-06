@@ -41,10 +41,20 @@ impl AuthCredential {
         }
     }
 
+    pub fn new_google_adc(id: ProviderId, access_token: ApiKey) -> Self {
+        Self {
+            id,
+            auth_details: AuthDetails::GoogleAdc(access_token),
+            url_params: HashMap::new(),
+        }
+    }
+
     /// Checks if the credential needs to be refreshed.
     pub fn needs_refresh(&self, buffer: chrono::Duration) -> bool {
         match &self.auth_details {
             AuthDetails::ApiKey(_) => false,
+            // Google ADC tokens are short-lived (1 hour) and should always be checked/refreshed
+            AuthDetails::GoogleAdc(_) => true,
             AuthDetails::OAuth { tokens, .. } | AuthDetails::OAuthWithApiKey { tokens, .. } => {
                 tokens.needs_refresh(buffer)
             }
@@ -67,6 +77,8 @@ impl AuthCredential {
 pub enum AuthDetails {
     #[serde(alias = "ApiKey")]
     ApiKey(ApiKey),
+    #[serde(alias = "GoogleAdc")]
+    GoogleAdc(ApiKey),
     #[serde(alias = "OAuth")]
     OAuth {
         tokens: OAuthTokens,
@@ -84,6 +96,7 @@ impl AuthDetails {
     pub fn api_key(&self) -> Option<&ApiKey> {
         match self {
             AuthDetails::ApiKey(api_key) => Some(api_key),
+            AuthDetails::GoogleAdc(api_key) => Some(api_key),
             AuthDetails::OAuth { .. } => None,
             AuthDetails::OAuthWithApiKey { .. } => None,
         }

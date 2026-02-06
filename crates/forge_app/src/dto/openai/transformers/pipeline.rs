@@ -8,6 +8,7 @@ use super::make_openai_compat::MakeOpenAiCompat;
 use super::minimax::SetMinimaxParams;
 use super::normalize_tool_schema::NormalizeToolSchema;
 use super::set_cache::SetCache;
+use super::strip_thought_signature::StripThoughtSignature;
 use super::tool_choice::SetToolChoice;
 use super::trim_tool_call_ids::TrimToolCallIds;
 use super::when_model::when_model;
@@ -43,6 +44,10 @@ impl Transformer for ProviderPipeline<'_> {
             .pipe(SetCache.when(when_model("gemini|anthropic")))
             .when(move |_| supports_open_router_params(provider));
 
+        // Strip thought signatures for all models except gemini-3
+        let strip_thought_signature =
+            StripThoughtSignature.when(move |req: &Request| !is_gemini3_model(req));
+
         let open_ai_compat = MakeOpenAiCompat.when(move |_| !supports_open_router_params(provider));
 
         let github_copilot_reasoning =
@@ -54,6 +59,7 @@ impl Transformer for ProviderPipeline<'_> {
 
         let mut combined = zai_thinking
             .pipe(or_transformers)
+            .pipe(strip_thought_signature)
             .pipe(open_ai_compat)
             .pipe(github_copilot_reasoning)
             .pipe(cerebras_compat)
@@ -68,6 +74,15 @@ fn is_zai_provider(provider: &Provider<Url>) -> bool {
     provider.id == ProviderId::ZAI || provider.id == ProviderId::ZAI_CODING
 }
 
+/// Checks if the request model is a gemini-3 model (which supports thought
+/// signatures)
+fn is_gemini3_model(req: &Request) -> bool {
+    req.model
+        .as_ref()
+        .map(|m| m.as_str().contains("gemini-3"))
+        .unwrap_or(false)
+}
+
 /// function checks if provider supports open-router parameters.
 fn supports_open_router_params(provider: &Provider<Url>) -> bool {
     provider.id == ProviderId::OPEN_ROUTER
@@ -80,6 +95,7 @@ fn supports_open_router_params(provider: &Provider<Url>) -> bool {
 mod tests {
     use std::collections::HashMap;
 
+    use forge_domain::ModelId;
     use url::Url;
 
     use super::*;
@@ -311,6 +327,7 @@ mod tests {
             reasoning_details: None,
             reasoning_text: None,
             reasoning_opaque: None,
+            extra_content: None,
         }]);
 
         let mut pipeline = ProviderPipeline::new(&provider);
@@ -340,6 +357,7 @@ mod tests {
             reasoning_details: None,
             reasoning_text: None,
             reasoning_opaque: None,
+            extra_content: None,
         }]);
 
         let mut pipeline = ProviderPipeline::new(&provider);
@@ -348,5 +366,103 @@ mod tests {
         // Anthropic provider should not trim tool call IDs
         let messages = actual.messages.unwrap();
         assert_eq!(messages[0].tool_call_id.as_ref().unwrap().as_str(), long_id);
+    }
+
+    #[test]
+    fn test_gemini3_model_preserves_thought_signature() {
+        use crate::dto::openai::{ExtraContent, GoogleMetadata, Message, MessageContent, Role};
+
+        let provider = open_router("open-router");
+        let fixture = Request::default()
+            .model(ModelId::new("google/gemini-3-pro-preview"))
+            .messages(vec![Message {
+                role: Role::Assistant,
+                content: Some(MessageContent::Text("Hello".to_string())),
+                name: None,
+                tool_call_id: None,
+                tool_calls: None,
+                reasoning_details: None,
+                reasoning_text: None,
+                reasoning_opaque: None,
+                extra_content: Some(ExtraContent {
+                    google: Some(GoogleMetadata { thought_signature: Some("sig123".to_string()) }),
+                }),
+            }]);
+
+        let mut pipeline = ProviderPipeline::new(&provider);
+        let actual = pipeline.transform(fixture);
+
+        // Thought signature should be preserved for gemini-3 models
+        let messages = actual.messages.unwrap();
+        assert!(messages[0].extra_content.is_some());
+        assert_eq!(
+            messages[0]
+                .extra_content
+                .as_ref()
+                .unwrap()
+                .google
+                .as_ref()
+                .unwrap()
+                .thought_signature,
+            Some("sig123".to_string())
+        );
+    }
+
+    #[test]
+    fn test_non_gemini3_model_strips_thought_signature() {
+        use crate::dto::openai::{ExtraContent, GoogleMetadata, Message, MessageContent, Role};
+
+        let provider = open_router("open-router");
+        let fixture = Request::default()
+            .model(ModelId::new("anthropic/claude-sonnet-4"))
+            .messages(vec![Message {
+                role: Role::Assistant,
+                content: Some(MessageContent::Text("Hello".to_string())),
+                name: None,
+                tool_call_id: None,
+                tool_calls: None,
+                reasoning_details: None,
+                reasoning_text: None,
+                reasoning_opaque: None,
+                extra_content: Some(ExtraContent {
+                    google: Some(GoogleMetadata { thought_signature: Some("sig123".to_string()) }),
+                }),
+            }]);
+
+        let mut pipeline = ProviderPipeline::new(&provider);
+        let actual = pipeline.transform(fixture);
+
+        // Thought signature should be stripped for non-gemini-3 models
+        let messages = actual.messages.unwrap();
+        assert!(messages[0].extra_content.is_none());
+    }
+
+    #[test]
+    fn test_gemini2_model_strips_thought_signature() {
+        use crate::dto::openai::{ExtraContent, GoogleMetadata, Message, MessageContent, Role};
+
+        let provider = open_router("open-router");
+        let fixture = Request::default()
+            .model(ModelId::new("google/gemini-2.5-pro"))
+            .messages(vec![Message {
+                role: Role::Assistant,
+                content: Some(MessageContent::Text("Hello".to_string())),
+                name: None,
+                tool_call_id: None,
+                tool_calls: None,
+                reasoning_details: None,
+                reasoning_text: None,
+                reasoning_opaque: None,
+                extra_content: Some(ExtraContent {
+                    google: Some(GoogleMetadata { thought_signature: Some("sig123".to_string()) }),
+                }),
+            }]);
+
+        let mut pipeline = ProviderPipeline::new(&provider);
+        let actual = pipeline.transform(fixture);
+
+        // Thought signature should be stripped for gemini-2 models (not gemini-3)
+        let messages = actual.messages.unwrap();
+        assert!(messages[0].extra_content.is_none());
     }
 }
