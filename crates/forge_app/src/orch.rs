@@ -174,8 +174,8 @@ impl<S: AgentService> Orchestrator<S> {
             .pipe(SortTools::new(self.agent.tool_order()))
             .pipe(TransformToolCalls::new().when(|_| !tool_supported))
             .pipe(ImageHandling::new())
-            .pipe(DropReasoningDetails.when(|_| !reasoning_supported))
-            .pipe(ReasoningNormalizer.when(|_| reasoning_supported));
+            .pipe(DropReasoningDetails.when(|_| !reasoning_supported));
+            // .pipe(ReasoningNormalizer.when(|_| reasoning_supported));
         let response = self
             .services
             .chat_agent(
