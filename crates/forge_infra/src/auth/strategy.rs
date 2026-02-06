@@ -804,7 +804,7 @@ async fn codex_poll_for_tokens(
         }
 
         // Poll request and response handling would be here
-        
+
         tokio::time::sleep(poll_interval).await;
 
         let response = http_client
