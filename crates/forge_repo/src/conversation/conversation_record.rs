@@ -507,7 +507,9 @@ impl From<&forge_domain::ContextMessage> for ContextMessageValueRecord {
                 Self::Tool(ToolResultRecord::from(result))
             }
             forge_domain::ContextMessage::Image(img) => Self::Image(ImageRecord::from(img)),
-            forge_domain::ContextMessage::Document(doc) => Self::Document(DocumentRecord::from(doc)),
+            forge_domain::ContextMessage::Document(doc) => {
+                Self::Document(DocumentRecord::from(doc))
+            }
         }
     }
 }

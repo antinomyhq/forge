@@ -92,9 +92,7 @@ impl<F: FsReadService> FileChangeDetector<F> {
         match output.content {
             Content::File(content) => Ok(content),
             Content::Image(_) => Err(anyhow::anyhow!("Cannot track changes for image files")),
-            Content::Document(_) => {
-                Err(anyhow::anyhow!("Cannot track changes for document files"))
-            }
+            Content::Document(_) => Err(anyhow::anyhow!("Cannot track changes for document files")),
         }
     }
 }

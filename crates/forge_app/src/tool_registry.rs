@@ -310,9 +310,8 @@ impl<S> ToolRegistry<S> {
     /// Checks if a file path has an image extension.
     /// This is a lightweight check that doesn't require reading the file.
     fn has_image_extension(path: &str) -> bool {
-        const IMAGE_EXTENSIONS: &[&str] = &[
-            ".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg",
-        ];
+        const IMAGE_EXTENSIONS: &[&str] =
+            &[".png", ".jpg", ".jpeg", ".gif", ".bmp", ".webp", ".svg"];
 
         let path_lower = path.to_lowercase();
         IMAGE_EXTENSIONS.iter().any(|ext| path_lower.ends_with(ext))
@@ -869,7 +868,9 @@ fn test_has_image_extension() {
     assert!(ToolRegistry::<()>::has_image_extension(
         "../images/photo.jpg"
     ));
-    assert!(!ToolRegistry::<()>::has_image_extension("/path/to/file.pdf"));
+    assert!(!ToolRegistry::<()>::has_image_extension(
+        "/path/to/file.pdf"
+    ));
 
     // Test non-image files
     assert!(!ToolRegistry::<()>::has_image_extension(
