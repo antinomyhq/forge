@@ -164,6 +164,7 @@ fn codex_tool_parameters(
 ///
 /// Supported subset (first iteration):
 /// - Text messages (system/user/assistant)
+/// - Image messages (user)
 /// - Assistant tool calls (full)
 /// - Tool results
 /// - tools + tool_choice
@@ -248,8 +249,20 @@ impl FromDomain<ChatContext> for oai::CreateResponse {
                         },
                     )));
                 }
-                ContextMessage::Image(_) => {
-                    anyhow::bail!("Codex (Responses API) path does not yet support image inputs");
+                ContextMessage::Image(img) => {
+                    // Mirror the Chat Completions request path: represent image input
+                    // as a user message with structured content.
+                    items.push(oai::InputItem::EasyMessage(oai::EasyInputMessage {
+                        r#type: oai::MessageType::Message,
+                        role: oai::Role::User,
+                        content: oai::EasyInputContent::ContentList(vec![
+                            oai::InputContent::InputImage(oai::InputImageContent {
+                                detail: oai::ImageDetail::Auto,
+                                file_id: None,
+                                image_url: Some(img.url().clone()),
+                            }),
+                        ]),
+                    }));
                 }
             }
         }
@@ -1034,21 +1047,44 @@ mod tests {
     }
 
     #[test]
-    fn test_codex_request_with_image_input_returns_error() {
+    fn test_codex_request_with_image_input_is_supported() -> anyhow::Result<()> {
         use forge_domain::Image;
 
         let image = Image::new_base64("test123".to_string(), "image/png");
         let context = ChatContext::default().add_message(ContextMessage::Image(image));
 
-        let result = oai::CreateResponse::from_domain(context);
+        let actual = oai::CreateResponse::from_domain(context)?;
 
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("Codex (Responses API) path does not yet support image inputs")
+        let oai::InputParam::Items(items) = actual.input else {
+            anyhow::bail!("Expected items input");
+        };
+
+        assert_eq!(items.len(), 1);
+
+        let oai::InputItem::EasyMessage(message) = &items[0] else {
+            anyhow::bail!("Expected first item to be an EasyMessage");
+        };
+
+        assert_eq!(message.role, oai::Role::User);
+
+        let oai::EasyInputContent::ContentList(content) = &message.content else {
+            anyhow::bail!("Expected ContentList for image message content");
+        };
+
+        assert_eq!(content.len(), 1);
+
+        let oai::InputContent::InputImage(image) = &content[0] else {
+            anyhow::bail!("Expected InputImage content");
+        };
+
+        assert_eq!(image.detail, oai::ImageDetail::Auto);
+        assert!(image.file_id.is_none());
+        assert_eq!(
+            image.image_url.as_deref(),
+            Some("data:image/png;base64,test123")
         );
+
+        Ok(())
     }
 
     #[test]
