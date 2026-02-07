@@ -23,7 +23,7 @@ impl<I: HttpInfra + EnvironmentInfra + AppConfigRepository> ForgeAuthService<I> 
     async fn init(&self) -> anyhow::Result<InitAuth> {
         let init_url = format!("{}{AUTH_ROUTE}", self.infra.get_environment().forge_api_url);
         let init_url = Url::parse(&init_url)?;
-        let resp = self.infra.http_post(&init_url, Bytes::new()).await?;
+        let resp = self.infra.http_post(&init_url, None, Bytes::new()).await?;
         if !resp.status().is_success() {
             bail!("Failed to initialize auth")
         }
