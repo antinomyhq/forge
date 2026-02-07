@@ -13,7 +13,8 @@ expression: actual
     "supports_reasoning": null,
     "input_modalities": [
       "text",
-      "image"
+      "image",
+      "file"
     ]
   },
   {
@@ -26,7 +27,8 @@ expression: actual
     "supports_reasoning": null,
     "input_modalities": [
       "text",
-      "image"
+      "image",
+      "file"
     ]
   }
 ]

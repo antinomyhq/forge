@@ -1,5 +1,5 @@
 use derive_setters::Setters;
-use forge_domain::{ContextMessage, Image};
+use forge_domain::{ContextMessage, Document, Image};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Default, Setters)]
@@ -220,6 +220,9 @@ impl TryFrom<ContextMessage> for Message {
             ContextMessage::Image(img) => {
                 Message { content: vec![Content::from(img)], role: Role::User }
             }
+            ContextMessage::Document(doc) => {
+                Message { content: vec![Content::from(doc)], role: Role::User }
+            }
         })
     }
 }
@@ -241,6 +244,7 @@ impl Message {
                     .find_map(|(idx, content)| match content {
                         Content::Text { .. }
                         | Content::Image { .. }
+                        | Content::Document { .. }
                         | Content::ToolUse { .. }
                         | Content::ToolResult { .. } => Some(idx),
                         _ => None,
@@ -278,6 +282,19 @@ impl From<Image> for Content {
     }
 }
 
+impl From<Document> for Content {
+    fn from(value: Document) -> Self {
+        Content::Document {
+            source: DocumentSource {
+                type_: "base64".to_string(),
+                media_type: value.mime_type().to_string(),
+                data: value.base64_data().to_string(),
+            },
+            cache_control: None,
+        }
+    }
+}
+
 #[derive(Serialize)]
 pub struct ImageSource {
     #[serde(rename = "type")]
@@ -290,11 +307,25 @@ pub struct ImageSource {
     pub url: Option<String>,
 }
 
+/// Source for document content blocks in the Anthropic API.
+#[derive(Serialize)]
+pub struct DocumentSource {
+    #[serde(rename = "type")]
+    pub type_: String,
+    pub media_type: String,
+    pub data: String,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "snake_case", tag = "type")]
 pub enum Content {
     Image {
         source: ImageSource,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        cache_control: Option<CacheControl>,
+    },
+    Document {
+        source: DocumentSource,
         #[serde(skip_serializing_if = "Option::is_none")]
         cache_control: Option<CacheControl>,
     },
@@ -346,6 +377,7 @@ impl Content {
                 Content::ToolResult { tool_use_id, content, is_error, cache_control }
             }
             Content::Image { source, .. } => Content::Image { source, cache_control },
+            Content::Document { source, .. } => Content::Document { source, cache_control },
             // TODO: verify this Thinking variants don't support cache control
             Content::Thinking { signature, thinking } => Content::Thinking { signature, thinking },
         }
@@ -357,6 +389,7 @@ impl Content {
             Content::ToolUse { cache_control, .. } => cache_control.is_some(),
             Content::ToolResult { cache_control, .. } => cache_control.is_some(),
             Content::Image { cache_control, .. } => cache_control.is_some(),
+            Content::Document { cache_control, .. } => cache_control.is_some(),
             Content::Thinking { .. } => false,
         }
     }

@@ -264,6 +264,26 @@ impl FromDomain<ChatContext> for oai::CreateResponse {
                         ]),
                     }));
                 }
+                ContextMessage::Document(doc) => {
+                    let data_uri =
+                        format!("data:{};base64,{}", doc.mime_type(), doc.base64_data());
+                    let mut file_content = oai::InputFileArgs::default();
+                    file_content.file_data(data_uri);
+                    if let Some(name) = doc.filename() {
+                        file_content.filename(name.clone());
+                    }
+                    items.push(oai::InputItem::EasyMessage(oai::EasyInputMessage {
+                        r#type: oai::MessageType::Message,
+                        role: oai::Role::User,
+                        content: oai::EasyInputContent::ContentList(vec![
+                            oai::InputContent::InputFile(
+                                file_content
+                                    .build()
+                                    .map_err(anyhow::Error::from)?,
+                            ),
+                        ]),
+                    }));
+                }
             }
         }
 
