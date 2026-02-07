@@ -192,6 +192,7 @@ pub enum SummaryTool {
     Plan { plan_name: String },
     Skill { name: String },
     Mcp { name: String },
+    TodoWrite { title: String },
 }
 
 impl From<&Context> for ContextSummary {
@@ -305,6 +306,10 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
             }
             ToolCatalog::Plan(input) => Some(SummaryTool::Plan { plan_name: input.plan_name }),
             ToolCatalog::Skill(input) => Some(SummaryTool::Skill { name: input.name }),
+            ToolCatalog::TodoWrite(input) => {
+                let count = input.todos.len();
+                Some(SummaryTool::TodoWrite { title: format!("{} todo(s)", count) })
+            }
         };
     }
 

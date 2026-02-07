@@ -655,3 +655,58 @@ impl<F: forge_domain::ConsoleWriter> forge_domain::ConsoleWriter for ForgeRepo<F
         self.infra.flush_err()
     }
 }
+
+#[async_trait::async_trait]
+impl<F: FileReaderInfra + FileWriterInfra + EnvironmentInfra + Send + Sync>
+    forge_domain::TodoRepository for ForgeRepo<F>
+{
+    async fn save_todos(
+        &self,
+        conversation_id: &forge_domain::ConversationId,
+        todos: Vec<forge_domain::Todo>,
+    ) -> anyhow::Result<()> {
+        let env = self.infra.get_environment();
+        let path = env
+            .base_path
+            .join("todos")
+            .join(format!("{}.json", conversation_id));
+
+        // Serialize todos to JSON with pretty printing for readability
+        let content = serde_json::to_string_pretty(&todos)?;
+
+        // Write using file infrastructure
+        self.infra.write(&path, Bytes::from(content)).await?;
+
+        Ok(())
+    }
+
+    async fn get_todos(
+        &self,
+        conversation_id: &forge_domain::ConversationId,
+    ) -> anyhow::Result<Vec<forge_domain::Todo>> {
+        let env = self.infra.get_environment();
+        let path = env
+            .base_path
+            .join("todos")
+            .join(format!("{}.json", conversation_id));
+
+        // Try to read the file using file infrastructure
+        match self.infra.read_utf8(&path).await {
+            Ok(content) => {
+                // Parse JSON content
+                let todos: Vec<forge_domain::Todo> = serde_json::from_str(&content)?;
+                Ok(todos)
+            }
+            Err(e) => {
+                // Check if the error is because the file doesn't exist
+                if let Some(io_err) = e.downcast_ref::<std::io::Error>()
+                    && io_err.kind() == std::io::ErrorKind::NotFound
+                {
+                    // File doesn't exist yet, return empty list
+                    return Ok(Vec::new());
+                }
+                Err(e)
+            }
+        }
+    }
+}

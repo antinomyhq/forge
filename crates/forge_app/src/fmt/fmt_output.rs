@@ -30,6 +30,9 @@ impl FormatContent for ToolOperation {
                 ));
                 title.into()
             }),
+            ToolOperation::TodoWrite { output } => {
+                Some(ChatResponseContent::Markdown { text: format_todos(output), partial: false })
+            }
             ToolOperation::FsRead { input: _, output: _ }
             | ToolOperation::FsRemove { input: _, output: _ }
             | ToolOperation::FsSearch { input: _, output: _ }
@@ -41,6 +44,35 @@ impl FormatContent for ToolOperation {
             | ToolOperation::Skill { output: _ } => None,
         }
     }
+}
+
+/// Formats todos as markdown-style checkboxes
+fn format_todos(todos: &[forge_domain::Todo]) -> String {
+    use forge_domain::TodoStatus;
+
+    if todos.is_empty() {
+        return String::new();
+    }
+
+    let mut result = String::new();
+
+    // Display all todos in order with GitHub markdown-style checkboxes
+    for todo in todos {
+        let checkbox = match todo.status {
+            TodoStatus::Completed => "- [x]",
+            TodoStatus::InProgress => "- [~]",
+            TodoStatus::Pending => "- [ ]",
+        };
+
+        let content = match todo.status {
+            TodoStatus::Completed => format!("~~{}~~", todo.content),
+            _ => todo.content.clone(),
+        };
+
+        result.push_str(&format!("{} {}\n", checkbox, content));
+    }
+
+    result
 }
 
 #[cfg(test)]
@@ -530,6 +562,95 @@ mod tests {
             assert_eq!(title.sub_title, None);
         } else {
             panic!("Expected Title content");
+        }
+    }
+
+    #[test]
+    fn test_todo_write_empty() {
+        let fixture = ToolOperation::TodoWrite { output: vec![] };
+        let env = fixture_environment();
+
+        let actual = fixture.to_content(&env);
+        assert!(actual.is_some());
+        if let Some(ChatResponseContent::Markdown { text, partial }) = actual {
+            assert_eq!(text, "");
+            assert!(!partial);
+        } else {
+            panic!("Expected Markdown content");
+        }
+    }
+
+    #[test]
+    fn test_todo_write_mixed_statuses() {
+        use forge_domain::{Todo, TodoStatus};
+
+        let todos = vec![
+            Todo::new("Task 1").id("1").status(TodoStatus::Pending),
+            Todo::new("Task 2").id("2").status(TodoStatus::InProgress),
+            Todo::new("Task 3").id("3").status(TodoStatus::Completed),
+        ];
+
+        let fixture = ToolOperation::TodoWrite { output: todos };
+        let env = fixture_environment();
+
+        let actual = fixture.to_content(&env);
+        assert!(actual.is_some());
+        if let Some(ChatResponseContent::Markdown { text, partial }) = actual {
+            let expected = "- [ ] Task 1\n- [~] Task 2\n- [x] ~~Task 3~~\n";
+            assert_eq!(text, expected);
+            assert!(!partial);
+        } else {
+            panic!("Expected Markdown content");
+        }
+    }
+
+    #[test]
+    fn test_todo_write_all_completed() {
+        use forge_domain::{Todo, TodoStatus};
+
+        let todos = vec![
+            Todo::new("Task 1").id("1").status(TodoStatus::Completed),
+            Todo::new("Task 2").id("2").status(TodoStatus::Completed),
+        ];
+
+        let fixture = ToolOperation::TodoWrite { output: todos };
+        let env = fixture_environment();
+
+        let actual = fixture.to_content(&env);
+        assert!(actual.is_some());
+        if let Some(ChatResponseContent::Markdown { text, partial }) = actual {
+            let expected = "- [x] ~~Task 1~~\n- [x] ~~Task 2~~\n";
+            assert_eq!(text, expected);
+            assert!(!partial);
+        } else {
+            panic!("Expected Markdown content");
+        }
+    }
+
+    #[test]
+    fn test_todo_write_realistic() {
+        use forge_domain::{Todo, TodoStatus};
+
+        let todos = vec![
+            Todo::new("Implement user authentication")
+                .id("1")
+                .status(TodoStatus::Completed),
+            Todo::new("Walk the dog")
+                .id("2")
+                .status(TodoStatus::Pending),
+        ];
+
+        let fixture = ToolOperation::TodoWrite { output: todos };
+        let env = fixture_environment();
+
+        let actual = fixture.to_content(&env);
+        assert!(actual.is_some());
+        if let Some(ChatResponseContent::Markdown { text, partial }) = actual {
+            let expected = "- [x] ~~Implement user authentication~~\n- [ ] Walk the dog\n";
+            assert_eq!(text, expected);
+            assert!(!partial);
+        } else {
+            panic!("Expected Markdown content");
         }
     }
 }

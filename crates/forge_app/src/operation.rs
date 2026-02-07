@@ -74,6 +74,9 @@ pub enum ToolOperation {
     Skill {
         output: forge_domain::Skill,
     },
+    TodoWrite {
+        output: Vec<forge_domain::Todo>,
+    },
 }
 
 /// Trait for stream elements that can be converted to XML elements
@@ -607,6 +610,19 @@ impl ToolOperation {
                     elm = elm.append(output.resources.iter().map(|resource| {
                         Element::new("resource").text(resource.display().to_string())
                     }));
+                }
+
+                forge_domain::ToolOutput::text(elm)
+            }
+            ToolOperation::TodoWrite { output } => {
+                let mut elm = Element::new("todos_created").attr("count", output.len());
+
+                for todo in output {
+                    let todo_elm = Element::new("todo")
+                        .attr("id", &todo.id)
+                        .attr("content", &todo.content)
+                        .attr("status", format!("{:?}", todo.status));
+                    elm = elm.append(todo_elm);
                 }
 
                 forge_domain::ToolOutput::text(elm)
