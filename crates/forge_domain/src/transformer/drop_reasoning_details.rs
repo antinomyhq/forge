@@ -84,21 +84,23 @@ impl Transformer for DropReasoningDetailsFromOtherModels {
         for message in &context.messages {
             if let crate::ContextMessage::Text(text) = &**message
                 && text.role == crate::Role::User
-                    && let Some(message_model) = &text.model {
-                        current_active_model = Some(message_model);
-                    }
+                && let Some(message_model) = &text.model
+            {
+                current_active_model = Some(message_model);
+            }
             model_at_index.push(current_active_model.cloned());
         }
 
         // Drop reasoning_details from messages that were created by a different model
         for (idx, message) in context.messages.iter_mut().enumerate() {
             if let crate::ContextMessage::Text(text) = &mut **message
-                && let Some(message_model) = &model_at_index[idx] {
-                    // Drop reasoning if this message was from a different model
-                    if message_model != &self.current_model {
-                        text.reasoning_details = None;
-                    }
+                && let Some(message_model) = &model_at_index[idx]
+            {
+                // Drop reasoning if this message was from a different model
+                if message_model != &self.current_model {
+                    text.reasoning_details = None;
                 }
+            }
         }
 
         context
