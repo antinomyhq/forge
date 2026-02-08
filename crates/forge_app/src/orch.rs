@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use async_recursion::async_recursion;
 use derive_setters::Setters;
-use forge_domain::{Agent, *};
+use forge_domain::{Agent, EventData, EventHandle, ToolcallStartPayload, *};
 use forge_template::Element;
 use tokio::task::JoinHandle;
 use tracing::{debug, info, warn};
@@ -13,6 +13,7 @@ use tracing::{debug, info, warn};
 use crate::TemplateEngine;
 use crate::agent::AgentService;
 use crate::compact::Compactor;
+use crate::doom_loop_detector::DoomLoopDetector;
 use crate::title_generator::TitleGenerator;
 
 #[derive(Clone, Setters)]
@@ -38,6 +39,10 @@ impl<S: AgentService> Orchestrator<S> {
         agent: Agent,
         event: Event,
     ) -> Self {
+        // Set up the hook with the doom loop detector on toolcall_start
+        let hook = Hook::default().on_toolcall_start(Box::new(DoomLoopDetector::default())
+            as Box<dyn EventHandle<EventData<ToolcallStartPayload>>>);
+
         Self {
             conversation,
             environment,
@@ -48,7 +53,7 @@ impl<S: AgentService> Orchestrator<S> {
             tool_definitions: Default::default(),
             models: Default::default(),
             error_tracker: Default::default(),
-            hook: Arc::new(Hook::default()),
+            hook: Arc::new(hook),
         }
     }
 
@@ -81,21 +86,27 @@ impl<S: AgentService> Orchestrator<S> {
                     .await?;
             }
 
-            // Fire the ToolcallStart lifecycle event
+            // Fire the ToolcallStart lifecycle event (may return DoomLoopError)
             let toolcall_start_event = LifecycleEvent::ToolcallStart(EventData::new(
                 self.agent.clone(),
                 self.agent.model.clone(),
                 ToolcallStartPayload::new(tool_call.clone()),
             ));
-            self.hook
-                .handle(&toolcall_start_event, &mut self.conversation)
-                .await?;
 
-            // Execute the tool
-            let tool_result = self
-                .services
-                .call(&self.agent, tool_context, tool_call.clone())
-                .await;
+            let tool_result = match self
+                .hook
+                .handle(&toolcall_start_event, &mut self.conversation)
+                .await
+            {
+                Ok(()) => {
+                    self.services
+                        .call(&self.agent, tool_context, tool_call.clone())
+                        .await
+                }
+                Err(err) => ToolResult::new(tool_call.name.as_str())
+                    .call_id(tool_call.call_id.clone())
+                    .failure(err),
+            };
 
             if tool_result.is_error() {
                 warn!(
