@@ -52,6 +52,17 @@ use crate::{TRACKER, banner, tracker};
 // File-specific constants
 const MISSING_AGENT_TITLE: &str = "<missing agent.title>";
 
+/// Represents the structure of a conversation dump file.
+///
+/// This format is used when exporting conversations to JSON files,
+/// including both the main conversation and any related agent conversations.
+#[derive(serde::Deserialize)]
+struct ConversationDump {
+    conversation: Conversation,
+    #[allow(dead_code)]
+    related_conversations: Vec<Conversation>,
+}
+
 /// Formats an MCP server config for display, redacting sensitive information.
 /// Returns the command/URL string only.
 fn format_mcp_server(server: &forge_domain::McpServerConfig) -> String {
@@ -2497,9 +2508,21 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             }
             id
         } else if let Some(ref path) = self.cli.conversation {
-            let conversation: Conversation =
-                serde_json::from_str(ForgeFS::read_utf8(path.as_os_str()).await?.as_str())
-                    .context("Failed to parse Conversation")?;
+            let content = ForgeFS::read_utf8(path.as_os_str()).await?;
+
+            // Try to load as new format (ConversationDump wrapper) first
+            let conversation = if let Ok(dump) = serde_json::from_str::<ConversationDump>(&content)
+            {
+                dump.conversation
+            } else if let Ok(conv) = serde_json::from_str::<Conversation>(&content) {
+                // Fallback to old format (direct Conversation)
+                conv
+            } else {
+                // If both fail, create a new conversation and log the error
+                eprintln!("Warning: Failed to parse conversation file. Creating new conversation.");
+                Conversation::generate()
+            };
+
             let id = conversation.id;
             self.api.upsert_conversation(conversation).await?;
             id
