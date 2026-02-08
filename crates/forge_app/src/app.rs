@@ -10,6 +10,7 @@ use crate::apply_tunable_parameters::ApplyTunableParameters;
 use crate::authenticator::Authenticator;
 use crate::changed_files::ChangedFiles;
 use crate::dto::ToolsOverview;
+use crate::hooks::CompactionHandler;
 use crate::init_conversation_metrics::InitConversationMetrics;
 use crate::orch::Orchestrator;
 use crate::services::{
@@ -141,6 +142,9 @@ impl<S: Services> ForgeApp<S> {
         let conversation = SetConversationId.apply(conversation);
 
         // Create the orchestrator with all necessary dependencies
+        let hook = Hook::default()
+            .on_response(CompactionHandler::new(agent.clone(), environment.clone()));
+        
         let orch = Orchestrator::new(
             services.clone(),
             environment.clone(),
@@ -150,7 +154,8 @@ impl<S: Services> ForgeApp<S> {
         )
         .error_tracker(ToolErrorTracker::new(max_tool_failure_per_turn))
         .tool_definitions(tool_definitions)
-        .models(models);
+        .models(models)
+        .hook(Arc::new(hook));
 
         // Create and return the stream
         let stream = MpscStream::spawn(

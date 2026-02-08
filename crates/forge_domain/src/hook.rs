@@ -173,8 +173,6 @@ impl<T: Send + Sync> EventHandle<T> for Box<dyn EventHandle<T>> {
 ///
 /// Hooks allow you to attach custom behavior at specific points
 /// during conversation processing.
-#[derive(Setters)]
-#[setters(into)]
 pub struct Hook {
     on_start: Box<dyn EventHandle<EventData<StartPayload>>>,
     on_end: Box<dyn EventHandle<EventData<EndPayload>>>,
@@ -223,6 +221,62 @@ impl Hook {
             on_toolcall_start: on_toolcall_start.into(),
             on_toolcall_end: on_toolcall_end.into(),
         }
+    }
+}
+
+impl Hook {
+    /// Sets the start event handler
+    ///
+    /// # Arguments
+    /// * `handler` - Handler for start events (automatically boxed)
+    pub fn on_start(mut self, handler: impl EventHandle<EventData<StartPayload>> + 'static) -> Self {
+        self.on_start = Box::new(handler);
+        self
+    }
+
+    /// Sets the end event handler
+    ///
+    /// # Arguments
+    /// * `handler` - Handler for end events (automatically boxed)
+    pub fn on_end(mut self, handler: impl EventHandle<EventData<EndPayload>> + 'static) -> Self {
+        self.on_end = Box::new(handler);
+        self
+    }
+
+    /// Sets the request event handler
+    ///
+    /// # Arguments
+    /// * `handler` - Handler for request events (automatically boxed)
+    pub fn on_request(mut self, handler: impl EventHandle<EventData<RequestPayload>> + 'static) -> Self {
+        self.on_request = Box::new(handler);
+        self
+    }
+
+    /// Sets the response event handler
+    ///
+    /// # Arguments
+    /// * `handler` - Handler for response events (automatically boxed)
+    pub fn on_response(mut self, handler: impl EventHandle<EventData<ResponsePayload>> + 'static) -> Self {
+        self.on_response = Box::new(handler);
+        self
+    }
+
+    /// Sets the tool call start event handler
+    ///
+    /// # Arguments
+    /// * `handler` - Handler for tool call start events (automatically boxed)
+    pub fn on_toolcall_start(mut self, handler: impl EventHandle<EventData<ToolcallStartPayload>> + 'static) -> Self {
+        self.on_toolcall_start = Box::new(handler);
+        self
+    }
+
+    /// Sets the tool call end event handler
+    ///
+    /// # Arguments
+    /// * `handler` - Handler for tool call end events (automatically boxed)
+    pub fn on_toolcall_end(mut self, handler: impl EventHandle<EventData<ToolcallEndPayload>> + 'static) -> Self {
+        self.on_toolcall_end = Box::new(handler);
+        self
     }
 }
 

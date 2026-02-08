@@ -12,7 +12,6 @@ use tracing::{debug, info, warn};
 
 use crate::TemplateEngine;
 use crate::agent::AgentService;
-use crate::compact::Compactor;
 use crate::title_generator::TitleGenerator;
 
 #[derive(Clone, Setters)]
@@ -190,20 +189,6 @@ impl<S: AgentService> Orchestrator<S> {
             .into_full_streaming(!tool_supported, self.sender.clone())
             .await
     }
-    /// Checks if compaction is needed and performs it if necessary
-    fn check_and_compact(&self, context: &Context) -> anyhow::Result<Option<Context>> {
-        // Estimate token count for compaction decision
-        let token_count = context.token_count();
-        if self.agent.compact.should_compact(context, *token_count) {
-            info!(agent_id = %self.agent.id, "Compaction needed");
-            Compactor::new(self.agent.compact.clone(), self.environment.clone())
-                .compact(context.clone(), false)
-                .map(Some)
-        } else {
-            debug!(agent_id = %self.agent.id, "Compaction not needed");
-            Ok(None)
-        }
-    }
 
     // Create a helper method with the core functionality
     pub async fn run(&mut self) -> anyhow::Result<()> {
@@ -297,15 +282,9 @@ impl<S: AgentService> Orchestrator<S> {
                 .handle(&response_event, &mut self.conversation)
                 .await?;
 
-            // TODO: Add a unit test in orch spec, to guarantee that compaction is
-            // triggered after receiving the response
-            // making a request NOTE: Ideally compaction should be implemented
-            // as a transformer
-            if let Some(c_context) = self.check_and_compact(&context)? {
-                info!(agent_id = %self.agent.id, "Using compacted context from execution");
-                context = c_context;
-            } else {
-                debug!(agent_id = %self.agent.id, "No compaction was needed");
+            // Update context from conversation after hook runs (compaction may have modified it)
+            if let Some(updated_context) = &self.conversation.context {
+                context = updated_context.clone();
             }
 
             info!(
