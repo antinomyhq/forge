@@ -1,4 +1,3 @@
-// Tests for this module can be found in: tests/orch_*.rs
 use std::collections::HashSet;
 use std::sync::Arc;
 use std::time::Duration;
@@ -8,7 +7,6 @@ use derive_setters::Setters;
 use forge_domain::{Agent, *};
 use forge_template::Element;
 use tokio::task::JoinHandle;
-use tracing::{debug, info, warn};
 
 use crate::TemplateEngine;
 use crate::agent::AgentService;
@@ -96,16 +94,6 @@ impl<S: AgentService> Orchestrator<S> {
                 .call(&self.agent, tool_context, tool_call.clone())
                 .await;
 
-            if tool_result.is_error() {
-                warn!(
-                    agent_id = %self.agent.id,
-                    name = %tool_call.name,
-                    arguments = %tool_call.arguments.to_owned().into_string(),
-                    output = ?tool_result.output,
-                    "Tool call failed",
-                );
-            }
-
             // Fire the ToolcallEnd lifecycle event
             let toolcall_end_event = LifecycleEvent::ToolcallEnd(EventData::new(
                 self.agent.clone(),
@@ -153,12 +141,6 @@ impl<S: AgentService> Orchestrator<S> {
             }
         };
 
-        debug!(
-            agent_id = %self.agent.id,
-            model_id = %model_id,
-            tool_supported,
-            "Tool support check"
-        );
         Ok(tool_supported)
     }
 
@@ -192,21 +174,6 @@ impl<S: AgentService> Orchestrator<S> {
 
     // Create a helper method with the core functionality
     pub async fn run(&mut self) -> anyhow::Result<()> {
-        let event = self.event.clone();
-
-        debug!(
-            conversation_id = %self.conversation.id.clone(),
-            event_value = %format!("{:?}", event.value),
-            "Dispatching event"
-        );
-
-        debug!(
-            conversation_id = %self.conversation.id,
-            agent = %self.agent.id,
-            event = ?event,
-            "Initializing agent"
-        );
-
         let model_id = self.get_model();
 
         let mut context = self.conversation.context.clone().unwrap_or_default();
@@ -258,11 +225,7 @@ impl<S: AgentService> Orchestrator<S> {
                 || self.execute_chat_turn(&model_id, context.clone(), context.is_reasoning_supported()),
                 self.sender.as_ref().map(|sender| {
                     let sender = sender.clone();
-                    let agent_id = self.agent.id.clone();
-                    let model_id = model_id.clone();
                     move |error: &anyhow::Error, duration: Duration| {
-                        let root_cause = error.root_cause();
-                        tracing::error!(agent_id = %agent_id, error = ?root_cause, model=%model_id, "Retry Attempt");
                         let retry_event = ChatResponse::RetryAttempt {
                             cause: error.into(),
                             duration,
@@ -287,18 +250,6 @@ impl<S: AgentService> Orchestrator<S> {
                 context = updated_context.clone();
             }
 
-            info!(
-                conversation_id = %self.conversation.id,
-                conversation_length = context.messages.len(),
-                token_usage = format!("{}", message.usage.prompt_tokens),
-                total_tokens = format!("{}", message.usage.total_tokens),
-                cached_tokens = format!("{}", message.usage.cached_tokens),
-                cost = message.usage.cost.unwrap_or_default(),
-                finish_reason = message.finish_reason.as_ref().map_or("", |reason| reason.into()),
-                "Processing usage information"
-            );
-
-            debug!(agent_id = %self.agent.id, tool_call_count = message.tool_calls.len(), "Tool call count");
             // Turn is completed, if finish_reason is 'stop'. Gemini models return stop as
             // finish reason with tool calls.
             is_complete =
@@ -363,13 +314,6 @@ impl<S: AgentService> Orchestrator<S> {
             if !should_yield && let Some(max_request_allowed) = max_requests_per_turn {
                 // Check if agent has reached the maximum request per turn limit
                 if request_count >= max_request_allowed {
-                    warn!(
-                        agent_id = %self.agent.id,
-                        model_id = %model_id,
-                        request_count,
-                        max_request_allowed,
-                        "Agent has reached the maximum request per turn limit"
-                    );
                     // raise an interrupt event to notify the UI
                     self.send(ChatResponse::Interrupt {
                         reason: InterruptionReason::MaxRequestPerTurnLimitReached {
@@ -390,7 +334,6 @@ impl<S: AgentService> Orchestrator<S> {
 
         // Set conversation title
         if let Some(title) = title.await.ok().flatten() {
-            debug!(conversation_id = %self.conversation.id, title, "Title generated for conversation");
             self.conversation.title = Some(title)
         }
 
