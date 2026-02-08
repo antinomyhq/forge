@@ -302,27 +302,108 @@ fi
 # 6. Check required ZSH plugins
 print_section "Required Plugins"
 
+# Helper function to check if plugin is installed on the system
+function check_plugin_installed() {
+    local plugin_name=$1
+    local plugin_path=""
+
+    # Check common installation paths
+    if [[ -n "$ZSH" ]]; then
+        # Oh My Zsh custom plugins
+        if [[ -d "${ZSH_CUSTOM:-$ZSH/custom}/plugins/$plugin_name" ]]; then
+            plugin_path="${ZSH_CUSTOM:-$ZSH/custom}/plugins/$plugin_name"
+        # Oh My Zsh built-in plugins
+        elif [[ -d "$ZSH/plugins/$plugin_name" ]]; then
+            plugin_path="$ZSH/plugins/$plugin_name"
+        fi
+    fi
+
+    # Check standard zsh plugin locations
+    if [[ -z "$plugin_path" ]]; then
+        # Check in /usr/share/zsh/plugins
+        if [[ -d "/usr/share/zsh/plugins/$plugin_name" ]]; then
+            plugin_path="/usr/share/zsh/plugins/$plugin_name"
+        # Check in /usr/local/share/zsh/plugins
+        elif [[ -d "/usr/local/share/zsh/plugins/$plugin_name" ]]; then
+            plugin_path="/usr/local/share/zsh/plugins/$plugin_name"
+        # Check in $HOME/.zsh/plugins
+        elif [[ -d "$HOME/.zsh/plugins/$plugin_name" ]]; then
+            plugin_path="$HOME/.zsh/plugins/$plugin_name"
+        # Check in $ZDOTDIR/.zsh/plugins
+        elif [[ -n "$ZDOTDIR" && -d "$ZDOTDIR/.zsh/plugins/$plugin_name" ]]; then
+            plugin_path="$ZDOTDIR/.zsh/plugins/$plugin_name"
+        fi
+    fi
+
+    echo "$plugin_path"
+}
+
+# Function to validate a zsh plugin
+# Arguments: plugin_name, repo_url, install_guide_url, [function_to_check]
+function validate_zsh_plugin() {
+    local plugin_name=$1
+    local repo_url=$2
+    local install_guide_url=$3
+    local function_to_check=${4:-}
+
+    local in_array=false
+    local loaded=false
+    local plugin_path=""
+
+    # Check if plugin is in array
+    if [[ " ${plugins[*]} " =~ " ${plugin_name} " ]]; then
+        in_array=true
+        plugin_path=$(check_plugin_installed "$plugin_name")
+    fi
+
+    # Check if plugin is loaded
+    if [[ -n "$fpath[(r)*${plugin_name}*]" ]]; then
+        loaded=true
+    elif [[ -n "$function_to_check" ]] && (( $+functions[$function_to_check] )); then
+        loaded=true
+    fi
+
+    # Report results
+    if [[ "$loaded" == "true" ]]; then
+        if [[ -n "$plugin_path" ]]; then
+            print_result pass "${plugin_name} loaded"
+            print_result info "${plugin_path}"
+        else
+            print_result pass "${plugin_name} loaded"
+            print_result info "Installation path: unknown"
+        fi
+    elif [[ "$in_array" == "true" ]]; then
+        if [[ -n "$plugin_path" ]]; then
+            print_result warn "${plugin_name} configured but not loaded"
+            print_result info "Found at: ${plugin_path}"
+            print_result instruction "Ensure plugin is loaded after plugins=() array in .zshrc"
+        else
+            print_result fail "${plugin_name} in plugins array but not installed"
+            print_result instruction "Install plugin:"
+            print_result code "git clone ${repo_url} \${ZSH_CUSTOM:-\$ZSH/custom}/plugins/${plugin_name}"
+            print_result info "Installation guide: ${install_guide_url}"
+        fi
+    else
+        print_result warn "${plugin_name} not found"
+        print_result info "Install plugin and add to plugins=() in .zshrc"
+        print_result code "git clone ${repo_url} \${ZSH_CUSTOM:-\$ZSH/custom}/plugins/${plugin_name}"
+        print_result info "Installation guide: ${install_guide_url}"
+    fi
+}
+
 # Check for zsh-autosuggestions
-if [[ " ${plugins[*]} " =~ " zsh-autosuggestions " ]] || \
-   [[ -n "$fpath[(r)*zsh-autosuggestions*]" ]] || \
-   (( $+functions[_zsh_autosuggest_accept] )); then
-    print_result pass "zsh-autosuggestions loaded"
-else
-    print_result warn "zsh-autosuggestions not found"
-    print_result info "Install plugin and add to plugins=() in .zshrc"
-    print_result info "Installation guide: https://github.com/zsh-users/zsh-autosuggestions/blob/master/INSTALL.md"
-fi
+validate_zsh_plugin \
+    "zsh-autosuggestions" \
+    "https://github.com/zsh-users/zsh-autosuggestions" \
+    "https://github.com/zsh-users/zsh-autosuggestions/blob/master/INSTALL.md" \
+    "_zsh_autosuggest_accept"
 
 # Check for zsh-syntax-highlighting
-if [[ " ${plugins[*]} " =~ " zsh-syntax-highlighting " ]] || \
-   [[ -n "$fpath[(r)*zsh-syntax-highlighting*]" ]] || \
-   (( $+functions[_zsh_highlight] )); then
-    print_result pass "zsh-syntax-highlighting loaded"
-else
-    print_result warn "zsh-syntax-highlighting not found"
-    print_result info "Install plugin and add to plugins=() in .zshrc"
-    print_result info "Installation guide: https://github.com/zsh-users/zsh-syntax-highlighting/blob/master/INSTALL.md"
-fi
+validate_zsh_plugin \
+    "zsh-syntax-highlighting" \
+    "https://github.com/zsh-users/zsh-syntax-highlighting" \
+    "https://github.com/zsh-users/zsh-syntax-highlighting/blob/master/INSTALL.md" \
+    "_zsh_highlight"
 
 # 7. Check system configuration
 print_section "System"
