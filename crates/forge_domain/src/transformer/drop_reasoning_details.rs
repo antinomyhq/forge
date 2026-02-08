@@ -80,30 +80,27 @@ impl Transformer for DropReasoningDetailsFromOtherModels {
         // by tracking user messages that have model information
         let mut current_active_model: Option<&ModelId> = None;
         let mut model_at_index: Vec<Option<ModelId>> = Vec::with_capacity(context.messages.len());
-        
+
         for message in &context.messages {
-            if let crate::ContextMessage::Text(text) = &**message {
-                if text.role == crate::Role::User {
-                    if let Some(message_model) = &text.model {
+            if let crate::ContextMessage::Text(text) = &**message
+                && text.role == crate::Role::User
+                    && let Some(message_model) = &text.model {
                         current_active_model = Some(message_model);
                     }
-                }
-            }
             model_at_index.push(current_active_model.cloned());
         }
-        
+
         // Drop reasoning_details from messages that were created by a different model
         for (idx, message) in context.messages.iter_mut().enumerate() {
-            if let crate::ContextMessage::Text(text) = &mut **message {
-                if let Some(message_model) = &model_at_index[idx] {
+            if let crate::ContextMessage::Text(text) = &mut **message
+                && let Some(message_model) = &model_at_index[idx] {
                     // Drop reasoning if this message was from a different model
                     if message_model != &self.current_model {
                         text.reasoning_details = None;
                     }
                 }
-            }
         }
-        
+
         context
     }
 }
@@ -395,8 +392,7 @@ mod tests {
                     .reasoning_details(reasoning.clone()),
             ))
             .add_message(ContextMessage::Text(
-                TextMessage::new(Role::User, "Switch to Anthropic")
-                    .model(anthropic_model.clone()),
+                TextMessage::new(Role::User, "Switch to Anthropic").model(anthropic_model.clone()),
             ))
             .add_message(ContextMessage::Text(
                 TextMessage::new(Role::Assistant, "Anthropic response")
@@ -406,8 +402,7 @@ mod tests {
                 TextMessage::new(Role::User, "Back to ZAI").model(zai_model.clone()),
             ))
             .add_message(ContextMessage::Text(
-                TextMessage::new(Role::Assistant, "ZAI response 2")
-                    .reasoning_details(reasoning),
+                TextMessage::new(Role::Assistant, "ZAI response 2").reasoning_details(reasoning),
             ));
 
         // Current model is ZAI, so it should keep ZAI reasoning and drop Anthropic
