@@ -76,35 +76,34 @@ impl DropReasoningDetailsFromOtherModels {
 impl Transformer for DropReasoningDetailsFromOtherModels {
     type Value = Context;
     fn transform(&mut self, mut context: Self::Value) -> Self::Value {
-        // Find the first user message with the current model (searching from end)
-        // This marks the "model switch point"
-        let switch_point = context
-            .messages
-            .iter()
-            .enumerate()
-            .rev()
-            .find_map(|(idx, msg)| {
-                if let crate::ContextMessage::Text(text) = &**msg
-                    && text.role == crate::Role::User
-                    && let Some(message_model) = &text.model
-                    && message_model == &self.current_model
-                {
-                    return Some(idx);
+        // Build a map of which model was active at each message index
+        // by tracking user messages that have model information
+        let mut current_active_model: Option<&ModelId> = None;
+        let mut model_at_index: Vec<Option<ModelId>> = Vec::with_capacity(context.messages.len());
+        
+        for message in &context.messages {
+            if let crate::ContextMessage::Text(text) = &**message {
+                if text.role == crate::Role::User {
+                    if let Some(message_model) = &text.model {
+                        current_active_model = Some(message_model);
+                    }
                 }
-                None
-            });
-
-        // Drop reasoning from all messages before the switch point
-        if let Some(switch_idx) = switch_point {
-            for (idx, message) in context.messages.iter_mut().enumerate() {
-                if idx < switch_idx
-                    && let crate::ContextMessage::Text(text) = &mut **message
-                {
-                    text.reasoning_details = None;
+            }
+            model_at_index.push(current_active_model.cloned());
+        }
+        
+        // Drop reasoning_details from messages that were created by a different model
+        for (idx, message) in context.messages.iter_mut().enumerate() {
+            if let crate::ContextMessage::Text(text) = &mut **message {
+                if let Some(message_model) = &model_at_index[idx] {
+                    // Drop reasoning if this message was from a different model
+                    if message_model != &self.current_model {
+                        text.reasoning_details = None;
+                    }
                 }
             }
         }
-
+        
         context
     }
 }
@@ -359,19 +358,83 @@ mod tests {
         let mut transformer = super::DropReasoningDetailsFromOtherModels::new(model);
         let actual = transformer.transform(fixture);
 
-        // The transformer finds the LAST user message with current model (idx 2)
-        // and drops reasoning from all messages BEFORE that point
-        // So Response 1 (idx 1) gets dropped, but Response 2 (idx 3) is preserved
+        // All messages are from the same model, so all reasoning should be preserved
         if let crate::ContextMessage::Text(text) = &*actual.messages[1] {
             assert!(
-                text.reasoning_details.is_none(),
-                "Reasoning before last user message should be dropped"
+                text.reasoning_details.is_some(),
+                "Same model reasoning should be preserved"
             );
         }
         if let crate::ContextMessage::Text(text) = &*actual.messages[3] {
             assert!(
                 text.reasoning_details.is_some(),
-                "Reasoning after last user message should be preserved"
+                "Same model reasoning should be preserved"
+            );
+        }
+    }
+
+    #[test]
+    fn test_drop_reasoning_model_a_to_b_to_a() {
+        // Test ZAI → Anthropic → ZAI scenario
+        // Should keep reasoning from BOTH ZAI sessions, drop Anthropic reasoning
+        let zai_model = crate::ModelId::new("z-ai/glm-4.7");
+        let anthropic_model = crate::ModelId::new("anthropic/claude-sonnet-4.5");
+
+        let reasoning = vec![ReasoningFull {
+            text: Some("Some reasoning".to_string()),
+            signature: None,
+            ..Default::default()
+        }];
+
+        let fixture = Context::default()
+            .add_message(ContextMessage::Text(
+                TextMessage::new(Role::User, "User with ZAI").model(zai_model.clone()),
+            ))
+            .add_message(ContextMessage::Text(
+                TextMessage::new(Role::Assistant, "ZAI response 1")
+                    .reasoning_details(reasoning.clone()),
+            ))
+            .add_message(ContextMessage::Text(
+                TextMessage::new(Role::User, "Switch to Anthropic")
+                    .model(anthropic_model.clone()),
+            ))
+            .add_message(ContextMessage::Text(
+                TextMessage::new(Role::Assistant, "Anthropic response")
+                    .reasoning_details(reasoning.clone()),
+            ))
+            .add_message(ContextMessage::Text(
+                TextMessage::new(Role::User, "Back to ZAI").model(zai_model.clone()),
+            ))
+            .add_message(ContextMessage::Text(
+                TextMessage::new(Role::Assistant, "ZAI response 2")
+                    .reasoning_details(reasoning),
+            ));
+
+        // Current model is ZAI, so it should keep ZAI reasoning and drop Anthropic
+        let mut transformer = super::DropReasoningDetailsFromOtherModels::new(zai_model);
+        let actual = transformer.transform(fixture);
+
+        // Message 1: ZAI reasoning - should be KEPT
+        if let crate::ContextMessage::Text(text) = &*actual.messages[1] {
+            assert!(
+                text.reasoning_details.is_some(),
+                "First ZAI session reasoning should be preserved"
+            );
+        }
+
+        // Message 3: Anthropic reasoning - should be DROPPED
+        if let crate::ContextMessage::Text(text) = &*actual.messages[3] {
+            assert!(
+                text.reasoning_details.is_none(),
+                "Anthropic reasoning should be dropped"
+            );
+        }
+
+        // Message 5: ZAI reasoning - should be KEPT
+        if let crate::ContextMessage::Text(text) = &*actual.messages[5] {
+            assert!(
+                text.reasoning_details.is_some(),
+                "Second ZAI session reasoning should be preserved"
             );
         }
     }
