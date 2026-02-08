@@ -175,7 +175,6 @@ function forge-accept-line() {
         ;;
         commit)
             _forge_action_commit "$input_text"
-            return
         ;;
         commit-preview)
             _forge_action_commit_preview "$input_text"
@@ -212,6 +211,6 @@ function forge-accept-line() {
     
     # Centralized reset after all actions complete
     # This ensures consistent prompt state without requiring each action to call _forge_reset
-    # Exceptions: editor, commit, and suggest actions return early as they intentionally modify BUFFER
+    # Exceptions: editor, commit-preview, and suggest actions return early as they intentionally modify BUFFER
     _forge_reset
 }
