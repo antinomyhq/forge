@@ -113,9 +113,10 @@ impl DoomLoopDetector {
         messages
             .filter_map(|msg| {
                 if let ContextMessage::Text(text_msg) = msg
-                    && text_msg.role == Role::Assistant {
-                        return Some(text_msg);
-                    }
+                    && text_msg.role == Role::Assistant
+                {
+                    return Some(text_msg);
+                }
                 None
             })
             .collect()
@@ -331,9 +332,11 @@ mod tests {
             droppable: false,
         };
 
-        let messages = [ContextMessage::Text(assistant_msg_1.clone()),
+        let messages = [
+            ContextMessage::Text(assistant_msg_1.clone()),
             ContextMessage::Text(user_msg),
-            ContextMessage::Text(assistant_msg_2.clone())];
+            ContextMessage::Text(assistant_msg_2.clone()),
+        ];
 
         let result = DoomLoopDetector::extract_assistant_messages(messages.iter());
 
