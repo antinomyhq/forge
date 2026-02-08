@@ -82,14 +82,16 @@ impl ToolcallStartPayload {
 #[derive(Debug, PartialEq, Clone, Setters)]
 #[setters(into)]
 pub struct ToolcallEndPayload {
-    /// The tool result
+    /// The original tool call that was executed
+    pub tool_call: ToolCallFull,
+    /// The tool result (success or failure)
     pub result: ToolResult,
 }
 
 impl ToolcallEndPayload {
     /// Creates a new tool call end payload
-    pub fn new(result: ToolResult) -> Self {
-        Self { result }
+    pub fn new(tool_call: ToolCallFull, result: ToolResult) -> Self {
+        Self { tool_call, result }
     }
 }
 
@@ -633,7 +635,7 @@ mod tests {
             LifecycleEvent::ToolcallEnd(EventData::new(
                 test_agent(),
                 test_model_id(),
-                ToolcallEndPayload::new(ToolResult::new("test_tool")),
+                ToolcallEndPayload::new(ToolCallFull::new("test_tool"), ToolResult::new("test_tool")),
             )),
         ];
 

@@ -95,11 +95,11 @@ impl<S: AgentService> Orchestrator<S> {
                 .call(&self.agent, tool_context, tool_call.clone())
                 .await;
 
-            // Fire the ToolcallEnd lifecycle event
+            // Fire the ToolcallEnd lifecycle event (fires on both success and failure)
             let toolcall_end_event = LifecycleEvent::ToolcallEnd(EventData::new(
                 self.agent.clone(),
                 self.agent.model.clone(),
-                ToolcallEndPayload::new(tool_result.clone()),
+                ToolcallEndPayload::new(tool_call.clone(), tool_result.clone()),
             ));
             self.hook
                 .handle(&toolcall_end_event, &mut self.conversation)

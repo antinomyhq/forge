@@ -114,13 +114,15 @@ impl EventHandle<EventData<ToolcallEndPayload>> for TracingHandler {
         event: &EventData<ToolcallEndPayload>,
         _conversation: &mut Conversation,
     ) -> anyhow::Result<()> {
+        let tool_call = &event.payload.tool_call;
         let result = &event.payload.result;
 
         if result.is_error() {
             warn!(
                 agent_id = %event.agent.id,
-                name = %result.name,
-                call_id = ?result.call_id,
+                name = %tool_call.name,
+                call_id = ?tool_call.call_id,
+                arguments = %tool_call.arguments.to_owned().into_string(),
                 output = ?result.output,
                 "Tool call failed",
             );
@@ -205,10 +207,16 @@ mod tests {
     async fn test_tracing_handler_toolcall_end_error() {
         let handler = TracingHandler::new();
         let mut conversation = Conversation::generate();
+        let tool_call = forge_domain::ToolCallFull {
+            name: ToolName::from("test-tool"),
+            call_id: Some(ToolCallId::new("test-id")),
+            arguments: serde_json::json!({"key": "value"}).into(),
+            thought_signature: None,
+        };
         let result = ToolResult::new(ToolName::from("test-tool"))
             .call_id(ToolCallId::new("test-id"))
             .failure(anyhow::anyhow!("Test error"));
-        let event = EventData::new(test_agent(), test_model_id(), ToolcallEndPayload::new(result));
+        let event = EventData::new(test_agent(), test_model_id(), ToolcallEndPayload::new(tool_call, result));
 
         // Should log warning but not panic
         handler.handle(&event, &mut conversation).await.unwrap();
