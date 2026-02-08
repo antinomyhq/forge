@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use forge_domain::{
-    Conversation, EndPayload, EventData, EventHandle, FinishReason, RequestPayload,
-    ResponsePayload, ToolcallEndPayload, ToolcallStartPayload,
+    Conversation, EndPayload, EventData, EventHandle, RequestPayload, ResponsePayload,
+    StartPayload, ToolcallEndPayload, ToolcallStartPayload,
 };
 use tracing::{debug, info, warn};
 
@@ -24,24 +24,32 @@ impl TracingHandler {
 }
 
 #[async_trait]
+impl EventHandle<EventData<StartPayload>> for TracingHandler {
+    async fn handle(
+        &self,
+        event: &EventData<StartPayload>,
+        conversation: &mut Conversation,
+    ) -> anyhow::Result<()> {
+        debug!(
+            conversation_id = %conversation.id,
+            agent = %event.agent.id,
+            model = %event.model_id,
+            "Initializing agent"
+        );
+
+        Ok(())
+    }
+}
+
+#[async_trait]
 impl EventHandle<EventData<RequestPayload>> for TracingHandler {
     async fn handle(
         &self,
-        event: &EventData<RequestPayload>,
-        conversation: &mut Conversation,
+        _event: &EventData<RequestPayload>,
+        _conversation: &mut Conversation,
     ) -> anyhow::Result<()> {
-        let request_count = event.payload.request_count;
-
-        // Log at first request (initialization)
-        if request_count == 0 {
-            debug!(
-                conversation_id = %conversation.id,
-                agent = %event.agent.id,
-                model = %event.model_id,
-                "Initializing agent"
-            );
-        }
-
+        // Request events are logged but don't need specific logging per request
+        // The Start event logs initialization, Response events log the results
         Ok(())
     }
 }
@@ -91,6 +99,7 @@ impl EventHandle<EventData<ToolcallStartPayload>> for TracingHandler {
             agent_id = %event.agent.id,
             tool_name = %tool_call.name,
             call_id = ?tool_call.call_id,
+            arguments = %tool_call.arguments.to_owned().into_string(),
             "Tool call started"
         );
 
@@ -151,6 +160,16 @@ mod tests {
 
     fn test_model_id() -> ModelId {
         ModelId::new("test-model")
+    }
+
+    #[tokio::test]
+    async fn test_tracing_handler_start() {
+        let handler = TracingHandler::new();
+        let mut conversation = Conversation::generate();
+        let event = EventData::new(test_agent(), test_model_id(), StartPayload);
+
+        // Should not panic
+        handler.handle(&event, &mut conversation).await.unwrap();
     }
 
     #[tokio::test]

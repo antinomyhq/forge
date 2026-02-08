@@ -7,6 +7,7 @@ use derive_setters::Setters;
 use forge_domain::{Agent, *};
 use forge_template::Element;
 use tokio::task::JoinHandle;
+use tracing::warn;
 
 use crate::TemplateEngine;
 use crate::agent::AgentService;
@@ -225,7 +226,17 @@ impl<S: AgentService> Orchestrator<S> {
                 || self.execute_chat_turn(&model_id, context.clone(), context.is_reasoning_supported()),
                 self.sender.as_ref().map(|sender| {
                     let sender = sender.clone();
+                    let agent_id = self.agent.id.clone();
+                    let model_id = model_id.clone();
                     move |error: &anyhow::Error, duration: Duration| {
+                        let root_cause = error.root_cause();
+                        // Log retry attempts - critical for debugging API failures
+                        tracing::error!(
+                            agent_id = %agent_id,
+                            error = ?root_cause,
+                            model = %model_id,
+                            "Retry attempt due to error"
+                        );
                         let retry_event = ChatResponse::RetryAttempt {
                             cause: error.into(),
                             duration,
@@ -314,6 +325,14 @@ impl<S: AgentService> Orchestrator<S> {
             if !should_yield && let Some(max_request_allowed) = max_requests_per_turn {
                 // Check if agent has reached the maximum request per turn limit
                 if request_count >= max_request_allowed {
+                    // Log warning - important for understanding conversation interruptions
+                    warn!(
+                        agent_id = %self.agent.id,
+                        model_id = %model_id,
+                        request_count,
+                        max_request_allowed,
+                        "Agent has reached the maximum request per turn limit"
+                    );
                     // raise an interrupt event to notify the UI
                     self.send(ChatResponse::Interrupt {
                         reason: InterruptionReason::MaxRequestPerTurnLimitReached {
