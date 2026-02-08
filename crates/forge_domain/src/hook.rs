@@ -231,7 +231,10 @@ impl Hook {
     ///
     /// # Arguments
     /// * `handler` - Handler for start events (automatically boxed)
-    pub fn on_start(mut self, handler: impl EventHandle<EventData<StartPayload>> + 'static) -> Self {
+    pub fn on_start(
+        mut self,
+        handler: impl EventHandle<EventData<StartPayload>> + 'static,
+    ) -> Self {
         self.on_start = Box::new(handler);
         self
     }
@@ -249,7 +252,10 @@ impl Hook {
     ///
     /// # Arguments
     /// * `handler` - Handler for request events (automatically boxed)
-    pub fn on_request(mut self, handler: impl EventHandle<EventData<RequestPayload>> + 'static) -> Self {
+    pub fn on_request(
+        mut self,
+        handler: impl EventHandle<EventData<RequestPayload>> + 'static,
+    ) -> Self {
         self.on_request = Box::new(handler);
         self
     }
@@ -258,7 +264,10 @@ impl Hook {
     ///
     /// # Arguments
     /// * `handler` - Handler for response events (automatically boxed)
-    pub fn on_response(mut self, handler: impl EventHandle<EventData<ResponsePayload>> + 'static) -> Self {
+    pub fn on_response(
+        mut self,
+        handler: impl EventHandle<EventData<ResponsePayload>> + 'static,
+    ) -> Self {
         self.on_response = Box::new(handler);
         self
     }
@@ -267,7 +276,10 @@ impl Hook {
     ///
     /// # Arguments
     /// * `handler` - Handler for tool call start events (automatically boxed)
-    pub fn on_toolcall_start(mut self, handler: impl EventHandle<EventData<ToolcallStartPayload>> + 'static) -> Self {
+    pub fn on_toolcall_start(
+        mut self,
+        handler: impl EventHandle<EventData<ToolcallStartPayload>> + 'static,
+    ) -> Self {
         self.on_toolcall_start = Box::new(handler);
         self
     }
@@ -276,7 +288,10 @@ impl Hook {
     ///
     /// # Arguments
     /// * `handler` - Handler for tool call end events (automatically boxed)
-    pub fn on_toolcall_end(mut self, handler: impl EventHandle<EventData<ToolcallEndPayload>> + 'static) -> Self {
+    pub fn on_toolcall_end(
+        mut self,
+        handler: impl EventHandle<EventData<ToolcallEndPayload>> + 'static,
+    ) -> Self {
         self.on_toolcall_end = Box::new(handler);
         self
     }
@@ -635,7 +650,10 @@ mod tests {
             LifecycleEvent::ToolcallEnd(EventData::new(
                 test_agent(),
                 test_model_id(),
-                ToolcallEndPayload::new(ToolCallFull::new("test_tool"), ToolResult::new("test_tool")),
+                ToolcallEndPayload::new(
+                    ToolCallFull::new("test_tool"),
+                    ToolResult::new("test_tool"),
+                ),
             )),
         ];
 

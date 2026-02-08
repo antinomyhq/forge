@@ -7,7 +7,8 @@ use tracing::{debug, info, warn};
 
 /// Handler that provides comprehensive tracing/logging for all lifecycle events
 ///
-/// This handler logs important information at various stages of the orchestration:
+/// This handler logs important information at various stages of the
+/// orchestration:
 /// - Start: Logs conversation and agent initialization
 /// - Request: Logs each request iteration
 /// - Response: Logs token usage, costs, and conversation metrics
@@ -153,11 +154,18 @@ impl EventHandle<EventData<EndPayload>> for TracingHandler {
 
 #[cfg(test)]
 mod tests {
+    use forge_domain::{
+        Agent, ChatCompletionMessageFull, ModelId, ToolCallId, ToolName, ToolResult,
+    };
+
     use super::*;
-    use forge_domain::{Agent, ChatCompletionMessageFull, ModelId, ToolResult, ToolCallId, ToolName};
 
     fn test_agent() -> Agent {
-        Agent::new("test-agent", "test-provider".to_string().into(), ModelId::new("test-model"))
+        Agent::new(
+            "test-agent",
+            "test-provider".to_string().into(),
+            ModelId::new("test-model"),
+        )
     }
 
     fn test_model_id() -> ModelId {
@@ -216,7 +224,11 @@ mod tests {
         let result = ToolResult::new(ToolName::from("test-tool"))
             .call_id(ToolCallId::new("test-id"))
             .failure(anyhow::anyhow!("Test error"));
-        let event = EventData::new(test_agent(), test_model_id(), ToolcallEndPayload::new(tool_call, result));
+        let event = EventData::new(
+            test_agent(),
+            test_model_id(),
+            ToolcallEndPayload::new(tool_call, result),
+        );
 
         // Should log warning but not panic
         handler.handle(&event, &mut conversation).await.unwrap();

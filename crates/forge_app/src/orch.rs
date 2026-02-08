@@ -223,7 +223,13 @@ impl<S: AgentService> Orchestrator<S> {
 
             let message = crate::retry::retry_with_config(
                 &self.environment.retry_config,
-                || self.execute_chat_turn(&model_id, context.clone(), context.is_reasoning_supported()),
+                || {
+                    self.execute_chat_turn(
+                        &model_id,
+                        context.clone(),
+                        context.is_reasoning_supported(),
+                    )
+                },
                 self.sender.as_ref().map(|sender| {
                     let sender = sender.clone();
                     let agent_id = self.agent.id.clone();
@@ -237,14 +243,13 @@ impl<S: AgentService> Orchestrator<S> {
                             model = %model_id,
                             "Retry attempt due to error"
                         );
-                        let retry_event = ChatResponse::RetryAttempt {
-                            cause: error.into(),
-                            duration,
-                        };
+                        let retry_event =
+                            ChatResponse::RetryAttempt { cause: error.into(), duration };
                         let _ = sender.try_send(Ok(retry_event));
                     }
                 }),
-            ).await?;
+            )
+            .await?;
 
             // Fire the Response lifecycle event
             let response_event = LifecycleEvent::Response(EventData::new(
@@ -256,7 +261,8 @@ impl<S: AgentService> Orchestrator<S> {
                 .handle(&response_event, &mut self.conversation)
                 .await?;
 
-            // Update context from conversation after hook runs (compaction may have modified it)
+            // Update context from conversation after hook runs (compaction may have
+            // modified it)
             if let Some(updated_context) = &self.conversation.context {
                 context = updated_context.clone();
             }

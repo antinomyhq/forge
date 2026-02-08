@@ -38,8 +38,9 @@ impl EventHandle<EventData<ResponsePayload>> for CompactionHandler {
             let token_count = context.token_count();
             if self.agent.compact.should_compact(context, *token_count) {
                 info!(agent_id = %self.agent.id, "Compaction triggered by hook");
-                let compacted = Compactor::new(self.agent.compact.clone(), self.environment.clone())
-                    .compact(context.clone(), false)?;
+                let compacted =
+                    Compactor::new(self.agent.compact.clone(), self.environment.clone())
+                        .compact(context.clone(), false)?;
                 conversation.context = Some(compacted);
             } else {
                 debug!(agent_id = %self.agent.id, "Compaction not needed");
@@ -48,4 +49,3 @@ impl EventHandle<EventData<ResponsePayload>> for CompactionHandler {
         Ok(())
     }
 }
-
