@@ -206,7 +206,25 @@ echo -e "${BLUE}Detected platform: $TARGET${NC}"
 VERSION="${1:-latest}"
 
 # Construct download URL
-DOWNLOAD_URL="https://release-download.tailcall.workers.dev/download/$VERSION/forge-$TARGET"
+# If version is "latest", fetch the actual latest version from GitHub
+if [ "$VERSION" = "latest" ]; then
+    # Fetch latest release tag from GitHub API
+    if [ "$DOWNLOADER" = "curl" ]; then
+        LATEST_VERSION=$(curl -fsSL https://api.github.com/repos/antinomyhq/forge/releases/latest | grep '"tag_name"' | head -n 1 | cut -d '"' -f 4)
+    elif [ "$DOWNLOADER" = "wget" ]; then
+        LATEST_VERSION=$(wget -qO- https://api.github.com/repos/antinomyhq/forge/releases/latest | grep '"tag_name"' | head -n 1 | cut -d '"' -f 4)
+    fi
+    
+    # Fallback if we couldn't get the latest version
+    if [ -z "$LATEST_VERSION" ]; then
+        echo -e "${RED}Failed to fetch latest version from GitHub${NC}" >&2
+        exit 1
+    fi
+    VERSION="$LATEST_VERSION"
+fi
+
+# Use direct GitHub releases URL
+DOWNLOAD_URL="https://github.com/antinomyhq/forge/releases/download/$VERSION/forge-$TARGET"
 
 # Create temp directory
 TMP_DIR=$(mktemp -d)
