@@ -86,10 +86,11 @@ impl Transformer for DropReasoningDetailsFromOtherModels {
             .find_map(|(idx, msg)| {
                 if let crate::ContextMessage::Text(text) = &**msg
                     && text.role == crate::Role::User
-                        && let Some(message_model) = &text.model
-                            && message_model == &self.current_model {
-                                return Some(idx);
-                            }
+                    && let Some(message_model) = &text.model
+                    && message_model == &self.current_model
+                {
+                    return Some(idx);
+                }
                 None
             });
 
@@ -97,9 +98,10 @@ impl Transformer for DropReasoningDetailsFromOtherModels {
         if let Some(switch_idx) = switch_point {
             for (idx, message) in context.messages.iter_mut().enumerate() {
                 if idx < switch_idx
-                    && let crate::ContextMessage::Text(text) = &mut **message {
-                        text.reasoning_details = None;
-                    }
+                    && let crate::ContextMessage::Text(text) = &mut **message
+                {
+                    text.reasoning_details = None;
+                }
             }
         }
 
