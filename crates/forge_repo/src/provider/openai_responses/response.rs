@@ -11,22 +11,22 @@ use serde::Deserialize;
 
 use crate::provider::IntoDomain;
 
-/// Wrapper enum for SSE events from the Codex backend.
+/// Wrapper enum for SSE events from the OpenAI Responses API.
 ///
-/// The Codex backend sends additional event types (e.g. `keepalive`) that are
-/// not part of the standard OpenAI Responses API. This enum models those
-/// explicitly so that known non-critical events can be filtered out without
-/// suppressing genuine deserialization errors.
+/// Some OpenAI-compatible providers (including the Codex backend) send
+/// `keepalive` heartbeat events in the stream. These events are not part of
+/// `async_openai`'s `ResponseStreamEvent` enum, so we model them here to avoid
+/// failing the entire stream.
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type")]
-pub(super) enum CodexStreamEvent {
-    /// A keepalive ping sent periodically by the Codex backend to keep the
-    /// connection alive. Contains only a `sequence_number` and no payload.
+pub(super) enum ResponsesStreamEvent {
+    /// Heartbeat event containing only a sequence number.
     #[serde(rename = "keepalive")]
     Keepalive {
         #[allow(dead_code)]
         sequence_number: u64,
     },
+
     /// Any standard OpenAI Responses API streaming event.
     #[serde(untagged)]
     Response(Box<oai::ResponseStreamEvent>),
@@ -1312,21 +1312,21 @@ mod tests {
         Ok(())
     }
 
-    // ============== CodexStreamEvent Tests ==============
+    // ============== ResponsesStreamEvent Tests ==============
 
     #[test]
-    fn test_codex_stream_event_deserializes_keepalive() {
+    fn test_responses_stream_event_deserializes_keepalive() {
         let fixture = r#"{"type":"keepalive","sequence_number":3}"#;
-        let actual: CodexStreamEvent = serde_json::from_str(fixture).unwrap();
+        let actual: ResponsesStreamEvent = serde_json::from_str(fixture).unwrap();
 
         assert!(matches!(
             actual,
-            CodexStreamEvent::Keepalive { sequence_number: 3 }
+            ResponsesStreamEvent::Keepalive { sequence_number: 3 }
         ));
     }
 
     #[test]
-    fn test_codex_stream_event_deserializes_response_event() {
+    fn test_responses_stream_event_deserializes_response_event() {
         let fixture = serde_json::json!({
             "type": "response.output_text.delta",
             "sequence_number": 1,
@@ -1335,15 +1335,15 @@ mod tests {
             "content_index": 0,
             "delta": "hello"
         });
-        let actual: CodexStreamEvent = serde_json::from_str(&fixture.to_string()).unwrap();
+        let actual: ResponsesStreamEvent = serde_json::from_str(&fixture.to_string()).unwrap();
 
-        assert!(matches!(actual, CodexStreamEvent::Response(_)));
+        assert!(matches!(actual, ResponsesStreamEvent::Response(_)));
     }
 
     #[test]
-    fn test_codex_stream_event_rejects_unknown_type() {
+    fn test_responses_stream_event_rejects_unknown_type() {
         let fixture = r#"{"type":"totally_unknown_event","sequence_number":1}"#;
-        let actual = serde_json::from_str::<CodexStreamEvent>(fixture);
+        let actual = serde_json::from_str::<ResponsesStreamEvent>(fixture);
 
         assert!(actual.is_err());
     }
