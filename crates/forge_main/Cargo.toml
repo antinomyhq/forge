@@ -16,7 +16,6 @@ clap_complete.workspace = true
 console.workspace = true
 forge_app.workspace = true
 forge_api.workspace = true
-forge_acp.workspace = true
 forge_domain.workspace = true
 forge_infra.workspace = true
 forge_repo.workspace = true

@@ -401,19 +401,101 @@ impl<
     }
 
     async fn acp_start_stdio(&self) -> Result<()> {
-        let app = Arc::new(self.app());
-        forge_acp::start_stdio_server(app).await?;
-        Ok(())
+        // We need to use spawn_blocking because LocalSet is !Send
+        // This runs the entire ACP server in a blocking thread with its own runtime
+        let services = self.services.clone();
+        let handle = tokio::task::spawn_blocking(move || {
+            // Create a new single-threaded runtime for the ACP server
+            // This is necessary because the ACP SDK uses !Send futures
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("Failed to create Tokio runtime");
+
+            rt.block_on(async move {
+                // Create channel for session notifications
+                let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+
+                // Create adapter
+                let adapter = Arc::new(crate::acp_adapter::AcpAdapter::new(services, tx));
+
+                // Start transport - this will set up the connection and call set_client_connection
+                // We need to use LocalSet since ACP SDK uses !Send futures
+                let local_set = tokio::task::LocalSet::new();
+                local_set
+                    .run_until(async move {
+                        use agent_client_protocol as acp;
+                        use tokio_util::compat::{TokioAsyncReadCompatExt, TokioAsyncWriteCompatExt};
+
+                        let outgoing = tokio::io::stdout().compat_write();
+                        let incoming = tokio::io::stdin().compat();
+
+                        // Create ACP connection
+                        let (conn, handle_io) = acp::AgentSideConnection::new(
+                            adapter.clone(),
+                            outgoing,
+                            incoming,
+                            |fut| {
+                                tokio::task::spawn_local(fut);
+                            },
+                        );
+
+                        let conn = Arc::new(conn);
+
+                        // Set the client connection on the adapter for RPC calls
+                        adapter.set_client_connection(conn.clone()).await;
+
+                        // Forward notifications to client
+                        let conn_for_notifications = conn.clone();
+                        let notification_task = tokio::task::spawn_local(async move {
+                            let mut rx = rx;
+                            while let Some(session_notification) = rx.recv().await {
+                                use agent_client_protocol::Client;
+                                if let Err(e) = conn_for_notifications
+                                    .session_notification(session_notification)
+                                    .await
+                                {
+                                    tracing::error!("Failed to send session notification: {}", e);
+                                    break;
+                                }
+                            }
+                        });
+
+                        // Run until stdin/stdout are closed
+                        let io_result = handle_io.await;
+
+                        // Cancel the notification task
+                        notification_task.abort();
+
+                        io_result
+                            .map_err(|e| anyhow::anyhow!("ACP transport error: {}", e))
+                    })
+                    .await
+            })
+        });
+
+        // Wait for the blocking task to complete
+        match handle.await {
+            Ok(result) => result,
+            Err(e) if e.is_cancelled() => {
+                tracing::info!("ACP server task was cancelled");
+                Ok(())
+            }
+            Err(e) => Err(anyhow::anyhow!("Task join error: {}", e)),
+        }
     }
 
-    async fn acp_start_http(&self, port: u16) -> Result<()> {
-        let app = Arc::new(self.app());
-        forge_acp::start_http_server(app, port).await?;
-        Ok(())
+    async fn acp_start_http(&self, _port: u16) -> Result<()> {
+        // HTTP transport not yet implemented
+        anyhow::bail!("HTTP transport not yet implemented")
     }
 
-    fn acp_info(&self) -> forge_acp::AgentInfo {
-        forge_acp::agent_info()
+    fn acp_info(&self) -> crate::AgentInfo {
+        crate::AgentInfo {
+            name: "forge".to_string(),
+            version: env!("CARGO_PKG_VERSION").to_string(),
+            capabilities: "file_system, terminal, tools".to_string(),
+        }
     }
 }
 

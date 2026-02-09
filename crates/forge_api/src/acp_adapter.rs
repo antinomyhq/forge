@@ -32,7 +32,7 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 /// - Managing ACP session ID mapping
 /// - Delegating business logic to services
 /// - Sending notifications to the IDE
-pub(crate) struct AcpAdapter<S> {
+pub struct AcpAdapter<S> {
     /// Services for direct access
     services: Arc<S>,
     /// Session orchestrator for coordinating session-related operations

@@ -111,8 +111,11 @@ impl<R: SessionRepository> SessionService for ForgeSessionService<R> {
     }
 
     async fn cancel_session(&self, session_id: &SessionId) -> Result<()> {
-        if let Some(token) = self.cancellation_tokens.lock().await.get(session_id) {
+        let mut tokens = self.cancellation_tokens.lock().await;
+        if let Some(token) = tokens.get(session_id) {
             token.cancel();
+            // Replace with a new token so future prompts can run
+            tokens.insert(*session_id, CancellationToken::new());
         }
         Ok(())
     }
@@ -385,5 +388,36 @@ mod tests {
 
         let state_after = fixture.get_session_state(&session_id).await.unwrap();
         assert!(state_after.last_active > state_before.last_active);
+    }
+
+    #[tokio::test]
+    async fn test_cancel_session_creates_new_token() {
+        let fixture = ForgeSessionService::new(Arc::new(MockSessionRepository::new()));
+        let agent_id = AgentId::new("test-agent");
+        let session_id = fixture.create_session(agent_id).await.unwrap();
+
+        // Get initial context with fresh token
+        let context1 = fixture.get_session_context(&session_id).await.unwrap();
+        assert!(!context1.cancellation_token.is_cancelled());
+
+        // Cancel the session
+        fixture.cancel_session(&session_id).await.unwrap();
+
+        // The token should be cancelled
+        assert!(context1.cancellation_token.is_cancelled());
+
+        // Get context again - should have a NEW, non-cancelled token
+        let context2 = fixture.get_session_context(&session_id).await.unwrap();
+        assert!(
+            !context2.cancellation_token.is_cancelled(),
+            "New token after cancellation should not be cancelled"
+        );
+
+        // Verify the tokens are different instances
+        // (We can't directly compare them, but we can verify behavior)
+        context2.cancellation_token.cancel();
+        assert!(context2.cancellation_token.is_cancelled());
+        // context1 should still be cancelled from before
+        assert!(context1.cancellation_token.is_cancelled());
     }
 }

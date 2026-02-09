@@ -9,7 +9,7 @@
 /// - App layer: Orchestrates SessionModelService + ProviderService to fetch models
 use anyhow::Result;
 use forge_app::SessionModelService;
-use forge_domain::{Model, ModelId, SessionId, SessionRepository};
+use forge_domain::{ModelId, SessionId, SessionRepository};
 use std::sync::Arc;
 
 /// Manages model overrides for sessions
@@ -22,11 +22,6 @@ pub struct ForgeSessionModelService<R> {
 }
 
 impl<R> ForgeSessionModelService<R> {
-    /// Creates a new session model service
-    ///
-    /// # Arguments
-    ///
-    /// * `repository` - Infrastructure providing SessionRepository
     pub fn new(repository: Arc<R>) -> Self {
         Self { repository }
     }
@@ -34,11 +29,7 @@ impl<R> ForgeSessionModelService<R> {
 
 #[async_trait::async_trait]
 impl<R: SessionRepository> SessionModelService for ForgeSessionModelService<R> {
-    async fn set_session_model(
-        &self,
-        session_id: &SessionId,
-        model_id: &ModelId,
-    ) -> Result<()> {
+    async fn set_session_model(&self, session_id: &SessionId, model_id: &ModelId) -> Result<()> {
         // Load session state
         let mut state = self
             .repository
@@ -86,21 +77,6 @@ impl<R: SessionRepository> SessionModelService for ForgeSessionModelService<R> {
 
         Ok(())
     }
-
-    async fn get_available_models(&self, _session_id: &SessionId) -> Result<Vec<Model>> {
-        // This method should be orchestrated by the app layer
-        // The service doesn't have access to ProviderService to fetch models
-        // The app layer should:
-        // 1. Get session agent via SessionAgentService
-        // 2. Get provider from agent
-        // 3. Call ProviderService.models(provider)
-        //
-        // For now, return an error indicating this should be called at app layer
-        Err(anyhow::anyhow!(
-            "get_available_models should be orchestrated by app layer. \
-             App should: 1) get session agent, 2) get provider, 3) fetch models from ProviderService"
-        ))
-    }
 }
 
 #[cfg(test)]
@@ -118,27 +94,19 @@ mod tests {
 
     impl MockRepository {
         fn new() -> Self {
-            Self {
-                sessions: Mutex::new(HashMap::new()),
-            }
+            Self { sessions: Mutex::new(HashMap::new()) }
         }
 
         fn with_session(session_id: SessionId, state: SessionState) -> Self {
             let mut sessions = HashMap::new();
             sessions.insert(session_id, state);
-            Self {
-                sessions: Mutex::new(sessions),
-            }
+            Self { sessions: Mutex::new(sessions) }
         }
     }
 
     #[async_trait::async_trait]
     impl SessionRepository for MockRepository {
-        async fn save_session(
-            &self,
-            session_id: &SessionId,
-            state: &SessionState,
-        ) -> Result<()> {
+        async fn save_session(&self, session_id: &SessionId, state: &SessionState) -> Result<()> {
             self.sessions
                 .lock()
                 .unwrap()
@@ -216,10 +184,12 @@ mod tests {
 
         // Should return error when no override is set
         assert!(actual.is_err());
-        assert!(actual
-            .unwrap_err()
-            .to_string()
-            .contains("No model override set"));
+        assert!(
+            actual
+                .unwrap_err()
+                .to_string()
+                .contains("No model override set")
+        );
     }
 
     #[tokio::test]
@@ -250,24 +220,11 @@ mod tests {
         let actual = service.set_session_model(&session_id, &model_id).await;
 
         assert!(actual.is_err());
-        assert!(actual
-            .unwrap_err()
-            .to_string()
-            .contains("Session not found"));
-    }
-
-    #[tokio::test]
-    async fn test_get_available_models_returns_error() {
-        let session_id = SessionId::from_u64(1);
-        let repo = Arc::new(MockRepository::new());
-        let service = ForgeSessionModelService::new(repo);
-
-        let actual = service.get_available_models(&session_id).await;
-
-        assert!(actual.is_err());
-        assert!(actual
-            .unwrap_err()
-            .to_string()
-            .contains("orchestrated by app layer"));
+        assert!(
+            actual
+                .unwrap_err()
+                .to_string()
+                .contains("Session not found")
+        );
     }
 }

@@ -382,13 +382,6 @@ pub trait SessionModelService: Send + Sync {
     ///
     /// Returns an error if the session is not found
     async fn clear_model_override(&self, session_id: &SessionId) -> anyhow::Result<()>;
-
-    /// Gets available models for the session's agent
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if models cannot be retrieved
-    async fn get_available_models(&self, session_id: &SessionId) -> anyhow::Result<Vec<Model>>;
 }
 
 /// Service for importing MCP servers from external sources
@@ -945,12 +938,6 @@ impl<I: Services> SessionModelService for I {
     async fn clear_model_override(&self, session_id: &SessionId) -> anyhow::Result<()> {
         self.session_model_service()
             .clear_model_override(session_id)
-            .await
-    }
-
-    async fn get_available_models(&self, session_id: &SessionId) -> anyhow::Result<Vec<Model>> {
-        self.session_model_service()
-            .get_available_models(session_id)
             .await
     }
 }
