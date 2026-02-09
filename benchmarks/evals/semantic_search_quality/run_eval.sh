@@ -57,16 +57,16 @@ echo ""
 if [ "$RUN_LLM_JUDGE" = true ]; then
   echo "Step 4: Running LLM judge evaluation..."
   
-  # Build command with optional parameters
-  CMD="npx tsx llm_judge.ts --context \"$CONTEXT_FILE\" --intent \"$INTENT\""
-  
-  if [ -n "$EXPECTED_TYPES" ]; then
-    CMD="$CMD --expected-file-types \"$EXPECTED_TYPES\""
+  # Build command with parameters (use empty strings if not set)
+  if [ -z "$EXPECTED_TYPES" ]; then
+    EXPECTED_TYPES=""
   fi
   
-  if [ -n "$SHOULD_AVOID" ]; then
-    CMD="$CMD --should-avoid \"$SHOULD_AVOID\""
+  if [ -z "$SHOULD_AVOID" ]; then
+    SHOULD_AVOID=""
   fi
+  
+  CMD="npx tsx llm_judge.ts --context \"$CONTEXT_FILE\" --intent \"$INTENT\" --expected-file-types \"$EXPECTED_TYPES\" --should-avoid \"$SHOULD_AVOID\""
   
   eval $CMD
   
