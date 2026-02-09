@@ -4,11 +4,12 @@ use std::time::Duration;
 use bytes::Bytes;
 use derive_setters::Setters;
 use forge_domain::{
-    AgentId, AnyProvider, Attachment, AuthContextRequest, AuthContextResponse, AuthMethod,
+    Agent, AgentId, AnyProvider, Attachment, AuthContextRequest, AuthContextResponse, AuthMethod,
     ChatCompletionMessage, CommandOutput, Context, Conversation, ConversationId, Environment, File,
-    FileStatus, Image, InitAuth, LoginInfo, McpConfig, McpServers, Model, ModelId, Node, Provider,
-    ProviderId, ResultStream, Scope, SearchParams, SyncProgress, SyntaxError, Template,
-    ToolCallFull, ToolOutput, Workflow, WorkspaceAuth, WorkspaceId, WorkspaceInfo,
+    FileStatus, Image, InitAuth, LoginInfo, McpConfig, McpServerConfig, McpServers, Model, ModelId,
+    Node, Provider, ProviderId, ResultStream, Scope, SearchParams, SessionContext, SessionId,
+    SessionState, SyncProgress, SyntaxError, Template, ToolCallFull, ToolOutput, Workflow,
+    WorkspaceAuth, WorkspaceId, WorkspaceInfo,
 };
 use merge::Merge;
 use reqwest::Response;
@@ -251,6 +252,200 @@ pub trait ConversationService: Send + Sync {
 
     /// Permanently deletes a conversation
     async fn delete_conversation(&self, conversation_id: &ConversationId) -> anyhow::Result<()>;
+}
+
+/// Service for managing user sessions
+///
+/// Sessions represent client connections that can span multiple prompts
+/// and maintain state like active agent and model overrides.
+#[async_trait::async_trait]
+pub trait SessionService: Send + Sync {
+    /// Creates a new session with the given agent
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if session creation fails
+    async fn create_session(&self, agent_id: AgentId) -> anyhow::Result<SessionId>;
+
+    /// Retrieves the session state for the given session ID
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the session is not found or retrieval fails
+    async fn get_session_state(&self, session_id: &SessionId) -> anyhow::Result<SessionState>;
+
+    /// Retrieves the full session context including cancellation token
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the session is not found
+    async fn get_session_context(&self, session_id: &SessionId) -> anyhow::Result<SessionContext>;
+
+    /// Updates the session state
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the session is not found or update fails
+    async fn update_session_state(
+        &self,
+        session_id: &SessionId,
+        state: SessionState,
+    ) -> anyhow::Result<()>;
+
+    /// Deletes a session
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if deletion fails
+    async fn delete_session(&self, session_id: &SessionId) -> anyhow::Result<()>;
+
+    /// Lists all active sessions
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if listing fails
+    async fn list_sessions(&self) -> anyhow::Result<Vec<(SessionId, SessionState)>>;
+
+    /// Cancels an active session's operations
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the session is not found
+    async fn cancel_session(&self, session_id: &SessionId) -> anyhow::Result<()>;
+}
+
+/// Service for managing session agent switching
+///
+/// Handles switching between different agents (forge, muse, sage) within
+/// a session and retrieving available agents.
+#[async_trait::async_trait]
+pub trait SessionAgentService: Send + Sync {
+    /// Switches the active agent for a session
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the agent is not found or switch fails
+    async fn switch_agent(
+        &self,
+        session_id: &SessionId,
+        agent_id: &AgentId,
+    ) -> anyhow::Result<()>;
+
+    /// Gets the active agent for a session with any model overrides applied
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the session or agent is not found
+    async fn get_session_agent(&self, session_id: &SessionId) -> anyhow::Result<Agent>;
+
+    /// Validates that an agent exists and can be used
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the agent is not found or invalid
+    async fn validate_agent_switch(&self, agent_id: &AgentId) -> anyhow::Result<()>;
+
+    /// Gets all available agents for mode switching
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if agents cannot be retrieved
+    async fn get_available_agents(&self) -> anyhow::Result<Vec<Agent>>;
+}
+
+/// Service for managing session model overrides
+///
+/// Handles model switching within a session without affecting global configuration.
+#[async_trait::async_trait]
+pub trait SessionModelService: Send + Sync {
+    /// Sets the model override for a session
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the session is not found or model is invalid
+    async fn set_session_model(
+        &self,
+        session_id: &SessionId,
+        model_id: &ModelId,
+    ) -> anyhow::Result<()>;
+
+    /// Gets the effective model for a session (with override applied)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the session is not found
+    async fn get_effective_model(&self, session_id: &SessionId) -> anyhow::Result<ModelId>;
+
+    /// Clears the model override for a session
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the session is not found
+    async fn clear_model_override(&self, session_id: &SessionId) -> anyhow::Result<()>;
+
+    /// Gets available models for the session's agent
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if models cannot be retrieved
+    async fn get_available_models(&self, session_id: &SessionId) -> anyhow::Result<Vec<Model>>;
+}
+
+/// Service for importing MCP servers from external sources
+///
+/// Handles conversion and importing of MCP servers provided by IDE clients
+/// or other external sources.
+#[async_trait::async_trait]
+pub trait McpImportService: Send + Sync {
+    /// Imports MCP servers into the specified scope
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if import or configuration fails
+    async fn import_servers(
+        &self,
+        servers: Vec<ExternalMcpServer>,
+        scope: &Scope,
+    ) -> anyhow::Result<()>;
+
+    /// Converts an external MCP server to Forge's format
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the server configuration is invalid
+    fn convert_server(&self, server: &ExternalMcpServer) -> anyhow::Result<(String, McpServerConfig)>;
+
+    /// Merges new servers with existing configuration
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if merge or save fails
+    async fn merge_with_existing(
+        &self,
+        new_servers: Vec<(String, McpServerConfig)>,
+        scope: &Scope,
+    ) -> anyhow::Result<()>;
+}
+
+/// External MCP server configuration from IDE or other sources
+#[derive(Debug, Clone)]
+pub enum ExternalMcpServer {
+    Stdio {
+        name: String,
+        command: String,
+        args: Vec<String>,
+        env: Vec<(String, String)>,
+    },
+    Http {
+        name: String,
+        url: String,
+        headers: Vec<(String, String)>,
+    },
+    Sse {
+        name: String,
+        url: String,
+        headers: Vec<(String, String)>,
+    },
 }
 
 #[async_trait::async_trait]
@@ -559,6 +754,10 @@ pub trait Services: Send + Sync + 'static + Clone {
     type ProviderService: ProviderService;
     type AppConfigService: AppConfigService;
     type ConversationService: ConversationService;
+    type SessionService: SessionService;
+    type SessionAgentService: SessionAgentService;
+    type SessionModelService: SessionModelService;
+    type McpImportService: McpImportService;
     type TemplateService: TemplateService;
     type AttachmentService: AttachmentService;
     type EnvironmentService: EnvironmentService;
@@ -589,6 +788,10 @@ pub trait Services: Send + Sync + 'static + Clone {
     fn provider_service(&self) -> &Self::ProviderService;
     fn config_service(&self) -> &Self::AppConfigService;
     fn conversation_service(&self) -> &Self::ConversationService;
+    fn session_service(&self) -> &Self::SessionService;
+    fn session_agent_service(&self) -> &Self::SessionAgentService;
+    fn session_model_service(&self) -> &Self::SessionModelService;
+    fn mcp_import_service(&self) -> &Self::McpImportService;
     fn template_service(&self) -> &Self::TemplateService;
     fn attachment_service(&self) -> &Self::AttachmentService;
     fn workflow_service(&self) -> &Self::WorkflowService;
@@ -654,6 +857,131 @@ impl<I: Services> ConversationService for I {
             .await
     }
 }
+
+#[async_trait::async_trait]
+impl<I: Services> SessionService for I {
+    async fn create_session(&self, agent_id: AgentId) -> anyhow::Result<SessionId> {
+        self.session_service().create_session(agent_id).await
+    }
+
+    async fn get_session_state(&self, session_id: &SessionId) -> anyhow::Result<SessionState> {
+        self.session_service().get_session_state(session_id).await
+    }
+
+    async fn get_session_context(&self, session_id: &SessionId) -> anyhow::Result<SessionContext> {
+        self.session_service().get_session_context(session_id).await
+    }
+
+    async fn update_session_state(
+        &self,
+        session_id: &SessionId,
+        state: SessionState,
+    ) -> anyhow::Result<()> {
+        self.session_service()
+            .update_session_state(session_id, state)
+            .await
+    }
+
+    async fn delete_session(&self, session_id: &SessionId) -> anyhow::Result<()> {
+        self.session_service().delete_session(session_id).await
+    }
+
+    async fn list_sessions(&self) -> anyhow::Result<Vec<(SessionId, SessionState)>> {
+        self.session_service().list_sessions().await
+    }
+
+    async fn cancel_session(&self, session_id: &SessionId) -> anyhow::Result<()> {
+        self.session_service().cancel_session(session_id).await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> SessionAgentService for I {
+    async fn switch_agent(
+        &self,
+        session_id: &SessionId,
+        agent_id: &AgentId,
+    ) -> anyhow::Result<()> {
+        self.session_agent_service()
+            .switch_agent(session_id, agent_id)
+            .await
+    }
+
+    async fn get_session_agent(&self, session_id: &SessionId) -> anyhow::Result<Agent> {
+        self.session_agent_service()
+            .get_session_agent(session_id)
+            .await
+    }
+
+    async fn validate_agent_switch(&self, agent_id: &AgentId) -> anyhow::Result<()> {
+        self.session_agent_service()
+            .validate_agent_switch(agent_id)
+            .await
+    }
+
+    async fn get_available_agents(&self) -> anyhow::Result<Vec<Agent>> {
+        self.session_agent_service().get_available_agents().await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> SessionModelService for I {
+    async fn set_session_model(
+        &self,
+        session_id: &SessionId,
+        model_id: &ModelId,
+    ) -> anyhow::Result<()> {
+        self.session_model_service()
+            .set_session_model(session_id, model_id)
+            .await
+    }
+
+    async fn get_effective_model(&self, session_id: &SessionId) -> anyhow::Result<ModelId> {
+        self.session_model_service()
+            .get_effective_model(session_id)
+            .await
+    }
+
+    async fn clear_model_override(&self, session_id: &SessionId) -> anyhow::Result<()> {
+        self.session_model_service()
+            .clear_model_override(session_id)
+            .await
+    }
+
+    async fn get_available_models(&self, session_id: &SessionId) -> anyhow::Result<Vec<Model>> {
+        self.session_model_service()
+            .get_available_models(session_id)
+            .await
+    }
+}
+
+#[async_trait::async_trait]
+impl<I: Services> McpImportService for I {
+    async fn import_servers(
+        &self,
+        servers: Vec<ExternalMcpServer>,
+        scope: &Scope,
+    ) -> anyhow::Result<()> {
+        self.mcp_import_service()
+            .import_servers(servers, scope)
+            .await
+    }
+
+    fn convert_server(&self, server: &ExternalMcpServer) -> anyhow::Result<(String, McpServerConfig)> {
+        self.mcp_import_service().convert_server(server)
+    }
+
+    async fn merge_with_existing(
+        &self,
+        new_servers: Vec<(String, McpServerConfig)>,
+        scope: &Scope,
+    ) -> anyhow::Result<()> {
+        self.mcp_import_service()
+            .merge_with_existing(new_servers, scope)
+            .await
+    }
+}
+
 #[async_trait::async_trait]
 impl<I: Services> ProviderService for I {
     async fn chat(

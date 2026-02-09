@@ -31,8 +31,6 @@ pub fn run_acp_stdio_server(cwd: PathBuf) -> Result<()> {
         .with_writer(std::io::stderr)
         .init();
 
-    tracing::info!("Starting Forge ACP server in stdio mode");
-
     // Create a single-threaded runtime for the ACP server
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()

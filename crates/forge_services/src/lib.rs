@@ -17,6 +17,10 @@ mod policy;
 mod provider_auth;
 mod provider_service;
 mod range;
+mod session;
+mod session_agent;
+mod session_model;
+mod mcp_import;
 mod template;
 mod tool_services;
 mod utils;
@@ -32,6 +36,10 @@ pub use forge_services::*;
 pub use instructions::*;
 pub use policy::*;
 pub use provider_auth::*;
+pub use session::*;
+pub use session_agent::*;
+pub use session_model::*;
+pub use mcp_import::*;
 
 /// Converts a type from its external representation into its domain model
 /// representation.

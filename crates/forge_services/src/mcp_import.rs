@@ -5,7 +5,7 @@
 /// and merging logic, delegating storage to the McpConfigManager infrastructure.
 use anyhow::Result;
 use forge_app::{ExternalMcpServer, McpConfigManager, McpImportService};
-use forge_domain::{McpConfig, McpServerConfig, Scope, ServerName};
+use forge_domain::{McpConfig, McpServerConfig, Scope};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
@@ -31,11 +31,7 @@ impl<M> ForgeMcpImportService<M> {
 
 #[async_trait::async_trait]
 impl<M: McpConfigManager> McpImportService for ForgeMcpImportService<M> {
-    async fn import_servers(
-        &self,
-        servers: Vec<ExternalMcpServer>,
-        scope: &Scope,
-    ) -> Result<()> {
+    async fn import_servers(&self, servers: Vec<ExternalMcpServer>, scope: &Scope) -> Result<()> {
         // Convert all external servers to Forge format
         let converted: Vec<(String, McpServerConfig)> = servers
             .iter()
@@ -48,27 +44,15 @@ impl<M: McpConfigManager> McpImportService for ForgeMcpImportService<M> {
 
     fn convert_server(&self, server: &ExternalMcpServer) -> Result<(String, McpServerConfig)> {
         match server {
-            ExternalMcpServer::Stdio {
-                name,
-                command,
-                args,
-                env,
-            } => {
+            ExternalMcpServer::Stdio { name, command, args, env } => {
                 // Convert Vec<(String, String)> to BTreeMap<String, String>
                 let env_map: BTreeMap<String, String> = env.iter().cloned().collect();
 
-                let config = McpServerConfig::new_stdio(
-                    command.clone(),
-                    args.clone(),
-                    Some(env_map),
-                );
+                let config =
+                    McpServerConfig::new_stdio(command.clone(), args.clone(), Some(env_map));
                 Ok((name.clone(), config))
             }
-            ExternalMcpServer::Http {
-                name,
-                url,
-                headers,
-            } => {
+            ExternalMcpServer::Http { name, url, headers } => {
                 let mut config = McpServerConfig::new_http(url);
                 if let McpServerConfig::Http(ref mut http_config) = config {
                     // Convert Vec<(String, String)> to BTreeMap<String, String>
@@ -76,11 +60,7 @@ impl<M: McpConfigManager> McpImportService for ForgeMcpImportService<M> {
                 }
                 Ok((name.clone(), config))
             }
-            ExternalMcpServer::Sse {
-                name,
-                url,
-                headers,
-            } => {
+            ExternalMcpServer::Sse { name, url, headers } => {
                 // SSE uses the same HTTP transport in Forge (auto-detected by URL)
                 let mut config = McpServerConfig::new_http(url);
                 if let McpServerConfig::Http(ref mut http_config) = config {
@@ -102,9 +82,7 @@ impl<M: McpConfigManager> McpImportService for ForgeMcpImportService<M> {
             .config_manager
             .read_mcp_config(Some(scope))
             .await
-            .unwrap_or_else(|_| McpConfig {
-                mcp_servers: BTreeMap::new(),
-            });
+            .unwrap_or_else(|_| McpConfig { mcp_servers: BTreeMap::new() });
 
         // Merge new servers (new servers overwrite existing ones with same name)
         for (name, config) in new_servers {
@@ -133,17 +111,13 @@ mod tests {
 
     impl MockConfigManager {
         fn new() -> Self {
-            Self {
-                configs: Mutex::new(BTreeMap::new()),
-            }
+            Self { configs: Mutex::new(BTreeMap::new()) }
         }
 
         fn with_config(scope: Scope, config: McpConfig) -> Self {
             let mut configs = BTreeMap::new();
             configs.insert(scope, config);
-            Self {
-                configs: Mutex::new(configs),
-            }
+            Self { configs: Mutex::new(configs) }
         }
     }
 
@@ -160,10 +134,7 @@ mod tests {
         }
 
         async fn write_mcp_config(&self, config: &McpConfig, scope: &Scope) -> Result<()> {
-            self.configs
-                .lock()
-                .unwrap()
-                .insert(*scope, config.clone());
+            self.configs.lock().unwrap().insert(*scope, config.clone());
             Ok(())
         }
     }
@@ -272,9 +243,7 @@ mod tests {
             McpServerConfig::new_stdio("node", vec![], None),
         );
 
-        let existing_config = McpConfig {
-            mcp_servers: existing_servers,
-        };
+        let existing_config = McpConfig { mcp_servers: existing_servers };
 
         let manager = Arc::new(MockConfigManager::with_config(Scope::User, existing_config));
         let service = ForgeMcpImportService::new(manager.clone());
@@ -291,12 +260,16 @@ mod tests {
 
         // Verify both servers exist
         let saved_config = manager.read_mcp_config(Some(&Scope::User)).await.unwrap();
-        assert!(saved_config
-            .mcp_servers
-            .contains_key(&ServerName::from("existing-server".to_string())));
-        assert!(saved_config
-            .mcp_servers
-            .contains_key(&ServerName::from("new-http-server".to_string())));
+        assert!(
+            saved_config
+                .mcp_servers
+                .contains_key(&ServerName::from("existing-server".to_string()))
+        );
+        assert!(
+            saved_config
+                .mcp_servers
+                .contains_key(&ServerName::from("new-http-server".to_string()))
+        );
         assert_eq!(saved_config.mcp_servers.len(), 2);
     }
 
@@ -308,9 +281,7 @@ mod tests {
             McpServerConfig::new_stdio("old-command", vec![], None),
         );
 
-        let existing_config = McpConfig {
-            mcp_servers: existing_servers,
-        };
+        let existing_config = McpConfig { mcp_servers: existing_servers };
 
         let manager = Arc::new(MockConfigManager::with_config(Scope::User, existing_config));
         let service = ForgeMcpImportService::new(manager.clone());

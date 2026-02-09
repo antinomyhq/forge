@@ -1,8 +1,12 @@
 use anyhow::Result;
-use forge_domain::{AgentId, ConversationId, ModelId, SessionId, SessionRepository, SessionState};
+use forge_app::SessionService;
+use forge_domain::{
+    AgentId, ConversationId, SessionContext, SessionId, SessionRepository, SessionState,
+};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
+use tokio_util::sync::CancellationToken;
 
 /// Service for managing session lifecycle and state
 ///
@@ -12,6 +16,8 @@ pub struct ForgeSessionService<R> {
     repository: Arc<R>,
     // In-memory session cache for fast access
     sessions: Arc<Mutex<std::collections::HashMap<SessionId, SessionState>>>,
+    // In-memory cancellation tokens (not persisted)
+    cancellation_tokens: Arc<Mutex<std::collections::HashMap<SessionId, CancellationToken>>>,
 }
 
 impl<R> ForgeSessionService<R> {
@@ -23,29 +29,27 @@ impl<R> ForgeSessionService<R> {
         Self {
             repository,
             sessions: Arc::new(Mutex::new(std::collections::HashMap::new())),
+            cancellation_tokens: Arc::new(Mutex::new(std::collections::HashMap::new())),
         }
     }
 }
 
-impl<R: SessionRepository> ForgeSessionService<R> {
-    /// Creates a new session
-    ///
-    /// # Arguments
-    /// * `conversation_id` - The conversation ID for this session
-    /// * `agent_id` - The agent ID for this session
-    ///
-    /// # Errors
-    /// Returns an error if session creation or persistence fails
-    pub async fn create_session(
-        &self,
-        conversation_id: ConversationId,
-        agent_id: AgentId,
-    ) -> Result<SessionId> {
+// Implement the SessionService trait
+#[async_trait::async_trait]
+impl<R: SessionRepository> SessionService for ForgeSessionService<R> {
+    async fn create_session(&self, agent_id: AgentId) -> Result<SessionId> {
         let session_id = SessionId::generate();
+        let conversation_id = ConversationId::generate();
         let state = SessionState::new(conversation_id, agent_id);
 
         // Store in memory
         self.sessions.lock().await.insert(session_id, state.clone());
+
+        // Create cancellation token
+        self.cancellation_tokens
+            .lock()
+            .await
+            .insert(session_id, CancellationToken::new());
 
         // Persist to storage
         self.repository.save_session(&session_id, &state).await?;
@@ -53,14 +57,70 @@ impl<R: SessionRepository> ForgeSessionService<R> {
         Ok(session_id)
     }
 
-    /// Retrieves the state of a session
-    ///
-    /// # Arguments
-    /// * `session_id` - The ID of the session to retrieve
-    ///
-    /// # Errors
-    /// Returns an error if the session doesn't exist or retrieval fails
-    pub async fn get_session_state(&self, session_id: &SessionId) -> Result<SessionState> {
+    async fn get_session_state(&self, session_id: &SessionId) -> Result<SessionState> {
+        self.get_session_state_internal(session_id).await
+    }
+
+    async fn get_session_context(&self, session_id: &SessionId) -> Result<SessionContext> {
+        let state = self.get_session_state_internal(session_id).await?;
+
+        let cancellation_token = self
+            .cancellation_tokens
+            .lock()
+            .await
+            .get(session_id)
+            .cloned()
+            .unwrap_or_else(CancellationToken::new);
+
+        Ok(SessionContext {
+            state,
+            cancellation_token,
+        })
+    }
+
+    async fn update_session_state(
+        &self,
+        session_id: &SessionId,
+        state: SessionState,
+    ) -> Result<()> {
+        self.update_session_state_internal(session_id, state).await
+    }
+
+    async fn delete_session(&self, session_id: &SessionId) -> Result<()> {
+        // Remove from memory
+        self.sessions.lock().await.remove(session_id);
+        self.cancellation_tokens.lock().await.remove(session_id);
+
+        // Remove from storage
+        self.repository.delete_session(session_id).await?;
+
+        Ok(())
+    }
+
+    async fn list_sessions(&self) -> Result<Vec<(SessionId, SessionState)>> {
+        let session_ids = self.repository.list_sessions().await?;
+        let mut result = Vec::new();
+
+        for session_id in session_ids {
+            if let Ok(state) = self.get_session_state_internal(&session_id).await {
+                result.push((session_id, state));
+            }
+        }
+
+        Ok(result)
+    }
+
+    async fn cancel_session(&self, session_id: &SessionId) -> Result<()> {
+        if let Some(token) = self.cancellation_tokens.lock().await.get(session_id) {
+            token.cancel();
+        }
+        Ok(())
+    }
+}
+
+impl<R: SessionRepository> ForgeSessionService<R> {
+    /// Internal method to get session state (used by both trait and internal methods)
+    async fn get_session_state_internal(&self, session_id: &SessionId) -> Result<SessionState> {
         // Try memory first
         if let Some(state) = self.sessions.lock().await.get(session_id) {
             return Ok(state.clone());
@@ -76,15 +136,8 @@ impl<R: SessionRepository> ForgeSessionService<R> {
         anyhow::bail!("Session not found: {}", session_id)
     }
 
-    /// Updates the state of a session
-    ///
-    /// # Arguments
-    /// * `session_id` - The ID of the session to update
-    /// * `state` - The new session state
-    ///
-    /// # Errors
-    /// Returns an error if the update or persistence fails
-    pub async fn update_session_state(
+    /// Internal method to update session state
+    async fn update_session_state_internal(
         &self,
         session_id: &SessionId,
         state: SessionState,
@@ -97,32 +150,9 @@ impl<R: SessionRepository> ForgeSessionService<R> {
 
         Ok(())
     }
+}
 
-    /// Deletes a session
-    ///
-    /// # Arguments
-    /// * `session_id` - The ID of the session to delete
-    ///
-    /// # Errors
-    /// Returns an error if deletion fails
-    pub async fn delete_session(&self, session_id: &SessionId) -> Result<()> {
-        // Remove from memory
-        self.sessions.lock().await.remove(session_id);
-
-        // Remove from storage
-        self.repository.delete_session(session_id).await?;
-
-        Ok(())
-    }
-
-    /// Lists all active sessions
-    ///
-    /// # Errors
-    /// Returns an error if listing fails
-    pub async fn list_sessions(&self) -> Result<Vec<SessionId>> {
-        self.repository.list_sessions().await
-    }
-
+impl<R: SessionRepository> ForgeSessionService<R> {
     /// Cleans up expired sessions
     ///
     /// # Arguments
@@ -160,9 +190,9 @@ impl<R: SessionRepository> ForgeSessionService<R> {
     /// # Errors
     /// Returns an error if the session doesn't exist or update fails
     pub async fn touch_session(&self, session_id: &SessionId) -> Result<()> {
-        let mut state = self.get_session_state(session_id).await?;
+        let mut state = self.get_session_state_internal(session_id).await?;
         state.touch();
-        self.update_session_state(session_id, state).await
+        self.update_session_state_internal(session_id, state).await
     }
 }
 

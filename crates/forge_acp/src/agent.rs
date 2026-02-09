@@ -1,66 +1,49 @@
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::collections::HashMap;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use agent_client_protocol as acp;
 use agent_client_protocol::{Client, SetSessionModelRequest, SetSessionModelResponse};
 use forge_app::{
     AgentProviderResolver, AgentRegistry, AppConfigService, AttachmentService, ConversationService,
-    ForgeApp, McpConfigManager, McpService, ProviderAuthService, ProviderService, Services,
+    ForgeApp, InterruptionService, McpService, ProviderAuthService, ProviderService, Services,
+    SessionOrchestrator,
 };
 use forge_domain::{
-    Agent, AgentId, ChatRequest, ConversationId, Event, EventValue, ModelId, ToolCallFull,
-    ToolName, ToolValue,
+    Agent, AgentId, ChatRequest, ConversationId, Event, EventValue, ModelId, SessionId,
 };
 use tokio::sync::{Mutex, mpsc};
-use tokio_util::sync::CancellationToken;
 
-use crate::{Error, Result, VERSION};
+use crate::{Error, Result, VERSION, conversion};
 
 /// Forge implementation of the ACP Agent trait.
 pub struct ForgeAgent<S> {
-    /// Forge application instance with all services.
-    app: Arc<ForgeApp<S>>,
-    /// Services for direct access (same as app.services)
+    /// Services for direct access
     services: Arc<S>,
+    /// Session orchestrator for coordinating session-related operations
+    session_orchestrator: SessionOrchestrator<S>,
     /// Channel for sending session notifications to the client.
     session_update_tx: mpsc::UnboundedSender<acp::SessionNotification>,
     /// Client connection for making RPC calls to the IDE client.
     /// Used for requesting user permission during prompt execution.
     client_conn: Arc<Mutex<Option<Arc<acp::AgentSideConnection>>>>,
-    /// Counter for generating unique session IDs.
-    next_session_id: Cell<u64>,
-    /// Mapping from ACP session IDs to Forge conversation IDs.
-    session_to_conversation: RefCell<HashMap<String, ConversationId>>,
-    /// Cancellation tokens for active sessions.
-    /// Allows clients to interrupt long-running operations.
-    cancellation_tokens: RefCell<HashMap<String, CancellationToken>>,
-    /// Mapping from ACP session IDs to active agent IDs.
-    /// Tracks which agent is being used for each session.
-    session_to_agent: RefCell<HashMap<String, AgentId>>,
-    /// Mapping from ACP session IDs to model overrides.
-    /// When set, these models override the agent's default model for the
-    /// session.
-    session_to_model: RefCell<HashMap<String, ModelId>>,
+    /// Mapping from ACP session IDs to domain session IDs
+    /// This is the only session-related state that should remain in the adapter
+    acp_to_domain_session: RefCell<HashMap<String, SessionId>>,
 }
 
 impl<S: Services> ForgeAgent<S> {
     pub fn new(
-        app: Arc<ForgeApp<S>>,
         services: Arc<S>,
         session_update_tx: mpsc::UnboundedSender<acp::SessionNotification>,
     ) -> Self {
+        let session_orchestrator = SessionOrchestrator::new(services.clone());
         Self {
-            app,
             services,
+            session_orchestrator,
             session_update_tx,
             client_conn: Arc::new(Mutex::new(None)),
-            next_session_id: Cell::new(0),
-            session_to_conversation: RefCell::new(HashMap::new()),
-            cancellation_tokens: RefCell::new(HashMap::new()),
-            session_to_agent: RefCell::new(HashMap::new()),
-            session_to_model: RefCell::new(HashMap::new()),
+            acp_to_domain_session: RefCell::new(HashMap::new()),
         }
     }
 
@@ -73,28 +56,28 @@ impl<S: Services> ForgeAgent<S> {
     }
 
     /// Generates a new unique session ID.
-    fn next_session_id(&self) -> acp::SessionId {
-        let id = self.next_session_id.get();
-        self.next_session_id.set(id + 1);
-        acp::SessionId::new(id.to_string())
-    }
-
     /// Converts an ACP session ID to a Forge conversation ID.
-    fn to_conversation_id(&self, session_id: &acp::SessionId) -> Result<ConversationId> {
+    async fn to_conversation_id(&self, session_id: &acp::SessionId) -> Result<ConversationId> {
         let session_key = session_id.0.as_ref().to_string();
 
-        // Check if we already have a mapping
-        if let Some(conversation_id) = self.session_to_conversation.borrow().get(&session_key) {
-            return Ok(*conversation_id);
-        }
+        // Get the domain session ID
+        let domain_session_id = self
+            .acp_to_domain_session
+            .borrow()
+            .get(&session_key)
+            .copied()
+            .ok_or_else(|| Error::Application(anyhow::anyhow!("Session not found")))?;
 
-        // Create a new conversation ID for this session
-        let conversation_id = ConversationId::generate();
-        self.session_to_conversation
-            .borrow_mut()
-            .insert(session_key, conversation_id);
+        // Get session context from SessionService
+        use forge_app::SessionService as _;
+        let session_context = self
+            .services
+            .session_service()
+            .get_session_context(&domain_session_id)
+            .await
+            .map_err(Error::Application)?;
 
-        Ok(conversation_id)
+        Ok(session_context.state.conversation_id)
     }
 
     /// Sends a session notification to the client.
@@ -132,41 +115,9 @@ impl<S: Services> ForgeAgent<S> {
             return Ok(false);
         };
 
-        // Build the permission request message based on the interruption reason
-        let (title, meta_description) = match reason {
-            forge_domain::InterruptionReason::MaxRequestPerTurnLimitReached { limit } => (
-                "Maximum Request Limit Reached".to_string(),
-                format!(
-                    "The agent has reached the maximum request limit ({}) for this turn. \
-                    This may indicate the agent is stuck in a loop or the task is too complex.",
-                    limit
-                ),
-            ),
-            forge_domain::InterruptionReason::MaxToolFailurePerTurnLimitReached {
-                limit,
-                errors,
-            } => {
-                let error_summary = if errors.is_empty() {
-                    String::new()
-                } else {
-                    let error_list = errors
-                        .iter()
-                        .map(|(tool, count)| format!("  • {} failed {} time(s)", tool, count))
-                        .collect::<Vec<_>>()
-                        .join("\n");
-                    format!("\n\nFailed tools:\n{}", error_list)
-                };
-
-                (
-                    "Maximum Tool Failure Limit Reached".to_string(),
-                    format!(
-                        "The agent has reached the maximum tool failure limit ({}) for this turn. \
-                        Continuing may result in more errors or unexpected behavior.{}",
-                        limit, error_summary
-                    ),
-                )
-            }
-        };
+        // Format interruption message using InterruptionService
+        let interruption_service = InterruptionService;
+        let message = interruption_service.format_interruption(reason);
 
         // Create permission options with proper API
         let options = vec![
@@ -185,7 +136,7 @@ impl<S: Services> ForgeAgent<S> {
             "interrupt-continue",
             acp::ToolCallUpdateFields::new()
                 .status(acp::ToolCallStatus::Pending)
-                .title(title.clone()),
+                .title(message.title.clone()),
         );
 
         // Build and send the permission request
@@ -197,10 +148,10 @@ impl<S: Services> ForgeAgent<S> {
 
         // Add description via meta field since there's no direct description field
         let mut meta = serde_json::Map::new();
-        meta.insert("title".to_string(), serde_json::json!(title));
+        meta.insert("title".to_string(), serde_json::json!(message.title));
         meta.insert(
             "description".to_string(),
-            serde_json::json!(meta_description),
+            serde_json::json!(message.description),
         );
         request = request.meta(meta);
 
@@ -228,16 +179,6 @@ impl<S: Services> ForgeAgent<S> {
     }
 
     /// Converts a Forge Agent to an ACP SessionMode.
-    fn agent_to_session_mode(agent: &Agent) -> acp::SessionMode {
-        let id = acp::SessionModeId::new(agent.id.as_str().to_string());
-        // Title can be too big
-        // it will not be a good UX to show title as name.
-        let name = agent.id.to_string();
-        let description = agent.description.clone();
-
-        acp::SessionMode::new(id, name).description(description)
-    }
-
     /// Builds the SessionModeState from available agents.
     ///
     /// # Errors
@@ -255,206 +196,11 @@ impl<S: Services> ForgeAgent<S> {
             .await
             .map_err(Error::Application)?;
 
-        // Convert agents to session modes
-        let available_modes: Vec<acp::SessionMode> =
-            agents.iter().map(Self::agent_to_session_mode).collect();
-
-        // Create the mode state with current agent as active
-        let current_mode_id = acp::SessionModeId::new(current_agent_id.as_str().to_string());
-
-        Ok(acp::SessionModeState::new(current_mode_id, available_modes))
-    }
-
-    /// Maps a Forge tool name to an ACP ToolKind.
-    fn map_tool_kind(tool_name: &ToolName) -> acp::ToolKind {
-        match tool_name.as_str() {
-            "read" => acp::ToolKind::Read,
-            "write" | "patch" => acp::ToolKind::Edit,
-            "remove" | "undo" => acp::ToolKind::Delete,
-            "fs_search" | "sem_search" => acp::ToolKind::Search,
-            "shell" => acp::ToolKind::Execute,
-            "fetch" => acp::ToolKind::Fetch,
-            "sage" => acp::ToolKind::Think, // Research agent
-            _ => {
-                // Check MCP tool patterns
-                let name = tool_name.as_str();
-                if name.starts_with("mcp_") {
-                    if name.contains("read")
-                        || name.contains("get")
-                        || name.contains("fetch")
-                        || name.contains("list")
-                        || name.contains("show")
-                        || name.contains("view")
-                        || name.contains("load")
-                    {
-                        acp::ToolKind::Read
-                    } else if name.contains("search")
-                        || name.contains("query")
-                        || name.contains("find")
-                        || name.contains("filter")
-                        || name.contains("lookup")
-                    {
-                        acp::ToolKind::Search
-                    } else if name.contains("write")
-                        || name.contains("update")
-                        || name.contains("create")
-                        || name.contains("set")
-                        || name.contains("add")
-                        || name.contains("insert")
-                        || name.contains("push")
-                        || name.contains("merge")
-                        || name.contains("fork")
-                        || name.contains("comment")
-                        || name.contains("assign")
-                        || name.contains("request")
-                    {
-                        acp::ToolKind::Edit
-                    } else if name.contains("delete")
-                        || name.contains("remove")
-                        || name.contains("drop")
-                        || name.contains("clear")
-                        || name.contains("close")
-                        || name.contains("cancel")
-                    {
-                        acp::ToolKind::Delete
-                    } else if name.contains("execute")
-                        || name.contains("run")
-                        || name.contains("start")
-                        || name.contains("invoke")
-                        || name.contains("call")
-                    {
-                        acp::ToolKind::Execute
-                    } else {
-                        acp::ToolKind::Other
-                    }
-                } else {
-                    acp::ToolKind::Other
-                }
-            }
-        }
-    }
-
-    /// Extracts file locations from tool arguments for "follow-along" features.
-    fn extract_file_locations(
-        tool_name: &ToolName,
-        arguments: &serde_json::Value,
-    ) -> Vec<acp::ToolCallLocation> {
-        match tool_name.as_str() {
-            "read" | "write" | "patch" | "remove" | "undo" => {
-                if let Some(file_path) = arguments.get("file_path").and_then(|v| v.as_str()) {
-                    vec![acp::ToolCallLocation::new(PathBuf::from(file_path))]
-                } else {
-                    vec![]
-                }
-            }
-            _ => vec![],
-        }
-    }
-
-    /// Maps a Forge ToolCallFull to an ACP ToolCall.
-    fn map_tool_call_to_acp(tool_call: &ToolCallFull) -> acp::ToolCall {
-        let tool_call_id = tool_call
-            .call_id
-            .as_ref()
-            .map(|id| id.as_str().to_string())
-            .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-
-        let title = tool_call.name.as_str().to_string();
-        let kind = Self::map_tool_kind(&tool_call.name);
-        let locations = Self::extract_file_locations(
-            &tool_call.name,
-            &serde_json::to_value(&tool_call.arguments).unwrap_or(serde_json::json!({})),
-        );
-
-        acp::ToolCall::new(tool_call_id, title)
-            .kind(kind)
-            .status(acp::ToolCallStatus::Pending)
-            .locations(locations)
-            .raw_input(
-                serde_json::to_value(&tool_call.arguments)
-                    .ok()
-                    .filter(|v| !v.is_null()),
-            )
-    }
-
-    /// Maps a Forge ToolOutput to ACP ToolCallContent.
-    fn map_tool_output_to_content(output: &forge_domain::ToolOutput) -> Vec<acp::ToolCallContent> {
-        // Check if there's a FileDiff - if so, only show that and skip text diffs
-        let has_file_diff = output
-            .values
-            .iter()
-            .any(|v| matches!(v, ToolValue::FileDiff(_)));
-
-        output
-            .values
-            .iter()
-            .filter_map(|value| {
-                // Use display_value() to get the user-friendly representation
-                let display = value.display_value();
-
-                match display {
-                    ToolValue::Text(text) => {
-                        // Skip text content if we have a FileDiff (text is the formatted diff for
-                        // CLI)
-                        if has_file_diff {
-                            None
-                        } else {
-                            Some(acp::ToolCallContent::Content(acp::Content::new(
-                                acp::ContentBlock::Text(acp::TextContent::new(text.clone())),
-                            )))
-                        }
-                    }
-                    ToolValue::Markdown(md) => {
-                        // Markdown is for display, send as text content
-                        Some(acp::ToolCallContent::Content(acp::Content::new(
-                            acp::ContentBlock::Text(acp::TextContent::new(md.clone())),
-                        )))
-                    }
-                    ToolValue::Image(image) => Some(acp::ToolCallContent::Content(
-                        acp::Content::new(acp::ContentBlock::Image(acp::ImageContent::new(
-                            image.data(),
-                            image.mime_type(),
-                        ))),
-                    )),
-                    ToolValue::AI { value, .. } => {
-                        Some(acp::ToolCallContent::Content(acp::Content::new(
-                            acp::ContentBlock::Text(acp::TextContent::new(value.clone())),
-                        )))
-                    }
-                    ToolValue::FileDiff(file_diff) => {
-                        // Convert Forge FileDiff to ACP Diff
-                        Some(acp::ToolCallContent::Diff(
-                            acp::Diff::new(PathBuf::from(&file_diff.path), &file_diff.new_text)
-                                .old_text(file_diff.old_text.clone()),
-                        ))
-                    }
-                    ToolValue::Empty => None,
-                    ToolValue::Pair(_, _) => {
-                        // This shouldn't happen since display_value() unwraps pairs
-                        // But handle it just in case by recursing
-                        None
-                    }
-                }
-            })
-            .collect()
-    }
-
-    /// Converts an ACP URI to a file path.
-    ///
-    /// Handles file:// URIs and converts them to absolute paths.
-    fn uri_to_path(uri: &str) -> String {
-        // Handle file:// URIs
-        if let Some(path) = uri.strip_prefix("file://") {
-            // Remove any leading slash for Windows paths (file:///C:/path -> C:/path)
-            if path.len() > 2 && path.chars().nth(2) == Some(':') {
-                path.trim_start_matches('/').to_string()
-            } else {
-                path.to_string()
-            }
-        } else {
-            // Return as-is if not a file:// URI
-            uri.to_string()
-        }
+        // Use conversion module to build the state
+        Ok(conversion::build_session_mode_state(
+            &agents,
+            current_agent_id,
+        ))
     }
 
     /// Loads MCP servers from ACP requests into Forge's MCP configuration.
@@ -466,26 +212,19 @@ impl<S: Services> ForgeAgent<S> {
     ///
     /// Returns an error if MCP servers cannot be loaded or converted.
     async fn load_mcp_servers(&self, mcp_servers: &[acp::McpServer]) -> Result<()> {
-        use forge_domain::{Scope, ServerName};
+        use forge_app::{ExternalMcpServer, McpImportService as _};
+        use forge_domain::Scope;
 
-        // Read existing local config (if any)
-        let mut local_config = self
-            .services
-            .read_mcp_config(Some(&Scope::Local))
-            .await
-            .unwrap_or_default();
+        // Convert ACP MCP servers to ExternalMcpServer format
+        let external_servers: Vec<ExternalMcpServer> = mcp_servers
+            .iter()
+            .map(Self::acp_to_external_mcp_server)
+            .collect::<Result<Vec<_>>>()?;
 
-        // Add new servers to the existing config
-        for server in mcp_servers {
-            let (name, config) = Self::convert_acp_mcp_server(server)?;
-            local_config
-                .mcp_servers
-                .insert(ServerName::from(name), config);
-        }
-
-        // Write the merged MCP config back to the local scope
+        // Import via McpImportService
         self.services
-            .write_mcp_config(&local_config, &Scope::Local)
+            .mcp_import_service()
+            .import_servers(external_servers, &Scope::Local)
             .await
             .map_err(Error::Application)?;
 
@@ -498,56 +237,59 @@ impl<S: Services> ForgeAgent<S> {
         Ok(())
     }
 
-    /// Converts an ACP McpServer to Forge's McpServerConfig.
+    /// Converts an ACP McpServer to ExternalMcpServer format.
     ///
     /// # Errors
     ///
     /// Returns an error if the server configuration is invalid.
-    fn convert_acp_mcp_server(
-        server: &acp::McpServer,
-    ) -> Result<(String, forge_domain::McpServerConfig)> {
-        use forge_domain::McpServerConfig;
+    fn acp_to_external_mcp_server(server: &acp::McpServer) -> Result<forge_app::ExternalMcpServer> {
+        use forge_app::ExternalMcpServer;
 
         match server {
             acp::McpServer::Stdio(stdio) => {
-                // Convert Vec<EnvVariable> to BTreeMap<String, String>
-                let env_map = stdio
+                // Convert Vec<EnvVariable> to Vec<(String, String)>
+                let env = stdio
                     .env
                     .iter()
-                    .map(|ev| (ev.name.clone(), ev.value.clone()))
+                    .map(|e| (e.name.clone(), e.value.clone()))
                     .collect();
 
-                let config = McpServerConfig::new_stdio(
-                    stdio.command.to_string_lossy().to_string(),
-                    stdio.args.clone(),
-                    Some(env_map),
-                );
-                Ok((stdio.name.clone(), config))
+                Ok(ExternalMcpServer::Stdio {
+                    name: stdio.name.clone(),
+                    command: stdio.command.to_string_lossy().to_string(),
+                    args: stdio.args.clone(),
+                    env,
+                })
             }
             acp::McpServer::Http(http) => {
-                let mut config = McpServerConfig::new_http(&http.url);
-                if let McpServerConfig::Http(ref mut http_config) = config {
-                    // Convert Vec<HttpHeader> to BTreeMap<String, String>
-                    http_config.headers = http
-                        .headers
-                        .iter()
-                        .map(|h| (h.name.clone(), h.value.clone()))
-                        .collect();
-                }
-                Ok((http.name.clone(), config))
+                // Convert Vec<HttpHeader> to Vec<(String, String)>
+                let headers = http
+                    .headers
+                    .iter()
+                    .map(|h| (h.name.clone(), h.value.clone()))
+                    .collect();
+
+                Ok(ExternalMcpServer::Http {
+                    name: http.name.clone(),
+                    url: http.url.clone(),
+                    headers,
+                })
             }
             acp::McpServer::Sse(sse) => {
-                // SSE uses the same HTTP transport in Forge (auto-detected)
-                let mut config = McpServerConfig::new_http(&sse.url);
-                if let McpServerConfig::Http(ref mut http_config) = config {
-                    // Convert Vec<HttpHeader> to BTreeMap<String, String>
-                    http_config.headers = sse
-                        .headers
-                        .iter()
-                        .map(|h| (h.name.clone(), h.value.clone()))
-                        .collect();
-                }
-                Ok((sse.name.clone(), config))
+                // Convert Vec<HttpHeader> to Vec<(String, String)>
+                let headers = sse
+                    .headers
+                    .iter()
+                    .map(|h| (h.name.clone(), h.value.clone()))
+                    .collect();
+
+                Ok(
+                    ExternalMcpServer::Sse {
+                        name: sse.name.clone(),
+                        url: sse.url.clone(),
+                        headers,
+                    },
+                )
             }
             _ => {
                 // Handle future MCP server types that may be added to the protocol
@@ -564,29 +306,21 @@ impl<S: Services> ForgeAgent<S> {
     ///
     /// Returns an error if the agent cannot be retrieved.
     async fn get_session_agent(&self, session_key: &str) -> Result<Agent> {
-        // Get the agent ID for this session, or default to forge
-        let agent_id = self
-            .session_to_agent
+        // Get the domain session ID
+        let domain_session_id = self
+            .acp_to_domain_session
             .borrow()
             .get(session_key)
-            .cloned()
-            .unwrap_or_default();
+            .copied()
+            .ok_or_else(|| Error::Application(anyhow::anyhow!("Session not found")))?;
 
-        // Retrieve the agent
-        let mut agent = self
-            .services
-            .agent_registry()
-            .get_agent(&agent_id)
+        // Use SessionAgentService to get the agent with model overrides applied
+        use forge_app::SessionAgentService as _;
+        self.services
+            .session_agent_service()
+            .get_session_agent(&domain_session_id)
             .await
-            .map_err(Error::Application)?
-            .ok_or_else(|| Error::Application(anyhow::anyhow!("Agent '{}' not found", agent_id)))?;
-
-        // Apply model override if set for this session
-        if let Some(model_id) = self.session_to_model.borrow().get(session_key) {
-            agent.model = model_id.clone();
-        }
-
-        Ok(agent)
+            .map_err(|e| Error::Application(anyhow::anyhow!("{}", e)))
     }
 
     /// Builds the SessionModelState from available models for the agent's
@@ -685,53 +419,6 @@ impl<S: Services> ForgeAgent<S> {
             }),
         )
     }
-
-    /// Converts an ACP EmbeddedResource to a Forge Attachment.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the resource cannot be converted.
-    fn acp_resource_to_attachment(
-        resource: &acp::EmbeddedResource,
-    ) -> Result<forge_domain::Attachment> {
-        use forge_domain::{AttachmentContent, Image};
-
-        match &resource.resource {
-            acp::EmbeddedResourceResource::TextResourceContents(text) => {
-                let content = AttachmentContent::FileContent {
-                    content: text.text.clone(),
-                    start_line: 1,
-                    end_line: text.text.lines().count() as u64,
-                    total_lines: text.text.lines().count() as u64,
-                };
-                let path = Self::uri_to_path(&text.uri);
-                Ok(forge_domain::Attachment { content, path })
-            }
-            acp::EmbeddedResourceResource::BlobResourceContents(blob) => {
-                // Blob is base64 encoded
-                let bytes =
-                    base64::Engine::decode(&base64::engine::general_purpose::STANDARD, &blob.blob)
-                        .map_err(|e| {
-                            Error::Application(anyhow::anyhow!("Invalid base64: {}", e))
-                        })?;
-
-                let mime_type = blob
-                    .mime_type
-                    .clone()
-                    .unwrap_or_else(|| "application/octet-stream".to_string());
-
-                let content = AttachmentContent::Image(Image::new_bytes(bytes, mime_type));
-                let path = Self::uri_to_path(&blob.uri);
-                Ok(forge_domain::Attachment { content, path })
-            }
-            _ => {
-                // Handle unknown resource types
-                Err(Error::Application(anyhow::anyhow!(
-                    "Unsupported resource type"
-                )))
-            }
-        }
-    }
 }
 
 #[async_trait::async_trait(?Send)]
@@ -792,26 +479,6 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
             self.load_mcp_servers(&arguments.mcp_servers).await?;
         }
 
-        // Generate a new session ID that maps to a Forge conversation ID
-        let session_id = self.next_session_id();
-        let session_key = session_id.0.as_ref().to_string();
-
-        // Create the conversation in Forge's database so it exists when chat() is
-        // called
-        let conversation_id = self
-            .to_conversation_id(&session_id)
-            .map_err(acp::Error::from)?;
-
-        // Create a new conversation with the generated ID
-        let conversation = forge_domain::Conversation::new(conversation_id);
-
-        // Store the conversation using the conversation service
-        self.services
-            .conversation_service()
-            .upsert_conversation(conversation)
-            .await
-            .map_err(|e| acp::Error::into_internal_error(&*e))?;
-
         // Get the active agent or default to forge
         let active_agent_id = self
             .services
@@ -821,10 +488,42 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
             .map_err(|e| acp::Error::into_internal_error(&*e))?
             .unwrap_or_default();
 
-        // Store the agent for this session
-        self.session_to_agent
+        // Create session via SessionService
+        // Create session via SessionService
+        use forge_app::SessionService as _;
+        let domain_session_id = self
+            .services
+            .session_service()
+            .create_session(active_agent_id.clone())
+            .await
+            .map_err(|e| acp::Error::into_internal_error(&*e))?;
+
+        // Convert domain session ID to ACP session ID
+        let acp_session_id = acp::SessionId::new(domain_session_id.to_string());
+        let acp_session_key = acp_session_id.0.as_ref().to_string();
+
+        // Map ACP session ID to domain session ID
+        self.acp_to_domain_session
             .borrow_mut()
-            .insert(session_key, active_agent_id.clone());
+            .insert(acp_session_key.clone(), domain_session_id);
+
+        // Get session context to retrieve conversation ID
+        let session_context: forge_domain::SessionContext = self
+            .services
+            .session_service()
+            .get_session_context(&domain_session_id)
+            .await
+            .map_err(|e| acp::Error::into_internal_error(&*e))?;
+
+        // Create a new conversation with the session's conversation ID
+        let conversation = forge_domain::Conversation::new(session_context.state.conversation_id);
+
+        // Store the conversation using the conversation service
+        self.services
+            .conversation_service()
+            .upsert_conversation(conversation)
+            .await
+            .map_err(|e| acp::Error::into_internal_error(&*e))?;
 
         // Get the full agent object to build states
         let agent = self
@@ -854,11 +553,11 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
 
         tracing::info!(
             "Created session {} with {} models available",
-            session_id.0.as_ref(),
+            acp_session_id.0.as_ref(),
             model_state.available_models.len()
         );
 
-        Ok(acp::NewSessionResponse::new(session_id)
+        Ok(acp::NewSessionResponse::new(acp_session_id)
             .modes(mode_state)
             .models(model_state))
     }
@@ -879,33 +578,35 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
             self.load_mcp_servers(&arguments.mcp_servers).await?;
         }
 
-        // Verify the session exists by attempting to parse it as a conversation ID
+        // Verify the session exists by attempting to get conversation ID
         let _conversation_id = self
             .to_conversation_id(&arguments.session_id)
+            .await
             .map_err(acp::Error::from)?;
 
-        // Get the agent for this session, or default to forge
+        // Get the domain session ID
         let session_key = arguments.session_id.0.as_ref().to_string();
-        let active_agent_id = self
-            .session_to_agent
+        let domain_session_id = self
+            .acp_to_domain_session
             .borrow()
             .get(&session_key)
-            .cloned()
-            .unwrap_or_default();
+            .copied()
+            .ok_or_else(|| {
+                acp::Error::into_internal_error(&*anyhow::anyhow!("Session not found"))
+            })?;
 
-        // Get the full agent object to build states
+        // Get the agent for this session using SessionAgentService
+        use forge_app::SessionAgentService as _;
         let agent = self
             .services
-            .agent_registry()
-            .get_agent(&active_agent_id)
+            .session_agent_service()
+            .get_session_agent(&domain_session_id)
             .await
-            .map_err(|e| acp::Error::into_internal_error(&*e))?
-            .ok_or_else(|| {
-                acp::Error::into_internal_error(&*anyhow::anyhow!(
-                    "Agent '{}' not found",
-                    active_agent_id
-                ))
-            })?;
+            .map_err(|e| acp::Error::into_internal_error(&*e))?;
+
+        let active_agent_id = agent.id.clone();
+
+        // Agent is already retrieved above with model overrides applied
 
         // Build session mode state with available agents
         let mode_state = self
@@ -940,15 +641,28 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
 
         let session_key = arguments.session_id.0.as_ref().to_string();
 
-        // Create a new cancellation token for this prompt
-        let cancellation_token = CancellationToken::new();
-        self.cancellation_tokens
-            .borrow_mut()
-            .insert(session_key.clone(), cancellation_token.clone());
+        // Get domain session ID
+        let domain_session_id = self
+            .acp_to_domain_session
+            .borrow()
+            .get(&session_key)
+            .cloned()
+            .ok_or_else(|| {
+                tracing::error!("Session '{}' not found", session_key);
+                acp::Error::invalid_params()
+            })?;
 
-        let conversation_id = self
-            .to_conversation_id(&arguments.session_id)
-            .map_err(acp::Error::from)?;
+        // Get session context (includes cancellation token) from SessionService
+        use forge_app::SessionService as _;
+        let session_context = self
+            .services
+            .session_service()
+            .get_session_context(&domain_session_id)
+            .await
+            .map_err(|e| acp::Error::into_internal_error(&*e))?;
+
+        let cancellation_token = session_context.cancellation_token;
+        let conversation_id = session_context.state.conversation_id;
 
         // Convert ACP prompt content to Forge Event
         let mut prompt_text_parts = Vec::new();
@@ -962,12 +676,12 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
                 acp::ContentBlock::ResourceLink(resource_link) => {
                     // IDE sent a resource link - convert URI to @[path] syntax
                     // so our attachment service can process it
-                    let path = Self::uri_to_path(&resource_link.uri);
+                    let path = conversion::uri_to_path(&resource_link.uri);
                     prompt_text_parts.push(format!("@[{}]", path));
                 }
                 acp::ContentBlock::Resource(embedded_resource) => {
                     // IDE sent embedded resource content - convert to Forge attachment
-                    match Self::acp_resource_to_attachment(embedded_resource) {
+                    match conversion::acp_resource_to_attachment(embedded_resource) {
                         Ok(attachment) => acp_attachments.push(attachment),
                         Err(e) => {
                             tracing::warn!("Failed to convert embedded resource: {}", e);
@@ -1020,8 +734,9 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
             // Flag to track if user wants to continue after an interrupt
             let mut continue_after_interrupt = false;
 
-            // Execute the chat request
-            match self.app.chat(agent.id.clone(), chat_request).await {
+            // Execute the chat request using ForgeApp
+            let app = ForgeApp::new(self.services.clone());
+            match app.chat(agent.id.clone(), chat_request).await {
                 Ok(mut stream) => {
                     use futures::StreamExt;
 
@@ -1031,9 +746,6 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
                                         // Check for cancellation
                                         _ = cancellation_token.cancelled() => {
                                             tracing::info!("Session {} cancelled by client", session_key);
-
-                                            // Clean up the cancellation token
-                                            self.cancellation_tokens.borrow_mut().remove(&session_key);
 
                                             return Ok(acp::PromptResponse::new(acp::StopReason::Cancelled));
                                         }
@@ -1142,7 +854,7 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
                                             }
                                             forge_domain::ChatResponse::ToolCallStart(tool_call) => {
                                                 // Create ACP ToolCall and send as update
-                                                let acp_tool_call = Self::map_tool_call_to_acp(&tool_call);
+                                                let acp_tool_call = conversion::map_tool_call_to_acp(&tool_call);
 
                                                 let notification = acp::SessionNotification::new(
                                                     arguments.session_id.clone(),
@@ -1154,7 +866,7 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
                                             }
                                             forge_domain::ChatResponse::ToolCallEnd(tool_result) => {
                                                 // Map tool result to ACP content and send completion update
-                                                let content = Self::map_tool_output_to_content(&tool_result.output);
+                                                let content = conversion::map_tool_output_to_content(&tool_result.output);
                                                 let status = if tool_result.output.is_error {
                                                     acp::ToolCallStatus::Failed
                                                 } else {
@@ -1196,7 +908,6 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
 
                                                 if !should_continue {
                                                     // User declined to continue - stop execution
-                                                    self.cancellation_tokens.borrow_mut().remove(&session_key);
                                                     return Ok(acp::PromptResponse::new(
                                                         acp::StopReason::EndTurn,
                                                     ));
@@ -1209,9 +920,6 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
                                     }
                                     Some(Err(e)) => {
                                         tracing::error!("Error in chat stream: {}", e);
-
-                                        // Clean up cancellation token
-                                        self.cancellation_tokens.borrow_mut().remove(&session_key);
 
                                         return Err(acp::Error::into_internal_error(
                                             e.as_ref() as &dyn std::error::Error
@@ -1242,16 +950,10 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
                         continue;
                     }
 
-                    // Clean up cancellation token
-                    self.cancellation_tokens.borrow_mut().remove(&session_key);
-
                     return Ok(acp::PromptResponse::new(acp::StopReason::EndTurn));
                 }
                 Err(e) => {
                     tracing::error!("Failed to execute chat: {}", e);
-
-                    // Clean up cancellation token
-                    self.cancellation_tokens.borrow_mut().remove(&session_key);
 
                     return Err(acp::Error::into_internal_error(
                         e.as_ref() as &dyn std::error::Error
@@ -1270,12 +972,25 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
 
         tracing::info!("Received cancel request for session: {}", session_key);
 
-        // Trigger the cancellation token if it exists
-        if let Some(token) = self.cancellation_tokens.borrow().get(&session_key) {
-            token.cancel();
+        // Get domain session ID
+        let domain_session_id = self
+            .acp_to_domain_session
+            .borrow()
+            .get(&session_key)
+            .cloned();
+
+        if let Some(session_id) = domain_session_id {
+            // Cancel via SessionService
+            use forge_app::SessionService as _;
+            self.services
+                .session_service()
+                .cancel_session(&session_id)
+                .await
+                .map_err(|e| acp::Error::into_internal_error(&*e))?;
+
             tracing::info!("Cancelled session: {}", session_key);
         } else {
-            tracing::warn!("No active prompt for session: {}", session_key);
+            tracing::warn!("No active session found: {}", session_key);
         }
 
         Ok(())
@@ -1297,26 +1012,30 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
             mode_id
         );
 
+        // Get domain session ID from ACP session ID
+        let domain_session_id = self
+            .acp_to_domain_session
+            .borrow()
+            .get(&session_key)
+            .cloned()
+            .ok_or_else(|| {
+                tracing::error!("Session '{}' not found", session_key);
+                acp::Error::invalid_params()
+            })?;
+
         // Parse the mode ID as an agent ID
         let new_agent_id = AgentId::new(mode_id);
 
-        // Verify the agent exists
-        let agent = self
-            .services
-            .agent_registry()
-            .get_agent(&new_agent_id)
+        // Switch agent via SessionAgentService
+        use forge_app::SessionAgentService as _;
+        self.services
+            .session_agent_service()
+            .switch_agent(&domain_session_id, &new_agent_id)
             .await
-            .map_err(|e| acp::Error::into_internal_error(&*e))?;
-
-        if agent.is_none() {
-            tracing::error!("Agent '{}' not found", mode_id);
-            return Err(acp::Error::invalid_params());
-        }
-
-        // Update the session's active agent
-        self.session_to_agent
-            .borrow_mut()
-            .insert(session_key.clone(), new_agent_id.clone());
+            .map_err(|e| {
+                tracing::error!("Failed to switch agent: {}", e);
+                acp::Error::into_internal_error(&*e)
+            })?;
 
         // Send a notification about the mode change
         let mode_update = acp::CurrentModeUpdate::new(acp::SessionModeId::new(mode_id.to_string()));
@@ -1338,36 +1057,42 @@ impl<S: Services> acp::Agent for ForgeAgent<S> {
         let session_key = args.session_id.0.as_ref().to_string();
         let model_id = ModelId::new(args.model_id.0.to_string());
 
+        // Get domain session ID from ACP session ID
+        let domain_session_id = self
+            .acp_to_domain_session
+            .borrow()
+            .get(&session_key)
+            .cloned()
+            .ok_or_else(|| {
+                tracing::error!("Session '{}' not found", session_key);
+                acp::Error::invalid_params()
+            })?;
+
+        // Set model override via SessionModelService
+        use forge_app::SessionModelService as _;
+        self.services
+            .session_model_service()
+            .set_session_model(&domain_session_id, &model_id)
+            .await
+            .map_err(|e| {
+                tracing::error!("Failed to set session model: {}", e);
+                acp::Error::into_internal_error(&*e)
+            })?;
+
+        // Also update global default (for backward compatibility)
         self.services.set_default_model(model_id.clone()).await?;
         let _ = self.services.reload_agents().await;
 
-        // Store the model override for this session so it takes effect immediately
-        self.session_to_model
-            .borrow_mut()
-            .insert(session_key.clone(), model_id);
-        if let Some(agent_id) = self.session_to_agent.borrow().get(&session_key) {
-            let agent_provider_resolver = AgentProviderResolver::new(self.services.clone());
-            let agent_model = agent_provider_resolver
-                .get_model(Some(agent_id.clone()))
-                .await;
-            let default_model = self.services.get_provider_model(None).await;
-            let model = agent_model.or(default_model).ok();
+        // Send notification about model change
+        let model_update = acp::SessionNotification::new(
+            args.session_id.clone(),
+            acp::SessionUpdate::AgentMessageChunk(acp::ContentChunk::new(acp::ContentBlock::Text(
+                acp::TextContent::new(format!("Model changed to: {}", model_id)),
+            ))),
+        );
 
-            if let Some(model) = model {
-                let model_update = acp::SessionNotification::new(
-                    args.session_id.clone(),
-                    acp::SessionUpdate::AgentMessageChunk(acp::ContentChunk::new(
-                        acp::ContentBlock::Text(acp::TextContent::new(format!(
-                            "Model changed to: {}",
-                            model
-                        ))),
-                    )),
-                );
-
-                if let Err(e) = self.send_notification(model_update) {
-                    tracing::warn!("Failed to send a model change notification: {}", e);
-                }
-            }
+        if let Err(e) = self.send_notification(model_update) {
+            tracing::warn!("Failed to send a model change notification: {}", e);
         }
 
         Ok(SetSessionModelResponse::default())

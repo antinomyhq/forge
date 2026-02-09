@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use anyhow::Result;
 use bytes::Bytes;
 use forge_app::{
     AgentRepository, CommandInfra, DirectoryReaderInfra, EnvironmentInfra, FileDirectoryInfra,
@@ -12,8 +13,8 @@ use forge_domain::{
     AnyProvider, AppConfig, AppConfigRepository, AuthCredential, ChatCompletionMessage,
     ChatRepository, CommandOutput, Context, Conversation, ConversationId, ConversationRepository,
     Environment, FileInfo, FuzzySearchRepository, McpServerConfig, MigrationResult, Model, ModelId,
-    Provider, ProviderId, ProviderRepository, ResultStream, SearchMatch, Skill, SkillRepository,
-    Snapshot, SnapshotRepository,
+    Provider, ProviderId, ProviderRepository, ResultStream, SearchMatch, SessionId, SessionRepository,
+    SessionState, Skill, SkillRepository, Snapshot, SnapshotRepository,
 };
 // Re-export CacacheStorage from forge_infra
 pub use forge_infra::CacacheStorage;
@@ -30,6 +31,7 @@ use crate::database::{DatabasePool, PoolConfig};
 use crate::fs_snap::ForgeFileSnapshotService;
 use crate::fuzzy_search::ForgeFuzzySearchRepository;
 use crate::provider::{ForgeChatRepository, ForgeProviderRepository};
+use crate::session::InMemorySessionRepository;
 use crate::skill::ForgeSkillRepository;
 use crate::validation::ForgeValidationRepository;
 use crate::workspace::ForgeWorkspaceRepository;
@@ -53,6 +55,7 @@ pub struct ForgeRepo<F> {
     skill_repository: Arc<ForgeSkillRepository<F>>,
     validation_repository: Arc<ForgeValidationRepository<F>>,
     fuzzy_search_repository: Arc<ForgeFuzzySearchRepository<F>>,
+    session_repository: Arc<InMemorySessionRepository>,
 }
 
 impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpInfra> ForgeRepo<F> {
@@ -83,6 +86,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpI
         let skill_repository = Arc::new(ForgeSkillRepository::new(infra.clone()));
         let validation_repository = Arc::new(ForgeValidationRepository::new(infra.clone()));
         let fuzzy_search_repository = Arc::new(ForgeFuzzySearchRepository::new(infra.clone()));
+        let session_repository = Arc::new(InMemorySessionRepository::new());
         Self {
             infra,
             file_snapshot_service,
@@ -97,6 +101,7 @@ impl<F: EnvironmentInfra + FileReaderInfra + FileWriterInfra + GrpcInfra + HttpI
             skill_repository,
             validation_repository,
             fuzzy_search_repository,
+            session_repository,
         }
     }
 }
@@ -620,6 +625,29 @@ impl<F: GrpcInfra + Send + Sync> FuzzySearchRepository for ForgeRepo<F> {
         self.fuzzy_search_repository
             .fuzzy_search(needle, haystack, search_all)
             .await
+    }
+}
+
+#[async_trait::async_trait]
+impl<F: Send + Sync> SessionRepository for ForgeRepo<F> {
+    async fn save_session(&self, session_id: &SessionId, state: &SessionState) -> Result<()> {
+        self.session_repository.save_session(session_id, state).await
+    }
+
+    async fn load_session(&self, session_id: &SessionId) -> Result<Option<SessionState>> {
+        self.session_repository.load_session(session_id).await
+    }
+
+    async fn delete_session(&self, session_id: &SessionId) -> Result<()> {
+        self.session_repository.delete_session(session_id).await
+    }
+
+    async fn list_sessions(&self) -> Result<Vec<SessionId>> {
+        self.session_repository.list_sessions().await
+    }
+
+    async fn cleanup_expired_sessions(&self, ttl: std::time::Duration) -> Result<usize> {
+        self.session_repository.cleanup_expired_sessions(ttl).await
     }
 }
 

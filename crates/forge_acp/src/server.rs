@@ -34,8 +34,6 @@ pub struct AgentInfo {
 ///
 /// Returns an error if the server fails to start or encounters a fatal error.
 pub async fn start_stdio_server<S: Services + 'static>(app: Arc<ForgeApp<S>>) -> Result<()> {
-    tracing::info!("Starting ACP server with stdio transport");
-
     // We need to use spawn_blocking because LocalSet is !Send
     // This runs the entire ACP server in a blocking thread with its own runtime
     let handle = tokio::task::spawn_blocking(move || {
@@ -61,7 +59,7 @@ pub async fn start_stdio_server<S: Services + 'static>(app: Arc<ForgeApp<S>>) ->
             let result = local_set
                 .run_until(async move {
                     let services = app.services().clone();
-                    let agent = Arc::new(ForgeAgent::new(app, services, tx));
+                    let agent = Arc::new(ForgeAgent::new(services, tx));
 
                     // Start up the ForgeAgent connected to stdio
                     let (conn, handle_io) =
