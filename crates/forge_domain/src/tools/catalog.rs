@@ -197,25 +197,67 @@ pub enum OutputMode {
 /// corresponding use_case for document reranking.
 #[derive(Default, Debug, Clone, Serialize, Deserialize, JsonSchema, PartialEq, Eq)]
 pub struct SearchQuery {
-    /// Describe WHAT the code does or its purpose. Include domain-specific
-    /// terms and technical context. Good: "retry mechanism with exponential
-    /// backoff", "streaming responses from LLM API", "OAuth token refresh
-    /// flow". Bad: generic terms like "retry" or "auth" without context. Think
-    /// about the behavior and functionality you're looking for.
+    /// The semantic embedding query that describes WHAT the code does or its
+    /// purpose. This query is converted to a vector embedding and used to find
+    /// semantically similar code chunks in the vector database.
+    ///
+    /// **Guidelines for effective embedding queries:**
+    /// - Use specific, targeted technical terms and domain concepts
+    /// - Describe behavior, functionality, patterns, or implementation approach
+    /// - Include concrete keywords like technology names, algorithms, data structures
+    /// - Balance specificity (focused results) with generality (avoid missing relevant code)
+    /// - Keep queries focused - overly broad queries cause timeouts and poor results
+    /// - **Align keywords with intent**: For documentation, use "README", "guide", "setup"; for implementation, use "function", "logic", "handler"
+    ///
+    /// **Good examples:**
+    /// - "exponential backoff retry mechanism with configurable delays"
+    /// - "streaming LLM responses with SSE chunked transfer encoding"
+    /// - "OAuth2 token refresh with automatic retry and expiry check"
+    /// - "Diesel database migration runner with transaction support"
+    /// - "semantic search reranker using cross-encoder model"
+    /// - "README documentation configuration setup semantic search"
+    /// - "markdown guide API documentation tool definitions"
+    ///
+    /// **Bad examples:**
+    /// - "retry" (too generic, will match everything)
+    /// - "authentication" (overly broad - specify what aspect: login, tokens, middleware?)
+    /// - "tool definitions schemas" (too vague - be more specific about structure or location)
+    /// - "how system works" (meta-question, not searchable concept)
+    /// - "function that validates" (focus on what it validates, not that it's a function)
     pub query: String,
 
-    /// A short natural-language description of what you are trying to find.
-    /// This is the query used for document reranking. The query MUST:
-    /// - express a single, focused information need
-    /// - describe exactly what the agent is searching for
-    /// - should not be the query verbatim
-    /// - be concise (1–2 sentences)
+    /// The reranking query that describes your INTENT and WHY you need this code.
+    /// This query is used by the reranker model to filter and prioritize the most
+    /// relevant results from the initial embedding search based on your specific use case.
     ///
-    /// Examples:
-    /// - "Why is `select_model()` returning a Pin<Box<Result>> in Rust?"
-    /// - "How to fix error E0277 for the ? operator on a pinned boxed result?"
-    /// - "Steps to run Diesel migrations in Rust without exposing the DB."
-    /// - "How to design a clean architecture service layer with typed errors?"
+    /// **Purpose:** While `query` casts a wide net for similar code, `use_case` narrows
+    /// it down by intent: implementation vs docs vs tests, reading vs modifying code,
+    /// understanding architecture vs finding bugs, etc.
+    ///
+    /// **Guidelines for effective reranking queries:**
+    /// - Clearly state your goal: understand, modify, debug, find examples, etc.
+    /// - Specify the TYPE of code you need: implementation, tests, docs, config, architecture
+    /// - Include WHY context: "to fix a bug", "to add a feature", "to understand flow"
+    /// - Be explicit about what to AVOID: "not tests", "not documentation", "not examples"
+    /// - **Match intent to file types**: documentation intent → avoid requesting "implementation code"; implementation intent → avoid requesting "documentation"
+    /// - Keep it concise (1-2 sentences) but informative
+    /// - MUST be different from the embedding query - add intent/context
+    ///
+    /// **Good examples:**
+    /// - "I need the actual implementation code for Diesel migrations to understand the transaction handling, not setup docs"
+    /// - "Show me how the semantic search reranker is implemented so I can modify it to support file type filtering"
+    /// - "Find the test fixtures and examples for authentication tokens to understand the expected format"
+    /// - "I'm debugging a timeout issue and need the code that handles streaming responses, not the API documentation"
+    /// - "Show me the architecture and struct definitions for tool registration, not the usage examples"
+    /// - "I need documentation explaining how to configure semantic search, not the implementation code"
+    /// - "Find the README or setup guide that explains the tool registration process, avoiding implementation details"
+    ///
+    /// **Bad examples:**
+    /// - "exponential backoff retry mechanism" (just repeats the embedding query - add WHY)
+    /// - "find authentication code" (what aspect? to do what?)
+    /// - "tool definitions" (implementation? schema? usage? be specific)
+    /// - "how it works" (too vague - specify what you want to understand)
+    /// - Long rambling explanation without clear intent (keep it focused)
     pub use_case: String,
 }
 
