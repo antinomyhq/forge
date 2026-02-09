@@ -6,7 +6,8 @@ use url::Url;
 use crate::{
     AnyProvider, AppConfig, AuthCredential, ChatCompletionMessage, Context, Conversation,
     ConversationId, MigrationResult, Model, ModelId, Provider, ProviderId, ProviderTemplate,
-    ResultStream, SearchMatch, Skill, Snapshot, UserId, Workspace, WorkspaceAuth, WorkspaceId,
+    ResultStream, SearchMatch, SessionId, SessionState, Skill, Snapshot, UserId, Workspace,
+    WorkspaceAuth, WorkspaceId,
 };
 
 /// Repository for managing file snapshots
@@ -271,4 +272,22 @@ pub trait FuzzySearchRepository: Send + Sync {
         haystack: &str,
         search_all: bool,
     ) -> Result<Vec<SearchMatch>>;
+}
+
+#[async_trait::async_trait]
+pub trait SessionRepository: Send + Sync {
+    /// Saves session state to persistent storage
+    async fn save_session(&self, session_id: &SessionId, state: &SessionState) -> Result<()>;
+
+    /// Loads session state from persistent storage
+    async fn load_session(&self, session_id: &SessionId) -> Result<Option<SessionState>>;
+
+    /// Deletes a session from persistent storage
+    async fn delete_session(&self, session_id: &SessionId) -> Result<()>;
+
+    /// Lists all active sessions
+    async fn list_sessions(&self) -> Result<Vec<SessionId>>;
+
+    /// Cleans up expired sessions based on TTL
+    async fn cleanup_expired_sessions(&self, ttl: std::time::Duration) -> Result<usize>;
 }
