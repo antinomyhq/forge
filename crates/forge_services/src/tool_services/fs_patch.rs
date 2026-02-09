@@ -48,6 +48,16 @@ impl Range {
         }
     }
 
+    /// Normalize line endings in a search string to match the source
+    fn normalize_search_line_endings(source: &str, search: &str) -> String {
+        let line_ending = Self::detect_line_ending(source);
+        if line_ending == "\r\n" {
+            search.replace("\r\n", "\n").replace("\n", "\r\n")
+        } else {
+            search.replace("\r\n", "\n")
+        }
+    }
+
     /// Create a range from a fuzzy search match
     fn from_search_match(source: &str, search_match: &SearchMatch) -> Self {
         let lines: Vec<&str> = source.lines().collect();
@@ -138,8 +148,9 @@ fn compute_range(
 ) -> Result<Option<Range>, Error> {
     match search {
         Some(s) if !s.is_empty() => {
-            let match_result =
-                Range::find_exact(source, s).ok_or_else(|| Error::NoMatch(s.to_string()));
+            let normalized_search = Range::normalize_search_line_endings(source, s);
+            let match_result = Range::find_exact(source, &normalized_search)
+                .ok_or_else(|| Error::NoMatch(s.to_string()));
             match match_result {
                 Ok(r) => Ok(Some(r)),
                 Err(e) => {
@@ -322,6 +333,7 @@ impl<F: FileWriterInfra + SnapshotRepository + ValidationRepository + FuzzySearc
         let mut current_content = fs::read_to_string(path)
             .await
             .map_err(Error::FileOperation)?;
+        
         // Save the old content before modification for diff generation
         let old_content = current_content.clone();
 
@@ -987,5 +999,44 @@ mod tests {
         let source = "line1\nline2\nline3";
         let line_ending = super::Range::detect_line_ending(source);
         assert_eq!(line_ending, "\n");
+    }
+
+    #[test]
+    fn test_compute_range_normalizes_search_crlf() {
+        let source = "line1\r\nline2\r\nline3";
+        let search = Some("line2\nline3".to_string());
+        let operation = PatchOperation::Replace;
+
+        let range = super::compute_range(source, search.as_deref(), &operation).unwrap();
+        let actual = &source[range.unwrap().start..range.unwrap().end()];
+        let expected = "line2\r\nline3";
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_compute_range_normalizes_search_lf() {
+        let source = "line1\nline2\nline3";
+        let search = Some("line2\r\nline3".to_string());
+        let operation = PatchOperation::Replace;
+
+        let range = super::compute_range(source, search.as_deref(), &operation).unwrap();
+        let actual = &source[range.unwrap().start..range.unwrap().end()];
+        let expected = "line2\nline3";
+
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_compute_range_normalizes_search_crlf_input() {
+        let source = "line1\r\nline2\r\nline3";
+        let search = Some("line2\r\nline3".to_string());
+        let operation = PatchOperation::Replace;
+
+        let range = super::compute_range(source, search.as_deref(), &operation).unwrap();
+        let actual = &source[range.unwrap().start..range.unwrap().end()];
+        let expected = "line2\r\nline3";
+
+        assert_eq!(actual, expected);
     }
 }
