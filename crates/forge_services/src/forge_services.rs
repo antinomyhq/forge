@@ -22,8 +22,12 @@ use crate::discovery::ForgeDiscoveryService;
 use crate::env::ForgeEnvironmentService;
 use crate::instructions::ForgeCustomInstructionsService;
 use crate::mcp::{ForgeMcpManager, ForgeMcpService};
+use crate::mcp_import::ForgeMcpImportService;
 use crate::policy::ForgePolicyService;
 use crate::provider_service::ForgeProviderService;
+use crate::session::ForgeSessionService;
+use crate::session_agent::ForgeSessionAgentService;
+use crate::session_model::ForgeSessionModelService;
 use crate::template::ForgeTemplateService;
 use crate::tool_services::{
     ForgeFetch, ForgeFollowup, ForgeFsPatch, ForgeFsRead, ForgeFsRemove, ForgeFsSearch,
@@ -88,6 +92,10 @@ pub struct ForgeServices<
     provider_auth_service: ForgeProviderAuthService<F>,
     workspace_service: Arc<crate::context_engine::ForgeWorkspaceService<F>>,
     skill_service: Arc<ForgeSkillFetch<F>>,
+    session_service: Arc<ForgeSessionService<F>>,
+    session_agent_service: Arc<ForgeSessionAgentService<F>>,
+    session_model_service: Arc<ForgeSessionModelService<F>>,
+    mcp_import_service: Arc<ForgeMcpImportService<F>>,
 }
 
 impl<
@@ -147,6 +155,10 @@ impl<
             infra.clone(),
         ));
         let skill_service = Arc::new(ForgeSkillFetch::new(infra.clone()));
+        let session_service = Arc::new(ForgeSessionService::new(infra.clone()));
+        let session_agent_service = Arc::new(ForgeSessionAgentService::new(infra.clone()));
+        let session_model_service = Arc::new(ForgeSessionModelService::new(infra.clone()));
+        let mcp_import_service = Arc::new(ForgeMcpImportService::new(infra.clone()));
 
         Self {
             conversation_service,
@@ -178,6 +190,10 @@ impl<
             workspace_service,
             skill_service,
             chat_service,
+            session_service,
+            session_agent_service,
+            session_model_service,
+            mcp_import_service,
         }
     }
 }
@@ -246,6 +262,10 @@ impl<
     type ProviderService = ForgeProviderService<F>;
     type WorkspaceService = crate::context_engine::ForgeWorkspaceService<F>;
     type SkillFetchService = ForgeSkillFetch<F>;
+    type SessionService = ForgeSessionService<F>;
+    type SessionAgentService = ForgeSessionAgentService<F>;
+    type SessionModelService = ForgeSessionModelService<F>;
+    type McpImportService = ForgeMcpImportService<F>;
 
     fn config_service(&self) -> &Self::AppConfigService {
         &self.config_service
@@ -355,5 +375,21 @@ impl<
 
     fn provider_service(&self) -> &Self::ProviderService {
         &self.chat_service
+    }
+
+    fn session_service(&self) -> &Self::SessionService {
+        &self.session_service
+    }
+
+    fn session_agent_service(&self) -> &Self::SessionAgentService {
+        &self.session_agent_service
+    }
+
+    fn session_model_service(&self) -> &Self::SessionModelService {
+        &self.session_model_service
+    }
+
+    fn mcp_import_service(&self) -> &Self::McpImportService {
+        &self.mcp_import_service
     }
 }
