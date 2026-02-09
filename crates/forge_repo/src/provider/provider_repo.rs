@@ -725,6 +725,7 @@ mod env_tests {
         async fn http_post(
             &self,
             _url: &reqwest::Url,
+            _headers: Option<reqwest::header::HeaderMap>,
             _body: bytes::Bytes,
         ) -> anyhow::Result<reqwest::Response> {
             Err(anyhow::anyhow!("HTTP not implemented in mock"))
@@ -1189,6 +1190,7 @@ mod env_tests {
             async fn http_post(
                 &self,
                 _url: &reqwest::Url,
+                _headers: Option<reqwest::header::HeaderMap>,
                 _body: bytes::Bytes,
             ) -> anyhow::Result<reqwest::Response> {
                 Err(anyhow::anyhow!("HTTP not implemented in mock"))
