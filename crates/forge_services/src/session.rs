@@ -27,10 +27,7 @@ impl<F: Send + Sync> SessionService for ForgeSessionService<F> {
         anyhow::bail!("SessionService not yet implemented")
     }
 
-    async fn get_session_context(
-        &self,
-        _session_id: &SessionId,
-    ) -> anyhow::Result<SessionContext> {
+    async fn get_session_context(&self, _session_id: &SessionId) -> anyhow::Result<SessionContext> {
         anyhow::bail!("SessionService not yet implemented")
     }
 

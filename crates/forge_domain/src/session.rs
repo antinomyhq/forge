@@ -1,7 +1,8 @@
-use crate::{AgentId, ConversationId, ModelId};
 use chrono::{DateTime, Utc};
 use derive_more::{Display, From};
 use tokio_util::sync::CancellationToken;
+
+use crate::{AgentId, ConversationId, ModelId};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Display, From)]
 pub struct SessionId(uuid::Uuid);
