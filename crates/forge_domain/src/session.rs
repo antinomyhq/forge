@@ -58,7 +58,7 @@ impl From<uuid::Uuid> for SessionId {
 ///
 /// Tracks the conversation, active agent, and any model overrides for the
 /// session.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SessionState {
     /// The conversation ID associated with this session
     pub conversation_id: ConversationId,

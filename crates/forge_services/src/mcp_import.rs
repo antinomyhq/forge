@@ -101,6 +101,7 @@ impl<M: McpConfigManager> McpImportService for ForgeMcpImportService<M> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use forge_domain::ServerName;
     use pretty_assertions::assert_eq;
     use std::sync::Mutex;
 
@@ -232,7 +233,7 @@ mod tests {
 
         // Verify the server was saved
         let saved_config = manager.read_mcp_config(Some(&Scope::User)).await.unwrap();
-        assert!(saved_config.mcp_servers.contains_key("new-server"));
+        assert!(saved_config.mcp_servers.contains_key(&ServerName::from("new-server".to_string())));
     }
 
     #[tokio::test]

@@ -206,7 +206,7 @@ mod tests {
 
     impl MockInfra {
         fn new() -> Self {
-            let provider_id = ProviderId::new("test-provider");
+            let provider_id = ProviderId::from("test-provider".to_string());
             let model_id = forge_domain::ModelId::new("test-model".to_string());
 
             let mut models = HashMap::new();
@@ -214,8 +214,7 @@ mod tests {
 
             Self {
                 sessions: Arc::new(Mutex::new(HashMap::new())),
-                agents: vec![AgentDefinition::default()
-                    .id(AgentId::new("test-agent"))
+                agents: vec![AgentDefinition::new(AgentId::new("test-agent"))
                     .title("Test Agent".to_string())],
                 app_config: AppConfig {
                     provider: Some(provider_id),
@@ -280,9 +279,19 @@ mod tests {
 
         async fn get_provider(
             &self,
-            _id: ProviderId,
+            id: ProviderId,
         ) -> Result<forge_domain::ProviderTemplate> {
-            Ok(forge_domain::ProviderTemplate::default())
+            use forge_domain::{Provider, Template, URLParameters};
+            Ok(Provider {
+                id,
+                provider_type: Default::default(),
+                response: None,
+                url: Template::<URLParameters>::new("http://example.com"),
+                models: None,
+                auth_methods: vec![],
+                url_params: vec![],
+                credential: None,
+            })
         }
 
         async fn upsert_credential(

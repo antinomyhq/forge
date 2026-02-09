@@ -202,6 +202,7 @@ impl<R: SessionRepository> ForgeSessionService<R> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use forge_domain::ModelId;
     use pretty_assertions::assert_eq;
     use std::collections::HashMap;
 
@@ -258,42 +259,38 @@ mod tests {
     #[tokio::test]
     async fn test_create_session() {
         let fixture = ForgeSessionService::new(Arc::new(MockSessionRepository::new()));
-        let conversation_id = ConversationId::generate();
         let agent_id = AgentId::new("test-agent");
 
         let actual = fixture
-            .create_session(conversation_id, agent_id.clone())
+            .create_session(agent_id.clone())
             .await
             .unwrap();
 
         // Verify session was created
         let state = fixture.get_session_state(&actual).await.unwrap();
-        assert_eq!(state.conversation_id, conversation_id);
         assert_eq!(state.agent_id, agent_id);
     }
 
     #[tokio::test]
     async fn test_get_session_state() {
         let fixture = ForgeSessionService::new(Arc::new(MockSessionRepository::new()));
-        let conversation_id = ConversationId::generate();
         let agent_id = AgentId::new("test-agent");
         let session_id = fixture
-            .create_session(conversation_id, agent_id)
+            .create_session(agent_id.clone())
             .await
             .unwrap();
 
         let actual = fixture.get_session_state(&session_id).await.unwrap();
 
-        assert_eq!(actual.conversation_id, conversation_id);
+        assert_eq!(actual.agent_id, agent_id);
     }
 
     #[tokio::test]
     async fn test_update_session_state() {
         let fixture = ForgeSessionService::new(Arc::new(MockSessionRepository::new()));
-        let conversation_id = ConversationId::generate();
         let agent_id = AgentId::new("test-agent");
         let session_id = fixture
-            .create_session(conversation_id, agent_id)
+            .create_session(agent_id)
             .await
             .unwrap();
 
@@ -314,10 +311,9 @@ mod tests {
     #[tokio::test]
     async fn test_delete_session() {
         let fixture = ForgeSessionService::new(Arc::new(MockSessionRepository::new()));
-        let conversation_id = ConversationId::generate();
         let agent_id = AgentId::new("test-agent");
         let session_id = fixture
-            .create_session(conversation_id, agent_id)
+            .create_session(agent_id)
             .await
             .unwrap();
 
@@ -330,41 +326,38 @@ mod tests {
     #[tokio::test]
     async fn test_list_sessions() {
         let fixture = ForgeSessionService::new(Arc::new(MockSessionRepository::new()));
-        let conversation_id1 = ConversationId::generate();
-        let conversation_id2 = ConversationId::generate();
         let agent_id = AgentId::new("test-agent");
 
         let id1 = fixture
-            .create_session(conversation_id1, agent_id.clone())
+            .create_session(agent_id.clone())
             .await
             .unwrap();
         let id2 = fixture
-            .create_session(conversation_id2, agent_id)
+            .create_session(agent_id)
             .await
             .unwrap();
 
         let actual = fixture.list_sessions().await.unwrap();
 
         assert_eq!(actual.len(), 2);
-        assert!(actual.contains(&id1));
-        assert!(actual.contains(&id2));
+        assert!(actual.iter().any(|(id, _)| *id == id1));
+        assert!(actual.iter().any(|(id, _)| *id == id2));
     }
 
     #[tokio::test]
     async fn test_cleanup_expired_sessions() {
         let fixture = ForgeSessionService::new(Arc::new(MockSessionRepository::new()));
-        let conversation_id = ConversationId::generate();
         let agent_id = AgentId::new("test-agent");
         fixture
-            .create_session(conversation_id, agent_id)
+            .create_session(agent_id)
             .await
             .unwrap();
 
-        // Wait a bit to ensure session is old enough
-        tokio::time::sleep(Duration::from_millis(10)).await;
+        // Wait for more than 1 second to ensure session is expired (is_expired uses seconds)
+        tokio::time::sleep(Duration::from_secs(2)).await;
 
         let actual = fixture
-            .cleanup_expired_sessions(Duration::from_millis(5))
+            .cleanup_expired_sessions(Duration::from_secs(1))
             .await
             .unwrap();
 
@@ -374,10 +367,9 @@ mod tests {
     #[tokio::test]
     async fn test_touch_session() {
         let fixture = ForgeSessionService::new(Arc::new(MockSessionRepository::new()));
-        let conversation_id = ConversationId::generate();
         let agent_id = AgentId::new("test-agent");
         let session_id = fixture
-            .create_session(conversation_id, agent_id)
+            .create_session(agent_id)
             .await
             .unwrap();
 

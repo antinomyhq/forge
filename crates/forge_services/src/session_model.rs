@@ -126,6 +126,10 @@ mod tests {
         async fn list_sessions(&self) -> Result<Vec<SessionId>> {
             Ok(self.sessions.lock().unwrap().keys().cloned().collect())
         }
+
+        async fn cleanup_expired_sessions(&self, _ttl: std::time::Duration) -> Result<usize> {
+            Ok(0)
+        }
     }
 
     fn create_test_session_state() -> SessionState {
