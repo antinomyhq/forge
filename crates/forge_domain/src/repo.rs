@@ -6,7 +6,8 @@ use url::Url;
 use crate::{
     AnyProvider, AppConfig, AuthCredential, ChatCompletionMessage, Context, Conversation,
     ConversationId, MigrationResult, Model, ModelId, Provider, ProviderId, ProviderTemplate,
-    ResultStream, SearchMatch, Skill, Snapshot, UserId, Workspace, WorkspaceAuth, WorkspaceId,
+    ResultStream, SearchMatch, SessionId, SessionState, Skill, Snapshot, UserId, Workspace,
+    WorkspaceAuth, WorkspaceId,
 };
 
 /// Repository for managing file snapshots
@@ -271,4 +272,57 @@ pub trait FuzzySearchRepository: Send + Sync {
         haystack: &str,
         search_all: bool,
     ) -> Result<Vec<SearchMatch>>;
+}
+
+/// Repository for managing session persistence
+///
+/// This repository provides CRUD operations for sessions, enabling
+/// session state to survive application restarts.
+#[async_trait::async_trait]
+pub trait SessionRepository: Send + Sync {
+    /// Saves session state to persistent storage
+    ///
+    /// # Arguments
+    /// * `session_id` - The ID of the session to save
+    /// * `state` - The session state to persist
+    ///
+    /// # Errors
+    /// Returns an error if the save operation fails
+    async fn save_session(&self, session_id: &SessionId, state: &SessionState) -> Result<()>;
+
+    /// Loads session state from persistent storage
+    ///
+    /// # Arguments
+    /// * `session_id` - The ID of the session to load
+    ///
+    /// # Errors
+    /// Returns an error if the load operation fails
+    async fn load_session(&self, session_id: &SessionId) -> Result<Option<SessionState>>;
+
+    /// Deletes a session from persistent storage
+    ///
+    /// # Arguments
+    /// * `session_id` - The ID of the session to delete
+    ///
+    /// # Errors
+    /// Returns an error if the delete operation fails
+    async fn delete_session(&self, session_id: &SessionId) -> Result<()>;
+
+    /// Lists all active sessions
+    ///
+    /// # Errors
+    /// Returns an error if the list operation fails
+    async fn list_sessions(&self) -> Result<Vec<SessionId>>;
+
+    /// Cleans up expired sessions based on TTL
+    ///
+    /// # Arguments
+    /// * `ttl` - Time-to-live duration for session expiration
+    ///
+    /// # Returns
+    /// The number of sessions cleaned up
+    ///
+    /// # Errors
+    /// Returns an error if the cleanup operation fails
+    async fn cleanup_expired_sessions(&self, ttl: std::time::Duration) -> Result<usize>;
 }

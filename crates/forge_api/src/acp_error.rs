@@ -1,4 +1,7 @@
 //! Error types for ACP integration.
+//!
+//! This module contains presentation-layer error types for ACP protocol
+//! handling.
 
 use agent_client_protocol as acp;
 

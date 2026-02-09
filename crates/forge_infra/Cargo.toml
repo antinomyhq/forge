@@ -17,6 +17,10 @@ tokio.workspace = true
 serde_json.workspace = true
 reqwest.workspace = true
 
+# ACP transport dependencies
+agent-client-protocol.workspace = true
+tokio-util = { workspace = true, features = ["compat"] }
+
 bytes.workspace = true
 pretty_assertions.workspace = true
 forge_select.workspace = true

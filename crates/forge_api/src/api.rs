@@ -10,6 +10,17 @@ use url::Url;
 
 use crate::*;
 
+/// Information about the ACP agent.
+#[derive(Debug, Clone)]
+pub struct AgentInfo {
+    /// Agent name.
+    pub name: String,
+    /// Agent version.
+    pub version: String,
+    /// Agent capabilities.
+    pub capabilities: String,
+}
+
 #[async_trait::async_trait]
 pub trait API: Sync + Send {
     /// Provides a list of files in the current working directory for auto
@@ -243,5 +254,5 @@ pub trait API: Sync + Send {
     async fn acp_start_http(&self, port: u16) -> Result<()>;
 
     /// Returns information about the ACP agent capabilities.
-    fn acp_info(&self) -> forge_acp::AgentInfo;
+    fn acp_info(&self) -> AgentInfo;
 }
