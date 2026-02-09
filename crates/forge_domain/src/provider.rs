@@ -56,6 +56,7 @@ impl ProviderId {
     pub const ANTHROPIC: ProviderId = ProviderId(Cow::Borrowed("anthropic"));
     pub const CLAUDE_CODE: ProviderId = ProviderId(Cow::Borrowed("claude_code"));
     pub const VERTEX_AI: ProviderId = ProviderId(Cow::Borrowed("vertex_ai"));
+    pub const VERTEX_AI_ANTHROPIC: ProviderId = ProviderId(Cow::Borrowed("vertex_ai_anthropic"));
     pub const BIG_MODEL: ProviderId = ProviderId(Cow::Borrowed("big_model"));
     pub const AZURE: ProviderId = ProviderId(Cow::Borrowed("azure"));
     pub const GITHUB_COPILOT: ProviderId = ProviderId(Cow::Borrowed("github_copilot"));
@@ -64,6 +65,7 @@ impl ProviderId {
     pub const FORGE_SERVICES: ProviderId = ProviderId(Cow::Borrowed("forge_services"));
     pub const IO_INTELLIGENCE: ProviderId = ProviderId(Cow::Borrowed("io_intelligence"));
     pub const BEDROCK: ProviderId = ProviderId(Cow::Borrowed("bedrock"));
+    pub const CODEX: ProviderId = ProviderId(Cow::Borrowed("codex"));
 
     /// Returns all built-in provider IDs
     ///
@@ -81,6 +83,7 @@ impl ProviderId {
             ProviderId::ANTHROPIC,
             ProviderId::CLAUDE_CODE,
             ProviderId::VERTEX_AI,
+            ProviderId::VERTEX_AI_ANTHROPIC,
             ProviderId::BIG_MODEL,
             ProviderId::AZURE,
             ProviderId::GITHUB_COPILOT,
@@ -89,6 +92,7 @@ impl ProviderId {
             ProviderId::FORGE_SERVICES,
             ProviderId::IO_INTELLIGENCE,
             ProviderId::BEDROCK,
+            ProviderId::CODEX,
         ]
     }
 
@@ -106,8 +110,10 @@ impl ProviderId {
             "xai" => "XAI".to_string(),
             "zai" => "ZAI".to_string(),
             "vertex_ai" => "VertexAI".to_string(),
+            "vertex_ai_anthropic" => "VertexAIAnthropic".to_string(),
             "openai_compatible" => "OpenAICompatible".to_string(),
             "io_intelligence" => "IOIntelligence".to_string(),
+            "codex" => "Codex".to_string(),
             _ => {
                 // For other providers, use UpperCamelCase conversion
                 use convert_case::{Case, Casing};
@@ -147,6 +153,7 @@ impl std::str::FromStr for ProviderId {
             "anthropic_compatible" => ProviderId::ANTHROPIC_COMPATIBLE,
             "forge_services" => ProviderId::FORGE_SERVICES,
             "io_intelligence" => ProviderId::IO_INTELLIGENCE,
+            "codex" => ProviderId::CODEX,
             // For custom providers, use Cow::Owned to avoid memory leaks
             custom => ProviderId(Cow::Owned(custom.to_string())),
         };
@@ -484,6 +491,20 @@ mod tests {
             "AnthropicCompatible"
         );
         assert_eq!(ProviderId::IO_INTELLIGENCE.to_string(), "IOIntelligence");
+        assert_eq!(ProviderId::CODEX.to_string(), "Codex");
+    }
+
+    #[test]
+    fn test_codex_from_str() {
+        let actual = ProviderId::from_str("codex").unwrap();
+        let expected = ProviderId::CODEX;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_codex_in_built_in_providers() {
+        let built_in = ProviderId::built_in_providers();
+        assert!(built_in.contains(&ProviderId::CODEX));
     }
 
     #[test]

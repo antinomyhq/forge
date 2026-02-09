@@ -100,7 +100,11 @@ where
                 AuthMethod::OAuthCode(ctx.request.oauth_config.clone())
             }
             AuthContextResponse::DeviceCode(ctx) => {
-                AuthMethod::OAuthDevice(ctx.request.oauth_config.clone())
+                if provider_id == forge_domain::ProviderId::CODEX {
+                    AuthMethod::CodexDevice(ctx.request.oauth_config.clone())
+                } else {
+                    AuthMethod::OAuthDevice(ctx.request.oauth_config.clone())
+                }
             }
         };
 
@@ -145,7 +149,9 @@ where
                 // Iterate through auth methods and try to refresh
                 for auth_method in &provider.auth_methods {
                     match auth_method {
-                        AuthMethod::OAuthDevice(_) | AuthMethod::OAuthCode(_) => {
+                        AuthMethod::OAuthDevice(_)
+                        | AuthMethod::OAuthCode(_)
+                        | AuthMethod::CodexDevice(_) => {
                             // Get existing credential
                             let existing_credential =
                                 self.infra.get_credential(&provider.id).await?.ok_or_else(

@@ -2246,6 +2246,7 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 AuthMethod::OAuthDevice(_) => "OAuth Device Flow".to_string(),
                 AuthMethod::OAuthCode(_) => "OAuth Authorization Code".to_string(),
                 AuthMethod::GoogleAdc => "Google Application Default Credentials (ADC)".to_string(),
+                AuthMethod::CodexDevice(_) => "OpenAI Codex Device Flow".to_string(),
             })
             .collect();
 

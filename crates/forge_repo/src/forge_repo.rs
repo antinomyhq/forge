@@ -240,8 +240,13 @@ impl<F: HttpInfra> HttpInfra for ForgeRepo<F> {
         self.infra.http_get(url, headers).await
     }
 
-    async fn http_post(&self, url: &Url, body: Bytes) -> anyhow::Result<Response> {
-        self.infra.http_post(url, body).await
+    async fn http_post(
+        &self,
+        url: &Url,
+        headers: Option<HeaderMap>,
+        body: Bytes,
+    ) -> anyhow::Result<Response> {
+        self.infra.http_post(url, headers, body).await
     }
 
     async fn http_delete(&self, url: &Url) -> anyhow::Result<Response> {

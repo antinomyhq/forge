@@ -45,6 +45,17 @@ fn coerce_value_with_schema_object(
             return coerce_value_with_schema(value, def_schema, root_schema);
         }
     }
+
+    // Coerce empty strings to null for nullable schemas.
+    // LLMs often send "" for optional parameters instead of omitting them or
+    // sending null. When the schema has "nullable": true (OpenAPI 3.0 style),
+    // an empty string should be treated as null.
+    if let Value::String(s) = &value
+        && s.is_empty()
+        && is_nullable(schema)
+    {
+        return Value::Null;
+    }
     // Handle anyOf/oneOf schemas by trying each sub-schema
     if let Some(subschemas) = &schema.subschemas {
         if let Some(any_of) = &subschemas.any_of {
@@ -155,6 +166,17 @@ fn coerce_by_instance_type(
     }
 
     value
+}
+
+/// Checks if a schema is marked as nullable via the OpenAPI 3.0 "nullable"
+/// extension. This is set by schemars when `option_nullable = true` for
+/// `Option<T>` fields.
+fn is_nullable(schema: &SchemaObject) -> bool {
+    schema
+        .extensions
+        .get("nullable")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
 }
 
 fn type_matches(value: &Value, target_types: &[&InstanceType]) -> bool {
@@ -1123,6 +1145,102 @@ mod tests {
             "items": [{"tags": ["tag1", "tag2"]}]
         });
 
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_coerce_empty_string_to_null_for_nullable_field() {
+        // Simulates LLM sending "" for a nullable string field (e.g., file_type in
+        // fs_search). The schema uses "nullable: true" (OpenAPI 3.0 style).
+        #[derive(JsonSchema)]
+        #[allow(dead_code)]
+        struct NullableStringData {
+            required_field: String,
+            #[schemars(default)]
+            optional_field: Option<String>,
+        }
+
+        // Generate schema with option_nullable=true (matching project settings)
+        let r#gen = schemars::r#gen::SchemaSettings::default()
+            .with(|s| {
+                s.option_nullable = true;
+                s.option_add_null_type = false;
+            })
+            .into_generator();
+        let schema = r#gen.into_root_schema_for::<NullableStringData>();
+
+        let fixture = json!({
+            "required_field": "value",
+            "optional_field": ""
+        });
+        let actual = coerce_to_schema(fixture, &schema);
+        let expected = json!({
+            "required_field": "value",
+            "optional_field": null
+        });
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_preserve_nonempty_string_for_nullable_field() {
+        // Non-empty strings should be preserved even for nullable fields
+        #[derive(JsonSchema)]
+        #[allow(dead_code)]
+        struct NullableStringData {
+            optional_field: Option<String>,
+        }
+
+        let r#gen = schemars::r#gen::SchemaSettings::default()
+            .with(|s| {
+                s.option_nullable = true;
+                s.option_add_null_type = false;
+            })
+            .into_generator();
+        let schema = r#gen.into_root_schema_for::<NullableStringData>();
+
+        let fixture = json!({"optional_field": "rust"});
+        let actual = coerce_to_schema(fixture, &schema);
+        let expected = json!({"optional_field": "rust"});
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_preserve_empty_string_for_required_field() {
+        // Empty strings should NOT be converted to null for non-nullable fields
+        #[derive(JsonSchema)]
+        #[allow(dead_code)]
+        struct RequiredStringData {
+            name: String,
+        }
+
+        let schema = schema_for!(RequiredStringData);
+
+        let fixture = json!({"name": ""});
+        let actual = coerce_to_schema(fixture, &schema);
+        let expected = json!({"name": ""});
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_coerce_empty_string_to_null_for_nullable_integer() {
+        // Empty string for a nullable integer should become null
+        #[derive(JsonSchema)]
+        #[allow(dead_code)]
+        struct NullableIntData {
+            count: Option<u32>,
+        }
+
+        let r#gen = schemars::r#gen::SchemaSettings::default()
+            .with(|s| {
+                s.option_nullable = true;
+                s.option_add_null_type = false;
+            })
+            .into_generator();
+        let schema = r#gen.into_root_schema_for::<NullableIntData>();
+
+        let fixture = json!({"count": ""});
+        let actual = coerce_to_schema(fixture, &schema);
+        let expected = json!({"count": null});
         assert_eq!(actual, expected);
     }
 }
