@@ -22,19 +22,31 @@ const EvaluationSchema = z.object({
     embedding_query_score: z
       .number()
       .min(0)
-      .max(10)
-      .describe("Score for the embedding query quality (0-10)"),
+      .max(15)
+      .describe("Score for the embedding query quality (0-15)"),
     embedding_query_feedback: z
       .string()
       .describe("Specific feedback on the embedding query"),
     reranking_query_score: z
       .number()
       .min(0)
-      .max(10)
-      .describe("Score for the reranking query quality (0-10)"),
+      .max(15)
+      .describe("Score for the reranking query quality (0-15)"),
     reranking_query_feedback: z
       .string()
       .describe("Specific feedback on the reranking query"),
+    construct_keywords_score: z
+      .number()
+      .min(0)
+      .max(10)
+      .describe(
+        "Score for codebase construct keywords in reranking query (0-10)",
+      ),
+    construct_keywords_feedback: z
+      .string()
+      .describe(
+        "Feedback on use of codebase constructs (struct, trait, impl, interface, class, function, definition, implementation, declaration)",
+      ),
     queries_differentiated: z
       .boolean()
       .describe(
@@ -45,22 +57,22 @@ const EvaluationSchema = z.object({
     intent_match_score: z
       .number()
       .min(0)
-      .max(10)
-      .describe("How well results match the stated intent (0-10)"),
+      .max(25)
+      .describe("How well results match the stated intent (0-25)"),
     intent_match_feedback: z
       .string()
       .describe("Explanation of intent matching"),
     file_type_accuracy_score: z
       .number()
       .min(0)
-      .max(10)
-      .describe("Correctness of file types in results (0-10)"),
+      .max(20)
+      .describe("Correctness of file types in results (0-20)"),
     file_type_feedback: z.string().describe("Feedback on file type selection"),
     avoidance_compliance_score: z
       .number()
       .min(0)
-      .max(10)
-      .describe("How well unwanted file types were avoided (0-10)"),
+      .max(15)
+      .describe("How well unwanted file types were avoided (0-15)"),
     avoidance_feedback: z.string().describe("Feedback on file type avoidance"),
   }),
   overall: z.object({
@@ -198,7 +210,7 @@ ${searches.map((s, i) => `### Query ${i + 1}
 
 ## Evaluation Criteria
 
-### Query Quality (40 points)
+### Query Quality (50 points)
 1. **Embedding Query (15 points):**
    - Contains domain-specific terms and technical context
    - Describes behavior and functionality, not meta-descriptions
@@ -211,12 +223,31 @@ ${searches.map((s, i) => `### Query ${i + 1}
    - Specifies whether implementation/docs/tests are needed
    - Is different from the embedding query (not verbatim)
 
-3. **Query Differentiation (10 points):**
+3. **Codebase Construct Keywords (10 points):**
+   - **CRITICAL**: When looking for code (not documentation), the reranking query MUST include specific construct keywords
+   - These keywords get HIGH WEIGHTAGE in reranking: struct, trait, impl, interface, class, function, definition, implementation, declaration, type
+   - Examples of GOOD use_case queries:
+     * "I need the struct definition for User authentication"
+     * "Show me the trait implementation for DatabaseConnection"
+     * "Find the function implementation that handles file patching"
+     * "I need the type declarations and interface definitions for the tool registry"
+   - Examples of BAD use_case queries (missing construct keywords):
+     * "I need code that handles authentication" (missing: struct/trait/impl/function)
+     * "Show me the database logic" (missing: trait/impl/function)
+     * "Find file patching code" (missing: function/impl/struct)
+   - **Scoring**:
+     * 10 points: Multiple specific construct keywords (struct, trait, impl, function, etc.)
+     * 7-9 points: At least one specific construct keyword
+     * 4-6 points: Generic keywords (code, implementation) without specifics
+     * 0-3 points: No construct keywords at all
+   - **Exception**: Documentation/config intents don't need construct keywords
+
+4. **Query Differentiation (10 points):**
    - The two queries serve different purposes
    - Embedding query focuses on WHAT (semantic similarity)
-   - Reranking query focuses on INTENT (contextual relevance)
+   - Reranking query focuses on INTENT + CONSTRUCTS (contextual relevance + code structure)
 
-### Result Relevance (60 points)
+### Result Relevance (50 points)
 Based on the queries, evaluate whether they would return appropriate results:
 
 1. **Intent Matching (25 points):**
@@ -279,13 +310,17 @@ function formatEvaluation(evaluation: Evaluation): string {
   // Query Quality
   lines.push("## Query Quality");
   lines.push(
-    `Embedding Query: ${evaluation.query_quality.embedding_query_score}/10`,
+    `Embedding Query: ${evaluation.query_quality.embedding_query_score}/15`,
   );
   lines.push(`  ${evaluation.query_quality.embedding_query_feedback}`);
   lines.push(
-    `Reranking Query: ${evaluation.query_quality.reranking_query_score}/10`,
+    `Reranking Query: ${evaluation.query_quality.reranking_query_score}/15`,
   );
   lines.push(`  ${evaluation.query_quality.reranking_query_feedback}`);
+  lines.push(
+    `Construct Keywords: ${evaluation.query_quality.construct_keywords_score}/10`,
+  );
+  lines.push(`  ${evaluation.query_quality.construct_keywords_feedback}`);
   lines.push(
     `Queries Differentiated: ${evaluation.query_quality.queries_differentiated ? "✓ Yes" : "✗ No"}`,
   );
@@ -294,15 +329,15 @@ function formatEvaluation(evaluation: Evaluation): string {
   // Result Relevance
   lines.push("## Result Relevance");
   lines.push(
-    `Intent Match: ${evaluation.result_relevance.intent_match_score}/10`,
+    `Intent Match: ${evaluation.result_relevance.intent_match_score}/25`,
   );
   lines.push(`  ${evaluation.result_relevance.intent_match_feedback}`);
   lines.push(
-    `File Type Accuracy: ${evaluation.result_relevance.file_type_accuracy_score}/10`,
+    `File Type Accuracy: ${evaluation.result_relevance.file_type_accuracy_score}/20`,
   );
   lines.push(`  ${evaluation.result_relevance.file_type_feedback}`);
   lines.push(
-    `Avoidance Compliance: ${evaluation.result_relevance.avoidance_compliance_score}/10`,
+    `Avoidance Compliance: ${evaluation.result_relevance.avoidance_compliance_score}/15`,
   );
   lines.push(`  ${evaluation.result_relevance.avoidance_feedback}`);
   lines.push("");

@@ -37,105 +37,105 @@ sources:
       - model: "anthropic/claude-sonnet-4.5"
 
   - value:
-      # Implementation-focused queries - should get code, not docs
-      - task: "Find the retry mechanism with exponential backoff implementation"
+      # Implementation-focused queries - complex but naturally phrased
+      - task: "How does workspace sync detect which files need re-embedding?"
         intent: "implementation"
-        expected_file_types: "rust,typescript,javascript"
+        expected_file_types: "rust"
         should_avoid: "markdown,txt,documentation"
 
-      - task: "Show me how OAuth token refresh is implemented"
+      - task: "Show me the conversation compaction threshold logic"
         intent: "implementation"
-        expected_file_types: "rust,typescript,javascript"
-        should_avoid: "markdown,txt,documentation"
+        expected_file_types: "rust"
+        should_avoid: "markdown,txt,documentation,test"
 
-      - task: "Where is the semantic search embedding query processing implemented?"
+      - task: "Where does the cross-encoder reranker model get loaded and cached?"
         intent: "implementation"
         expected_file_types: "rust"
         should_avoid: "markdown,schema,json"
 
-      - task: "Find the service layer error handling implementation"
+      - task: "How are file backups created for undo?"
         intent: "implementation"
         expected_file_types: "rust"
         should_avoid: "markdown,test"
 
-      # Understanding flow queries - should get implementation flow, not tests
-      - task: "How does the authentication flow work from request to response?"
-        intent: "flow_understanding"
-        expected_file_types: "rust,typescript"
-        should_avoid: "test,markdown"
-
-      - task: "Explain the tool execution pipeline from registration to execution"
+      # Understanding flow queries - trace through system
+      - task: "Trace a semantic search query from input to final results"
         intent: "flow_understanding"
         expected_file_types: "rust"
         should_avoid: "test,markdown"
 
-      - task: "How are streaming responses from LLMs processed?"
+      - task: "How does file patching handle validation and atomic writes?"
         intent: "flow_understanding"
-        expected_file_types: "rust,typescript"
+        expected_file_types: "rust"
+        should_avoid: "test,markdown"
+
+      - task: "Explain context window management when tool results overflow"
+        intent: "flow_understanding"
+        expected_file_types: "rust"
         should_avoid: "test,markdown,documentation"
 
-      # Architecture queries - should get structural code, not implementation details
-      - task: "What's the architecture of the semantic search system?"
+      # Architecture queries - design understanding
+      - task: "How are embeddings separated from vector storage?"
         intent: "architecture"
         expected_file_types: "rust"
         should_avoid: "test"
 
-      - task: "How do different AI provider adapters integrate with the system?"
+      - task: "How does tool registration work across MCP and builtin tools?"
         intent: "architecture"
         expected_file_types: "rust"
         should_avoid: "test,markdown"
 
-      # Testing queries - should get tests, not implementation
-      - task: "Show me test examples for semantic search query generation"
-        intent: "tests"
-        expected_file_types: "rust,typescript"
-        should_avoid: "markdown,documentation"
-
-      - task: "Find test fixtures for user authentication"
+      # Testing queries - specific test scenarios
+      - task: "Find tests for semantic search with multiple query embeddings"
         intent: "tests"
         expected_file_types: "rust"
         should_avoid: "markdown,documentation"
 
-      # Documentation queries - should get docs/README, not code
-      - task: "Find documentation on how to configure semantic search"
+      - task: "Show me tests for file operation rollback scenarios"
+        intent: "tests"
+        expected_file_types: "rust"
+        should_avoid: "markdown,documentation"
+
+      # Documentation queries - configuration docs
+      - task: "Find docs on semantic search topK and reranker settings"
         intent: "documentation"
         expected_file_types: "markdown,txt"
         should_avoid: "rust,typescript,javascript"
 
-      - task: "Where is the API documentation for tools?"
+      - task: "Where are the docs for custom agent creation?"
         intent: "documentation"
         expected_file_types: "markdown"
         should_avoid: "rust,typescript,test"
 
-      # Bug investigation queries - should get relevant implementation
-      - task: "Why might semantic search return irrelevant results?"
+      # Bug investigation - complex failures
+      - task: "What causes stale embeddings after workspace sync?"
         intent: "debugging"
         expected_file_types: "rust"
         should_avoid: "test,markdown"
 
-      - task: "What could cause the reranker to fail?"
+      - task: "Why might reranker scoring be inconsistent across queries?"
         intent: "debugging"
         expected_file_types: "rust"
         should_avoid: "test,markdown"
 
-      # Modification queries - should get implementation to modify
-      - task: "I need to add a new parameter to the semantic search query"
+      # Modification queries - targeted changes
+      - task: "Where should I add embedding generation batching?"
         intent: "modification"
         expected_file_types: "rust"
         should_avoid: "test,markdown"
 
-      - task: "I need to modify the reranking algorithm to consider file types"
+      - task: "Show me the reranker scoring logic to add file recency weights"
         intent: "modification"
         expected_file_types: "rust"
         should_avoid: "test,markdown,documentation"
 
-      # Config/Schema queries - should get config files
-      - task: "Find the configuration schema for semantic search"
+      # Config/Schema queries - configuration discovery
+      - task: "Where is all the config schema validation code?"
         intent: "configuration"
         expected_file_types: "rust,json,yaml,toml"
         should_avoid: "markdown"
 
-      - task: "Where are the tool definitions and schemas defined?"
+      - task: "How does system prompt templating combine all the pieces?"
         intent: "structure"
-        expected_file_types: "rust,json"
-        should_avoid: "markdown,test"
+        expected_file_types: "rust,markdown"
+        should_avoid: "test"
