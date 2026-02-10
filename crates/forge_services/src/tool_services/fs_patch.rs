@@ -184,6 +184,8 @@ fn apply_replacement(
     operation: &PatchOperation,
     content: &str,
 ) -> Result<String, Error> {
+    let line_ending = Range::detect_line_ending(&haystack);
+    let normalized_content = Range::normalize_search_line_endings(&haystack, content);
     // Handle case where range is provided (match found)
     if let Some(patch) = range {
         // Extract the matched text from haystack
@@ -195,18 +197,19 @@ fn apply_replacement(
             PatchOperation::Prepend => Ok(format!(
                 "{}{}{}",
                 &haystack[..patch.start],
-                content,
+                normalized_content,
                 &haystack[patch.start..]
             )),
 
             // Replace all occurrences of the matched text with new content
-            PatchOperation::ReplaceAll => Ok(haystack.replace(needle, content)),
+            PatchOperation::ReplaceAll => Ok(haystack.replace(needle, &normalized_content)),
 
             // Append content after the matched text
             PatchOperation::Append => Ok(format!(
-                "{}\n{}{}",
+                "{}{}{}{}",
                 &haystack[..patch.end()],
-                content,
+                line_ending,
+                normalized_content,
                 &haystack[patch.end()..]
             )),
 
@@ -226,7 +229,7 @@ fn apply_replacement(
                 Ok(format!(
                     "{}{}{}",
                     &haystack[..patch.start],
-                    content,
+                    normalized_content,
                     &haystack[patch.end()..]
                 ))
             }
@@ -245,7 +248,7 @@ fn apply_replacement(
                     return Ok(format!(
                         "{}{}{}",
                         &haystack[..patch.start],
-                        content,
+                        normalized_content,
                         &haystack[patch.end()..]
                     ));
                 }
@@ -256,7 +259,7 @@ fn apply_replacement(
                     Ok(format!(
                         "{}{}{}{}{}",
                         &haystack[..patch.start],
-                        content,
+                        normalized_content,
                         &haystack[patch.end()..target_patch.start],
                         &haystack[patch.start..patch.end()],
                         &haystack[target_patch.end()..]
@@ -268,7 +271,7 @@ fn apply_replacement(
                         &haystack[..target_patch.start],
                         &haystack[patch.start..patch.end()],
                         &haystack[target_patch.end()..patch.start],
-                        content,
+                        normalized_content,
                         &haystack[patch.end()..]
                     ))
                 }
@@ -278,11 +281,11 @@ fn apply_replacement(
         // No match (range is None) - treat as empty search (full file operation)
         match operation {
             // Append to the end of the file
-            PatchOperation::Append => Ok(format!("{haystack}\n{content}")),
+            PatchOperation::Append => Ok(format!("{haystack}{line_ending}{normalized_content}")),
             // Prepend to the beginning of the file
-            PatchOperation::Prepend => Ok(format!("{content}{haystack}")),
+            PatchOperation::Prepend => Ok(format!("{normalized_content}{haystack}")),
             // Replace is equivalent to completely replacing the file
-            PatchOperation::Replace | PatchOperation::ReplaceAll => Ok(content.to_string()),
+            PatchOperation::Replace | PatchOperation::ReplaceAll => Ok(normalized_content),
             // Swap doesn't make sense with empty search - keep source unchanged
             PatchOperation::Swap => Ok(haystack),
         }
