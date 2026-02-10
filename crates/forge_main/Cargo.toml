@@ -61,6 +61,7 @@ async-recursion.workspace = true
 
 forge_markdown_stream.workspace = true
 terminal_size = "0.4"
+rustls.workspace = true
 
 [target.'cfg(not(target_os = "android"))'.dependencies]
 arboard = "3.4"

@@ -62,6 +62,7 @@ impl Completer for InputCompleter {
                                 extra: None,
                                 span: query.span,
                                 append_whitespace: true,
+                                match_indices: None,
                             },
                         ))
                     } else {
