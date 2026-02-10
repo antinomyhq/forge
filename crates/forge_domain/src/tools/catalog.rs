@@ -249,7 +249,7 @@ pub struct SearchQuery {
     ///   implementation, declaration, type) when searching for code
     /// - **WHY CRITICAL**: The reranker gives HIGH WEIGHTAGE to these keywords
     ///   - "struct" → prioritizes struct definitions
-    ///   - "trait impl" → prioritizes trait implementations  
+    ///   - "trait impl" → prioritizes trait implementations
     ///   - "function" / "fn" → prioritizes function definitions
     ///   - Without these, you get documentation instead of code!
     /// - Clearly state your goal: understand, modify, debug, find examples,
@@ -269,16 +269,16 @@ pub struct SearchQuery {
     /// **Good examples (ALWAYS include construct keywords):**
     /// - "I need the struct definition and trait implementation for Diesel
     ///   migrations to understand the transaction handling, not setup docs"
-    /// - "Show me the function implementation for semantic search reranker so
-    ///   I can modify it to support file type filtering"
+    /// - "Show me the function implementation for semantic search reranker so I
+    ///   can modify it to support file type filtering"
     /// - "Find the type declarations and interface definitions for the tool
     ///   registry, not the usage examples"
     /// - "I'm debugging a timeout issue and need the function implementation
     ///   that handles streaming responses, not the API documentation"
     /// - "Show me the struct definitions and trait implementations for
     ///   authentication, not the setup guide"
-    /// - "I need the impl block for workspace sync to understand how it
-    ///   detects file changes"
+    /// - "I need the impl block for workspace sync to understand how it detects
+    ///   file changes"
     /// - "Find the fn definitions for embedding generation batching logic"
     /// - "I need documentation explaining how to configure semantic search, not
     ///   the implementation code"
@@ -286,12 +286,16 @@ pub struct SearchQuery {
     ///   process, avoiding implementation details"
     ///
     /// **Bad examples (missing construct keywords = FAILS):**
-    /// - "I need code that handles authentication" ❌ MISSING: struct/trait/impl/function
+    /// - "I need code that handles authentication" ❌ MISSING:
+    ///   struct/trait/impl/function
     /// - "Show me the database logic" ❌ MISSING: trait/impl/function keywords
-    /// - "I need the workspace sync implementation" ❌ MISSING: struct/impl/fn - too generic
+    /// - "I need the workspace sync implementation" ❌ MISSING: struct/impl/fn
+    ///   - too generic
     /// - "Find the reranker code" ❌ MISSING: struct/trait/impl/function
-    /// - "exponential backoff retry mechanism" ❌ MISSING: WHY + construct keywords
-    /// - "find authentication code" ❌ MISSING: which construct? struct? trait? impl?
+    /// - "exponential backoff retry mechanism" ❌ MISSING: WHY + construct
+    ///   keywords
+    /// - "find authentication code" ❌ MISSING: which construct? struct? trait?
+    ///   impl?
     /// - "tool definitions" ❌ MISSING: struct? trait? type? be specific
     /// - "how it works" (too vague - specify what you want to understand)
     /// - Long rambling explanation without clear intent (keep it focused)
