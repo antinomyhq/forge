@@ -41,7 +41,7 @@ impl Display for ToolUsagePrompt<'_> {
                 .map(|props| {
                     props
                         .iter()
-                        .filter_map(|(name, prop)| {
+                        .map(|(name, prop)| {
                             let description = prop
                                 .as_object()
                                 .and_then(|p| p.get("description"))
@@ -57,7 +57,7 @@ impl Display for ToolUsagePrompt<'_> {
                                 is_required: required.contains(name),
                             };
 
-                            Some((name.clone(), parameter))
+                            (name.clone(), parameter)
                         })
                         .collect::<BTreeMap<_, _>>()
                 })
