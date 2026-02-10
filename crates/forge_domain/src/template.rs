@@ -1,6 +1,7 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::borrow::Cow;
 
 #[derive(Clone, Default, Serialize, Deserialize, Debug, PartialEq, Eq)]
 #[serde(transparent)]
@@ -10,11 +11,11 @@ pub struct Template<V> {
 }
 
 impl<T> JsonSchema for Template<T> {
-    fn schema_name() -> String {
+    fn schema_name() -> Cow<'static, str> {
         String::schema_name()
     }
 
-    fn json_schema(r#gen: &mut schemars::r#gen::SchemaGenerator) -> schemars::schema::Schema {
+    fn json_schema(r#gen: &mut schemars::generate::SchemaGenerator) -> schemars::Schema {
         String::json_schema(r#gen)
     }
 }

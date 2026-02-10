@@ -1,5 +1,5 @@
 use derive_setters::Setters;
-use schemars::schema::RootSchema;
+use schemars::Schema;
 use serde::{Deserialize, Serialize};
 
 use crate::ToolName;
@@ -12,7 +12,7 @@ use crate::ToolName;
 pub struct ToolDefinition {
     pub name: ToolName,
     pub description: String,
-    pub input_schema: RootSchema,
+    pub input_schema: Schema,
 }
 
 impl ToolDefinition {

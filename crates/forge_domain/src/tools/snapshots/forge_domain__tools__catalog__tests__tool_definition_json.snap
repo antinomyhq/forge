@@ -5,12 +5,9 @@ expression: tools
 {
   "title": "FSRead",
   "type": "object",
-  "required": [
-    "file_path"
-  ],
   "properties": {
     "end_line": {
-      "description": "The line number to stop reading at (inclusive). Only provide if the file is too large to read at once",
+      "description": "The line number to stop reading at (inclusive). Only provide if the file\nis too large to read at once",
       "type": "integer",
       "format": "int32",
       "nullable": true
@@ -20,25 +17,24 @@ expression: tools
       "type": "string"
     },
     "show_line_numbers": {
-      "description": "If true, prefixes each line with its line index (starting at 1). Defaults to true.",
-      "default": true,
-      "type": "boolean"
+      "description": "If true, prefixes each line with its line index (starting at 1).\nDefaults to true.",
+      "type": "boolean",
+      "default": true
     },
     "start_line": {
-      "description": "The line number to start reading from starting from 1 not 0. Only provide if the file is too large to read at once",
+      "description": "The line number to start reading from starting from 1 not 0. Only\nprovide if the file is too large to read at once",
       "type": "integer",
       "format": "int32",
       "nullable": true
     }
-  }
+  },
+  "required": [
+    "file_path"
+  ]
 }
 {
   "title": "FSWrite",
   "type": "object",
-  "required": [
-    "content",
-    "file_path"
-  ],
   "properties": {
     "content": {
       "description": "The content to write to the file",
@@ -49,37 +45,38 @@ expression: tools
       "type": "string"
     },
     "overwrite": {
-      "description": "If set to true, existing files will be overwritten. If not set and the file exists, an error will be returned with the content of the existing file.",
+      "description": "If set to true, existing files will be overwritten. If not set and the\nfile exists, an error will be returned with the content of the\nexisting file.",
       "type": "boolean"
     }
-  }
+  },
+  "required": [
+    "file_path",
+    "content"
+  ]
 }
 {
   "title": "FSSearch",
   "type": "object",
-  "required": [
-    "pattern"
-  ],
   "properties": {
     "-A": {
-      "description": "Number of lines to show after each match (rg -A). Requires output_mode: \"content\", ignored otherwise.",
+      "description": "Number of lines to show after each match (rg -A). Requires output_mode:\n\"content\", ignored otherwise.",
       "type": "integer",
       "format": "uint32",
-      "minimum": 0.0,
+      "minimum": 0,
       "nullable": true
     },
     "-B": {
-      "description": "Number of lines to show before each match (rg -B). Requires output_mode: \"content\", ignored otherwise.",
+      "description": "Number of lines to show before each match (rg -B). Requires output_mode:\n\"content\", ignored otherwise.",
       "type": "integer",
       "format": "uint32",
-      "minimum": 0.0,
+      "minimum": 0,
       "nullable": true
     },
     "-C": {
-      "description": "Number of lines to show before and after each match (rg -C). Requires output_mode: \"content\", ignored otherwise.",
+      "description": "Number of lines to show before and after each match (rg -C). Requires\noutput_mode: \"content\", ignored otherwise.",
       "type": "integer",
       "format": "uint32",
-      "minimum": 0.0,
+      "minimum": 0,
       "nullable": true
     },
     "-i": {
@@ -88,24 +85,24 @@ expression: tools
       "nullable": true
     },
     "-n": {
-      "description": "Show line numbers in output (rg -n). Requires output_mode: \"content\", ignored otherwise.",
+      "description": "Show line numbers in output (rg -n). Requires output_mode: \"content\",\nignored otherwise.",
       "type": "boolean",
       "nullable": true
     },
     "glob": {
-      "description": "Glob pattern to filter files (e.g. \"*.js\", \"*.{ts,tsx}\") - maps to rg --glob",
+      "description": "Glob pattern to filter files (e.g. \"*.js\", \"*.{ts,tsx}\") - maps to rg\n--glob",
       "type": "string",
       "nullable": true
     },
     "head_limit": {
-      "description": "Limit output to first N lines/entries, equivalent to \"| head -N\". Works across all output modes: content (limits output lines), files_with_matches (limits file paths), count (limits count entries). When unspecified, shows all results from ripgrep.",
+      "description": "Limit output to first N lines/entries, equivalent to \"| head -N\". Works\nacross all output modes: content (limits output lines),\nfiles_with_matches (limits file paths), count (limits count entries).\nWhen unspecified, shows all results from ripgrep.",
       "type": "integer",
       "format": "uint32",
-      "minimum": 0.0,
+      "minimum": 0,
       "nullable": true
     },
     "multiline": {
-      "description": "Enable multiline mode where . matches newlines and patterns can span lines (rg -U --multiline-dotall). Default: false.",
+      "description": "Enable multiline mode where . matches newlines and patterns can span\nlines (rg -U --multiline-dotall). Default: false.",
       "type": "boolean",
       "nullable": true
     },
@@ -113,21 +110,22 @@ expression: tools
       "description": "Skip first N lines/entries before applying head_limit",
       "type": "integer",
       "format": "uint32",
-      "minimum": 0.0,
+      "minimum": 0,
       "nullable": true
     },
     "output_mode": {
-      "description": "Output mode: \"content\" shows matching lines (supports -A/-B/-C context, -n line numbers, head_limit), \"files_with_matches\" shows file paths (supports head_limit), \"count\" shows match counts (supports head_limit). Defaults to \"files_with_matches\".",
+      "description": "Output mode: \"content\" shows matching lines (supports -A/-B/-C context,\n-n line numbers, head_limit), \"files_with_matches\" shows file paths\n(supports head_limit), \"count\" shows match counts (supports head_limit).\nDefaults to \"files_with_matches\".",
       "type": "string",
       "enum": [
         "content",
         "files_with_matches",
-        "count"
+        "count",
+        null
       ],
       "nullable": true
     },
     "path": {
-      "description": "File or directory to search in (rg PATH). Defaults to current working directory.",
+      "description": "File or directory to search in (rg PATH). Defaults to current working\ndirectory.",
       "type": "string",
       "nullable": true
     },
@@ -136,64 +134,62 @@ expression: tools
       "type": "string"
     },
     "type": {
-      "description": "File type to search (rg --type). Common types: js, py, rust, go, java, etc. More efficient than include for standard file types.",
+      "description": "File type to search (rg --type). Common types: js, py, rust, go, java,\netc. More efficient than include for standard file types.",
       "type": "string",
       "nullable": true
     }
-  }
+  },
+  "required": [
+    "pattern"
+  ]
 }
 {
   "title": "SemanticSearch",
   "type": "object",
-  "required": [
-    "queries"
-  ],
   "properties": {
     "queries": {
-      "description": "List of search queries to execute in parallel. Using multiple queries (2-3) with varied phrasings significantly improves results - each query captures different aspects of what you're looking for. Each query pairs a search term with a use_case for reranking. Example: for authentication, try \"user login verification\", \"token generation\", \"OAuth flow\".",
+      "description": "List of search queries to execute in parallel. Using multiple queries\n(2-3) with varied phrasings significantly improves results - each query\ncaptures different aspects of what you're looking for. Each query pairs\na search term with a use_case for reranking. Example: for\nauthentication, try \"user login verification\", \"token generation\",\n\"OAuth flow\".",
       "type": "array",
       "items": {
-        "description": "A paired query and use_case for semantic search. Each query must have a corresponding use_case for document reranking.",
+        "description": "A paired query and use_case for semantic search. Each query must have a\ncorresponding use_case for document reranking.",
         "type": "object",
-        "required": [
-          "query",
-          "use_case"
-        ],
         "properties": {
           "query": {
-            "description": "Describe WHAT the code does or its purpose. Include domain-specific terms and technical context. Good: \"retry mechanism with exponential backoff\", \"streaming responses from LLM API\", \"OAuth token refresh flow\". Bad: generic terms like \"retry\" or \"auth\" without context. Think about the behavior and functionality you're looking for.",
+            "description": "Describe WHAT the code does or its purpose. Include domain-specific\nterms and technical context. Good: \"retry mechanism with exponential\nbackoff\", \"streaming responses from LLM API\", \"OAuth token refresh\nflow\". Bad: generic terms like \"retry\" or \"auth\" without context. Think\nabout the behavior and functionality you're looking for.",
             "type": "string"
           },
           "use_case": {
-            "description": "A short natural-language description of what you are trying to find. This is the query used for document reranking. The query MUST: - express a single, focused information need - describe exactly what the agent is searching for - should not be the query verbatim - be concise (1–2 sentences)\n\nExamples: - \"Why is `select_model()` returning a Pin<Box<Result>> in Rust?\" - \"How to fix error E0277 for the ? operator on a pinned boxed result?\" - \"Steps to run Diesel migrations in Rust without exposing the DB.\" - \"How to design a clean architecture service layer with typed errors?\"",
+            "description": "A short natural-language description of what you are trying to find.\nThis is the query used for document reranking. The query MUST:\n- express a single, focused information need\n- describe exactly what the agent is searching for\n- should not be the query verbatim\n- be concise (1–2 sentences)\n\nExamples:\n- \"Why is `select_model()` returning a Pin<Box<Result>> in Rust?\"\n- \"How to fix error E0277 for the ? operator on a pinned boxed result?\"\n- \"Steps to run Diesel migrations in Rust without exposing the DB.\"\n- \"How to design a clean architecture service layer with typed errors?\"",
             "type": "string"
           }
-        }
+        },
+        "required": [
+          "query",
+          "use_case"
+        ]
       }
     }
-  }
+  },
+  "required": [
+    "queries"
+  ]
 }
 {
   "title": "FSRemove",
   "type": "object",
-  "required": [
-    "path"
-  ],
   "properties": {
     "path": {
       "description": "The path of the file to remove (absolute path required)",
       "type": "string"
     }
-  }
+  },
+  "required": [
+    "path"
+  ]
 }
 {
   "title": "FSPatch",
   "type": "object",
-  "required": [
-    "file_path",
-    "new_string",
-    "old_string"
-  ],
   "properties": {
     "file_path": {
       "description": "The absolute path to the file to modify",
@@ -209,47 +205,49 @@ expression: tools
     },
     "replace_all": {
       "description": "Replace all occurrences of old_string (default false)",
-      "default": false,
-      "type": "boolean"
+      "type": "boolean",
+      "default": false
     }
-  }
+  },
+  "required": [
+    "file_path",
+    "old_string",
+    "new_string"
+  ]
 }
 {
   "title": "FSUndo",
   "type": "object",
-  "required": [
-    "path"
-  ],
   "properties": {
     "path": {
       "description": "The absolute path of the file to revert to its previous state.",
       "type": "string"
     }
-  }
+  },
+  "required": [
+    "path"
+  ]
 }
 {
   "title": "Shell",
   "type": "object",
-  "required": [
-    "command"
-  ],
   "properties": {
     "command": {
       "description": "The shell command to execute.",
       "type": "string"
     },
     "cwd": {
-      "description": "The working directory where the command should be executed. If not specified, defaults to the current working directory from the environment.",
+      "description": "The working directory where the command should be executed.\nIf not specified, defaults to the current working directory from the\nenvironment.",
       "type": "string",
       "nullable": true
     },
     "description": {
-      "description": "Clear, concise description of what this command does. Recommended to be 5-10 words for simple commands. For complex commands with pipes or multiple operations, provide more context. Examples: \"Lists files in current directory\", \"Installs package dependencies\", \"Compiles Rust project with release optimizations\".",
+      "description": "Clear, concise description of what this command does. Recommended to be\n5-10 words for simple commands. For complex commands with pipes or\nmultiple operations, provide more context. Examples: \"Lists files in\ncurrent directory\", \"Installs package dependencies\", \"Compiles Rust\nproject with release optimizations\".",
       "type": "string",
       "nullable": true
     },
     "env": {
-      "description": "Environment variable names to pass to command execution (e.g., [\"PATH\", \"HOME\", \"USER\"]). The system automatically reads the specified values and applies them during command execution.",
+      "description": "Environment variable names to pass to command execution (e.g., [\"PATH\",\n\"HOME\", \"USER\"]). The system automatically reads the specified\nvalues and applies them during command execution.",
       "type": "array",
       "items": {
         "type": "string"
@@ -257,18 +255,18 @@ expression: tools
       "nullable": true
     },
     "keep_ansi": {
-      "description": "Whether to preserve ANSI escape codes in the output. If true, ANSI escape codes will be preserved in the output. If false (default), ANSI escape codes will be stripped from the output.",
+      "description": "Whether to preserve ANSI escape codes in the output.\nIf true, ANSI escape codes will be preserved in the output.\nIf false (default), ANSI escape codes will be stripped from the output.",
       "type": "boolean"
     }
-  }
+  },
+  "required": [
+    "command"
+  ]
 }
 {
   "title": "NetFetch",
   "description": "Input type for the net fetch tool",
   "type": "object",
-  "required": [
-    "url"
-  ],
   "properties": {
     "raw": {
       "description": "Get raw content without any markdown conversion (default: false)",
@@ -279,17 +277,17 @@ expression: tools
       "description": "URL to fetch",
       "type": "string"
     }
-  }
+  },
+  "required": [
+    "url"
+  ]
 }
 {
   "title": "Followup",
   "type": "object",
-  "required": [
-    "question"
-  ],
   "properties": {
     "multiple": {
-      "description": "If true, allows selecting multiple options; if false (default), only one option can be selected",
+      "description": "If true, allows selecting multiple options; if false (default), only one\noption can be selected",
       "type": "boolean",
       "nullable": true
     },
@@ -322,19 +320,17 @@ expression: tools
       "description": "Question to ask the user",
       "type": "string"
     }
-  }
+  },
+  "required": [
+    "question"
+  ]
 }
 {
   "title": "PlanCreate",
   "type": "object",
-  "required": [
-    "content",
-    "plan_name",
-    "version"
-  ],
   "properties": {
     "content": {
-      "description": "The content to write to the plan file. This should be the complete plan content in markdown format.",
+      "description": "The content to write to the plan file. This should be the complete\nplan content in markdown format.",
       "type": "string"
     },
     "plan_name": {
@@ -345,18 +341,23 @@ expression: tools
       "description": "The version of the plan (e.g., \"v1\", \"v2\", \"1.0\")",
       "type": "string"
     }
-  }
+  },
+  "required": [
+    "plan_name",
+    "version",
+    "content"
+  ]
 }
 {
   "title": "SkillFetch",
   "type": "object",
-  "required": [
-    "name"
-  ],
   "properties": {
     "name": {
       "description": "The name of the skill to fetch (e.g., \"pdf\", \"code_review\")",
       "type": "string"
     }
-  }
+  },
+  "required": [
+    "name"
+  ]
 }

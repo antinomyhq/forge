@@ -69,7 +69,7 @@ pub struct Thinking {
 pub enum OutputFormat {
     #[serde(rename = "json_schema")]
     JsonSchema {
-        schema: schemars::schema::RootSchema,
+        schema: schemars::Schema,
     },
 }
 
