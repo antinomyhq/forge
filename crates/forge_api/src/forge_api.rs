@@ -391,6 +391,9 @@ impl<
         self.infra.hydrate();
         Ok(())
     }
+    async fn acp_start_stdio(&self) -> Result<()> {
+        unimplemented!("WIP")
+    }
 }
 
 impl<A: Send + Sync, F: ConsoleWriter> ConsoleWriter for ForgeAPI<A, F> {
