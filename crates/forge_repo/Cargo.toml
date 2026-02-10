@@ -64,7 +64,7 @@ tokio = { workspace = true, features = ["macros", "rt", "time", "test-util"] }
 tempfile = { workspace = true }
 pretty_assertions = { workspace = true }
 insta = { workspace = true }
-serial_test = "3.2"
+serial_test = "3.3"
 fake = { version = "4.4.0", features = ["derive"] }
 derive_setters.workspace = true
 mockito = { workspace = true }
