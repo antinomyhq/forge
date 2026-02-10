@@ -20,7 +20,7 @@ impl Display for ToolUsagePrompt<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for tool in self.tools.iter() {
             let schema_value = tool.input_schema.as_value();
-            
+
             // Extract required fields
             let required = schema_value
                 .as_object()
@@ -49,10 +49,7 @@ impl Display for ToolUsagePrompt<'_> {
                                 .unwrap_or("")
                                 .to_string();
 
-                            let type_of = prop
-                                .as_object()
-                                .and_then(|p| p.get("type"))
-                                .cloned();
+                            let type_of = prop.as_object().and_then(|p| p.get("type")).cloned();
 
                             let parameter = Parameter {
                                 description,

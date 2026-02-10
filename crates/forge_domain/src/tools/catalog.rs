@@ -1,4 +1,5 @@
 #![allow(clippy::enum_variant_names)]
+use std::borrow::Cow;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
@@ -6,11 +7,9 @@ use convert_case::{Case, Casing};
 use derive_more::From;
 use eserde::Deserialize;
 use forge_tool_macros::ToolDescription;
-use schemars::JsonSchema;
-use schemars::Schema;
+use schemars::{JsonSchema, Schema};
 use serde::Serialize;
 use serde_json::Map;
-use std::borrow::Cow;
 use strum::IntoEnumIterator;
 use strum_macros::{AsRefStr, Display, EnumDiscriminants, EnumIter};
 
@@ -294,7 +293,7 @@ trait SimpleEnumSchema: AsRef<str> + IntoEnumIterator {
         let variants: Vec<serde_json::Value> = Self::iter()
             .map(|variant| variant.as_ref().to_case(Case::Snake).into())
             .collect();
-        
+
         json_schema!({
             "type": "string",
             "enum": variants
@@ -584,14 +583,14 @@ impl ToolCatalog {
     pub fn schema(&self) -> Schema {
         use schemars::generate::SchemaSettings;
         use schemars::transform::{AddNullable, Transform};
-        
+
         let r#gen = SchemaSettings::default()
             .with(|s| {
                 s.meta_schema = None;
                 s.inline_subschemas = true;
             })
             .into_generator();
-        
+
         let mut schema = match self {
             ToolCatalog::Patch(_) => r#gen.into_root_schema_for::<FSPatch>(),
             ToolCatalog::Shell(_) => r#gen.into_root_schema_for::<Shell>(),
@@ -606,10 +605,10 @@ impl ToolCatalog {
             ToolCatalog::Plan(_) => r#gen.into_root_schema_for::<PlanCreate>(),
             ToolCatalog::Skill(_) => r#gen.into_root_schema_for::<SkillFetch>(),
         };
-        
+
         // Apply transform to add nullable property and remove null from type
         AddNullable::default().transform(&mut schema);
-        
+
         schema
     }
 
@@ -1434,10 +1433,11 @@ mod tests {
         let settings = SchemaSettings::default().into_generator();
         let patch_schema = settings.into_root_schema_for::<PatchOperation>();
 
-        // In schemars 1.0, Schema wraps serde_json::Value, so we check the JSON directly
+        // In schemars 1.0, Schema wraps serde_json::Value, so we check the JSON
+        // directly
         let schema_value = patch_schema.as_value();
         assert_eq!(schema_value.get("type"), Some(&serde_json::json!("string")));
-        
+
         let enum_values = schema_value.get("enum").and_then(|v| v.as_array()).unwrap();
         assert_eq!(enum_values.len(), 5);
         assert_eq!(enum_values[0], serde_json::json!("prepend"));
@@ -1450,7 +1450,7 @@ mod tests {
         // Verify it also generates a simple string enum
         let schema_value = output_schema.as_value();
         assert_eq!(schema_value.get("type"), Some(&serde_json::json!("string")));
-        
+
         let enum_values = schema_value.get("enum").and_then(|v| v.as_array()).unwrap();
         assert_eq!(enum_values.len(), 3);
         assert_eq!(enum_values[0], serde_json::json!("content"));

@@ -1461,7 +1461,7 @@ mod tests {
         // In schemars 1.0, Schema wraps serde_json::Value
         let schema_value = serde_json::json!({});
         let schema = schemars::Schema::try_from(schema_value).unwrap();
-        
+
         let fixture = ToolDefinition {
             name: forge_domain::ToolName::new("test_tool"),
             description: "A test tool".to_string(),
