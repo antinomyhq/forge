@@ -4,8 +4,8 @@ variables:
   # Define model anchors with simpler, purpose-based names
   advanced_model: &advanced_model anthropic/claude-sonnet-4
 
-max_requests_per_turn: 100
-max_tool_failure_per_turn: 3
+max_requests_per_turn: 10000
+max_tool_failure_per_turn: 1000
 top_p: 0.8
 top_k: 30
 max_tokens: 20480
