@@ -51,12 +51,12 @@ fn coerce_value_with_schema_object(
                 .and_then(|obj| obj.get("$defs").or_else(|| obj.get("definitions")))
                 .and_then(|defs| defs.as_object())
                 .and_then(|defs| defs.get(def_name))
-            {
-                // Convert the Value to a Schema wrapper
-                if let Ok(schema) = serde_json::from_value::<Schema>(def_schema.clone()) {
-                    return coerce_value_with_schema(value, &schema, root_schema);
-                }
+        {
+            // Convert the Value to a Schema wrapper
+            if let Ok(schema) = serde_json::from_value::<Schema>(def_schema.clone()) {
+                return coerce_value_with_schema(value, &schema, root_schema);
             }
+        }
     }
 
     // Coerce empty strings to null for nullable schemas.
@@ -110,11 +110,10 @@ fn coerce_value_with_schema_object(
                 if let Some(prop_schema_value) = properties.get(key)
                     && let Ok(prop_schema) =
                         serde_json::from_value::<Schema>(prop_schema_value.clone())
-                    {
-                        let coerced =
-                            coerce_value_with_schema(val.clone(), &prop_schema, root_schema);
-                        *val = coerced;
-                    }
+                {
+                    let coerced = coerce_value_with_schema(val.clone(), &prop_schema, root_schema);
+                    *val = coerced;
+                }
             }
         }
         return Value::Object(map);
@@ -124,23 +123,24 @@ fn coerce_value_with_schema_object(
     if let Value::Array(arr) = value {
         // Check for prefixItems first (JSON Schema 2020-12 for tuples)
         if let Some(prefix_items_value) = schema.get("prefixItems")
-            && let Some(item_schemas) = prefix_items_value.as_array() {
-                // Array of schemas (tuple validation)
-                return Value::Array(
-                    arr.into_iter()
-                        .enumerate()
-                        .map(|(i, item)| {
-                            if let Some(schema_value) = item_schemas.get(i)
-                                && let Ok(schema) =
-                                    serde_json::from_value::<Schema>(schema_value.clone())
-                                {
-                                    return coerce_value_with_schema(item, &schema, root_schema);
-                                }
-                            item
-                        })
-                        .collect(),
-                );
-            }
+            && let Some(item_schemas) = prefix_items_value.as_array()
+        {
+            // Array of schemas (tuple validation)
+            return Value::Array(
+                arr.into_iter()
+                    .enumerate()
+                    .map(|(i, item)| {
+                        if let Some(schema_value) = item_schemas.get(i)
+                            && let Ok(schema) =
+                                serde_json::from_value::<Schema>(schema_value.clone())
+                        {
+                            return coerce_value_with_schema(item, &schema, root_schema);
+                        }
+                        item
+                    })
+                    .collect(),
+            );
+        }
 
         // Check for items (older JSON Schema drafts)
         if let Some(items_schema_value) = schema.get("items") {
@@ -165,9 +165,9 @@ fn coerce_value_with_schema_object(
                             if let Some(schema_value) = item_schemas.get(i)
                                 && let Ok(schema) =
                                     serde_json::from_value::<Schema>(schema_value.clone())
-                                {
-                                    return coerce_value_with_schema(item, &schema, root_schema);
-                                }
+                            {
+                                return coerce_value_with_schema(item, &schema, root_schema);
+                            }
                             item
                         })
                         .collect(),
@@ -325,23 +325,24 @@ fn coerce_array_value(
     if let Value::Array(arr) = value {
         // Check for prefixItems first (JSON Schema 2020-12 for tuples)
         if let Some(prefix_items_value) = schema.get("prefixItems")
-            && let Some(item_schemas) = prefix_items_value.as_array() {
-                // Array of schemas (tuple validation)
-                return Value::Array(
-                    arr.into_iter()
-                        .enumerate()
-                        .map(|(i, item)| {
-                            if let Some(schema_value) = item_schemas.get(i)
-                                && let Ok(schema) =
-                                    serde_json::from_value::<Schema>(schema_value.clone())
-                                {
-                                    return coerce_value_with_schema(item, &schema, root_schema);
-                                }
-                            item
-                        })
-                        .collect(),
-                );
-            }
+            && let Some(item_schemas) = prefix_items_value.as_array()
+        {
+            // Array of schemas (tuple validation)
+            return Value::Array(
+                arr.into_iter()
+                    .enumerate()
+                    .map(|(i, item)| {
+                        if let Some(schema_value) = item_schemas.get(i)
+                            && let Ok(schema) =
+                                serde_json::from_value::<Schema>(schema_value.clone())
+                        {
+                            return coerce_value_with_schema(item, &schema, root_schema);
+                        }
+                        item
+                    })
+                    .collect(),
+            );
+        }
 
         // Check if schema defines array item types (older JSON Schema draft)
         if let Some(items_schema_value) = schema.get("items") {
@@ -366,9 +367,9 @@ fn coerce_array_value(
                             if let Some(schema_value) = item_schemas.get(i)
                                 && let Ok(schema) =
                                     serde_json::from_value::<Schema>(schema_value.clone())
-                                {
-                                    return coerce_value_with_schema(item, &schema, root_schema);
-                                }
+                            {
+                                return coerce_value_with_schema(item, &schema, root_schema);
+                            }
                             item
                         })
                         .collect(),
