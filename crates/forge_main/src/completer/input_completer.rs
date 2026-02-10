@@ -72,7 +72,7 @@ impl Completer for InputCompleter {
                 .collect();
 
             // Sort by fuzzy match score (higher is better)
-            scored_matches.sort_by(|a, b| b.0.cmp(&a.0));
+            scored_matches.sort_by_key(|b| std::cmp::Reverse(b.0));
 
             // Extract suggestions from scored matches
             scored_matches
