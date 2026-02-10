@@ -45,11 +45,10 @@ fn has_allowed_extension(path: &Path) -> bool {
 
 /// Determines if a gRPC error should trigger a retry attempt.
 fn should_retry_grpc(error: &anyhow::Error) -> bool {
-    if let Some(status) = error.downcast_ref::<tonic::Status>() {
-        if status.code() == tonic::Code::Unauthenticated {
+    if let Some(status) = error.downcast_ref::<tonic::Status>()
+        && status.code() == tonic::Code::Unauthenticated {
             return false;
         }
-    }
     true
 }
 
