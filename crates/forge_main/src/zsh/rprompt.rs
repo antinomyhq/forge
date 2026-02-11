@@ -42,7 +42,7 @@ impl Default for ZshRPrompt {
             token_count: None,
             cost: None,
             use_nerd_font: true,
-            currency_symbol: "$".to_string(),
+            currency_symbol: "".to_string(),
             conversion_ratio: 1.0,
         }
     }
