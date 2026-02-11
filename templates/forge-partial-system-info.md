@@ -9,6 +9,6 @@
 {{/if}}
 {{#if extensions}}
 <file_extensions>
-{{#each extensions}} - {{count}} .{{extension}} files
+{{#each extensions}} - {{extension}} ({{count}} files)
 {{/each}}</file_extensions>
 {{/if}}
