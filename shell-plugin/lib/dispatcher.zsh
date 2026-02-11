@@ -193,10 +193,10 @@ function forge-accept-line() {
             _forge_action_sync
         ;;
         login)
-            _forge_action_login
+            _forge_action_login "$input_text"
         ;;
         logout)
-            _forge_action_logout
+            _forge_action_logout "$input_text"
         ;;
         doctor)
             _forge_action_doctor
