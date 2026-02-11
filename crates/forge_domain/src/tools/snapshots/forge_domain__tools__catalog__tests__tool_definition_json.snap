@@ -364,9 +364,6 @@ expression: tools
 {
   "title": "TodoWrite",
   "type": "object",
-  "required": [
-    "todos"
-  ],
   "properties": {
     "todos": {
       "description": "Array of todo items to create or update",
@@ -374,11 +371,6 @@ expression: tools
       "items": {
         "description": "A todo item",
         "type": "object",
-        "required": [
-          "content",
-          "id",
-          "status"
-        ],
         "properties": {
           "content": {
             "description": "Content/description of the todo item",
@@ -397,8 +389,16 @@ expression: tools
               "completed"
             ]
           }
-        }
+        },
+        "required": [
+          "id",
+          "content",
+          "status"
+        ]
       }
     }
-  }
+  },
+  "required": [
+    "todos"
+  ]
 }
