@@ -383,14 +383,12 @@ mod tests {
         // Step 1: Read the file (insert via Metrics::insert like production)
         let metrics = Metrics::default().insert(
             "/test/file.txt".to_string(),
-            FileOperation::new(ToolKind::Read)
-                .content_hash(Some(compute_hash(original))),
+            FileOperation::new(ToolKind::Read).content_hash(Some(compute_hash(original))),
         );
         // Step 2: Write the file (overwrites the Read entry)
         let metrics = metrics.insert(
             "/test/file.txt".to_string(),
-            FileOperation::new(ToolKind::Write)
-                .content_hash(Some(written_hash)),
+            FileOperation::new(ToolKind::Write).content_hash(Some(written_hash)),
         );
 
         // File on disk matches what was written -- no change
@@ -417,13 +415,11 @@ mod tests {
         let metrics = Metrics::default()
             .insert(
                 "/test/file.txt".to_string(),
-                FileOperation::new(ToolKind::Read)
-                    .content_hash(Some(compute_hash("original"))),
+                FileOperation::new(ToolKind::Read).content_hash(Some(compute_hash("original"))),
             )
             .insert(
                 "/test/file.txt".to_string(),
-                FileOperation::new(ToolKind::Write)
-                    .content_hash(Some(written_hash)),
+                FileOperation::new(ToolKind::Write).content_hash(Some(written_hash)),
             );
 
         // External modification detected
@@ -451,13 +447,11 @@ mod tests {
         let metrics = Metrics::default()
             .insert(
                 "/test/file.txt".to_string(),
-                FileOperation::new(ToolKind::Write)
-                    .content_hash(Some(content_hash.clone())),
+                FileOperation::new(ToolKind::Write).content_hash(Some(content_hash.clone())),
             )
             .insert(
                 "/test/file.txt".to_string(),
-                FileOperation::new(ToolKind::Read)
-                    .content_hash(Some(content_hash)),
+                FileOperation::new(ToolKind::Read).content_hash(Some(content_hash)),
             );
 
         // Last entry is Read with matching hash -- no false positive
@@ -492,8 +486,7 @@ mod tests {
         let metrics = Metrics::default()
             .insert(
                 "/test/a.txt".to_string(),
-                FileOperation::new(ToolKind::Read)
-                    .content_hash(Some(compute_hash(a_content))),
+                FileOperation::new(ToolKind::Read).content_hash(Some(compute_hash(a_content))),
             )
             .insert(
                 "/test/b.txt".to_string(),
@@ -502,18 +495,15 @@ mod tests {
             )
             .insert(
                 "/test/b.txt".to_string(),
-                FileOperation::new(ToolKind::Write)
-                    .content_hash(Some(compute_hash(b_written))),
+                FileOperation::new(ToolKind::Write).content_hash(Some(compute_hash(b_written))),
             )
             .insert(
                 "/test/c.txt".to_string(),
-                FileOperation::new(ToolKind::Patch)
-                    .content_hash(Some(compute_hash(c_content))),
+                FileOperation::new(ToolKind::Patch).content_hash(Some(compute_hash(c_content))),
             )
             .insert(
                 "/test/d.txt".to_string(),
-                FileOperation::new(ToolKind::Read)
-                    .content_hash(Some(compute_hash(d_content))),
+                FileOperation::new(ToolKind::Read).content_hash(Some(compute_hash(d_content))),
             );
 
         let actual = detector.detect(&metrics).await;
@@ -541,8 +531,7 @@ mod tests {
 
         let metrics = Metrics::default().insert(
             "/test/file.txt".to_string(),
-            FileOperation::new(ToolKind::Read)
-                .content_hash(Some(compute_hash(original))),
+            FileOperation::new(ToolKind::Read).content_hash(Some(compute_hash(original))),
         );
 
         let actual = detector.detect(&metrics).await;
@@ -567,23 +556,19 @@ mod tests {
         let metrics = Metrics::default()
             .insert(
                 "/test/file.txt".to_string(),
-                FileOperation::new(ToolKind::Read)
-                    .content_hash(Some(compute_hash("v0"))),
+                FileOperation::new(ToolKind::Read).content_hash(Some(compute_hash("v0"))),
             )
             .insert(
                 "/test/file.txt".to_string(),
-                FileOperation::new(ToolKind::Patch)
-                    .content_hash(Some(compute_hash("v1"))),
+                FileOperation::new(ToolKind::Patch).content_hash(Some(compute_hash("v1"))),
             )
             .insert(
                 "/test/file.txt".to_string(),
-                FileOperation::new(ToolKind::Patch)
-                    .content_hash(Some(compute_hash("v2"))),
+                FileOperation::new(ToolKind::Patch).content_hash(Some(compute_hash("v2"))),
             )
             .insert(
                 "/test/file.txt".to_string(),
-                FileOperation::new(ToolKind::Patch)
-                    .content_hash(Some(final_hash)),
+                FileOperation::new(ToolKind::Patch).content_hash(Some(final_hash)),
             );
 
         let actual = detector.detect(&metrics).await;
@@ -605,18 +590,15 @@ mod tests {
         let metrics = Metrics::default()
             .insert(
                 "/test/file.txt".to_string(),
-                FileOperation::new(ToolKind::Read)
-                    .content_hash(Some(original_hash.clone())),
+                FileOperation::new(ToolKind::Read).content_hash(Some(original_hash.clone())),
             )
             .insert(
                 "/test/file.txt".to_string(),
-                FileOperation::new(ToolKind::Write)
-                    .content_hash(Some(compute_hash("modified"))),
+                FileOperation::new(ToolKind::Write).content_hash(Some(compute_hash("modified"))),
             )
             .insert(
                 "/test/file.txt".to_string(),
-                FileOperation::new(ToolKind::Undo)
-                    .content_hash(Some(original_hash)),
+                FileOperation::new(ToolKind::Undo).content_hash(Some(original_hash)),
             );
 
         let actual = detector.detect(&metrics).await;
@@ -641,13 +623,11 @@ mod tests {
         let metrics = Metrics::default()
             .insert(
                 "/test/file.txt".to_string(),
-                FileOperation::new(ToolKind::Read)
-                    .content_hash(Some(compute_hash(&raw_content))),
+                FileOperation::new(ToolKind::Read).content_hash(Some(compute_hash(&raw_content))),
             )
             .insert(
                 "/test/file.txt".to_string(),
-                FileOperation::new(ToolKind::Write)
-                    .content_hash(Some(written_hash)),
+                FileOperation::new(ToolKind::Write).content_hash(Some(written_hash)),
             );
 
         let actual = detector.detect(&metrics).await;
