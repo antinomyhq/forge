@@ -68,9 +68,7 @@ pub struct Thinking {
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum OutputFormat {
     #[serde(rename = "json_schema")]
-    JsonSchema {
-        schema: schemars::schema::RootSchema,
-    },
+    JsonSchema { schema: schemars::Schema },
 }
 
 #[derive(Serialize, Default, Debug, Clone, Copy, PartialEq, Eq)]

@@ -1,4 +1,5 @@
 #![allow(clippy::enum_variant_names)]
+use std::borrow::Cow;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
@@ -6,8 +7,7 @@ use convert_case::{Case, Casing};
 use derive_more::From;
 use eserde::Deserialize;
 use forge_tool_macros::ToolDescription;
-use schemars::JsonSchema;
-use schemars::schema::RootSchema;
+use schemars::{JsonSchema, Schema};
 use serde::Serialize;
 use serde_json::Map;
 use strum::IntoEnumIterator;
@@ -362,26 +362,24 @@ pub enum PatchOperation {
 /// JSON schemas that represent enums as simple string enumerations
 /// rather than complex oneOf structures.
 trait SimpleEnumSchema: AsRef<str> + IntoEnumIterator {
-    fn simple_enum_schema_name() -> String {
+    fn simple_enum_schema_name() -> Cow<'static, str> {
         std::any::type_name::<Self>()
             .split("::")
             .last()
             .unwrap_or("Enum")
             .to_string()
+            .into()
     }
 
-    fn simple_enum_schema(_gen: &mut schemars::r#gen::SchemaGenerator) -> schemars::schema::Schema {
-        use schemars::schema::{InstanceType, Schema, SchemaObject};
+    fn simple_enum_schema(_gen: &mut schemars::generate::SchemaGenerator) -> Schema {
+        use schemars::json_schema;
         let variants: Vec<serde_json::Value> = Self::iter()
             .map(|variant| variant.as_ref().to_case(Case::Snake).into())
             .collect();
-        Schema::Object(SchemaObject {
-            instance_type: Some(InstanceType::String.into()),
-            enum_values: Some(variants),
-            metadata: Some(Box::new(schemars::schema::Metadata {
-                ..Default::default()
-            })),
-            ..Default::default()
+
+        json_schema!({
+            "type": "string",
+            "enum": variants
         })
     }
 }
@@ -391,21 +389,21 @@ trait SimpleEnumSchema: AsRef<str> + IntoEnumIterator {
 impl<T> SimpleEnumSchema for T where T: AsRef<str> + IntoEnumIterator {}
 
 impl JsonSchema for PatchOperation {
-    fn schema_name() -> String {
+    fn schema_name() -> Cow<'static, str> {
         <Self as SimpleEnumSchema>::simple_enum_schema_name()
     }
 
-    fn json_schema(r#gen: &mut schemars::r#gen::SchemaGenerator) -> schemars::schema::Schema {
+    fn json_schema(r#gen: &mut schemars::generate::SchemaGenerator) -> Schema {
         <Self as SimpleEnumSchema>::simple_enum_schema(r#gen)
     }
 }
 
 impl JsonSchema for OutputMode {
-    fn schema_name() -> String {
+    fn schema_name() -> Cow<'static, str> {
         <Self as SimpleEnumSchema>::simple_enum_schema_name()
     }
 
-    fn json_schema(r#gen: &mut schemars::r#gen::SchemaGenerator) -> schemars::schema::Schema {
+    fn json_schema(r#gen: &mut schemars::generate::SchemaGenerator) -> Schema {
         <Self as SimpleEnumSchema>::simple_enum_schema(r#gen)
     }
 }
@@ -665,19 +663,18 @@ fn normalize_tool_name(name: &ToolName) -> ToolName {
 }
 
 impl ToolCatalog {
-    pub fn schema(&self) -> RootSchema {
-        use schemars::r#gen::SchemaSettings;
+    pub fn schema(&self) -> Schema {
+        use schemars::generate::SchemaSettings;
+        use schemars::transform::{AddNullable, Transform};
+
         let r#gen = SchemaSettings::default()
             .with(|s| {
-                // incase of null, add nullable property.
-                s.option_nullable = true;
-                // incase of option type, don't add null in type.
-                s.option_add_null_type = false;
                 s.meta_schema = None;
                 s.inline_subschemas = true;
             })
             .into_generator();
-        match self {
+
+        let mut schema = match self {
             ToolCatalog::Patch(_) => r#gen.into_root_schema_for::<FSPatch>(),
             ToolCatalog::Shell(_) => r#gen.into_root_schema_for::<Shell>(),
             ToolCatalog::Followup(_) => r#gen.into_root_schema_for::<Followup>(),
@@ -690,7 +687,12 @@ impl ToolCatalog {
             ToolCatalog::Write(_) => r#gen.into_root_schema_for::<FSWrite>(),
             ToolCatalog::Plan(_) => r#gen.into_root_schema_for::<PlanCreate>(),
             ToolCatalog::Skill(_) => r#gen.into_root_schema_for::<SkillFetch>(),
-        }
+        };
+
+        // Apply transform to add nullable property and remove null from type
+        AddNullable::default().transform(&mut schema);
+
+        schema
     }
 
     pub fn definition(&self) -> ToolDefinition {
@@ -1506,40 +1508,33 @@ mod tests {
 
     #[test]
     fn test_unit_enum_schema_generation() {
-        use schemars::r#gen::SchemaSettings;
+        use schemars::generate::SchemaSettings;
 
         use crate::{OutputMode, PatchOperation};
 
         // Test PatchOperation schema
-        let r#gen = SchemaSettings::default().into_generator();
-        let patch_schema = r#gen.into_root_schema_for::<PatchOperation>();
+        let settings = SchemaSettings::default().into_generator();
+        let patch_schema = settings.into_root_schema_for::<PatchOperation>();
 
-        // Verify it generates a simple string enum, not a oneOf
-        assert_eq!(
-            patch_schema.schema.instance_type,
-            Some(schemars::schema::SingleOrVec::Single(Box::new(
-                schemars::schema::InstanceType::String
-            )))
-        );
-        assert!(patch_schema.schema.enum_values.is_some());
-        let enum_values = patch_schema.schema.enum_values.unwrap();
+        // In schemars 1.0, Schema wraps serde_json::Value, so we check the JSON
+        // directly
+        let schema_value = patch_schema.as_value();
+        assert_eq!(schema_value.get("type"), Some(&serde_json::json!("string")));
+
+        let enum_values = schema_value.get("enum").and_then(|v| v.as_array()).unwrap();
         assert_eq!(enum_values.len(), 5);
         assert_eq!(enum_values[0], serde_json::json!("prepend"));
         assert_eq!(enum_values[1], serde_json::json!("append"));
 
         // Test OutputMode schema
-        let r#gen = SchemaSettings::default().into_generator();
-        let output_schema = r#gen.into_root_schema_for::<OutputMode>();
+        let settings = SchemaSettings::default().into_generator();
+        let output_schema = settings.into_root_schema_for::<OutputMode>();
 
         // Verify it also generates a simple string enum
-        assert_eq!(
-            output_schema.schema.instance_type,
-            Some(schemars::schema::SingleOrVec::Single(Box::new(
-                schemars::schema::InstanceType::String
-            )))
-        );
-        assert!(output_schema.schema.enum_values.is_some());
-        let enum_values = output_schema.schema.enum_values.unwrap();
+        let schema_value = output_schema.as_value();
+        assert_eq!(schema_value.get("type"), Some(&serde_json::json!("string")));
+
+        let enum_values = schema_value.get("enum").and_then(|v| v.as_array()).unwrap();
         assert_eq!(enum_values.len(), 3);
         assert_eq!(enum_values[0], serde_json::json!("content"));
         assert_eq!(enum_values[1], serde_json::json!("files_with_matches"));

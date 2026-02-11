@@ -1,0 +1,105 @@
+embedding_query,use_case
+workspace sync re-embedding file detection changed files,I need to understand the implementation logic for how the workspace sync feature determines which files need to be re-embedded
+file hash checksum comparison embedding detection, Looking for the actual implementation of file change detection for embeddings
+workspace synchronization embedding status tracking,Finding the code that tracks embedding status and decides which files need to be processed or re-processed during workspace sync.
+workspace sync service implementation file processing,Need to find the actual Rust service implementation for workspace sync that processes files and decides which need embedding.
+embedding record database sha256 content hash,Looking for database models or repository code that stores embedding records with file hashes to track what's been embedded.
+semantic search test multiple query embeddings batch queries,Find test code that validates semantic search functionality with multiple query embeddings to understand how the feature is tested
+test cases embedding reranking multiple queries parallel search,Locate test implementations that verify behavior when processing multiple semantic queries simultaneously
+vector search test suite multiple query vectors batch embedding,Find test files that check semantic search behavior with batched or multiple query embeddings
+test function semantic search multiple queries embedding batch processing,"Find test functions that verify semantic search works correctly when given multiple query embeddings at once
+CodebaseSearchResults multiple CodebaseQueryResult queries vector,Find code that constructs or tests CodebaseSearchResults with multiple query results to see how multiple queries are handled
+file operation rollback undo revert transaction tests,Find test code that verifies rollback functionality for file operations like create
+undo file changes restore previous state test cases,Find tests that check if file operations can be undone and previous state restored
+transaction rollback file system operations test,Find tests for transactional file operations with rollback capability
+undo file operation implementation restore snapshot backup,Find the actual implementation code that handles undoing file operations to understand the rollback mechanism
+test undo rollback file changes integration,Find integration tests that test the undo/rollback functionality end-to-end with actual file system operations
+semantic search topK reranker configuration settings documentation,Find documentation that explains how to configure topK and reranker parameters for semantic search
+topK parameter limit results semantic search,Find documentation explaining the topK parameter that controls how many results are returned from semantic search
+reranker model configuration cross-encoder settings,Find documentation about reranker configuration and how it processes search results
+semantic search implementation reranker topK configuration,Find the actual implementation code that uses the topK and reranker settings to understand how they work together
+workspace server semantic search API endpoint,Find code that calls the workspace server API for semantic search to understand the full flow
+custom agent creation documentation guide how to create agents,"I need to find the documentation that explains how to create custom agents
+agent file structure yaml frontmatter markdown instructions,Looking for documentation about agent file format and structure requirements
+workspace sync embeddings stale detection,I need to understand how the system detects and handles stale embeddings after workspace synchronization to answer the user's question about what causes this issue.
+embedding invalidation after file changes workspace update,I want to find the code that determines when embeddings become stale or invalid after workspace changes
+sync workspace file modifications embedding cache,I need to see how workspace sync interacts with the embedding cache and what triggers embeddings to become stale.
+workspace sync command implementation index files chunks,I need to find the actual implementation of the workspace sync command to understand what it does and how it processes files.
+embedding stale outdated check file hash modification time,I want to find the code that checks if embeddings are stale by comparing file modification times or hashes.
+chunk embedding database persist file content hash,I need to see how embeddings are stored and what metadata is tracked to determine staleness.
+server-side embedding generation file chunks indexing,I need to understand how the server generates embeddings from uploaded files and what causes them to become stale.
+file hash comparison detect changes modified content,I want to see how the system determines when a file has changed and needs its embeddings regenerated.
+reranker scoring implementation cross encoder model,Find the actual implementation of the reranker scoring mechanism to understand how scores are calculated and why they might be inconsistent
+reranker query processing normalization,Find how reranker processes different queries to identify inconsistencies in query handling
+semantic search rerank results scoring,Find where reranking scores are applied and returned to understand the full scoring pipeline
+cross encoder reranker model implementation score calculation,Find the actual reranker service implementation that uses a cross-encoder model to score and rerank search results
+semantic search executor rerank documents,Find where semantic search calls the reranker to score documents and how scores are normalized or processed
+embedding generation API calls vector creation,I need to find where embeddings are currently being generated so I can identify where to add batching logic
+batch processing multiple items together API requests,Looking for any existing batching patterns in the codebase that I can follow or extend for embedding generation
+semantic search embedding model inference,Find the embedding model integration code where batching would improve performance by reducing API calls
+generate embeddings for text chunks documents,"Find where individual text chunks are converted to embeddings
+OpenRouter embedding API HTTP request,Locate the API call that generates embeddings so I can modify it to batch multiple texts together
+skill agent indexing vector database insert,Find where skills or agents are being indexed with embeddings
+HTTP POST request text embedding vector generation API call,Find the actual HTTP client code that makes API requests to generate embeddings from text
+reqwest client post embedding model inference,Locate where reqwest or HTTP client sends text to embedding API and receives vectors back
+reranker scoring logic cross-encoder model ranking documents,I need to find the actual implementation of the reranker scoring mechanism to understand how documents are ranked and where file recency weights could be added
+semantic search rerank results sort by score,Looking for the code that processes and scores search results during reranking to add file recency as a scoring factor
+file metadata timestamp last modified date recency,Find where file metadata like timestamps are stored or tracked so I can understand what recency information is available for weighting
+reranker score calculation semantic search ranking implementation,Find the Rust implementation of the reranker that calculates scores for semantic search results
+cross-encoder model inference scoring documents chunks,Locate the code that uses the cross-encoder model to score and rank document chunks in semantic search
+configuration schema validation serde deserialize validation,I need to find where configuration files are validated against a schema
+config file validation rules constraints checking,Looking for the actual implementation code that validates config values and enforces constraints
+forge.yaml schema validation json schema,Find where the forge configuration schema is defined and validated
+Config struct deserialization serde yaml toml validation forge configuration,I need to find the Rust code that defines the main Config struct with serde deserialization and validation logic
+validator validate configuration settings validation rules custom validators,Looking for validation logic that checks configuration values
+forge.yaml forge.toml configuration file parsing loading deserialize,Find where configuration files like forge.yaml are loaded and parsed into configuration structs
+system prompt template rendering combining pieces,I need to understand how the system prompt templating mechanism works and how it assembles different components together
+prompt builder template assembly combining sections,Looking for the actual implementation code that combines different parts of prompts into a final system prompt
+system prompt generation skills tools guidelines,"Find where system prompts are built from various components like skills
+system prompt template builder struct render guidelines skills tools,"I need to find the Rust code that builds system prompts by combining different sections like guidelines
+render prompt template handlebars tera minijinja,Looking for the templating engine implementation that renders system prompts with dynamic content
+system_prompt function available_skills tool_list project_guidelines,"Find where the system prompt is assembled with sections like available skills
+conversation compaction threshold limit configuration,Find the implementation code that determines when conversation compaction is triggered based on thresholds or limits
+conversation history size check compaction trigger,Locate the logic that checks conversation size and decides when to compact or summarize the conversation
+message count token limit threshold compaction,Find where message count or token limits are checked to trigger conversation compaction
+conversation compact summarize messages transform threshold,Find the Rust implementation code that performs conversation compaction or summarization with threshold checks
+message count limit conversation history truncate,Locate the code that determines when to truncate or compact conversation history based on message count or size limits
+cross-encoder reranker model loading initialization,I need to find where the cross-encoder model is loaded and initialized in the codebase
+model caching directory path configuration reranker,I need to find where and how the reranker model files are cached on disk
+fastembed reranker text rerank implementation,I need to find the actual implementation code for the reranking functionality to understand the model loading process
+semantic search vector embedding reranking implementation,I need to find the actual implementation of semantic search and reranking to understand how models are loaded
+model initialization download cache directory setup,I need to find where models are downloaded and cached on disk
+file backup creation for undo revert operation,I need to find the implementation code that creates file backups when files are modified so they can be undone later
+undo revert file operation backup storage,I need to understand how the undo functionality stores previous versions of files for restoration
+backup file path generation temporary storage undo,I need to find where backup file paths are generated and how backup files are stored
+semantic search query processing and execution flow,I need to understand the main entry point and orchestration of semantic search queries to trace the complete flow from input to results
+vector embedding generation for search queries,I need to find where search queries are converted to embeddings as part of understanding the semantic search pipeline
+semantic search results ranking and reranking,"I need to understand how search results are scored
+semantic search tool handler implementation entry point,I need to find the main handler function that receives semantic search requests and orchestrates the search process
+vector database query execution with embeddings,I need to understand how vector embeddings are used to query the database and retrieve similar code chunks
+cross-encoder model reranking implementation,I need to find the code that reranks initial search results using the cross-encoder model based on user intent
+query_workspace implementation with SearchParams embedding and vector database,I need to find the actual implementation of query_workspace that generates embeddings and queries the vector database
+embedding model API call for generating query vectors,I need to understand how search query text is converted to vector embeddings before database lookup
+reranker cross-encoder scoring and filtering results,I need to find where the reranker model processes initial results and scores them based on use_case intent
+file patch validation atomic write implementation,I need to understand the implementation of file patching including validation and atomic write mechanisms
+patch operation string replacement validation unique match,I want to find the actual validation logic that ensures patches are safe and correct before applying
+atomic file write temporary backup rollback,I need to see how atomic writes are implemented to ensure data integrity during patching
+FileWriterInfra write implementation atomic temporary file,I need to find the actual implementation of the write method in FileWriterInfra to see how atomic writes are performed
+atomic write temporary file rename transaction,I want to see the low-level file writing implementation that ensures atomicity through temporary files
+context window management overflow truncation handling,I need to understand how the system handles situations when tool results are too large for the context window
+tool result size limit maximum output truncation,Looking for the implementation that manages tool output sizes and applies limits
+automatic summarization context compression,Finding how the system compresses or summarizes content when context is full
+tool result truncation temporary file output length limit,I need to find the code that truncates tool outputs and writes them to temporary files when they exceed size limits
+prefix suffix lines truncation output overflow,Looking for where tool results are truncated showing prefix and suffix with indication of truncation
+shell tool output truncation head tail limit,Finding the shell tool documentation or implementation that explains output truncation behavior
+shell tool output truncation implementation prefix suffix max lines,I need to find the Rust code that implements the shell tool output truncation logic with prefix/suffix line limits
+stdout stderr truncation temporary file write overflow,Looking for where shell command output is captured and truncated when it exceeds size limits
+embedding generation trait interface abstraction,"I need to find how embeddings are abstracted as an interface or trait
+vector storage database implementation trait,I need to find the vector storage implementation and its trait definition to understand the separation from embeddings
+embedding service provider model inference,I need to find the service layer that handles embedding generation to see how it's separated from storage concerns
+MCP tool registration initialization,I need to understand how MCP tools are registered in the system to explain the registration flow to the user
+builtin tool registration native tools,I need to find how builtin/native tools are registered separately from MCP tools to compare the two registration mechanisms
+tool registry merge MCP builtin combined,I need to understand how MCP and builtin tools are merged or combined into a unified tool registry
+initialize builtin tools system tools native functions,"I need to find where the builtin/system tools like read
+MCP client connection server tools discovery,I need to find how MCP tools are discovered from connected MCP servers and added to the available tools
+ToolCatalog enum variants Read Write Patch Shell,I need to find where all the builtin tool variants are defined in the ToolCatalog enum to understand the complete list of system tools
