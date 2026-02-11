@@ -92,7 +92,8 @@ function _forge_action_provider() {
 
 # Action handler: Select model
 function _forge_action_model() {
-    _forge_select_and_set_config "list models" "model" "Model" "$($_FORGE_BIN config get model --porcelain)" "2,3.."
+    local input_text="$1"
+    _forge_select_and_set_config "list models" "model" "Model" "$($_FORGE_BIN config get model --porcelain)" "2,3.." "$input_text"
 }
 
 # Action handler: Sync workspace for codebase search
@@ -110,6 +111,7 @@ function _forge_select_and_set_config() {
     local prompt_text="$3"
     local default_value="$4"
     local with_nth="${5:-}"  # Optional column selection parameter
+    local query="${6:-}"     # Optional query parameter for fuzzy search
     (
         echo
         local output
@@ -128,6 +130,11 @@ function _forge_select_and_set_config() {
 
             if [[ -n "$with_nth" ]]; then
                 fzf_args+=(--with-nth="$with_nth")
+            fi
+
+            # Add query parameter if provided
+            if [[ -n "$query" ]]; then
+                fzf_args+=(--query="$query")
             fi
 
             if [[ -n "$default_value" ]]; then

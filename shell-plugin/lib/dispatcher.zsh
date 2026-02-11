@@ -160,7 +160,7 @@ function forge-accept-line() {
             _forge_action_provider "$input_text"
         ;;
         model|m)
-            _forge_action_model
+            _forge_action_model "$input_text"
         ;;
         tools|t)
             _forge_action_tools
