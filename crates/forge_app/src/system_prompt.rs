@@ -60,12 +60,13 @@ impl<S: SkillFetchService + ShellService> SystemPrompt<S> {
             .filter(|line| !line.is_empty())
             .fold(HashMap::<&str, usize>::new(), |mut acc, line| {
                 let file_name = line.rsplit_once(['/', '\\']).map_or(line, |(_, f)| f);
-                let ext = match file_name.rsplit_once('.') {
-                    Some((prefix, ext)) if !prefix.is_empty() => ext,
-                    _ => "(no extension)",
-                };
-                *acc.entry(ext).or_default() += 1;
-                acc
+                match file_name.rsplit_once('.') {
+                    Some((prefix, ext)) if !prefix.is_empty() => {
+                        *acc.entry(ext).or_default() += 1;
+                        acc
+                    }
+                    _ => acc,
+                }
             })
             .into_iter()
             .map(|(extension, count)| ExtensionStat { extension: extension.to_string(), count })
