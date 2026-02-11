@@ -368,4 +368,291 @@ mod tests {
 
         assert_eq!(actual, expected);
     }
+
+    #[tokio::test]
+    async fn test_read_then_write_same_file_no_external_change() {
+        // Simulates: agent reads file, then writes to it, file is unchanged
+        // on disk since the write.
+        let original = "original content";
+        let written = "written content";
+        let written_hash = compute_hash(written);
+
+        let fs = MockFsReadService::new().with_file("/test/file.txt", written);
+        let detector = FileChangeDetector::new(Arc::new(fs));
+
+        // Step 1: Read the file (insert via Metrics::insert like production)
+        let metrics = Metrics::default().insert(
+            "/test/file.txt".to_string(),
+            FileOperation::new(ToolKind::Read)
+                .content_hash(Some(compute_hash(original))),
+        );
+        // Step 2: Write the file (overwrites the Read entry)
+        let metrics = metrics.insert(
+            "/test/file.txt".to_string(),
+            FileOperation::new(ToolKind::Write)
+                .content_hash(Some(written_hash)),
+        );
+
+        // File on disk matches what was written -- no change
+        let actual = detector.detect(&metrics).await;
+        let expected = vec![];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_read_then_write_same_file_externally_modified() {
+        // Simulates: agent reads file, writes to it, then user modifies
+        // the file externally.
+        let written = "written content";
+        let external = "user modified this";
+        let written_hash = compute_hash(written);
+        let external_hash = compute_hash(external);
+
+        // Disk now has the externally modified content
+        let fs = MockFsReadService::new().with_file("/test/file.txt", external);
+        let detector = FileChangeDetector::new(Arc::new(fs));
+
+        // Step 1: Read, Step 2: Write
+        let metrics = Metrics::default()
+            .insert(
+                "/test/file.txt".to_string(),
+                FileOperation::new(ToolKind::Read)
+                    .content_hash(Some(compute_hash("original"))),
+            )
+            .insert(
+                "/test/file.txt".to_string(),
+                FileOperation::new(ToolKind::Write)
+                    .content_hash(Some(written_hash)),
+            );
+
+        // External modification detected
+        let actual = detector.detect(&metrics).await;
+        let expected = vec![FileChange {
+            path: std::path::PathBuf::from("/test/file.txt"),
+            content_hash: Some(external_hash),
+        }];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_write_then_read_back_same_file_no_false_positive() {
+        // Simulates: agent writes file, then reads it back. The last
+        // operation in file_operations is Read, but it should still
+        // not report a false positive since the hash matches.
+        let content = "final content";
+        let content_hash = compute_hash(content);
+
+        let fs = MockFsReadService::new().with_file("/test/file.txt", content);
+        let detector = FileChangeDetector::new(Arc::new(fs));
+
+        // Step 1: Write, Step 2: Read back (overwrites Write entry)
+        let metrics = Metrics::default()
+            .insert(
+                "/test/file.txt".to_string(),
+                FileOperation::new(ToolKind::Write)
+                    .content_hash(Some(content_hash.clone())),
+            )
+            .insert(
+                "/test/file.txt".to_string(),
+                FileOperation::new(ToolKind::Read)
+                    .content_hash(Some(content_hash)),
+            );
+
+        // Last entry is Read with matching hash -- no false positive
+        let actual = detector.detect(&metrics).await;
+        let expected = vec![];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_mixed_read_and_write_multiple_files() {
+        // Simulates a real workflow:
+        //   - Read file A (inspect)
+        //   - Read file B (inspect)
+        //   - Write file B (modify)
+        //   - Patch file C
+        //   - Read file D (inspect only)
+        // Then user externally modifies file B.
+        let a_content = "file a content";
+        let b_written = "file b written";
+        let b_external = "file b external edit";
+        let c_content = "file c patched";
+        let d_content = "file d content";
+
+        let fs = MockFsReadService::new()
+            .with_file("/test/a.txt", a_content)
+            .with_file("/test/b.txt", b_external) // user modified B
+            .with_file("/test/c.txt", c_content)
+            .with_file("/test/d.txt", d_content);
+        let detector = FileChangeDetector::new(Arc::new(fs));
+
+        let metrics = Metrics::default()
+            .insert(
+                "/test/a.txt".to_string(),
+                FileOperation::new(ToolKind::Read)
+                    .content_hash(Some(compute_hash(a_content))),
+            )
+            .insert(
+                "/test/b.txt".to_string(),
+                FileOperation::new(ToolKind::Read)
+                    .content_hash(Some(compute_hash("file b original"))),
+            )
+            .insert(
+                "/test/b.txt".to_string(),
+                FileOperation::new(ToolKind::Write)
+                    .content_hash(Some(compute_hash(b_written))),
+            )
+            .insert(
+                "/test/c.txt".to_string(),
+                FileOperation::new(ToolKind::Patch)
+                    .content_hash(Some(compute_hash(c_content))),
+            )
+            .insert(
+                "/test/d.txt".to_string(),
+                FileOperation::new(ToolKind::Read)
+                    .content_hash(Some(compute_hash(d_content))),
+            );
+
+        let actual = detector.detect(&metrics).await;
+
+        // Only file B should be detected: externally modified after write.
+        // A and D are unchanged. C is unchanged.
+        let expected = vec![FileChange {
+            path: std::path::PathBuf::from("/test/b.txt"),
+            content_hash: Some(compute_hash(b_external)),
+        }];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_read_only_file_externally_modified_still_detected() {
+        // If a file was only read, and then externally modified, detect()
+        // SHOULD still report it -- the purpose is to notify the LLM that
+        // context it saw is now stale.
+        let original = "original";
+        let modified = "someone changed this";
+
+        let fs = MockFsReadService::new().with_file("/test/file.txt", modified);
+        let detector = FileChangeDetector::new(Arc::new(fs));
+
+        let metrics = Metrics::default().insert(
+            "/test/file.txt".to_string(),
+            FileOperation::new(ToolKind::Read)
+                .content_hash(Some(compute_hash(original))),
+        );
+
+        let actual = detector.detect(&metrics).await;
+        let expected = vec![FileChange {
+            path: std::path::PathBuf::from("/test/file.txt"),
+            content_hash: Some(compute_hash(modified)),
+        }];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_multiple_patches_then_detect_no_change() {
+        // Agent patches a file multiple times, disk still matches
+        // the final patch.
+        let final_content = "v3";
+        let final_hash = compute_hash(final_content);
+
+        let fs = MockFsReadService::new().with_file("/test/file.txt", final_content);
+        let detector = FileChangeDetector::new(Arc::new(fs));
+
+        let metrics = Metrics::default()
+            .insert(
+                "/test/file.txt".to_string(),
+                FileOperation::new(ToolKind::Read)
+                    .content_hash(Some(compute_hash("v0"))),
+            )
+            .insert(
+                "/test/file.txt".to_string(),
+                FileOperation::new(ToolKind::Patch)
+                    .content_hash(Some(compute_hash("v1"))),
+            )
+            .insert(
+                "/test/file.txt".to_string(),
+                FileOperation::new(ToolKind::Patch)
+                    .content_hash(Some(compute_hash("v2"))),
+            )
+            .insert(
+                "/test/file.txt".to_string(),
+                FileOperation::new(ToolKind::Patch)
+                    .content_hash(Some(final_hash)),
+            );
+
+        let actual = detector.detect(&metrics).await;
+        let expected = vec![];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_write_then_undo_then_detect() {
+        // Agent writes a file, then undoes it. The undo operation records
+        // the restored content hash. Disk should match.
+        let original = "original";
+        let original_hash = compute_hash(original);
+
+        let fs = MockFsReadService::new().with_file("/test/file.txt", original);
+        let detector = FileChangeDetector::new(Arc::new(fs));
+
+        let metrics = Metrics::default()
+            .insert(
+                "/test/file.txt".to_string(),
+                FileOperation::new(ToolKind::Read)
+                    .content_hash(Some(original_hash.clone())),
+            )
+            .insert(
+                "/test/file.txt".to_string(),
+                FileOperation::new(ToolKind::Write)
+                    .content_hash(Some(compute_hash("modified"))),
+            )
+            .insert(
+                "/test/file.txt".to_string(),
+                FileOperation::new(ToolKind::Undo)
+                    .content_hash(Some(original_hash)),
+            );
+
+        let actual = detector.detect(&metrics).await;
+        let expected = vec![];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_truncated_read_then_write_no_false_positive() {
+        // Read a file with long lines (content gets truncated in display),
+        // then write to it. The write hash should match disk.
+        let raw_content = "a".repeat(5000);
+        let written_content = "new short content";
+        let written_hash = compute_hash(written_content);
+
+        // After write, disk has the written content
+        let fs = MockFsReadService::new().with_file("/test/file.txt", written_content);
+        let detector = FileChangeDetector::new(Arc::new(fs));
+
+        // Read (truncated display), then Write
+        let metrics = Metrics::default()
+            .insert(
+                "/test/file.txt".to_string(),
+                FileOperation::new(ToolKind::Read)
+                    .content_hash(Some(compute_hash(&raw_content))),
+            )
+            .insert(
+                "/test/file.txt".to_string(),
+                FileOperation::new(ToolKind::Write)
+                    .content_hash(Some(written_hash)),
+            );
+
+        let actual = detector.detect(&metrics).await;
+        let expected = vec![];
+
+        assert_eq!(actual, expected);
+    }
 }
