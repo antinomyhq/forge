@@ -3169,6 +3169,16 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .map(|val| val == "1")
             .unwrap_or(true); // Default to true
 
+        // Get currency symbol from environment variable, default to "$"
+        let currency_symbol = std::env::var("FORGE_CURRENCY_SYMBOL")
+            .unwrap_or_else(|_| "$".to_string());
+
+        // Get conversion ratio from environment variable, default to 1.0
+        let conversion_ratio = std::env::var("FORGE_CURRENCY_CONVERSION_RATE")
+            .ok()
+            .and_then(|val| val.parse::<f64>().ok())
+            .unwrap_or(1.0);
+
         let rprompt = ZshRPrompt::default()
             .agent(
                 std::env::var("_FORGE_ACTIVE_AGENT")
@@ -3179,7 +3189,9 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .model(model_id)
             .token_count(conversation.and_then(|conversation| conversation.token_count()))
             .cost(cost)
-            .use_nerd_font(use_nerd_font);
+            .use_nerd_font(use_nerd_font)
+            .currency_symbol(currency_symbol)
+            .conversion_ratio(conversion_ratio);
 
         Some(rprompt.to_string())
     }
