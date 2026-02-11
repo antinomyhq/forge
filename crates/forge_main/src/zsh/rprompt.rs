@@ -42,7 +42,7 @@ impl Default for ZshRPrompt {
             token_count: None,
             cost: None,
             use_nerd_font: true,
-            currency_symbol: "".to_string(),
+            currency_symbol: "\u{f155}".to_string(),
             conversion_ratio: 1.0,
         }
     }
@@ -151,9 +151,10 @@ mod tests {
             .model(Some(ModelId::new("gpt-4")))
             .token_count(Some(TokenCount::Actual(1500)))
             .cost(Some(0.0123))
+            .currency_symbol("\u{f155}")
             .to_string();
 
-        let expected = " %B%F{15}\u{f167a} FORGE%f%b %B%F{15}1.5k%f%b %B%F{2}$0.01%f%b %F{134}\u{ec19} gpt-4%f";
+        let expected = " %B%F{15}\u{f167a} FORGE%f%b %B%F{15}1.5k%f%b %B%F{2}\u{f155}0.01%f%b %F{134}\u{ec19} gpt-4%f";
         assert_eq!(actual, expected);
     }
 
