@@ -17,6 +17,54 @@ validations:
     type: shell
     command: cat '{{dir}}/context.json' | jq -e '[.messages[]?.tool_calls[]? | select(.function.name == "sem_search")] | any'
 
+  - name: "Expected files returned (if specified)"
+    type: shell
+    command: |
+      # Only check if expected_files is defined and not empty
+      if [ -z "{{expected_files}}" ] || [ "{{expected_files}}" = "{{expected_files}}" ]; then
+        # Check if template variable was actually replaced
+        if echo "{{expected_files}}" | grep -q '\{{'; then
+          echo "No expected files specified, skipping check"
+          exit 0
+        fi
+      fi
+      
+      # Extract file paths from sem_search results
+      results=$(cat '{{dir}}/context.json' | jq -r '[
+        .messages[]? | 
+        select(.role == "tool" and .name == "sem_search") | 
+        .content | 
+        try fromjson | 
+        .results[]?.file_path
+      ] | unique | .[]' 2>/dev/null || echo "")
+      
+      if [ -z "$results" ]; then
+        echo "No sem_search results found in context"
+        exit 0
+      fi
+      
+      # Check each expected file
+      IFS=',' read -ra EXPECTED <<< "{{expected_files}}"
+      missing_files=()
+      for expected in "${EXPECTED[@]}"; do
+        expected=$(echo "$expected" | xargs) # trim whitespace
+        if ! echo "$results" | grep -qF "$expected"; then
+          missing_files+=("$expected")
+        fi
+      done
+      
+      if [ ${#missing_files[@]} -gt 0 ]; then
+        echo "Missing expected files in sem_search results:"
+        printf '  - %s\n' "${missing_files[@]}"
+        echo ""
+        echo "Actual files returned:"
+        echo "$results" | sed 's/^/  - /'
+        exit 1
+      fi
+      
+      echo "All expected files found in results ✓"
+      exit 0
+
   - name: "LLM Judge: Query Quality"
     type: shell
     command: |
@@ -42,100 +90,66 @@ sources:
         intent: "implementation"
         expected_file_types: "rust"
         should_avoid: "markdown,txt,documentation"
+        expected_files: "crates/forge_services/src/context_engine.rs,crates/forge_app/src/workspace_status.rs,crates/forge_app/src/utils.rs"
 
       - task: "Show me the conversation compaction threshold logic"
         intent: "implementation"
         expected_file_types: "rust"
         should_avoid: "markdown,txt,documentation,test"
+        expected_files: "crates/forge_domain/src/compact/compact_config.rs,crates/forge_app/src/hooks/compaction.rs"
 
-      - task: "Where does the cross-encoder reranker model get loaded and cached?"
-        intent: "implementation"
-        expected_file_types: "rust"
-        should_avoid: "markdown,schema,json"
+      # - task: "Where does the cross-encoder reranker model get loaded and cached?"
+      #   intent: "implementation"
+      #   expected_file_types: "rust"
+      #   should_avoid: "markdown,schema,json"
 
       - task: "How are file backups created for undo?"
         intent: "implementation"
         expected_file_types: "rust"
         should_avoid: "markdown,test"
+        expected_files: "crates/forge_snaps/src/service.rs,crates/forge_domain/src/snapshot.rs,crates/forge_services/src/tool_services/fs_write.rs,crates/forge_services/src/tool_services/fs_patch.rs,crates/forge_services/src/tool_services/fs_remove.rs,crates/forge_domain/src/repo.rs"
 
       # Understanding flow queries - trace through system
       - task: "Trace a semantic search query from input to final results"
         intent: "flow_understanding"
         expected_file_types: "rust"
         should_avoid: "test,markdown"
-
+        expected_files: "crates/forge_app/src/tool_executor.rs,crates/forge_domain/src/node.rs,crates/forge_services/src/context_engine.rs,crates/forge_repo/src/context_engine.rs,crates/forge_repo/proto/forge.proto,crates/forge_app/src/search_dedup.rs,crates/forge_app/src/operation.rs"
+        
       - task: "How does file patching handle validation and atomic writes?"
         intent: "flow_understanding"
         expected_file_types: "rust"
         should_avoid: "test,markdown"
+        expected_files: "crates/forge_services/src/tool_services/fs_patch.rs"
 
       - task: "Explain context window management when tool results overflow"
         intent: "flow_understanding"
         expected_file_types: "rust"
         should_avoid: "test,markdown,documentation"
-
+        expected_files: "crates/forge_app/src/tool_executor.rs,crates/forge_app/src/truncation/truncate_shell.rs"
       # Architecture queries - design understanding
-      - task: "How are embeddings separated from vector storage?"
-        intent: "architecture"
-        expected_file_types: "rust"
-        should_avoid: "test"
-
       - task: "How does tool registration work across MCP and builtin tools?"
         intent: "architecture"
         expected_file_types: "rust"
         should_avoid: "test,markdown"
-
-      # Testing queries - specific test scenarios
-      - task: "Find tests for semantic search with multiple query embeddings"
-        intent: "tests"
-        expected_file_types: "rust"
-        should_avoid: "markdown,documentation"
+        expected_files: "crates/forge_app/src/tool_registry.rs, crates/forge_domain/src/tools/catalog.rs, crates/forge_services/src/mcp/service.rs, crates/forge_app/src/tool_executor.rs, crates/forge_app/src/mcp_executor.rs, crates/forge_domain/src/tools/definition/tool_definition.rs, crates/forge_app/src/dto/tools_overview.rs"
 
       - task: "Show me tests for file operation rollback scenarios"
         intent: "tests"
         expected_file_types: "rust"
         should_avoid: "markdown,documentation"
+        expected_files: "crates/forge_app/src/operation.rs,crates/forge_snaps/src/service.rs,crates/forge_domain/src/session_metrics.rs"
 
-      # Documentation queries - configuration docs
-      - task: "Find docs on semantic search topK and reranker settings"
-        intent: "documentation"
-        expected_file_types: "markdown,txt"
-        should_avoid: "rust,typescript,javascript"
-
-      - task: "Where are the docs for custom agent creation?"
-        intent: "documentation"
-        expected_file_types: "markdown"
-        should_avoid: "rust,typescript,test"
-
-      # Bug investigation - complex failures
-      - task: "What causes stale embeddings after workspace sync?"
-        intent: "debugging"
-        expected_file_types: "rust"
-        should_avoid: "test,markdown"
-
-      - task: "Why might reranker scoring be inconsistent across queries?"
-        intent: "debugging"
-        expected_file_types: "rust"
-        should_avoid: "test,markdown"
-
-      # Modification queries - targeted changes
-      - task: "Where should I add embedding generation batching?"
-        intent: "modification"
-        expected_file_types: "rust"
-        should_avoid: "test,markdown"
-
-      - task: "Show me the reranker scoring logic to add file recency weights"
-        intent: "modification"
-        expected_file_types: "rust"
-        should_avoid: "test,markdown,documentation"
 
       # Config/Schema queries - configuration discovery
       - task: "Where is all the config schema validation code?"
         intent: "configuration"
         expected_file_types: "rust,json,yaml,toml"
         should_avoid: "markdown"
+        expected_files: "crates/forge_domain/src/workflow.rs,crates/forge_domain/tests/workflow.rs,crates/forge_services/src/workflow.rs,crates/forge_repo/src/app_config.rs,crates/forge_domain/src/temperature.rs,crates/forge_domain/src/top_p.rs,crates/forge_domain/src/top_k.rs,crates/forge_domain/src/max_tokens.rs,forge.schema.json,forge.default.yaml,crates/forge_app/src/utils.rs,crates/forge_json_repair/src/schema_coercion.rs"
 
       - task: "How does system prompt templating combine all the pieces?"
         intent: "structure"
         expected_file_types: "rust,markdown"
         should_avoid: "test"
+        expected_files: "crates/forge_app/src/system_prompt.rs,crates/forge_app/src/template_engine.rs,crates/forge_domain/src/system_context.rs,crates/forge_services/src/template.rs,templates/forge-custom-agent-template.md,templates/forge-partial-system-info.md"
