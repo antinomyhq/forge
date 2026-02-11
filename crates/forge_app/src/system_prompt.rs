@@ -184,7 +184,27 @@ mod tests {
     use super::*;
     use crate::ShellOutput;
 
-    struct MockSkillFetchService;
+    #[derive(derive_setters::Setters)]
+    struct MockSkillFetchService {
+        shell_output: ShellOutput,
+    }
+
+    impl Default for MockSkillFetchService {
+        fn default() -> Self {
+            Self {
+                shell_output: ShellOutput {
+                    output: forge_domain::CommandOutput {
+                        stdout: String::new(),
+                        stderr: String::new(),
+                        command: String::new(),
+                        exit_code: Some(1),
+                    },
+                    shell: "/bin/bash".to_string(),
+                    description: None,
+                },
+            }
+        }
+    }
 
     #[async_trait::async_trait]
     impl SkillFetchService for MockSkillFetchService {
@@ -211,17 +231,7 @@ mod tests {
             _env_vars: Option<Vec<String>>,
             _description: Option<String>,
         ) -> anyhow::Result<ShellOutput> {
-            // Return empty output (simulating not in a git repo)
-            Ok(ShellOutput {
-                output: forge_domain::CommandOutput {
-                    stdout: String::new(),
-                    stderr: String::new(),
-                    command: String::new(),
-                    exit_code: Some(1),
-                },
-                shell: "/bin/bash".to_string(),
-                description: None,
-            })
+            Ok(self.shell_output.clone())
         }
     }
 
@@ -242,7 +252,7 @@ mod tests {
     #[tokio::test]
     async fn test_system_prompt_adds_context() {
         // Fixture
-        let services = Arc::new(MockSkillFetchService);
+        let services = Arc::new(MockSkillFetchService::default());
         let env = create_test_environment();
         let agent = create_test_agent();
         let system_prompt = SystemPrompt::new(services, env, agent);
@@ -255,5 +265,38 @@ mod tests {
         assert!(result.is_ok());
         let conversation = result.unwrap();
         assert!(conversation.context.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_fetch_extensions_parses_and_sorts_git_output() {
+        use pretty_assertions::assert_eq;
+
+        // Fixture
+        let shell_output = ShellOutput {
+            output: forge_domain::CommandOutput {
+                stdout: "src/main.rs\nsrc/lib.rs\ntests/test1.rs\nREADME.md\ndocs/guide.md\nCargo.toml\nsrc/utils.rs\n".to_string(),
+                stderr: String::new(),
+                command: "git ls-files".to_string(),
+                exit_code: Some(0),
+            },
+            shell: "/bin/bash".to_string(),
+            description: None,
+        };
+        let services = Arc::new(MockSkillFetchService::default().shell_output(shell_output));
+        let env = create_test_environment();
+        let agent = create_test_agent();
+        let system_prompt = SystemPrompt::new(services, env, agent);
+
+        // Actual
+        let actual = system_prompt.fetch_extensions().await.unwrap();
+
+        // Expected - sorted by count descending
+        let expected = vec![
+            ExtensionStat { extension: "rs".to_string(), count: 4 },
+            ExtensionStat { extension: "md".to_string(), count: 2 },
+            ExtensionStat { extension: "toml".to_string(), count: 1 },
+        ];
+
+        assert_eq!(actual, expected);
     }
 }
