@@ -69,9 +69,8 @@ pub async fn on_update(api: Arc<impl API>, update: Option<&Update>) {
         return;
     }
 
-    let informer =
-        update_informer::new(registry::GitHub, "antinomyhq/forge", VERSION)
-            .interval(frequency.into());
+    let informer = update_informer::new(registry::GitHub, "antinomyhq/forge", VERSION)
+        .interval(frequency.into());
 
     if let Some(version) = informer.check_version().ok().flatten()
         && (auto_update || confirm_update(version).await)
