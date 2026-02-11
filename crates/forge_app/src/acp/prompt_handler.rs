@@ -2,12 +2,13 @@
 
 use agent_client_protocol as acp;
 use agent_client_protocol::Client;
+use futures::StreamExt;
 use forge_domain::{
     Agent, ChatRequest, ChatResponse, ChatResponseContent, Event, EventValue, InterruptionReason,
 };
 
 use crate::{AttachmentService, InterruptionService, Services, SessionAgentService, SessionService};
-
+use crate::acp::conversion::ToolOutputConverter;
 use super::adapter::AcpAdapter;
 use super::conversion;
 use super::error::Result;
@@ -123,8 +124,6 @@ impl<S: Services> AcpAdapter<S> {
             // Execute the chat request using SessionOrchestrator
             match self.session_orchestrator.execute_prompt_with_session(&domain_session_id, chat_request).await {
                 Ok(mut stream) => {
-                    use futures::StreamExt;
-
                     // Stream responses back to the client as session notifications
                     loop {
                         tokio::select! {
@@ -230,7 +229,7 @@ impl<S: Services> AcpAdapter<S> {
             }
             ChatResponse::ToolCallEnd(tool_result) => {
                 // Map tool result to ACP content and send completion update
-                let content = conversion::map_tool_output_to_content(&tool_result.output);
+                let content = ToolOutputConverter::convert(&tool_result.output);
                 let status = if tool_result.output.is_error {
                     acp::ToolCallStatus::Failed
                 } else {

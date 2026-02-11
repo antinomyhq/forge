@@ -1,7 +1,7 @@
 //! Type conversions between ACP protocol types and Forge domain types
 
 use agent_client_protocol as acp;
-use forge_domain::{Agent, AgentId, Attachment, ToolCallFull, ToolName, ToolOutput};
+use forge_domain::{Agent, AgentId, Attachment, AttachmentContent, ToolCallFull, ToolName, ToolOutput, ToolValue};
 use std::path::PathBuf;
 
 use super::error::{Error, Result};
@@ -127,80 +127,100 @@ pub(crate) fn map_tool_call_to_acp(tool_call: &ToolCallFull) -> acp::ToolCall {
         )
 }
 
-/// Converts a Forge ToolOutput to ACP ToolCallContent
-pub(crate) fn map_tool_output_to_content(output: &ToolOutput) -> Vec<acp::ToolCallContent> {
-    use forge_domain::ToolValue;
+/// Converter for transforming Forge ToolOutput to ACP ToolCallContent
+///
+/// Handles the conversion of tool output values to their ACP protocol representations,
+/// with special logic for display values and file diffs.
+pub(crate) struct ToolOutputConverter {
+    has_file_diff: bool,
+}
 
-    // Check if there's a FileDiff - if so, only show that and skip text diffs
-    let has_file_diff = output
-        .values
-        .iter()
-        .any(|v| matches!(v.display_value(), ToolValue::FileDiff(_)));
+impl ToolOutputConverter {
+    /// Creates a new converter for the given tool output
+    ///
+    /// # Arguments
+    ///
+    /// * `output` - The tool output to analyze
+    pub(crate) fn new(output: &ToolOutput) -> Self {
+        let has_file_diff = output
+            .values
+            .iter()
+            .any(|v| matches!(v.display_value(), forge_domain::ToolValue::FileDiff(_)));
 
-    output
-        .values
-        .iter()
-        .filter_map(|value| {
-            // Use display_value() to get the user-friendly representation
-            let display = value.display_value();
-            
-            match display {
-                ToolValue::Text(text) => {
-                    // Skip text content if we have a FileDiff (text is the formatted diff for CLI)
-                    if has_file_diff || text.is_empty() {
-                        None
-                    } else {
-                        Some(acp::ToolCallContent::Content(acp::Content::new(
-                            acp::ContentBlock::Text(acp::TextContent::new(text.clone())),
-                        )))
-                    }
-                }
-                ToolValue::AI { value, .. } => {
-                    if value.is_empty() {
-                        None
-                    } else {
-                        Some(acp::ToolCallContent::Content(acp::Content::new(
-                            acp::ContentBlock::Text(acp::TextContent::new(value.clone())),
-                        )))
-                    }
-                }
-                ToolValue::Markdown(md) => {
-                    // Markdown is for display, send as text content
-                    if md.is_empty() {
-                        None
-                    } else {
-                        Some(acp::ToolCallContent::Content(acp::Content::new(
-                            acp::ContentBlock::Text(acp::TextContent::new(md.clone())),
-                        )))
-                    }
-                }
-                ToolValue::Image(image) => Some(acp::ToolCallContent::Content(
-                    acp::Content::new(acp::ContentBlock::Image(acp::ImageContent::new(
-                        image.data(),
-                        image.mime_type(),
-                    ))),
-                )),
-                ToolValue::FileDiff(file_diff) => {
-                    // Convert Forge FileDiff to ACP Diff
-                    Some(acp::ToolCallContent::Diff(
-                        acp::Diff::new(PathBuf::from(&file_diff.path), &file_diff.new_text)
-                            .old_text(file_diff.old_text.clone()),
-                    ))
-                }
-                ToolValue::Pair(_, _) => {
-                    // This shouldn't happen since display_value() unwraps Pairs
-                    None
-                }
-                ToolValue::Empty => None,
-            }
-        })
-        .collect()
+        Self { has_file_diff }
+    }
+
+    /// Converts all values in the tool output to ACP content
+    ///
+    /// # Arguments
+    ///
+    /// * `output` - The tool output to convert
+    pub(crate) fn convert(output: &ToolOutput) -> Vec<acp::ToolCallContent> {
+        let converter = Self::new(output);
+        output
+            .values
+            .iter()
+            .filter_map(|value| converter.convert_value(value))
+            .collect()
+    }
+
+    /// Converts a single ToolValue to ACP ToolCallContent
+    fn convert_value(&self, value: &forge_domain::ToolValue) -> Option<acp::ToolCallContent> {
+        let display = value.display_value();
+
+        match display {
+            ToolValue::Text(text) => self.convert_text(text),
+            ToolValue::AI { value, .. } => self.convert_ai_text(value),
+            ToolValue::Markdown(md) => self.convert_markdown(md),
+            ToolValue::Image(image) => self.convert_image(image),
+            ToolValue::FileDiff(file_diff) => self.convert_file_diff(file_diff),
+            ToolValue::Pair(_, _) => None, // Already unwrapped by display_value()
+            ToolValue::Empty => None,
+        }
+    }
+
+    fn convert_text(&self, text: &str) -> Option<acp::ToolCallContent> {
+        // Skip text if we have a FileDiff (text is CLI-formatted diff)
+        if self.has_file_diff || text.is_empty() {
+            None
+        } else {
+            Some(Self::text_content(text))
+        }
+    }
+
+    fn convert_ai_text(&self, text: &str) -> Option<acp::ToolCallContent> {
+        (!text.is_empty()).then(|| Self::text_content(text))
+    }
+
+    fn convert_markdown(&self, markdown: &str) -> Option<acp::ToolCallContent> {
+        (!markdown.is_empty()).then(|| Self::text_content(markdown))
+    }
+
+    fn convert_image(&self, image: &forge_domain::Image) -> Option<acp::ToolCallContent> {
+        Some(acp::ToolCallContent::Content(acp::Content::new(
+            acp::ContentBlock::Image(acp::ImageContent::new(image.data(), image.mime_type())),
+        )))
+    }
+
+    fn convert_file_diff(
+        &self,
+        file_diff: &forge_domain::FileDiff,
+    ) -> Option<acp::ToolCallContent> {
+        Some(acp::ToolCallContent::Diff(
+            acp::Diff::new(PathBuf::from(&file_diff.path), &file_diff.new_text)
+                .old_text(file_diff.old_text.clone()),
+        ))
+    }
+
+    fn text_content(text: &str) -> acp::ToolCallContent {
+        acp::ToolCallContent::Content(acp::Content::new(acp::ContentBlock::Text(
+            acp::TextContent::new(text.to_string()),
+        )))
+    }
 }
 
 /// Converts an ACP embedded resource to a Forge Attachment
 pub(crate) fn acp_resource_to_attachment(resource: &acp::EmbeddedResource) -> Result<Attachment> {
-    use forge_domain::AttachmentContent;
-
     // Get the text content and URI from the resource
     let (content_text, uri) = match &resource.resource {
         acp::EmbeddedResourceResource::TextResourceContents(text_res) => {

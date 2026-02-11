@@ -451,7 +451,21 @@ impl ToolOperation {
                         .content_hash(Some(output.content_hash.clone())),
                 );
 
-                forge_domain::ToolOutput::text(elm)
+                // Create a FileDiff for IDE display (ACP)
+                let file_diff = forge_domain::FileDiff {
+                    path: input.file_path.clone(),
+                    old_text: Some(output.before.clone()),
+                    new_text: output.after.clone(),
+                };
+
+                // Return a Pair: XML text for LLM, FileDiff for IDE
+                forge_domain::ToolOutput {
+                    is_error: false,
+                    values: vec![forge_domain::ToolValue::Pair(
+                        Box::new(forge_domain::ToolValue::Text(elm.to_string())),
+                        Box::new(forge_domain::ToolValue::FileDiff(file_diff)),
+                    )],
+                }
             }
             ToolOperation::FsUndo { input, output } => {
                 // Diff between snapshot state (after_undo) and modified state
@@ -656,6 +670,30 @@ mod tests {
             }
             ToolValue::AI { value, .. } => {
                 writeln!(result, "{}", value).unwrap();
+            }
+            ToolValue::FileDiff(file_diff) => {
+                writeln!(
+                    result,
+                    "FileDiff: {} (old: {}, new: {})",
+                    file_diff.path,
+                    file_diff.old_text.as_ref().map_or(0, |t| t.len()),
+                    file_diff.new_text.len()
+                )
+                .unwrap();
+            }
+            ToolValue::Markdown(md) => {
+                writeln!(result, "Markdown: {}", md).unwrap();
+            }
+            ToolValue::Pair(llm, _display) => {
+                // For tests, just show the LLM value
+                match *llm {
+                    ToolValue::Text(txt) => {
+                        writeln!(result, "{}", txt).unwrap();
+                    }
+                    _ => {
+                        writeln!(result, "Pair (LLM value not text)").unwrap();
+                    }
+                }
             }
         });
 
