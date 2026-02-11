@@ -34,14 +34,6 @@ impl<S: SkillFetchService + ShellService> SystemPrompt<S> {
     }
 
     /// Fetches file extension statistics by running git ls-files command
-    ///
-    /// Executes a git command to list all tracked files and counts their
-    /// extensions. Files without extensions are labeled as "(no
-    /// extension)".
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the shell command execution fails
     async fn fetch_extensions(&self) -> anyhow::Result<Vec<ExtensionStat>> {
         let cwd = self.environment.cwd.clone();
         // awk calculates counts and percentages, then sorts by count descending
