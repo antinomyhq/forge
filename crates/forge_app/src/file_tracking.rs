@@ -1,10 +1,9 @@
 use std::sync::Arc;
 
-use forge_domain::{Metrics, ToolKind};
+use forge_domain::Metrics;
 use tracing::debug;
 
-use crate::utils::compute_hash;
-use crate::{Content, FsReadService};
+use crate::FsReadService;
 
 /// Information about a detected file change
 #[derive(Debug, Clone, PartialEq)]
@@ -43,15 +42,18 @@ impl<F: FsReadService> FileChangeDetector<F> {
         let futures: Vec<_> = metrics
             .file_operations
             .iter()
-            .filter(|(_, file_metrics)| file_metrics.tool != ToolKind::Read)
             .map(|(path, file_metrics)| {
                 let file_path = std::path::PathBuf::from(path);
                 let last_hash = file_metrics.content_hash.clone();
 
                 async move {
-                    // Get current hash: Some(hash) if readable, None if unreadable
-                    let current_hash = match self.read_file_content(&file_path).await {
-                        Ok(content) => Some(compute_hash(&content)),
+                    // Get current hash from the full raw file content (not the
+                    // truncated/formatted content returned to the LLM).
+                    // ReadOutput.content_hash is always computed from the
+                    // unprocessed file, so it is directly comparable with the
+                    // stored hash.
+                    let current_hash = match self.read_file_hash(&file_path).await {
+                        Ok(hash) => Some(hash),
                         Err(_) => None,
                     };
 
@@ -83,17 +85,15 @@ impl<F: FsReadService> FileChangeDetector<F> {
         changes
     }
 
-    /// Reads file content using the FsReadService
-    async fn read_file_content(&self, path: &std::path::Path) -> anyhow::Result<String> {
+    /// Reads a file and returns its content hash computed from the full raw
+    /// content, bypassing any line truncation or range limiting.
+    async fn read_file_hash(&self, path: &std::path::Path) -> anyhow::Result<String> {
         let output = self
             .fs_read_service
             .read(path.to_string_lossy().to_string(), None, None)
             .await?;
 
-        match output.content {
-            Content::File(content) => Ok(content),
-            Content::Image(_) => Err(anyhow::anyhow!("Cannot track changes for image/PDF files")),
-        }
+        Ok(output.content_hash)
     }
 }
 
@@ -105,11 +105,24 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
+    use crate::utils::compute_hash;
+    use crate::Content;
 
-    /// Mock FsReadService for testing
+    /// Mock FsReadService for testing.
+    ///
+    /// Returns `content_hash` computed from the raw content (mirroring
+    /// the real implementation at `fs_read.rs:164`), while `content`
+    /// may differ (simulating truncation / formatting).
     struct MockFsReadService {
-        files: HashMap<String, String>,
+        files: HashMap<String, MockFile>,
         not_found_files: Vec<String>,
+    }
+
+    struct MockFile {
+        /// The raw, unprocessed file content (used to compute content_hash)
+        raw_content: String,
+        /// The content returned in ReadOutput.content (may be truncated)
+        displayed_content: String,
     }
 
     impl MockFsReadService {
@@ -117,8 +130,32 @@ mod tests {
             Self { files: HashMap::new(), not_found_files: Vec::new() }
         }
 
+        /// Adds a file where displayed content equals raw content (no
+        /// truncation).
         fn with_file(mut self, path: impl Into<String>, content: impl Into<String>) -> Self {
-            self.files.insert(path.into(), content.into());
+            let content = content.into();
+            self.files.insert(
+                path.into(),
+                MockFile { raw_content: content.clone(), displayed_content: content },
+            );
+            self
+        }
+
+        /// Adds a file where the displayed content differs from the raw
+        /// content, simulating line truncation or range limiting.
+        fn with_truncated_file(
+            mut self,
+            path: impl Into<String>,
+            raw_content: impl Into<String>,
+            displayed_content: impl Into<String>,
+        ) -> Self {
+            self.files.insert(
+                path.into(),
+                MockFile {
+                    raw_content: raw_content.into(),
+                    displayed_content: displayed_content.into(),
+                },
+            );
             self
         }
 
@@ -142,13 +179,13 @@ mod tests {
                 )));
             }
 
-            if let Some(content) = self.files.get(&path) {
+            if let Some(file) = self.files.get(&path) {
                 Ok(crate::ReadOutput {
-                    content: Content::File(content.clone()),
+                    content: Content::File(file.displayed_content.clone()),
                     start_line: 1,
                     end_line: 1,
                     total_lines: 1,
-                    content_hash: compute_hash(content),
+                    content_hash: compute_hash(&file.raw_content),
                 })
             } else {
                 Err(anyhow::anyhow!(std::io::Error::from(
@@ -257,7 +294,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_read_only_files_not_detected_as_changed() {
+    async fn test_read_file_with_matching_hash_not_detected() {
         let content = "hello world";
         let content_hash = compute_hash(content);
 
@@ -270,7 +307,7 @@ mod tests {
             FileOperation::new(ToolKind::Read).content_hash(Some(content_hash)),
         );
 
-        // File was only read, should not be checked for external changes
+        // Hash computed from raw content matches stored hash -- no change
         let actual = detector.detect(&metrics).await;
         let expected = vec![];
 
@@ -278,19 +315,28 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_read_only_files_with_different_hash_not_detected() {
-        let content = "current content";
+    async fn test_truncated_content_does_not_cause_false_positive() {
+        // Simulates a file with a very long line that gets truncated when
+        // displayed, but the content_hash is still computed from raw content.
+        let raw_content = "a".repeat(5000); // long line that would be truncated
+        let displayed_content = "a".repeat(2000); // truncated version
+        let raw_hash = compute_hash(&raw_content);
 
-        let fs = MockFsReadService::new().with_file("/test/file.txt", content);
+        let fs = MockFsReadService::new().with_truncated_file(
+            "/test/file.txt",
+            &raw_content,
+            &displayed_content,
+        );
         let detector = FileChangeDetector::new(Arc::new(fs));
 
-        // Even if the hash differs, read-only files should be skipped
         let mut metrics = Metrics::default();
         metrics.file_operations.insert(
             "/test/file.txt".to_string(),
-            FileOperation::new(ToolKind::Read).content_hash(Some("stale_hash".to_string())),
+            FileOperation::new(ToolKind::Read).content_hash(Some(raw_hash)),
         );
 
+        // Even though displayed content differs from raw, the hash comparison
+        // uses the raw-based content_hash from ReadOutput, so no false positive.
         let actual = detector.detect(&metrics).await;
         let expected = vec![];
 
@@ -298,90 +344,31 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_written_file_detected_but_read_file_skipped() {
-        let written_content = "new written content";
-        let read_content = "read content";
-        let written_hash = compute_hash(written_content);
+    async fn test_truncated_written_file_not_false_positive() {
+        // Same scenario but for a written file -- ensures the fix applies to
+        // all ToolKinds, not just Read.
+        let raw_content = "line1\n".repeat(3000); // > 2000 lines, would be range-limited
+        let displayed_content = "line1\n".repeat(2000); // truncated version
+        let raw_hash = compute_hash(&raw_content);
 
-        let fs = MockFsReadService::new()
-            .with_file("/test/written.txt", written_content)
-            .with_file("/test/read.txt", read_content);
+        let fs = MockFsReadService::new().with_truncated_file(
+            "/test/file.txt",
+            &raw_content,
+            &displayed_content,
+        );
         let detector = FileChangeDetector::new(Arc::new(fs));
 
         let mut metrics = Metrics::default();
-        // Written file with stale hash - should be detected
         metrics.file_operations.insert(
-            "/test/written.txt".to_string(),
-            FileOperation::new(ToolKind::Write).content_hash(Some("old_hash".to_string())),
-        );
-        // Read file with stale hash - should NOT be detected
-        metrics.file_operations.insert(
-            "/test/read.txt".to_string(),
-            FileOperation::new(ToolKind::Read).content_hash(Some("old_hash".to_string())),
+            "/test/file.txt".to_string(),
+            FileOperation::new(ToolKind::Write).content_hash(Some(raw_hash)),
         );
 
-        let actual = detector.detect(&metrics).await;
-        let expected = vec![FileChange {
-            path: std::path::PathBuf::from("/test/written.txt"),
-            content_hash: Some(written_hash),
-        }];
-
-        assert_eq!(actual, expected);
-    }
-
-    #[tokio::test]
-    async fn test_skipping_read_files_preserves_files_accessed_for_read_before_write() {
-        let content = "file content";
-        let content_hash = compute_hash(content);
-
-        let fs = MockFsReadService::new()
-            .with_file("/test/read_then_patched.rs", content)
-            .with_file("/test/only_read.rs", content);
-        let detector = FileChangeDetector::new(Arc::new(fs));
-
-        // Simulate: file was read first (tracked in files_accessed),
-        // then patched (file_operations updated to Patch).
-        // Another file was only read.
-        let metrics = Metrics::default()
-            .insert(
-                "/test/read_then_patched.rs".to_string(),
-                FileOperation::new(ToolKind::Read)
-                    .content_hash(Some(content_hash.clone())),
-            )
-            .insert(
-                "/test/only_read.rs".to_string(),
-                FileOperation::new(ToolKind::Read)
-                    .content_hash(Some(content_hash.clone())),
-            )
-            .insert(
-                "/test/read_then_patched.rs".to_string(),
-                FileOperation::new(ToolKind::Patch)
-                    .content_hash(Some(content_hash.clone())),
-            );
-
-        // files_accessed should still contain both files (read-before-write guard
-        // uses this set, and reads are never removed from it)
-        assert!(
-            metrics
-                .files_accessed
-                .contains("/test/read_then_patched.rs"),
-            "read-then-patched file must stay in files_accessed for read-before-write check"
-        );
-        assert!(
-            metrics.files_accessed.contains("/test/only_read.rs"),
-            "read-only file must stay in files_accessed for read-before-write check"
-        );
-
-        // Change detection should skip only-read files but still detect
-        // the patched file (which has no change here, so empty result)
+        // Hash from ReadOutput.content_hash (raw) matches stored hash -- no
+        // false positive despite displayed content being truncated.
         let actual = detector.detect(&metrics).await;
         let expected = vec![];
 
         assert_eq!(actual, expected);
-
-        // Verify files_accessed is untouched after detect() runs
-        assert_eq!(metrics.files_accessed.len(), 2);
-        assert!(metrics.files_accessed.contains("/test/read_then_patched.rs"));
-        assert!(metrics.files_accessed.contains("/test/only_read.rs"));
     }
 }
