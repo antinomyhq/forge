@@ -283,7 +283,7 @@ impl<S: Services> AcpAdapter<S> {
             })?;
 
         // Send a notification about the mode change
-        let mode_update = acp::CurrentModeUpdate::new(acp::SessionModeId::new(mode_id.to_string()));
+        let mode_update  = acp::CurrentModeUpdate::new(acp::SessionModeId::new(mode_id.to_string()));
         let notification = acp::SessionNotification::new(
             args.session_id,
             acp::SessionUpdate::CurrentModeUpdate(mode_update),
@@ -339,7 +339,7 @@ impl<S: Services> AcpAdapter<S> {
             args.session_id.clone(),
             acp::SessionUpdate::AgentMessageChunk(acp::ContentChunk::new(
                 acp::ContentBlock::Text(acp::TextContent::new(format!(
-                    "Model changed to: {}\n",
+                    "Model changed to: **{}\n\n",
                     model_id
                 ))),
             )),
