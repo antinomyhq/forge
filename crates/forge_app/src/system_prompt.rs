@@ -2,12 +2,12 @@ use std::sync::Arc;
 
 use derive_setters::Setters;
 use forge_domain::{
-    Agent, Conversation, Environment, File, Model, SystemContext, Template, ToolDefinition,
-    ToolUsagePrompt,
+    Agent, Conversation, Environment, ExtensionStat, File, Model, SystemContext, Template,
+    ToolDefinition, ToolUsagePrompt,
 };
 use tracing::debug;
 
-use crate::{SkillFetchService, TemplateEngine};
+use crate::{SkillFetchService, TemplateEngine, ShellService};
 
 #[derive(Setters)]
 pub struct SystemPrompt<S> {
@@ -20,7 +20,7 @@ pub struct SystemPrompt<S> {
     custom_instructions: Vec<String>,
 }
 
-impl<S: SkillFetchService> SystemPrompt<S> {
+impl<S: SkillFetchService + ShellService> SystemPrompt<S> {
     pub fn new(services: Arc<S>, environment: Environment, agent: Agent) -> Self {
         Self {
             services,
@@ -33,6 +33,51 @@ impl<S: SkillFetchService> SystemPrompt<S> {
         }
     }
 
+    /// Fetches file extension statistics by running git ls-files command
+    ///
+    /// Executes a git command to list all tracked files and counts their extensions.
+    /// Files without extensions are labeled as "(no extension)".
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the shell command execution fails
+    async fn fetch_extensions(&self) -> anyhow::Result<Vec<ExtensionStat>> {
+        let cwd = self.environment.cwd.clone();
+        // awk calculates counts and percentages, then sorts by count descending
+        let command = r#"git ls-files | awk -F. '{if (NF > 1) ext = $NF; else ext = "(no extension)"; counts[ext]++; total++} END {for (ext in counts) printf "%d|%.2f|%s\n", counts[ext], (counts[ext]/total)*100, ext}' | sort -rn"#;
+
+        let output = self
+            .services
+            .execute(command.to_string(), cwd, false, true, None, None)
+            .await?;
+
+        // If git command fails (e.g., not in a git repo), return empty stats
+        if output.output.exit_code != Some(0) {
+            return Ok(vec![]);
+        }
+
+        // Parse output: each line is "count|percentage|extension"
+        Ok(output
+            .output
+            .stdout
+            .lines()
+            .filter_map(|line| {
+                let line = line.trim();
+                if line.is_empty() {
+                    return None;
+                }
+
+                // Split on pipe delimiters
+                let mut parts = line.split('|');
+                let count = parts.next()?.parse::<usize>().ok()?;
+                let percentage = parts.next()?.to_string();
+                let extension = parts.next()?.to_string();
+
+                Some(ExtensionStat { extension, count, percentage })
+            })
+            .collect())
+    }
+    
     pub async fn add_system_message(
         &self,
         mut conversation: Conversation,
@@ -62,6 +107,9 @@ impl<S: SkillFetchService> SystemPrompt<S> {
 
             let skills = self.services.list_skills().await?;
 
+            // Fetch extension statistics from git
+            let extensions = self.fetch_extensions().await.unwrap_or_default();
+
             let ctx = SystemContext {
                 env: Some(env),
                 tool_information,
@@ -72,6 +120,7 @@ impl<S: SkillFetchService> SystemPrompt<S> {
                 skills,
                 model: None,
                 tool_names: Default::default(),
+                extensions,
             };
 
             let static_block = TemplateEngine::default()
@@ -127,12 +176,14 @@ impl<S: SkillFetchService> SystemPrompt<S> {
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
     use std::sync::Arc;
 
     use fake::Fake;
     use forge_domain::{Agent, Environment};
 
     use super::*;
+    use crate::ShellOutput;
 
     struct MockSkillFetchService;
 
@@ -147,6 +198,31 @@ mod tests {
 
         async fn list_skills(&self) -> anyhow::Result<Vec<forge_domain::Skill>> {
             Ok(vec![])
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl ShellService for MockSkillFetchService {
+        async fn execute(
+            &self,
+            _command: String,
+            _cwd: PathBuf,
+            _keep_ansi: bool,
+            _silent: bool,
+            _env_vars: Option<Vec<String>>,
+            _description: Option<String>,
+        ) -> anyhow::Result<ShellOutput> {
+            // Return empty output (simulating not in a git repo)
+            Ok(ShellOutput {
+                output: forge_domain::CommandOutput {
+                    stdout: String::new(),
+                    stderr: String::new(),
+                    command: String::new(),
+                    exit_code: Some(1),
+                },
+                shell: "/bin/bash".to_string(),
+                description: None,
+            })
         }
     }
 

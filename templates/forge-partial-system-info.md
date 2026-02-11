@@ -7,3 +7,8 @@
 {{#each files}} - {{path}}{{#if is_dir}}/{{/if}}
 {{/each}}</file_list>
 {{/if}}
+{{#if extensions}}
+<file_extensions>
+{{#each extensions}} - {{count}} .{{extension}} files
+{{/each}}</file_extensions>
+{{/if}}

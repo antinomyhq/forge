@@ -16,7 +16,7 @@ use crate::orch::Orchestrator;
 use crate::set_conversation_id::SetConversationId;
 use crate::system_prompt::SystemPrompt;
 use crate::user_prompt::UserPromptGenerator;
-use crate::{AgentService, AttachmentService, SkillFetchService, TemplateService};
+use crate::{AgentService, AttachmentService, ShellOutput, ShellService, SkillFetchService, TemplateService};
 
 #[derive(Embed)]
 #[folder = "../../templates/"]
@@ -211,5 +211,30 @@ impl SkillFetchService for Runner {
 
     async fn list_skills(&self) -> anyhow::Result<Vec<forge_domain::Skill>> {
         Ok(vec![])
+    }
+}
+
+#[async_trait::async_trait]
+impl ShellService for Runner {
+    async fn execute(
+        &self,
+        _command: String,
+        _cwd: std::path::PathBuf,
+        _keep_ansi: bool,
+        _silent: bool,
+        _env_vars: Option<Vec<String>>,
+        _description: Option<String>,
+    ) -> anyhow::Result<ShellOutput> {
+        // Return empty output for test (simulating not in a git repo)
+        Ok(ShellOutput {
+            output: forge_domain::CommandOutput {
+                stdout: String::new(),
+                stderr: String::new(),
+                command: String::new(),
+                exit_code: Some(1),
+            },
+            shell: "/bin/bash".to_string(),
+            description: None,
+        })
     }
 }
