@@ -5,7 +5,7 @@ use colored::Colorize;
 use forge_api::{Agent, AnyProvider, Model, ProviderId, Template};
 use forge_domain::UserCommand;
 use strum::{EnumProperty, IntoEnumIterator};
-use strum_macros::{EnumIter, EnumProperty};
+use strum_macros::EnumIter;
 
 use crate::display_constants::markers;
 use crate::info::Info;

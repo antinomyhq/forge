@@ -18,7 +18,7 @@ pub(super) struct StateBuilders;
 
 impl StateBuilders {
     /// Builds the SessionModeState from available agents
-    pub(super) async fn build_session_mode_state<S: Services>(
+    pub(super) async fn build_session_mode_state<S: Services + ?Sized>(
         services: &S,
         current_agent_id: &AgentId,
     ) -> Result<acp::SessionModeState> {
@@ -38,7 +38,7 @@ impl StateBuilders {
 
     /// Builds the SessionModelState from available models for the agent's provider
     pub(super) async fn build_session_model_state<S: Services>(
-        services: &S,
+        services: &Arc<S>,
         current_agent: &Agent,
     ) -> Result<acp::SessionModelState> {
         // Resolve the provider for this agent
@@ -127,8 +127,8 @@ impl StateBuilders {
     }
 
     /// Loads MCP servers from ACP requests into Forge's MCP configuration
-    pub(super) async fn load_mcp_servers<S: Services>(
-        services: &Arc<S>,
+    pub(super) async fn load_mcp_servers<S: Services + ?Sized>(
+        services: &S,
         mcp_servers: &[acp::McpServer],
     ) -> Result<()> {
         // Convert ACP MCP servers to ExternalMcpServer format
@@ -138,14 +138,14 @@ impl StateBuilders {
             .collect::<Result<Vec<_>>>()?;
 
         // Import via McpImportService
-        (**services)
+        services
             .mcp_import_service()
             .import_servers(external_servers, &Scope::Local)
             .await
             .map_err(Error::Application)?;
 
         // Reload MCP servers to pick up the new configuration
-        (**services)
+        services
             .mcp_service()
             .reload_mcp()
             .await

@@ -58,21 +58,14 @@ impl<S: Services> SessionOrchestrator<S> {
         session_id: &SessionId,
         request: ChatRequest,
     ) -> Result<MpscStream<Result<ChatResponse>>> {
-        // 1. Get session context
-        let _context = self
-            .services
-            .session_service()
-            .get_session_context(session_id)
-            .await?;
-
-        // 2. Get agent with overrides applied
+        // 1. Get agent with overrides applied (also validates session exists)
         let agent = self
             .services
             .session_agent_service()
             .get_session_agent(session_id)
             .await?;
 
-        // 3. Execute chat via ForgeApp
+        // 2. Execute chat via ForgeApp
         let app = ForgeApp::new(self.services.clone());
         app.chat(agent.id, request).await
     }

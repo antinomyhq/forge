@@ -661,6 +661,11 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
                 }
                 return Ok(());
             }
+            // ACP commands are handled in main.rs before UI initialization
+            TopLevelCommand::Acp(_) => {
+                // Should never reach here - handled in main.rs
+                return Ok(());
+            }
         }
         Ok(())
     }

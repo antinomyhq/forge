@@ -8,7 +8,7 @@ use agent_client_protocol as acp;
 use forge_domain::{ConversationId, SessionId};
 use tokio::sync::{mpsc, Mutex};
 
-use crate::Services;
+use crate::{Services, SessionOrchestrator};
 
 use super::error::{Error, Result};
 
@@ -22,6 +22,8 @@ use super::error::{Error, Result};
 pub(crate) struct AcpAdapter<S> {
     /// Services for direct access
     pub(super) services: Arc<S>,
+    /// Session orchestrator for coordinating session operations
+    pub(super) session_orchestrator: SessionOrchestrator<S>,
     /// Channel for sending session notifications to the client
     pub(super) session_update_tx: mpsc::UnboundedSender<acp::SessionNotification>,
     /// Client connection for making RPC calls to the IDE client
@@ -38,8 +40,10 @@ impl<S: Services> AcpAdapter<S> {
         services: Arc<S>,
         session_update_tx: mpsc::UnboundedSender<acp::SessionNotification>,
     ) -> Self {
+        let session_orchestrator = SessionOrchestrator::new(services.clone());
         Self {
             services,
+            session_orchestrator,
             session_update_tx,
             client_conn: Arc::new(Mutex::new(None)),
             acp_to_domain_session: RefCell::new(HashMap::new()),

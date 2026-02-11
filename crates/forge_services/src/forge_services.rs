@@ -95,7 +95,7 @@ pub struct ForgeServices<
     session_service: Arc<ForgeSessionService<F>>,
     session_agent_service: Arc<ForgeSessionAgentService<F>>,
     session_model_service: Arc<ForgeSessionModelService<F>>,
-    mcp_import_service: Arc<ForgeMcpImportService<F>>,
+    mcp_import_service: Arc<ForgeMcpImportService>,
 }
 
 impl<
@@ -119,7 +119,8 @@ impl<
         + WorkspaceIndexRepository
         + AgentRepository
         + SkillRepository
-        + ValidationRepository,
+        + ValidationRepository
+        + forge_domain::SessionRepository,
 > ForgeServices<F>
 {
     pub fn new(infra: Arc<F>) -> Self {
@@ -225,6 +226,7 @@ impl<
         + WorkspaceIndexRepository
         + ValidationRepository
         + FuzzySearchRepository
+        + forge_domain::SessionRepository
         + Clone
         + 'static,
 > Services for ForgeServices<F>
@@ -265,7 +267,7 @@ impl<
     type SessionService = ForgeSessionService<F>;
     type SessionAgentService = ForgeSessionAgentService<F>;
     type SessionModelService = ForgeSessionModelService<F>;
-    type McpImportService = ForgeMcpImportService<F>;
+    type McpImportService = ForgeMcpImportService;
 
     fn config_service(&self) -> &Self::AppConfigService {
         &self.config_service

@@ -6,7 +6,7 @@ use forge_domain::{
     Agent, ChatRequest, ChatResponse, ChatResponseContent, Event, EventValue, InterruptionReason,
 };
 
-use crate::{AttachmentService, ForgeApp, InterruptionService, Services, SessionAgentService, SessionService};
+use crate::{AttachmentService, InterruptionService, Services, SessionAgentService, SessionService};
 
 use super::adapter::AcpAdapter;
 use super::conversion;
@@ -120,9 +120,8 @@ impl<S: Services> AcpAdapter<S> {
             // Flag to track if user wants to continue after an interrupt
             let mut continue_after_interrupt = false;
 
-            // Execute the chat request using ForgeApp
-            let app = ForgeApp::new(self.services.clone());
-            match app.chat(agent.id.clone(), chat_request).await {
+            // Execute the chat request using SessionOrchestrator
+            match self.session_orchestrator.execute_prompt_with_session(&domain_session_id, chat_request).await {
                 Ok(mut stream) => {
                     use futures::StreamExt;
 
@@ -191,6 +190,17 @@ impl<S: Services> AcpAdapter<S> {
         response: ChatResponse,
         continue_after_interrupt: &mut bool,
     ) -> std::result::Result<(), acp::Error> {
+        // Log what response type we received
+        match &response {
+            ChatResponse::TaskMessage { .. } => tracing::debug!("Received TaskMessage"),
+            ChatResponse::TaskReasoning { .. } => tracing::debug!("Received TaskReasoning"),
+            ChatResponse::ToolCallStart(_) => tracing::debug!("Received ToolCallStart"),
+            ChatResponse::ToolCallEnd(_) => tracing::debug!("Received ToolCallEnd"),
+            ChatResponse::TaskComplete => tracing::debug!("Received TaskComplete"),
+            ChatResponse::RetryAttempt { .. } => tracing::debug!("Received RetryAttempt"),
+            ChatResponse::Interrupt { .. } => tracing::debug!("Received Interrupt"),
+        }
+
         match response {
             ChatResponse::TaskMessage { content } => {
                 self.handle_task_message(session_id, content).await?;

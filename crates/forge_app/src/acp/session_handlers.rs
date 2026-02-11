@@ -6,7 +6,6 @@ use forge_domain::{AgentId, Conversation};
 use crate::{AgentRegistry, ConversationService, Services, SessionService};
 
 use super::adapter::AcpAdapter;
-use super::error::Result;
 use super::state_builders::StateBuilders;
 
 const VERSION: &str = env!("CARGO_PKG_VERSION");
@@ -66,7 +65,7 @@ impl<S: Services> AcpAdapter<S> {
                 "Loading {} MCP servers from client",
                 arguments.mcp_servers.len()
             );
-            StateBuilders::load_mcp_servers(&self.services, &arguments.mcp_servers).await?;
+            StateBuilders::load_mcp_servers(self.services.as_ref(), &arguments.mcp_servers).await?;
         }
 
         // Get the active agent or default to forge
@@ -128,7 +127,7 @@ impl<S: Services> AcpAdapter<S> {
             })?;
 
         // Build session mode state with available agents
-        let mode_state = StateBuilders::build_session_mode_state(&self.services, &active_agent_id)
+        let mode_state = StateBuilders::build_session_mode_state(self.services.as_ref(), &active_agent_id)
             .await
             .map_err(acp::Error::from)?;
 
@@ -161,7 +160,7 @@ impl<S: Services> AcpAdapter<S> {
                 "Loading {} MCP servers from client",
                 arguments.mcp_servers.len()
             );
-            StateBuilders::load_mcp_servers(&self.services, &arguments.mcp_servers).await?;
+            StateBuilders::load_mcp_servers(self.services.as_ref(), &arguments.mcp_servers).await?;
         }
 
         // Verify the session exists by attempting to get conversation ID
@@ -193,7 +192,7 @@ impl<S: Services> AcpAdapter<S> {
         let active_agent_id = agent.id.clone();
 
         // Build session mode state with available agents
-        let mode_state = StateBuilders::build_session_mode_state(&self.services, &active_agent_id)
+        let mode_state = StateBuilders::build_session_mode_state(self.services.as_ref(), &active_agent_id)
             .await
             .map_err(acp::Error::from)?;
 
@@ -327,7 +326,7 @@ impl<S: Services> AcpAdapter<S> {
             })?;
 
         // Also update global default (for backward compatibility)
-        use crate::Services as _;
+        use crate::AppConfigService as _;
         self.services
             .set_default_model(model_id.clone())
             .await
@@ -335,11 +334,12 @@ impl<S: Services> AcpAdapter<S> {
         let _ = self.services.reload_agents().await;
 
         // Send notification about model change
+        tracing::info!("Sending model change notification: {}", model_id);
         let model_update = acp::SessionNotification::new(
             args.session_id.clone(),
             acp::SessionUpdate::AgentMessageChunk(acp::ContentChunk::new(
                 acp::ContentBlock::Text(acp::TextContent::new(format!(
-                    "Model changed to: {}",
+                    "Model changed to: {}\n",
                     model_id
                 ))),
             )),

@@ -1,76 +1,200 @@
 //! Type conversions between ACP protocol types and Forge domain types
 
 use agent_client_protocol as acp;
-use forge_domain::{Agent, AgentId, Attachment, ToolCallFull, ToolOutput};
+use forge_domain::{Agent, AgentId, Attachment, ToolCallFull, ToolName, ToolOutput};
+use std::path::PathBuf;
 
 use super::error::{Error, Result};
 
-/// Converts a Forge ToolCallFull to an ACP ToolCallUpdate
-pub(crate) fn map_tool_call_to_acp(tool_call: &ToolCallFull) -> acp::ToolCallUpdate {
+/// Maps a Forge tool name to an ACP ToolKind
+///
+/// # Arguments
+///
+/// * `tool_name` - The Forge tool name
+pub(crate) fn map_tool_kind(tool_name: &ToolName) -> acp::ToolKind {
+    match tool_name.as_str() {
+        "read" => acp::ToolKind::Read,
+        "write" | "patch" => acp::ToolKind::Edit,
+        "remove" | "undo" => acp::ToolKind::Delete,
+        "fs_search" | "sem_search" => acp::ToolKind::Search,
+        "shell" => acp::ToolKind::Execute,
+        "fetch" => acp::ToolKind::Fetch,
+        "sage" => acp::ToolKind::Think, // Research agent
+        _ => {
+            // Check MCP tool patterns
+            let name = tool_name.as_str();
+            if name.starts_with("mcp_") {
+                if name.contains("read")
+                    || name.contains("get")
+                    || name.contains("fetch")
+                    || name.contains("list")
+                    || name.contains("show")
+                    || name.contains("view")
+                    || name.contains("load")
+                {
+                    acp::ToolKind::Read
+                } else if name.contains("search")
+                    || name.contains("query")
+                    || name.contains("find")
+                    || name.contains("filter")
+                    || name.contains("lookup")
+                {
+                    acp::ToolKind::Search
+                } else if name.contains("write")
+                    || name.contains("update")
+                    || name.contains("create")
+                    || name.contains("set")
+                    || name.contains("add")
+                    || name.contains("insert")
+                    || name.contains("push")
+                    || name.contains("merge")
+                    || name.contains("fork")
+                    || name.contains("comment")
+                    || name.contains("assign")
+                    || name.contains("request")
+                {
+                    acp::ToolKind::Edit
+                } else if name.contains("delete")
+                    || name.contains("remove")
+                    || name.contains("drop")
+                    || name.contains("clear")
+                    || name.contains("close")
+                    || name.contains("cancel")
+                {
+                    acp::ToolKind::Delete
+                } else if name.contains("execute")
+                    || name.contains("run")
+                    || name.contains("start")
+                    || name.contains("invoke")
+                    || name.contains("call")
+                {
+                    acp::ToolKind::Execute
+                } else {
+                    acp::ToolKind::Other
+                }
+            } else {
+                acp::ToolKind::Other
+            }
+        }
+    }
+}
+
+/// Extracts file locations from tool arguments for "follow-along" features
+///
+/// # Arguments
+///
+/// * `tool_name` - The tool name
+/// * `arguments` - The tool arguments as JSON
+pub(crate) fn extract_file_locations(
+    tool_name: &ToolName,
+    arguments: &serde_json::Value,
+) -> Vec<acp::ToolCallLocation> {
+    match tool_name.as_str() {
+        "read" | "write" | "patch" | "remove" | "undo" => {
+            if let Some(file_path) = arguments.get("file_path").and_then(|v| v.as_str()) {
+                vec![acp::ToolCallLocation::new(PathBuf::from(file_path))]
+            } else {
+                vec![]
+            }
+        }
+        _ => vec![],
+    }
+}
+
+/// Converts a Forge ToolCallFull to an ACP ToolCall
+pub(crate) fn map_tool_call_to_acp(tool_call: &ToolCallFull) -> acp::ToolCall {
     let tool_call_id = tool_call
         .call_id
         .as_ref()
         .map(|id| id.as_str().to_string())
-        .unwrap_or_else(|| "unknown".to_string());
+        .unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
 
-    let mut fields = acp::ToolCallUpdateFields::new()
-        .title(tool_call.name.to_string())
-        .status(acp::ToolCallStatus::InProgress);
+    let title = tool_call.name.as_str().to_string();
+    let kind = map_tool_kind(&tool_call.name);
+    let locations = extract_file_locations(
+        &tool_call.name,
+        &serde_json::to_value(&tool_call.arguments).unwrap_or(serde_json::json!({})),
+    );
 
-    // Set tool kind based on the tool name
-    let kind = match tool_call.name.as_str() {
-        name if name.contains("search") || name.contains("query") => acp::ToolKind::Search,
-        name if name.contains("read") || name.contains("write") || name.contains("edit") => {
-            acp::ToolKind::Edit
-        }
-        name if name.contains("shell") || name.contains("command") => acp::ToolKind::Execute,
-        _ => acp::ToolKind::Think,
-    };
-
-    fields = fields.kind(kind);
-
-    acp::ToolCallUpdate::new(tool_call_id, fields)
+    acp::ToolCall::new(tool_call_id, title)
+        .kind(kind)
+        .status(acp::ToolCallStatus::Pending)
+        .locations(locations)
+        .raw_input(
+            serde_json::to_value(&tool_call.arguments)
+                .ok()
+                .filter(|v| !v.is_null()),
+        )
 }
 
 /// Converts a Forge ToolOutput to ACP ToolCallContent
 pub(crate) fn map_tool_output_to_content(output: &ToolOutput) -> Vec<acp::ToolCallContent> {
     use forge_domain::ToolValue;
 
-    let mut content = Vec::new();
+    // Check if there's a FileDiff - if so, only show that and skip text diffs
+    let has_file_diff = output
+        .values
+        .iter()
+        .any(|v| matches!(v.display_value(), ToolValue::FileDiff(_)));
 
-    // Convert each ToolValue to ACP content
-    for value in &output.values {
-        match value {
-            ToolValue::Text(text) if !text.is_empty() => {
-                content.push(acp::ToolCallContent::Content(acp::Content::new(
-                    acp::ContentBlock::Text(acp::TextContent::new(text.clone())),
-                )));
-            }
-            ToolValue::AI { value, .. } if !value.is_empty() => {
-                content.push(acp::ToolCallContent::Content(acp::Content::new(
-                    acp::ContentBlock::Text(acp::TextContent::new(value.clone())),
-                )));
-            }
-            ToolValue::Image(img) => {
-                // Convert image to ACP format if needed
-                // For now, just add as text reference
-                content.push(acp::ToolCallContent::Content(acp::Content::new(
-                    acp::ContentBlock::Text(acp::TextContent::new(format!(
-                        "[Image: {}]",
-                        img.mime_type()
+    output
+        .values
+        .iter()
+        .filter_map(|value| {
+            // Use display_value() to get the user-friendly representation
+            let display = value.display_value();
+            
+            match display {
+                ToolValue::Text(text) => {
+                    // Skip text content if we have a FileDiff (text is the formatted diff for CLI)
+                    if has_file_diff || text.is_empty() {
+                        None
+                    } else {
+                        Some(acp::ToolCallContent::Content(acp::Content::new(
+                            acp::ContentBlock::Text(acp::TextContent::new(text.clone())),
+                        )))
+                    }
+                }
+                ToolValue::AI { value, .. } => {
+                    if value.is_empty() {
+                        None
+                    } else {
+                        Some(acp::ToolCallContent::Content(acp::Content::new(
+                            acp::ContentBlock::Text(acp::TextContent::new(value.clone())),
+                        )))
+                    }
+                }
+                ToolValue::Markdown(md) => {
+                    // Markdown is for display, send as text content
+                    if md.is_empty() {
+                        None
+                    } else {
+                        Some(acp::ToolCallContent::Content(acp::Content::new(
+                            acp::ContentBlock::Text(acp::TextContent::new(md.clone())),
+                        )))
+                    }
+                }
+                ToolValue::Image(image) => Some(acp::ToolCallContent::Content(
+                    acp::Content::new(acp::ContentBlock::Image(acp::ImageContent::new(
+                        image.data(),
+                        image.mime_type(),
                     ))),
-                )));
+                )),
+                ToolValue::FileDiff(file_diff) => {
+                    // Convert Forge FileDiff to ACP Diff
+                    Some(acp::ToolCallContent::Diff(
+                        acp::Diff::new(PathBuf::from(&file_diff.path), &file_diff.new_text)
+                            .old_text(file_diff.old_text.clone()),
+                    ))
+                }
+                ToolValue::Pair(_, _) => {
+                    // This shouldn't happen since display_value() unwraps Pairs
+                    None
+                }
+                ToolValue::Empty => None,
             }
-            ToolValue::Empty => {
-                // Skip empty values
-            }
-            _ => {
-                // Skip other value types or empty text
-            }
-        }
-    }
-
-    content
+        })
+        .collect()
 }
 
 /// Converts an ACP embedded resource to a Forge Attachment
@@ -117,19 +241,22 @@ pub(crate) fn acp_resource_to_attachment(resource: &acp::EmbeddedResource) -> Re
 }
 
 /// Converts a URI to a file path
+///
+/// Handles file:// URIs and converts them to absolute paths.
+/// Properly handles Windows paths (file:///C:/path -> C:/path).
 pub(crate) fn uri_to_path(uri: &str) -> String {
     // Handle file:// URIs
     if let Some(path) = uri.strip_prefix("file://") {
-        return path.to_string();
+        // Remove any leading slash for Windows paths (file:///C:/path -> C:/path)
+        if path.len() > 2 && path.chars().nth(2) == Some(':') {
+            path.trim_start_matches('/').to_string()
+        } else {
+            path.to_string()
+        }
+    } else {
+        // Return as-is if not a file:// URI
+        uri.to_string()
     }
-
-    // Handle other schemes by extracting the path component
-    if let Some(idx) = uri.find("://") {
-        return uri[idx + 3..].to_string();
-    }
-
-    // Return as-is if no scheme
-    uri.to_string()
 }
 
 /// Builds the SessionModeState from available agents
@@ -141,12 +268,12 @@ pub(crate) fn build_session_mode_state(
         .iter()
         .map(|agent| {
             let mode_id = acp::SessionModeId::new(agent.id.to_string());
-            let mut mode_info = acp::SessionMode::new(mode_id, agent.title.clone());
-
-            // Add description if available
-            if let Some(desc) = &agent.description {
-                mode_info = mode_info.description(desc.clone());
-            }
+            // Use agent ID as name (not title) for better UX
+            // Title can be too long and not suitable for dropdown display
+            let mode_info = acp::SessionMode::new(
+                mode_id,
+                agent.id.to_string(),
+            ).description(agent.description.clone());
 
             mode_info
         })

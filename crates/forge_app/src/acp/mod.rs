@@ -11,7 +11,6 @@ mod session_handlers;
 mod state_builders;
 
 pub(crate) use adapter::AcpAdapter;
-pub(crate) use error::{Error, Result};
 
 // Implement the acp::Agent trait for AcpAdapter
 #[async_trait::async_trait(?Send)]

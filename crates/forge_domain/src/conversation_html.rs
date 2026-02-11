@@ -429,6 +429,25 @@ fn create_conversation_context_section(conversation: &Conversation) -> Element {
                                         crate::ToolValue::Image(image) => {
                                             Some(Element::new("img").attr("src", image.url()))
                                         }
+                                        crate::ToolValue::FileDiff(file_diff) => Some(
+                                            Element::new("div.file-diff")
+                                                .append(Element::new("div.diff-path").text(&file_diff.path))
+                                                .append(Element::new("pre.diff-content").text(&file_diff.new_text)),
+                                        ),
+                                        crate::ToolValue::Markdown(md) => Some(
+                                            Element::new("div.tool-markdown")
+                                                .append(Element::new("div.markdown-content").text(md)),
+                                        ),
+                                        crate::ToolValue::Pair(_, display) => {
+                                            // For HTML rendering, use the display value
+                                            match display.as_ref() {
+                                                crate::ToolValue::Markdown(md) => Some(
+                                                    Element::new("div.tool-markdown")
+                                                        .append(Element::new("div.markdown-content").text(md)),
+                                                ),
+                                                _ => None,
+                                            }
+                                        }
                                         crate::ToolValue::Empty => None,
                                         crate::ToolValue::AI { value, conversation_id } => {
                                             // Use anchor link to navigate within the same HTML
