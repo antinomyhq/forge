@@ -5,14 +5,11 @@ use forge_api::{API, Update};
 use forge_tracker::VERSION;
 use update_informer::{Check, Version, registry};
 
-/// Package name for forge on npm.
-const FORGE_NPM_PACKAGE: &str = "forgecode";
-
-/// Runs npm update in the background, failing silently
+/// Runs the official installation script to update Forge, failing silently
 async fn execute_update_command(api: Arc<impl API>) {
     // Spawn a new task that won't block the main application
     let output = api
-        .execute_shell_command_raw(&format!("npm update -g {FORGE_NPM_PACKAGE} --force"))
+        .execute_shell_command_raw("curl -fsSL https://forgecode.dev/install.sh | sh")
         .await;
 
     match output {
@@ -73,7 +70,8 @@ pub async fn on_update(api: Arc<impl API>, update: Option<&Update>) {
     }
 
     let informer =
-        update_informer::new(registry::Npm, FORGE_NPM_PACKAGE, VERSION).interval(frequency.into());
+        update_informer::new(registry::GitHub, "antinomyhq/forge", VERSION)
+            .interval(frequency.into());
 
     if let Some(version) = informer.check_version().ok().flatten()
         && (auto_update || confirm_update(version).await)
