@@ -79,7 +79,8 @@ impl Range {
         let end_idx = ((search_match.end_line as usize) + 1).min(lines.len());
 
         // Find the character position of the start line
-        // Sum the lengths of all lines before start_idx, adding the appropriate line ending length
+        // Sum the lengths of all lines before start_idx, adding the appropriate line
+        // ending length
         let start_pos = lines[..start_idx]
             .iter()
             .map(|l| l.len() + line_ending_len)
@@ -336,7 +337,7 @@ impl<F: FileWriterInfra + SnapshotRepository + ValidationRepository + FuzzySearc
         let mut current_content = fs::read_to_string(path)
             .await
             .map_err(Error::FileOperation)?;
-        
+
         // Save the old content before modification for diff generation
         let old_content = current_content.clone();
 

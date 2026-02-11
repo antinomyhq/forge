@@ -17,9 +17,10 @@ use crate::utils::assert_absolute_path;
 /// (snapshots) to create files while preserving the ability to undo changes.
 ///
 /// # Line Ending Handling
-/// The service preserves the line endings exactly as provided in the input content.
-/// The hash is computed on the exact content being written, so it will reflect
-/// the actual file content regardless of whether it uses LF or CRLF line endings.
+/// The service preserves the line endings exactly as provided in the input
+/// content. The hash is computed on the exact content being written, so it will
+/// reflect the actual file content regardless of whether it uses LF or CRLF
+/// line endings.
 pub struct ForgeFsWrite<F> {
     infra: Arc<F>,
 }
@@ -105,7 +106,9 @@ impl<
             .replace('\n', target_line_ending); // Then convert to target
 
         // Write file only after validation passes and directories are created
-        self.infra.write(path, Bytes::from(normalized_content.clone())).await?;
+        self.infra
+            .write(path, Bytes::from(normalized_content.clone()))
+            .await?;
 
         // Compute hash of the normalized content that was written
         let content_hash = compute_hash(&normalized_content);
@@ -121,15 +124,14 @@ impl<
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use pretty_assertions::assert_eq;
+
+    use super::*;
 
     #[test]
     fn test_normalize_crlf_to_lf() {
         let fixture = "line1\r\nline2\r\nline3";
-        let actual = fixture
-            .replace("\r\n", "\n")
-            .replace('\n', "\n");
+        let actual = fixture.replace("\r\n", "\n").replace('\n', "\n");
         let expected = "line1\nline2\nline3";
         assert_eq!(actual, expected);
     }
@@ -137,9 +139,7 @@ mod tests {
     #[test]
     fn test_normalize_lf_to_crlf() {
         let fixture = "line1\nline2\nline3";
-        let actual = fixture
-            .replace("\r\n", "\n")
-            .replace('\n', "\r\n");
+        let actual = fixture.replace("\r\n", "\n").replace('\n', "\r\n");
         let expected = "line1\r\nline2\r\nline3";
         assert_eq!(actual, expected);
     }
@@ -147,9 +147,7 @@ mod tests {
     #[test]
     fn test_normalize_mixed_endings() {
         let fixture = "line1\r\nline2\nline3\r\nline4";
-        let actual = fixture
-            .replace("\r\n", "\n")
-            .replace('\n', "\n");
+        let actual = fixture.replace("\r\n", "\n").replace('\n', "\n");
         let expected = "line1\nline2\nline3\nline4";
         assert_eq!(actual, expected);
     }
@@ -157,9 +155,7 @@ mod tests {
     #[test]
     fn test_normalize_preserves_content() {
         let fixture = "hello world\r\nfoo bar\r\nbaz";
-        let actual = fixture
-            .replace("\r\n", "\n")
-            .replace('\n', "\r\n");
+        let actual = fixture.replace("\r\n", "\n").replace('\n', "\r\n");
         let expected = "hello world\r\nfoo bar\r\nbaz";
         assert_eq!(actual, expected);
     }
@@ -167,7 +163,11 @@ mod tests {
     #[test]
     fn test_line_ending_detection_crlf() {
         let fixture = "line1\r\nline2\r\nline3";
-        let detected = if fixture.contains("\r\n") { "\r\n" } else { "\n" };
+        let detected = if fixture.contains("\r\n") {
+            "\r\n"
+        } else {
+            "\n"
+        };
         let expected = "\r\n";
         assert_eq!(detected, expected);
     }
@@ -175,7 +175,11 @@ mod tests {
     #[test]
     fn test_line_ending_detection_lf() {
         let fixture = "line1\nline2\nline3";
-        let detected = if fixture.contains("\r\n") { "\r\n" } else { "\n" };
+        let detected = if fixture.contains("\r\n") {
+            "\r\n"
+        } else {
+            "\n"
+        };
         let expected = "\n";
         assert_eq!(detected, expected);
     }
@@ -183,13 +187,11 @@ mod tests {
     #[test]
     fn test_hash_consistency_after_normalization() {
         let input_crlf = "line1\r\nline2\r\nline3";
-        let normalized = input_crlf
-            .replace("\r\n", "\n")
-            .replace('\n', "\n");
-        
+        let normalized = input_crlf.replace("\r\n", "\n").replace('\n', "\n");
+
         let hash1 = compute_hash(&normalized);
         let hash2 = compute_hash(&normalized);
-        
+
         assert_eq!(hash1, hash2);
     }
 
@@ -197,10 +199,10 @@ mod tests {
     fn test_hash_differs_with_different_endings() {
         let content_lf = "line1\nline2\nline3";
         let content_crlf = "line1\r\nline2\r\nline3";
-        
+
         let hash_lf = compute_hash(content_lf);
         let hash_crlf = compute_hash(content_crlf);
-        
+
         assert_ne!(hash_lf, hash_crlf);
     }
 }
