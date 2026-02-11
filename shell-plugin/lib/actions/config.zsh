@@ -74,10 +74,12 @@ function _forge_action_agent() {
 
 # Action handler: Select provider
 function _forge_action_provider() {
+    local input_text="$1"
     echo
     local selected
     # Only show LLM providers (exclude context_engine and other non-LLM types)
-    selected=$(_forge_select_provider "" "" "llm")
+    # Pass input_text as query parameter for fuzzy search
+    selected=$(_forge_select_provider "" "" "llm" "$input_text")
     
     if [[ -n "$selected" ]]; then
         # Extract the second field (provider ID) from the selected line
