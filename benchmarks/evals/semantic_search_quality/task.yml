@@ -25,21 +25,12 @@ validations:
         echo "No expected files specified, skipping check"
         exit 0
       fi
-      # Check if template variable was actually replaced
-      if echo "{{expected_files}}" | grep -q '\{{'; then
-          echo "No expected files specified, skipping check"
-          exit 0
-        fi
-      fi
       
-      # Extract file paths from sem_search results
-      results=$(cat '{{dir}}/context.json' | jq -r '[
+      # Extract file paths from sem_search results (XML format: path="...")
+      results=$(cat '{{dir}}/context.json' | jq -r '
         .messages[]? | 
         select(.role == "tool" and .name == "sem_search") | 
-        .content | 
-        try fromjson | 
-        .results[]?.file_path
-      ] | unique | .[]' 2>/dev/null || echo "")
+        .content' 2>/dev/null | grep -o 'path="[^"]*"' | sed 's/path="//;s/"//' | sort -u)
       
       if [ -z "$results" ]; then
         echo "No sem_search results found in context"
@@ -65,7 +56,7 @@ validations:
         exit 1
       fi
       
-      echo "All expected files found in results ✓"
+      echo "All expected files found in results"
       exit 0
 
   - name: "LLM Judge: Query Quality"
