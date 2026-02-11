@@ -21,9 +21,12 @@ validations:
     type: shell
     command: |
       # Only check if expected_files is defined and not empty
-      if [ -z "{{expected_files}}" ] || [ "{{expected_files}}" = "{{expected_files}}" ]; then
-        # Check if template variable was actually replaced
-        if echo "{{expected_files}}" | grep -q '\{{'; then
+      if [ -z "{{expected_files}}" ]; then
+        echo "No expected files specified, skipping check"
+        exit 0
+      fi
+      # Check if template variable was actually replaced
+      if echo "{{expected_files}}" | grep -q '\{{'; then
           echo "No expected files specified, skipping check"
           exit 0
         fi
