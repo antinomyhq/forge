@@ -1,8 +1,8 @@
 use async_trait::async_trait;
 use derive_setters::Setters;
 use forge_domain::{
-    ContextMessage, Conversation, EventData, EventHandle, Role, TextMessage, ToolCallFull,
-    ToolName, ToolcallStartPayload,
+    ContextMessage, Conversation, EventData, EventHandle, HandleOperation, Role, TextMessage,
+    ToolCallFull, ToolName, ToolcallStartPayload,
 };
 use tracing::warn;
 
@@ -126,7 +126,7 @@ impl DoomLoopDetector {
 /// Implementation of EventHandle for DoomLoopDetector
 ///
 /// This allows the detector to be used as a hook on toolcall_start events.
-/// When a doom loop is detected, it returns a DoomLoopError which causes
+/// When a doom loop is detected, it returns an AgentError which causes
 /// the tool execution to be skipped and the error to be returned as a tool
 /// result.
 #[async_trait]
@@ -135,7 +135,7 @@ impl EventHandle<EventData<ToolcallStartPayload>> for DoomLoopDetector {
         &self,
         event: &EventData<ToolcallStartPayload>,
         conversation: &mut Conversation,
-    ) -> anyhow::Result<()> {
+    ) -> HandleOperation {
         let tool_call = &event.payload.tool_call;
 
         if let Some((tool_name, consecutive_calls)) =
@@ -148,10 +148,10 @@ impl EventHandle<EventData<ToolcallStartPayload>> for DoomLoopDetector {
                 "Doom loop detected: same tool called repeatedly with identical arguments"
             );
 
-            return Err(DoomLoopError { tool_name, consecutive_calls }.into());
+            return HandleOperation::agent_error(DoomLoopError { tool_name, consecutive_calls });
         }
 
-        Ok(())
+        HandleOperation::Continue
     }
 }
 

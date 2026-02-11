@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use forge_domain::{
-    Conversation, EndPayload, EventData, EventHandle, RequestPayload, ResponsePayload,
-    StartPayload, ToolcallEndPayload, ToolcallStartPayload,
+    Conversation, EndPayload, EventData, EventHandle, HandleOperation, RequestPayload,
+    ResponsePayload, StartPayload, ToolcallEndPayload, ToolcallStartPayload,
 };
 use tracing::{debug, info, warn};
 
@@ -30,7 +30,7 @@ impl EventHandle<EventData<StartPayload>> for TracingHandler {
         &self,
         event: &EventData<StartPayload>,
         conversation: &mut Conversation,
-    ) -> anyhow::Result<()> {
+    ) -> HandleOperation {
         debug!(
             conversation_id = %conversation.id,
             agent = %event.agent.id,
@@ -38,7 +38,7 @@ impl EventHandle<EventData<StartPayload>> for TracingHandler {
             "Initializing agent"
         );
 
-        Ok(())
+        HandleOperation::Continue
     }
 }
 
@@ -48,10 +48,10 @@ impl EventHandle<EventData<RequestPayload>> for TracingHandler {
         &self,
         _event: &EventData<RequestPayload>,
         _conversation: &mut Conversation,
-    ) -> anyhow::Result<()> {
+    ) -> HandleOperation {
         // Request events are logged but don't need specific logging per request
         // The Start event logs initialization, Response events log the results
-        Ok(())
+        HandleOperation::Continue
     }
 }
 
@@ -61,7 +61,7 @@ impl EventHandle<EventData<ResponsePayload>> for TracingHandler {
         &self,
         event: &EventData<ResponsePayload>,
         conversation: &mut Conversation,
-    ) -> anyhow::Result<()> {
+    ) -> HandleOperation {
         let message = &event.payload.message;
 
         if let Some(context) = &conversation.context {
@@ -83,7 +83,7 @@ impl EventHandle<EventData<ResponsePayload>> for TracingHandler {
             "Tool call count"
         );
 
-        Ok(())
+        HandleOperation::Continue
     }
 }
 
@@ -93,7 +93,7 @@ impl EventHandle<EventData<ToolcallStartPayload>> for TracingHandler {
         &self,
         event: &EventData<ToolcallStartPayload>,
         _conversation: &mut Conversation,
-    ) -> anyhow::Result<()> {
+    ) -> HandleOperation {
         let tool_call = &event.payload.tool_call;
 
         debug!(
@@ -104,7 +104,7 @@ impl EventHandle<EventData<ToolcallStartPayload>> for TracingHandler {
             "Tool call started"
         );
 
-        Ok(())
+        HandleOperation::Continue
     }
 }
 
@@ -114,7 +114,7 @@ impl EventHandle<EventData<ToolcallEndPayload>> for TracingHandler {
         &self,
         event: &EventData<ToolcallEndPayload>,
         _conversation: &mut Conversation,
-    ) -> anyhow::Result<()> {
+    ) -> HandleOperation {
         let tool_call = &event.payload.tool_call;
         let result = &event.payload.result;
 
@@ -129,7 +129,7 @@ impl EventHandle<EventData<ToolcallEndPayload>> for TracingHandler {
             );
         }
 
-        Ok(())
+        HandleOperation::Continue
     }
 }
 
@@ -139,7 +139,7 @@ impl EventHandle<EventData<EndPayload>> for TracingHandler {
         &self,
         _event: &EventData<EndPayload>,
         conversation: &mut Conversation,
-    ) -> anyhow::Result<()> {
+    ) -> HandleOperation {
         if let Some(title) = &conversation.title {
             debug!(
                 conversation_id = %conversation.id,
@@ -148,7 +148,7 @@ impl EventHandle<EventData<EndPayload>> for TracingHandler {
             );
         }
 
-        Ok(())
+        HandleOperation::Continue
     }
 }
 
@@ -179,7 +179,7 @@ mod tests {
         let event = EventData::new(test_agent(), test_model_id(), StartPayload);
 
         // Should not panic
-        handler.handle(&event, &mut conversation).await.unwrap();
+        handler.handle(&event, &mut conversation).await;
     }
 
     #[tokio::test]
@@ -189,7 +189,7 @@ mod tests {
         let event = EventData::new(test_agent(), test_model_id(), RequestPayload::new(0));
 
         // Should not panic
-        handler.handle(&event, &mut conversation).await.unwrap();
+        handler.handle(&event, &mut conversation).await;
     }
 
     #[tokio::test]
@@ -208,7 +208,7 @@ mod tests {
         let event = EventData::new(test_agent(), test_model_id(), ResponsePayload::new(message));
 
         // Should not panic
-        handler.handle(&event, &mut conversation).await.unwrap();
+        handler.handle(&event, &mut conversation).await;
     }
 
     #[tokio::test]
@@ -231,7 +231,7 @@ mod tests {
         );
 
         // Should log warning but not panic
-        handler.handle(&event, &mut conversation).await.unwrap();
+        handler.handle(&event, &mut conversation).await;
     }
 
     #[tokio::test]
@@ -241,6 +241,6 @@ mod tests {
         let event = EventData::new(test_agent(), test_model_id(), EndPayload);
 
         // Should log debug message with title
-        handler.handle(&event, &mut conversation).await.unwrap();
+        handler.handle(&event, &mut conversation).await;
     }
 }

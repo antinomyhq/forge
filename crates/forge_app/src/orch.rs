@@ -86,19 +86,28 @@ impl<S: AgentService> Orchestrator<S> {
                 ToolcallStartPayload::new(tool_call.clone()),
             ));
 
-            let tool_result = match self
+            let handle_result = self
                 .hook
                 .handle(&toolcall_start_event, &mut self.conversation)
-                .await
-            {
-                Ok(()) => {
-                    self.services
-                        .call(&self.agent, tool_context, tool_call.clone())
-                        .await
-                }
-                Err(err) => ToolResult::new(tool_call.name.as_str())
+                .await;
+
+            // Resolve the hook operation: decide whether to execute the tool
+            let errors = Self::handle_operation(self.sender.as_ref(), handle_result).await;
+            let tool_result = if errors.is_empty() {
+                // Hook allows execution -- run the tool
+                self.services
+                    .call(&self.agent, tool_context, tool_call.clone())
+                    .await
+            } else {
+                // Hook blocked execution -- return error as tool failure
+                let combined = errors
+                    .into_iter()
+                    .map(|e| e.to_string())
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                ToolResult::new(tool_call.name.as_str())
                     .call_id(tool_call.call_id.clone())
-                    .failure(err),
+                    .failure(anyhow::anyhow!("{}", combined))
             };
 
             // Fire the ToolcallEnd lifecycle event (fires on both success and failure)
@@ -107,9 +116,13 @@ impl<S: AgentService> Orchestrator<S> {
                 self.agent.model.clone(),
                 ToolcallEndPayload::new(tool_call.clone(), tool_result.clone()),
             ));
-            self.hook
-                .handle(&toolcall_end_event, &mut self.conversation)
-                .await?;
+            Self::handle_operation(
+                self.sender.as_ref(),
+                self.hook
+                    .handle(&toolcall_end_event, &mut self.conversation)
+                    .await,
+            )
+            .await;
 
             // Send the end notification for system tools and not agent as a tool
             if is_system_tool {
@@ -129,6 +142,48 @@ impl<S: AgentService> Orchestrator<S> {
             sender.send(Ok(message)).await?
         }
         Ok(())
+    }
+
+    /// Interprets and handles a HandleOperation from event hooks
+    ///
+    /// This is the single unified interpreter for all HandleOperation results.
+    /// It sends user messages to the UI and collects agent errors. It never
+    /// returns an error itself — instead it returns the collected agent errors
+    /// so the caller can decide what to do with them.
+    ///
+    /// - `Continue`: No action
+    /// - `AgentError`: Collected and returned
+    /// - `UserMessage`: Sent to UI
+    /// - `Both`: Sent to UI and error collected
+    /// - `And`: Recursively processes both operations
+    #[async_recursion]
+    async fn handle_operation(
+        sender: Option<&ArcSender>,
+        operation: forge_domain::HandleOperation,
+    ) -> Vec<anyhow::Error> {
+        match operation {
+            forge_domain::HandleOperation::Continue => vec![],
+            forge_domain::HandleOperation::AgentError(err) => {
+                vec![anyhow::anyhow!("{}", err)]
+            }
+            forge_domain::HandleOperation::UserMessage(msg) => {
+                if let Some(sender) = sender {
+                    let _ = sender.send(Ok(msg)).await;
+                }
+                vec![]
+            }
+            forge_domain::HandleOperation::Both { user_message, agent_error } => {
+                if let Some(sender) = sender {
+                    let _ = sender.send(Ok(user_message)).await;
+                }
+                vec![anyhow::anyhow!("{}", agent_error)]
+            }
+            forge_domain::HandleOperation::And(first, second) => {
+                let mut errors = Self::handle_operation(sender, *first).await;
+                errors.extend(Self::handle_operation(sender, *second).await);
+                errors
+            }
+        }
     }
 
     // Returns if agent supports tool or not.
@@ -191,9 +246,11 @@ impl<S: AgentService> Orchestrator<S> {
             model_id.clone(),
             StartPayload,
         ));
-        self.hook
-            .handle(&start_event, &mut self.conversation)
-            .await?;
+        Self::handle_operation(
+            self.sender.as_ref(),
+            self.hook.handle(&start_event, &mut self.conversation).await,
+        )
+        .await;
 
         // Signals that the loop should suspend (task may or may not be completed)
         let mut should_yield = false;
@@ -223,9 +280,13 @@ impl<S: AgentService> Orchestrator<S> {
                 model_id.clone(),
                 RequestPayload::new(request_count),
             ));
-            self.hook
-                .handle(&request_event, &mut self.conversation)
-                .await?;
+            Self::handle_operation(
+                self.sender.as_ref(),
+                self.hook
+                    .handle(&request_event, &mut self.conversation)
+                    .await,
+            )
+            .await;
 
             let message = crate::retry::retry_with_config(
                 &self.environment.retry_config,
@@ -263,9 +324,13 @@ impl<S: AgentService> Orchestrator<S> {
                 model_id.clone(),
                 ResponsePayload::new(message.clone()),
             ));
-            self.hook
-                .handle(&response_event, &mut self.conversation)
-                .await?;
+            Self::handle_operation(
+                self.sender.as_ref(),
+                self.hook
+                    .handle(&response_event, &mut self.conversation)
+                    .await,
+            )
+            .await;
 
             // Update context from conversation after hook runs (compaction may have
             // modified it)
@@ -371,16 +436,20 @@ impl<S: AgentService> Orchestrator<S> {
         self.services.update(self.conversation.clone()).await?;
 
         // Fire the End lifecycle event
-        self.hook
-            .handle(
-                &LifecycleEvent::End(EventData::new(
-                    self.agent.clone(),
-                    model_id.clone(),
-                    EndPayload,
-                )),
-                &mut self.conversation,
-            )
-            .await?;
+        Self::handle_operation(
+            self.sender.as_ref(),
+            self.hook
+                .handle(
+                    &LifecycleEvent::End(EventData::new(
+                        self.agent.clone(),
+                        model_id.clone(),
+                        EndPayload,
+                    )),
+                    &mut self.conversation,
+                )
+                .await,
+        )
+        .await;
 
         // Signal Task Completion
         if is_complete {
