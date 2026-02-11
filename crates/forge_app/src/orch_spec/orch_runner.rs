@@ -2,7 +2,7 @@ use std::collections::VecDeque;
 use std::sync::Arc;
 
 use forge_domain::{
-    Attachment, ChatCompletionMessage, ChatResponse, Conversation, ConversationId, Event,
+    Attachment, ChatCompletionMessage, ChatResponse, Conversation, ConversationId, Event, Hook,
     ProviderId, ToolCallFull, ToolErrorTracker, ToolResult,
 };
 use handlebars::{Handlebars, no_escape};
@@ -11,6 +11,7 @@ use tokio::sync::Mutex;
 
 pub use super::orch_setup::TestContext;
 use crate::apply_tunable_parameters::ApplyTunableParameters;
+use crate::doom_loop_detector::DoomLoopDetector;
 use crate::init_conversation_metrics::InitConversationMetrics;
 use crate::orch::Orchestrator;
 use crate::set_conversation_id::SetConversationId;
@@ -116,6 +117,9 @@ impl Runner {
         )
         .error_tracker(ToolErrorTracker::new(3))
         .tool_definitions(system_tools)
+        .hook(Arc::new(
+            Hook::default().on_toolcall_start(DoomLoopDetector::default()),
+        ))
         .sender(tx);
 
         let (mut orch, runner) = (orch, services);

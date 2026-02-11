@@ -14,6 +14,7 @@ mod error;
 mod file_tracking;
 mod fmt;
 mod git_app;
+mod hooks;
 mod infra;
 mod init_conversation_metrics;
 mod mcp_executor;
