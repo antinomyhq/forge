@@ -35,6 +35,9 @@ pub struct Runner {
     // Mock completions from the LLM (Each value is produced as an event in the stream)
     test_completions: Mutex<VecDeque<ChatCompletionMessage>>,
 
+    // Mock shell command outputs
+    test_shell_outputs: Mutex<VecDeque<ShellOutput>>,
+
     attachments: Vec<Attachment>,
 }
 
@@ -56,6 +59,7 @@ impl Runner {
             conversation_history: Mutex::new(Vec::new()),
             test_tool_calls: Mutex::new(VecDeque::from(setup.mock_tool_call_responses.clone())),
             test_completions: Mutex::new(VecDeque::from(setup.mock_assistant_responses.clone())),
+            test_shell_outputs: Mutex::new(VecDeque::from(setup.mock_shell_outputs.clone())),
         }
     }
 
@@ -227,16 +231,20 @@ impl ShellService for Runner {
         _env_vars: Option<Vec<String>>,
         _description: Option<String>,
     ) -> anyhow::Result<ShellOutput> {
-        // Return empty output for test (simulating not in a git repo)
-        Ok(ShellOutput {
-            output: forge_domain::CommandOutput {
-                stdout: String::new(),
-                stderr: String::new(),
-                command: String::new(),
-                exit_code: Some(1),
-            },
-            shell: "/bin/bash".to_string(),
-            description: None,
-        })
+        let mut outputs = self.test_shell_outputs.lock().await;
+        if let Some(output) = outputs.pop_front() {
+            Ok(output)
+        } else {
+            Ok(ShellOutput {
+                output: forge_domain::CommandOutput {
+                    stdout: String::new(),
+                    stderr: String::new(),
+                    command: String::new(),
+                    exit_code: Some(1),
+                },
+                shell: "/bin/bash".to_string(),
+                description: None,
+            })
+        }
     }
 }

@@ -11,6 +11,7 @@ use forge_domain::{
 use url::Url;
 
 use crate::orch_spec::orch_runner::Runner;
+use crate::ShellOutput;
 
 // User prompt
 const USER_PROMPT: &str = r#"
@@ -23,6 +24,7 @@ const USER_PROMPT: &str = r#"
 pub struct TestContext {
     pub mock_tool_call_responses: Vec<(ToolCallFull, ToolResult)>,
     pub mock_assistant_responses: Vec<ChatCompletionMessage>,
+    pub mock_shell_outputs: Vec<ShellOutput>,
     pub workflow: Workflow,
     pub templates: HashMap<String, String>,
     pub files: Vec<File>,
@@ -46,6 +48,7 @@ impl Default for TestContext {
             current_time: Local::now(),
             mock_assistant_responses: Default::default(),
             mock_tool_call_responses: Default::default(),
+            mock_shell_outputs: Default::default(),
             workflow: Workflow::new().tool_supported(true),
             templates: Default::default(),
             files: Default::default(),
