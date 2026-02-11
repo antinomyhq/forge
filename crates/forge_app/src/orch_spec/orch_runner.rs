@@ -16,7 +16,9 @@ use crate::orch::Orchestrator;
 use crate::set_conversation_id::SetConversationId;
 use crate::system_prompt::SystemPrompt;
 use crate::user_prompt::UserPromptGenerator;
-use crate::{AgentService, AttachmentService, ShellOutput, ShellService, SkillFetchService, TemplateService};
+use crate::{
+    AgentService, AttachmentService, ShellOutput, ShellService, SkillFetchService, TemplateService,
+};
 
 #[derive(Embed)]
 #[folder = "../../templates/"]

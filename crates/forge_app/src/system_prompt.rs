@@ -7,7 +7,7 @@ use forge_domain::{
 };
 use tracing::debug;
 
-use crate::{SkillFetchService, TemplateEngine, ShellService};
+use crate::{ShellService, SkillFetchService, TemplateEngine};
 
 #[derive(Setters)]
 pub struct SystemPrompt<S> {
@@ -35,8 +35,9 @@ impl<S: SkillFetchService + ShellService> SystemPrompt<S> {
 
     /// Fetches file extension statistics by running git ls-files command
     ///
-    /// Executes a git command to list all tracked files and counts their extensions.
-    /// Files without extensions are labeled as "(no extension)".
+    /// Executes a git command to list all tracked files and counts their
+    /// extensions. Files without extensions are labeled as "(no
+    /// extension)".
     ///
     /// # Errors
     ///
@@ -77,7 +78,7 @@ impl<S: SkillFetchService + ShellService> SystemPrompt<S> {
             })
             .collect())
     }
-    
+
     pub async fn add_system_message(
         &self,
         mut conversation: Conversation,
