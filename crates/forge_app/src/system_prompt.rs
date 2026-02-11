@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use derive_setters::Setters;
@@ -33,15 +34,17 @@ impl<S: SkillFetchService + ShellService> SystemPrompt<S> {
         }
     }
 
-    /// Fetches file extension statistics by running git ls-files command
+    /// Fetches file extension statistics by running git ls-files command.
+    ///
+    /// Uses only `git ls-files` (cross-platform) and performs counting and
+    /// sorting in Rust to avoid platform-specific shell utilities like `awk`
+    /// and `sort -rn`.
     async fn fetch_extensions(&self) -> anyhow::Result<Vec<ExtensionStat>> {
         let cwd = self.environment.cwd.clone();
-        // awk calculates counts and percentages, then sorts by count descending
-        let command = r#"git ls-files | awk -F. '{if (NF > 1) ext = $NF; else ext = "(no extension)"; counts[ext]++; total++} END {for (ext in counts) printf "%d|%.2f|%s\n", counts[ext], (counts[ext]/total)*100, ext}' | sort -rn"#;
 
         let output = self
             .services
-            .execute(command.to_string(), cwd, false, true, None, None)
+            .execute("git ls-files".to_string(), cwd, false, true, None, None)
             .await?;
 
         // If git command fails (e.g., not in a git repo), return empty stats
@@ -49,26 +52,28 @@ impl<S: SkillFetchService + ShellService> SystemPrompt<S> {
             return Ok(vec![]);
         }
 
-        // Parse output: each line is "count|percentage|extension"
-        Ok(output
+        let mut counts = output
             .output
             .stdout
             .lines()
-            .filter_map(|line| {
-                let line = line.trim();
-                if line.is_empty() {
-                    return None;
-                }
-
-                // Split on pipe delimiters
-                let mut parts = line.split('|');
-                let count = parts.next()?.parse::<usize>().ok()?;
-                let percentage = parts.next()?.to_string();
-                let extension = parts.next()?.to_string();
-
-                Some(ExtensionStat { extension, count, percentage })
+            .map(str::trim)
+            .filter(|line| !line.is_empty())
+            .fold(HashMap::<&str, usize>::new(), |mut acc, line| {
+                let file_name = line.rsplit_once(['/', '\\']).map_or(line, |(_, f)| f);
+                let ext = match file_name.rsplit_once('.') {
+                    Some((prefix, ext)) if !prefix.is_empty() => ext,
+                    _ => "(no extension)",
+                };
+                *acc.entry(ext).or_default() += 1;
+                acc
             })
-            .collect())
+            .into_iter()
+            .map(|(extension, count)| ExtensionStat { extension: extension.to_string(), count })
+            .collect::<Vec<_>>();
+
+        counts.sort_by(|a, b| b.count.cmp(&a.count));
+
+        Ok(counts)
     }
 
     pub async fn add_system_message(
