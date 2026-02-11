@@ -52,10 +52,7 @@ impl<F: FsReadService> FileChangeDetector<F> {
                     // ReadOutput.content_hash is always computed from the
                     // unprocessed file, so it is directly comparable with the
                     // stored hash.
-                    let current_hash = match self.read_file_hash(&file_path).await {
-                        Ok(hash) => Some(hash),
-                        Err(_) => None,
-                    };
+                    let current_hash = self.read_file_hash(&file_path).await.ok();
 
                     // Check if hash has changed
                     if current_hash != last_hash {
@@ -105,8 +102,8 @@ mod tests {
     use pretty_assertions::assert_eq;
 
     use super::*;
-    use crate::utils::compute_hash;
     use crate::Content;
+    use crate::utils::compute_hash;
 
     /// Mock FsReadService for testing.
     ///
