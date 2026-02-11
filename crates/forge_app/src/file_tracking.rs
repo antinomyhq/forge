@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use forge_domain::Metrics;
+use forge_domain::{Metrics, ToolKind};
 use tracing::debug;
 
 use crate::utils::compute_hash;
@@ -43,6 +43,7 @@ impl<F: FsReadService> FileChangeDetector<F> {
         let futures: Vec<_> = metrics
             .file_operations
             .iter()
+            .filter(|(_, file_metrics)| file_metrics.tool != ToolKind::Read)
             .map(|(path, file_metrics)| {
                 let file_path = std::path::PathBuf::from(path);
                 let last_hash = file_metrics.content_hash.clone();
@@ -253,5 +254,134 @@ mod tests {
         let expected = vec![];
 
         assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_read_only_files_not_detected_as_changed() {
+        let content = "hello world";
+        let content_hash = compute_hash(content);
+
+        let fs = MockFsReadService::new().with_file("/test/file.txt", content);
+        let detector = FileChangeDetector::new(Arc::new(fs));
+
+        let mut metrics = Metrics::default();
+        metrics.file_operations.insert(
+            "/test/file.txt".to_string(),
+            FileOperation::new(ToolKind::Read).content_hash(Some(content_hash)),
+        );
+
+        // File was only read, should not be checked for external changes
+        let actual = detector.detect(&metrics).await;
+        let expected = vec![];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_read_only_files_with_different_hash_not_detected() {
+        let content = "current content";
+
+        let fs = MockFsReadService::new().with_file("/test/file.txt", content);
+        let detector = FileChangeDetector::new(Arc::new(fs));
+
+        // Even if the hash differs, read-only files should be skipped
+        let mut metrics = Metrics::default();
+        metrics.file_operations.insert(
+            "/test/file.txt".to_string(),
+            FileOperation::new(ToolKind::Read).content_hash(Some("stale_hash".to_string())),
+        );
+
+        let actual = detector.detect(&metrics).await;
+        let expected = vec![];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_written_file_detected_but_read_file_skipped() {
+        let written_content = "new written content";
+        let read_content = "read content";
+        let written_hash = compute_hash(written_content);
+
+        let fs = MockFsReadService::new()
+            .with_file("/test/written.txt", written_content)
+            .with_file("/test/read.txt", read_content);
+        let detector = FileChangeDetector::new(Arc::new(fs));
+
+        let mut metrics = Metrics::default();
+        // Written file with stale hash - should be detected
+        metrics.file_operations.insert(
+            "/test/written.txt".to_string(),
+            FileOperation::new(ToolKind::Write).content_hash(Some("old_hash".to_string())),
+        );
+        // Read file with stale hash - should NOT be detected
+        metrics.file_operations.insert(
+            "/test/read.txt".to_string(),
+            FileOperation::new(ToolKind::Read).content_hash(Some("old_hash".to_string())),
+        );
+
+        let actual = detector.detect(&metrics).await;
+        let expected = vec![FileChange {
+            path: std::path::PathBuf::from("/test/written.txt"),
+            content_hash: Some(written_hash),
+        }];
+
+        assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_skipping_read_files_preserves_files_accessed_for_read_before_write() {
+        let content = "file content";
+        let content_hash = compute_hash(content);
+
+        let fs = MockFsReadService::new()
+            .with_file("/test/read_then_patched.rs", content)
+            .with_file("/test/only_read.rs", content);
+        let detector = FileChangeDetector::new(Arc::new(fs));
+
+        // Simulate: file was read first (tracked in files_accessed),
+        // then patched (file_operations updated to Patch).
+        // Another file was only read.
+        let metrics = Metrics::default()
+            .insert(
+                "/test/read_then_patched.rs".to_string(),
+                FileOperation::new(ToolKind::Read)
+                    .content_hash(Some(content_hash.clone())),
+            )
+            .insert(
+                "/test/only_read.rs".to_string(),
+                FileOperation::new(ToolKind::Read)
+                    .content_hash(Some(content_hash.clone())),
+            )
+            .insert(
+                "/test/read_then_patched.rs".to_string(),
+                FileOperation::new(ToolKind::Patch)
+                    .content_hash(Some(content_hash.clone())),
+            );
+
+        // files_accessed should still contain both files (read-before-write guard
+        // uses this set, and reads are never removed from it)
+        assert!(
+            metrics
+                .files_accessed
+                .contains("/test/read_then_patched.rs"),
+            "read-then-patched file must stay in files_accessed for read-before-write check"
+        );
+        assert!(
+            metrics.files_accessed.contains("/test/only_read.rs"),
+            "read-only file must stay in files_accessed for read-before-write check"
+        );
+
+        // Change detection should skip only-read files but still detect
+        // the patched file (which has no change here, so empty result)
+        let actual = detector.detect(&metrics).await;
+        let expected = vec![];
+
+        assert_eq!(actual, expected);
+
+        // Verify files_accessed is untouched after detect() runs
+        assert_eq!(metrics.files_accessed.len(), 2);
+        assert!(metrics.files_accessed.contains("/test/read_then_patched.rs"));
+        assert!(metrics.files_accessed.contains("/test/only_read.rs"));
     }
 }
