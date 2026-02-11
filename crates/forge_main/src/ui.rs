@@ -3170,8 +3170,8 @@ impl<A: API + ConsoleWriter + 'static, F: Fn() -> A + Send + Sync> UI<A, F> {
             .unwrap_or(true); // Default to true
 
         // Get currency symbol from environment variable, default to "$"
-        let currency_symbol = std::env::var("FORGE_CURRENCY_SYMBOL")
-            .unwrap_or_else(|_| "$".to_string());
+        let currency_symbol =
+            std::env::var("FORGE_CURRENCY_SYMBOL").unwrap_or_else(|_| "$".to_string());
 
         // Get conversion ratio from environment variable, default to 1.0
         let conversion_ratio = std::env::var("FORGE_CURRENCY_CONVERSION_RATE")
