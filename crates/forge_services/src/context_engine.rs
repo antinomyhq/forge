@@ -43,6 +43,16 @@ fn has_allowed_extension(path: &Path) -> bool {
     }
 }
 
+/// Determines if a gRPC error should trigger a retry attempt.
+fn should_retry_grpc(error: &anyhow::Error) -> bool {
+    if let Some(status) = error.downcast_ref::<tonic::Status>()
+        && status.code() == tonic::Code::Unauthenticated
+    {
+        return false;
+    }
+    true
+}
+
 /// Service for indexing workspaces and performing semantic search
 pub struct ForgeWorkspaceService<F> {
     infra: Arc<F>,
@@ -79,7 +89,7 @@ impl<F> ForgeWorkspaceService<F> {
             builder = builder.with_max_delay(Duration::from_secs(max_delay));
         }
 
-        operation.retry(builder).await
+        operation.retry(builder).when(should_retry_grpc).await
     }
 
     /// Fetches remote file hashes from the server.
