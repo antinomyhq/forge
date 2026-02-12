@@ -8,9 +8,9 @@
 {{/each}}</file_list>
 {{/if}}
 {{#if extensions}}
-<file_extensions>
+<workspace_extensions>
 {{#each extensions}} - {{extension}} ({{count}} files, {{percentage}}%)
 {{/each}}{{#if (eq (len extensions) 15)}}
 Note: Showing top 15 extensions only. Additional extensions exist but are not listed.
-{{/if}}</file_extensions>
+{{/if}}</workspace_extensions>
 {{/if}}
