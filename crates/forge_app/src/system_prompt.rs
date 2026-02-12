@@ -316,9 +316,21 @@ mod tests {
         // Expected - sorted by count descending with percentages
         // Total files: 7 (4 rs + 2 md + 1 toml)
         let expected = vec![
-            ExtensionStat { extension: "rs".to_string(), count: 4, percentage: "57.14".to_string() },
-            ExtensionStat { extension: "md".to_string(), count: 2, percentage: "28.57".to_string() },
-            ExtensionStat { extension: "toml".to_string(), count: 1, percentage: "14.29".to_string() },
+            ExtensionStat {
+                extension: "rs".to_string(),
+                count: 4,
+                percentage: "57.14".to_string(),
+            },
+            ExtensionStat {
+                extension: "md".to_string(),
+                count: 2,
+                percentage: "28.57".to_string(),
+            },
+            ExtensionStat {
+                extension: "toml".to_string(),
+                count: 1,
+                percentage: "14.29".to_string(),
+            },
         ];
 
         assert_eq!(actual, expected);
