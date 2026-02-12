@@ -435,12 +435,14 @@ mod tests {
             ),
             SummaryBlock::new(
                 Role::Assistant,
-                vec![SummaryToolCall {
-                    id: Some(forge_domain::ToolCallId::new("call_1")),
-                    tool: SummaryTool::TodoWrite { todos },
-                    is_success: true,
-                }
-                .into()],
+                vec![
+                    SummaryToolCall {
+                        id: Some(forge_domain::ToolCallId::new("call_1")),
+                        tool: SummaryTool::TodoWrite { todos },
+                        is_success: true,
+                    }
+                    .into(),
+                ],
             ),
         ];
 
