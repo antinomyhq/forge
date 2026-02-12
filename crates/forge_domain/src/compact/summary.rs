@@ -5,8 +5,8 @@ use derive_more::From;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    Context, ContextMessage, Role, SearchQuery, TextMessage, ToolCallFull, ToolCallId, ToolCatalog,
-    ToolResult,
+    Context, ContextMessage, Role, SearchQuery, TextMessage, Todo, ToolCallFull, ToolCallId,
+    ToolCatalog, ToolResult,
 };
 
 /// A simplified summary of a context, focusing on messages and their tool calls
@@ -192,7 +192,7 @@ pub enum SummaryTool {
     Plan { plan_name: String },
     Skill { name: String },
     Mcp { name: String },
-    TodoWrite { title: String },
+    TodoWrite { todos: Vec<Todo> },
 }
 
 impl From<&Context> for ContextSummary {
@@ -307,8 +307,7 @@ fn extract_tool_info(call: &ToolCallFull) -> Option<SummaryTool> {
             ToolCatalog::Plan(input) => Some(SummaryTool::Plan { plan_name: input.plan_name }),
             ToolCatalog::Skill(input) => Some(SummaryTool::Skill { name: input.name }),
             ToolCatalog::TodoWrite(input) => {
-                let count = input.todos.len();
-                Some(SummaryTool::TodoWrite { title: format!("{} todo(s)", count) })
+                Some(SummaryTool::TodoWrite { todos: input.todos })
             }
         };
     }

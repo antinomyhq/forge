@@ -408,6 +408,50 @@ mod tests {
         insta::assert_snapshot!(actual);
     }
 
+    #[test]
+    fn test_template_engine_renders_todo_write() {
+        use forge_domain::{
+            ContextSummary, Role, SummaryBlock, SummaryMessage, SummaryTool, SummaryToolCall, Todo,
+            TodoStatus,
+        };
+
+        // Create test data with todo_write tool call
+        let todos = vec![
+            Todo::new("Implement user authentication")
+                .id("1")
+                .status(TodoStatus::Completed),
+            Todo::new("Add database migrations")
+                .id("2")
+                .status(TodoStatus::InProgress),
+            Todo::new("Write documentation")
+                .id("3")
+                .status(TodoStatus::Pending),
+        ];
+
+        let messages = vec![
+            SummaryBlock::new(
+                Role::User,
+                vec![SummaryMessage::content("Create a task plan")],
+            ),
+            SummaryBlock::new(
+                Role::Assistant,
+                vec![SummaryToolCall {
+                    id: Some(forge_domain::ToolCallId::new("call_1")),
+                    tool: SummaryTool::TodoWrite { todos },
+                    is_success: true,
+                }
+                .into()],
+            ),
+        ];
+
+        let context_summary = ContextSummary { messages };
+        let data = serde_json::json!({"messages": context_summary.messages});
+
+        let actual = render_template(&data);
+
+        insta::assert_snapshot!(actual);
+    }
+
     #[tokio::test]
     async fn test_render_summary_frame_snapshot() {
         // Load the conversation fixture
