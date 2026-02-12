@@ -9,6 +9,8 @@
 {{/if}}
 {{#if extensions}}
 <file_extensions>
-{{#each extensions}} - {{extension}} ({{count}} files)
-{{/each}}</file_extensions>
+{{#each extensions}} - {{extension}} ({{count}} files, {{percentage}}%)
+{{/each}}{{#if (eq (len extensions) 15)}}
+Note: Showing top 15 extensions only. Additional extensions exist but are not listed.
+{{/if}}</file_extensions>
 {{/if}}

@@ -11,6 +11,8 @@ pub struct ExtensionStat {
     pub extension: String,
     /// Number of files with this extension
     pub count: usize,
+    /// Percentage of total files (rounded to 1 decimal place)
+    pub percentage: f32,
 }
 
 #[derive(Debug, Setters, Clone, PartialEq, Serialize, Deserialize)]
@@ -56,7 +58,7 @@ pub struct SystemContext {
     #[serde(skip_serializing_if = "Map::is_empty")]
     pub tool_names: Map<String, Value>,
 
-    /// File extension statistics sorted by count (descending)
+    /// File extension statistics sorted by count (descending), limited to top 15
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub extensions: Vec<ExtensionStat>,
 }

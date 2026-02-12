@@ -10,6 +10,9 @@ use tracing::debug;
 
 use crate::{ShellService, SkillFetchService, TemplateEngine};
 
+/// Max extensions to add in system prompt.
+const MAX_EXTENSIONS: usize = 15;
+
 #[derive(Setters)]
 pub struct SystemPrompt<S> {
     services: Arc<S>,
@@ -35,16 +38,17 @@ impl<S: SkillFetchService + ShellService> SystemPrompt<S> {
     }
 
     /// Fetches file extension statistics by running git ls-files command.
-    ///
-    /// Uses only `git ls-files` (cross-platform) and performs counting and
-    /// sorting in Rust to avoid platform-specific shell utilities like `awk`
-    /// and `sort -rn`.
-    async fn fetch_extensions(&self) -> anyhow::Result<Vec<ExtensionStat>> {
-        let cwd = self.environment.cwd.clone();
-
+    async fn fetch_extensions(&self, max_extensions: usize) -> anyhow::Result<Vec<ExtensionStat>> {
         let output = self
             .services
-            .execute("git ls-files".to_string(), cwd, false, true, None, None)
+            .execute(
+                "git ls-files".into(),
+                self.environment.cwd.clone(),
+                false,
+                true,
+                None,
+                None,
+            )
             .await?;
 
         // If git command fails (e.g., not in a git repo), return empty stats
@@ -52,29 +56,41 @@ impl<S: SkillFetchService + ShellService> SystemPrompt<S> {
             return Ok(vec![]);
         }
 
-        let mut counts = output
+        // Count files by extension
+        let mut counts = HashMap::<&str, usize>::new();
+        output
             .output
             .stdout
             .lines()
             .map(str::trim)
             .filter(|line| !line.is_empty())
-            .fold(HashMap::<&str, usize>::new(), |mut acc, line| {
+            .filter_map(|line| {
                 let file_name = line.rsplit_once(['/', '\\']).map_or(line, |(_, f)| f);
-                match file_name.rsplit_once('.') {
-                    Some((prefix, ext)) if !prefix.is_empty() => {
-                        *acc.entry(ext).or_default() += 1;
-                        acc
-                    }
-                    _ => acc,
-                }
+                file_name
+                    .rsplit_once('.')
+                    .filter(|(prefix, _)| !prefix.is_empty())
+                    .map(|(_, ext)| ext)
             })
+            .for_each(|ext| *counts.entry(ext).or_default() += 1);
+
+        let total_files: usize = counts.values().sum();
+        if total_files == 0 {
+            return Ok(vec![]);
+        }
+
+        // Convert to ExtensionStat and sort by count descending
+        let mut stats: Vec<_> = counts
             .into_iter()
-            .map(|(extension, count)| ExtensionStat { extension: extension.to_string(), count })
-            .collect::<Vec<_>>();
+            .map(|(extension, count)| {
+                let percentage = (count as f32 / total_files as f32 * 100.0 * 10.0).round() / 10.0;
+                ExtensionStat { extension: extension.to_owned(), count, percentage }
+            })
+            .collect();
 
-        counts.sort_by(|a, b| b.count.cmp(&a.count));
+        stats.sort_by_key(|stat| std::cmp::Reverse(stat.count));
+        stats.truncate(max_extensions);
 
-        Ok(counts)
+        Ok(stats)
     }
 
     pub async fn add_system_message(
@@ -106,8 +122,11 @@ impl<S: SkillFetchService + ShellService> SystemPrompt<S> {
 
             let skills = self.services.list_skills().await?;
 
-            // Fetch extension statistics from git
-            let extensions = self.fetch_extensions().await.unwrap_or_default();
+            // Fetch extension statistics from git (top 15)
+            let extensions = self
+                .fetch_extensions(MAX_EXTENSIONS)
+                .await
+                .unwrap_or_default();
 
             let ctx = SystemContext {
                 env: Some(env),
@@ -288,15 +307,64 @@ mod tests {
         let system_prompt = SystemPrompt::new(services, env, agent);
 
         // Actual
-        let actual = system_prompt.fetch_extensions().await.unwrap();
+        let actual = system_prompt
+            .fetch_extensions(MAX_EXTENSIONS)
+            .await
+            .unwrap();
 
-        // Expected - sorted by count descending
+        // Expected - sorted by count descending with percentages
+        // Total files: 7 (4 rs + 2 md + 1 toml)
         let expected = vec![
-            ExtensionStat { extension: "rs".to_string(), count: 4 },
-            ExtensionStat { extension: "md".to_string(), count: 2 },
-            ExtensionStat { extension: "toml".to_string(), count: 1 },
+            ExtensionStat { extension: "rs".to_string(), count: 4, percentage: 57.1 },
+            ExtensionStat { extension: "md".to_string(), count: 2, percentage: 28.6 },
+            ExtensionStat { extension: "toml".to_string(), count: 1, percentage: 14.3 },
         ];
 
         assert_eq!(actual, expected);
+    }
+
+    #[tokio::test]
+    async fn test_fetch_extensions_truncates_to_top_15() {
+        use pretty_assertions::assert_eq;
+
+        // Fixture - Create 20 different file extensions
+        let mut files = Vec::new();
+        for i in 1..=20 {
+            // Each extension gets 21-i files (so ext1 has most, ext20 has least)
+            for j in 0..(21 - i) {
+                files.push(format!("file{}.ext{}", j, i));
+            }
+        }
+        let stdout = files.join("\n");
+
+        let shell_output = ShellOutput {
+            output: forge_domain::CommandOutput {
+                stdout,
+                stderr: String::new(),
+                command: "git ls-files".to_string(),
+                exit_code: Some(0),
+            },
+            shell: "/bin/bash".to_string(),
+            description: None,
+        };
+        let services = Arc::new(MockSkillFetchService::default().shell_output(shell_output));
+        let env = create_test_environment();
+        let agent = create_test_agent();
+        let system_prompt = SystemPrompt::new(services, env, agent);
+
+        // Actual
+        let actual = system_prompt
+            .fetch_extensions(MAX_EXTENSIONS)
+            .await
+            .unwrap();
+
+        // Expected - should have exactly 15 extensions shown (truncated from 20)
+        assert_eq!(actual.len(), 15);
+
+        // Verify they are sorted by count descending
+        assert_eq!(actual[0].extension, "ext1");
+        assert_eq!(actual[0].count, 20);
+        assert_eq!(actual[14].extension, "ext15");
+        assert_eq!(actual[14].count, 6);
     }
 }
