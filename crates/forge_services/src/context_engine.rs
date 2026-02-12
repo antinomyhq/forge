@@ -44,13 +44,27 @@ fn has_allowed_extension(path: &Path) -> bool {
 }
 
 /// Determines if a gRPC error should trigger a retry attempt.
+///
+/// Only retries transient errors that might succeed on subsequent attempts.
+/// Permanent failures (client errors, unimplemented operations, auth issues)
+/// are not retried.
 fn should_retry_grpc(error: &anyhow::Error) -> bool {
-    if let Some(status) = error.downcast_ref::<tonic::Status>()
-        && status.code() == tonic::Code::Unauthenticated
-    {
-        return false;
-    }
-    true
+    let Some(status) = error.downcast_ref::<tonic::Status>() else {
+        // Not a gRPC error, retry by default
+        return true;
+    };
+
+    // Only retry transient errors that might succeed on subsequent attempts
+    matches!(
+        status.code(),
+        tonic::Code::Cancelled           // Operation cancelled, may succeed if retried
+        | tonic::Code::Unknown           // Unknown error, might be transient
+        | tonic::Code::DeadlineExceeded  // Timeout, may succeed with more time
+        | tonic::Code::ResourceExhausted // Rate limiting or quota, may recover
+        | tonic::Code::Aborted           // Conflict or transaction abort, may succeed
+        | tonic::Code::Internal          // Internal server error, might be transient
+        | tonic::Code::Unavailable       // Service unavailable, classic retry case
+    )
 }
 
 /// Service for indexing workspaces and performing semantic search
