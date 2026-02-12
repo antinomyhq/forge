@@ -10,8 +10,8 @@
 {{#if extensions}}
 <workspace_extensions>
 File distribution by extension (percentages show share of total workspace files):
-{{#each extensions}} - {{extension}} ({{count}} files, {{percentage}}%)
-{{/each}}{{#if (eq (len extensions) 15)}}
-Note: Showing top 15 extensions only. Additional extensions exist but are not listed.
+{{#each extensions.extension_stats}} - {{extension}} ({{count}} files, {{percentage}}%)
+{{/each}}{{#if extensions.is_truncated}}
+Note: Showing top {{extensions.limit}} extensions only. Additional extensions exist but are not listed.
 {{/if}}</workspace_extensions>
 {{/if}}

@@ -15,6 +15,13 @@ pub struct ExtensionStat {
     pub percentage: String,
 }
 
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Extension {
+    pub extension_stats: Vec<ExtensionStat>,
+    pub is_truncated: bool,
+    pub limit: usize,
+}
+
 #[derive(Debug, Setters, Clone, PartialEq, Serialize, Deserialize)]
 #[setters(strip_option)]
 #[derive(Default)]
@@ -60,6 +67,6 @@ pub struct SystemContext {
 
     /// File extension statistics sorted by count (descending), limited to top
     /// 15
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub extensions: Vec<ExtensionStat>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub extensions: Option<Extension>,
 }

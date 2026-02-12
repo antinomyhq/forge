@@ -3,8 +3,8 @@ use std::sync::Arc;
 
 use derive_setters::Setters;
 use forge_domain::{
-    Agent, Conversation, Environment, ExtensionStat, File, Model, SystemContext, Template,
-    ToolDefinition, ToolUsagePrompt,
+    Agent, Conversation, Environment, Extension, ExtensionStat, File, Model, SystemContext,
+    Template, ToolDefinition, ToolUsagePrompt,
 };
 use tracing::debug;
 
@@ -38,7 +38,7 @@ impl<S: SkillFetchService + ShellService> SystemPrompt<S> {
     }
 
     /// Fetches file extension statistics by running git ls-files command.
-    async fn fetch_extensions(&self, max_extensions: usize) -> anyhow::Result<Vec<ExtensionStat>> {
+    async fn fetch_extensions(&self, max_extensions: usize) -> Option<Extension> {
         let output = self
             .services
             .execute(
@@ -49,11 +49,12 @@ impl<S: SkillFetchService + ShellService> SystemPrompt<S> {
                 None,
                 None,
             )
-            .await?;
+            .await
+            .ok()?;
 
-        // If git command fails (e.g., not in a git repo), return empty stats
+        // If git command fails (e.g., not in a git repo), return None
         if output.output.exit_code != Some(0) {
-            return Ok(vec![]);
+            return None;
         }
 
         // Count files by extension
@@ -75,7 +76,7 @@ impl<S: SkillFetchService + ShellService> SystemPrompt<S> {
 
         let total_files: usize = counts.values().sum();
         if total_files == 0 {
-            return Ok(vec![]);
+            return None;
         }
 
         // Convert to ExtensionStat and sort by count descending
@@ -89,9 +90,13 @@ impl<S: SkillFetchService + ShellService> SystemPrompt<S> {
             .collect();
 
         stats.sort_by_key(|stat| std::cmp::Reverse(stat.count));
+
+        // Track if we're truncating
+        let original_count = stats.len();
+        let is_truncated = original_count > max_extensions;
         stats.truncate(max_extensions);
 
-        Ok(stats)
+        Some(Extension { extension_stats: stats, is_truncated, limit: max_extensions })
     }
 
     pub async fn add_system_message(
@@ -124,10 +129,7 @@ impl<S: SkillFetchService + ShellService> SystemPrompt<S> {
             let skills = self.services.list_skills().await?;
 
             // Fetch extension statistics from git (top 15)
-            let extensions = self
-                .fetch_extensions(MAX_EXTENSIONS)
-                .await
-                .unwrap_or_default();
+            let extensions = self.fetch_extensions(MAX_EXTENSIONS).await;
 
             let ctx = SystemContext {
                 env: Some(env),
@@ -308,30 +310,31 @@ mod tests {
         let system_prompt = SystemPrompt::new(services, env, agent);
 
         // Actual
-        let actual = system_prompt
-            .fetch_extensions(MAX_EXTENSIONS)
-            .await
-            .unwrap();
+        let actual = system_prompt.fetch_extensions(MAX_EXTENSIONS).await.unwrap();
 
         // Expected - sorted by count descending with percentages
         // Total files: 7 (4 rs + 2 md + 1 toml)
-        let expected = vec![
-            ExtensionStat {
-                extension: "rs".to_string(),
-                count: 4,
-                percentage: "57.14".to_string(),
-            },
-            ExtensionStat {
-                extension: "md".to_string(),
-                count: 2,
-                percentage: "28.57".to_string(),
-            },
-            ExtensionStat {
-                extension: "toml".to_string(),
-                count: 1,
-                percentage: "14.29".to_string(),
-            },
-        ];
+        let expected = forge_domain::Extension {
+            extension_stats: vec![
+                ExtensionStat {
+                    extension: "rs".to_string(),
+                    count: 4,
+                    percentage: "57.14".to_string(),
+                },
+                ExtensionStat {
+                    extension: "md".to_string(),
+                    count: 2,
+                    percentage: "28.57".to_string(),
+                },
+                ExtensionStat {
+                    extension: "toml".to_string(),
+                    count: 1,
+                    percentage: "14.29".to_string(),
+                },
+            ],
+            is_truncated: false,
+            limit: MAX_EXTENSIONS,
+        };
 
         assert_eq!(actual, expected);
     }
@@ -366,18 +369,17 @@ mod tests {
         let system_prompt = SystemPrompt::new(services, env, agent);
 
         // Actual
-        let actual = system_prompt
-            .fetch_extensions(MAX_EXTENSIONS)
-            .await
-            .unwrap();
+        let actual = system_prompt.fetch_extensions(MAX_EXTENSIONS).await.unwrap();
 
         // Expected - should have exactly 15 extensions shown (truncated from 20)
-        assert_eq!(actual.len(), 15);
+        assert_eq!(actual.extension_stats.len(), 15);
+        assert_eq!(actual.is_truncated, true);
+        assert_eq!(actual.limit, MAX_EXTENSIONS);
 
         // Verify they are sorted by count descending
-        assert_eq!(actual[0].extension, "ext1");
-        assert_eq!(actual[0].count, 20);
-        assert_eq!(actual[14].extension, "ext15");
-        assert_eq!(actual[14].count, 6);
+        assert_eq!(actual.extension_stats[0].extension, "ext1");
+        assert_eq!(actual.extension_stats[0].count, 20);
+        assert_eq!(actual.extension_stats[14].extension, "ext15");
+        assert_eq!(actual.extension_stats[14].count, 6);
     }
 }
