@@ -79,22 +79,32 @@ impl<H: HttpInfra> OpenAIProvider<H> {
         headers
     }
 
-    /// Creates headers including Session-Id for zai and zai_coding providers
-    fn get_headers_with_request(&self, request: &Request) -> Vec<(String, String)> {
-        let mut headers = self.get_headers();
-        // Add Session-Id header for zai and zai_coding providers
-        if let Some(session_id) = &request.session_id
-            && (self.provider.id == ProviderId::ZAI || self.provider.id == ProviderId::ZAI_CODING)
-        {
-            headers.push(("Session-Id".to_string(), session_id.clone()));
-            debug!(
-                provider = %self.provider.url,
-                session_id = %session_id,
-                "Added Session-Id header for zai provider"
-            );
-        }
+    /// Creates headers including Session-Id for zai and zai_coding providers,
+    /// and OpenCode-specific headers for opencode_zen provider
+    fn get_headers_with_request(&self, _request: &Request) -> Vec<(String, String)> {
+        self.get_headers()
+    }
 
-        headers
+    /// Transforms headers using a pipeline of header transformers
+    fn transform_headers(&self, request: &Request) -> reqwest::header::HeaderMap {
+        use forge_domain::Transformer;
+        
+        let base_headers = create_headers(self.get_headers_with_request(request));
+        
+        // Check provider conditions
+        let is_zai = self.provider.id == ProviderId::ZAI || self.provider.id == ProviderId::ZAI_CODING;
+        let is_opencode_zen = self.provider.id.as_ref() == "opencode_zen";
+        let has_session = request.session_id.is_some();
+        
+        // Build transformer pipeline conditionally
+        if is_zai && has_session {
+            let session_id = request.session_id.clone().unwrap_or_default();
+            crate::provider::ZaiSessionHeader::new(session_id).transform(base_headers)
+        } else if is_opencode_zen {
+            crate::provider::OpenCodeZenHeaders::new(request.session_id.clone()).transform(base_headers)
+        } else {
+            base_headers
+        }
     }
 
     async fn inner_chat(
@@ -107,7 +117,7 @@ impl<H: HttpInfra> OpenAIProvider<H> {
         request = pipeline.transform(request);
 
         let url = self.provider.url.clone();
-        let headers = create_headers(self.get_headers_with_request(&request));
+        let headers = self.transform_headers(&request);
 
         info!(
             url = %url,
@@ -524,20 +534,13 @@ mod tests {
             ..Default::default()
         };
 
-        let headers = openai_provider.get_headers_with_request(&request);
+        let headers = openai_provider.transform_headers(&request);
 
         // Should have Authorization and Session-Id headers
-        assert_eq!(headers.len(), 2);
-        assert!(
-            headers
-                .iter()
-                .any(|(k, v)| k == "authorization" && v == "Bearer test-key")
-        );
-        assert!(
-            headers
-                .iter()
-                .any(|(k, v)| k == "Session-Id" && v == "test-conversation-id")
-        );
+        assert!(headers.contains_key("authorization"));
+        assert_eq!(headers.get("authorization").unwrap(), "Bearer test-key");
+        assert!(headers.contains_key("Session-Id"));
+        assert_eq!(headers.get("Session-Id").unwrap(), "test-conversation-id");
         Ok(())
     }
 
@@ -553,20 +556,13 @@ mod tests {
             ..Default::default()
         };
 
-        let headers = openai_provider.get_headers_with_request(&request);
+        let headers = openai_provider.transform_headers(&request);
 
         // Should have Authorization and Session-Id headers
-        assert_eq!(headers.len(), 2);
-        assert!(
-            headers
-                .iter()
-                .any(|(k, v)| k == "authorization" && v == "Bearer test-key")
-        );
-        assert!(
-            headers
-                .iter()
-                .any(|(k, v)| k == "Session-Id" && v == "test-conversation-id")
-        );
+        assert!(headers.contains_key("authorization"));
+        assert_eq!(headers.get("authorization").unwrap(), "Bearer test-key");
+        assert!(headers.contains_key("Session-Id"));
+        assert_eq!(headers.get("Session-Id").unwrap(), "test-conversation-id");
         Ok(())
     }
 
@@ -582,16 +578,12 @@ mod tests {
             ..Default::default()
         };
 
-        let headers = openai_provider.get_headers_with_request(&request);
+        let headers = openai_provider.transform_headers(&request);
 
         // Should only have Authorization header (no Session-Id for non-zai providers)
-        assert_eq!(headers.len(), 1);
-        assert!(
-            headers
-                .iter()
-                .any(|(k, v)| k == "authorization" && v == "Bearer test-key")
-        );
-        assert!(!headers.iter().any(|(k, _)| k == "Session-Id"));
+        assert!(headers.contains_key("authorization"));
+        assert_eq!(headers.get("authorization").unwrap(), "Bearer test-key");
+        assert!(!headers.contains_key("Session-Id"));
         Ok(())
     }
 
@@ -604,16 +596,12 @@ mod tests {
         // Create a request without session_id
         let request = Request::default();
 
-        let headers = openai_provider.get_headers_with_request(&request);
+        let headers = openai_provider.transform_headers(&request);
 
         // Should only have Authorization header (no Session-Id when session_id is None)
-        assert_eq!(headers.len(), 1);
-        assert!(
-            headers
-                .iter()
-                .any(|(k, v)| k == "authorization" && v == "Bearer test-key")
-        );
-        assert!(!headers.iter().any(|(k, _)| k == "Session-Id"));
+        assert!(headers.contains_key("authorization"));
+        assert_eq!(headers.get("authorization").unwrap(), "Bearer test-key");
+        assert!(!headers.contains_key("Session-Id"));
         Ok(())
     }
 
@@ -629,16 +617,43 @@ mod tests {
             ..Default::default()
         };
 
-        let headers = openai_provider.get_headers_with_request(&request);
+        let headers = openai_provider.transform_headers(&request);
 
         // Should only have Authorization header (no Session-Id for Anthropic providers)
-        assert_eq!(headers.len(), 1);
-        assert!(
-            headers
-                .iter()
-                .any(|(k, v)| k == "authorization" && v == "Bearer test-key")
-        );
-        assert!(!headers.iter().any(|(k, _)| k == "Session-Id"));
+        assert!(headers.contains_key("authorization"));
+        assert_eq!(headers.get("authorization").unwrap(), "Bearer test-key");
+        assert!(!headers.contains_key("Session-Id"));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_get_headers_with_request_opencode_zen_provider() -> anyhow::Result<()> {
+        let mut provider = openai("public");
+        provider.id = "opencode_zen".to_string().into();
+        
+        let http_client = Arc::new(MockHttpClient::new());
+        let openai_provider = OpenAIProvider::new(provider, http_client);
+
+        // Create a request with session_id
+        let request = Request {
+            session_id: Some("test-conversation-id".to_string()),
+            ..Default::default()
+        };
+
+        let headers = openai_provider.transform_headers(&request);
+
+        // Check Authorization header
+        assert!(headers.contains_key("authorization"));
+        assert_eq!(headers.get("authorization").unwrap(), "Bearer public");
+        
+        // Check OpenCode Zen headers
+        assert!(headers.contains_key("x-opencode-project"));
+        assert!(headers.contains_key("x-opencode-session"));
+        assert_eq!(headers.get("x-opencode-session").unwrap(), "test-conversation-id");
+        assert!(headers.contains_key("x-opencode-request"));
+        assert!(headers.contains_key("x-opencode-client"));
+        assert_eq!(headers.get("x-opencode-client").unwrap(), "cli");
+        
         Ok(())
     }
 

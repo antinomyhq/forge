@@ -2034,6 +2034,7 @@ dependencies = [
  "tonic-prost-build",
  "tracing",
  "url",
+ "whoami 2.1.0",
 ]
 
 [[package]]

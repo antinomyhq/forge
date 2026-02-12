@@ -1819,5 +1819,69 @@
         }
       }
     ]
+  },
+  {
+    "id": "opencode_zen",
+    "api_key_vars": "OPENCODE_ZEN_API_KEY",
+    "default_api_key": "public",
+    "response_type": "OpenAI",
+    "url": "https://opencode.ai/zen/v1/chat/completions",
+    "models": [
+      {
+        "id": "gpt-5-nano",
+        "name": "GPT 5 Nano",
+        "description": "OpenAI's free nano model via OpenCode Zen - great for testing and development",
+        "context_length": 128000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true
+      },
+      {
+        "id": "big-pickle",
+        "name": "Big Pickle",
+        "description": "Free stealth model available via OpenCode Zen for limited time",
+        "context_length": 128000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true
+      },
+      {
+        "id": "minimax-m2.1-free",
+        "name": "MiniMax M2.1 Free",
+        "description": "MiniMax's free model via OpenCode Zen for limited time",
+        "context_length": 128000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true
+      },
+      {
+        "id": "kimi-k2.5-free",
+        "name": "Kimi K2.5 Free",
+        "description": "Kimi's free model via OpenCode Zen for limited time",
+        "context_length": 128000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true
+      },
+      {
+        "id": "glm-4.7-free",
+        "name": "GLM 4.7 Free",
+        "description": "GLM's free model via OpenCode Zen for limited time",
+        "context_length": 128000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true
+      },
+      {
+        "id": "trinity-large-preview-free",
+        "name": "Trinity Large Preview Free",
+        "description": "Trinity's free large preview model via OpenCode Zen",
+        "context_length": 128000,
+        "tools_supported": true,
+        "supports_parallel_tool_calls": true,
+        "supports_reasoning": true
+      }
+    ],
+    "auth_methods": ["api_key"]
   }
 ]

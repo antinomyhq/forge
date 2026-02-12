@@ -165,21 +165,30 @@ impl<F> ForgeHttpInfra<F> {
     // - `X-Title`: Sets/modifies your app's title
     fn headers(&self, headers: Option<HeaderMap>) -> HeaderMap {
         let mut headers = headers.unwrap_or_default();
-        headers.insert("User-Agent", HeaderValue::from_static("Forge"));
-        headers.insert("X-Title", HeaderValue::from_static("forge"));
-        headers.insert(
-            "x-app-version",
-            HeaderValue::from_str(format!("v{VERSION}").as_str())
-                .unwrap_or(HeaderValue::from_static("v0.1.0-dev")),
-        );
-        headers.insert(
-            "HTTP-Referer",
-            HeaderValue::from_static("https://forgecode.dev"),
-        );
-        headers.insert(
-            reqwest::header::CONNECTION,
-            HeaderValue::from_static("keep-alive"),
-        );
+        
+        // Skip adding extra headers for OpenCode providers (they use x-opencode-* headers instead)
+        let is_opencode = headers
+            .get("x-opencode-client")
+            .is_some();
+        
+        if !is_opencode {
+            headers.insert("User-Agent", HeaderValue::from_static("Forge"));
+            headers.insert("X-Title", HeaderValue::from_static("forge"));
+            headers.insert(
+                "x-app-version",
+                HeaderValue::from_str(format!("v{VERSION}").as_str())
+                    .unwrap_or(HeaderValue::from_static("v0.1.0-dev")),
+            );
+            headers.insert(
+                "HTTP-Referer",
+                HeaderValue::from_static("https://forgecode.dev"),
+            );
+            headers.insert(
+                reqwest::header::CONNECTION,
+                HeaderValue::from_static("keep-alive"),
+            );
+        }
+        
         debug!(headers = ?Self::sanitize_headers(&headers), "Request Headers");
         headers
     }
