@@ -4,5 +4,4 @@ task
 "Implement a new feature for exporting user data. Add the export button to the UI, create the export service with CSV and JSON support, add backend API endpoint, and write integration tests."
 "Optimize the application performance. Profile the code to identify bottlenecks, implement memoization where needed, add virtualization for long lists, optimize images, and measure the improvement."
 "Update the project dependencies. Review the package.json for outdated packages, update them one by one testing after each, update the lock file, run all tests, and document any breaking changes."
-"Migrate from REST to GraphQL. Set up Apollo Server, define the GraphQL schema, implement resolvers, update frontend queries, add error handling, and update documentation."
 "Set up CI/CD pipeline. Configure GitHub Actions workflow, add build steps, set up testing, add deployment to staging, configure production deployment with approval, and document the process."

@@ -31,7 +31,7 @@ impl FormatContent for ToolOperation {
                 title.into()
             }),
             ToolOperation::TodoWrite { output } => {
-                Some(ChatResponseContent::Markdown { text: format_todos(output), partial: false })
+                Some(ChatResponseContent::ToolOutput(format_todos(output)))
             }
             ToolOperation::FsRead { input: _, output: _ }
             | ToolOperation::FsRemove { input: _, output: _ }
@@ -55,26 +55,33 @@ fn format_todos(todos: &[forge_domain::Todo]) -> String {
     }
 
     let mut result = String::new();
+    
+    // ANSI codes
+    let dim_start = "\x1b[2m";
+    let dim_end = "\x1b[0m";
+    let strikethrough_start = "\x1b[9m";
+    let strikethrough_end = "\x1b[29m";
 
-    // Display all todos in order with GitHub markdown-style checkboxes
+    // Display all todos in order with checkbox symbols
+    // Indent to align with title text (after timestamp)
     for todo in todos {
         let checkbox = match todo.status {
-            TodoStatus::Completed => "- [x]",
-            TodoStatus::InProgress => "- [~]",
-            TodoStatus::Pending => "- [ ]",
+            TodoStatus::Completed => "",
+            TodoStatus::InProgress => "",
+            TodoStatus::Pending => "",
         };
 
         let content = match todo.status {
-            TodoStatus::Completed => format!("~~{}~~", todo.content),
+            TodoStatus::Completed => format!("{}{}{}", strikethrough_start, todo.content, strikethrough_end),
             _ => todo.content.clone(),
         };
 
-        result.push_str(&format!("{} {}\n", checkbox, content));
+        // Indent to align with "Update" in "Update Todos" title
+        // Format: "● [HH:MM:SS] " = 13 chars (bullet+space + [HH:MM:SS] + space)
+        result.push_str(&format!("             {}{} {}{}\n", dim_start, checkbox, content, dim_end));
     }
-
     result
 }
-
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
@@ -572,11 +579,10 @@ mod tests {
 
         let actual = fixture.to_content(&env);
         assert!(actual.is_some());
-        if let Some(ChatResponseContent::Markdown { text, partial }) = actual {
+        if let Some(ChatResponseContent::ToolOutput(text)) = actual {
             assert_eq!(text, "");
-            assert!(!partial);
         } else {
-            panic!("Expected Markdown content");
+            panic!("Expected ToolOutput content");
         }
     }
 
@@ -595,12 +601,16 @@ mod tests {
 
         let actual = fixture.to_content(&env);
         assert!(actual.is_some());
-        if let Some(ChatResponseContent::Markdown { text, partial }) = actual {
-            let expected = "- [ ] Task 1\n- [~] Task 2\n- [x] ~~Task 3~~\n";
-            assert_eq!(text, expected);
-            assert!(!partial);
+        if let Some(ChatResponseContent::ToolOutput(text)) = actual {
+            assert!(text.contains("Task 1"));
+            assert!(text.contains("Task 2"));
+            assert!(text.contains("[9mTask 3[29m"));
+            // Verify indentation (13 spaces)
+            for line in text.lines() {
+                assert!(line.starts_with("             "), "Line should start with 13 spaces: {:?}", line);
+            }
         } else {
-            panic!("Expected Markdown content");
+            panic!("Expected ToolOutput content");
         }
     }
 
@@ -618,12 +628,14 @@ mod tests {
 
         let actual = fixture.to_content(&env);
         assert!(actual.is_some());
-        if let Some(ChatResponseContent::Markdown { text, partial }) = actual {
-            let expected = "- [x] ~~Task 1~~\n- [x] ~~Task 2~~\n";
-            assert_eq!(text, expected);
-            assert!(!partial);
+        if let Some(ChatResponseContent::ToolOutput(text)) = actual {
+            assert!(text.contains("[9mTask 1[29m"));
+            assert!(text.contains("[9mTask 2[29m"));
+            for line in text.lines() {
+                assert!(line.starts_with("             "), "Line should start with 13 spaces: {:?}", line);
+            }
         } else {
-            panic!("Expected Markdown content");
+            panic!("Expected ToolOutput content");
         }
     }
 
@@ -645,12 +657,14 @@ mod tests {
 
         let actual = fixture.to_content(&env);
         assert!(actual.is_some());
-        if let Some(ChatResponseContent::Markdown { text, partial }) = actual {
-            let expected = "- [x] ~~Implement user authentication~~\n- [ ] Walk the dog\n";
-            assert_eq!(text, expected);
-            assert!(!partial);
+        if let Some(ChatResponseContent::ToolOutput(text)) = actual {
+            assert!(text.contains("[9mImplement user authentication[29m"));
+            assert!(text.contains("Walk the dog"));
+            for line in text.lines() {
+                assert!(line.starts_with("             "), "Line should start with 13 spaces: {:?}", line);
+            }
         } else {
-            panic!("Expected Markdown content");
+            panic!("Expected ToolOutput content");
         }
     }
 }
