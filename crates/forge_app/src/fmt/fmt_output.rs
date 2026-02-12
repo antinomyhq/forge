@@ -55,7 +55,7 @@ fn format_todos(todos: &[forge_domain::Todo]) -> String {
     }
 
     let mut result = String::new();
-    
+
     // ANSI codes
     let dim_start = "\x1b[2m";
     let dim_end = "\x1b[0m";
@@ -72,13 +72,19 @@ fn format_todos(todos: &[forge_domain::Todo]) -> String {
         };
 
         let content = match todo.status {
-            TodoStatus::Completed => format!("{}{}{}", strikethrough_start, todo.content, strikethrough_end),
+            TodoStatus::Completed => format!(
+                "{}{}{}",
+                strikethrough_start, todo.content, strikethrough_end
+            ),
             _ => todo.content.clone(),
         };
 
         // Indent to align with "Update" in "Update Todos" title
         // Format: "● [HH:MM:SS] " = 13 chars (bullet+space + [HH:MM:SS] + space)
-        result.push_str(&format!("             {}{} {}{}\n", dim_start, checkbox, content, dim_end));
+        result.push_str(&format!(
+            "             {}{} {}{}\n",
+            dim_start, checkbox, content, dim_end
+        ));
     }
     result
 }
@@ -607,7 +613,11 @@ mod tests {
             assert!(text.contains("[9mTask 3[29m"));
             // Verify indentation (13 spaces)
             for line in text.lines() {
-                assert!(line.starts_with("             "), "Line should start with 13 spaces: {:?}", line);
+                assert!(
+                    line.starts_with("             "),
+                    "Line should start with 13 spaces: {:?}",
+                    line
+                );
             }
         } else {
             panic!("Expected ToolOutput content");
@@ -632,7 +642,11 @@ mod tests {
             assert!(text.contains("[9mTask 1[29m"));
             assert!(text.contains("[9mTask 2[29m"));
             for line in text.lines() {
-                assert!(line.starts_with("             "), "Line should start with 13 spaces: {:?}", line);
+                assert!(
+                    line.starts_with("             "),
+                    "Line should start with 13 spaces: {:?}",
+                    line
+                );
             }
         } else {
             panic!("Expected ToolOutput content");
@@ -661,7 +675,11 @@ mod tests {
             assert!(text.contains("[9mImplement user authentication[29m"));
             assert!(text.contains("Walk the dog"));
             for line in text.lines() {
-                assert!(line.starts_with("             "), "Line should start with 13 spaces: {:?}", line);
+                assert!(
+                    line.starts_with("             "),
+                    "Line should start with 13 spaces: {:?}",
+                    line
+                );
             }
         } else {
             panic!("Expected ToolOutput content");
