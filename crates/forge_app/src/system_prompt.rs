@@ -82,7 +82,8 @@ impl<S: SkillFetchService + ShellService> SystemPrompt<S> {
         let mut stats: Vec<_> = counts
             .into_iter()
             .map(|(extension, count)| {
-                let percentage = (count as f32 / total_files as f32 * 100.0 * 10.0).round() / 10.0;
+                let percentage_value = count as f32 / total_files as f32 * 100.0;
+                let percentage = format!("{:.2}", percentage_value);
                 ExtensionStat { extension: extension.to_owned(), count, percentage }
             })
             .collect();
@@ -315,9 +316,9 @@ mod tests {
         // Expected - sorted by count descending with percentages
         // Total files: 7 (4 rs + 2 md + 1 toml)
         let expected = vec![
-            ExtensionStat { extension: "rs".to_string(), count: 4, percentage: 57.1 },
-            ExtensionStat { extension: "md".to_string(), count: 2, percentage: 28.6 },
-            ExtensionStat { extension: "toml".to_string(), count: 1, percentage: 14.3 },
+            ExtensionStat { extension: "rs".to_string(), count: 4, percentage: "57.14".to_string() },
+            ExtensionStat { extension: "md".to_string(), count: 2, percentage: "28.57".to_string() },
+            ExtensionStat { extension: "toml".to_string(), count: 1, percentage: "14.29".to_string() },
         ];
 
         assert_eq!(actual, expected);

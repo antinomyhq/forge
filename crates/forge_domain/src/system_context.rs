@@ -11,8 +11,8 @@ pub struct ExtensionStat {
     pub extension: String,
     /// Number of files with this extension
     pub count: usize,
-    /// Percentage of total files (rounded to 1 decimal place)
-    pub percentage: f32,
+    /// Percentage of total files (formatted to 2 decimal places, e.g., "51.42")
+    pub percentage: String,
 }
 
 #[derive(Debug, Setters, Clone, PartialEq, Serialize, Deserialize)]
