@@ -94,7 +94,8 @@ impl WorkspaceStatus {
         for status in statuses {
             match status.status {
                 SyncStatus::Modified => {
-                    files_to_delete.push(status.path.clone());
+                    // Note: Modified files already exist in the database and will be
+                    // automatically deleted by the backend.
                     if let Some(file) = local_files_map.get(status.path.as_str()) {
                         files_to_upload.push(forge_domain::FileRead::new(
                             file.file_path.clone(),

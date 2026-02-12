@@ -26,10 +26,11 @@ function _forge_exec() {
 }
 
 function _forge_reset() {
-  zle -I
+  # Clear buffer and reset cursor position
   BUFFER=""
   CURSOR=0
-  zle -R
+  # Force widget redraw and prompt reset
+  zle -I
   zle reset-prompt
 }
 

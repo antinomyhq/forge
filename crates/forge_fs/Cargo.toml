@@ -13,5 +13,5 @@ thiserror = "2.0"
 forge_domain.workspace = true
 
 [dev-dependencies]
-tempfile = "3.21.0"
+tempfile = "3.25.0"
 pretty_assertions = "1.4.0"

@@ -146,9 +146,7 @@ impl FromDomain<ReasoningConfig> for oai::Reasoning {
 ///
 /// # Errors
 /// Returns an error if schema serialization fails
-fn codex_tool_parameters(
-    schema: &schemars::schema::RootSchema,
-) -> anyhow::Result<serde_json::Value> {
+fn codex_tool_parameters(schema: &schemars::Schema) -> anyhow::Result<serde_json::Value> {
     let mut params =
         serde_json::to_value(schema).with_context(|| "Failed to serialize tool schema")?;
 
