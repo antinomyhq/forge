@@ -41,8 +41,6 @@ git status
 git log --oneline -10
 
 # Check if related issues exist
-
-
 gh issue list --search "keyword" --limit 10
 ```
 
@@ -152,7 +150,7 @@ Choose the appropriate template from [templates.md](references/templates.md) and
 - Hardware: [CPU, RAM, etc.]
 - OS: [e.g., macOS, Linux, Windows]
 - Version: [e.g., v1.2.3]
-- Configurationgy: [any relevant configuration]
+- Configuration: [any relevant configuration]
 
 ## Benchmarks/Measurements
 [Include any benchmark results or measurements]
@@ -255,9 +253,9 @@ Use the `write` tool to create `.forge/FORGE_ISSUE_BODY.md` with the generated b
 
 **Step 2: Create issue using the temp file**
 ```bash
-.forge/skills/create-github-issue/scripts/create_issue.sh \
+gh issue create \
   --title "[Issue Title]" \
-  --body "$(cat .forge/FORGE_ISSUE_BODY.md)" \
+  --body-file .forge/FORGE_ISSUE_BODY.md \
   --label "type: bug,work: complicated,state: pending"
 ```
 
@@ -333,7 +331,7 @@ This issue occurs intermittently, affecting approximately 10% of login attempts.
 Add support for dark mode theme to improve accessibility and user experience.
 
 ## Problem Statement
-Users have requested dark mode support through multiple feedback channels. The current light-only并发主题导致长时间使用时眼部疲劳，且不尊重用户的系统偏好设置。
+Users have requested dark mode support through multiple feedback channels. The current light-only theme causes eye strain during extended use.
 
 ## Proposed Solution
 Implement a theme toggle with light/dark mode options using CSS variables. Auto-detect system theme preference as the default, with manual override available.
