@@ -12,7 +12,8 @@ use crate::dto::anthropic::{Content, Request};
 ///
 /// This is particularly important for Vertex AI Anthropic which strictly
 /// validates tool_use.id and tool_result.tool_use_id fields and will reject
-/// requests with IDs containing invalid characters with a 400 Bad Request error.
+/// requests with IDs containing invalid characters with a 400 Bad Request
+/// error.
 ///
 /// # Example
 ///
@@ -60,14 +61,18 @@ mod tests {
 
     #[test]
     fn test_sanitizes_tool_use_id_with_invalid_chars() {
-        let fixture = Context::default().messages(vec![ContextMessage::Text(
-            TextMessage::new(Role::User, "test")
-                .tool_calls(vec![ToolCallFull::new("test_tool")
-                    .call_id("call_123@#$%^&*()")
-                    .arguments(ToolCallArguments::from_json("{}"))])
-                .model(ModelId::new("claude-3-5-sonnet-20241022")),
-        )
-        .into()]);
+        let fixture = Context::default().messages(vec![
+            ContextMessage::Text(
+                TextMessage::new(Role::User, "test")
+                    .tool_calls(vec![
+                        ToolCallFull::new("test_tool")
+                            .call_id("call_123@#$%^&*()")
+                            .arguments(ToolCallArguments::from_json("{}")),
+                    ])
+                    .model(ModelId::new("claude-3-5-sonnet-20241022")),
+            )
+            .into(),
+        ]);
 
         let mut request = Request::try_from(fixture).unwrap();
         request = SanitizeToolIds.transform(request);
@@ -88,12 +93,14 @@ mod tests {
 
     #[test]
     fn test_sanitizes_tool_result_id_with_invalid_chars() {
-        let fixture = Context::default().messages(vec![ContextMessage::tool_result(
-            ToolResult::new("test_tool")
-                .call_id(ToolCallId::new("toolu_01!@#$ABC123"))
-                .success("result"),
-        )
-        .into()]);
+        let fixture = Context::default().messages(vec![
+            ContextMessage::tool_result(
+                ToolResult::new("test_tool")
+                    .call_id(ToolCallId::new("toolu_01!@#$ABC123"))
+                    .success("result"),
+            )
+            .into(),
+        ]);
 
         let mut request = Request::try_from(fixture).unwrap();
         request = SanitizeToolIds.transform(request);
@@ -114,14 +121,18 @@ mod tests {
 
     #[test]
     fn test_leaves_valid_tool_ids_unchanged() {
-        let fixture = Context::default().messages(vec![ContextMessage::Text(
-            TextMessage::new(Role::User, "test")
-                .tool_calls(vec![ToolCallFull::new("test_tool")
-                    .call_id("call_abc-123_XYZ")
-                    .arguments(ToolCallArguments::from_json("{}"))])
-                .model(ModelId::new("claude-3-5-sonnet-20241022")),
-        )
-        .into()]);
+        let fixture = Context::default().messages(vec![
+            ContextMessage::Text(
+                TextMessage::new(Role::User, "test")
+                    .tool_calls(vec![
+                        ToolCallFull::new("test_tool")
+                            .call_id("call_abc-123_XYZ")
+                            .arguments(ToolCallArguments::from_json("{}")),
+                    ])
+                    .model(ModelId::new("claude-3-5-sonnet-20241022")),
+            )
+            .into(),
+        ]);
 
         let mut request = Request::try_from(fixture).unwrap();
         request = SanitizeToolIds.transform(request);
@@ -195,11 +206,13 @@ mod tests {
 
     #[test]
     fn test_handles_empty_messages() {
-        let fixture = Context::default().messages(vec![ContextMessage::Text(
-            TextMessage::new(Role::User, "test")
-                .model(ModelId::new("claude-3-5-sonnet-20241022")),
-        )
-        .into()]);
+        let fixture = Context::default().messages(vec![
+            ContextMessage::Text(
+                TextMessage::new(Role::User, "test")
+                    .model(ModelId::new("claude-3-5-sonnet-20241022")),
+            )
+            .into(),
+        ]);
 
         let mut request = Request::try_from(fixture).unwrap();
         request = SanitizeToolIds.transform(request);

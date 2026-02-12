@@ -8,8 +8,8 @@ use forge_app::domain::{
 };
 use forge_app::dto::anthropic::{
     AuthSystemMessage, CapitalizeToolNames, DropInvalidToolUse, EnforceStrictObjectSchema,
-    EventData, ListModelResponse, ReasoningTransform, RemoveOutputFormat, Request,
-    SanitizeToolIds, SetCache,
+    EventData, ListModelResponse, ReasoningTransform, RemoveOutputFormat, Request, SanitizeToolIds,
+    SetCache,
 };
 use forge_domain::{ChatRepository, Provider, ProviderId};
 use reqwest::Url;
